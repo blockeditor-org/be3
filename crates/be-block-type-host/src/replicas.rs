@@ -820,7 +820,7 @@ impl<H: Host> Replicas<H> {
         let known = peer
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
-        let uncreated = peer.creating(block);
+        let uncreated = waits_creation(peer, block);
         let joined = if known
             && peer.is_attached()
             && !uncreated
@@ -3225,11 +3225,10 @@ impl<H: Host> Replicas<H> {
     }
 }
 
-/// Whether the server does not have `block` yet: its creation waits in the outbox, or was
-/// refused and set aside (`Peer::unsent`), where it waits to be restored. Its replica does not
-/// join until it is sent.
+/// Whether the server does not have `block` yet (`Peer::uncreated`): its replica does not join
+/// until the drain sends its creation.
 fn waits_creation<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
-    peer.creating(block) || peer.is_unsent(block)
+    peer.uncreated(block)
 }
 
 /// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).
@@ -3301,10 +3300,15 @@ async fn reset<H: Host>(
     kind: &types::Kind,
 ) -> Result<(), ClientError> {
     let mut expected = peer.remote_head(block).await?;
-    // What this device kept of the block and has not sent goes with what the reset replaces,
-    // rather than waiting ahead of the blank to be merged into it.
-    for commit in peer.pending_commits(block) {
-        peer.withdraw(block, commit, expected)?;
+    // What this device kept of the block and has not sent is set aside among the unsent edits,
+    // to be restored or discarded, before the blank is written, rather than waiting ahead of it
+    // to be merged into it. It is set aside with no refusal: one would set aside the blank and
+    // every later edit too (`Peer::refusal`).
+    if !peer.pending_commits(block).is_empty() {
+        peer.move_to_unsent(block, None)?;
+        if let Some(head) = expected {
+            peer.remember(block, head)?;
+        }
     }
     for _ in 0..4 {
         match peer

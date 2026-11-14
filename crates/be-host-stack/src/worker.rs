@@ -598,9 +598,9 @@ pub struct Shared {
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
     pub peer_message_count: u64,
     pub wakes: u64,
-    /// Passes of the loop in a row that the modules woke and that handled nothing: a loop that
-    /// keeps waking itself shows here, not in `wakes`.
-    pub idle_passes: u64,
+    /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
+    /// waking itself shows here.
+    pub unwaited_passes: u64,
     /// Counts what the stack got done: a loop that moved something, a block touched, a revision
     /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
     /// waking. Bump it beside any state a test may wait on.
@@ -1258,8 +1258,16 @@ impl Session<'_> {
                 };
                 #[cfg(test)]
                 let woken = parked(shared, self.changed, wake_at, woken);
-                woken.await
+                let mut woken = std::pin::pin!(woken);
+                let mut polls = 0_u32;
+                let woken = std::future::poll_fn(|context| {
+                    polls += 1;
+                    woken.as_mut().poll(context)
+                })
+                .await;
+                (woken, polls == 1)
             };
+            let (woken, unwaited) = woken;
             let handled = self.replicas.handled;
             step(shared, Some(woken.name()));
             let pumped = matches!(woken, Woken::Module) && self.replicas.pump((peer, shared)).await;
@@ -1267,18 +1275,17 @@ impl Session<'_> {
             {
                 shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
             }
-            let idle = matches!(woken, Woken::Module) && self.replicas.handled == handled;
             {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.idle_passes = match idle {
-                    true => held.idle_passes + 1,
+                held.unwaited_passes = match unwaited {
+                    true => held.unwaited_passes + 1,
                     false => 0,
                 };
             }
             // The tasks spawned beside the loop (publishes, drains, reads) run only while it
-            // waits: a pass woken for nothing lets them run, so a loop that keeps waking itself
-            // costs time rather than stopping what it waits on.
-            if idle {
+            // waits: a pass whose wait was over before it began lets them run, so a loop that
+            // keeps waking itself costs time rather than stopping what it waits on.
+            if unwaited {
                 yielded().await;
             }
             let mut moved = match woken {

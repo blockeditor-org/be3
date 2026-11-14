@@ -2156,25 +2156,43 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
+        if !access.can_view() {
+            return self.grant(block, account, access).await;
+        }
         // The key goes first: the grant tells the account's devices at once, and a device that
         // finds no key for the block then shows it locked until something else opens a key.
-        // Only when the grant may go through, though: one the server refuses leaves the block
-        // as it was, not made a scope of its own.
-        if access.can_view() && self.summary(block).await?.access.can_manage() {
-            self.seal_share(block, account, public).await?;
+        // Not when this device thinks the grant will be refused: a refused grant leaves the
+        // block as it was, not made a scope of its own, and one it was wrong about is keyed
+        // after.
+        match self.summary(block).await?.access.can_manage() {
+            true => {
+                self.seal_share(block, account, public).await?;
+                self.grant(block, account, access).await
+            }
+            false => {
+                self.grant(block, account, access).await?;
+                self.seal_share(block, account, public).await
+            }
         }
-        self.grant(block, account, access).await
     }
 
     pub async fn open_inside(&self, block: Uuid, access: Access) -> Result<(), ClientError> {
-        // As `share`: the key before the grant. Its author opens a kind of settings while
-        // editing it, so editing is the least the server takes.
-        if access.can_view() && self.summary(block).await?.access.can_edit() {
-            let keys = self.own_scope(block).await?;
-            self.put_keys(keys).await?;
+        let grant = || self.grant(block, be_block_graph::ANYONE_INSIDE, access);
+        if !access.can_view() {
+            return grant().await;
         }
-        self.grant(block, be_block_graph::ANYONE_INSIDE, access)
-            .await
+        // As `share`. Its author opens a kind of settings while editing it, so editing is the
+        // least the server takes.
+        let keyed_first = self.summary(block).await?.access.can_edit();
+        if !keyed_first {
+            grant().await?;
+        }
+        let keys = self.own_scope(block).await?;
+        self.put_keys(keys).await?;
+        if keyed_first {
+            grant().await?;
+        }
+        Ok(())
     }
 
     pub async fn seal_share(

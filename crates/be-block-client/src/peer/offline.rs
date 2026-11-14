@@ -38,6 +38,12 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.creating(block)
     }
 
+    /// Whether the server does not have the block: its creation waits in the outbox, or was
+    /// refused and set aside among the unsent edits, where it waits to be restored.
+    pub fn uncreated(&self, block: Uuid) -> bool {
+        self.refs.creating(block) || self.refs.creation_set_aside(block)
+    }
+
     /// Whether a creation, move or definition of the block waits in the outbox, so what comes
     /// after it waits there too and goes in order.
     pub fn has_structural(&self, block: Uuid) -> bool {

@@ -61,9 +61,9 @@ over a `FileStore` (on the web in the origin private file system).
 Nothing in the worker runs on a timer: it waits on commands and the
 connection's broadcast, with one deadline for the autosave a dirty session is
 owed. `status().wakes` counts wakes, and a test asserts an idle peer never
-wakes. The tasks beside the loop run only while it waits, so a pass the modules
-woke for nothing yields once; a wait that fails reports how many such passes
-came in a row.
+wakes. The tasks beside the loop run only while it waits, so a pass whose wait was
+over before it began yields once; a wait that fails reports how many such
+passes came in a row.
 
 Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
 caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
