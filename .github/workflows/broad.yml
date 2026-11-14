@@ -36,7 +36,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/buck2
+      - uses: $/.github/actions/buck2
 
       # Not a buck2 invocation: cargo, with the toolchain rust-toolchain.toml
       # names, then the built bootstrap run once.
