@@ -19,7 +19,8 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     let (_, card) = runtime
         .block_on(be_block_client::contacts::open_link(
             &peer.connection(),
-            &code, be_block_client::contacts::Expected::Contact
+            &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the guest opens the link");
     assert_eq!(card.email, "counter@example.com");
@@ -29,12 +30,14 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
             &peer.connection(),
             &guest.phrase.secret(),
             &guest.me().card(),
-            &code, be_block_client::contacts::Expected::Contact
+            &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the guest accepts");
     let again = runtime.block_on(be_block_client::contacts::open_link(
         &peer.connection(),
-        &code, be_block_client::contacts::Expected::Contact
+        &code,
+        be_block_client::contacts::Expected::Contact,
     ));
     assert!(again.is_err(), "the link opened after it was used");
 

@@ -2747,16 +2747,25 @@ async fn contact(
             );
         }
         ContactCommand::Open { code, reply } => {
-            let opened = be_block_client::contacts::open_link(&peer.connection(), &code, be_block_client::contacts::Expected::Contact)
-                .await
-                .map(|(_, card)| card);
+            let opened = be_block_client::contacts::open_link(
+                &peer.connection(),
+                &code,
+                be_block_client::contacts::Expected::Contact,
+            )
+            .await
+            .map(|(_, card)| card);
             reply(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
-            let accepted =
-                be_block_client::contacts::accept_link(&peer.connection(), identity, &me, &code, be_block_client::contacts::Expected::Contact)
-                    .await
-                    .map(|(_, card)| card);
+            let accepted = be_block_client::contacts::accept_link(
+                &peer.connection(),
+                identity,
+                &me,
+                &code,
+                be_block_client::contacts::Expected::Contact,
+            )
+            .await
+            .map(|(_, card)| card);
             if accepted.is_ok() {
                 tasks.sync_contacts(peer, shared).await;
             }

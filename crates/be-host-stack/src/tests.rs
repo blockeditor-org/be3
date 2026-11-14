@@ -1461,7 +1461,8 @@ impl Member {
         runtime
             .block_on(be_block_client::contacts::open_link(
                 &peer.connection(),
-                &code, be_block_client::contacts::Expected::Contact
+                &code,
+                be_block_client::contacts::Expected::Contact,
             ))
             .expect("the member opens the link");
         runtime
@@ -1469,7 +1470,8 @@ impl Member {
                 &peer.connection(),
                 &someone.phrase.secret(),
                 &someone.me().card(),
-                &code, be_block_client::contacts::Expected::Contact
+                &code,
+                be_block_client::contacts::Expected::Contact,
             ))
             .expect("the member accepts");
         let account = someone.session.account;

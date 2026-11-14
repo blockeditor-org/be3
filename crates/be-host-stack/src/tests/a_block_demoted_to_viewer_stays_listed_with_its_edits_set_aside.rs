@@ -21,7 +21,8 @@ fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
             &peer.connection(),
             &sharer.phrase.secret(),
             &sharer.me().card(),
-            &code, be_block_client::contacts::Expected::Contact
+            &code,
+            be_block_client::contacts::Expected::Contact,
         ))
         .expect("the sharer accepts the link");
     runtime
