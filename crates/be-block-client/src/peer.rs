@@ -39,7 +39,9 @@ pub struct BlockRead {
 }
 
 const CARRIED_BYTES: usize = be_block_protocol::MAX_FRAME_BYTES / 2;
-const CONTENTS_BLOCKS: usize = 256;
+/// How many blocks one `ReadContents` asks for. Tests read across several such calls with a few
+/// blocks each, rather than making hundreds of blocks to cross one.
+pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 
 mod authorship;
 mod import;
