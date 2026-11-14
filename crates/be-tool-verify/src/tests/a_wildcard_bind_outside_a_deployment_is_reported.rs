@@ -23,6 +23,7 @@ fn a_wildcard_bind_outside_a_deployment_is_reported() {
         2
     );
     assert!(wildcard_binds("scripts/internal/nativelink/Caddyfile", every_interface).is_empty());
+    assert!(wildcard_binds("servers/api/Caddyfile", every_interface).is_empty());
 
     let harness = "server.listen(0, \"0.0.0.0\", ready);\n// not \"0.0.0.0\"\n";
     let found = wildcard_binds("buck/program/test.mjs", harness);
