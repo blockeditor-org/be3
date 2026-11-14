@@ -87,7 +87,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
         })
         .await;
     assert!(matches!(stored, Ok(())), "{stored:?}");
-    let response = owner.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = owner.key_work().await;
     let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };

@@ -58,7 +58,7 @@ async fn only_a_manager_shares_and_a_lower_grant_reduces_nothing() {
     assert_eq!(third.read_block(folder).await.access, Access::View);
     let revoked = editor.grant(folder, third_id, Access::None).await;
     assert!(matches!(revoked, Ok(())), "{revoked:?}");
-    let response = owner.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = owner.key_work().await;
     let Ok(work) = response else {
         panic!("reading key work failed: {response:?}");
     };

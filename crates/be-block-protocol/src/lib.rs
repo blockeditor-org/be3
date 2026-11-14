@@ -27,7 +27,7 @@ be_wasm_ops_bindgen::generate!({
         "object-change",
         "reference-change",
     ],
-    inline: ["block-removed", "head-moved", "joined", "relayed"],
+    inline: ["block-changed", "block-removed", "joined", "relayed"],
 });
 
 pub use account::*;

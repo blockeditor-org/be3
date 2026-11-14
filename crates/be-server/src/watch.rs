@@ -3,7 +3,6 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_block_commit::CommitId;
 use be_block_graph::BlockParent;
 use be_block_protocol::{
     BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
@@ -16,7 +15,7 @@ use tokio::sync::{
 use crate::{Identity, ServerError, limits::MAX_LISTINGS_PER_CONNECTION};
 use uuid::Uuid;
 
-/// A block in the organization that holds it. Watches and live sessions are keyed by both: block
+/// A block in the organization that holds it. Live sessions are keyed by both: block
 /// ids are chosen by clients, so another organization can hold a block with the same id, and the
 /// two must never hear of each other.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -31,21 +30,14 @@ pub const REFUSED_LISTINGS: usize = 256;
 
 #[derive(Clone, Debug)]
 pub enum Push {
-    BlockChanged(BlockSummary),
+    BlockChanged {
+        block: BlockSummary,
+        /// The connection whose call changed it.
+        from: ClientId,
+    },
     BlockRemoved {
         block: Uuid,
         revision: u64,
-    },
-    HeadChanged {
-        block: Place,
-        head: CommitId,
-        author: Uuid,
-    },
-    BlockDeleted {
-        block: Place,
-    },
-    Unwatched {
-        block: Place,
     },
     SessionChanged {
         block: Place,
@@ -75,8 +67,6 @@ struct Joined {
     by_organization: HashMap<Uuid, HashSet<u64>>,
     by_member: HashMap<(Uuid, Uuid), HashSet<u64>>,
     administrators: HashMap<Uuid, HashSet<u64>>,
-    watchers: HashMap<Place, HashSet<u64>>,
-    watching: HashMap<u64, HashSet<Place>>,
     interests: HashMap<u64, Interest>,
 }
 
@@ -113,6 +103,9 @@ struct Interest {
     /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
     counted: usize,
     known: HashMap<Uuid, Facts>,
+    /// Listings registered and still being read: until `listed` records what they hold, any
+    /// block may be among it, so a change to any block is offered (`WatchHub::knowing`).
+    reading: usize,
 }
 
 fn counts(listing: Listing) -> bool {
@@ -268,45 +261,20 @@ impl WatchHub {
         client
     }
 
-    pub async fn watch(&self, block: Place, client: u64) {
-        let mut joined = self.joined.lock().await;
-        joined.watchers.entry(block).or_default().insert(client);
-        joined.watching.entry(client).or_default().insert(block);
-    }
-
-    /// The blocks a connection watches.
-    pub async fn watched_by(&self, client: u64) -> Vec<Place> {
-        let joined = self.joined.lock().await;
-        joined
-            .watching
-            .get(&client)
-            .map(|blocks| blocks.iter().copied().collect())
-            .unwrap_or_default()
-    }
-
-    pub async fn unwatch(&self, block: Place, client: u64) {
-        let mut joined = self.joined.lock().await;
-        unindex(&mut joined.watchers, block, client);
-        if let Some(blocks) = joined.watching.get_mut(&client) {
-            blocks.remove(&block);
-            if blocks.is_empty() {
-                joined.watching.remove(&client);
-            }
-        }
-    }
-
     /// Registers a listing before it is read, so nothing changed during the read is missed;
     /// answers whether the connection did not already hold it, and refuses it once the
     /// connection holds `MAX_LISTINGS_PER_CONNECTION`.
     pub async fn list(&self, client: u64, listing: Listing) -> Result<bool, ServerError> {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
-        interest.list(listing).ok_or_else(|| {
+        let new = interest.list(listing).ok_or_else(|| {
             crate::limits::too_many(
                 "listings one connection holds; unlist some first",
                 MAX_LISTINGS_PER_CONNECTION,
             )
-        })
+        })?;
+        interest.reading += 1;
+        Ok(new)
     }
 
     /// A listing the store refused. One the connection held before stays as it was; a new one is
@@ -314,6 +282,7 @@ impl WatchHub {
     pub async fn refused(&self, client: u64, listing: Listing, new: bool) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
+        interest.reading = interest.reading.saturating_sub(1);
         if !new {
             return;
         }
@@ -330,6 +299,7 @@ impl WatchHub {
     pub async fn listed(&self, client: u64, listing: Listing, blocks: &[BlockSummary]) {
         let mut joined = self.joined.lock().await;
         let interest = joined.interests.entry(client).or_default();
+        interest.reading = interest.reading.saturating_sub(1);
         interest.refused.remove(&listing);
         for summary in blocks {
             interest.told(summary.id, Facts::of(summary, listing == Listing::Shared));
@@ -355,7 +325,9 @@ impl WatchHub {
             let mut joined = self.joined.lock().await;
             let interest = joined.interests.entry(client).or_default();
             match &message {
-                Push::BlockChanged(block) => interest.told(block.id, Facts::of(block, entry)),
+                Push::BlockChanged { block, .. } => {
+                    interest.told(block.id, Facts::of(block, entry))
+                }
                 Push::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
                 _ => true,
             }
@@ -363,6 +335,32 @@ impl WatchHub {
         if told {
             self.send_to(client, message).await;
         }
+    }
+
+    /// The connections to `organization` already told of `block`, or reading a listing that may
+    /// hold it: the only ones a change that moves nothing but its head can reach, since it
+    /// leaves which listings match the block as they were. `tell` still matches the block
+    /// against each one's listings, so one reading something else costs a summary and no
+    /// message.
+    pub async fn knowing(&self, organization: Uuid, block: Uuid) -> Vec<(u64, Identity)> {
+        let joined = self.joined.lock().await;
+        joined
+            .by_organization
+            .get(&organization)
+            .into_iter()
+            .flatten()
+            .filter(|client| {
+                joined.interests.get(client).is_some_and(|interest| {
+                    interest.reading > 0 || interest.known.contains_key(&block)
+                })
+            })
+            .filter_map(|client| {
+                joined
+                    .organizations
+                    .get(client)
+                    .map(|identity| (*client, *identity))
+            })
+            .collect()
     }
 
     pub async fn removed(&self, organization: Uuid, block: Uuid, revision: u64) {
@@ -567,9 +565,6 @@ impl WatchHub {
             let mut joined = self.joined.lock().await;
             joined.leave_account(client);
             joined.interests.remove(&client);
-            for block in joined.watching.remove(&client).unwrap_or_default() {
-                unindex(&mut joined.watchers, block, client);
-            }
         }
         self.clients.lock().await.remove(&client);
     }
@@ -584,24 +579,6 @@ impl WatchHub {
             if *client != from {
                 deliver(&mut senders, *client, message.clone());
             }
-        }
-    }
-
-    pub async fn broadcast(&self, block: Place, from: u64, message: Push) {
-        let targets: Vec<u64> = self
-            .joined
-            .lock()
-            .await
-            .watchers
-            .get(&block)
-            .into_iter()
-            .flatten()
-            .copied()
-            .filter(|client| *client != from)
-            .collect();
-        let mut clients = self.clients.lock().await;
-        for target in targets {
-            deliver(&mut clients, target, message.clone());
         }
     }
 }

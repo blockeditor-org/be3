@@ -21,9 +21,13 @@ credentials), which is how a browser sign-in is begun and polled; every
 connection's first call is `authenticate` (guides/blocks/server.md, "Signing
 in").
 
-It opens connection-wide streams on the first `subscribe()` and per-block ones
-as `watch` and `join_session` are called, and pumps every stream into one
-`broadcast` of `be_block_client::Event`. A receiver that falls behind re-lists
+It opens connection-wide streams on the first `subscribe()` and a session's as
+`join_session` is called, and pumps every stream into one `broadcast` of
+`be_block_client::Event`. A block's heads arrive as `Event::BlockChanged` on
+the `changes` stream once the block is listed (reading its summary lists it);
+`own` marks a change this connection's own call made, which it learns from
+`organization-opened.client` (`Connection::opened`). Key work arrives as
+`Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
 what it wants and rejoins its sessions, as after a reconnect.
 
 **Deciding the server is gone.** A socket can stay open with nothing behind it

@@ -44,10 +44,10 @@ pub struct VersionState {
 pub(super) struct Versions {
     trees: HashMap<CommitId, Tree>,
     commits: HashMap<CommitId, Commit>,
-    /// The blocks this connection watches for statuses: what `followed` names.
-    watching: Arc<Mutex<HashSet<Uuid>>>,
-    /// The roots whose subtrees the graph lists for statuses (`Owner::Version`).
-    roots: BTreeSet<Uuid>,
+    /// What the graph lists for statuses (`Owner::Version`): the subtrees of the followed
+    /// checkouts' roots, and each block `followed` names, whose head moves the connection's
+    /// `changes` then tells.
+    listed: (BTreeSet<Uuid>, BTreeSet<Uuid>),
     /// What each watched checkout's status reads: the checkout, its repository and its root's
     /// subtree. Released when the checkout is no longer watched, and recomputed with its
     /// status, so blocks that left the subtree are let go (`reconcile`).
@@ -139,8 +139,8 @@ impl Statuses {
     }
 
     /// Forgets which statuses failed for want of the server, once it can be reached again,
-    /// and which were computed: the new connection watches nothing, and computing a status
-    /// is what watches the blocks it reads.
+    /// and which were computed: the new connection lists nothing until the graph lists what
+    /// computing a status read again.
     pub(crate) fn reconnected(&mut self) {
         self.failed.retain(|_, failed| !failed.failure.transient());
         self.computed.clear();
@@ -1553,48 +1553,34 @@ impl Versions {
             .remove(&block);
     }
 
-    /// Watches what the followed checkouts read and lets go of the rest, and lists the
-    /// subtrees of their roots only.
+    /// Lists the subtrees of the followed checkouts' roots and the blocks they read, and lets
+    /// go of the rest.
     fn reconcile(&mut self, context: &Context<'_>) {
         let roots: BTreeSet<Uuid> = self
             .followed
             .values()
             .filter_map(|followed| followed.root)
             .collect();
-        if roots != self.roots {
-            let queries = roots.iter().map(|root| Query::Subtree(*root)).collect();
-            self.roots = roots;
+        let blocks: BTreeSet<Uuid> = self
+            .followed
+            .values()
+            .flat_map(|followed| followed.blocks.iter().copied())
+            .collect();
+        let listed = (roots, blocks);
+        if listed != self.listed {
+            let queries = listed
+                .0
+                .iter()
+                .map(|root| Query::Subtree(*root))
+                .chain(listed.1.iter().map(|block| Query::Block(*block)))
+                .collect();
+            self.listed = listed;
             context
                 .shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
                 .want(Owner::Version, queries);
-        }
-        let wanted: HashSet<Uuid> = self
-            .followed
-            .values()
-            .flat_map(|followed| followed.blocks.iter().copied())
-            .collect();
-        let attached = context.peer.is_attached();
-        let connection = context.peer.connection();
-        let mut watching = self.watching.lock().unwrap_or_else(PoisonError::into_inner);
-        // Detached, what is watched was watched on a connection that is gone, and the next one
-        // starts from nothing (`reconnected`): only forget it, or the release would come off
-        // another's watch on the next connection.
-        watching.retain(|block| {
-            let kept = wanted.contains(block);
-            if !kept && attached {
-                connection.unwatch(*block);
-            }
-            kept
-        });
-        if attached {
-            for block in wanted {
-                if watching.insert(block) {
-                    connection.watch(block);
-                }
-            }
         }
     }
 
@@ -1677,11 +1663,6 @@ impl Versions {
     }
 
     pub(super) fn reconnected(&mut self) {
-        // The new connection watches nothing yet.
-        self.watching
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
         self.statuses.reconnected();
     }
 
