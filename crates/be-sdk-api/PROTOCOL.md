@@ -1024,6 +1024,13 @@ at the frame's serial, since an app lays out again every instance whose
 host state changed. A frame may move children without painting anything, and
 may paint without moving any.
 
+The host counts the first frame drawn after it sent input as the one that
+answers it: keys typed after a press wait for that frame, as it may move the
+keyboard. A frame that has not yet taken in all the input it was sent sets
+`input-waiting` in its present commit, and the host counts the next frame
+instead, for up to four frames in a row, so an app that always sets it cannot
+hold an answer for ever. An app that never sets it is answered by every frame.
+
 The host decides when an app draws. An app paints only when the host asks
 it for a frame, and never on its own: when a call changes what it shows, or
 something inside it wakes it, it says a frame is needed and waits to be asked.

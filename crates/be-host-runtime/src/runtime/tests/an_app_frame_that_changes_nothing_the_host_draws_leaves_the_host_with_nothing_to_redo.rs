@@ -35,6 +35,7 @@ fn animating(serial: u64) -> Vec<Answer> {
             serial,
             repaint_after_micros: Some(0),
             animating: true,
+            input_waiting: false,
             presented: None,
         }),
     ]

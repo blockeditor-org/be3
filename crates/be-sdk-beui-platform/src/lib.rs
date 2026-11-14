@@ -1036,6 +1036,8 @@ impl Regions for ModuleRunner {
                 false => frame.wait(),
             },
             animating: frame.animating,
+            // Input released after the runner's frame is taken in by the next one.
+            input_waiting: released,
         })
     }
 
