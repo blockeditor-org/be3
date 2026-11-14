@@ -136,7 +136,10 @@ its head.
   (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
   it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
-  flush and stop).
+  flush and stop). Online, `Resume` reconciles with `Peer::newest_head`: the
+  local head while the block has outbox commits (a definition the worker wrote
+  beside an open replica), so the replica seals on top of them, not beside them
+  where the server would refuse one side.
 - **Draining on connect.** The worker drains the outbox in a task
   (`Tasks::sync`), merges each `Diverged` block (`Replicas::merge_diverged`:
   `Peer::reconcile`, then the module's three-way merge, published with the

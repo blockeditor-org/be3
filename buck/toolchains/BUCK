@@ -170,7 +170,7 @@ toolchain_alias(
     visibility = ["PUBLIC"],
 )
 
-_host_opt, _wasm_opt, _release_opt = OPT_LEVELS["toolchain"]
+_host_opt, _wasm_opt, _release_opt, _ = OPT_LEVELS["toolchain"]
 
 _release = ["-Copt-level={}".format(_release_opt), "-Cdebuginfo=0", "-Cforce-frame-pointers=yes"]
 
