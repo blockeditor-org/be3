@@ -1,4 +1,4 @@
-load("@root//buck/dev:test.bzl", "be_test")
+load("@root//buck/dev:test.bzl", "THOROUGH", "be_test")
 
 # A beui program started headless for an agent to drive with `drive`
 # (guides/running/drive.md): `./scripts/buck run //crates/<crate>:dev`. Arguments
@@ -116,6 +116,10 @@ _web_host_test = rule(
     impl = _web_host_test_impl,
 )
 
+#
+# Each is a thorough test (THOROUGH in buck/dev/test.bzl): one run is the whole web host with
+# every app, drawn on SwiftShader, about 80 to 180 CPU seconds, rerun by any change to be-host or
+# an app, so ./scripts/verify leaves it to ./scripts/verify --thorough.
 def web_host_test(name, bundle, server, caddyfile, test):
     _web_host_test(name = name + "-harness", bundle = bundle, caddyfile = caddyfile, server = server, test = test)
-    be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness")
+    be_test(name = name, env = _BROWSER_ENV, harness = ":" + name + "-harness", labels = [THOROUGH])

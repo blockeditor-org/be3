@@ -245,7 +245,8 @@ fail.
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
 toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
-`app-tests`, those that paint; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
+`app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
+out; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
 always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
 generated anew, and crates/be-tool-verify. It finds
 each by kind, so a new package, test or crate needs no list. Each test is configured for its own
@@ -256,6 +257,19 @@ shares: an action declared in BXL would have its output under a path keyed by th
 arguments. It prints the manifest crates/be-tool-verify reads, a `kind<TAB>path` line each,
 worked out before anything builds, so the bootstrap writes it whole to
 `target/verify-manifest.txt` even when something failed, and buck2 still exits non-zero.
+
+**Thorough tests** carry the label `THOROUGH` (buck/dev/test.bzl): each run stays costly on the
+build server however it is written, and a change most verifies make reruns it, so
+`./scripts/verify` leaves them out and `./scripts/verify --thorough` runs them alone, one buck2
+command as verify is. .github/workflows/thorough.yml runs that daily on main and by hand. Run it
+too after a change to what they cover; `./scripts/test` runs one by name as any other. A
+thorough test may not paint (verify's paintings part would find its paintings unused). They are:
+
+- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test` and
+  `//crates/be-host:push-web-host-test`, the whole web page with every app in Chromium, drawn on
+  SwiftShader. In November 2026 a run took about 80 and 175 CPU seconds, a fifth of all test CPU
+  when every test reran, and depends on be-host and every app (guides/performance.md, Keeping
+  verify cheap).
 
 The check pass is rustc's `[check]` over the first-party `rust_library` and `rust_binary`
 targets on `linux_x86_64` that nothing else verify builds compiles, found in the configured

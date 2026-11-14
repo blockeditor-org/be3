@@ -264,8 +264,8 @@ web host tests depend on be-host and every app. In CPU seconds:
 | | CPU s |
 |---|---|
 | 127 host tests (crates/be-host-tests), 0.8 to 7 each, median 2.5 | 355 |
-| be-host's `:push-web-host-test` (two accounts, the whole web host in Chromium) | 233 |
-| be-host's `:web-host-test` | 104 |
+| be-host's `:push-web-host-test` (two accounts, the whole web host in Chromium), now thorough | 233 |
+| be-host's `:web-host-test`, now thorough | 104 |
 | be-block-client, be-server, beui-host (in-process, many tests) | 51, 38, 43 |
 | beui-tests' and beui-demo-html's `:web-test` | 35, 23 |
 | the largest app tests: infinite-canvas, beui-demo, map, desktop | 32, 26, 22, 17 |
@@ -277,6 +277,9 @@ about 20 s of wall on 16 cores, which is how buck2 reports it), for tests that t
 second to run. A test module holds about ten times the code of the same app linked against the
 shared libraries (guides/app_libraries.md): 25.7 MB of code against 2.5 MB, most of it base and
 beui, which every module compiles again.
+
+Since then the web host tests draw a smaller page (a quarter less) and are thorough tests, which
+verify leaves out (guides/buck2.md, What verify builds); the C under host builds is optimised.
 
 ### Rules
 
@@ -298,7 +301,11 @@ beui, which every module compiles again.
   the C a third-party build script compiles, at its crate's own level (`_build_script_opt` in
   buck/cargo/third_party.bzl): SQLite at `-O0` made every server and host query slower.
 - **Compiles are the larger cost.** Before making a dependency of every app heavier, count it
-  thirty times: once for each app test module that compiles and precompiles it.
+  thirty times: once for each app test module that compiles and precompiles it
+  (plans/app_tests_linked_against_libraries.md would share it instead).
+- **What stays costly becomes thorough.** A test that costs tens of CPU seconds a run however it
+  is written, and that most changes rerun, carries `THOROUGH` and leaves verify for
+  `./scripts/verify --thorough`; add it to the list in guides/buck2.md with its cost.
 
 ## Ideas set aside
 

@@ -5,12 +5,19 @@ use crate::quiet::Quiet;
 use crate::{Result, buck, in_ci, lock, repository};
 
 const VERIFY_USAGE: &str =
-    "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--verbose]";
+    "Usage: ./scripts/verify [--check] [--lint] [--tests] [--app-tests] [--thorough] [--verbose]";
 const CI_USAGE: &str = "Usage: ./scripts/ci [--check] [--previews BASE OUT] [--bootstrap DIR]";
 
 pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
     for argument in &arguments {
-        if !["--check", "--lint", "--tests", "--app-tests", "--verbose"]
+        if ![
+            "--check",
+            "--lint",
+            "--tests",
+            "--app-tests",
+            "--thorough",
+            "--verbose",
+        ]
             .contains(&argument.as_str())
         {
             return Err(VERIFY_USAGE.to_owned());
@@ -46,7 +53,8 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         .filter(|argument| *argument != "--verbose")
         .cloned()
         .collect();
-    if !lint && !tests && !app_tests {
+    let thorough = has("--thorough");
+    if !lint && !tests && !app_tests && !thorough {
         (lint, tests, app_tests) = (true, true, true);
         passed.extend(["--lint".to_owned(), "--app-tests".to_owned()]);
     }
@@ -75,6 +83,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         (lint, "lint"),
         (tests, "tests"),
         (app_tests, "app-tests"),
+        (thorough, "thorough"),
         (has("--previews"), "previews"),
         (has("--bootstrap"), "bootstrap"),
     ] {

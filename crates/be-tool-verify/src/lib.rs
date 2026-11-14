@@ -163,6 +163,8 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--lint" => options.lint = true,
             "--tests" => options.tests = true,
             "--app-tests" => options.app_tests = true,
+            // The thorough tests are built and run by buck2 alone: nothing to read here.
+            "--thorough" => {}
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--event-log" => options.event_log = Some(value()?.into()),
             "--previews" => {

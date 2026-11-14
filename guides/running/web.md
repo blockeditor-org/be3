@@ -167,7 +167,9 @@ Keeping verify cheap), waits for the
 workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
 the page's `automate`, with the Playwright page beside it; `test.account(name)` signs another
 account in, in a browser context of its own. A failure prints the host's tree and the ends of the
-server's and caddy's logs.
+server's and caddy's logs. These are thorough tests: `./scripts/verify` leaves them out, and
+`./scripts/verify --thorough` or `./scripts/test //crates/be-host:web-host-test` runs them
+(guides/buck2.md, What verify builds).
 
 The harness stands in for the push service, which headless Chromium lacks along with the
 permission to show notifications: each page's `PushManager` subscribes to an endpoint the
