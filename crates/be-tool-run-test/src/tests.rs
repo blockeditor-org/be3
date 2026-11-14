@@ -8,6 +8,7 @@ mod flags_come_before_the_command;
 mod library_path_reaches_the_test;
 mod one_test_fails_a_harness_that_ran_none;
 mod paintings_names_the_made_directory;
+mod the_cpu_a_test_used_is_reported;
 mod passed_is_written_only_when_the_test_passes;
 mod record_keeps_the_output_and_status_and_exits_zero;
 mod the_test_gets_a_short_tmpdir_removed_after;

@@ -10,10 +10,12 @@ fn record_keeps_the_output_and_status_and_exits_zero() {
     options.record = Some(out.clone());
     assert_eq!(run_ok(&options), 0);
     assert_eq!(std::fs::read_to_string(out.join("status")).unwrap(), "5\n");
-    assert_eq!(
-        std::fs::read_to_string(out.join("log")).unwrap(),
-        "out\nerr\n"
-    );
+    let log = std::fs::read_to_string(out.join("log")).unwrap();
+    let (output, usage) = log.split_once("run-test: ").unwrap();
+    assert_eq!(output, "out
+err
+");
+    assert!(usage.starts_with("the test used "), "{log}");
     assert!(out.join("made/p").is_file());
     let mut missing = super::options(vec!["/nonexistent/test".into()]);
     missing.record = Some(directory.join("missing"));

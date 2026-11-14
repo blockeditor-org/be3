@@ -1,6 +1,7 @@
 //! A record of each ./scripts/verify and ./scripts/ci build, sent to the build server's dashboard
 //! (scripts/internal/nativelink/dashboard, guides/build_server.md): how long buck2 took, what ran and what was
-//! cached, the critical path, every test run and every other action over 10 s. buck2's event log has it all.
+//! cached, the critical path, every test run and every other action over 10 s. buck2's event log has it all,
+//! down to the CPU each test that ran used, which its launcher (crates/be-tool-run-test) writes last.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -99,12 +100,19 @@ pub fn record(events: &str, context: &Context) -> Option<Value> {
             queue_us += queue.unwrap_or(0);
         }
         let category = action["name"]["category"].as_str().unwrap_or("?");
-        if category == "test_run" || wall >= SLOW_US {
+        let test = matches!(category, "test_run" | "painting_test");
+        if test || wall >= SLOW_US {
+            let output = action["commands"]
+                .as_array()
+                .and_then(|commands| commands.last())
+                .and_then(|command| command["details"]["stderr"].as_str());
+            let cpu = output.and_then(|output| output.lines().rev().find_map(be_tool_run_test::cpu_seconds));
             slow.push(json!({
                 "target": target(&action["key"]["owner"]),
                 "category": category,
                 "seconds": wall as f64 / 1e6,
                 "queue_seconds": queue.map(|us| us as f64 / 1e6),
+                "cpu_seconds": cpu,
                 "failed": action["failed"] == true,
             }));
         }
