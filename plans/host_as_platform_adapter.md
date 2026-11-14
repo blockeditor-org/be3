@@ -60,8 +60,23 @@ rather than becoming the root itself.
 - OpenXR: the runtime, session, frame loop, poses, swapchains and composition layers
   (beui-layer-xr without its beui `Layer` wrapper).
 
-Until the root guest commits its first frame, the host shows a plain background colour. It has
-no text and no fallback UI of its own.
+The host has no text and no fallback UI of its own, so it shows a window only once the root guest
+has committed that window's first frame, for every window, the first and any opened later. The
+first frame needs the window's size and scale, which each platform gives without showing anything:
+
+- **Wayland:** the surface is committed with no buffer, the compositor answers with its size and
+  scale, and the window appears when the first composited frame is attached.
+- **X11 and macOS:** the window is created unmapped or unordered, and mapped or ordered front
+  after its first frame.
+- **Windows:** the window is created hidden and cloaked (`DWMWA_CLOAK`) until its first present,
+  so no white frame flashes.
+- **Android:** the system splash screen stays (`setKeepOnScreenCondition`) until the first frame.
+- **The login session (DRM):** the display keeps what it showed, such as the display manager's
+  last image, until the first frame.
+- **Web:** the page may show DOM text while the root guest loads.
+
+A failure before the first frame is logged; on Windows and macOS the host may also show the OS's
+own message box.
 
 ## The root guest
 
@@ -186,8 +201,8 @@ The host applies the rules beui applies to its forwarding catchers today:
 
 The **forwarding router** is these rules, given a hit test, as a crate below beui. The host hands
 it a 2D test over the layer list, and Space a ray test (Space and headsets). An app that places
-children and wants to route to them itself can use it too. Input a guest forwards is marked as
-not started by the user. beui-core's routing inside a document stays its own.
+children and wants to route to them itself can use it too. beui-core's routing inside a document
+stays its own.
 
 On the web, a focused cross-origin iframe keeps its keys, so the compositor's chords reach it only
 once the user presses outside it, as in a browser. An iframe placed in a pan-and-zoom editor sits
@@ -253,8 +268,10 @@ the compositor inline. Neither the compositor nor any app knows about VR.
   layer's swapchain image, so nothing is drawn twice. Space draws the other panels into the eye
   buffer from their textures, with mipmaps, so distant text doesn't shimmer. It never reads an
   app's surface itself. WebXR is not planned.
-- **Input:** Space takes all input, ray-tests its panels for a window and a point, then runs the
-  forwarding router with a 2D test over that window's layer list.
+- **Input:** Space's window takes all input, with the headset's controllers. Space ray-tests its
+  panels for a window and a point, runs the forwarding router with a 2D test over that window's
+  layer list, and has the host deliver each event to the surface it picks. Text comes from beui's
+  on-screen keyboard, since the OS input method cannot show in a headset.
 - **The host's part:** OpenXR, as beui-layer-xr without its `Layer` wrapper: the frame loop and
   poses, swapchains, and submitting the quad, cylinder and projection layers Space describes.
 - **Menus and popovers** are windows of their own already (roles `Popup` and `Keyboard`,
