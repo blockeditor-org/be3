@@ -3321,6 +3321,17 @@ where
                 let Role::Owner(sequencer) = &mut self.role else {
                     return;
                 };
+                // Taken already: its follower did not hear so (the answer came as it caught up,
+                // or was lost with a connection) and submits it again. It is told again, alone,
+                // with the number it has, rather than left to wait for an answer forever.
+                if let Some(sequence) = sequencer.accepted_as(id) {
+                    let op = SessionOp {
+                        id,
+                        sequence,
+                        payload,
+                    };
+                    return self.send(Some(from), &SessionMessage::Accepted { op });
+                }
                 let Some(op) = sequencer.accept(id, payload) else {
                     return;
                 };
@@ -3571,10 +3582,20 @@ where
     }
 
     fn apply_accepted(&mut self, op: &SessionOp) {
-        let Role::Follower(follower) = &self.role else {
+        let Role::Follower(follower) = &mut self.role else {
             return;
         };
-        if op.sequence <= follower.applied() || self.awaiting.is_some() {
+        if self.awaiting.is_some() {
+            return;
+        }
+        // One of its own the owner took again: what it applied already holds it.
+        if op.sequence <= follower.applied() {
+            if follower.is_mine(op.id) && follower.included(op.id) {
+                self.resends = 0;
+                self.in_flight = 0;
+                self.rebuild_visible();
+                self.cover_if_settled();
+            }
             return;
         }
         let Some(operation) = self.operation(&op.payload) else {

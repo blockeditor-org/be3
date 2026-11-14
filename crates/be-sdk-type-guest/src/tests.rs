@@ -27,6 +27,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
 
+mod a_followers_edit_the_owner_took_and_sealed_while_it_was_deaf_lands_once;
 mod a_break_ends_a_burst_but_not_an_open_gesture;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;

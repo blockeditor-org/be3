@@ -1,4 +1,4 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 
 use be_block_commit::CommitId;
 use be_block_protocol::ClientId;
@@ -145,7 +145,8 @@ pub struct Sequencer {
     sequence: u64,
     head: Option<CommitId>,
     log: VecDeque<SessionOp>,
-    accepted: HashSet<OpId>,
+    /// Every operation it took, by id, with the number it has.
+    accepted: HashMap<OpId, u64>,
     inherited: u64,
 }
 
@@ -159,7 +160,7 @@ impl Sequencer {
             sequence,
             head,
             log: VecDeque::new(),
-            accepted: HashSet::new(),
+            accepted: HashMap::new(),
             inherited: unsealed,
         }
     }
@@ -173,10 +174,11 @@ impl Sequencer {
     }
 
     pub fn accept(&mut self, id: OpId, payload: Payload) -> Option<SessionOp> {
-        if !self.accepted.insert(id) {
+        if self.accepted.contains_key(&id) {
             return None;
         }
         self.sequence += 1;
+        self.accepted.insert(id, self.sequence);
         let op = SessionOp {
             id,
             sequence: self.sequence,
@@ -186,14 +188,19 @@ impl Sequencer {
         Some(op)
     }
 
+    /// The number `id` was taken as, if it was: a follower that did not hear so submits it again.
+    pub fn accepted_as(&self, id: OpId) -> Option<u64> {
+        self.accepted.get(&id).copied()
+    }
+
     pub fn inherit(&mut self, op: &SessionOp) -> Inherited {
-        if self.accepted.contains(&op.id) {
+        if self.accepted.contains_key(&op.id) {
             return match self.log.iter().any(|held| held == op) {
                 true => Inherited::Duplicate,
                 false => Inherited::Renumbered,
             };
         }
-        self.accepted.insert(op.id);
+        self.accepted.insert(op.id, op.sequence);
         if op.sequence != self.sequence + 1 {
             return Inherited::Unnumbered;
         }
@@ -205,7 +212,7 @@ impl Sequencer {
     /// Takes an operation replayed from the journal, numbered as its owner numbered it: a
     /// folded entry skips the numbers it absorbed.
     pub fn replayed(&mut self, op: SessionOp) {
-        self.accepted.insert(op.id);
+        self.accepted.insert(op.id, op.sequence);
         self.sequence = self.sequence.max(op.sequence);
         self.log.push_back(op);
     }
@@ -325,6 +332,14 @@ impl Follower {
             .iter()
             .map(|(_, payload)| payload.clone())
             .collect()
+    }
+
+    /// Forgets `id`, one of its own, which what it applied already holds: the owner took it, and
+    /// a snapshot, or what it confirmed, includes it. Whether it was pending.
+    pub fn included(&mut self, id: OpId) -> bool {
+        let before = self.pending.len();
+        self.pending.retain(|(pending, _)| *pending != id);
+        self.pending.len() != before
     }
 
     pub fn accepted(&mut self, op: &SessionOp) -> bool {
