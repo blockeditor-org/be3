@@ -32,9 +32,10 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     // member's own device then expects.
     harness.connect();
     wait_until("confirmed the member as a contact", |shared| {
-        shared.contacts.iter().any(|contact| {
-            contact.account == member.session.account && contact.public.is_some()
-        })
+        shared
+            .contacts
+            .iter()
+            .any(|contact| contact.account == member.session.account && contact.public.is_some())
     });
     // One runtime for the member's peer, whose connection runs on it.
     let runtime = runtime();
