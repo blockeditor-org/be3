@@ -156,11 +156,18 @@ its head.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (what closing or switching would lose: edits not yet in the device's
-journal, `Replicas::counts`' third number, plus queued commands and imports; an
-edit that is journaled but not yet committed is durable and not counted). The
-close and switch guards flush, then ask only while `unsaved` is above zero, and
-the "Saving changes" toast shows only while it stays above zero.
+`unsaved` (edits not yet in the device's journal, `Replicas::counts`' third
+number, plus every command sent and not yet carried out, `Shared::pending`, and
+imports; an edit that is journaled but not yet committed is durable and not
+counted). The "Saving changes" toast follows `unsaved`.
+
+The close and switch guards ask only while `be_host_stack::flush()` returns
+more than zero. It returns the worker's count as it answers the flush: open
+blocks whose edits the journal does not hold, commands sent before the flush
+that still wait in `Uploads` or `Served`, and unfinished imports. Commands sent
+after the flush do not count, so a window that keeps sending as it is asked to
+close still closes. On a timeout, and on the web, which cannot wait, it returns
+`unsaved` as read before the flush.
 
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`).

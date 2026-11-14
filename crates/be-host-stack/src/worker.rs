@@ -154,7 +154,10 @@ pub(super) enum Command {
         content_type: Uuid,
         bytes: Vec<u8>,
     },
-    Flush(std::sync::mpsc::Sender<()>),
+    /// Answered with how many open blocks keep edits the device's journal does not hold yet,
+    /// commands sent before it that still wait their turn, and imports unfinished, as of the
+    /// answer: commands sent since do not count.
+    Flush(std::sync::mpsc::Sender<usize>),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -1465,8 +1468,21 @@ impl Session<'_> {
                 }
                 if self.replicas.reported() {
                     kept_for_flushes = false;
+                    // Measured now, not read from `Shared::pending` after the answer, which
+                    // counts commands sent since: a close asked as the window keeps sending
+                    // would otherwise never find the device saved. A flush that itself waited
+                    // its turn in `Served` (behind a command that is not order-safe) may count
+                    // commands sent after it that wait there too: that only over-counts.
+                    let (.., undurable) = self.replicas.counts();
+                    let unsaved = undurable.len()
+                        + self.uploads.deferred()
+                        + self.served.deferred()
+                        + shared
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .importing;
                     for done in flushes.drain(..) {
-                        let _ = done.send(());
+                        let _ = done.send(unsaved);
                     }
                 }
             }
@@ -2157,7 +2173,7 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
@@ -2928,7 +2944,7 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    flushes: &mut Vec<std::sync::mpsc::Sender<()>>,
+    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {
