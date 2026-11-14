@@ -286,6 +286,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         self.confirmed.is_some()
     }
 
+    /// How many of its operations this editor was told landed, which a snapshot's `applied`
+    /// is counted against.
+    pub fn acknowledged(&self) -> u64 {
+        self.acknowledged
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }

@@ -530,9 +530,15 @@ commit dropped by block.
 A local editor follows the replica as a peer follows an owner. The host
 `attach`es an editor instance (with whether it may edit) and `detach`es it;
 the editor's messages are `editor::FromEditor` (operations, gestures,
-replace, presence) and the replica answers `editor::ToEditor` (a snapshot on
-attach, then operations and peers' presence). A replica drops edits from an
-editor attached read-only. On the app protocol both directions travel
+replace, presence) and the replica answers `editor::ToEditor` (a snapshot,
+then operations and peers' presence). A replica drops edits from an
+editor attached read-only, but counts them as it counts every operation an
+editor sends. `attach` carries `acknowledged`, how many of the editor's
+operations the content the replica opened on holds, and the replica sends the
+editor nothing of the content until `resent`: the host calls it right after
+`attach`, or, for an editor still open across a reopen or restart, after it
+gave the replica again what it kept of the editor's edits, so the snapshot
+counts them all in the editor's own count. Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.

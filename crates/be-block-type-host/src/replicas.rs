@@ -323,7 +323,7 @@ impl Asked {
 }
 
 #[derive(Clone)]
-enum Replayed {
+pub(crate) enum Replayed {
     Message {
         from: Endpoint,
         bytes: Vec<u8>,
@@ -398,7 +398,7 @@ fn resend(
     // are given again, as it could edit when it made them: the replica drops what an editor it
     // does not have sends, and the edit, not journaled yet, would be lost.
     for (editor, editable) in departed {
-        handle.attach(connection, *editor, *editable);
+        handle.attach(connection, *editor, *editable, 0);
     }
     for replayed in replay.iter_mut() {
         let sent = replayed.send(handle, connection);
@@ -419,6 +419,64 @@ fn resend(
             replies.insert((module, sent), answer);
         }
     }
+}
+
+/// Whether an editor's frame is an operation, which its replica counts as the editor's.
+fn operates(bytes: &[u8]) -> bool {
+    matches!(FromEditor::decode(bytes), Some(FromEditor::Operate(_)))
+}
+
+/// Uncounts the editors' operations nothing opened after a replica that ended holds: the
+/// local edits it was sent past the `held` ones its journal or seals hold, the last of those in
+/// its replay (which a status already cut to what its seals did not hold).
+pub(crate) fn untaken(
+    forwarded: &mut HashMap<(Uuid, EditorId), u64>,
+    block: Uuid,
+    (sent, held): (u64, u64),
+    replay: &[Replayed],
+) {
+    let mut untaken = sent.saturating_sub(held);
+    for replayed in replay.iter().rev() {
+        if untaken == 0 {
+            break;
+        }
+        if !replayed.local_edit() {
+            continue;
+        }
+        untaken -= 1;
+        if let Replayed::Message {
+            from: Endpoint::Editor(editor),
+            bytes,
+            ..
+        } = replayed
+            && operates(bytes)
+            && let Some(count) = forwarded.get_mut(&(block, *editor))
+        {
+            *count = count.saturating_sub(1);
+        }
+    }
+}
+
+/// How many of `editor`'s operations a replica opened now holds before the host replays what it
+/// kept: all it sent, less those still in `replay`, which the replica is given again after.
+pub(crate) fn acknowledged(
+    forwarded: &HashMap<(Uuid, EditorId), u64>,
+    block: Uuid,
+    replay: &[Replayed],
+    editor: EditorId,
+) -> u64 {
+    let replayed = replay
+        .iter()
+        .filter(|replayed| {
+            matches!(replayed, Replayed::Message { from: Endpoint::Editor(from), bytes, .. }
+                if *from == editor && operates(bytes))
+        })
+        .count() as u64;
+    forwarded
+        .get(&(block, editor))
+        .copied()
+        .unwrap_or_default()
+        .saturating_sub(replayed)
 }
 
 struct Open {
@@ -578,6 +636,10 @@ const MOST_SEARCHED_KEYS: usize = 4096;
 
 pub struct Replicas<H: Host> {
     pub modules: Modules,
+    /// Per block and editor, how many operations the editor sent its replicas, kept across
+    /// replicas reopened under it until it detaches: what a reopened replica is told of the
+    /// editor's operations it holds (`acknowledged`).
+    forwarded: HashMap<(Uuid, EditorId), u64>,
     answers: UnboundedReceiver<Io>,
     open: HashMap<ReplicaId, Open>,
     blocks: HashMap<Uuid, ReplicaId>,
@@ -654,6 +716,7 @@ impl<H: Host> Replicas<H> {
             searching: HashSet::new(),
             searched: HashSet::new(),
             locked: HashSet::new(),
+            forwarded: HashMap::new(),
             #[cfg(test)]
             key_searches: 0,
             #[cfg(test)]
@@ -1309,10 +1372,13 @@ impl<H: Host> Replicas<H> {
             sealed_head: None,
             epoch: open.epoch,
         };
-        let editors: Vec<(EditorId, bool)> = open
+        let editors: Vec<(EditorId, bool, u64)> = open
             .editors
             .iter()
-            .map(|(editor, editable)| (*editor, *editable))
+            .map(|(editor, editable)| {
+                let held = acknowledged(&self.forwarded, open.block, &open.replay, *editor);
+                (*editor, *editable, held)
+            })
             .collect();
         let mut asked = Vec::new();
         let mut waiting = HashMap::new();
@@ -1342,8 +1408,8 @@ impl<H: Host> Replicas<H> {
         );
         self.modules.call(module, |connection| {
             handle.reopen(connection, opening);
-            for (editor, editable) in editors {
-                handle.attach(connection, editor, editable);
+            for &(editor, editable, held) in &editors {
+                handle.attach(connection, editor, editable, held);
             }
             resend(
                 handle,
@@ -1357,6 +1423,9 @@ impl<H: Host> Replicas<H> {
                 replies,
                 pending,
             );
+            for &(editor, ..) in &editors {
+                handle.resent(connection, editor);
+            }
         });
     }
 
@@ -1392,11 +1461,17 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
         };
-        open.editors.insert(editor, editable);
+        let new = open.editors.insert(editor, editable).is_none();
         open.departed.remove(&editor);
+        let held = acknowledged(&self.forwarded, open.block, &open.replay, editor);
         let (module, handle) = (open.module, open.handle);
         self.modules.call(module, |connection| {
-            handle.attach(connection, editor, editable);
+            handle.attach(connection, editor, editable, held);
+            // This replica was given already whatever the host kept of the editor's edits, so
+            // its snapshot can go out at once.
+            if new {
+                handle.resent(connection, editor);
+            }
         });
     }
 
@@ -1444,6 +1519,7 @@ impl<H: Host> Replicas<H> {
     }
 
     pub fn detach(&mut self, block: Uuid, editor: EditorId) -> bool {
+        self.forwarded.remove(&(block, editor));
         let Some(replica) = self.blocks.get(&block).copied() else {
             return false;
         };
@@ -1480,6 +1556,9 @@ impl<H: Host> Replicas<H> {
             return;
         };
         self.modules.tick_at(open.module, at);
+        if operates(&bytes) {
+            *self.forwarded.entry((block, editor)).or_default() += 1;
+        }
         let at = self.modules.millis_at(at);
         self.replay(
             replica,
@@ -2806,10 +2885,13 @@ impl<H: Host> Replicas<H> {
                 sealed_head: None,
                 epoch: open.epoch,
             };
-            let editors: Vec<(EditorId, bool)> = open
+            let editors: Vec<(EditorId, bool, u64)> = open
                 .editors
                 .iter()
-                .map(|(editor, editable)| (*editor, *editable))
+                .map(|(editor, editable)| {
+                    let held = acknowledged(&self.forwarded, open.block, &open.replay, *editor);
+                    (*editor, *editable, held)
+                })
                 .collect();
             let closing = open.closing && !open.joining;
             let asked = asked.remove(&replica).unwrap_or_default();
@@ -2821,8 +2903,8 @@ impl<H: Host> Replicas<H> {
             );
             let Some(handle) = self.modules.call(module, |connection| {
                 let handle = Replica::new(connection, opening);
-                for (editor, editable) in editors {
-                    handle.attach(connection, editor, editable);
+                for &(editor, editable, held) in &editors {
+                    handle.attach(connection, editor, editable, held);
                 }
                 resend(
                     handle,
@@ -2836,6 +2918,9 @@ impl<H: Host> Replicas<H> {
                     replies,
                     pending,
                 );
+                for &(editor, ..) in &editors {
+                    handle.resent(connection, editor);
+                }
                 if closing {
                     handle.resource_drop(connection);
                 }
@@ -3023,6 +3108,18 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.remove(&replica) else {
             return false;
         };
+        // What opens after it holds the local edits its journal holds, as a reopen counts them
+        // (`reopening`), or only those its seals held when an append failed.
+        let held = match open.append_failed {
+            true => open.status.sealed_taken,
+            false => open.journaled_taken.max(open.status.sealed_taken),
+        };
+        untaken(
+            &mut self.forwarded,
+            open.block,
+            (open.sent, held),
+            &open.replay,
+        );
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {

@@ -88,8 +88,19 @@ interface replicas {
 
         /// An editor instance starts following the block, or its `editable`
         /// changed. The replica drops edits from an editor attached read-only.
-        attach: async func(editor: editor-id, editable: bool);
+        /// `acknowledged` is how many of the editor's operations the content
+        /// the replica opened on already holds, in the editor's own count: every
+        /// `operate` it sent, taken or refused, less those the host still keeps
+        /// to give again. Zero for an editor new to the block. The replica sends
+        /// the editor nothing but peers' presence until `resent`.
+        attach: async func(editor: editor-id, editable: bool, acknowledged: u64);
 
+        /// The host gave the replica again what it kept of the editor's edits
+        /// (right after `attach` when it kept none): the replica sends the
+        /// editor its snapshot, which holds them all.
+        resent: async func(editor: editor-id);
+
+        /// The editor stops following the block; the replica forgets its count.
         detach: async func(editor: editor-id);
 
         /// A head landed after the one the replica opened at. The host calls it
