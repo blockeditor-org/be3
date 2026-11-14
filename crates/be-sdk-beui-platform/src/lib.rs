@@ -91,6 +91,7 @@ impl Platform for AppPlatform {
                 escaped: HashMap::default(),
                 spaces: HashMap::default(),
                 placements: HashMap::default(),
+                held: Vec::new(),
                 ratio: 1.0,
             };
             // An app holds no keyboard until its host gives one of its views the keyboard
@@ -191,6 +192,10 @@ struct ModuleRunner {
     escaped: HashMap<ViewRef, Vec<escaped::Shown>>,
     spaces: HashMap<ViewRef, be_sdk_api::AnchorSpace>,
     placements: HashMap<ViewRef, ViewPlacement>,
+    /// Input for a view the host announced after the app's last frame. Its window opens in the
+    /// app's next frame, so what it hears waits for that frame rather than landing in whatever
+    /// window is there now.
+    held: Vec<(ViewRef, Incoming)>,
     ratio: f32,
 }
 
@@ -521,6 +526,24 @@ impl ModuleRunner {
                 self.ask(request, ratio, regions, active);
             }
         }
+    }
+
+    /// Hands the runner what views announced since the last frame heard, now that the frame
+    /// has opened their windows, and says whether there was any. A view that closed meanwhile
+    /// drops its own.
+    fn release_held(&mut self) -> bool {
+        let held = std::mem::take(&mut self.held);
+        let released = !held.is_empty();
+        for (view, incoming) in held {
+            if !self.listed.contains(&view) {
+                continue;
+            }
+            self.runner.push(match self.windows.get(&view) {
+                Some(window) => incoming.in_window(*window),
+                None => incoming,
+            });
+        }
+        released
     }
 
     fn keyboard_view(&self) -> Option<ViewRef> {
@@ -859,6 +882,15 @@ impl Regions for ModuleRunner {
                 }
                 None => {
                     let incoming = input::translate(event);
+                    let unframed = !target.view.is_main()
+                        && !self.windows.contains_key(&target)
+                        && !self.listed.contains(&target);
+                    if unframed {
+                        self.held.push((target, incoming));
+                        let time = input::time(event).map(|at| (target, Incoming::Time(at)));
+                        self.held.extend(time);
+                        return;
+                    }
                     let window = self.windows.get(&target).copied().or(window);
                     self.runner.push(match window {
                         Some(window) => incoming.in_window(window),
@@ -927,6 +959,7 @@ impl Regions for ModuleRunner {
             return Err(self.stopped());
         };
         self.match_windows(ratio, regions, active);
+        let released = self.release_held();
         self.follow_actions(regions);
         self.count_toggles(regions, active);
         self.overflows = self
@@ -937,7 +970,10 @@ impl Regions for ModuleRunner {
         Ok(Ran {
             keyboard: self.keyboard_view(),
             asks: std::mem::take(&mut self.asks),
-            repaint_after: frame.wait(),
+            repaint_after: match released {
+                true => Some(std::time::Duration::ZERO),
+                false => frame.wait(),
+            },
             animating: frame.animating,
         })
     }

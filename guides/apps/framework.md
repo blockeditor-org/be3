@@ -66,7 +66,10 @@ it lays out at that size in the frame that shows it), and builds
 beui's wgpu renderer straight into its view's surface, all sharing one set of
 pipelines, atlases and images. When the app's layout stops listing a screen,
 both sides drop that view's surface and textures at once, so an app showing
-nothing holds no per-view GPU memory.
+nothing holds no per-view GPU memory. Input for a view the host announced
+after the module's last frame waits for the next one, which opens its window,
+rather than landing in another view's window: a pointer resting where a view
+appears hovers that view.
 
 The app surface is not an sRGB format, so beui encodes gamma there and linear
 where it draws its own window.
