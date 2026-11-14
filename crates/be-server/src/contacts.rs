@@ -327,7 +327,7 @@ fn kind_columns(kind: &LinkKind) -> KindColumns {
             grant: (
                 grant.organization.to_string(),
                 grant.block.to_string(),
-                encode_access(grant.access).unwrap_or_default(),
+                encode_access(grant.access).unwrap_or_default().to_owned(),
                 grant.key.to_string(),
                 grant.sealed.clone(),
             ),
