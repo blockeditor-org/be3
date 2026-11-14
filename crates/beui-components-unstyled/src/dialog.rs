@@ -11,6 +11,7 @@ use beui_view::reactive::*;
 use beui_view::types::Color;
 use beui_view::types::Key;
 use beui_view::types::KeyPhase;
+use beui_view::types::text::Phrase;
 use beui_view::types::{Dismiss, OverlayAnchor, Placement, Pos2, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -172,7 +173,7 @@ pub fn footer_order(actions: &[DialogAction], narrow: bool) -> FooterOrder {
 #[derive(Clone, Copy)]
 pub struct DialogBodyHandle {
     pub kind: DialogKind,
-    pub title: Memo<String>,
+    pub title: Memo<Phrase>,
     pub narrow: Memo<bool>,
     pub actions: Stored<Vec<DialogAction>>,
     pub footer: Memo<FooterOrder>,
@@ -193,7 +194,7 @@ impl DialogBodyHandle {
 #[component]
 pub fn DialogBody(
     kind: DialogKind,
-    title: Prop<String>,
+    title: Prop<Phrase>,
     actions: Vec<DialogAction>,
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = true)] focuses: Prop<bool>,
@@ -236,7 +237,7 @@ pub fn DialogBody(
             DialogKind::Alert => Role::AlertDialog,
             DialogKind::Dialog => Role::Dialog,
         });
-        let title = title.get();
+        let title = title.with(Phrase::to_string);
         if !title.is_empty() {
             node.set_label(title);
         }

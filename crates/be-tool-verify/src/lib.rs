@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 mod links;
+mod stats;
 
 const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--app-tests] [--previews BASE OUT] [--bootstrap DIR] [--event-log PATH]";
 
@@ -13,6 +14,7 @@ struct Options {
     build_failed: bool,
     check: bool,
     lint: bool,
+    tests: bool,
     app_tests: bool,
     previews: Option<(String, PathBuf)>,
     bootstrap: Option<PathBuf>,
@@ -55,6 +57,7 @@ fn buckify(arguments: &[String]) -> ExitCode {
             build_failed: false,
             check,
             lint: false,
+            tests: false,
             app_tests: false,
             previews: None,
             bootstrap: None,
@@ -112,6 +115,7 @@ fn main(arguments: Vec<String>) -> ExitCode {
         built,
     };
     run.verify();
+    run.record();
     println!();
     if run.failed {
         if run.options.build_failed {
@@ -144,6 +148,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         build_failed: false,
         check: false,
         lint: false,
+        tests: false,
         app_tests: false,
         previews: None,
         bootstrap: None,
@@ -155,7 +160,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--build-failed" => options.build_failed = true,
             "--check" => options.check = true,
             "--lint" => options.lint = true,
-            "--tests" => {}
+            "--tests" => options.tests = true,
             "--app-tests" => options.app_tests = true,
             "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--event-log" => options.event_log = Some(value()?.into()),
@@ -336,6 +341,60 @@ impl Run {
             println!("  {link}");
         }
         self.failed = true;
+    }
+
+    /// Sends the build's record to the build server's dashboard (stats.rs).
+    fn record(&self) {
+        let Some(events) = &self.options.event_log else {
+            return;
+        };
+        let events = fs::read_to_string(events).unwrap_or_default();
+        let options = &self.options;
+        let parts: Vec<&str> = [
+            (options.lint, "lint"),
+            (options.tests, "tests"),
+            (options.app_tests, "app-tests"),
+            (options.previews.is_some(), "previews"),
+            (options.bootstrap.is_some(), "bootstrap"),
+        ]
+        .into_iter()
+        .filter_map(|(asked, part)| asked.then_some(part))
+        .collect();
+        let variable = |name: &str| std::env::var(name).ok().filter(|value| !value.is_empty());
+        let git = |arguments: &[&str]| {
+            Command::new("git")
+                .args(arguments)
+                .stderr(Stdio::null())
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+                .filter(|text| !text.is_empty())
+        };
+        // CI's builds by event (pull_request, merge_group, push), and the rest by whether they built through a cloud
+        // session's proxy.
+        let kind = match variable("GITHUB_EVENT_NAME") {
+            Some(event) => format!("ci-{event}"),
+            None if variable("HTTPS_PROXY")
+                .or_else(|| variable("https_proxy"))
+                .is_some() =>
+            {
+                "verify-cloud".to_owned()
+            }
+            None => "verify".to_owned(),
+        };
+        let context = stats::Context {
+            kind,
+            commit: git(&["rev-parse", "HEAD"]),
+            branch: variable("GITHUB_HEAD_REF")
+                .or_else(|| variable("GITHUB_REF_NAME"))
+                .or_else(|| git(&["rev-parse", "--abbrev-ref", "HEAD"])),
+            parts: parts.join(","),
+            passed: !self.failed,
+        };
+        if let Some(record) = stats::record(&events, &context) {
+            stats::send(Path::new("."), &record);
+        }
     }
 
     fn bootstrap(&mut self) {

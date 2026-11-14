@@ -1,0 +1,17 @@
+[Unit]
+Description=The OpenTelemetry Collector, which turns NativeLink's metrics into Prometheus's (otel-collector.yaml)
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f nl-otel
+ExecStart=/usr/bin/docker run --rm --name nl-otel --network host \
+  -v /etc/nl-dashboard/otel-collector.yaml:/etc/otelcol/config.yaml:ro \
+  docker.io/otel/opentelemetry-collector-contrib@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6 \
+  --config=/etc/otelcol/config.yaml
+ExecStop=/usr/bin/docker stop nl-otel
+
+[Install]
+WantedBy=multi-user.target

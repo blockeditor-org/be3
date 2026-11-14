@@ -1,0 +1,38 @@
+# The OpenTelemetry Collector (nl-otel.service). NativeLink sends its logs, traces and metrics over OTLP to
+# 127.0.0.1:4317 whether or not anything listens; this keeps the metrics for Prometheus to scrape on 127.0.0.1:8889
+# and drops the rest, which nothing reads (its logs are in `docker logs nativelink`).
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 127.0.0.1:4317
+processors:
+  # A series per action digest (execution_completed_count, whose attribute OpenTelemetry spells with a dot and
+  # Prometheus with an underscore) would be a new series for every action.
+  filter/digests:
+    error_mode: ignore
+    metrics:
+      datapoint:
+        - 'attributes["execution.action_digest"] != nil'
+        - 'attributes["execution_action_digest"] != nil'
+  batch: {}
+exporters:
+  prometheus:
+    endpoint: 127.0.0.1:8889
+    metric_expiration: 10m
+  nop: {}
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [filter/digests, batch]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      exporters: [nop]
+    traces:
+      receivers: [otlp]
+      exporters: [nop]

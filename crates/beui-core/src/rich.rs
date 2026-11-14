@@ -251,6 +251,10 @@ impl RichLine {
 pub struct RichLayout {
     pub lines: Vec<RichLine>,
     pub size: Vec2,
+    /// The byte ranges of the isolated text pieces (`Piece::Text::isolate`), in order. Nothing
+    /// reads them yet, since layout has no bidi: the bidi step of plans/deferred/i18n.md resolves
+    /// each as a paragraph of its own and treats it as one neutral in the text around it.
+    pub isolates: Vec<Range<usize>>,
     reach: f32,
     limit: f32,
 }
@@ -569,6 +573,21 @@ impl Builder<'_> {
     }
 }
 
+fn isolates_of(pieces: &[Piece]) -> Vec<Range<usize>> {
+    let mut at = 0;
+    let mut isolates = Vec::new();
+    for piece in pieces {
+        let end = at + piece.len();
+        if let Piece::Text { isolate: true, .. } = piece
+            && end > at
+        {
+            isolates.push(at..end);
+        }
+        at = end;
+    }
+    isolates
+}
+
 fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
     let mut text = String::with_capacity(pieces.iter().map(Piece::len).sum());
     let mut spans = Vec::with_capacity(pieces.len());
@@ -579,6 +598,7 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
                 text: piece,
                 style,
                 break_after,
+                ..
             } => {
                 let mut rest = piece;
                 while let Some(tab) = rest.find('\t') {
@@ -768,6 +788,7 @@ impl RichLayout {
         Self {
             lines,
             size: vec2(width, top),
+            isolates: isolates_of(pieces),
             reach,
             limit,
         }

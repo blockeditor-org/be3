@@ -1,0 +1,15 @@
+[Unit]
+Description=The build server's records of builds and count of running actions, for the dashboard (nl-stats.py)
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/lib/nl-stats/nl-stats.py
+Restart=always
+RestartSec=5
+ProtectSystem=strict
+ReadWritePaths=/var/lib/nl-stats /var/lib/prometheus/node-exporter
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

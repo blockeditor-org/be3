@@ -84,7 +84,7 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }
 
-pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<()>) -> bool {
+pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
     let _ = sealed;
-    false
+    None
 }

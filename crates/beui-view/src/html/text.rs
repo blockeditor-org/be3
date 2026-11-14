@@ -348,6 +348,11 @@ impl Span {
             set_style(span, "box-decoration-break", clone.clone());
             set_style(span, "-webkit-box-decoration-break", clone);
         });
+        // What `<bdi>` is: the browser does bidi, so an isolated run works here today.
+        bind(self.isolate, move |isolate| {
+            set_attribute(span, "dir", isolate.then(|| "auto".to_owned()));
+            set_style(span, "unicode-bidi", isolate.then(|| "isolate".to_owned()));
+        });
         let host = IntoSlotHost::<Node>::into_slot_host(&element);
         match self.break_after {
             Prop::Static(false) => {}
