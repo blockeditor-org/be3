@@ -306,12 +306,12 @@ Debugging:
   host's log with every panic in full. A step that times out while the tree shows nothing
   pending means something asks for a frame every frame.
 - A flake that shows only under load: `./scripts/buck run //crates/be-tool-local:bin -- stress NAME
-  [--repeat N] [--parallel K] [--limit SECONDS]` builds the host tests' harness once and runs
+  [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B]` builds the host tests' harness once and runs
   the tests whose names contain NAME N times (20), K at a time (twice the cores), killing a
   run that takes more than SECONDS (300). It prints how many runs failed, grouped by the
   panic's message with the numbers blurred and the first logs of each group, which are under
-  target/stress/NAME/. Every run uses the host that has every app, not the apps a test names
-  in `APPS`. `./scripts/test` caches a passing run, so repeating it proves nothing. More at
+  target/stress/NAME/. Every run uses the host that has every app unless `--apps` lists the apps
+  the test names in `APPS`; verify stages only those, which changes the timing, so try both. `./scripts/test` caches a passing run, so repeating it proves nothing. More at
   once slows every step down, but at 7 or more per core single steps pass 30 seconds with
   nothing wrong. Report a fix with its failure counts before and after, such as "3 of 200
   before, 0 of 800 after": a rate of one in a few hundred needs hundreds of runs.
