@@ -238,7 +238,7 @@ sends it. `Peer::write` does both.
   path); a publish waits behind a creation, move or define of its block. Every
   summary the server gives is laid over with what the outbox has yet to send of
   its block, a waiting move's parent and a waiting define's metadata, as it is
-  kept (`RefsDb::put`) and where it is returned (`Peer::summary_with_outbox`),
+  kept (`RefsDb::set_listing`, which `Peer::note` and listings keep it through) and where it is returned (`Peer::summary_with_outbox`),
   and a server listing with what the outbox adds or moves (`Peer::with_outbox`):
   an answer the server gave before those reached it would otherwise undo them
   here. Sending a
