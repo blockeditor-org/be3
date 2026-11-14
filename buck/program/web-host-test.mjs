@@ -108,7 +108,7 @@ try {
         caddy,
         ["run", "--adapter", "caddyfile", "--config", caddyfile],
         {
-            BE3_SITE: `http://:${port}`,
+            BE3_SITE: origin,
             BE3_BIND: "127.0.0.1",
             BE3_BACKEND_URL: `127.0.0.1:${backend}`,
             BE3_WEB_ROOT: bundle,

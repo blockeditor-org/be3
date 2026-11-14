@@ -19,7 +19,16 @@ case "$address" in
     *:*) ;;
     *) echo "--addr takes HOST:PORT, such as 127.0.0.1:8080, not $address." >&2; exit 1 ;;
 esac
+# The site Caddy answers on: any Host when the address is a wildcard, else
+# only the names it is served as, so a page that rebinds its own name to
+# loopback is not answered (guides/hosting.md, "Listening").
+port="${address##*:}"
+case "${address%:*}" in
+    0.0.0.0 | "[::]") site="http://:$port" ;;
+    127.0.0.1 | localhost) site="http://127.0.0.1:$port, http://localhost:$port" ;;
+    *) site="http://$address" ;;
+esac
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
 echo "Serving http://$address"
-BUNDLE_BIND="${address%:*}" BUNDLE_PORT="${address##*:}" BUNDLE_ROOT="$(cd "$bundle" && pwd)" \
+BUNDLE_BIND="${address%:*}" BUNDLE_SITE="$site" BUNDLE_ROOT="$(cd "$bundle" && pwd)" \
     "$caddy" run --adapter caddyfile --config "$caddyfile"

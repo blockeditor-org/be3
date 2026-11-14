@@ -41,8 +41,16 @@ if [ -n "$domain" ]; then
     bind="[::]"
     origin="https://$domain"
 else
-    site="http://:${address##*:}"
+    # Any Host when the address is a wildcard, else only the names it is
+    # served as, so a page that rebinds its own name to loopback is not
+    # answered (guides/hosting.md, "Listening").
+    port="${address##*:}"
     bind="${address%:*}"
+    case "$bind" in
+        0.0.0.0 | "[::]") site="http://:$port" ;;
+        127.0.0.1 | localhost) site="http://127.0.0.1:$port, http://localhost:$port" ;;
+        *) site="http://$address" ;;
+    esac
     origin="http://$address"
 fi
 echo "Serving $origin"

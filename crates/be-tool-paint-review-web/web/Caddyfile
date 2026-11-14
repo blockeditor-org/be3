@@ -1,4 +1,4 @@
-# PAINT_REVIEW_ROOT on port PAINT_REVIEW_PORT of PAINT_REVIEW_BIND, laid out
+# PAINT_REVIEW_ROOT at the site PAINT_REVIEW_SITE on PAINT_REVIEW_BIND, laid out
 # as CI uploads it: the bundle under site/, beside the lists of paintings and
 # their images. default_bind keeps Caddy off every interface but the one named,
 # loopback unless serve.sh is given another (guides/hosting.md, "Listening").
@@ -9,7 +9,7 @@
 	default_bind {$PAINT_REVIEW_BIND:127.0.0.1}
 }
 
-http://:{$PAINT_REVIEW_PORT} {
+{$PAINT_REVIEW_SITE} {
 	header {
 		Cross-Origin-Opener-Policy same-origin
 		Cross-Origin-Embedder-Policy require-corp

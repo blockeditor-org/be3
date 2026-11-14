@@ -56,8 +56,10 @@ ports 80 and 443 of every interface. No test, `:dev` target, CI job or verify st
 Caddy listens on every interface whatever host a site address names; only `default_bind` (or
 `bind`) narrows it. So each Caddyfile run on this machine or in a test sets
 `default_bind {$NAME_BIND:127.0.0.1}` in its global options, which falls back to loopback, and
-names its site `http://:PORT`; the script that runs it sets `NAME_BIND` to the host of its
-`--addr`. The build server's Caddyfile (scripts/internal/nativelink) is its front door on the
+the script that runs it sets `NAME_BIND` to the host of its `--addr`. The site keeps matching the
+Host header on loopback (`http://127.0.0.1:PORT, http://localhost:PORT`), so a page on another
+origin that rebinds its name to 127.0.0.1 is not answered; only a wildcard `--addr` serves
+`http://:PORT`, any Host. The build server's Caddyfile (scripts/internal/nativelink) is its front door on the
 internet and binds every interface on purpose.
 
 `./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
