@@ -2810,6 +2810,10 @@ impl Connection {
                 return Err(error);
             }
         };
+        #[cfg(test)]
+        if let Listing::Block(block) = listing {
+            crate::store::held::listing(block).await;
+        }
         self.hub.listed(self.client, listing, &listed.blocks).await;
         Ok(listed)
     }

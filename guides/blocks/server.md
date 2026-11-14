@@ -414,8 +414,9 @@ now or the connection heard of it before (so a block moving out of a listed
 folder is still announced, then forgotten). The blocks a change starts or stops
 referencing are announced with it. Every publish is announced, so a block's
 own listing hears each head; one that moves only the head changes no listing's
-match, so it is told only to the connections that already know the block
-(`WatchHub::knowing`) rather than worked out for the whole audience; `block-changed.from` names the connection whose
+match, so it is told only to the connections that already know the block, or
+are still reading a listing, which may hold it (`WatchHub::knowing`), rather
+than worked out for the whole audience; `block-changed.from` names the connection whose
 call made the change (`organization-opened.client`), so a client skips its own
 publishes (`Event::BlockChanged::own`). A block moved to the trash is a summary
 with parent `detached`; one collected for good is `removed`. `unlist` drops a listing; a refused listing
