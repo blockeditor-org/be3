@@ -1,6 +1,16 @@
-load("@root//buck/cargo:defs.bzl", "cargo_crate")
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
 
 # What every test's command starts with (be_test in buck/dev/test.bzl): a
 # short TMPDIR of its own, LD_LIBRARY_PATH for the test alone, a time limit,
 # and the outputs ./scripts/verify and ./scripts/test --update read.
-cargo_crate()
+cargo_package()
+
+cargo_library()
+
+cargo_binary()
+
+# RUN_TEST is the launcher itself, for the tests of what only its main does:
+# adopting and stopping what a test leaves behind.
+cargo_test(
+    run_env = {"RUN_TEST": "$(location :bin)"},
+)

@@ -20,6 +20,9 @@ env:
   # The build server and its token, as in ci.yml.
   BE3_BUILD_SERVER: nl.be3.pfg.pw
   BE3_NL_TOKEN: ${{ secrets.BE3_NL_TOKEN }}
+  # The checkout's own bootstrap, built with cargo (guides/bootstrap.md, Recovery): a pinned release
+  # older than --thorough refuses the flag. Remove it once a release that knows --thorough is pinned.
+  BE3_BOOTSTRAP: cargo
 
 jobs:
   thorough:

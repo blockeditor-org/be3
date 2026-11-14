@@ -262,9 +262,6 @@ fn run_command(
         })
     });
     let status = wait_within(child, id, time_limit)?;
-    // What the test left running in its group is stopped, so that a server or a browser it forgot to stop neither
-    // runs on (holding its output open) nor goes uncounted.
-    process::stop_leftovers(id);
     process::reap_orphans();
     let ran_one = copier.map(|copier| copier.join().unwrap_or(false));
     Ok((status, ran_one))
@@ -294,7 +291,12 @@ fn wait_within(
     Ok(if timed_out { TIMED_OUT } else { status })
 }
 
+/// Waits for the test to exit, then stops what it left running in its group, so that a server or a browser it
+/// forgot to stop neither runs on (holding its output open) nor goes uncounted, and only then reaps it: until
+/// then the test is a zombie whose id is still its group's, which no new process can take.
 fn wait(mut child: Child) -> Result<i32, String> {
+    process::wait_unreaped(child.id());
+    process::stop_group(child.id());
     let status = child.wait().map_err(|error| error.to_string())?;
     Ok(code(status))
 }
@@ -421,17 +423,27 @@ mod process {
         fn kill(pid: i32, signal: i32) -> i32;
         fn signal(signal: i32, handler: extern "C" fn(i32)) -> usize;
         fn _exit(status: i32) -> !;
+        #[cfg(target_os = "linux")]
         fn getrusage(who: i32, usage: *mut RUsage) -> i32;
         fn waitpid(pid: i32, status: *mut i32, options: i32) -> i32;
+        fn waitid(idtype: i32, id: u32, info: *mut [u64; 16], options: i32) -> i32;
         #[cfg(target_os = "linux")]
         fn prctl(option: i32, argument: u64, ...) -> i32;
     }
 
+    #[cfg(target_os = "linux")]
     const RUSAGE_CHILDREN: i32 = -1;
+    const P_PID: i32 = 1;
+    const WEXITED: i32 = 4;
+    #[cfg(target_os = "linux")]
+    const WNOWAIT: i32 = 0x0100_0000;
+    #[cfg(not(target_os = "linux"))]
+    const WNOWAIT: i32 = 0x20;
     #[cfg(target_os = "linux")]
     const PR_SET_CHILD_SUBREAPER: i32 = 36;
 
     /// struct rusage: two timevals, then fourteen longs, the first of them ru_maxrss (kilobytes on Linux).
+    #[cfg(target_os = "linux")]
     #[repr(C)]
     struct RUsage {
         user: [i64; 2],
@@ -459,27 +471,77 @@ mod process {
     #[cfg(not(target_os = "linux"))]
     fn subreaper() {}
 
-    pub fn stop_leftovers(id: u32) {
+    pub fn stop_group(id: u32) {
         kill_group(id);
     }
 
-    /// Waits for every child the launcher still has, which once the test has exited and its group is stopped are
-    /// only what the test orphaned. One that left the group (a daemon that made a session of its own) could run
-    /// on for ever, so the launcher waits for them only a few seconds; whatever it never reaps goes uncounted.
+    /// Returns once the child has exited, leaving it unreaped (a zombie), so that its id, which is its group's,
+    /// stays taken until it is reaped.
+    pub fn wait_unreaped(id: u32) {
+        let mut info = [0u64; 16];
+        loop {
+            // unsafe(ffi)
+            if unsafe { waitid(P_PID, id, &mut info, WEXITED | WNOWAIT) } == 0 {
+                return;
+            }
+            if std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted {
+                return;
+            }
+        }
+    }
+
+    /// Stops and reaps what the test orphaned, which the launcher adopted: once the test has exited and its group
+    /// is stopped, every child the launcher has is one, such as a browser that made a session of its own (Playwright
+    /// starts Chromium detached), which stopping the group misses. Stopping one orphans its own children to the
+    /// launcher in turn, so it stops and reaps until none is left. A child that cannot be stopped (stuck in the
+    /// kernel) is waited for only a few seconds; the thread waiting on it is left behind, harmlessly, as the launcher
+    /// exits right after.
     pub fn reap_orphans() {
         if !ADOPTING.load(Ordering::SeqCst) {
             return;
         }
         let (sender, receiver) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let mut status = 0;
-            // unsafe(ffi)
-            while unsafe { waitpid(-1, &mut status, 0) } > 0 {}
+            loop {
+                let children = own_children();
+                for child in &children {
+                    // unsafe(ffi)
+                    unsafe {
+                        kill(*child, SIGKILL);
+                    }
+                }
+                let mut status = 0;
+                // unsafe(ffi)
+                if unsafe { waitpid(-1, &mut status, 0) } <= 0 {
+                    break;
+                }
+            }
             let _ = sender.send(());
         });
         let _ = receiver.recv_timeout(std::time::Duration::from_secs(5));
     }
 
+    /// The launcher's own children, from each of its threads' /proc children list.
+    fn own_children() -> Vec<i32> {
+        let Ok(tasks) = std::fs::read_dir("/proc/self/task") else {
+            return Vec::new();
+        };
+        let mut children = Vec::new();
+        for task in tasks.flatten() {
+            if let Ok(text) = std::fs::read_to_string(task.path().join("children")) {
+                children.extend(text.split_whitespace().filter_map(|id| id.parse::<i32>().ok()));
+            }
+        }
+        children
+    }
+
+    /// Linux only: elsewhere ru_maxrss is not in kilobytes.
+    #[cfg(not(target_os = "linux"))]
+    pub fn children_usage() -> Option<super::Usage> {
+        None
+    }
+
+    #[cfg(target_os = "linux")]
     pub fn children_usage() -> Option<super::Usage> {
         let mut usage = RUsage {
             user: [0; 2],
@@ -547,7 +609,9 @@ mod process {
 
     pub fn adopt_orphans() {}
 
-    pub fn stop_leftovers(_id: u32) {}
+    pub fn wait_unreaped(_id: u32) {}
+
+    pub fn stop_group(_id: u32) {}
 
     pub fn reap_orphans() {}
 

@@ -79,7 +79,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | Command | What it does |
 |---|---|
 | `./scripts/verify` | rustc's check pass over the first-party targets on Linux x86_64 nothing else compiles, autofixes, lints, tests and app tests; `--check` writes nothing, `--lint`, `--tests`, `--app-tests` run one part, `--thorough` the thorough tests it leaves out (guides/buck2.md, What verify builds); every run also brings `buck/sysroot/packages.bzl` up to date with `buck/sysroot/BUCK` |
-| `./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --part tests` | one part of what `./scripts/verify` builds, without reading it afterwards: `lint`, `tests`, `app-tests` (guides/buck2.md, What verify builds) |
+| `./scripts/buck bxl --keep-going //buck/dev/verify.bxl:main -- --host linux_x86_64 --part tests` | one part of what `./scripts/verify` builds, without reading it afterwards: `lint`, `tests`, `app-tests`, `thorough` (guides/buck2.md, What verify builds) |
 | `./scripts/ci` | what CI runs: `./scripts/verify` and crates/be-tool-bootstrap's release (guides/bootstrap.md), and `--previews BASE OUT` the paint previews |
 | `./scripts/test adding [--update]` | the tests whose full names contain `adding` (or a module path such as `media::tests`), in every crate. A path matches inside other crates' paths too (`desktop::tests` also runs be-host's `compositor::desktop::tests`), so name the crate's target (next row) to run one crate's |
 | `./scripts/test //crates/be-app-desktop:test [adding] [--update]` | one crate's tests, or those of them whose names contain `adding`; `--update` accepts their paintings |

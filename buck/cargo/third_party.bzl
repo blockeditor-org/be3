@@ -68,20 +68,23 @@ THIRD_PARTY_OPT = select({
     "root//buck/constraints:release": [],
 })
 
-# OPT_LEVEL for a crate's build script, as cargo gives it: the level its Rust is compiled at
-# (THIRD_PARTY_OPT, or its [profile.dev.package] level), which is what cc-rs compiles its C at.
-# Left to the toolchain's, the C under a host build was compiled at -O0 while its Rust was at 1:
-# SQLite, which every server, host and host test queries, ran unoptimised.
+# OPT_LEVEL for a crate's build script, as cargo gives it: the level its Rust is compiled at, which
+# is what cc-rs compiles its C at. Outside a release build that is its [profile.dev.package]
+# level (profile_flags, which dev_only applies on every platform) or else THIRD_PARTY_OPT's on the
+# host and the toolchain's on wasm. Left to the toolchain's, the C under a host build was compiled
+# at -O0 while its Rust was at 1: SQLite, which every server, host and host test queries, ran
+# unoptimised.
 def _build_script_opt(crate):
     _, wasm, release = OPT_LEVELS["toolchain"]
-    host = str(_THIRD_PARTY_HOST_OPT)
+    host, wasm = str(_THIRD_PARTY_HOST_OPT), str(wasm)
     for flag in crate.get("profile_flags", []):
         if flag.startswith("-Copt-level="):
             host = flag.removeprefix("-Copt-level=")
+            wasm = host
     return select({
         "DEFAULT": select({
             "DEFAULT": host,
-            "prelude//cpu:wasm32": str(wasm),
+            "prelude//cpu:wasm32": wasm,
         }),
         "root//buck/constraints:release": str(release),
     })

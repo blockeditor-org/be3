@@ -13,6 +13,7 @@ mod record_keeps_the_output_and_status_and_exits_zero;
 mod the_cpu_a_test_used_is_reported;
 mod the_test_gets_a_short_tmpdir_removed_after;
 mod the_time_limit_stops_the_test;
+mod what_a_test_leaves_running_is_stopped;
 
 /// An empty directory of the test's own.
 fn scratch(name: &str) -> PathBuf {

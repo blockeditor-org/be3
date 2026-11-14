@@ -246,7 +246,7 @@ fail.
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
 toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
 `app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
-out; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
+out, and `tests` builds be-host's `:web-dist` in their place; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
 always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
 generated anew, and crates/be-tool-verify. It finds
 each by kind, so a new package, test or crate needs no list. Each test is configured for its own
@@ -267,9 +267,11 @@ thorough test may not paint (verify's paintings part would find its paintings un
 
 - every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test` and
   `//crates/be-host:push-web-host-test`, the whole web page with every app in Chromium, drawn on
-  SwiftShader. In November 2026 a run took about 80 and 175 CPU seconds, a fifth of all test CPU
+  SwiftShader. In November 2026 a run took about 84 and 159 CPU seconds, a fifth of all test CPU
   when every test reran, and depends on be-host and every app (guides/performance.md, Keeping
-  verify cheap).
+  verify cheap). They were the only per-change build of the web bundle, so the `tests` part
+  builds `//crates/be-host:web-dist` (the bundle without its apps: be-host for wasi, the gpu
+  shim, wasm-bindgen and the page) to keep catching a change that breaks its compile or link.
 
 The check pass is rustc's `[check]` over the first-party `rust_library` and `rust_binary`
 targets on `linux_x86_64` that nothing else verify builds compiles, found in the configured

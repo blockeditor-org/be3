@@ -12,7 +12,8 @@ load("@root//buck/dev:test.bzl", "THOROUGH", "TestRunInfo")
 # - lint: every package's autofixes, each source_fix in the root and
 #   toolchains cells (package_fix, buck/dev/verify.bzl);
 # - tests: every test that does not paint (_be_test, buck/dev/test.bzl), run
-#   as its [run] action, and the check pass (_checks);
+#   as its [run] action, the check pass (_checks), and be-host's :web-dist,
+#   which only the thorough tests would build otherwise;
 # - app-tests: every test that paints, the same way;
 # - thorough: every thorough test (THOROUGH in buck/dev/test.bzl), which tests and
 #   app-tests leave out;
@@ -117,17 +118,23 @@ def _impl(ctx: bxl.Context):
         fixes = ctx.uquery().kind("^source_fix$", ctx.uquery().eval("root//... + toolchains//..."))
         for fix in ctx.configured_targets([str(target.label) for target in fixes]):
             read.append(("fix", ctx.analysis(fix).providers()[DefaultInfo].default_outputs[0]))
-    tests, thorough = _tests(ctx)
+    if "tests" in args.part or "app-tests" in args.part or "thorough" in args.part:
+        tests, thorough = _tests(ctx)
     if "thorough" in args.part:
+        if not thorough:
+            fail("--part thorough found no test labelled {}".format(THOROUGH))
         plain, paintings = _runs(ctx, thorough)
         if paintings:
-            fail("a thorough test may not paint: {}".format(", ".join([package for package, _ in paintings])))
+            fail("a thorough test may not paint: {}".format(", ".join([package.removeprefix("paintings\t") for package, _ in paintings])))
         built.extend(plain)
     if "tests" in args.part or "app-tests" in args.part:
         plain, paintings = _runs(ctx, tests)
         if "tests" in args.part:
             built.extend(plain)
             built.extend(_checks(ctx, tests))
+            # The web bundle without its apps: the thorough web host tests are what else builds it,
+            # so this keeps a change that breaks its compile or link from passing verify.
+            built.append(_output(ctx, "root//crates/be-host:web-dist"))
         if "app-tests" in args.part:
             read.extend(paintings)
     if "previews" in args.part:
