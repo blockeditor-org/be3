@@ -428,6 +428,10 @@ impl TestClient {
                 Opened::KeyWork(client::keys::key_work_changed(peer)),
             ),
             (
+                "keys-changed",
+                Opened::Unit(client::keys::keys_changed(peer)),
+            ),
+            (
                 "notify-modes-changed",
                 Opened::Unit(client::notifications::notify_modes_changed(peer)),
             ),

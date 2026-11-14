@@ -40,7 +40,9 @@ pub trait Host: Sized + 'static {
 
     fn report(shared: &Arc<Mutex<Self>>, block: Option<Uuid>, message: String);
 
-    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid);
+    /// Whether `block` waits for a key this device does not hold: set as a read meets one,
+    /// cleared by `Replicas::unlock` as keys arrive.
+    fn set_locked(shared: &Arc<Mutex<Self>>, block: Uuid, locked: bool);
 
     fn owned(shared: &Arc<Mutex<Self>>, block: Uuid) -> bool;
 

@@ -37,6 +37,7 @@ const REACHING_PAST: &[&str] = &[
     "unregister-endpoint",
     "notify-modes",
     "notify-modes-changed",
+    "keys-changed",
     "set-notify-mode",
 ];
 

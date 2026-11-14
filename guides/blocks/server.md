@@ -179,8 +179,8 @@ counts and records nothing: `upload-urls` did before it signed.
   carry the stream's op for that), and one whose first value cannot be read
   ends with the failure rather than wait; `key-work-changed` opened before an
   organization waits for one to open. A latest-value stream with no value
-  (`contacts.contacts-changed`, `notifications.notify-modes-changed`) says only
-  to read again.
+  (`contacts.contacts-changed`, `notifications.notify-modes-changed`,
+  `keys.keys-changed`) says only to read again.
 - **Who may call what.** Every call states its requirement once, in `rule`
   (`client.rs`): anyone, signed in, signed in with an organization open, an
   administrator (of the open organization, or of the one named), or at least

@@ -460,6 +460,19 @@ impl Graph {
         }
     }
 
+    /// Puts a node read again from what this device already heard of it (keys arrived that
+    /// open it), as of `revision`; one it does not hold, has a change pending on, or heard of
+    /// at a newer revision since is left as it is.
+    pub fn reread(&mut self, node: Node, revision: u64) {
+        let newest = self.heard.get(&node.id).copied().unwrap_or(self.floor);
+        if revision >= newest
+            && self.nodes.contains_key(&node.id)
+            && !self.pending.contains_key(&node.id)
+        {
+            self.insert(node);
+        }
+    }
+
     pub fn remove(&mut self, block: Uuid, revision: u64) {
         if self.hear(block, revision) {
             self.forget(block);
