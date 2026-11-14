@@ -277,7 +277,8 @@ impl Run {
         };
         let mut problems = Vec::new();
         for path in listed.split('\0') {
-            if path.is_empty() || path.starts_with("external/") || path.starts_with("third-party/") {
+            if path.is_empty() || path.starts_with("external/") || path.starts_with("third-party/")
+            {
                 continue;
             }
             // A file that is not text, or is gone from the working tree, holds no address.

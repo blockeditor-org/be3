@@ -37,7 +37,10 @@ pub fn wildcard_binds(path: &str, text: &str) -> Vec<String> {
     }
     for (index, line) in text.lines().enumerate() {
         let code = line.trim_start();
-        if ["#", "//", "*", "/*"].iter().any(|comment| code.starts_with(comment)) {
+        if ["#", "//", "*", "/*"]
+            .iter()
+            .any(|comment| code.starts_with(comment))
+        {
             continue;
         }
         if let Some(wildcard) = WILDCARDS.iter().find(|wildcard| code.contains(*wildcard)) {
