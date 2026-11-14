@@ -67,9 +67,12 @@ def dev_only(flags):
 #   the games, input remaps and the browser's gpu shim, whose heavy part is
 #   third-party), `s`: the checklist's module went from 2.29 MB to 1.67 MB
 #   (1.64 MB at z), every type module a quarter to a third smaller, and
-#   compiling them took about half the CPU it did at 3. Sealing a 50 MB paste
-#   in the text type module took a third longer by wall time, about a twentieth
-#   more by the profile, and half again at z. Apps and their libraries (WASI)
+#   compiling them took about half the CPU it did at 3. Saving a 50 MB paste
+#   in be-host-bench, which is the text type module's seal and its publish to a
+#   server 30 ms away, took a third longer by wall time (3.5 s to 4.6 s, the
+#   medians of three runs each), and half again at z. The type module's own CPU
+#   in a perf profile of the whole bench was a twentieth to a fifth more (two
+#   runs each, which disagreed), so the wall time is partly noise. Apps and their libraries (WASI)
 #   keep 3: at s their frames were a fifth to a third slower, and at z the
 #   canvas's slowest frame took four times as long, for apps two fifths smaller.
 # - app, an app's own crate (app_module in buck/wasm/defs.bzl): 0 outside a
@@ -99,8 +102,8 @@ def _opt_flag(level):
 
 # A kind's opt level other than the toolchain's, as flags.
 def opt_flags(kind):
-    host, wasm, release, release_wasm = OPT_LEVELS[kind]
-    if host == wasm and wasm == release and release == release_wasm:
+    host, wasm, release, release_wasm32 = OPT_LEVELS[kind]
+    if host == wasm and wasm == release and release == release_wasm32:
         return _opt_flag(host)
     return select({
         "DEFAULT": select({
@@ -109,7 +112,7 @@ def opt_flags(kind):
         }),
         "root//buck/constraints:release": select({
             "DEFAULT": _opt_flag(release),
-            "prelude//os:none": _opt_flag(release_wasm),
+            "prelude//os:none": _opt_flag(release_wasm32),
         }),
     })
 

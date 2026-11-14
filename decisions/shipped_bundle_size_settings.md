@@ -1,4 +1,4 @@
-# The deployed bundle uses fat LTO and keeps symbols and precompiled code
+# The deployed bundle uses fat LTO, type modules at opt-level s, and keeps symbols and precompiled code
 
 `./scripts/deploy` builds with fat LTO and one codegen unit (`buck/constraints:lto`, a ten-minute link),
 release builds use legacy symbol mangling and build first-party crates for
@@ -9,7 +9,9 @@ module with be-host's symbols and the modules' name sections kept.
 ## Why
 
 Fat LTO is limited to the deploy because of its ten-minute link. The symbols and name sections are read by the panic guard's reports and a guest's
-backtrace. Shipping the `.cwasm` files keeps compiling off the first start.
+backtrace. Shipping the `.cwasm` files keeps compiling off the first start. Type modules build
+at `s`: a quarter to a third smaller and quicker to compile, for a slower seal of a very large
+edit, measured in buck/platforms/profile.bzl.
 
 ## Rejected
 
