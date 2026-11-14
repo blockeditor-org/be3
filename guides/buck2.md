@@ -191,8 +191,8 @@ files, so each `:test` also has `[run]`, the same command as an action, cached l
 `-- --test-arg --nocapture NAME` (`--test-arg` takes everything after it) and an `--event-log`,
 whose `TestResult` events hold every test's whole output, a passing one's too, which the console
 leaves out; it prints each from there. Under `--update` it runs each `:test` as an action
-instead, through `buck/dev/test.bxl` with the launcher's `--record`, and copies the paintings it
-accepted from that action's output, which `buck2 test` brings back none of.
+instead, through `buck/dev/test.bxl` with the launcher's `--record`, and copies the paintings that
+changed from that action's output, which `buck2 test` brings back none of.
 
 Both actions are `run_test` (buck/dev/test.bzl), one definition with a mode: `passed` and
 `paintings` for `[run]`, which fail when the test does and so are never cached failing, and
@@ -202,8 +202,20 @@ the runs whose last record failed in `target/test-failed` and names them to test
 `--again`, which puts a new `--nonce` into those runs' environment alone, so a failing test runs
 again while every passing one still comes from the cache.
 
+A test that paints is two actions in `paintings` and `record`. The test's own has none of the
+accepted paintings among its inputs: it writes every painting it makes into `MADE_PAINTINGS` and
+reads none. Then `painting_compare` (crates/be-tool-paint-compare), keyed on what the test made
+and the crate's `snapshots/`, writes `changed/` (each new or changed painting and a `.why`) and
+`used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
+painting reruns only that cheap compare, and a test that paints differently from run to run gives
+one painting per build of its code, from the cache, rather than flipping with the accepted
+painting it read: when a test's input was its own painting, CI's autofix pushed the painting back
+and forth on every run without running the test. Only `buck2 test` (a plain `./scripts/test`)
+still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
+fail.
+
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
-  read and write only their crate's `snapshots/`, so one crate's paintings leave others cached.
+  compare with only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
   `run_apart = True` (crates/be-host-tests, crates/be-host-stack) makes each test file a
   `be_test` of its own, so a failing test loses only its own paintings (guides/testing_a_gui.md)

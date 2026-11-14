@@ -11,20 +11,23 @@ TEST_TIME_LIMIT = "20m"
 # (buck/dev/verify.bxl and buck/dev/test.bxl), which run it as an action
 # (run_test) rather than through buck2 test: `launcher` is crates/be-tool-run-test with the test's
 # own flags, to which a runner adds its output flags, then "--" and `command`.
-# `hidden` is what the test reads that the command does not name, such as the
-# accepted paintings. A test that `paints` accepts paintings under
-# UPDATE_SNAPSHOTS. `parts` is a run_apart test's tests, one be_test a test
+# `hidden` is what the test reads that the command does not name under buck2
+# test, such as the accepted paintings, which run_test's actions leave out. A
+# test that `paints` writes what it paints into MADE_PAINTINGS, and `compare`
+# compares that with `paintings`, the accepted ones. `parts` is a run_apart test's tests, one be_test a test
 # file, by its part's name; such a test has no [run] of its own, and `runs` is
 # each part's [run], where any other test's is its own. `libtest` is a part's
 # test, the full name it runs with --exact, and empty for any other test.
 TestRunInfo = provider(
     fields = {
         "command": provider_field(typing.Any),
+        "compare": provider_field(typing.Any),
         "env": provider_field(dict),
         "hidden": provider_field(list),
         "launcher": provider_field(typing.Any),
         "libtest": provider_field(str),
         "local": provider_field(bool),
+        "paintings": provider_field(list),
         "paints": provider_field(bool),
         "parts": provider_field(dict),
         "runs": provider_field(list),
@@ -45,49 +48,78 @@ def _executor(local: bool):
         remote_execution_use_case = "buck2-default",
     )
 
-# The one action that runs a test, through crates/be-tool-run-test, for :test's
-# [run] (what ./scripts/verify builds, buck/dev/verify.bxl) and for
-# ./scripts/test --update (buck/dev/test.bxl) alike: an action whose inputs have
-# not changed comes from the cache, where buck2 test runs a test again unless a
-# worker ran it. `out` is what the launcher writes, by `mode`:
+# What runs a test, through crates/be-tool-run-test, for :test's [run] (what
+# ./scripts/verify builds, buck/dev/verify.bxl) and for ./scripts/test --update
+# (buck/dev/test.bxl) alike: an action whose inputs have not changed comes from
+# the cache, where buck2 test runs a test again unless a worker ran it. It
+# returns the directory or file `name`, by `mode`:
 #
 # - "passed": a file, written when the test passes. The action fails, with the
 #   test's output, when the test does, and is not cached then.
-# - "paintings": a directory, for a test that paints, which accepts every
-#   painting (UPDATE_SNAPSHOTS), writing the ones that changed or are new to
-#   paintings/changed/ and, for each accepted painting it compared, the SHA-256
-#   of what it read to paintings/used/ (that of nothing when there was none),
-#   so that the paintings themselves are never downloaded; ./scripts/verify
-#   copies into the crate's snapshots/ the paintings in changed/ whose accepted
-#   painting still has that hash, or under --check fails on them. It fails as
+# - "paintings": a directory, for a test that paints. The test's action has
+#   none of the accepted paintings among its inputs: it writes every painting
+#   it makes (MADE_PAINTINGS) into `name`-made, and a second action, which
+#   crates/be-tool-paint-compare runs, compares those with the crate's
+#   snapshots/ and writes the ones that changed or are new to changed/ and,
+#   for each painting made, the SHA-256 of the accepted painting it compared
+#   with to used/ (that of nothing when there was none), so that the paintings
+#   themselves are never downloaded; ./scripts/verify copies into the crate's
+#   snapshots/ the paintings in changed/ whose accepted painting still has that
+#   hash, or under --check fails on them. So a test's cached result is keyed
+#   on its code alone: one that paints differently from run to run gives the
+#   same painting from the cache until its code changes, rather than one that
+#   flips with the accepted painting it read. The test's action fails as
 #   "passed" does.
 # - "record": a directory holding status, the test's exit status, log, its
-#   output, and changed/, the paintings it accepted when `update` is set. The
-#   action succeeds when the test fails, so that its output is kept, and so a
-#   failure is cached like a pass: env is where a caller puts what makes a run
-#   asked for again a new action (test.bxl's --again).
+#   output, and changed/, the paintings that changed when `update` is set,
+#   compared after the test as "paintings" does; without `update` a painting
+#   that changed fails the status instead. The test's action succeeds when the
+#   test fails, so that its output is kept, and so a failure is cached like a
+#   pass: env is where a caller puts what makes a run asked for again a new
+#   action (test.bxl's --again).
 #
 # filters go to the test after the command, such as libtest's name filters.
-def run_test(actions, info: TestRunInfo, out: Artifact, mode: str, filters: list = [], update: bool = False, env: dict = {}, identifier: str | None = None):
+def run_test(
+    actions, info: TestRunInfo, name: str, mode: str, filters: list = [], update: bool = False, env: dict = {}, identifier: str | None = None
+) -> Artifact:
     flag = {"paintings": "--paintings", "passed": "--passed", "record": "--record"}[mode]
-    env = info.env | env
-    if mode == "paintings" or update:
-        env["UPDATE_SNAPSHOTS"] = "1"
+    compared = info.paints and mode != "passed"
+    if mode == "passed":
+        out = actions.declare_output(name)
+    elif mode == "paintings":
+        out = actions.declare_output(name, dir = True, has_content_based_path = False)
+    else:
+        out = actions.declare_output(name, dir = True)
+    ran = actions.declare_output(name + "-made" if mode == "paintings" else name + "-record", dir = True) if compared else out
     actions.run(
-        cmd_args(info.launcher, flag, out.as_output(), "--", info.command, filters, hidden = info.hidden),
+        cmd_args(info.launcher, flag, ran.as_output(), "--", info.command, filters, hidden = [] if compared else info.hidden),
         category = {"paintings": "painting_test", "passed": "test_run", "record": "test"}[mode],
-        env = env,
+        env = info.env | env,
         identifier = identifier,
         local_only = info.local,
     )
+    if not compared:
+        return out
+    accepted = actions.symlinked_dir(name + "-accepted", {painting.basename: painting for painting in info.paintings})
+    actions.run(
+        cmd_args(
+            info.compare,
+            "--made",
+            ran.project("made") if mode == "record" else ran,
+            ["--record", ran] if mode == "record" else [],
+            "--accepted",
+            accepted,
+            "--out",
+            out.as_output(),
+            ["--update"] if mode == "paintings" or update else [],
+        ),
+        category = "painting_compare",
+        identifier = identifier,
+    )
+    return out
 
 def _run(ctx: AnalysisContext, info: TestRunInfo) -> Artifact:
-    if info.paints:
-        out = ctx.actions.declare_output("paintings", dir = True, has_content_based_path = False)
-    else:
-        out = ctx.actions.declare_output("passed")
-    run_test(ctx.actions, info, out, "paintings" if info.paints else "passed")
-    return out
+    return run_test(ctx.actions, info, "paintings" if info.paints else "passed", "paintings" if info.paints else "passed")
 
 # Every test: harness, a RunInfo, run with args and env through
 # crates/be-tool-run-test, for buck2 test and as the action [run] alike. An
@@ -109,11 +141,13 @@ def _be_test_impl(ctx: AnalysisContext) -> list[Provider]:
     )
     fields = dict(
         command = cmd_args(ctx.attrs.harness[RunInfo], ctx.attrs.args),
+        compare = ctx.attrs._compare[RunInfo],
         env = env,
         hidden = ctx.attrs.paintings,
         launcher = launcher,
         libtest = ctx.attrs.libtest,
         local = ctx.attrs.local,
+        paintings = ctx.attrs.paintings,
         paints = ctx.attrs.paints,
         parts = {name: part[TestRunInfo] for name, part in ctx.attrs.parts.items()},
     )
@@ -157,6 +191,7 @@ _be_test = rule(
         "paints": attrs.bool(default = False),
         "parts": attrs.dict(default = {}, key = attrs.string(), value = attrs.dep(providers = [TestRunInfo])),
         "test_type": attrs.string(default = "custom"),
+        "_compare": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-paint-compare:bin", providers = [RunInfo])),
         "_inject_test_env": attrs.default_only(attrs.dep(default = "prelude//test/tools:inject_test_env")),
         "_launcher": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-run-test:bin", providers = [RunInfo])),
     },

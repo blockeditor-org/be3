@@ -98,25 +98,26 @@ impl BrowserSnapshot {
             name,
             "UPDATE_SNAPSHOTS=1 ./scripts/test TEST_NAME",
             "push it and review the browser painting in the pull request's text diff and painting comment",
-            |previous| previous == bytes,
-            || bytes.clone(),
-            |previous| {
-                let previous = String::from_utf8_lossy(previous);
-                let current = String::from_utf8_lossy(&bytes);
-                let old: Vec<_> = previous.lines().collect();
-                let new: Vec<_> = current.lines().collect();
-                let first = old
-                    .iter()
-                    .zip(&new)
-                    .position(|(a, b)| a != b)
-                    .unwrap_or(old.len().min(new.len()));
-                format!(
-                    "browser document or embedded files changed at line {}\n- {}\n+ {}",
-                    first + 1,
-                    old.get(first).unwrap_or(&"<end>"),
-                    new.get(first).unwrap_or(&"<end>")
-                )
-            },
+            &bytes,
         );
     }
+}
+
+/// Where a browser painting first differs from the accepted one, line by line.
+pub(crate) fn describe(accepted: &[u8], made: &[u8]) -> String {
+    let previous = String::from_utf8_lossy(accepted);
+    let current = String::from_utf8_lossy(made);
+    let old: Vec<_> = previous.lines().collect();
+    let new: Vec<_> = current.lines().collect();
+    let first = old
+        .iter()
+        .zip(&new)
+        .position(|(a, b)| a != b)
+        .unwrap_or(old.len().min(new.len()));
+    format!(
+        "browser document or embedded files changed at line {}\n- {}\n+ {}",
+        first + 1,
+        old.get(first).unwrap_or(&"<end>"),
+        new.get(first).unwrap_or(&"<end>")
+    )
 }

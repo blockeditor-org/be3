@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use be_wasm_host::{Host, precompile, precompile_to};
 
-const GUEST_PATHS: [&str; 3] = ["CARGO_MANIFEST_DIR", "USED_PAINTINGS", "CHANGED_PAINTINGS"];
+const GUEST_PATHS: [&str; 2] = ["CARGO_MANIFEST_DIR", "MADE_PAINTINGS"];
 
 fn main() {
     absolute_guest_paths();

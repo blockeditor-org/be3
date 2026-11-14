@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::Snapshot;
+use crate::{BrowserSnapshot, Snapshot};
 
 const REVIEW: &str =
     "commit it, and review it among the paintings on the pull request's summary comment";
@@ -14,37 +14,23 @@ pub fn assert_painting(name: &str, painting: beui_paint_format::Painting) {
 }
 
 pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
-    let body = snapshot.body().expect("the painting could not be encoded");
-    assert_bytes(
-        name,
-        how_to_accept,
-        REVIEW,
-        |previous| Snapshot::body_of(previous).is_ok_and(|previous| previous == body),
-        || Snapshot::compress(&body).expect("the painting could not be compressed"),
-        |previous| {
-            let previous = match Snapshot::decode(previous) {
-                Ok(previous) => previous,
-                Err(error) => return format!("the accepted painting is unreadable: {error}"),
-            };
-            crate::difference(&previous, snapshot)
-                .map(|difference| difference.description)
-                .unwrap_or_else(|| {
-                    "the encoded painting changed, though it looks the same".to_owned()
-                })
-        },
-    );
+    let made = snapshot
+        .encode()
+        .expect("the painting could not be encoded");
+    assert_bytes(name, how_to_accept, REVIEW, &made);
 }
 
-pub(crate) fn assert_bytes(
-    name: &str,
-    how_to_accept: &str,
-    review: &str,
-    unchanged: impl FnOnce(&[u8]) -> bool,
-    bytes: impl FnOnce() -> Vec<u8>,
-    describe: impl FnOnce(&[u8]) -> String,
-) {
+/// Compares what a test made with its accepted painting, or, under
+/// MADE_PAINTINGS, only writes what it made into that directory, reading
+/// nothing: ./scripts/verify and ./scripts/test --update compare afterwards,
+/// in an action of their own (crates/be-tool-paint-compare), so that a test's
+/// cached result does not depend on the painting it is compared with.
+pub(crate) fn assert_bytes(name: &str, how_to_accept: &str, review: &str, made: &[u8]) {
     let accepted = accepted_path(name);
-    record_use(&accepted);
+    if let Some(directory) = std::env::var_os("MADE_PAINTINGS") {
+        write(&PathBuf::from(directory).join(file_name(&accepted)), made);
+        return;
+    }
     let updating = std::env::var_os("UPDATE_SNAPSHOTS").is_some();
 
     if !accepted.exists() {
@@ -54,53 +40,54 @@ pub(crate) fn assert_bytes(
                 accepted.display()
             );
         }
-        accept(&accepted, &bytes(), "there is no accepted painting");
+        write(&accepted, made);
         return;
     }
 
-    let previous_bytes = read(&accepted);
-    if unchanged(&previous_bytes) {
+    let Some(description) = changed(&read(&accepted), made) else {
         return;
-    }
-    let description = describe(&previous_bytes);
+    };
     if updating {
-        accept(&accepted, &bytes(), &description);
+        write(&accepted, made);
         return;
     }
 
     panic!("the painting changed: {description}\nto accept it:\n  {how_to_accept}\nthen {review}");
 }
 
-fn accept(accepted: &Path, bytes: &[u8], why: &str) {
-    let Some(changed) = std::env::var_os("CHANGED_PAINTINGS") else {
-        write(accepted, bytes);
-        return;
+/// What changed from the accepted painting to the one a test made, both as
+/// their files hold them, or None when they are the same painting: the same
+/// encoded painting, however it was compressed, or for a browser painting the
+/// same bytes.
+pub fn changed(accepted: &[u8], made: &[u8]) -> Option<String> {
+    if BrowserSnapshot::is_browser(made) {
+        return (accepted != made).then(|| crate::browser::describe(accepted, made));
+    }
+    let made_body = match Snapshot::body_of(made) {
+        Ok(body) => body,
+        Err(error) => return Some(format!("the painting made is unreadable: {error}")),
     };
-    let painting = PathBuf::from(changed).join(file_name(accepted));
-    write(&painting, bytes);
-    write(&painting.with_extension("paint.why"), why.as_bytes());
+    match Snapshot::body_of(accepted) {
+        Ok(body) if body == made_body => return None,
+        Ok(_) => {}
+        Err(error) => return Some(format!("the accepted painting is unreadable: {error}")),
+    }
+    let (previous, current) = match (Snapshot::decode(accepted), Snapshot::decode(made)) {
+        (Ok(previous), Ok(current)) => (previous, current),
+        (Err(error), _) => return Some(format!("the accepted painting is unreadable: {error}")),
+        (_, Err(error)) => return Some(format!("the painting made is unreadable: {error}")),
+    };
+    Some(
+        crate::difference(&previous, &current)
+            .map(|difference| difference.description)
+            .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned()),
+    )
 }
 
 fn file_name(accepted: &Path) -> &std::ffi::OsStr {
     accepted
         .file_name()
         .unwrap_or_else(|| panic!("{} names no painting", accepted.display()))
-}
-
-fn record_use(accepted: &Path) {
-    let Some(used) = std::env::var_os("USED_PAINTINGS") else {
-        return;
-    };
-    use sha2::{Digest as _, Sha256};
-    let compared = std::fs::read(accepted).unwrap_or_default();
-    let hash: String = Sha256::digest(&compared)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect();
-    write(
-        &PathBuf::from(used).join(file_name(accepted)),
-        hash.as_bytes(),
-    );
 }
 
 fn accepted_path(name: &str) -> PathBuf {

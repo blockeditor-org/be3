@@ -1,0 +1,17 @@
+[package]
+name = "be-tool-paint-compare"
+description = "The action after a painting test: compares the paintings it made with the crate's accepted ones and keeps those that changed"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "paint-compare"
+path = "src/main.rs"
+
+[dependencies]
+beui-paint-snapshot = { path = "../beui-paint-snapshot" }
+sha2 = "0.10"
+
+[lints]
+workspace = true
