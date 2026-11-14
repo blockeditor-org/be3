@@ -438,10 +438,68 @@ struct Open {
     rejoining: Option<u64>,
     made_up: bool,
     early: Vec<Replayed>,
-    unreported: bool,
+    /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
+    /// was opened or opened again, which the module counts too: those past what its status
+    /// says it took (`Status::taken`) a status does not yet reflect.
+    sent: u64,
     reporting: Option<CommitId>,
     /// Why its last publish failed, if it did: what a host stuck owing a seal names.
     publish_error: Option<String>,
+}
+
+impl Open {
+    /// Whether it was sent a local edit its module has not reported on yet.
+    fn unreported(&self) -> bool {
+        self.sent > self.status.taken
+    }
+
+    /// Gives its module again the local edits it holds, as one opened again counts them
+    /// from none: those it took before are in what it opens from or in its journal.
+    fn resent(&mut self) {
+        self.sent = self
+            .replay
+            .iter()
+            .filter(|replayed| replayed.local_edit())
+            .count() as u64;
+        self.status.taken = 0;
+    }
+
+    /// Drops what a clean status covers from what would be given a replica opened again: every
+    /// local edit it took, and what came before the first it did not, which stays with what
+    /// followed it. A status counting more than were sent was made before the replica opened
+    /// again, and covers none of what it was given since.
+    fn reported_clean(&mut self, taken: u64) {
+        if taken > self.sent {
+            return;
+        }
+        let untaken = (self.sent - taken) as usize;
+        let local = self
+            .replay
+            .iter()
+            .filter(|replayed| replayed.local_edit())
+            .count();
+        let mut covered = local.saturating_sub(untaken);
+        let first_kept = self
+            .replay
+            .iter()
+            .position(|replayed| {
+                if !replayed.local_edit() {
+                    return false;
+                }
+                match covered {
+                    0 => true,
+                    _ => {
+                        covered -= 1;
+                        false
+                    }
+                }
+            })
+            .unwrap_or(self.replay.len());
+        self.replay.drain(..first_kept);
+        if self.replay.is_empty() {
+            self.departed.clear();
+        }
+    }
 }
 
 /// An open block that owes a seal, and what its seal may be waiting on: what a host names when
@@ -468,7 +526,7 @@ impl Owing {
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
-            unreported: open.unreported,
+            unreported: open.unreported(),
             publishing: open.publishing,
             joining: open.joining,
             closing: open.closing,
@@ -1031,7 +1089,7 @@ impl<H: Host> Replicas<H> {
                 rejoining: None,
                 made_up: joining,
                 early: Vec::new(),
-                unreported: false,
+                sent: 0,
                 reporting: None,
                 publish_error: None,
             },
@@ -1163,6 +1221,7 @@ impl<H: Host> Replicas<H> {
         open.reporting = None;
         open.status.head = head;
         open.replay.retain(Replayed::local_edit);
+        open.resent();
         let (module, handle) = (open.module, open.handle);
         let opening = Opening {
             block: open.block,
@@ -1342,7 +1401,7 @@ impl<H: Host> Replicas<H> {
         };
         self.modules.tick_at(open.module, at);
         if let Some(open) = self.open.get_mut(&replica) {
-            open.unreported = true;
+            open.sent += 1;
         }
         let at = self.modules.millis_at(at);
         self.replay(
@@ -1411,7 +1470,7 @@ impl<H: Host> Replicas<H> {
         let Some((_, open)) = self.replica_of(block) else {
             return;
         };
-        let durable = !open.unreported && (open.status.clean || open.status.journaled);
+        let durable = !open.unreported() && (open.status.clean || open.status.journaled);
         let settled = open.status.clean
             && !open.status.owes_seal
             && !open.replay.iter().any(Replayed::local_edit);
@@ -1487,6 +1546,7 @@ impl<H: Host> Replicas<H> {
             .call(module, |connection| replayed.send(handle, connection))
             .flatten()?;
         let open = self.open.get_mut(&replica)?;
+        open.sent += 1;
         open.replay.push(match replayed {
             Replayed::Change { change, .. } => Replayed::Change {
                 change,
@@ -2563,6 +2623,7 @@ impl<H: Host> Replicas<H> {
             open.epoch += 1;
             open.publishing = 0;
             open.moved.clear();
+            open.resent();
             let kept = kept_commits(peer, open.block);
             let opening = Opening {
                 block: open.block,
@@ -3204,13 +3265,13 @@ impl<H: Host> Replicas<H> {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
                 };
-                open.unreported = false;
                 if open.reporting.is_some() && open.status.head != status.head {
                     open.reporting = None;
                 }
+                // A status the module made before it took the edits sent since covers only
+                // those it took (`Status::taken`): the rest stay to be given again.
                 if status.clean && status.head.is_some() && !status.owes_seal {
-                    open.replay.clear();
-                    open.departed.clear();
+                    open.reported_clean(status.taken);
                 }
                 let became_unreadable =
                     status.unreadable.is_some() && open.status.unreadable.is_none();
@@ -3291,7 +3352,7 @@ impl<H: Host> Replicas<H> {
         let unsealed = self
             .open
             .values()
-            .filter(|open| !open.status.clean || open.unreported)
+            .filter(|open| !open.status.clean || open.unreported())
             .count();
         let owing = self
             .open
@@ -3302,7 +3363,7 @@ impl<H: Host> Replicas<H> {
         let undurable = self
             .open
             .values()
-            .filter(|open| open.unreported || (!open.status.clean && !open.status.journaled))
+            .filter(|open| open.unreported() || (!open.status.clean && !open.status.journaled))
             .map(Owing::of)
             .collect();
         (unsealed, owing, undurable)

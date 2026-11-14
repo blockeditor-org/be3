@@ -561,6 +561,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     restarting: bool,
     restarted_at: Option<CommitId>,
     lost_edits: bool,
+    /// How many local edits (an editor's messages, the host's changes) this replica has taken
+    /// since it opened, applied or dropped, which its status reports (`Status::taken`): the
+    /// host keeps each one it sent past that count to give again should the replica reopen.
+    taken: u64,
     beaten: Option<u64>,
     active: bool,
     sealing: bool,
@@ -828,6 +832,7 @@ where
             restarting: false,
             restarted_at: None,
             lost_edits: opened.lost_edits,
+            taken: 0,
             beaten: None,
             active: false,
             sealing: false,
@@ -1413,7 +1418,23 @@ where
         });
     }
 
+    /// Counts a local edit as taken as its job runs (`taken`).
+    fn take(&mut self, job: &Job<C>) {
+        if matches!(
+            job,
+            Job::Input(
+                Input::Message {
+                    from: Endpoint::Editor(_),
+                    ..
+                } | Input::Change { .. }
+            )
+        ) {
+            self.taken += 1;
+        }
+    }
+
     fn job(&mut self, job: Job<C>) {
+        self.take(&job);
         if self.unreadable.is_some() {
             return self.job_while_unreadable(job);
         }
@@ -1478,6 +1499,7 @@ where
         self.out.push(Effect::Release { replica: self.id });
         self.released = true;
         for job in std::mem::take(&mut self.jobs) {
+            self.take(&job);
             self.job_while_unreadable(job);
         }
     }
@@ -3174,6 +3196,7 @@ where
                 Role::Follower(_) => self.is_clean(),
             },
             owes_seal: self.loaded && self.seal_would_settle(),
+            taken: self.taken,
             incompatible: self.incompatible,
             diverged: self.diverged,
             unreadable: self.unreadable.clone(),

@@ -27,6 +27,9 @@ struct State {
     jamming: Mutex<bool>,
     heard: watch::Sender<u64>,
     counters: Mutex<Vec<Counter>>,
+    /// How long each read from the server waits before it goes on to the client
+    /// (`delay_answers`).
+    answer_delay: Mutex<std::time::Duration>,
 }
 
 /// What a counter counts: the calls whose method and encoded arguments it matches.
@@ -44,6 +47,7 @@ struct Link {
     /// let go (`hold_requests`, `hold_answers`).
     holding_requests: watch::Sender<bool>,
     holding_answers: watch::Sender<bool>,
+    answer_delay: std::time::Duration,
 }
 
 impl Relay {
@@ -52,6 +56,7 @@ impl Relay {
             .worker_threads(1)
             .thread_name("fault-relay")
             .enable_io()
+            .enable_time()
             .build()
             .expect("the relay's runtime starts");
         let listener = {
@@ -75,6 +80,7 @@ impl Relay {
             jamming: Mutex::new(false),
             heard: watch::Sender::new(0),
             counters: Mutex::new(Vec::new()),
+            answer_delay: Mutex::new(std::time::Duration::ZERO),
         });
         runtime.spawn(accept(listener, Arc::clone(&state)));
         Self {
@@ -128,6 +134,17 @@ impl Relay {
         for link in self.state.links() {
             link.holding_answers.send_replace(holding);
         }
+    }
+
+    /// Delays what the server answers on each connection opened from now on by `by`, as a
+    /// distant or busy server would, in order: a flake that needs a slow server shows under
+    /// `stress --latency` (guides/testing_a_gui.md), not only on a loaded build server.
+    pub fn delay_answers(&self, by: std::time::Duration) {
+        *self
+            .state
+            .answer_delay
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = by;
     }
 
     pub fn cut(&self) {
@@ -207,6 +224,10 @@ async fn accept(listener: TcpListener, state: Arc<State>) {
             cut: watch::Sender::new(false),
             holding_requests: watch::Sender::new(false),
             holding_answers: watch::Sender::new(false),
+            answer_delay: *state
+                .answer_delay
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
         };
         {
             // Checked under the links' lock, which `offline` takes to cut them after setting
@@ -346,6 +367,9 @@ async fn pump(
                 return;
             }
             held.clear();
+        }
+        if heard.is_none() && !link.answer_delay.is_zero() {
+            tokio::time::sleep(link.answer_delay).await;
         }
         if let Some(to) = &mut to
             && to.write_all(&buffer[..read]).await.is_err()

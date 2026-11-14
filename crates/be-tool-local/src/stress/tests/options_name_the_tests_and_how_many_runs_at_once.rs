@@ -14,6 +14,7 @@ fn options_name_the_tests_and_how_many_runs_at_once() {
             parallel: 8,
             limit: LIMIT,
             apps: None,
+            latency: None,
         })
     );
     let options = options(
@@ -46,6 +47,12 @@ fn options_name_the_tests_and_how_many_runs_at_once() {
         Some("//crates/be-host-tests:host-with-base".to_owned())
     );
     assert!(super::options(arguments(&["a", "--apps"]), 8).is_err());
+    assert_eq!(
+        super::options(arguments(&["a", "--latency", "100"]), 8)
+            .expect("--latency is known")
+            .latency,
+        Some(Duration::from_millis(100))
+    );
     assert!(
         super::options(arguments(&[]), 8).is_err(),
         "a name is needed"

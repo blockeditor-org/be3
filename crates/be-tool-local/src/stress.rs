@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use std::{env, fs, thread};
 
 const USAGE: &str =
-    "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B]";
+    "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
 const HARNESS: &str = "//crates/be-host-tests:test-harness";
 const BUNDLE: &str = "//crates/be-host-tests:host-with-all";
 const LIBRARIES: &str = "//crates/be-host-tests:host-libraries";
@@ -69,6 +69,8 @@ struct Options {
     limit: Duration,
     /// The apps to stage beside `BASE_APPS`, or `None` for every app.
     apps: Option<Vec<String>>,
+    /// How long the server takes to answer a device of a test's `Server`, through its relay.
+    latency: Option<Duration>,
 }
 
 /// Twice the cores: enough to slow every step down, short of the load at which single steps
@@ -83,6 +85,7 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
     let mut parallel = parallel;
     let mut limit = LIMIT;
     let mut apps = None;
+    let mut latency = None;
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         let mut number = |what: &str| -> Result<usize, String> {
@@ -96,6 +99,9 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
             "--repeat" => repeat = number("--repeat")?,
             "--parallel" => parallel = number("--parallel")?,
             "--limit" => limit = Duration::from_secs(number("--limit")? as u64),
+            "--latency" => {
+                latency = Some(Duration::from_millis(number("--latency")? as u64));
+            }
             "--apps" => {
                 let listed = arguments
                     .next()
@@ -121,6 +127,7 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
         parallel,
         limit,
         apps,
+        latency,
     })
 }
 
@@ -149,8 +156,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
                     }
                     let log = output.join(format!("{run}.log"));
                     let paintings = output.join(run.to_string());
-                    if let Err(reason) =
-                        once(&built, &options.name, options.limit, &log, &paintings)
+                    if let Err(reason) = once(&built, &options, &log, &paintings)
                     {
                         failures
                             .lock()
@@ -342,16 +348,15 @@ fn build(apps: Option<&[String]>) -> Result<Built, String> {
 /// painting differs from the accepted one. The run writes its paintings into `paintings`/made
 /// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
 /// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
-fn once(
-    built: &Built,
-    name: &str,
-    limit: Duration,
-    log: &Path,
-    paintings: &Path,
-) -> Result<(), String> {
+fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
+    let limit = options.limit;
     let made = paintings.join("made");
-    let mut child = Command::new(&built.harness)
-        .arg(name)
+    let mut command = Command::new(&built.harness);
+    if let Some(latency) = options.latency {
+        command.env("HOST_TEST_LATENCY_MS", latency.as_millis().to_string());
+    }
+    let mut child = command
+        .arg(&options.name)
         .envs(built.environment.iter().map(|(key, value)| (key, value)))
         .env("MADE_PAINTINGS", &made)
         .stdin(Stdio::null())

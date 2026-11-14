@@ -163,7 +163,10 @@ host owes a replica (the WIT documents each call):
 - **Opening.** The host calls `head-moved` for every head landing after the
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
-  kept and re-asks what was unanswered.
+  kept and re-asks what was unanswered. It keeps each local edit (an editor's
+  message, a `change`) until a clean status covers it: `status.taken` counts
+  the local edits the replica took since it opened, so a status made before
+  it took the latest does not let the host drop them.
 - **What the server holds.** `append` answers whether the server took the
   entries, `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits
