@@ -1,11 +1,7 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::{
-        Arc, Condvar,
-        atomic::{AtomicU64, Ordering},
-    },
-    time::Duration,
+    sync::{Arc, Condvar, PoisonError},
 };
 
 use be_wasm_threads::Mutex;
@@ -27,9 +23,10 @@ unsafe extern "C" {
     fn be_worker_start(entry: usize);
 }
 
-static STARTED: AtomicU64 = AtomicU64::new(0);
-static FINISHED: AtomicU64 = AtomicU64::new(0);
-const AWAITING_PREVIOUS: Duration = Duration::from_millis(5);
+/// Told, or dropped, when the stack started last has ended: the next waits for it, so two
+/// stacks never serve the same files at once. Only the page starts stacks, so only it locks this.
+static LAST_ENDED: std::sync::Mutex<Option<tokio::sync::oneshot::Receiver<()>>> =
+    std::sync::Mutex::new(None);
 
 pub(super) struct Running;
 
@@ -45,11 +42,15 @@ pub(super) fn spawn(
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) -> Running {
-    let turn = STARTED.fetch_add(1, Ordering::SeqCst);
+    let (ended, ending) = tokio::sync::oneshot::channel();
+    let previous = LAST_ENDED
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .replace(ending);
     let entry: Entry = Box::new(move || {
         Box::pin(async move {
-            while FINISHED.load(Ordering::SeqCst) < turn {
-                config.clock.sleep(AWAITING_PREVIOUS).await;
+            if let Some(previous) = previous {
+                let _ = previous.await;
             }
             let directory = config.data_dir.join("be-objects");
             let store = move || {
@@ -57,7 +58,7 @@ pub(super) fn spawn(
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
             serve(config, store, inbox, shared, changed).await;
-            FINISHED.fetch_add(1, Ordering::SeqCst);
+            let _ = ended.send(());
         })
     });
     let entry = Box::into_raw(Box::new(entry)) as usize;
@@ -68,7 +69,7 @@ pub(super) fn spawn(
 
 #[wasm_bindgen]
 pub fn be_worker_run(entry: usize) -> js_sys::Promise {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_worker();
     // unsafe(memory)
     let entry = unsafe { Box::from_raw(entry as *mut Entry) };
     wasm_bindgen_futures::future_to_promise(async move {

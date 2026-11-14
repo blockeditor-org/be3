@@ -195,7 +195,7 @@ fn hand_over(
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
-    be_wasm_threads::initialize_main_thread();
+    be_wasm_threads::initialize_page();
     panic_guard::install();
     be_host_stack::discovery::load().await;
     let mut core =
