@@ -242,8 +242,9 @@ sends it. `Peer::write` does both.
   through) and where it is returned (`Peer::summary_with_outbox`), and a server
   listing with what the outbox adds or moves (`Peer::with_outbox`): an answer
   the server gave before those reached it would otherwise undo them here.
-  Sending a move carries its databases' prefixes along (`Moving::from`). Sharing, access,
-  members, invites, agents, contacts and pairing need the server.
+  Sending a move carries its databases' prefixes along (`Moving::from`).
+  Sharing, access, members, invites, agents, contacts and pairing need the
+  server.
 - **`Peer::drain`** publishes the outbox in order once attached and reports a
   `Drained` per block. A rejected publish whose remote head already contains
   the commit is settled, not diverged; an entry is settled once a published
