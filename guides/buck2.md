@@ -261,7 +261,7 @@ worked out before anything builds, so the bootstrap writes it whole to
 **Thorough tests** carry the label `THOROUGH` (buck/dev/test.bzl): each run stays costly on the
 build server however it is written, and a change most verifies make reruns it, so
 `./scripts/verify` leaves them out and `./scripts/verify --thorough` runs them alone, one buck2
-command as verify is. .github/workflows/thorough.yml runs that daily on main and by hand. Run it
+command as verify is. .github/workflows/thorough.yml runs that when started by hand. Run it
 too after a change to what they cover; `./scripts/test` runs one by name as any other. A
 thorough test may not paint (verify's paintings part would find its paintings unused). They are:
 
