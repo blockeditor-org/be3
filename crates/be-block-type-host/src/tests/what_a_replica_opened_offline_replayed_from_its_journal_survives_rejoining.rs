@@ -21,10 +21,10 @@ async fn text(
 }
 
 /// A replica opened offline after a crash holds what it replayed from this device's journal,
-/// which no editor gives it again. Rejoining its session once the device is connected reopens
-/// it on its head, so reconnecting has it seal what it holds first, and the rejoin's answer,
-/// however early it comes, waits until that seal is reported: reopened on the head it opened
-/// on, what it replayed would be lost.
+/// which no editor gives it again. Reconnecting has it seal that first, and the rejoin's answer,
+/// however early it comes, waits until the replica reports the commit that seal made: reopened
+/// on the head it opened on meanwhile, it would sit beside its own seal, holding what that seal
+/// holds a second time.
 #[test]
 fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() {
     let clock = be_block_client::Clock::manual();
@@ -88,8 +88,9 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
             .await
             .expect("the device is connected again");
         replicas.reconnect((&peer, &shared));
-        // The server answers the rejoin before the replica's module has said anything of the
-        // seal reconnecting asked of it: the answer waits for that seal.
+        // The module starts the seal reconnecting asked of it, and the server answers the rejoin
+        // before the module reports where the seal left it: the answer waits for that.
+        replicas.pump((&peer, &shared)).await;
         replicas.rejoin_answered().await;
         while replicas.joining() {
             replicas.woken().await;
@@ -100,6 +101,11 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
             text(&peer, &shared, &mut replicas, block).await,
             "socks",
             "what the replica replayed from its journal survives its rejoining"
+        );
+        assert_eq!(
+            replicas.status(block).and_then(|status| status.head),
+            peer.local_head(block),
+            "it reopens on the commit its seal made, not beside it on the head it opened on"
         );
     });
 }

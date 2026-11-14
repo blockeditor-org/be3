@@ -646,6 +646,15 @@ impl Modules {
         self.flush(module);
     }
 
+    /// Starts the module of `content_type` again, as a stopped one is: its replicas reopen on
+    /// the host's next `pump`.
+    #[cfg(test)]
+    pub(crate) fn restart_type(&mut self, content_type: Uuid) {
+        if let Some(module) = self.module_of(content_type) {
+            self.restart(module);
+        }
+    }
+
     fn restart(&mut self, module: usize) {
         self.backlog.retain(|(from, _)| *from != module);
         let held = &mut self.modules[module];

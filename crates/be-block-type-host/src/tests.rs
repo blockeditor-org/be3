@@ -20,11 +20,12 @@ mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
-mod a_replica_opened_again_takes_the_servers_journal_and_never_this_devices_entries;
+mod a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_follows_it;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
+mod an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
@@ -32,6 +33,7 @@ mod news_of_a_block_whose_head_stayed_moves_no_replica;
 mod search_text_of_a_type_that_loads_whole_is_narrowed_to_the_keys_asked_for;
 mod search_text_reads_only_the_parts_asked_for_and_not_yet_indexed;
 mod two_hosts_in_one_process_each_send_a_type_to_their_own_module;
+mod what_a_replica_opened_offline_replayed_from_its_journal_survives_a_restart_of_its_module;
 mod what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining;
 mod what_a_wait_on_a_module_handles_is_taken_as_a_change;
 
@@ -272,6 +274,7 @@ async fn test_modules(clock: be_block_client::Clock) -> crate::Modules {
             in_process::<sections::BlockTypes>("test.sections"),
             in_process::<probe::BlockTypes>("test.probe"),
             in_process::<be_type_text::BlockTypes>("be3.text"),
+            in_process::<be_type_example_counter::BlockTypes>("be3.counter"),
         ],
         clock,
     )

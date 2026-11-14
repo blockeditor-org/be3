@@ -113,6 +113,31 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.journal_held(block, keys)?)
     }
 
+    /// Makes this device's journal of `block` the server's `journal`, sealed as joining answered
+    /// it: a replica opened on it journals what it sequences next after the server's entries,
+    /// and this device keeps what it opened on.
+    pub fn keep_journal(&self, block: Uuid, journal: &Journal) -> Result<(), ClientError> {
+        let generation = journal
+            .entries
+            .iter()
+            .map(|entry| entry.generation)
+            .max()
+            .unwrap_or_default();
+        self.refs.rebase_journal(
+            block,
+            journal.tag,
+            generation,
+            journal.base.clone(),
+            journal.entries.clone(),
+        )?;
+        Ok(())
+    }
+
+    /// This device's journal of `block`, sealed as it keeps it.
+    pub fn sealed_journal(&self, block: Uuid) -> Option<Journal> {
+        self.refs.journal(block)
+    }
+
     /// This device's journal of `block`, opened.
     pub fn local_journal(&self, block: Uuid) -> Result<Option<Journal>, ClientError> {
         self.refs

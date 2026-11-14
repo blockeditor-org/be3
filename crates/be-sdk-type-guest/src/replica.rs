@@ -566,6 +566,18 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// since it opened, applied or dropped, which its status reports (`Status::taken`): the
     /// host keeps each one it sent past that count to give again should the replica reopen.
     taken: u64,
+    /// The first of those whose operations wait in `held`, not yet sequenced: an owner
+    /// sequences local edits in the order it takes them, so every one taken before it is.
+    held_from: u64,
+    /// How many local edits were taken when this replica was last clean: all of them are in
+    /// its head.
+    clean_taken: u64,
+    /// How many local edits its seal on the way holds: those sequenced when it began.
+    sealing_taken: u64,
+    /// How many local edits its head holds (`Status::sealed_taken`).
+    sealed_taken: u64,
+    /// How many local edits its head and its journal hold (`Status::journaled_taken`).
+    journaled_taken: u64,
     /// Which opening this is (`Opened::epoch`), said with every status.
     epoch: u64,
     beaten: Option<u64>,
@@ -836,6 +848,11 @@ where
             restarted_at: None,
             lost_edits: opened.lost_edits,
             taken: 0,
+            held_from: 0,
+            clean_taken: 0,
+            sealing_taken: 0,
+            sealed_taken: 0,
+            journaled_taken: 0,
             epoch: opened.epoch,
             beaten: None,
             active: false,
@@ -1340,6 +1357,9 @@ where
         let ops = std::mem::take(&mut self.unappended);
         if ops.is_empty() {
             return;
+        }
+        if self.is_owner() {
+            self.journaled_taken = self.sequenced_taken();
         }
         let from = ops[0].sequence;
         match self.alone() {
@@ -2221,6 +2241,7 @@ where
         match then {
             AfterPublish::Seal { reply, .. } => {
                 if let Some(head) = head {
+                    self.sealed_taken = self.sealed_taken.max(self.sealing_taken);
                     self.settle_at(head);
                 }
                 self.sealing = false;
@@ -2532,6 +2553,15 @@ where
         matches!(self.role, Role::Owner(_))
     }
 
+    /// How many local edits an owner has sequenced, so that its confirmed content holds them:
+    /// every one taken, but for those whose operations wait in `held`.
+    fn sequenced_taken(&self) -> u64 {
+        match self.held.is_empty() {
+            true => self.taken,
+            false => self.held_from.saturating_sub(1),
+        }
+    }
+
     /// Loads a journal on the base just read: its session state, then every operation in it,
     /// answered in order. An owner opening with it continues from its numbering without
     /// rebasing; one that took it over rebases first (`adopt`).
@@ -2705,6 +2735,9 @@ where
         if self.is_owner() && (oversized || sealing || !self.held.is_empty()) {
             self.lacking.add(payload, Until::Waiting, announcements);
             let first = self.held.is_empty();
+            if first {
+                self.held_from = self.taken;
+            }
             self.held.push_back(operation);
             if first && !sealing {
                 self.sequence_held();
@@ -3185,6 +3218,24 @@ where
     }
 
     fn report(&mut self) {
+        let clean = self.loaded && self.is_clean();
+        if clean {
+            self.clean_taken = self.taken;
+        }
+        // What its head holds: every local edit once it is clean, otherwise what its last seal
+        // held, or for a follower what it held when it was last clean.
+        let sealed_taken = match (&self.role, clean) {
+            (_, true) => self.taken,
+            (Role::Owner(_), false) => self.sealed_taken.max(self.clean_taken),
+            (Role::Follower(_), false) => self.clean_taken,
+        };
+        // An owner's journal holds every edit it sequenced once nothing waits to be appended.
+        let journaled_taken = match &self.role {
+            Role::Owner(_) if self.unappended.is_empty() => self.sequenced_taken(),
+            Role::Owner(_) => self.journaled_taken,
+            Role::Follower(_) => 0,
+        }
+        .max(sealed_taken);
         let undo = (self.loaded && !self.released).then(|| UndoState {
             can_undo: self.history.can_undo(),
             can_redo: self.history.can_redo(),
@@ -3201,6 +3252,8 @@ where
             },
             owes_seal: self.loaded && self.seal_would_settle(),
             taken: self.taken,
+            sealed_taken,
+            journaled_taken,
             epoch: self.epoch,
             incompatible: self.incompatible,
             diverged: self.diverged,
@@ -3846,6 +3899,11 @@ where
         let mut unsent = std::mem::take(&mut self.unsent).into_iter();
         for (operation, bound, _) in unsent.by_ref() {
             if bound > LARGEST_RELAYED_OPERATION {
+                // Taken as a follower, after it was last clean: which edit it came from is not
+                // known, so none since is counted as sequenced.
+                if self.held.is_empty() {
+                    self.held_from = self.clean_taken + 1;
+                }
                 self.held.push_back(operation);
                 break;
             }
@@ -4027,6 +4085,7 @@ where
         // What it sequenced reaches the journal first, with what it announces, which the host
         // then keeps with this commit (`rebase-journal`).
         self.append_unappended();
+        self.sealing_taken = self.sequenced_taken();
         self.restarting = self.restart_due();
         self.sealing_through = match (&self.role, self.restarting) {
             (Role::Owner(sequencer), false) => {

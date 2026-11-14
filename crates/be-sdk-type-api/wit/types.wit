@@ -173,6 +173,13 @@ interface types {
         /// the replica has taken since it was opened or reopened, in the order
         /// the host sent them: what this status reflects of them.
         taken: u64,
+        /// How many of those `head` holds: the host need not give them to the
+        /// replica again when it opens it on `head`.
+        sealed-taken: u64,
+        /// How many of those `head` and this device's journal on it hold
+        /// together (at least `sealed-taken`): the host need not give them
+        /// again when it opens the replica on `head` with that journal.
+        journaled-taken: u64,
         /// The `opening.epoch` the replica was opened with, which `taken`
         /// counts from.
         epoch: u64,
