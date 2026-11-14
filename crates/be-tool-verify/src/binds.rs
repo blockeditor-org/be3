@@ -14,8 +14,16 @@ const ALLOWED: &[&str] = &[
 ];
 
 /// The lines, as a path and the line trimmed, that may write a wildcard
-/// address: `--domain`, a public deployment.
-const ALLOWED_LINES: &[(&str, &str)] = &[("crates/be-host/web/serve.sh", "bind=\"[::]\"")];
+/// address: `--domain`, a public deployment, and the scripts telling a
+/// wildcard `--addr` apart to answer any Host on it.
+const ALLOWED_LINES: &[(&str, &str)] = &[
+    ("crates/be-host/web/serve.sh", "bind=\"[::]\""),
+    ("crates/be-host/web/serve.sh", WILDCARD_SITE),
+    ("buck/program/serve-bundle.sh", WILDCARD_SITE),
+    ("crates/be-tool-paint-review-web/web/serve.sh", WILDCARD_SITE),
+];
+
+const WILDCARD_SITE: &str = "0.0.0.0 | \"[::]\") site=\"http://:$port\" ;;";
 
 /// The Caddyfiles of servers deployed by hand, which face the internet on
 /// purpose (guides/build_server.md).
@@ -61,18 +69,17 @@ pub fn wildcard_binds(path: &str, text: &str) -> Vec<String> {
         if ALLOWED_LINES.contains(&(path, code.trim_end())) {
             continue;
         }
-        if SCRIPTS.iter().any(|extension| path.ends_with(extension))
+        if let Some(wildcard) = WILDCARDS.iter().find(|wildcard| code.contains(*wildcard)) {
+            problems.push(format!(
+                "{path}:{}: `{wildcard}` listens on every interface; default to loopback and let whoever runs it pass the address",
+                index + 1
+            ));
+        } else if SCRIPTS.iter().any(|extension| path.ends_with(extension))
             && code.contains(".listen(")
             && !LOOPBACK.iter().any(|host| code.contains(host))
         {
             problems.push(format!(
                 "{path}:{}: a `listen` that names no host listens on every interface; pass \"127.0.0.1\"",
-                index + 1
-            ));
-        }
-        if let Some(wildcard) = WILDCARDS.iter().find(|wildcard| code.contains(*wildcard)) {
-            problems.push(format!(
-                "{path}:{}: `{wildcard}` listens on every interface; default to loopback and let whoever runs it pass the address",
                 index + 1
             ));
         }

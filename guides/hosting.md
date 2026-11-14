@@ -65,7 +65,8 @@ internet and binds every interface on purpose.
 `./scripts/verify` enforces this (crates/be-tool-verify, `binds.rs`). It fails on a Caddyfile
 outside scripts/internal without a loopback `default_bind`; on `0.0.0.0`, `Addr::UNSPECIFIED`, or
 `[::]` written as an address (`[::]:PORT`, quoted, or after `=`), outside a comment, a guide,
-scripts/internal or `--domain`'s line in crates/be-host/web/serve.sh; and on a Node
+scripts/internal or the lines `ALLOWED_LINES` names (`--domain`'s bind, and the scripts' check
+for a wildcard `--addr`); and on a Node
 `.listen(` line that names no loopback host, which listens on every interface.
 
 ## Routes, the proxy and the gateway
