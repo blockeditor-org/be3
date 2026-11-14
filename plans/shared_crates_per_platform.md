@@ -81,18 +81,15 @@ unicode and icu data build for them too, though no app indexes anything:
    checklist; release drops most of it).
 5. Build the web in verify (above), if the user wants it.
 
-## Size levers for type modules, not taken
+## Size levers for type modules
 
 Measured on the release `:module` of be-type-checklist (2.29 MB: code 2.07 MB,
-name section 0.17 MB), for the user to decide:
+name section 0.17 MB):
 
-- opt-level: release builds every crate at the toolchain's level 3
-  (`OPT_LEVELS["toolchain"]`, buck/platforms/profile.bzl). Setting the
-  release slot of `member` and `app` (first-party crates only; third-party
-  stays at 3, and setting the toolchain's own to `s` breaks libm's build
-  script, which reads `OPT_LEVEL`) gives 1.67 MB at `s` (code 1.34, names
-  0.28) and 1.64 MB at `z` (code 1.19, names 0.39). It would have to be a
-  select on wasm32 so the host keeps level 3.
-- The name section survives release builds (0.07–0.20 MB a module at level 3,
-  more at `s`/`z`, which inline less); stripping it in the release
-  `:module` saves that, at the cost of names in a guest's backtraces.
+- opt-level: done. First-party crates are built at `s` in a release build on
+  wasm32-unknown-unknown (`member` in `OPT_LEVELS`, buck/platforms/profile.bzl,
+  which says why): 1.67 MB, every type module a quarter to a third smaller.
+  Apps and their libraries keep 3, where `s` and `z` slowed their frames.
+- The name section stays (0.07–0.20 MB a module at 3, more at `s`): be-wasm-host
+  names a guest's backtrace and `BE3_PERF_MAP`'s profile from it
+  (decisions/shipped_bundle_size_settings.md).
