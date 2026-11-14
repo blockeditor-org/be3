@@ -529,7 +529,10 @@ mod process {
         let mut children = Vec::new();
         for task in tasks.flatten() {
             if let Ok(text) = std::fs::read_to_string(task.path().join("children")) {
-                children.extend(text.split_whitespace().filter_map(|id| id.parse::<i32>().ok()));
+                children.extend(
+                    text.split_whitespace()
+                        .filter_map(|id| id.parse::<i32>().ok()),
+                );
             }
         }
         children

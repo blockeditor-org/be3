@@ -25,7 +25,10 @@ fn what_a_test_leaves_running_is_stopped() {
         .status()
         .unwrap();
     assert!(status.success(), "{status}");
-    for (what, file) in [("in the test's group", &grouped), ("in a session of its own", &detached)] {
+    for (what, file) in [
+        ("in the test's group", &grouped),
+        ("in a session of its own", &detached),
+    ] {
         let pid = std::fs::read_to_string(file).unwrap();
         let pid = pid.trim();
         assert!(!running(pid), "the sleeper {what} ({pid}) is still running");
