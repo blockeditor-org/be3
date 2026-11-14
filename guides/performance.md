@@ -1,6 +1,7 @@
 # Performance
 
-Measuring and profiling beui's and be-host's performance. Ideas already tried and set aside are
+Measuring and profiling beui's and be-host's performance, and keeping what `./scripts/verify`
+costs the build server down (Keeping verify cheap). Ideas already tried and set aside are
 in `decisions/` ("Ideas set aside", below).
 
 ## Benchmarks
@@ -229,6 +230,75 @@ generic function that does not depend on its type parameter is copied for every 
 every closure type, so moving it out (`probe_erased`, `Computation::new`'s `parts`) shrinks every
 module. The release settings and the alternatives measured are in
 decisions/shipped_bundle_size_settings.md.
+
+## Keeping verify cheap
+
+The build server (guides/build_server.md) runs every `./scripts/verify` of every agent and is
+pinned at full CPU, so what an action costs is its CPU seconds, not its wall time: a test made
+faster by more threads is no cheaper there, and one that waits idle costs little.
+
+### Measuring
+
+- **Tests.** Every test's launcher (crates/be-tool-run-test) ends its output with
+  `run-test: the test used 12.3 s of CPU (10.1 user, 2.2 system) in 5.0 s, at most 812 MB
+  resident`, counting every process the test started: it adopts what the test orphans (a
+  browser's renderer and GPU processes, a server it stopped) and reaps it once the test ends.
+  `./scripts/test` prints it; verify's record keeps it as each test's `cpu_seconds`, and the
+  dashboard's "Costliest tests, by CPU" ranks tests by it. `target/verify-events.json-lines`
+  holds it for every test that ran (each test action's `stderr`), not for a cached one.
+- **Other actions.** buck2's event log keeps only wall time, and a cached action's
+  `execution_time_us` is the wall time of the run that filled the cache, under that run's load.
+  For CPU, run the action here: `./scripts/buck aquery 'all_actions("//crates/x:test[run]")'
+  --output-attribute cmd` gives its command, `./scripts/buck build` of its inputs fetches them,
+  and the difference in the busy columns of `/proc/stat` around a run counts everything it
+  started. bash's `time` misses a browser's processes, which are reparented and never reaped.
+- **Per test in a crate:** run its `:test-harness` here with `RUSTC_BOOTSTRAP=1 HARNESS -Z
+  unstable-options --report-time`.
+
+### What it cost in November 2026
+
+One verify that reran every test (a change to the launcher) spent 1,154 CPU seconds on 613
+test actions. Changes to be-host or to any app rerun most of them, since the host tests and
+web host tests depend on be-host and every app. In CPU seconds:
+
+| | CPU s |
+|---|---|
+| 127 host tests (crates/be-host-tests), 0.8 to 7 each, median 2.5 | 355 |
+| be-host's `:push-web-host-test` (two accounts, the whole web host in Chromium) | 233 |
+| be-host's `:web-host-test` | 104 |
+| be-block-client, be-server, beui-host (in-process, many tests) | 51, 38, 43 |
+| beui-tests' and beui-demo-html's `:web-test` | 35, 23 |
+| the largest app tests: infinite-canvas, beui-demo, map, desktop | 32, 26, 22, 17 |
+| 151 be-host-stack parts | 29 |
+
+A change under beui costs far more in compiling than in testing: each of about thirty app test
+modules is compiled (checklist's: 95 CPU s of rustc) and then precompiled by Cranelift (60 CPU s;
+about 20 s of wall on 16 cores, which is how buck2 reports it), for tests that take well under a
+second to run. A test module holds about ten times the code of the same app linked against the
+shared libraries (guides/app_libraries.md): 25.7 MB of code against 2.5 MB, most of it base and
+beui, which every module compiles again.
+
+### Rules
+
+- **Wait for a signal, never for time** (guides/testing_a_gui.md). A sleep costs no CPU but a
+  timeout that fails costs a whole run again.
+- **Make only as much data as the test needs.** A test that crosses a batch or chunk boundary
+  lowers the constant under `cfg(test)` rather than making hundreds of objects to cross the
+  production one (`CONTENTS_BLOCKS` in be-block-client), and a quota test inserts rows rather
+  than making them through the API.
+- **Browser tests draw on the CPU.** Chromium runs WebGL on SwiftShader, which rasterizes every
+  pixel of every canvas on as many threads as the machine has; the GPU process was half of a web
+  host test's CPU. Keep pages small (the web host tests are 960×600, a quarter cheaper than
+  1280×800) and steps few. An idle page costs almost nothing: beui draws only what changed.
+- **Each start is paid per test.** A host test's be-host start costs under a second; a web host
+  test's server, Caddy, Chromium and sign-in about 30 CPU s. Put a new check into an existing
+  scenario when it needs the same setup.
+- **Optimise what a test runs a lot, not the test.** Hot dependencies are compiled optimised in
+  dev builds (`[profile.dev.package]` in Cargo.toml: the ciphers, Argon2, Cranelift), and so is
+  the C a third-party build script compiles, at its crate's own level (`_build_script_opt` in
+  buck/cargo/third_party.bzl): SQLite at `-O0` made every server and host query slower.
+- **Compiles are the larger cost.** Before making a dependency of every app heavier, count it
+  thirty times: once for each app test module that compiles and precompiles it.
 
 ## Ideas set aside
 

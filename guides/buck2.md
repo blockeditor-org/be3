@@ -183,7 +183,9 @@ A `-sys` crate's pkg-config is answered from the sysroot by the `_PKG_CONFIG` fi
 Every test is one rule, `be_test` (buck/dev/test.bzl): a harness (`:test-harness`, the test
 binary, or a wasm module, a fuzz target, a browser script), its arguments and environment, run
 through crates/be-tool-run-test, which gives it a short `TMPDIR` of its own, its
-`LD_LIBRARY_PATH`, a time limit (`TEST_TIME_LIMIT`) and the outputs below. Its
+`LD_LIBRARY_PATH`, a time limit (`TEST_TIME_LIMIT`) and the outputs below, stops what the test
+left running in its process group, and ends the output with the CPU the test's processes used
+(guides/performance.md, Keeping verify cheap). Its
 `TestRunInfo` says what it runs. buck2 test runs it again every time unless a worker ran it and
 the build server caches the result (`supports_test_execution_caching`), and brings back no
 files, so each `:test` also has `[run]`, the same command as an action, cached like any other;

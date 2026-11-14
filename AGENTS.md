@@ -39,7 +39,7 @@ Guides:
 - guides/desktop/windows.md: the Windows host, its crates (be-host-win32, be-host-win32-capture, be-host-win32-input) and focus mode
 - guides/pan_and_zoom.md: the camera an editor is handed by its host: fitting, gestures, who owns the camera, drawing and scaled items on a Canvas
 - guides/parallel_agents.md: coordinating subagents, each in its own cloud session: starting them, landing their branches, verify and build server outages
-- guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
+- guides/performance.md: benchmarks, comparing builds, profiling with perf, keeping verify cheap on the build server (what tests and compiles cost in CPU, how to measure it), and ideas already set aside
 - guides/app_libraries.md: the libraries apps are linked against, how they are linked and loaded, and the raw app interface
 - guides/pinenote.md: be-host's session on the PineNote: e-paper, a display device that cannot draw, building for it
 - guides/pinenote_ebc.md: hrdl's `rockchip_ebc` e-paper driver: where its sources are, its hints and waveforms, its ioctl header

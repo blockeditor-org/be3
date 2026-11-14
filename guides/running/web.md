@@ -160,8 +160,10 @@ survives a reload. Traps that shape this code:
 
 `web_host_test` (buck/program/drive.bzl) tests the whole page: `//crates/be-host:web-host-test`
 serves `:web` through caddy with a fresh be-server behind it, signs dev@localhost in through the
-portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page by resizing it
-(the host takes its window's size from a resize, as `drive size` gives it), waits for the
+portal (buck/program/web-sign-in.mjs, which registers it first), sizes the page to 960×600 by
+resizing it (the host takes its window's size from a resize, as `drive size` gives it; the
+harness's `VIEWPORT`, kept small because SwiftShader draws every pixel on the CPU, guides/performance.md,
+Keeping verify cheap), waits for the
 workspace, and hands a script in crates/be-host/web-test/ `drive(...)`, answered like `drive` by
 the page's `automate`, with the Playwright page beside it; `test.account(name)` signs another
 account in, in a browser context of its own. A failure prints the host's tree and the ends of the
