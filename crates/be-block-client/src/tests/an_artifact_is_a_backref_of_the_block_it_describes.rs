@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{ARTIFACT, Artifact, BlockMetadata};
+use be_block_content::{ARTIFACT, Artifact, BlockMetadata};
 
 fn described(source: Uuid) -> BlockMetadata {
     let mut metadata = BlockMetadata::named("Export");

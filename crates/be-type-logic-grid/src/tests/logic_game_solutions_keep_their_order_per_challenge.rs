@@ -1,5 +1,5 @@
 use crate::logic_game::{LogicGameContent, LogicGameOperation, QuizRow};
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 use logicgame::challenges::CHALLENGES;
 use uuid::Uuid;
 

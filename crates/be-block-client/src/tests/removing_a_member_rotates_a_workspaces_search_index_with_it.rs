@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{SEARCH_INDEX, be_block_model::BlockRef};
+use be_block_content::{SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, SEARCH_INDEX_TYPE};
 
 async fn index_bytes(peer: &Peer<MemoryStore>, index: Uuid) -> Vec<u8> {
@@ -25,7 +25,7 @@ async fn removing_a_member_rotates_a_workspaces_search_index_with_it() {
             Uuid::now_v7(),
             SEARCH_INDEX_TYPE,
             BlockParent::Block(team),
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             false,
         )
         .await

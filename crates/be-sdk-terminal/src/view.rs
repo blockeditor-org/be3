@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_block::ObjectId;
+use be_block_content::ObjectId;
 use be_type_terminal::{TerminalColors, TerminalCursor, TerminalLine, TerminalWheel};
 use beui::TextCaret;
 use beui::reactive::*;

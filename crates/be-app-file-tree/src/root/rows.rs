@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ViewState;
+use be_sdk_beui::be_block_content::ViewState;
 use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
@@ -7,9 +7,10 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use be_sdk_beui::Press;
-use be_sdk_beui::be_block::metadata::ICON_COLOR;
-use be_sdk_beui::be_block::{BlockContent, HomeContent, SettingsContent};
-use be_sdk_beui::be_block::{CREATED_BY, SETTINGS};
+use be_sdk_beui::be_block::{HomeContent, SettingsContent};
+use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::metadata::ICON_COLOR;
+use be_sdk_beui::be_block_content::{CREATED_BY, SETTINGS};
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::icons::{
     ICON_BOXES, ICON_DATABASE, ICON_INBOX, ICON_PIN, ICON_ROTATE_CCW_CLOCK, ICON_USERS, named,
@@ -945,7 +946,7 @@ impl Builder<'_> {
 /// Whether a block that references another is a place it is used, rather than a view that
 /// shows it (an open tab) or the account's own system blocks.
 fn places(user: &BlockInfo) -> bool {
-    user.block_type != be_sdk_beui::be_block::VIEW_TYPE
+    user.block_type != be_sdk_beui::be_block_content::VIEW_TYPE
         && !be_sdk_beui::be_block::SYSTEM_TYPES.contains(&user.block_type)
 }
 

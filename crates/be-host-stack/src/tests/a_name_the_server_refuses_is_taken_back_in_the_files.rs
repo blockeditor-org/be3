@@ -9,7 +9,7 @@ fn a_name_the_server_refuses_is_taken_back_in_the_files() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Plan"),
+        be_block_content::BlockMetadata::named("Plan"),
         None,
         false,
     );

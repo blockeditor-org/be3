@@ -19,7 +19,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -41,7 +41,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -63,7 +63,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -85,7 +85,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -107,7 +107,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -129,7 +129,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",
@@ -151,7 +151,7 @@ write_package_value("be3.cargo", {
             "binaries": {
                 "host-bench": [
                     "//crates/be-block-client:be-block-client",
-                    "//crates/be-block:be-block",
+                    "//crates/be-block-content:be-block-content",
                     "//crates/be-lib-build-id:be-lib-build-id",
                     "//crates/be-server:be-server",
                     "//crates/be-tool-bench:be-tool-bench",

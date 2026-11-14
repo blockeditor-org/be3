@@ -13,7 +13,7 @@ fn connecting_a_terminal_installs_its_host_in_the_sandbox() {
     let block = boat.connect_terminal(agent);
     assert_eq!(
         boat.test.store().block(block).map(|info| info.block_type),
-        Some(<TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE),
+        Some(<TerminalContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE),
         "a terminal block was made"
     );
     assert!(

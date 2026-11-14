@@ -32,7 +32,8 @@ be-block-keys      account-level cryptography            client + server
 be-block-model     objects with ids, merge, undo         client
 be-lib-sequence    the ordered sequence under text/lists client
 be-lib-search      the full-text index, kept as parts     client (guides/blocks/host.md, Search)
-be-block           content traits and content types      client
+be-block-content   content traits, metadata, blobs       client + type modules
+be-block           the host's built-in content types     client
 be-block-vcs       snapshot trees, diff, tree merge      client
 be-block-client    a peer: local store, refs db, relay   client
 be-block-sync      a folder <-> a directory on disk      client (native, guides/sync.md)

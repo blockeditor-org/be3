@@ -2,7 +2,7 @@
 //! sequenced since the last commit, sealed with the block's key, kept on the server and in this
 //! device's refs database.
 
-use be_block::Announcement;
+use be_block_content::Announcement;
 use be_block_protocol::{Journal, JournalBase, JournalEntry};
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;

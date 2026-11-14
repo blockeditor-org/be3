@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::dock::{DockPane, DockSplit, DockTab, Docking, DockingLayout, SplitSize};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

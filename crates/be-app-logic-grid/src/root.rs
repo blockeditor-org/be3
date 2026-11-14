@@ -22,8 +22,8 @@ use std::{
 
 use be_sdk_beui::BlockParent;
 use be_sdk_beui::ContentProjection;
-use be_sdk_beui::be_block::BlockContent;
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::root_settings::RootSetting;
 use be_type_logic_grid::CompiledLogic;
 use be_type_logic_grid::LogicGridOperation;

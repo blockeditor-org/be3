@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -64,6 +65,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -110,6 +112,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -156,6 +159,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -200,6 +204,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -246,6 +251,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -292,6 +298,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",
@@ -338,6 +345,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-graph:be-block-graph",
                 "//crates/be-block-keys:be-block-keys",
                 "//crates/be-block-protocol:be-block-protocol",

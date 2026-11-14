@@ -1,9 +1,9 @@
 use be_block_model::{Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
-use be_block::Root;
-use be_block::setting::Setting;
-use be_block::settings::{Layered, union};
+use be_block_content::Root;
+use be_block_content::layered::{Layered, union};
+use be_block_content::setting::Setting;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct EditorSettings {

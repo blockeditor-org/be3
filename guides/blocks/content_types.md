@@ -6,7 +6,7 @@ modules (guides/type_modules.md).
 
 ## The content traits
 
-A block's content opts into traits in `be-block`: `BlockContent` (durable
+A block's content opts into traits in `be-block-content`: `BlockContent` (durable
 bytes, the references they declare, a name, its searchable text for the search
 index: guides/type_modules.md, "The protocol"), `LiveEdit` (what a session
 carries: `apply`, `apply_beneath`, `absorb_operation`, `child_operations`), `Merge`
@@ -22,7 +22,7 @@ someone else changed since.
 
 `references_in(organization)` is what the peer records for a commit. Text uses
 it: a block URL names its organization, and a URL pasted from another
-organization is a link, not a reference. The URL format (`be_block::block_url`,
+organization is a link, not a reference. The URL format (`be_block_content::block_url`,
 `<base>#block/<organization>/<block>`) is stored in text and so is read
 forever: a reference is found by its fragment alone, whatever host precedes it.
 
@@ -76,7 +76,7 @@ settles and never conflicts (guides/chat.md, "Merging").
 
 Almost every type is a `Document<R>`: structs deriving `be_block_model::Model`
 with a `Root` naming the content type. The derive supplies merge, rebase and
-undo; `Document<R>` implements the traits in `be-block` (`model.rs`), so it is
+undo; `Document<R>` implements the traits in `be-block-content` (`model.rs`), so it is
 registered with `undo` in `be_block_types!`. Content that does not fit can
 implement the traits by hand (blobs, below); content that is a document but
 must not load whole wraps one and forwards them to it (`ChatContent` in
@@ -258,7 +258,7 @@ when old headers would be read wrongly.
 
 ## Testing a type
 
-Helpers in `crates/be-block/src/tests/`, the model in
+Helpers in `crates/be-block-content/src/tests/` and `crates/be-block/src/tests/`, the model in
 `crates/be-block-model/src/tests/`. An editor's tests use
 `be_sdk_test::BeuiTest`, whose `ContentStore` hosts every block through one
 in-process `be_sdk_type_guest::Module` (`hold::<C>` registers a type it does

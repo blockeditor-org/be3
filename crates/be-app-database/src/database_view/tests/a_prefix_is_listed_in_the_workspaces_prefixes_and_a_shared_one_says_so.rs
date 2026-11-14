@@ -1,7 +1,6 @@
-use be_sdk_beui::be_block::be_block_model::BlockRef;
-use be_sdk_beui::be_block::{
-    BlockContent, PREFIXES, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE,
-};
+use be_sdk_beui::be_block::{PREFIXES, PrefixRegistry, PrefixRegistryContent, WORKSPACE_TYPE};
+use be_sdk_beui::be_block_content::BlockContent;
+use be_sdk_beui::be_block_content::be_block_model::BlockRef;
 use be_sdk_beui::{BlockInfo, BlockParent};
 
 use super::*;

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, VecDeque};
 
-use be_block::{LiveEdit, Settling, Touched};
+use be_block_content::{LiveEdit, Settling, Touched};
 use be_sdk_type_api::ClientId;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use uuid::Uuid;
@@ -59,7 +59,7 @@ pub enum FromEditor {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Snapshot {
     pub content_type: Uuid,
-    /// `encode()`: for a type that loads only its first part (`be_block::Loads::FirstPart`),
+    /// `encode()`: for a type that loads only its first part (`be_block_content::Loads::FirstPart`),
     /// only that part's bytes, the rest read with `FromEditor::Read`.
     #[serde(with = "serde_bytes")]
     pub bytes: Vec<u8>,
@@ -137,7 +137,7 @@ pub enum ToEditor {
     },
     PartPut {
         token: u64,
-        result: Result<be_block::PartRef, String>,
+        result: Result<be_block_content::PartRef, String>,
     },
     /// Edits made on this device that the server lacks, for an editor that asked
     /// (`FromEditor::FollowLacking`): with `reset`, every one; otherwise those added or changed
@@ -244,7 +244,7 @@ pub struct EditorMirror<C: LiveEdit> {
     snapshots: u64,
     reads: u64,
     ranges: Vec<(u64, Result<Vec<u8>, String>)>,
-    puts: Vec<(u64, Result<be_block::PartRef, String>)>,
+    puts: Vec<(u64, Result<be_block_content::PartRef, String>)>,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
 }
@@ -352,7 +352,7 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         (token, FromEditor::PutPart { token, bytes })
     }
 
-    pub fn take_parts_put(&mut self) -> Vec<(u64, Result<be_block::PartRef, String>)> {
+    pub fn take_parts_put(&mut self) -> Vec<(u64, Result<be_block_content::PartRef, String>)> {
         std::mem::take(&mut self.puts)
     }
 

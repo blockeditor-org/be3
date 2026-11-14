@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, BlockMetadata};
+use be_block_content::{BlockContent, BlockMetadata};
 use be_block_graph::BlockParent;
 use be_sdk_api::embed::host_services::Call as Service;
 use be_sdk_api::{BlockLocation, Failure, PastedBlock};

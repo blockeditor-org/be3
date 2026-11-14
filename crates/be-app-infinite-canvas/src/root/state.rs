@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::CanvasView;
 use be_sdk_beui::beui::icons::Glyph;
 use be_type_database::DatabaseSchemaContent;
@@ -7,8 +7,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{CanvasCaret, CanvasCursor};
 use be_sdk_beui::ContentProjection;
-use be_sdk_beui::be_block::presence::{PresenceColor, pick_free_color};
-use be_sdk_beui::be_block::{Edit, ObjectId};
+use be_sdk_beui::be_block_content::presence::{PresenceColor, pick_free_color};
+use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::be_sdk_ui::BlockLabel;
 use be_sdk_beui::beui::icons::{
     ICON_BRUSH, ICON_CIRCLE, ICON_DIAMOND, ICON_ERASER, ICON_LASSO_SELECT, ICON_MOUSE_POINTER_2,
@@ -747,7 +747,7 @@ impl CanvasState {
 
     pub(crate) fn grid(&self) -> ReadSignal<be_type_infinite_canvas::CanvasGrid> {
         self.cells.value().content.field(
-            be_sdk_beui::be_block::be_block_model::ObjectId::ROOT,
+            be_sdk_beui::be_block_content::be_block_model::ObjectId::ROOT,
             be_type_infinite_canvas::Canvas::GRID,
         )
     }

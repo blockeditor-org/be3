@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::be_block_model::Anchor;
+use be_block_content::be_block_model::Anchor;
 use be_type_checklist::ChecklistItem;
 
 #[test]

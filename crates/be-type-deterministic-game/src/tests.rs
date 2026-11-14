@@ -1,4 +1,4 @@
-use be_block::{BlockContent, LiveEdit, Merge};
+use be_block_content::{BlockContent, LiveEdit, Merge};
 
 mod moves_played_on_both_sides_merge_to_both;
 

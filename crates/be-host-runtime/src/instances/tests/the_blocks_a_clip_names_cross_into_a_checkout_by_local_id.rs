@@ -1,8 +1,9 @@
 use super::*;
 use uuid::Uuid;
 
+use be_block::CheckoutContent;
 use be_block::version_control::{masked, scope_mask};
-use be_block::{BlockContent, BlockMetadata, CheckoutContent};
+use be_block_content::{BlockContent, BlockMetadata};
 use be_block_graph::BlockParent;
 use be_sdk_api::ClipItem;
 use be_sdk_api::clipboard::{ClipBody, formats};
@@ -30,7 +31,7 @@ fn the_blocks_a_clip_names_cross_into_a_checkout_by_local_id() {
         BlockParent::Block(checkout),
         {
             let mut metadata = BlockMetadata::default();
-            metadata.insert(&be_block::LOCAL_ID, &local);
+            metadata.insert(&be_block_content::LOCAL_ID, &local);
             metadata
         },
         None,

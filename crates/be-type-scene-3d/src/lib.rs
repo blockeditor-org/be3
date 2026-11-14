@@ -1,4 +1,4 @@
-use be_block::Root;
+use be_block_content::Root;
 use be_block_model::{Document, Model};
 use uuid::Uuid;
 

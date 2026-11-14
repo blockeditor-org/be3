@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::presence::{PresenceColor, PresenceKind};
+use be_sdk_beui::be_block_content::presence::{PresenceColor, PresenceKind};
 use be_sdk_text::SharedCaret;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

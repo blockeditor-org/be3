@@ -36,7 +36,8 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
-use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
+use be_block::{DisplaySettings, InputSettings, WORKSPACE_EDITOR};
+use be_block_content::Root;
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use be_host_base::{host, host_state, notices, panic_guard, performance, platform};
@@ -2235,7 +2236,7 @@ impl HostCore {
         };
         let restoring = Restoring {
             parent: node.parent,
-            deleted_from: node.metadata.get(&be_block::DELETED_FROM),
+            deleted_from: node.metadata.get(&be_block_content::DELETED_FROM),
             unfiled: self.root_settings.unfiled(),
             root_addable: addable(root),
         };
@@ -2704,7 +2705,7 @@ impl HostCore {
                 BlockOpen {
                     id: profile,
                     block_type:
-                        <be_block::SettingsProfileContent as be_block::BlockContent>::CONTENT_TYPE,
+                        <be_block::SettingsProfileContent as be_block_content::BlockContent>::CONTENT_TYPE,
                     via: None,
                     editor: None,
                     at: None,
@@ -3020,7 +3021,7 @@ impl HostCore {
         };
         set_artifact(
             id,
-            Some(be_block::Artifact {
+            Some(be_block_content::Artifact {
                 settings: data.clone(),
                 ..descriptor
             }),
@@ -4171,19 +4172,24 @@ fn discard_view(action: &PendingDestructiveAction) -> ui::DiscardView {
     }
 }
 
-fn artifact_of(id: Uuid) -> Option<be_block::Artifact> {
-    be_host_stack::node(id)?.metadata.get(&be_block::ARTIFACT)
+fn artifact_of(id: Uuid) -> Option<be_block_content::Artifact> {
+    be_host_stack::node(id)?
+        .metadata
+        .get(&be_block_content::ARTIFACT)
 }
 
-fn set_artifact(id: Uuid, artifact: Option<be_block::Artifact>) {
-    be_host_stack::define(id, vec![be_block::ARTIFACT.definition(artifact.as_ref())]);
+fn set_artifact(id: Uuid, artifact: Option<be_block_content::Artifact>) {
+    be_host_stack::define(
+        id,
+        vec![be_block_content::ARTIFACT.definition(artifact.as_ref())],
+    );
 }
 
 /// What Restore knows of a deleted block: where it was, and what it was deleted from when its
 /// parent no longer says (`DELETED_FROM`).
 struct Restoring {
     parent: Option<BlockParent>,
-    deleted_from: Option<be_block::DeletedFrom>,
+    deleted_from: Option<be_block_content::DeletedFrom>,
     /// The account's Unfiled, once the graph has it at the root.
     unfiled: Option<Uuid>,
     /// Whether the block itself may stand at the root (a workspace).
@@ -4216,20 +4222,21 @@ fn restore_to(
         return RestoreTo::Placed(parent);
     }
     let from = match restoring.parent {
-        Some(BlockParent::Block(parent)) => Some(be_block::DeletedFrom::Block(parent)),
+        Some(BlockParent::Block(parent)) => Some(be_block_content::DeletedFrom::Block(parent)),
         _ => restoring.deleted_from,
     };
     match from {
-        Some(be_block::DeletedFrom::Block(parent))
+        Some(be_block_content::DeletedFrom::Block(parent))
             if restoring.unfiled == Some(parent) && usable(parent) =>
         {
             RestoreTo::Unfiled(parent)
         }
-        Some(be_block::DeletedFrom::Root) if restoring.root_addable => RestoreTo::Root,
-        Some(be_block::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
+        Some(be_block_content::DeletedFrom::Root) if restoring.root_addable => RestoreTo::Root,
+        Some(be_block_content::DeletedFrom::Block(parent)) if usable(parent) && addable(parent) => {
             RestoreTo::Into(parent)
         }
-        Some(be_block::DeletedFrom::Root | be_block::DeletedFrom::Block(_)) | None => restoring
+        Some(be_block_content::DeletedFrom::Root | be_block_content::DeletedFrom::Block(_))
+        | None => restoring
             .unfiled
             .map_or(RestoreTo::Nowhere, RestoreTo::Unfiled),
     }

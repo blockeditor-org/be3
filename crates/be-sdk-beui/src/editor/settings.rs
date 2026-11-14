@@ -2,12 +2,12 @@ use be_lib_stable_hash::HashMap;
 use std::any::{Any, TypeId};
 use std::collections::BTreeMap;
 
-use be_block::be_block_model::{BlockRef, Document};
 use be_block::{
-    ANYONE_INSIDE, BlockContent, EDIT_KINDS, Follows, KindVisibility, Layered, LiveEdit,
-    Resolution, ResolutionLayers, Root, SETTINGS, Settings, SettingsContent, WORKSPACE_TYPE,
-    edit_kind_key,
+    ANYONE_INSIDE, EDIT_KINDS, Resolution, ResolutionLayers, Settings, SettingsContent,
+    WORKSPACE_TYPE, edit_kind_key,
 };
+use be_block_content::be_block_model::{BlockRef, Document};
+use be_block_content::{BlockContent, Follows, KindVisibility, Layered, LiveEdit, Root, SETTINGS};
 use be_sdk_api::AccessLevel;
 use beui::reactive::*;
 use uuid::Uuid;
@@ -313,7 +313,7 @@ impl Editor {
                         .below(editor.block_id())
                 })
                 .unwrap_or_default();
-            be_block::layered(below.into_iter().filter_map(|block| {
+            be_block_content::layered(below.into_iter().filter_map(|block| {
                 editor
                     .content_of::<Document<R>>(block)
                     .read(|content| content.root())
@@ -338,7 +338,7 @@ impl Editor {
             Settings::CONTENT_TYPE,
             Some(content.encode()),
             BlockParent::Block(owner),
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
         );
         blocks.define(owner, SETTINGS.definition(Some(&BlockRef(settings))));
         self.state()
@@ -390,7 +390,7 @@ impl Editor {
             kind,
             Some(content.encode()),
             BlockParent::Block(settings),
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
             R::VISIBILITY.owner_only(),
         );
         if R::VISIBILITY == KindVisibility::Inside {
@@ -429,7 +429,7 @@ impl Editor {
             kind,
             Some(content.encode()),
             BlockParent::Block(owner),
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
             false,
         );
         blocks.define(
@@ -453,10 +453,10 @@ impl Editor {
         Some(block)
     }
 
-    pub fn change_block_kind<R>(&self, owner: Uuid, edit: be_block::Edit) -> Option<Uuid>
+    pub fn change_block_kind<R>(&self, owner: Uuid, edit: be_block_content::Edit) -> Option<Uuid>
     where
         R: Layered + 'static,
-        Document<R>: BlockContent + LiveEdit<Op = be_block::Edit> + Clone + Default,
+        Document<R>: BlockContent + LiveEdit<Op = be_block_content::Edit> + Clone + Default,
     {
         let kinds = self.kinds_above(owner);
         let here = untrack(|| {

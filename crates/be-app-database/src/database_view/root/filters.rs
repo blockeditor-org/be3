@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{ICON_LIST_FILTER, ICON_PLUS, ICON_X};
 use be_sdk_beui::beui::reactive::*;

@@ -5,8 +5,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use be_block::presence::{ChannelKind, PresenceKind};
-use be_block::{EditorViewContent, ViewState};
+use be_block_content::presence::{ChannelKind, PresenceKind};
+use be_block_content::{EditorViewContent, ViewState};
 use be_lib_geometry::{CanvasView, Pos2, Rect, Vec2};
 use be_sdk_api::{ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
 use uuid::Uuid;
@@ -309,7 +309,7 @@ impl EditorCore {
 
     pub fn content<C>(&self, block: Option<Uuid>) -> LiveContent<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         let contents = &self.0.contents;
         let cached = contents
@@ -343,7 +343,7 @@ impl EditorCore {
 
     pub fn content_of<C>(&self, block: Uuid) -> LiveContent<C>
     where
-        C: be_block::LiveEdit + Clone + Default,
+        C: be_block_content::LiveEdit + Clone + Default,
     {
         if block == self.0.block {
             return self.content(None);
@@ -381,7 +381,7 @@ impl EditorCore {
         }
     }
 
-    pub fn create_child<C: be_block::BlockContent>(&self, content: &C) -> Uuid {
+    pub fn create_child<C: be_block_content::BlockContent>(&self, content: &C) -> Uuid {
         self.graph()
             .create(content, BlockParent::Block(self.0.block))
     }

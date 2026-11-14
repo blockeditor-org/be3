@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::EditorViewContent;
+use be_sdk_beui::be_block_content::EditorViewContent;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor};
@@ -241,7 +241,7 @@ fn paste_into_folder(
 const MY_FILES: Uuid = be_sdk_beui::be_block::my_files(Uuid::nil(), Uuid::nil());
 
 fn files_workspace(host: &EditorHost, inside: &[be_sdk_beui::BlockInfo]) -> be_sdk_beui::BlockInfo {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     use be_sdk_beui::{BlockInfo, BlockParent};
     assert_eq!(
         MY_FILES,
@@ -282,7 +282,7 @@ fn folders_zoom(fixture: &mut Fixture) {
 }
 
 fn containers(fixture: &mut Fixture, children: be_sdk_beui::ChildOperations) {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     use be_sdk_beui::{BlockTypeDescriptor, Catalog, Press};
     let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
         block_type: block_type.into_bytes(),
@@ -379,7 +379,7 @@ fn folder_of(
     name: &str,
     inside: Vec<be_sdk_beui::BlockInfo>,
 ) -> be_sdk_beui::BlockInfo {
-    use be_sdk_beui::be_block::BlockContent;
+    use be_sdk_beui::be_block_content::BlockContent;
     let mut folder = named_block(id, FolderContent::CONTENT_TYPE, MY_FILES, name);
     folder.references = inside.iter().map(|block| block.id).collect();
     fixture

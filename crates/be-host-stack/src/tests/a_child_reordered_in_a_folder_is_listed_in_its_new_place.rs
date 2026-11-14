@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::FolderContent;
 
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 
 fn listed(shared: &Shared, folder: Uuid) -> Vec<Uuid> {
     shared
@@ -21,7 +21,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         folder,
         FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -30,7 +30,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
             child,
             CounterContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Block(folder),
-            be_block::BlockMetadata::default(),
+            be_block_content::BlockMetadata::default(),
             None,
             false,
         );

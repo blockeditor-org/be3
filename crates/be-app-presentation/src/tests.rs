@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::Key;
 use be_sdk_beui::{Editor, EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;

@@ -1,4 +1,5 @@
-use be_sdk_beui::be_block::{BlockContent, SETTINGS, SettingsContent};
+use be_sdk_beui::be_block::SettingsContent;
+use be_sdk_beui::be_block_content::{BlockContent, SETTINGS};
 use be_sdk_beui::{BlockInfo, BlockParent};
 use be_type_logic_grid::HotbarContent;
 

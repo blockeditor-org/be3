@@ -1,6 +1,6 @@
 use crate::hotbar::{Hotbar, HotbarContent, HotbarSlot};
-use be_block::BlockContent;
-use be_block::{ChildChange, Root};
+use be_block_content::BlockContent;
+use be_block_content::{ChildChange, Root};
 use uuid::Uuid;
 
 fn pinned(hotbar: &HotbarContent) -> Vec<Option<Uuid>> {
