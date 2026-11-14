@@ -1920,7 +1920,22 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
+    /// Whether what peers sent about `block` waits for keys to unseal it.
+    #[cfg(test)]
+    pub(crate) fn waits_for_keys(&self, block: Uuid) -> bool {
+        self.unsealing.contains_key(&block)
+    }
+
+    pub fn heard(&mut self, ctx: Ctx<'_, H>, event: &Event) {
+        self.hear(ctx, event, false);
+    }
+
+    /// Takes `event`, after a search for keys its block's messages waited on when `keyed`. A
+    /// relayed message sealed with a key this device does not hold waits for a search of its
+    /// own, whatever else searched for the key: a peer seals with a block's key as soon as it
+    /// has it, and another search (`Peer::learn`) may still be on its way back. Only a message
+    /// a search answered and that is still sealed to this device is let go.
+    fn hear(&mut self, (peer, shared): Ctx<'_, H>, event: &Event, keyed: bool) {
         let block = match event {
             Event::SessionChanged { block, .. } | Event::Relayed { block, .. } => block,
             // A head another connection published; this connection's own publishes are the
@@ -1962,7 +1977,7 @@ impl<H: Host> Replicas<H> {
                 };
                 let bytes = match peer.unseal(payload) {
                     Ok(bytes) => bytes,
-                    Err(ClientError::Locked(key)) if peer.first_search_for(key) => {
+                    Err(ClientError::Locked(key)) if !keyed || peer.first_search_for(key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([event.clone()]));
                         let (peer, io, block) = (Arc::clone(peer), self.io.clone(), *block);
@@ -2185,7 +2200,7 @@ impl<H: Host> Replicas<H> {
                     H::record(shared, error);
                 }
                 for event in self.unsealing.remove(&block).unwrap_or_default() {
-                    self.heard((peer, shared), &event);
+                    self.hear((peer, shared), &event, true);
                 }
             }
             Io::Joined {
