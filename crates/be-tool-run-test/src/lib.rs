@@ -436,14 +436,14 @@ mod process {
         rest: [i64; 14],
     }
 
-    /// The test's descendants become the launcher's children when their parents exit before them, so that
-    /// reaping them counts what they used.
     static ADOPTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+    /// The test's descendants become the launcher's children when their parents exit before them, so that
+    /// reaping them counts what they used.
+    // unsafe(ffi)
     pub fn adopt_orphans() {
         ADOPTING.store(true, Ordering::SeqCst);
         #[cfg(target_os = "linux")]
-        // unsafe(ffi)
         unsafe {
             prctl(PR_SET_CHILD_SUBREAPER, 1);
         }
