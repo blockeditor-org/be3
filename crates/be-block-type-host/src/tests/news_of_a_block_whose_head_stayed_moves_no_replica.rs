@@ -42,6 +42,9 @@ fn news_of_a_block_whose_head_stayed_moves_no_replica() {
             own: false,
         };
         replicas.heard((&peer, &shared), &moved);
-        assert_eq!(replicas.heads_told, 1, "a head another device published moved it");
+        assert_eq!(
+            replicas.heads_told, 1,
+            "a head another device published moved it"
+        );
     });
 }

@@ -44,7 +44,9 @@ async fn a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_
     assert!(matches!(restored, Ok(())), "{restored:?}");
     let author = Author::new(owner_id);
     let (head, chunks) = author.compose(b"written once it was back\n", 1_000, None);
-    let published = owner.publish(&author, note, head, chunks, None, 1_000).await;
+    let published = owner
+        .publish(&author, note, head, chunks, None, 1_000)
+        .await;
     assert!(published.is_ok(), "{published:?}");
     guest.heard_head(note, head).await;
     harness.stop().await;

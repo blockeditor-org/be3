@@ -42,11 +42,16 @@ async fn a_publish_pushes_the_new_storage_usage_to_its_payer() {
         .publish(&author, other, second, more, None, 2_000)
         .await;
     assert!(published.is_ok(), "{published:?}");
-    let grown = usage
-        .recv()
-        .await
-        .expect("the first stream stays open beside the second");
-    assert!(grown.held > held, "{grown:?}");
+    // The first stream stays open beside the second, and hears the upload, then the publish.
+    loop {
+        let grown = usage
+            .recv()
+            .await
+            .expect("the first stream stays open beside the second");
+        if grown.held > held {
+            break;
+        }
+    }
 
     let mut stranger = harness.client().await;
     let mut refused = client::account::storage_changed(&stranger.peer);
