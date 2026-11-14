@@ -440,14 +440,21 @@ mod process {
 
     /// The test's descendants become the launcher's children when their parents exit before them, so that
     /// reaping them counts what they used.
-    // unsafe(ffi)
     pub fn adopt_orphans() {
         ADOPTING.store(true, Ordering::SeqCst);
-        #[cfg(target_os = "linux")]
+        subreaper();
+    }
+
+    #[cfg(target_os = "linux")]
+    fn subreaper() {
+        // unsafe(ffi)
         unsafe {
             prctl(PR_SET_CHILD_SUBREAPER, 1);
         }
     }
+
+    #[cfg(not(target_os = "linux"))]
+    fn subreaper() {}
 
     pub fn stop_leftovers(id: u32) {
         kill_group(id);

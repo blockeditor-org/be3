@@ -18,7 +18,7 @@ pub fn verify(arguments: Vec<String>) -> Result<ExitCode> {
             "--thorough",
             "--verbose",
         ]
-            .contains(&argument.as_str())
+        .contains(&argument.as_str())
         {
             return Err(VERIFY_USAGE.to_owned());
         }

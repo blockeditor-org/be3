@@ -115,7 +115,6 @@ members = [
     "crates/be-tool-fix-rust-source",
     "crates/be-tool-launcher",
     "crates/be-tool-local",
-    "crates/be-tool-paint-compare",
     "crates/be-tool-paint-review",
     "crates/be-tool-paint-review-manifest",
     "crates/be-tool-paint-review-web",
