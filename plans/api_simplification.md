@@ -11,26 +11,6 @@ numbers are from when this plan was written.
 
 ## 9. Block protocol requests that duplicate others
 
-- `read-block` is `list-blocks(listing.block)`: the server implements it as
-  `list(Listing::Block(block)).pop()`. Remove it. Make `Peer::list(listing)`
-  public and remove the wrappers that only build a `Listing` (`shared`,
-  `deleted`, `backrefs`, `open_settings`, `referenced`;
-  `be-block-client/src/peer.rs`), which the worker takes apart again
-  (`be-host-stack/src/worker.rs`). Keep `children` (about 300 callers) and
-  `summary`'s offline handling as thin forms over `list`.
-- `missing-objects` and `upload-urls` become one
-  `upload-urls(objects) -> list<option<upload-url>>`, none for objects the
-  server holds, like `download-urls`. Reserve quota only for the missing ones,
-  in the same call. One round trip less on every publish.
-- Remove the per-block `watch` stream, `block-event` and `head-moved`: the
-  `changes` stream already reports every head change for blocks the
-  connection read, and no consumer reads `head-moved.author`. `changes` gains
-  the originating client so a client skips its own publishes; deletion is a
-  summary with parent `detached`. The client's watch registry
-  (`be-block-client/src/connection.rs`) goes.
-- One convention for change streams: a stream carries the latest value and
-  starts with it. Remove `storage-usage` (only `be-block-frozen` calls it);
-  make the key-work stream `stream<key-work>` and remove `get-key-work`.
 - Invitations and contact links are one link family. Both are a code-sealed
   card, a lookup id, and an accept that makes two accounts contacts. Replace
   `invite`/`get-invitation`/`accept-invitation` and the five
@@ -43,8 +23,4 @@ numbers are from when this plan was written.
   `list-members` with a `created-by` field replaces `list-agents`. Remove
   `list-agents` and `remove-agent`. `remove-agent` never calls
   `key_work_changed` while `remove-member` does; the merged call must.
-- `Peer`'s `join_session`, `leave_session`, `claim_ownership` and `heartbeat`
-  only forward to `Connection` behind an always-`Ok` `Result`; callers use the
-  connection, as they already do for `append`.
-
 Update guides/blocks/server.md and guides/blocks/client.md.

@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -32,7 +32,7 @@ fn a_block_is_indexed_by_the_name_its_commit_carries() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -44,7 +44,7 @@ fn a_block_is_indexed_by_the_name_its_commit_carries() {
         note,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Packing list"),
+        be_block_content::BlockMetadata::named("Packing list"),
         Some(TextBlock::of("").encode()),
         false,
     );

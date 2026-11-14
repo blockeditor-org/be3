@@ -4,10 +4,12 @@ package be3:server@0.1.0;
 interface objects {
     use types.{block-id, error, hash};
 
-    /// An object to upload: its SHA-256 and its length in bytes.
+    /// An object to upload: its SHA-256 and its length in bytes, or none when
+    /// the caller does not hold it (a part it reuses by its ref alone), which
+    /// asks only whether the server holds it for the caller.
     record object-length {
         hash: hash,
-        length: u64,
+        length: option<u64>,
     }
 
     /// A header a presigned request is sent with, exactly as given.
@@ -23,19 +25,20 @@ interface objects {
         headers: list<header>,
     }
 
-    /// Reserves room for objects, charged to the uploader until a block
-    /// takes them, and answers a URL to upload each one to, in order. An
-    /// object counts as stored only once its bytes arrived. At most
-    /// `be_block_protocol::MAX_OBJECT_URLS` objects a call.
-    upload-urls: async func(objects: list<object-length>) -> result<list<upload-url>, error>;
+    /// A URL to upload each of `objects` to, in order, and none for one the
+    /// caller holds already (it uploaded it, or may read it): room is reserved
+    /// only for the rest, charged to the uploader until a block takes them. An
+    /// object counts as stored only once its bytes arrived. An object with no
+    /// length the caller does not hold refuses the call with
+    /// `object-not-found`, alike whether or not anyone stored it, and nothing
+    /// is reserved. At most `be_block_protocol::MAX_OBJECT_URLS` objects a
+    /// call.
+    upload-urls: async func(objects: list<object-length>) -> result<list<option<upload-url>>, error>;
 
     /// A presigned S3 GET for each object the caller may read, in order, and
     /// none for the rest. At most `be_block_protocol::MAX_OBJECT_URLS` hashes a
     /// call.
     download-urls: async func(hashes: list<hash>) -> result<list<option<string>>, error>;
-
-    /// Which of `hashes` the server lacks.
-    missing-objects: async func(hashes: list<hash>) -> result<list<hash>, error>;
 
     /// How long `hold-objects` keeps objects for a block. Either way the
     /// block's payer is charged for them, and whoever may view the block may
@@ -59,7 +62,7 @@ interface objects {
 /// The blocks of the organization this connection opened.
 interface blocks {
     use types.{
-        access-level, account-id, block-id, block-parent, block-summary, commit-id,
+        access-level, account-id, block-id, block-parent, block-summary, client-id, commit-id,
         content-type-id, error, hash, journal, key-id, key-set, listing, organization-role,
     };
 
@@ -171,25 +174,22 @@ interface blocks {
         revision: u64,
     }
 
+    /// A block as a change left it, and the connection whose call changed it
+    /// (its `organization-opened.client`), so a client tells its own
+    /// publishes from those of others. A block moved to the trash, or made
+    /// for one, has parent `detached`; once collected it is `removed`.
+    record block-changed {
+        block: block-summary,
+        %from: client-id,
+    }
+
     /// What a connection's `changes` stream tells of the blocks it listed.
     variant block-change {
-        /// A block it listed, or one that now matches a listing, changed.
-        changed(block-summary),
+        /// A block it listed, or one that now matches a listing, changed: its
+        /// head, its metadata, where it lies or who may view it.
+        changed(block-changed),
         /// A block it was told of matches none of its listings any more.
         removed(block-removed),
-    }
-
-    record head-moved {
-        head: commit-id,
-        author: account-id,
-    }
-
-    /// What a `watch` stream tells of its block.
-    variant block-event {
-        /// Another connection published a new head.
-        moved(head-moved),
-        /// The block was collected for good; the stream then ends.
-        deleted,
     }
 
     create-block: async func(
@@ -230,9 +230,6 @@ interface blocks {
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
 
-    /// One block's summary, which lists it as `listing.block` would.
-    read-block: async func(block: block-id) -> result<block-summary, error>;
-
     /// Summaries of `blocks`, their journals, and the objects of their heads
     /// the caller does not hold, those of the commits in `held` left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
@@ -249,7 +246,10 @@ interface blocks {
 
     /// Changes to the blocks of everything this connection listed, each
     /// block told once however many listings hold it, from the next listing
-    /// on; `open-organization` starts the listings over.
+    /// on; `open-organization` starts the listings over. A block listed on
+    /// its own (`listing.block`, as reading a block's summary does) is
+    /// followed for as long as the connection may view it: every head
+    /// another connection publishes reaches it here.
     changes: func() -> stream<block-change>;
 
     list-history: async func(block: block-id) -> result<list<history-entry>, error>;
@@ -260,11 +260,6 @@ interface blocks {
     set-access: async func(block: block-id, account: account-id, access: access-level) -> result<_, error>;
 
     list-access: async func(block: block-id) -> result<access-list, error>;
-
-    /// Head moves of a block made by other connections, until it is collected,
-    /// the connection loses the right to view it, or the stream is dropped. Each stream is its own: two on one block both
-    /// hear, and dropping one leaves the other.
-    watch: func(block: block-id) -> stream<block-event>;
 }
 
 /// Live sessions on blocks, whose connections relay edits to each other and

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fmt::Write as _;
 
-use be_sdk_beui::be_block::be_block_model::{
+use be_sdk_beui::be_block_content::be_block_model::{
     BLOB_REF, BLOCK_REF, CRITICAL, Stored, from_cbor, read_stored,
 };
 use be_sdk_beui::be_sdk_ui::BlockTypes;

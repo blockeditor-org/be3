@@ -15,15 +15,11 @@ async fn a_connection_keeps_only_so_many_refused_listings() {
         .map(|_| Uuid::new_v4())
         .collect();
     for block in &early {
-        let read = reader
-            .call(|peer| client::blocks::read_block(peer, *block))
-            .await;
+        let read = reader.try_read_block(*block).await;
         assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     }
     let late = Uuid::new_v4();
-    let read = reader
-        .call(|peer| client::blocks::read_block(peer, late))
-        .await;
+    let read = reader.try_read_block(late).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
 
     for block in [late, early[0]] {
@@ -40,7 +36,7 @@ async fn a_connection_keeps_only_so_many_refused_listings() {
             )
             .await;
     }
-    let Notice::BlockChanged { block: heard } = reader.graph_change().await else {
+    let Notice::BlockChanged { block: heard, .. } = reader.graph_change().await else {
         panic!("the block read before it was made was not announced");
     };
     assert_eq!(

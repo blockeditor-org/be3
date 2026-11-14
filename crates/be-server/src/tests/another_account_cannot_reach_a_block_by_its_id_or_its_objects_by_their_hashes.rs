@@ -28,17 +28,17 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     owner
         .upload(&author.store, &author.objects_of(unheld, &loose))
         .await;
-    owner.watch(block).await;
+    owner.follow(block).await;
     let (_, session) = owner.join_session(block).await;
     let before = owner.read_block(block).await;
+    owner.round_trip().await;
+    owner.notifications.clear();
 
     // In an organization of its own, the owner's block is not there.
     let mut attacker = harness.client().await;
     attacker.register("attacker@example.com").await;
     let elsewhere = attacker.organization("elsewhere").await;
-    let read = attacker
-        .call(|peer| client::blocks::read_block(peer, block))
-        .await;
+    let read = attacker.try_read_block(block).await;
     assert!(refused_as(&read, ErrorCode::BlockNotFound), "{read:?}");
     let contents = attacker
         .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
@@ -53,18 +53,15 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     // A hash it never uploaded is missing to it, and is not its to hold, publish or read.
     let mut hashes = author.objects_of(commit, &chunks);
     hashes.extend(author.objects_of(unheld, &loose));
-    let missing = attacker
-        .call(|peer| client::objects::missing_objects(peer, hashes.clone()))
-        .await;
-    assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     // Asking to upload what the server already holds is not having it, even with every length
-    // right; nor is asking for an object its uploader has not used yet.
+    // right: each is asked for, as missing to the attacker; nor is asking for an object its
+    // uploader has not used yet.
     let known: Vec<Vec<u8>> = hashes
         .iter()
         .map(|hash| author.store.get(*hash).unwrap().unwrap())
         .collect();
-    let reserved = attacker.reserve(&known).await;
-    assert!(reserved.is_ok(), "{reserved:?}");
+    let missing = attacker.missing(&known).await;
+    assert_eq!(missing.as_ref().ok(), Some(&hashes), "{missing:?}");
     let decoy = attacker.create_block(BlockParent::Root).await;
     let held = attacker
         .call(|peer| client::objects::hold_objects(peer, decoy, hashes.clone(), Hold::Lasting))
@@ -104,7 +101,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     );
 
     // A block with the owner's id in the attacker's organization is a block of its own: its
-    // watchers and session are not the owner's.
+    // readers and session are not the owner's.
     let copy = attacker.read_block(decoy).await;
     let key = Uuid::new_v4();
     attacker
@@ -118,7 +115,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
             },
         )
         .await;
-    attacker.watch(block).await;
+    attacker.follow(block).await;
     let (impostor, in_copy) = attacker.join_session(block).await;
     assert_eq!(
         in_copy.participants,
@@ -181,11 +178,15 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     let heard: Vec<&Notice> = owner
         .notifications
         .iter()
-        .filter(|notice| {
-            matches!(
-                notice,
-                Notice::HeadChanged { .. } | Notice::BlockDeleted { .. } | Notice::Relayed { .. }
-            )
+        .filter(|notice| match notice {
+            // What the owner's own calls changed is not the attacker's doing.
+            Notice::BlockChanged {
+                block: changed,
+                from,
+            } => changed.id == block && Some(*from) != owner.client,
+            Notice::BlockRemoved { block: gone, .. } => *gone == block,
+            Notice::Relayed { .. } => true,
+            _ => false,
         })
         .collect();
     assert!(heard.is_empty(), "the owner heard the attacker: {heard:?}");

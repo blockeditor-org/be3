@@ -2,7 +2,7 @@ use super::*;
 use crate::store::portal::{MAX_MAIL_LINKS, MAX_MAIL_LINKS_PER_INVITE};
 
 fn fill(directory: &std::path::Path, purpose: &str, rows: i64) {
-    let database = rusqlite::Connection::open(directory.join("metadata.sqlite")).unwrap();
+    let database = metadata_database(&directory);
     for index in 0..rows {
         database
             .execute(

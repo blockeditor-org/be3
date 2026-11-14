@@ -55,7 +55,6 @@ const CONNECTING: &[&str] = &[
     "contacts-changed",
     "upload-urls",
     "download-urls",
-    "missing-objects",
     "list-blocks",
     "unlist",
     "changes",
@@ -110,9 +109,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "an agent manages what it makes inside its block, as any author does"
     );
     for block in [elsewhere, under] {
-        let response = agent
-            .call(|peer| client::blocks::read_block(peer, block))
-            .await;
+        let response = agent.try_read_block(block).await;
         assert!(
             refused_as(&response, ErrorCode::BlockNotFound),
             "a block's agent read another block: {response:?}"
@@ -203,7 +200,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
     agent.round_trip().await;
     assert!(
         agent.notifications.iter().all(|notice| match notice {
-            Notice::BlockChanged { block } => [terminal, inside].contains(&block.id),
+            Notice::BlockChanged { block, .. } => [terminal, inside].contains(&block.id),
             Notice::BlockRemoved { block, .. } => [terminal, inside].contains(block),
             _ => true,
         }),
@@ -214,7 +211,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         "a block's agent was given another block's object"
     );
     let response = agent
-        .call(|peer| client::objects::missing_objects(peer, vec![head.hash()]))
+        .missing(&[author.store.get(head.hash()).unwrap().unwrap()])
         .await;
     assert!(
         matches!(&response, Ok(missing) if *missing == [head.hash()]),
@@ -227,7 +224,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
         .iter()
         .map(|key| key.id)
         .collect();
-    let response = agent.call(|peer| client::keys::get_key_work(peer)).await;
+    let response = agent.key_work().await;
     let Ok(work) = response else {
         panic!("reading the key work failed: {response:?}");
     };

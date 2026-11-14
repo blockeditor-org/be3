@@ -1,8 +1,9 @@
 use be_block_model::Model;
 
 use super::*;
-use crate::settings::{Follows, KindRule, Layered};
-use crate::{Resolution, ResolutionLayers, Root, SettingsSource};
+use crate::{Resolution, ResolutionLayers, SettingsSource};
+use be_block_content::Root;
+use be_block_content::layered::{Follows, KindRule, Layered};
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 struct Shown {

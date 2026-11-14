@@ -440,15 +440,15 @@ impl AppEditor {
     }
 
     pub(crate) fn add_child(&self, child: Uuid) -> Option<bool> {
-        self.change_child(be_block::ChildChange::Add(child))
+        self.change_child(be_block_content::ChildChange::Add(child))
     }
 
     pub(crate) fn delete_child(&self, child: Uuid) -> Option<bool> {
-        self.change_child(be_block::ChildChange::Delete(child))
+        self.change_child(be_block_content::ChildChange::Delete(child))
     }
 
     pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
-        let replace = be_block::ChildChange::Replace { old, new };
+        let replace = be_block_content::ChildChange::Replace { old, new };
         let Some(app) = self.app() else {
             return self.change_child(replace);
         };
@@ -471,13 +471,13 @@ impl AppEditor {
         {
             return Some(false);
         }
-        self.change_child(be_block::ChildChange::Reorder {
+        self.change_child(be_block_content::ChildChange::Reorder {
             block: child,
             after,
         })
     }
 
-    fn change_child(&self, change: be_block::ChildChange) -> Option<bool> {
+    fn change_child(&self, change: be_block_content::ChildChange) -> Option<bool> {
         be_host_stack::change_child(self.id, self.block_type, change)
     }
 
@@ -536,6 +536,13 @@ impl AppEditor {
         if let Some(app) = self.app() {
             be_host_runtime::show_dialog(&app.identity.id, self.instance, id, dialog);
         }
+    }
+
+    /// Tells the editor where in its block it was opened (a search hit's place); false until
+    /// its instance is open.
+    pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) -> bool {
+        self.app()
+            .is_some_and(|app| be_host_runtime::reveal(&app.identity.id, self.instance, at))
     }
 
     pub(crate) fn show_history(&self, block: Uuid, commit: Option<[u8; 32]>) {

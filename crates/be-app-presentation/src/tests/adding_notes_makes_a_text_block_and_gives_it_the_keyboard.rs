@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::{ChildChange, Root};
+use be_sdk_beui::be_block_content::{ChildChange, Root};
 use be_sdk_beui::{BlockParent, ChildContent};
 
 fn notes(test: &Harness) -> Vec<Option<Uuid>> {

@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::BuildHasherDefault};
 
-use be_block::{BlockMetadata, LOCAL_ID};
+use be_block_content::{BlockMetadata, LOCAL_ID};
 use uuid::Uuid;
 
 pub const EXTENSION: &str = "block";

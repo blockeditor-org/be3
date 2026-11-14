@@ -1,7 +1,7 @@
 use super::*;
 use uuid::Uuid;
 
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_type_database::database_view::{DatabaseView, DatabaseViewContent};
 
 fn seed(instances: &mut Instances, block: Uuid, database: Uuid) {

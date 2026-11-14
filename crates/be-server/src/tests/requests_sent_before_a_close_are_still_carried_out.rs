@@ -3,20 +3,20 @@ use super::*;
 #[tokio::test]
 async fn requests_sent_before_a_close_are_still_carried_out() {
     let harness = Harness::start().await;
-    let mut watcher = harness.client().await;
-    let account = watcher.register("author@example.com").await;
-    let organization = watcher.organization("notes").await;
+    let mut reader = harness.client().await;
+    let account = reader.register("author@example.com").await;
+    let organization = reader.organization("notes").await;
     let blocks = [
-        watcher.create_block(BlockParent::Root).await,
-        watcher.create_block(BlockParent::Root).await,
-        watcher.create_block(BlockParent::Root).await,
+        reader.create_block(BlockParent::Root).await,
+        reader.create_block(BlockParent::Root).await,
+        reader.create_block(BlockParent::Root).await,
     ];
     for block in blocks {
-        watcher.watch(block).await;
+        reader.follow(block).await;
     }
 
     let mut publisher = harness
-        .second_connection(&watcher.token.clone(), organization)
+        .second_connection(&reader.token.clone(), organization)
         .await;
     let author = Author::new(account);
     let mut heads = Vec::new();
@@ -51,8 +51,10 @@ async fn requests_sent_before_a_close_are_still_carried_out() {
 
     let mut moved = Vec::new();
     while moved.len() < heads.len() {
-        if let Notice::HeadChanged { block, head, .. } = watcher.notification().await {
-            moved.push((block, head));
+        if let Notice::BlockChanged { block, .. } = reader.graph_change().await
+            && let Some(head) = block.head
+        {
+            moved.push((block.id, head));
         }
     }
     let expected: Vec<_> = heads

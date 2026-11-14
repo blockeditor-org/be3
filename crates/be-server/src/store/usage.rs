@@ -394,7 +394,7 @@ impl ServerStore {
         sized: &[(Hash, u64)],
         carried: bool,
     ) -> Result<(), ServerError> {
-        let transaction = database.unchecked_transaction()?;
+        let transaction = be_block_sqlite_schema::write_transaction(database)?;
         let payer = payer_of(&transaction, identity.account)?;
         let account = identity.account.to_string();
         let now = be_block_commit::now_milliseconds();
@@ -494,7 +494,7 @@ impl ServerStore {
         loop {
             let (freed, more) = self
                 .with_database(move |store, database| {
-                    let transaction = database.unchecked_transaction()?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let expired: Vec<(String, String, String, String)> = {
                         let mut statement = transaction.prepare_cached(
                             "SELECT organization_id, account_id, hash, payer FROM object_uploads
@@ -739,7 +739,7 @@ pub(crate) fn load_sizes(
 
 /// Records that the store holds `objects`, each of the length it was reserved with.
 fn confirm(connection: &Connection, objects: &[(Hash, u64)]) -> Result<(), ServerError> {
-    let transaction = connection.unchecked_transaction()?;
+    let transaction = be_block_sqlite_schema::write_transaction(connection)?;
     for (hash, bytes) in objects {
         transaction
             .prepare_cached("UPDATE object_sizes SET confirmed = 1 WHERE hash = ?1 AND bytes = ?2")?

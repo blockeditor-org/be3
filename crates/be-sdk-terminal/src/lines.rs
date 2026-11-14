@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use be_block::ObjectId;
+use be_block_content::ObjectId;
 use be_type_terminal::{
     TerminalColor, TerminalColors, TerminalCursor, TerminalLine, TerminalStyle, logical_lines,
 };

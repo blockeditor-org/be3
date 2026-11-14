@@ -1,0 +1,27 @@
+[Unit]
+Description=Grafana, the build server's dashboard, behind Caddy's cookie gate (Caddyfile)
+After=network-online.target docker.service nl-prometheus.service nl-stats.service
+Requires=docker.service
+
+[Service]
+# NL_HOST, for the address Grafana's links use; the tokens in the file stay out of the container.
+EnvironmentFile=/etc/nl-caddy.env
+Restart=always
+RestartSec=5
+ExecStartPre=-/usr/bin/docker rm -f nl-grafana
+# Anyone past the gate is a viewer who can also explore: there is no login. The dashboards are this directory's JSON.
+ExecStart=/usr/bin/docker run --rm --name nl-grafana --network host \
+  -e GF_SERVER_HTTP_ADDR=127.0.0.1 -e GF_SERVER_HTTP_PORT=3000 -e GF_SERVER_ROOT_URL=https://${NL_HOST}/ \
+  -e GF_AUTH_ANONYMOUS_ENABLED=true -e GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer -e GF_AUTH_DISABLE_LOGIN_FORM=true \
+  -e GF_USERS_VIEWERS_CAN_EDIT=true -e GF_ANALYTICS_REPORTING_ENABLED=false -e GF_ANALYTICS_CHECK_FOR_UPDATES=false \
+  -e GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES=false -e GF_NEWS_NEWS_FEED_ENABLED=false \
+  -e GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/build-server.json \
+  -v /var/lib/nl-grafana:/var/lib/grafana \
+  -v /etc/nl-dashboard/grafana/provisioning:/etc/grafana/provisioning:ro \
+  -v /etc/nl-dashboard/grafana/dashboards:/etc/grafana/dashboards:ro \
+  -v /var/lib/nl-stats:/var/lib/nl-stats:ro \
+  docker.io/grafana/grafana@sha256:9b031995a5483a44f80a5dd214a70cecb31448b42d765b44d3756e17b855775f
+ExecStop=/usr/bin/docker stop nl-grafana
+
+[Install]
+WantedBy=multi-user.target

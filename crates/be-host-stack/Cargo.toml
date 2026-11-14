@@ -9,6 +9,7 @@ testing = []
 
 [dependencies]
 be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
@@ -50,6 +51,7 @@ be-type-checklist = { path = "../be-type-checklist" }
 be-type-database = { path = "../be-type-database" }
 be-type-example-counter = { path = "../be-type-example-counter" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
+be-wasm-ops = { path = "../be-wasm-ops" }
 be-type-bundle = { path = "../be-type-bundle" }
 be-lib-web-push = { path = "../be-lib-web-push" }
 be-type-image = { path = "../be-type-image" }

@@ -1,6 +1,9 @@
-use be_sdk_beui::be_block::{Edit, LiveEdit, ObjectId};
+use be_sdk_beui::be_block_content::{BlockContent, Edit, LiveEdit, ObjectId};
 use be_sdk_beui::beui::vec2;
-use be_sdk_beui::{EditorHost, OwnedEditor, Signer};
+use be_sdk_beui::{
+    BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
+    OwnedEditor, PickedBlock, Press, Signer,
+};
 use be_sdk_test::BeuiTest;
 use be_type_chat::{ChatContent, ChatOp, Message, Signature};
 use uuid::Uuid;
@@ -12,8 +15,11 @@ use crate::root::ChatRoot;
 mod a_conversation_shows_each_message_with_its_author_and_time;
 mod a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again;
 mod a_draft_stays_in_the_editor_until_it_is_sent;
+mod a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again;
 mod a_forged_deletion_of_a_closed_message_shows_where_it_was;
 mod a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_request;
+mod a_made_block_moved_out_of_the_chat_survives_the_composer;
+mod a_message_carries_the_blocks_attached_to_it;
 mod a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed;
 mod a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_closed;
 mod a_message_kept_offline_tells_the_other_members_even_when_the_chat_is_closed_as_it_drains;
@@ -32,10 +38,13 @@ mod a_reply_quotes_the_message_it_answers;
 mod a_revision_preview_verifies_what_the_chat_signed;
 mod a_sent_message_tells_the_chats_other_members_once_the_server_holds_it;
 mod an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once;
+mod an_image_pasted_into_the_composer_is_made_in_the_chat_and_attached;
 mod messages_are_sent_edited_reacted_to_and_deleted;
 mod reactions_show_under_a_message_with_their_counts;
 mod reading_on_one_device_clears_the_count_on_another;
 mod two_closed_segments_that_overlap_show_each_message_once;
+
+const TEXT: Uuid = Uuid::from_u128(0x7e47);
 
 const ME: Uuid = Uuid::from_u128(0x5a1d_0000_0000_4000_8000_0000_0000_0001);
 const ROSA: Uuid = Uuid::from_u128(0x7e1a_0000_0000_4000_8000_0000_0000_0002);
@@ -216,4 +225,44 @@ impl Harness {
     fn snapshot(&mut self, name: &str) {
         self.editor.snapshot(name);
     }
+}
+
+/// Picks `block` to attach: an existing block (`linked`), or one the picker made in the chat.
+fn attach(chat: &mut Harness, block: Uuid, linked: bool) {
+    chat.click("chat.attach");
+    chat.editor.answer_picker(Ok(Some(PickedBlock {
+        block_id: block.into_bytes(),
+        block_type: TEXT.into_bytes(),
+        linked,
+        named: true,
+        placed: false,
+    })));
+    chat.run();
+}
+
+fn deleted(chat: &mut Harness) -> Vec<Uuid> {
+    chat.editor
+        .take_block_commands()
+        .into_iter()
+        .filter_map(|(block, command)| {
+            matches!(command, BlockCommand::Delete { .. }).then_some(block)
+        })
+        .collect()
+}
+
+/// A text block named `name` made in the chat, as the picker makes one, with the type the
+/// editor names it by.
+fn made_in_chat(chat: &mut Harness, block: Uuid, name: &str) {
+    chat.editor.block_types(vec![BlockTypeDescriptor {
+        block_type: TEXT.into_bytes(),
+        display_name: "Text".to_owned(),
+        color: None,
+        icon_codepoint: "\u{e0cc}".to_owned(),
+        children: ChildOperations::default(),
+        press: Press::Open,
+        plain_file: true,
+    }]);
+    let mut info = BlockInfo::new(block, TEXT, BlockParent::Block(CHAT));
+    info.set_name(name);
+    chat.editor.store().add_block(info);
 }

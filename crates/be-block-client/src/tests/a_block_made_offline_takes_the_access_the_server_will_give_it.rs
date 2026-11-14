@@ -28,7 +28,7 @@ async fn a_block_made_offline_takes_the_access_the_server_will_give_it() {
             Uuid::now_v7(),
             be_block_graph::TAGS_TYPE,
             BlockParent::Block(team),
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             false,
         )
         .await

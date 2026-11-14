@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::NAME;
+use be_block_content::NAME;
 
 #[test]
 fn a_recorded_conflict_stays_until_a_side_resolves_it() {

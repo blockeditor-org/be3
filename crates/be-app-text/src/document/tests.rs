@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::block_url::block_url;
+use be_sdk_beui::be_block_content::block_url::block_url;
 use uuid::Uuid;
 
 use be_sdk_beui::Waker;

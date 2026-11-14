@@ -1,5 +1,5 @@
-use be_block::{BlockContent, LiveEdit, Merge};
 use be_block_commit::MergeResult;
+use be_block_content::{BlockContent, LiveEdit, Merge};
 use be_block_model::{Edit, ObjectId};
 use uuid::Uuid;
 
@@ -7,6 +7,7 @@ use crate::{ChatContent, Message};
 
 mod a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents;
 mod a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again;
+mod a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry;
 mod a_close_whose_index_entry_does_not_match_its_bytes_is_ignored;
 mod a_closed_segment_saves_as_a_part_and_loads_back_without_being_read;
 mod a_merged_index_keeps_the_entries_in_time_order;
@@ -73,9 +74,9 @@ fn merged_by_parts(
     base: &ChatContent,
     ours: &ChatContent,
     theirs: &ChatContent,
-    reader: be_block::PartReader,
+    reader: be_block_content::PartReader,
 ) -> Result<(ChatContent, usize), String> {
-    use be_block::MergeParts;
+    use be_block_content::MergeParts;
     let merge = ChatContent::merge_parts(base.clone(), ours.clone(), theirs.clone(), reader);
     let mut merge = std::pin::pin!(merge);
     let mut context = std::task::Context::from_waker(std::task::Waker::noop());
@@ -90,8 +91,8 @@ fn merged_by_parts(
 }
 
 /// A reader of no parts, for sides that hold their segments as bytes.
-fn no_parts() -> be_block::PartReader {
-    be_block::PartReader::new(|_, _, _| Box::pin(async { Err("no parts here".to_owned()) }))
+fn no_parts() -> be_block_content::PartReader {
+    be_block_content::PartReader::new(|_, _, _| Box::pin(async { Err("no parts here".to_owned()) }))
 }
 
 fn round_trip(chat: &ChatContent) -> ChatContent {

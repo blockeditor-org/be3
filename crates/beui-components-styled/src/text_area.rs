@@ -130,7 +130,6 @@ pub fn TextArea(
     marker: Option<RenderFn<TextMarker>>,
     line: Option<RenderFn<TextLine>>,
     #[prop(default = true)] emoji: bool,
-    #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
     on_focus_change: Callback<bool>,
     on_content_size: Callback<Vec2>,
@@ -203,7 +202,6 @@ pub fn TextArea(
                         scrollbar={scrollbar_style()}
                         on_widget_press={on_widget_press}
                         on_focus_change={on_focus_change}
-                        pastes_images
                         on_image_paste={on_image_paste}
                         on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                         block={block}

@@ -827,6 +827,7 @@ dependencies = [
  "be-sdk-beui",
  "be-sdk-test",
  "be-type-chat",
+ "be-type-image",
  "beui",
  "uuid",
 ]
@@ -1081,6 +1082,8 @@ dependencies = [
 name = "be-app-text"
 version = "0.1.0"
 dependencies = [
+ "be-lib-graphemes",
+ "be-lib-search",
  "be-sdk-beui",
  "be-sdk-test",
  "be-sdk-text",
@@ -1146,12 +1149,12 @@ name = "be-block"
 version = "0.1.0"
 dependencies = [
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-block-model",
  "be-block-store",
  "be-lib-search",
  "be-lib-ui-preferences",
- "memchr",
  "postcard",
  "serde",
  "uuid",
@@ -1163,6 +1166,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-fault-relay",
  "be-block-graph",
  "be-block-keys",
@@ -1208,6 +1212,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-block-content"
+version = "0.1.0"
+dependencies = [
+ "be-block-commit",
+ "be-block-model",
+ "be-block-store",
+ "memchr",
+ "postcard",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "be-block-fault-relay"
 version = "0.1.0"
 dependencies = [
@@ -1221,6 +1238,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-client",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -1343,9 +1361,9 @@ dependencies = [
 name = "be-block-sync"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-client",
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -1374,9 +1392,9 @@ dependencies = [
 name = "be-block-type-host"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-client",
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -1406,6 +1424,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-store",
  "serde",
  "uuid",
@@ -1417,6 +1436,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-client",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -1500,8 +1520,8 @@ dependencies = [
 name = "be-host-bench"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-client",
+ "be-block-content",
  "be-lib-build-id",
  "be-server",
  "be-tool-bench",
@@ -1518,6 +1538,7 @@ name = "be-host-desktop"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-block-content",
  "be-block-type-host",
  "be-host-base",
  "be-host-remap-host",
@@ -1552,6 +1573,7 @@ dependencies = [
  "be-block",
  "be-block-client",
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-host-base",
  "be-host-stack",
@@ -1611,6 +1633,7 @@ dependencies = [
  "be-block",
  "be-block-client",
  "be-block-commit",
+ "be-block-content",
  "be-block-fault-relay",
  "be-block-graph",
  "be-block-keys",
@@ -1643,6 +1666,7 @@ dependencies = [
  "be-type-workspace",
  "be-wasm-guest-abi",
  "be-wasm-host",
+ "be-wasm-ops",
  "be-wasm-threads",
  "futures-util",
  "js-sys",
@@ -1868,6 +1892,7 @@ name = "be-sdk"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-block-content",
  "be-lib-geometry",
  "be-lib-stable-hash",
  "be-sdk-api",
@@ -1909,6 +1934,7 @@ name = "be-sdk-beui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-block-content",
  "be-lib-stable-hash",
  "be-sdk",
  "be-sdk-api",
@@ -2013,7 +2039,7 @@ dependencies = [
 name = "be-sdk-terminal"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-type-terminal",
  "beui",
 ]
@@ -2053,7 +2079,7 @@ dependencies = [
 name = "be-sdk-text"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-block-model",
  "be-sdk",
  "beui",
@@ -2080,8 +2106,8 @@ dependencies = [
 name = "be-sdk-type-guest"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-block-protocol",
  "be-block-session",
@@ -2110,8 +2136,8 @@ dependencies = [
 name = "be-sdk-type-testing"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-sdk-type-api",
  "be-sdk-type-guest",
  "postcard",
@@ -2156,6 +2182,7 @@ dependencies = [
  "base64 0.22.1",
  "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -2286,6 +2313,7 @@ dependencies = [
  "be-block",
  "be-block-client",
  "be-block-commit",
+ "be-block-content",
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
@@ -2336,7 +2364,7 @@ dependencies = [
 name = "be-tool-launcher"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-sdk-terminal",
  "be-sdk-test",
  "be-tool-terminal-emulator",
@@ -2461,7 +2489,7 @@ dependencies = [
 name = "be-type-audio"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-sdk-type-guest",
  "serde",
  "uuid",
@@ -2471,8 +2499,8 @@ dependencies = [
 name = "be-type-boat"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "serde",
@@ -2483,8 +2511,8 @@ dependencies = [
 name = "be-type-browser-tab"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2527,8 +2555,8 @@ dependencies = [
 name = "be-type-chat"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-block-store",
  "be-sdk-type-guest",
@@ -2544,8 +2572,8 @@ dependencies = [
 name = "be-type-checklist"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "pollster",
@@ -2556,8 +2584,8 @@ dependencies = [
 name = "be-type-database"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "pollster",
@@ -2569,8 +2597,8 @@ dependencies = [
 name = "be-type-deterministic-game"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "serde",
@@ -2581,8 +2609,8 @@ dependencies = [
 name = "be-type-example-beui-gallery"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2592,8 +2620,8 @@ dependencies = [
 name = "be-type-example-counter"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2603,8 +2631,8 @@ dependencies = [
 name = "be-type-example-pan-zoom"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2614,8 +2642,8 @@ dependencies = [
 name = "be-type-example-triangle"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2625,8 +2653,8 @@ dependencies = [
 name = "be-type-image"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-sdk-type-guest",
  "pollster",
  "serde",
@@ -2637,8 +2665,8 @@ dependencies = [
 name = "be-type-infinite-canvas"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "be-type-database",
@@ -2651,8 +2679,8 @@ dependencies = [
 name = "be-type-logic-grid"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "logicgame",
@@ -2664,8 +2692,8 @@ dependencies = [
 name = "be-type-map"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "serde",
@@ -2676,7 +2704,7 @@ dependencies = [
 name = "be-type-pdf"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-sdk-type-guest",
  "serde",
  "uuid",
@@ -2686,8 +2714,8 @@ dependencies = [
 name = "be-type-presentation"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2697,8 +2725,8 @@ dependencies = [
 name = "be-type-scene-3d"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2708,7 +2736,7 @@ dependencies = [
 name = "be-type-settings"
 version = "0.1.0"
 dependencies = [
- "be-block",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "uuid",
@@ -2718,8 +2746,8 @@ dependencies = [
 name = "be-type-terminal"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-lib-ui-keys",
  "be-sdk-type-guest",
@@ -2731,8 +2759,8 @@ dependencies = [
 name = "be-type-text"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "pollster",
@@ -2744,8 +2772,8 @@ dependencies = [
 name = "be-type-video"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
  "be-block-model",
  "be-sdk-type-guest",
  "serde",
@@ -2756,8 +2784,9 @@ dependencies = [
 name = "be-type-workspace"
 version = "0.1.0"
 dependencies = [
- "be-block",
  "be-block-commit",
+ "be-block-content",
+ "be-block-graph",
  "be-block-model",
  "be-sdk-type-guest",
  "serde",
@@ -3245,6 +3274,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "accesskit_android",
+ "base64 0.22.1",
  "beui-core",
  "beui-runner",
  "beui-types",
@@ -3254,6 +3284,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "raw-window-handle",
+ "uuid",
 ]
 
 [[package]]
@@ -3318,6 +3349,9 @@ dependencies = [
  "clipboard-win",
  "futures-util",
  "image",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "pollster",
  "rfd",
  "winit",

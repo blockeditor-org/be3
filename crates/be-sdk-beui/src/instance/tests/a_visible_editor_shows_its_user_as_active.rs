@@ -1,5 +1,5 @@
 use super::*;
-use be_block::presence::{PresenceKind, UserActive};
+use be_block_content::presence::{PresenceKind, UserActive};
 
 struct BlockIgnoringRoot;
 

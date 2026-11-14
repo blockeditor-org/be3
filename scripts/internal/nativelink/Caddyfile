@@ -1,7 +1,9 @@
 # The build server's front door on the public internet, on port 443 with a certificate Caddy gets from Let's Encrypt
 # itself. buck2 connects directly over TLS, or through scripts/internal/re-relay behind an HTTPS proxy; this forwards
-# each call to NativeLink over cleartext HTTP/2. Requests without `Authorization: Bearer NL_TUNNEL_TOKEN`
-# (/etc/nl-caddy.env, which nl-caddy.service reads) get 401.
+# each call to NativeLink over cleartext HTTP/2. Requests with `Authorization: Bearer NL_TUNNEL_TOKEN` reach NativeLink,
+# the tunnel and the build records; a browser with the cookie `be3_dash=NL_DASH_TOKEN` reaches the dashboard (both
+# tokens are in /etc/nl-caddy.env, which nl-caddy.service reads). Without either, /gate, a page that sets the cookie,
+# is all there is.
 {
 	admin off
 }
@@ -17,12 +19,36 @@
 				flush_interval -1
 			}
 		}
+		# What ./scripts/verify and ./scripts/ci send about each build (dashboard/nl-stats.py).
+		handle /__be3-stats/* {
+			reverse_proxy 127.0.0.1:50080 {
+				header_up -Authorization
+			}
+		}
 		handle {
 			reverse_proxy h2c://127.0.0.1:50052 {
 				header_up -Authorization
 				flush_interval -1
 			}
 		}
+	}
+
+	# The dashboard (Grafana, dashboard/), for a browser holding the cookie /gate sets.
+	@dashboard header Cookie *be3_dash={env.NL_DASH_TOKEN}*
+	handle @dashboard {
+		reverse_proxy 127.0.0.1:3000
+	}
+	handle /gate {
+		root * /etc/caddy
+		rewrite * /gate.html
+		file_server
+	}
+	@browser {
+		method GET
+		header Accept *text/html*
+	}
+	handle @browser {
+		redir * /gate 302
 	}
 	handle {
 		respond "nl-caddy: the token is missing or wrong" 401

@@ -7,7 +7,7 @@ use be_block_model::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::{ChildChange, Root};
+use be_block_content::{ChildChange, Root};
 use be_type_database::database::DatabaseValue;
 
 use crate::raster::{
@@ -1351,10 +1351,12 @@ impl Root for Canvas {
         Vec::new()
     }
 
-    fn describe_in(_: &be_block_model::Document<Self>, _: &mut be_block::BlockMetadata) {}
+    fn describe_in(_: &be_block_model::Document<Self>, _: &mut be_block_content::BlockMetadata) {}
 
     /// One document: the text of each item that holds some, back to front, one per line.
-    fn search_text_in(document: &be_block_model::Document<Self>) -> Vec<be_block::SearchDocument> {
+    fn search_text_in(
+        document: &be_block_model::Document<Self>,
+    ) -> Vec<be_block_content::SearchDocument> {
         let texts: Vec<String> = document
             .root()
             .entities
@@ -1362,7 +1364,7 @@ impl Root for Canvas {
             .map(|entity| entity.text.to_str_lossy().trim().to_owned())
             .filter(|text| !text.is_empty())
             .collect();
-        vec![be_block::SearchDocument::whole(texts.join("\n"))]
+        vec![be_block_content::SearchDocument::whole(texts.join("\n"))]
     }
 
     fn undoable(change: &Change) -> bool {

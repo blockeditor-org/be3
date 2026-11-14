@@ -1,4 +1,4 @@
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 use be_block_graph::BlockParent;
 use be_block_store::ObjectStore;
 use be_type_database::database::DatabaseContent;

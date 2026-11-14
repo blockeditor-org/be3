@@ -1,5 +1,5 @@
 use super::*;
-use be_block::{SEARCH_INDEX, be_block_model::BlockRef};
+use be_block_content::{SEARCH_INDEX, be_block_model::BlockRef};
 use be_type_text::TextContent;
 
 use crate::search::SearchAsk;

@@ -61,10 +61,6 @@ impl TestClient {
                 answered(client::organizations::open_organization(peer, organization).await),
             ),
             (
-                "read-block",
-                answered(client::blocks::read_block(peer, block).await),
-            ),
-            (
                 "begin-browser-login",
                 answered(client::account::begin_browser_login(peer).await),
             ),
@@ -81,10 +77,6 @@ impl TestClient {
             (
                 "authenticate",
                 answered(client::account::authenticate(peer, Some("not a token".into())).await),
-            ),
-            (
-                "storage-usage",
-                answered(client::account::storage_usage(peer).await),
             ),
             (
                 "pair",
@@ -222,7 +214,10 @@ impl TestClient {
                 answered(
                     client::objects::upload_urls(
                         peer,
-                        vec![be_block_protocol::ObjectLength { hash, length: 9 }],
+                        vec![be_block_protocol::ObjectLength {
+                            hash,
+                            length: Some(9),
+                        }],
                     )
                     .await,
                 ),
@@ -230,10 +225,6 @@ impl TestClient {
             (
                 "download-urls",
                 answered(client::objects::download_urls(peer, vec![hash]).await),
-            ),
-            (
-                "missing-objects",
-                answered(client::objects::missing_objects(peer, vec![hash]).await),
             ),
             (
                 "hold-objects",
@@ -371,10 +362,6 @@ impl TestClient {
                 answered(client::keys::reseal_keys(peer, Vec::new()).await),
             ),
             (
-                "get-key-work",
-                answered(client::keys::get_key_work(peer).await),
-            ),
-            (
                 "rotate",
                 answered(client::keys::rotate(peer, vec![block], KeySet::default()).await),
             ),
@@ -462,20 +449,19 @@ impl TestClient {
             ),
             (
                 "key-work-changed",
-                Opened::Unit(client::keys::key_work_changed(peer)),
+                Opened::KeyWork(client::keys::key_work_changed(peer)),
             ),
             (
                 "notify-modes-changed",
                 Opened::Unit(client::notifications::notify_modes_changed(peer)),
             ),
-            ("watch", Opened::Watch(client::blocks::watch(peer, block))),
         ] {
             let answer = match stream {
                 Opened::Changes(stream) => self.opened(stream).await,
                 Opened::Paired(stream) => self.opened(stream).await,
                 Opened::Storage(stream) => self.opened(stream).await,
                 Opened::Unit(stream) => self.opened(stream).await,
-                Opened::Watch(stream) => self.opened(stream).await,
+                Opened::KeyWork(stream) => self.opened(stream).await,
             };
             answers.push((name, answer));
         }
@@ -556,7 +542,7 @@ enum Opened {
     Paired(Stream<PairingMessage>),
     Storage(Stream<be_block_protocol::AccountStorage>),
     Unit(Stream<()>),
-    Watch(Stream<BlockEvent>),
+    KeyWork(Stream<be_block_protocol::KeyWork>),
 }
 
 #[tokio::test]
@@ -626,7 +612,6 @@ async fn every_call_states_who_may_make_it() {
         "list-access",
         "set-access",
         "rotate",
-        "watch",
         "session-join",
         "session-claim-ownership",
         "session-heartbeat",

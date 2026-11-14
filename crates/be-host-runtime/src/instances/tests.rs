@@ -1,6 +1,6 @@
 use super::*;
 use crate::EditorBlock;
-use be_block::BlockContent as _;
+use be_block_content::BlockContent as _;
 use be_sdk_api::Input;
 use be_sdk_api::embed::blocks::{self as wire, Call};
 use be_sdk_api::ops::OpId;
@@ -212,7 +212,7 @@ thread_local! {
 
 /// A counter block with one saved head, for revision previews: the block and that head.
 fn saved_counter() -> (Uuid, [u8; 32]) {
-    use be_block::{BlockContent, LiveEdit};
+    use be_block_content::{BlockContent, LiveEdit};
     let block = Uuid::new_v4();
     be_host_stack::hold(block, be_type_example_counter::CounterContent::CONTENT_TYPE);
     be_host_stack::operate(

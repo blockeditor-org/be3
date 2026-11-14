@@ -1,4 +1,4 @@
-use be_block::presence::{PresenceKind, UserActive, pick_free_color};
+use be_block_content::presence::{PresenceKind, UserActive, pick_free_color};
 use be_lib_geometry::{Pos2, Rect, Vec2, vec2};
 use be_lib_stable_hash::{HashMap, HashSet};
 use be_sdk_api::WebViewCommand;
@@ -297,6 +297,10 @@ impl EditorSession {
 
     pub(crate) fn set_focused_block(&self, focused: crate::host::FocusedBlock) {
         self.host.set_focused_block(focused);
+    }
+
+    pub(crate) fn reveal(&self, at: be_sdk_api::SearchLocation) {
+        self.host.reveal(at);
     }
 
     pub(crate) fn show_dialog(&self, block_id: Uuid, dialog: be_sdk_api::ShellDialog) {

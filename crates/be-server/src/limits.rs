@@ -35,7 +35,7 @@ pub const MAX_MENTIONS: usize = 1_024;
 /// Live sessions one connection may be joined to at once.
 pub const MAX_SESSIONS_PER_CONNECTION: usize = 1_024;
 /// Listings one connection may hold at once: folders, references and backlinks open. A block's
-/// own listing (`read-block`), which nothing unlists, does not count (`watch.rs`, `counts`).
+/// own listing (`Listing::Block`), which nothing unlists, does not count (`watch.rs`, `counts`).
 pub const MAX_LISTINGS_PER_CONNECTION: usize = 65_536;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
 pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;

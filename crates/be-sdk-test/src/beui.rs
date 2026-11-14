@@ -15,7 +15,7 @@ use be_sdk_api::{
     ops::{OpError, OpId, Outcome, Reply},
 };
 use be_sdk_beui::FromEditor;
-use be_sdk_beui::be_block::{LiveEdit, Merge};
+use be_sdk_beui::be_block_content::{LiveEdit, Merge};
 use be_sdk_beui::headless::{Adopted, HeadlessApp};
 use be_sdk_beui::{
     Artifacts, BeuiRoot, ChildMode, ChildPlacement, ChildStatus, Creation, EditorHost,
@@ -1036,7 +1036,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         );
     }
 
-    pub fn receive_from_peer<M: be_sdk_beui::be_block::presence::ChannelKind>(
+    pub fn receive_from_peer<M: be_sdk_beui::be_block_content::presence::ChannelKind>(
         &mut self,
         from: u64,
         message: &M,
@@ -1845,14 +1845,23 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
     }
 
+    /// The host tells the editor it was opened at `at` in its block (`editor-event.reveal`).
+    pub fn open_at(&mut self, at: be_sdk_api::SearchLocation) {
+        self.call(|editor, connection| {
+            editor.hear(connection, vec![EditorEvent::Reveal(at)]);
+        });
+    }
+
     pub fn take_renames(&mut self) -> Vec<(Uuid, Option<String>)> {
         self.take_sent_calls(|sent| match sent {
-            Sent::Define(block, key, value) if *key == be_sdk_beui::be_block::NAME.id => Some((
-                *block,
-                value
-                    .as_ref()
-                    .and_then(|value| be_sdk_beui::be_block::be_block_model::from_cbor(value)),
-            )),
+            Sent::Define(block, key, value) if *key == be_sdk_beui::be_block_content::NAME.id => {
+                Some((
+                    *block,
+                    value.as_ref().and_then(|value| {
+                        be_sdk_beui::be_block_content::be_block_model::from_cbor(value)
+                    }),
+                ))
+            }
             _ => None,
         })
     }
@@ -2035,6 +2044,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 block_type: Uuid::from_bytes(open.block_type),
                 via: open.via.map(Uuid::from_bytes),
                 editor: open.editor.map(Uuid::from_bytes),
+                at: open.at.clone(),
             }),
             _ => None,
         })
@@ -2080,7 +2090,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
-    pub fn take_sent_to_peers<M: be_sdk_beui::be_block::presence::ChannelKind>(
+    pub fn take_sent_to_peers<M: be_sdk_beui::be_block_content::presence::ChannelKind>(
         &mut self,
     ) -> Vec<(Option<u64>, M)> {
         self.take_frames(|_, frame| match frame {

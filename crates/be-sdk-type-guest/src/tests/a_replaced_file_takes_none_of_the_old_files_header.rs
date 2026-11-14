@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::blob::BlobOp;
+use be_block_content::blob::BlobOp;
 
 #[test]
 fn a_replaced_file_takes_none_of_the_old_files_header() {

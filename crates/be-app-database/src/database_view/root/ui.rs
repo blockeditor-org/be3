@@ -124,7 +124,7 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
     }
 }
 
-fn open_row(data: Data) -> Memo<Option<be_sdk_beui::be_block::ObjectId>> {
+fn open_row(data: Data) -> Memo<Option<be_sdk_beui::be_block_content::ObjectId>> {
     create_memo(move || match data.kind.get() {
         DatabaseViewKind::Spreadsheet => None,
         _ => data.selected_row(),

@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, Manifest, MemoryStore, Vault};
 use be_sdk_api::{BlockCommand, EditorInstanceId, StoredHead};
-use be_sdk_beui::be_block::{LiveEdit, Merge, Undo};
+use be_sdk_beui::be_block_content::{LiveEdit, Merge, Undo};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery, SeededContent};
 use be_sdk_type_guest::api::{
     Announcement, Change, ClientId, CommitId, EditorId, Endpoint, Opening, PublishOutcome,
@@ -32,7 +32,9 @@ const SEALING: Uuid = Uuid::from_u128(0x5ea1);
 fn every_type() -> Vec<Registration> {
     be_sdk_type_host::registrations()
         .into_iter()
-        .chain([Registration::of::<be_sdk_beui::be_block::EditorViewContent>()])
+        .chain([Registration::of::<
+            be_sdk_beui::be_block_content::EditorViewContent,
+        >()])
         .map(Registration::without_undo)
         .collect()
 }

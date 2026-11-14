@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use be_block::be_block_model::local_client;
-use be_block::{BlobOp, LiveEdit, ObjectId, Part, PartRef, Stored};
+use be_block_content::be_block_model::local_client;
+use be_block_content::{BlobOp, LiveEdit, ObjectId, Part, PartRef, Stored};
 use be_type_text::{TextBlock, TextContent};
 
 use super::*;

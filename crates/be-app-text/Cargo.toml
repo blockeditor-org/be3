@@ -15,6 +15,8 @@ be-type-image = { path = "../be-type-image" }
 serde = { version = "1", features = ["derive"] }
 be-type-text = { path = "../be-type-text" }
 beui-text-editor-core = { path = "../beui-text-editor-core" }
+be-lib-graphemes = { path = "../be-lib-graphemes" }
+be-lib-search = { path = "../be-lib-search" }
 memchr = "2"
 uuid = { version = "1", features = ["v4"] }
 

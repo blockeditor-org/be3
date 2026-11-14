@@ -187,6 +187,7 @@ impl Instances {
                     block_type: Uuid::from_bytes(request.block_type),
                     via: request.via.map(Uuid::from_bytes),
                     editor: request.editor.map(Uuid::from_bytes),
+                    at: request.at,
                 };
                 let _ = entry;
                 crate::events::emit(
@@ -248,12 +249,12 @@ impl Instances {
                     return self.acknowledge(reply, None);
                 }
                 let mut defined = be_host_stack::app_graph::entries_of(defined);
-                defined.remove(&be_block::LOCAL_ID.id);
-                let mut metadata = be_block::BlockMetadata {
+                defined.remove(&be_block_content::LOCAL_ID.id);
+                let mut metadata = be_block_content::BlockMetadata {
                     defined,
-                    ..be_block::BlockMetadata::default()
+                    ..be_block_content::BlockMetadata::default()
                 };
-                metadata.put(&be_block::CREATED_BY, self.created_by().as_ref());
+                metadata.put(&be_block_content::CREATED_BY, self.created_by().as_ref());
                 be_host_stack::create(
                     block,
                     Uuid::from_bytes(block_type),
@@ -366,8 +367,8 @@ impl Instances {
             BlockCommand::Define { key, value } => {
                 let key = Uuid::from_bytes(key);
                 if !self.editable(block)
-                    || key == be_block::LOCAL_ID.id
-                    || key == be_block::CREATED_BY.id
+                    || key == be_block_content::LOCAL_ID.id
+                    || key == be_block_content::CREATED_BY.id
                 {
                     return self.acknowledge(reply, None);
                 }
@@ -580,6 +581,7 @@ impl Instances {
             block_type: open.block_type.into_bytes(),
             via: open.via.map(Uuid::into_bytes),
             editor: open.editor.map(Uuid::into_bytes),
+            at: open.at,
         });
         match self.entries.get_mut(&instance) {
             Some(entry) => ShowRequest::queue(&mut entry.shows, request),

@@ -9,7 +9,7 @@ async fn rename(client: &mut TestClient, block: Uuid, name: &[u8]) {
 
 async fn heard(client: &mut TestClient) -> Uuid {
     match client.graph_change().await {
-        Notice::BlockChanged { block } => block.id,
+        Notice::BlockChanged { block, .. } => block.id,
         Notice::BlockRemoved { block, .. } => block,
         other => panic!("{other:?}"),
     }

@@ -14,7 +14,7 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
             parent,
             be_type_workspace::FolderContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("n".repeat(70 * 1024)),
+            &be_block_content::BlockMetadata::named("n".repeat(70 * 1024)),
             false,
         )
         .await
@@ -24,7 +24,7 @@ async fn what_is_made_in_a_block_the_server_refused_waits_aside_with_it() {
             child,
             TextContent::CONTENT_TYPE,
             BlockParent::Block(parent),
-            &be_block::BlockMetadata::named("Note"),
+            &be_block_content::BlockMetadata::named("Note"),
             false,
         )
         .await

@@ -10,7 +10,7 @@ fn a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting() {
             block,
             Sections::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             false,
         )
         .await

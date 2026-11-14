@@ -60,7 +60,7 @@ state. Dynamic artifacts use `EditorHost::content_of` and
 
 ### Reading a range
 
-A type that loads only its first part (`be_block::Loads::FirstPart`, such as
+A type that loads only its first part (`be_block_content::Loads::FirstPart`, such as
 `Blob`) leaves the rest of its stored form
 in the store: the replica, its followers and every editor's `Snapshot` hold
 only that part's bytes, and `Snapshot::length` says how long the whole is. An
@@ -251,7 +251,7 @@ what it is showing, so a late joiner sees everyone at once. Editors get
 `ToEditor::Presence` and send `FromEditor::ShowPresence`; `editor.peers` and
 `editor.on_peer_message` send `Resend` once, so an editor that never reads its
 content still hears its peers. On the app side: `editor.show(Some(&value))` and
-`editor.peers::<P>()` over a `PresenceKind` (`be_block::presence`). The
+`editor.peers::<P>()` over a `PresenceKind` (`be_block_content::presence`). The
 framework shows a `UserActive` value with a colour from `pick_free_color`
 whenever the block is visible.
 

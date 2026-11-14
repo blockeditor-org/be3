@@ -1,8 +1,8 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use be_block::be_block_model::Document;
-use be_block::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
+use be_block_content::be_block_model::Document;
+use be_block_content::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
 use uuid::Uuid;
 
 use crate::EditorCore;
@@ -32,7 +32,7 @@ pub struct SettingsLayers<R> {
 impl<R> SettingsLayers<R>
 where
     R: Layered + 'static,
-    Document<R>: LiveEdit<Op = be_block::Edit> + BlockContent + Clone + Default,
+    Document<R>: LiveEdit<Op = be_block_content::Edit> + BlockContent + Clone + Default,
 {
     pub fn new(core: EditorCore) -> Self {
         let blocks = match R::VISIBILITY.owner_only() {
@@ -146,7 +146,7 @@ pub enum SettingsAnswer {
     Undo,
 }
 
-pub type KeptEdit<R> = Rc<dyn Fn(&R) -> be_block::Edit>;
+pub type KeptEdit<R> = Rc<dyn Fn(&R) -> be_block_content::Edit>;
 
 struct SettingsChange<R> {
     key: String,
@@ -194,7 +194,7 @@ impl<R> SettingsChangeLog<R> {
         key: &str,
         name: &str,
         undo: impl Fn() + 'static,
-        here: impl Fn(&R) -> be_block::Edit + 'static,
+        here: impl Fn(&R) -> be_block_content::Edit + 'static,
     ) {
         if self.noted(key) {
             return;

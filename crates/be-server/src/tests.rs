@@ -3,9 +3,9 @@ use std::{path::PathBuf, time::Duration};
 use be_block_commit::{Commit, CommitId, CommitStore};
 use be_block_graph::BlockParent;
 use be_block_protocol::{
-    Authenticated, BlockChange, BlockEvent, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry,
-    Hold, KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage,
-    RelayKind, SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
+    Authenticated, BlockChange, BlockSummary, ClientId, Error, ErrorCode, HistoryEntry, Hold,
+    KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
+    SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
 use be_block_session::{Resume, resume, takeover_needs_merge};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -51,11 +51,13 @@ mod a_download_does_not_wait_behind_another_organizations_store_call;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_head_moves_only_to_a_commit_that_descends_from_it;
+mod a_head_published_while_its_block_is_being_read_reaches_the_reader;
+mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
 mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
 mod a_member_who_loses_view_of_a_trashed_block_leaves_its_session;
-mod a_member_who_loses_view_when_a_block_is_trashed_stops_watching_it;
-mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_stops_watching_it;
+mod a_member_who_loses_view_when_a_block_is_trashed_is_told_it_is_gone;
+mod a_member_who_loses_view_when_a_block_moves_somewhere_hidden_is_told_it_is_gone;
 mod a_message_arriving_slowly_is_not_taken_for_silence;
 mod a_mode_set_on_one_device_is_announced_to_the_others;
 mod a_move_never_takes_a_workspace_or_more_access_without_manage;
@@ -70,6 +72,7 @@ mod a_push_reaches_members_who_are_not_connected_and_want_it;
 mod a_push_service_refusing_the_server_or_redirecting_does_not_cost_the_right_endpoints;
 mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
+mod a_reader_is_told_which_connection_moved_a_head;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
 mod a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_not_kept;
 mod a_refused_call_keeps_the_cached_graph;
@@ -86,10 +89,9 @@ mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
 mod a_stale_publish_is_rejected_with_the_current_head;
+mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
-mod a_watcher_is_told_when_a_block_is_detached;
-mod a_watcher_is_told_when_the_head_moves;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
 mod an_administrator_sees_a_members_unfiled_as_their_my_files;
@@ -103,12 +105,13 @@ mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
 mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invitation_never_takes_the_id_of_a_contact_link;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
+mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
-mod an_upload_is_used_once_and_keeps_its_object_until_collected;
+mod an_upload_is_used_once_and_its_object_goes_once_collected;
 mod anonymous_mail_requests_never_fill_the_global_cap;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
@@ -185,6 +188,12 @@ const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 
 const BUILD: &str = "a test build";
+
+/// Opens the server's metadata database in `directory` beside a running server, with the busy
+/// timeout every server connection has, so it waits on the server's writes rather than failing.
+fn metadata_database(directory: &std::path::Path) -> rusqlite::Connection {
+    be_block_sqlite_schema::open(directory.join("metadata.sqlite")).unwrap()
+}
 
 struct Harness {
     mail: Arc<CapturedMail>,
@@ -268,18 +277,11 @@ impl Harness {
 enum Notice {
     BlockChanged {
         block: BlockSummary,
+        from: ClientId,
     },
     BlockRemoved {
         block: Uuid,
         revision: u64,
-    },
-    HeadChanged {
-        block: Uuid,
-        head: CommitId,
-        author: Uuid,
-    },
-    BlockDeleted {
-        block: Uuid,
     },
     SessionChanged {
         block: Uuid,
@@ -297,15 +299,12 @@ enum Notice {
         payload: Vec<u8>,
     },
     ContactsChanged,
-    KeyWorkChanged,
 }
 
 enum Heard {
     Changes(Stream<BlockChange>),
     Paired(Stream<PairingMessage>),
     Contacts(Stream<()>),
-    KeyWork(Stream<()>),
-    Watch(Uuid, Stream<BlockEvent>),
     Session(Uuid, Stream<SessionEvent>),
 }
 
@@ -315,7 +314,7 @@ impl Heard {
         match self {
             Heard::Changes(stream) => stream.poll_recv(context).map(|change| {
                 change.map(|change| match change {
-                    BlockChange::Changed(block) => Notice::BlockChanged { block },
+                    BlockChange::Changed { block, from } => Notice::BlockChanged { block, from },
                     BlockChange::Removed { block, revision } => {
                         Notice::BlockRemoved { block, revision }
                     }
@@ -327,22 +326,6 @@ impl Heard {
             Heard::Contacts(stream) => stream
                 .poll_recv(context)
                 .map(|changed| changed.map(|()| Notice::ContactsChanged)),
-            Heard::KeyWork(stream) => stream
-                .poll_recv(context)
-                .map(|changed| changed.map(|()| Notice::KeyWorkChanged)),
-            Heard::Watch(block, stream) => {
-                let block = *block;
-                stream.poll_recv(context).map(|event| {
-                    event.map(|event| match event {
-                        BlockEvent::Moved { head, author } => Notice::HeadChanged {
-                            block,
-                            head,
-                            author,
-                        },
-                        BlockEvent::Deleted => Notice::BlockDeleted { block },
-                    })
-                })
-            }
             Heard::Session(block, stream) => {
                 let block = *block;
                 loop {
@@ -381,6 +364,8 @@ struct TestClient {
     sessions: std::collections::HashMap<Uuid, client::sessions::Session>,
     notifications: Vec<Notice>,
     token: String,
+    /// This connection as the organization it last opened names it (`organization-opened.client`).
+    client: Option<ClientId>,
     closing: Option<oneshot::Sender<()>>,
     pump: Option<tokio::task::JoinHandle<()>>,
 }
@@ -428,6 +413,7 @@ impl TestClient {
             sessions: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
+            client: None,
             closing: Some(closing),
             pump: Some(pump),
         }
@@ -471,7 +457,6 @@ impl TestClient {
             Heard::Changes(client::blocks::changes(peer)),
             Heard::Paired(client::account::paired(peer)),
             Heard::Contacts(client::contacts::contacts_changed(peer)),
-            Heard::KeyWork(client::keys::key_work_changed(peer)),
         ]);
     }
 
@@ -496,12 +481,37 @@ impl TestClient {
         }
     }
 
-    async fn watch(&mut self, block: Uuid) {
-        self.heard.push(Heard::Watch(
-            block,
-            client::blocks::watch(&self.peer, block),
-        ));
-        self.round_trip().await;
+    /// The account's storage usage: the first value of a `storage-changed` stream, which
+    /// starts with it, or the refusal that ended it.
+    async fn storage(&mut self) -> Result<be_block_protocol::AccountStorage, Error> {
+        first(client::account::storage_changed(&self.peer)).await
+    }
+
+    /// The organization's key work: the first value of a `key-work-changed` stream, which
+    /// starts with it, or the refusal that ended it.
+    async fn key_work(&mut self) -> Result<be_block_protocol::KeyWork, Error> {
+        first(client::keys::key_work_changed(&self.peer)).await
+    }
+
+    /// Reads a block, so `changes` tells this connection its next heads.
+    async fn follow(&mut self, block: Uuid) {
+        self.read_block(block).await;
+    }
+
+    /// Waits for `changes` to tell that `block`'s head is `head`, skipping what else it tells;
+    /// answers the connection that moved it.
+    async fn heard_head(&mut self, block: Uuid, head: CommitId) -> ClientId {
+        loop {
+            if let Notice::BlockChanged {
+                block: changed,
+                from,
+            } = self.graph_change().await
+                && changed.id == block
+                && changed.head == Some(head)
+            {
+                return from;
+            }
+        }
     }
 
     async fn try_join(&mut self, block: Uuid) -> Result<(ClientId, SessionState), Error> {
@@ -628,7 +638,10 @@ impl TestClient {
         let response = self
             .call(|peer| client::organizations::open_organization(peer, organization))
             .await;
-        assert!(response.is_ok(), "{response:?}");
+        let Ok(opened) = response else {
+            panic!("opening failed: {response:?}");
+        };
+        self.client = Some(opened.client);
     }
 
     async fn create_block(&mut self, parent: BlockParent) -> Uuid {
@@ -688,23 +701,39 @@ impl TestClient {
     }
 
     /// Asks for URLs to upload `objects` to, without sending them.
-    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<UploadUrl>, Error> {
+    async fn reserve(&mut self, objects: &[Vec<u8>]) -> Result<Vec<Option<UploadUrl>>, Error> {
         let lengths = objects
             .iter()
             .map(|bytes| ObjectLength {
                 hash: Hash::of(bytes),
-                length: bytes.len() as u64,
+                length: Some(bytes.len() as u64),
             })
             .collect();
         self.call(|peer| client::objects::upload_urls(peer, lengths))
             .await
     }
 
-    /// Uploads `objects` as a client does: asks for URLs, then PUTs each one's bytes.
+    /// The hashes of the `objects` the server asks this client to upload: those it does not hold
+    /// as far as the client may know (`upload-urls` answers them a URL).
+    async fn missing(&mut self, objects: &[Vec<u8>]) -> Result<Vec<Hash>, Error> {
+        let urls = self.reserve(objects).await?;
+        Ok(objects
+            .iter()
+            .zip(urls)
+            .filter(|(_, url)| url.is_some())
+            .map(|(bytes, _)| Hash::of(bytes))
+            .collect())
+    }
+
+    /// Uploads `objects` as a client does: asks for URLs, then PUTs the bytes of each one the
+    /// server does not hold already.
     async fn put(&mut self, objects: Vec<Vec<u8>>) -> Result<(), Error> {
         let urls = self.reserve(&objects).await?;
         assert_eq!(urls.len(), objects.len());
         for (url, bytes) in urls.into_iter().zip(objects) {
+            let Some(url) = url else {
+                continue;
+            };
             let status = put_to(url, bytes).await;
             assert_eq!(status, 200, "the upload was refused");
         }
@@ -727,9 +756,16 @@ impl TestClient {
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {
-        self.call(|peer| client::blocks::read_block(peer, block))
+        self.try_read_block(block).await.expect("read failed")
+    }
+
+    /// Reads a block's summary through `list-blocks`, answering the server's refusal.
+    async fn try_read_block(&mut self, block: Uuid) -> Result<BlockSummary, Error> {
+        let answered = read_block(&self.peer, block)
             .await
-            .expect("read failed")
+            .expect("the connection stayed open");
+        self.collect();
+        answered
     }
 
     async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
@@ -777,6 +813,33 @@ impl TestClient {
 }
 
 /// PUTs `bytes` to an upload URL with its headers, answering the status.
+/// A block's summary: what `list-blocks` lists for `Listing::Block`, which follows the block
+/// from then on. The call is sent at once, as any call is, and answered when awaited.
+fn read_block(
+    peer: &Peer,
+    block: Uuid,
+) -> impl Future<Output = Result<Result<BlockSummary, Error>, be_wasm_ops::OpError>> + use<> {
+    let listing = client::blocks::list_blocks(peer, Listing::Block(block));
+    async move {
+        Ok(listing.await?.map(|listed| {
+            listed
+                .blocks
+                .into_iter()
+                .next()
+                .expect("a block's listing lists the block")
+        }))
+    }
+}
+
+/// The first value of a stream that starts with its current one, or a denial when the server
+/// ended it first.
+async fn first<T, S: be_wasm_ops::wire::Decode<T>>(mut stream: Stream<T, S>) -> Result<T, Error> {
+    stream.recv().await.ok_or_else(|| Error {
+        code: ErrorCode::PermissionDenied,
+        message: format!("the stream ended: {:?}", stream.ended()),
+    })
+}
+
 async fn put_to(url: UploadUrl, bytes: Vec<u8>) -> u16 {
     tokio::task::spawn_blocking(move || {
         let mut request = ureq::put(&url.url);

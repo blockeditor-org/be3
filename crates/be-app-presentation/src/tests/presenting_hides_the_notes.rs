@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::ObjectId as Slide;
+use be_sdk_beui::be_block_content::ObjectId as Slide;
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 use be_type_presentation::Presentation;
 

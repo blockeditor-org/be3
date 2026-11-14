@@ -50,7 +50,7 @@ the server are in guides/blocks/keys.md.
   not yet its objects can find them gone once a newer head replaces it in its
   slot: it reads the server's head again (`be_host_stack::search::write`). The
   indexer gives a batch back after a few such heads in a row and holds it until
-  the index's head moves on, which it watches the index for, or until a delay
+  the index's head moves on, which the mirror lists the index for, or until a delay
   that doubles with each batch given back runs out (`Searching::moving`).
 - **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
@@ -90,7 +90,11 @@ SQLite for metadata (`schema.rs`, checked on open by
 `be_block_sqlite_schema::ensure`, which only lets a schema grow; the host's
 `host.sqlite3` is checked the same way and recreated, signing the device out,
 when it does not match), an object store (`objects.rs`, "Where objects live"
-below), and postcard frames over a websocket. Where a websocket cannot get through, `POST .../http` carries the
+below), and postcard frames over a websocket. Every transaction that writes
+begins with `be_block_sqlite_schema::write_transaction`, which takes the write
+lock up front, so a second connection to the database (a test or tool opening a
+`ServerStore` beside a running server) waits out `BUSY_TIMEOUT` rather than
+failing with `SQLITE_BUSY`. Where a websocket cannot get through, `POST .../http` carries the
 same frames (`http.rs`): the greeting's answer names a session in a
 `Be3-Session` header, and each later post carries queued client frames and is
 answered with whatever the server has for the client; notifications wait for
@@ -103,9 +107,15 @@ with no bytes moving either way, so a large post on a slow link goes through.
 ### Objects over S3
 
 Clients move object bytes only through presigned S3 URLs (decisions/objects_live_in_s3_compatible_storage.md):
-`objects.upload-urls` takes (hash, length) pairs, reserves them as an upload
-(below, "Storage") and answers a presigned PUT per object (`upload-url`: the
-URL and the headers to send with it); `objects.download-urls` answers a
+`objects.upload-urls` takes (hash, length) pairs and answers, per object, none
+for one the caller holds already (`held_objects`: it uploaded it, or may read
+it) and otherwise a presigned PUT (`upload-url`: the URL and the headers to
+send with it), reserving only those as an upload (below, "Storage"). An object
+with no length (one the caller reuses by its ref and does not hold) asks only
+whether the caller holds it: it is answered none if so, and otherwise refuses the
+call as `object-not-found`, alike whether another organization stored it or no
+one did, with nothing reserved, so a real uploader is never held to a length no
+one gave and the answer leaks nothing. `objects.download-urls` answers a
 presigned GET for each object the caller may read (`may_read_objects`) and none
 for the rest. Each names at most `be_block_protocol::MAX_OBJECT_URLS` objects.
 Only `publish`'s carried objects and `read-contents`' objects travel inside
@@ -150,12 +160,20 @@ counts and records nothing: `upload-urls` did before it signed.
   (guides/type_modules.md, "Operations and WIT") of the WIT package
   `be3:server` (`crates/be-block-protocol/wit`, generated with `network: true`):
   each call is an op, with no request ids. A function answers `result<T,
-  error>`; client code is `client::blocks::read_block(&connection,
-  block).await??` or `ask(...).await?`. What the server pushes is a stream:
-  `blocks.changes`, `blocks.watch(block)`, latest-value streams
-  (`account.paired`, `contacts.contacts-changed`, `keys.key-work-changed`), and
-  a `sessions.session` resource whose `join` stream carries the session's
-  changes and relays; dropping it leaves the session.
+  error>`; client code is `client::blocks::list_blocks(&connection,
+  listing).await??` or `ask(...).await?`. What the server pushes is a stream:
+  `blocks.changes`, `account.paired`, latest-value streams, and a
+  `sessions.session` resource whose `join` stream carries the session's
+  changes and relays; dropping it leaves the session. A latest-value stream
+  that carries a value starts with the current one and then sends each new one
+  (`account.storage-changed`, `keys.key-work-changed`), so there is no call that
+  reads the value apart from it. A connection may hold several of one, each
+  starting with its own first value (`Route::Storage` and `Route::KeyWork`
+  carry the stream's op for that), and one whose first value cannot be read
+  ends with the failure rather than wait; `key-work-changed` opened before an
+  organization waits for one to open. A latest-value stream with no value
+  (`contacts.contacts-changed`, `notifications.notify-modes-changed`) says only
+  to read again.
 - **Who may call what.** Every call states its requirement once, in `rule`
   (`client.rs`): anyone, signed in, signed in with an organization open, an
   administrator (of the open organization, or of the one named), or at least
@@ -271,13 +289,11 @@ counts and records nothing: `upload-urls` did before it signed.
   blocks hold it), `account_usage`, `organization_usage`, and `block_sizes`,
   which the cached `BlockGraph` mirrors as `BlockNode::size` and `tree_size`
   (`add_size`, `set_parent` and `remove` carry a subtree's bytes up its
-  ancestors). `BlockSummary` reports both; `account.storage-usage` reports the
-  account's `held`, `pending` and `quota`, and `account.storage-changed` streams
-  it: its value on opening, then again whenever the payer's `account_usage` row
+  ancestors). `BlockSummary` reports both; `account.storage-changed` streams the
+  account's `held`, `pending` and `quota`: its value on opening, then again whenever the payer's `account_usage` row
   changes (`ServerStore::usage_changes`, a broadcast of payers each connection
   following its own filters; one that falls `USAGE_CHANGES_QUEUED` behind reads
-  again). It needs an organization open, and a connection keeps one: opening
-  another ends the first. An object no block holds any more stays while an
+  again). It needs an organization open. An object no block holds any more stays while an
   upload row names it (`forget_objects`), so a free never races an upload that
   is about to write the same file.
 - **Objects** are served only to a member who can view a block that holds them
@@ -297,19 +313,15 @@ counts and records nothing: `upload-urls` did before it signed.
   were carried in the call: sending bytes the store already holds changes
   nothing the server can see, so a reservation of an object already stored
   (`reserve` first confirms any upload of it that arrived) is unproven.
-- **Watches and live sessions** are keyed by organization and block
-  (`watch::Place`): a block id is the client's choice, so another organization
-  can hold a block with the same one. Watching or joining needs `View`, and
-  taking a session's lease needs `Edit` (a viewer's claim is refused, and the
-  replica host ignores the refusal). Losing `View` ends both (a grant removed,
-  the block trashed, or a move out of view): `evict_sessions` takes the
-  account's connections out of the sessions and unwatches the blocks, sending
-  `Push::Unwatched`; the client keeps the watch's holders and reopens its
-  stream when a `Changed` summary of the block with `View` arrives
-  (`Connection::resume`). Watching and joining check `View` a
-  second time once registered, so a view lost in between does not stay. Trashing
-  a block rotates no keys; a block collected for good tells its watchers
-  `deleted`.
+- **Live sessions** are keyed by organization and block (`watch::Place`): a
+  block id is the client's choice, so another organization can hold a block
+  with the same one. Joining needs `View`, and taking a session's lease needs
+  `Edit` (a viewer's claim is refused, and the replica host ignores the
+  refusal). Losing `View` (a grant removed, the block trashed, or a move out of
+  view) ends it: `evict_sessions` takes the account's connections out of the
+  sessions, and `changes` tells them the block's lesser summary or
+  `removed`. Joining checks `View` a second time once registered, so a view
+  lost in between does not stay. Trashing a block rotates no keys.
 
 ### Where objects live
 
@@ -334,7 +346,7 @@ until `forget_objects`, with the reserved length, and answers usage's sizes.
 Bytes arrive after the reservation, so an object counts as stored
 (`store::stored`, its `confirmed` column) only once `confirm_uploads` saw it
 in the store with that length (`Objects::len_many`, a HEAD each on a bucket):
-`publish`, `hold-objects` and `missing-objects` confirm the caller's own
+`publish`, `hold-objects` and `upload-urls` confirm the caller's own
 unconfirmed reservations among the objects they name first, and a held
 object is confirmed already, so downloads ask nothing. Carried objects are
 confirmed when written (`put_objects`). Reads and writes of several objects go
@@ -393,19 +405,28 @@ blocks.
 
 ### Announcements and listings
 
-A connection hears only of what it listed. `list-blocks` (a `Listing`:
-children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`) and
-`read-block` register with `WatchHub` *before* reading, so nothing changed
+A connection hears only of what it listed, on its one `changes` stream; there
+is no stream per block. `list-blocks` (a `Listing`:
+children, `Shared`, backrefs, references, `Deleted`, `OpenSettings`, or one
+`Block`, which is how a client reads a block's summary) registers with
+`WatchHub` *before* reading, so nothing changed
 during the read is missed, and the hub remembers each block it told a
 connection of. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
 member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
 folder is still announced, then forgotten). The blocks a change starts or stops
-referencing are announced with it. `unlist` drops a listing; a refused listing
+referencing are announced with it. Every publish is announced, so a block's
+own listing hears each head; one that moves only the head changes no listing's
+match, so it is told only to the connections that already know the block, or
+are still reading a listing, which may hold it (`WatchHub::knowing`), rather
+than worked out for the whole audience; `block-changed.from` names the connection whose
+call made the change (`organization-opened.client`), so a client skips its own
+publishes (`Event::BlockChanged::own`). A block moved to the trash is a summary
+with parent `detached`; one collected for good is `removed`. `unlist` drops a listing; a refused listing
 stays until then, so a block read before it is made is announced once it is,
 but a connection keeps at most `REFUSED_LISTINGS` of them (`watch.rs`) and
-drops any refused past that at once. A block's own listing (`read-block`),
+drops any refused past that at once. A block's own listing (`Listing::Block`),
 which clients never unlist, does not count against
 `MAX_LISTINGS_PER_CONNECTION`: it is bounded by the blocks the caller may know
 of.

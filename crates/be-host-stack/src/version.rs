@@ -7,13 +7,15 @@ use std::{
 use be_wasm_threads::Mutex;
 
 use be_block::{
-    BlockContent, BlockMetadata, Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
-    Root,
-    be_block_model::{Document, Model},
+    Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
     version_control::{Action, Kept, Operation, View, masked, scope_mask},
 };
 use be_block_client::{ClientError, Peer, Saved, Write};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
+use be_block_content::{
+    BlockContent, BlockMetadata, Root,
+    be_block_model::{Document, Model},
+};
 use be_block_graph::BlockParent;
 use be_block_protocol::ErrorCode;
 use be_block_store::{Hash, Manifest};
@@ -42,10 +44,10 @@ pub struct VersionState {
 pub(super) struct Versions {
     trees: HashMap<CommitId, Tree>,
     commits: HashMap<CommitId, Commit>,
-    /// The blocks this connection watches for statuses: what `followed` names.
-    watching: Arc<Mutex<HashSet<Uuid>>>,
-    /// The roots whose subtrees the graph lists for statuses (`Owner::Version`).
-    roots: BTreeSet<Uuid>,
+    /// What the graph lists for statuses (`Owner::Version`): the subtrees of the followed
+    /// checkouts' roots, and each block `followed` names, whose head moves the connection's
+    /// `changes` then tells.
+    listed: (BTreeSet<Uuid>, BTreeSet<Uuid>),
     /// What each watched checkout's status reads: the checkout, its repository and its root's
     /// subtree. Released when the checkout is no longer watched, and recomputed with its
     /// status, so blocks that left the subtree are let go (`reconcile`).
@@ -137,8 +139,8 @@ impl Statuses {
     }
 
     /// Forgets which statuses failed for want of the server, once it can be reached again,
-    /// and which were computed: the new connection watches nothing, and computing a status
-    /// is what watches the blocks it reads.
+    /// and which were computed: the new connection lists nothing until the graph lists what
+    /// computing a status read again.
     pub(crate) fn reconnected(&mut self) {
         self.failed.retain(|_, failed| !failed.failure.transient());
         self.computed.clear();
@@ -330,13 +332,16 @@ fn scope(checkout: Uuid) -> Scope {
 
 fn stripped(metadata: &BlockMetadata) -> BlockMetadata {
     let mut metadata = metadata.clone();
-    metadata.remove(&be_block::LOCAL_ID);
+    metadata.remove(&be_block_content::LOCAL_ID);
     metadata
 }
 
 fn tagged(metadata: &BlockMetadata, block: Uuid, local: Uuid) -> BlockMetadata {
     let mut metadata = metadata.clone();
-    metadata.put(&be_block::LOCAL_ID, (block != local).then_some(&local));
+    metadata.put(
+        &be_block_content::LOCAL_ID,
+        (block != local).then_some(&local),
+    );
     metadata
 }
 
@@ -866,7 +871,7 @@ impl Versions {
         relist(
             context,
             node.parent.ok_or_else(unplaced)?,
-            be_block::ChildChange::Replace {
+            be_block_content::ChildChange::Replace {
                 old: root,
                 new: checkout,
             },
@@ -916,7 +921,12 @@ impl Versions {
             ..Checkout::default()
         };
         save_new(context, checkout, &state).await?;
-        relist(context, parent, be_block::ChildChange::Add(checkout)).await?;
+        relist(
+            context,
+            parent,
+            be_block_content::ChildChange::Add(checkout),
+        )
+        .await?;
         self.operate(
             context,
             repository,
@@ -1416,7 +1426,7 @@ impl Versions {
         relist(
             context,
             node.parent.ok_or_else(unplaced)?,
-            be_block::ChildChange::Add(fork),
+            be_block_content::ChildChange::Add(fork),
         )
         .await?;
         Ok(fork)
@@ -1543,48 +1553,34 @@ impl Versions {
             .remove(&block);
     }
 
-    /// Watches what the followed checkouts read and lets go of the rest, and lists the
-    /// subtrees of their roots only.
+    /// Lists the subtrees of the followed checkouts' roots and the blocks they read, and lets
+    /// go of the rest.
     fn reconcile(&mut self, context: &Context<'_>) {
         let roots: BTreeSet<Uuid> = self
             .followed
             .values()
             .filter_map(|followed| followed.root)
             .collect();
-        if roots != self.roots {
-            let queries = roots.iter().map(|root| Query::Subtree(*root)).collect();
-            self.roots = roots;
+        let blocks: BTreeSet<Uuid> = self
+            .followed
+            .values()
+            .flat_map(|followed| followed.blocks.iter().copied())
+            .collect();
+        let listed = (roots, blocks);
+        if listed != self.listed {
+            let queries = listed
+                .0
+                .iter()
+                .map(|root| Query::Subtree(*root))
+                .chain(listed.1.iter().map(|block| Query::Block(*block)))
+                .collect();
+            self.listed = listed;
             context
                 .shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .graph
                 .want(Owner::Version, queries);
-        }
-        let wanted: HashSet<Uuid> = self
-            .followed
-            .values()
-            .flat_map(|followed| followed.blocks.iter().copied())
-            .collect();
-        let attached = context.peer.is_attached();
-        let connection = context.peer.connection();
-        let mut watching = self.watching.lock().unwrap_or_else(PoisonError::into_inner);
-        // Detached, what is watched was watched on a connection that is gone, and the next one
-        // starts from nothing (`reconnected`): only forget it, or the release would come off
-        // another's watch on the next connection.
-        watching.retain(|block| {
-            let kept = wanted.contains(block);
-            if !kept && attached {
-                connection.unwatch(*block);
-            }
-            kept
-        });
-        if attached {
-            for block in wanted {
-                if watching.insert(block) {
-                    connection.watch(block);
-                }
-            }
         }
     }
 
@@ -1667,11 +1663,6 @@ impl Versions {
     }
 
     pub(super) fn reconnected(&mut self) {
-        // The new connection watches nothing yet.
-        self.watching
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clear();
         self.statuses.reconnected();
     }
 
@@ -2087,7 +2078,7 @@ async fn change<R: Root + Model + Default>(
 async fn relist(
     context: &mut Context<'_>,
     parent: BlockParent,
-    change: be_block::ChildChange,
+    change: be_block_content::ChildChange,
 ) -> Result<(), String> {
     let BlockParent::Block(parent) = parent else {
         return Ok(());
@@ -2192,7 +2183,7 @@ async fn create(
     content_type: Uuid,
     parent: BlockParent,
     metadata: BlockMetadata,
-) -> Result<Option<(Option<CommitId>, be_block::Entries)>, String> {
+) -> Result<Option<(Option<CommitId>, be_block_content::Entries)>, String> {
     let (summary, found) = match context
         .peer
         .create_block(block, content_type, parent, &metadata, false)
@@ -2265,7 +2256,7 @@ struct Read<'a> {
     /// The content the command read, the base of a merge when its head is not known (the
     /// mirror does not always know the head of a block not open here).
     content: Option<Manifest>,
-    defined: &'a be_block::Entries,
+    defined: &'a be_block_content::Entries,
 }
 
 /// Writes `written` as `block`'s content and defined metadata. Edits go on while a version
@@ -2280,10 +2271,11 @@ async fn publish(
     written: Written<'_>,
     read: Option<Read<'_>>,
 ) -> Result<Option<CommitId>, String> {
-    let no_entries = be_block::Entries::new();
+    let no_entries = be_block_content::Entries::new();
     let read_defined = read.as_ref().map_or(&no_entries, |read| read.defined);
-    let defined =
-        |held: &be_block::Entries| merge_defined(read_defined, &written.metadata.defined, held);
+    let defined = |held: &be_block_content::Entries| {
+        merge_defined(read_defined, &written.metadata.defined, held)
+    };
     let Some(manifest) = written.manifest else {
         let summary = context
             .peer
@@ -2403,10 +2395,10 @@ async fn publish(
 /// The command's defined entries over the block's: the command's value for each key it
 /// changed from what it read, the block's for the rest.
 fn merge_defined(
-    read: &be_block::Entries,
-    ours: &be_block::Entries,
-    held: &be_block::Entries,
-) -> be_block::Entries {
+    read: &be_block_content::Entries,
+    ours: &be_block_content::Entries,
+    held: &be_block_content::Entries,
+) -> be_block_content::Entries {
     let mut merged = held.clone();
     for key in read.keys().chain(ours.keys()) {
         if read.get(key) == ours.get(key) {
@@ -2430,7 +2422,7 @@ async fn merge_over(
     (made_from, read_content): (Option<CommitId>, Option<&Manifest>),
     ours: &Manifest,
     theirs: CommitId,
-) -> Result<Option<(Manifest, Vec<Uuid>, be_block::Entries)>, String> {
+) -> Result<Option<(Manifest, Vec<Uuid>, be_block_content::Entries)>, String> {
     let content_type = context
         .peer
         .known_summary(block)
@@ -2605,7 +2597,15 @@ async fn merge_content(
     context: &mut Context<'_>,
     checkout: Uuid,
     merge: &be_block_vcs::ContentMerge,
-) -> Result<(Option<Manifest>, Vec<Uuid>, Option<be_block::Entries>, bool), String> {
+) -> Result<
+    (
+        Option<Manifest>,
+        Vec<Uuid>,
+        Option<be_block_content::Entries>,
+        bool,
+    ),
+    String,
+> {
     let merged = context
         .replicas
         .merge(

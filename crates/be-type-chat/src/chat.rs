@@ -1,8 +1,8 @@
-use be_block::{
+use be_block_commit::MergeResult;
+use be_block_content::{
     BlockContent, BlockMetadata, ChildChange, ContentError, LiveEdit, Loads, Merge, MergeParts,
     Part, PartReader, PartRef, Root, Stored, Undo,
 };
-use be_block_commit::MergeResult;
 use std::collections::BTreeMap;
 
 use be_block_model::{
@@ -40,6 +40,17 @@ pub struct ChatHeader {
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
+    /// The blocks made for a message not sent yet (decisions/chat_attachments_are_references.md),
+    /// by block: the chat's children while no message carries them. Sending a message that
+    /// carries one takes it out, as does deleting it as a child.
+    pub drafts: LatestMap<Uuid, Draft>,
+}
+
+/// A block made in a chat for its author's next message.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Draft {
+    pub block: BlockRef,
+    pub author: Uuid,
 }
 
 /// A message: an object of registers, not text, so two people's messages never merge into
@@ -131,6 +142,16 @@ pub struct Segment {
     pub hash: Vec<u8>,
     #[serde(with = "serde_bytes")]
     pub members: Vec<u8>,
+    /// What its messages carry, by message, so the chat still lists the children they carry
+    /// once they leave the header, and stops when one is deleted.
+    pub attachments: Vec<Carried>,
+}
+
+/// A block a message in a closed segment carries.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct Carried {
+    pub message: ObjectId,
+    pub block: BlockRef,
 }
 
 impl Message {
@@ -249,6 +270,21 @@ impl Root for ChatHeader {
                 | Change::RemoveIf { .. }
                 | Change::Move { .. }
                 | Change::MoveRange { .. }
+        )
+    }
+
+    /// A chat's only removable children are its drafts: a block a message carries stays
+    /// listed, since its signature covers what it carries.
+    fn child_edit(&self, change: ChildChange) -> Option<Edit> {
+        let ChildChange::Delete(block) = change else {
+            return None;
+        };
+        let draft = self.drafts.get(&block)?;
+        let stamp = self.drafts.next(&block, 0, draft.author);
+        Some(
+            ChatHeader::DRAFTS
+                .put(ObjectId::ROOT, &block, None, stamp)
+                .into(),
         )
     }
 }
@@ -578,6 +614,81 @@ impl ChatContent {
         ChatHeader::MESSAGES
             .insert_as(id, ObjectId::ROOT, Anchor::End, message)
             .into()
+    }
+
+    /// `send_as`, taking what the message carries out of its author's drafts: it is the
+    /// message's now.
+    pub fn send_drafted(&self, id: ObjectId, message: &Message) -> Edit {
+        let drafts = self.drafts();
+        let mut changes = Self::send_as(id, message).0;
+        changes.extend(message.attachments.iter().filter_map(|BlockRef(block)| {
+            // Only the author's own: someone else's message linking my draft leaves it mine.
+            let draft = drafts
+                .get(block)
+                .filter(|draft| draft.author == message.author)?;
+            let stamp = drafts.next(block, stamp_time(message.time), draft.author);
+            Some(ChatHeader::DRAFTS.put(ObjectId::ROOT, block, None, stamp))
+        }));
+        changes.into_iter().collect()
+    }
+
+    /// Lists `block`, made in the chat, as a draft of `author`'s next message.
+    pub fn make_draft(&self, block: Uuid, author: Uuid, time: i64) -> Edit {
+        let stamp = self.drafts().next(&block, stamp_time(time), author);
+        let draft = Draft {
+            block: BlockRef(block),
+            author,
+        };
+        ChatHeader::DRAFTS
+            .put(ObjectId::ROOT, &block, Some(&draft), stamp)
+            .into()
+    }
+
+    /// Takes `block` out of the drafts, which deletes it from the chat; none unless it is a
+    /// draft (`Root::child_edit`).
+    pub fn drop_draft(&self, block: Uuid) -> Option<Edit> {
+        self.header.root().child_edit(ChildChange::Delete(block))
+    }
+
+    /// The blocks `author` made for a message not sent yet.
+    pub fn drafts_of(&self, author: Uuid) -> Vec<Uuid> {
+        self.drafts()
+            .values()
+            .filter(|draft| draft.author == author)
+            .map(|draft| draft.block.0)
+            .collect()
+    }
+
+    /// `references` without what only deleted messages in closed segments carry: a deleted
+    /// message leaves the chat's children the same way whether it was recent or closed.
+    fn unlisting_deleted(&self, mut references: Vec<Uuid>) -> Vec<Uuid> {
+        let deletions = self.deletions();
+        let mut gone = std::collections::HashSet::new();
+        let mut kept = std::collections::HashSet::new();
+        for carried in self
+            .segments()
+            .iter()
+            .flat_map(|segment| &segment.attachments)
+        {
+            match deletions.contains_key(&carried.message) {
+                true => gone.insert(carried.block.0),
+                false => kept.insert(carried.block.0),
+            };
+        }
+        if gone.is_empty() {
+            return references;
+        }
+        kept.extend(self.drafts().keys().copied());
+        for id in self.messages() {
+            let attachments: Vec<BlockRef> = self.header.field(id, Message::ATTACHMENTS);
+            kept.extend(attachments.into_iter().map(|BlockRef(block)| block));
+        }
+        references.retain(|block| !gone.contains(block) || kept.contains(block));
+        references
+    }
+
+    fn drafts(&self) -> LatestMap<Uuid, Draft> {
+        self.header.field(ObjectId::ROOT, ChatHeader::DRAFTS)
     }
 
     /// An unsigned edit of `message` (`next_edit`, then `put_edit`).
@@ -1051,11 +1162,11 @@ impl BlockContent for ChatContent {
     }
 
     fn references(&self) -> Vec<Uuid> {
-        self.header.references()
+        self.unlisting_deleted(self.header.references())
     }
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
-        self.header.references_in(organization)
+        self.unlisting_deleted(self.header.references_in(organization))
     }
 
     fn name(&self) -> Option<String> {
@@ -1078,15 +1189,16 @@ impl BlockContent for ChatContent {
         keys: Option<&std::collections::HashSet<String>>,
         indexed: &std::collections::HashSet<PartRef>,
         parts: PartReader,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Vec<be_block::SearchDocument>, String>>>>
-    {
+    ) -> std::pin::Pin<
+        Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>,
+    > {
         let asked = |key: &str| keys.is_none_or(|keys| keys.contains(key));
         let mut documents = Vec::new();
         if asked(RECENT) {
-            documents.push(be_block::SearchDocument {
+            documents.push(be_block_content::SearchDocument {
                 key: RECENT.to_owned(),
                 body: Some(lines(self.shown())),
-                ..be_block::SearchDocument::default()
+                ..be_block_content::SearchDocument::default()
             });
         }
         let changed: Vec<ObjectId> = self
@@ -1107,10 +1219,10 @@ impl BlockContent for ChatContent {
                 _ => None,
             };
             if source.is_some_and(|source| indexed.contains(&source)) {
-                documents.push(be_block::SearchDocument {
+                documents.push(be_block_content::SearchDocument {
                     key,
                     source,
-                    ..be_block::SearchDocument::default()
+                    ..be_block_content::SearchDocument::default()
                 });
                 continue;
             }
@@ -1126,10 +1238,10 @@ impl BlockContent for ChatContent {
                 }
             };
             reads.push((documents.len(), segment, source, read));
-            documents.push(be_block::SearchDocument {
+            documents.push(be_block_content::SearchDocument {
                 key,
                 source,
-                ..be_block::SearchDocument::default()
+                ..be_block_content::SearchDocument::default()
             });
         }
         let this = self.clone();
@@ -1212,7 +1324,7 @@ impl LiveEdit for ChatContent {
     /// the server holds it: its body, naming the author of the message it replies to, whom a
     /// member who wants only mentions is told for. Keyed by the message, so a send made again
     /// (a replica restarted with the edit) tells once.
-    fn announcements(&self, operation: &ChatOp) -> Vec<be_block::Announcement> {
+    fn announcements(&self, operation: &ChatOp) -> Vec<be_block_content::Announcement> {
         Self::sent_in(operation)
             .into_iter()
             .filter_map(|id| {
@@ -1223,7 +1335,7 @@ impl LiveEdit for ChatContent {
                     .map(|quoted| quoted.author)
                     .into_iter()
                     .collect();
-                Some(be_block::Announcement {
+                Some(be_block_content::Announcement {
                     key: id.to_string(),
                     text: self.body(id)?,
                     several: "{count} new messages".to_owned(),

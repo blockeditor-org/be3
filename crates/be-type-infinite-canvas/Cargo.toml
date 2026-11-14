@@ -8,7 +8,7 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-model = { path = "../be-block-model" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 be-type-database = { path = "../be-type-database" }

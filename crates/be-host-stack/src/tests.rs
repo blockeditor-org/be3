@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_type_checklist::{Checklist, ChecklistContent};
 use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
@@ -129,6 +129,7 @@ mod removing_an_agent_the_server_no_longer_has_succeeds;
 mod replacing_content_reaches_a_block_open_or_not;
 mod revision_history_previews_and_restores_saved_content;
 mod rewrites_of_one_line_on_two_offline_devices_merge_with_a_conflict;
+mod roots_listed_offline_after_a_restart_keep_their_author;
 mod stopping_returns_while_a_connect_goes_unanswered;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod the_host_catches_up_what_other_devices_wrote_and_masks_what_left_the_tree;
@@ -305,7 +306,7 @@ impl Harness {
     fn open_until_it_joins(&self, block: Uuid, content_type: Uuid) {
         let mut joins = self
             .relay()
-            .count(|method| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
+            .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_JOIN);
         open(block, content_type);
         runtime()
             .block_on(joins.wait_for(|joins| *joins > 0))
@@ -751,7 +752,7 @@ fn start_versioning(text: &str) -> Versioned {
         folder,
         be_type_workspace::FolderContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Notes"),
+        be_block_content::BlockMetadata::named("Notes"),
         Some(listing.encode()),
         false,
     );
@@ -759,7 +760,7 @@ fn start_versioning(text: &str) -> Versioned {
         note,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(folder),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -767,7 +768,7 @@ fn start_versioning(text: &str) -> Versioned {
         repository,
         be_block::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("History"),
+        be_block_content::BlockMetadata::named("History"),
         Some(be_block::RepositoryContent::default().encode()),
         false,
     );
@@ -938,7 +939,7 @@ fn written(block: Uuid, text: &str) {
         block,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Plan"),
+        be_block_content::BlockMetadata::named("Plan"),
         Some(be_type_text::TextBlock::of(text).encode()),
         false,
     );
@@ -1038,8 +1039,8 @@ impl Device {
                 .expect("the other device makes its index");
             peer.define(workspace, |metadata| {
                 metadata.insert(
-                    &be_block::SEARCH_INDEX,
-                    &be_block::be_block_model::BlockRef(index),
+                    &be_block_content::SEARCH_INDEX,
+                    &be_block_content::be_block_model::BlockRef(index),
                 );
             })
             .await
@@ -1325,7 +1326,7 @@ impl ChatRoom {
             block,
             be_type_chat::ChatContent::CONTENT_TYPE,
             be_block_graph::BlockParent::Root,
-            be_block::BlockMetadata::named("Lunch"),
+            be_block_content::BlockMetadata::named("Lunch"),
             Some(chat.encode()),
             false,
         );

@@ -12,7 +12,7 @@ fn a_note_written_outside_its_session_is_taken_as_written() {
         note,
         be_type_text::TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(be_type_text::TextBlock::of("hello\nthere\n").encode()),
         false,
     );

@@ -1,5 +1,6 @@
-use be_block::{BlockContent, ContentError};
+use be_block_content::{BlockContent, ContentError};
 use be_block_graph::BlockParent;
+use be_block_protocol::Listing;
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::Running;
 use uuid::Uuid;
@@ -14,7 +15,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
         .iter()
         .map(|bytes| be_block_protocol::ObjectLength {
             hash: be_block_store::Hash::of(bytes),
-            length: bytes.len() as u64,
+            length: Some(bytes.len() as u64),
         })
         .collect();
     let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
@@ -23,6 +24,9 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     ))
     .await?;
     for (url, bytes) in urls.into_iter().zip(objects) {
+        let Some(url) = url else {
+            continue;
+        };
         let headers: Vec<(String, String)> = url
             .headers
             .into_iter()
@@ -41,9 +45,11 @@ mod a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent;
 mod a_block_made_offline_takes_the_access_the_server_will_give_it;
 mod a_block_moved_out_of_a_listed_folder_is_listed_where_it_went_offline;
 mod a_block_moved_to_another_workspace_is_rewrapped_and_given_a_fresh_key;
+mod a_block_named_then_written_offline_keeps_the_metadata_it_was_sealed_with;
 mod a_block_placed_in_a_folder_after_it_was_listed_is_listed_there_offline;
 mod a_block_the_server_refused_to_make_is_not_listed_offline;
 mod a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send;
+mod a_client_tells_its_own_publishes_from_another_devices;
 mod a_connect_nobody_answers_times_out;
 mod a_connection_outlives_a_stall_of_this_process;
 mod a_creation_the_server_refuses_is_set_aside_and_nothing_waits_behind_it;
@@ -81,7 +87,7 @@ mod a_stale_card_does_not_make_a_replaced_signing_key_current;
 mod a_stale_save_is_rejected_with_the_head_to_merge_against;
 mod a_summary_read_before_a_publish_never_brings_back_the_old_head;
 mod a_summary_read_before_a_rotation_never_brings_back_the_old_key;
-mod a_watch_the_server_ended_comes_back_with_its_holders_when_the_view_returns;
+mod a_summary_read_while_a_move_waits_to_be_sent_shows_the_move;
 mod a_workspace_not_kept_for_offline_use_is_forgotten_but_its_unsent_edits_stay;
 mod an_administrator_reads_a_workspace_nobody_shared_with_them;
 mod an_artifact_is_a_backref_of_the_block_it_describes;
@@ -272,7 +278,7 @@ impl Harness {
     }
 
     fn database(&self) -> rusqlite::Connection {
-        rusqlite::Connection::open(self.server.directory.join("metadata.sqlite")).unwrap()
+        be_block_sqlite_schema::open(self.server.directory.join("metadata.sqlite")).unwrap()
     }
 
     async fn stop(self) {
@@ -285,7 +291,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         Uuid::now_v7(),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named(name),
+        &be_block_content::BlockMetadata::named(name),
         false,
     )
     .await
@@ -298,7 +304,7 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
         be_block::my_files(peer.organization(), peer.account()),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named("My files"),
+        &be_block_content::BlockMetadata::named("My files"),
         false,
     )
     .await
@@ -351,7 +357,7 @@ async fn note(owner: &Peer<MemoryStore>) -> Uuid {
             Uuid::now_v7(),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Notes"),
+            &be_block_content::BlockMetadata::named("Notes"),
             false,
         )
         .await

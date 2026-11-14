@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::be_block::presence::pick_free_color;
+use be_sdk_beui::be_block_content::presence::pick_free_color;
 use be_sdk_beui::{BlockList, Blocks};
 use be_sdk_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
 use be_sdk_text::SharedCaret;
@@ -45,6 +45,9 @@ pub(crate) struct State {
     pub import_error: Signal<Option<String>>,
     /// Set once the text has first been read from its block, with the caret at its start.
     pub loaded: Signal<bool>,
+    /// Set once the position saved for the text was put back (or there was none), after which a
+    /// place it was opened at may take the caret (`select_where_opened`).
+    pub position_restored: Signal<bool>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
     pub remote_cursors: Memo<Vec<(u64, TextCursor)>>,
     inner: Stored<Inner>,
@@ -107,6 +110,7 @@ impl State {
             hex_insert_mode,
             import_error,
             loaded: create_signal(false),
+            position_restored: create_signal(false),
             inner: store(Inner {
                 client,
                 content,

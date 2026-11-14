@@ -3,11 +3,11 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, LiveEdit,
-    NAME, OfflineSettings, OfflineSettingsContent, Resolution, ResolutionLayers, Root,
-    SettingsContent, SettingsProfileContent, UNFILED_TYPE, VIEW_EDITOR, VIEW_TYPE,
+    DESKTOP_EDITOR, DeviceClass, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
+    Resolution, ResolutionLayers, SettingsContent, SettingsProfileContent, UNFILED_TYPE,
     WORKSPACE_EDITOR, WORKSPACE_TYPE, organization_settings,
 };
+use be_block_content::{BlockContent, BlockMetadata, LiveEdit, NAME, Root, VIEW_EDITOR, VIEW_TYPE};
 use be_block_graph::BlockParent;
 use uuid::Uuid;
 
@@ -130,6 +130,9 @@ impl RootSettings {
         self.shell
     }
 
+    /// The account's settings at the root, told by their author: a listing answered offline from
+    /// what the device keeps carries it too, as the server gave it or as this device made the
+    /// block (be-host-stack's `roots_listed_offline_after_a_restart_keep_their_author`).
     fn owned(&self) -> Option<Vec<Uuid>> {
         let account = be_host_stack::account()?;
         let mut cache = self.cache.borrow_mut();
@@ -154,6 +157,13 @@ impl RootSettings {
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
         if self.find().is_none() && be_host_stack::ready(be_host_stack::Query::Roots) {
+            // The stack answers `ready` as it is now, while `owned` may still be what was read
+            // before the roots were listed, until the host hears that the graph changed: read
+            // them again from the listing that made them ready before making a second settings.
+            self.cache.borrow_mut().owned = None;
+            if let Some(found) = self.find() {
+                return Some(found);
+            }
             let block = Uuid::now_v7();
             be_host_stack::create(
                 block,
@@ -345,7 +355,7 @@ impl RootSettings {
             .collect()
     }
 
-    fn edit(&self, edit: &be_block::Edit) {
+    fn edit(&self, edit: &be_block_content::Edit) {
         let Some(block) = self.find() else {
             return;
         };
@@ -358,9 +368,9 @@ impl RootSettings {
             .unwrap_or_else(|| fallback.to_owned())
     }
 
-    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block::Layers {
+    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block_content::Layers {
         let Some(settings) = self.settings() else {
-            return be_block::Layers::default();
+            return be_block_content::Layers::default();
         };
         let profile = self
             .current_profile(&settings, client)

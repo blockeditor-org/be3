@@ -1,6 +1,5 @@
-use be_sdk_beui::be_block::{
-    BlockContent, SettingsContent, TAGS_TYPE, Tag, TagColor, TagContent, TagsContent,
-};
+use be_sdk_beui::be_block::{SettingsContent, TAGS_TYPE, Tag, TagColor, TagContent, TagsContent};
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::icons::{ICON_PLUS, ICON_TRASH};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

@@ -1,6 +1,6 @@
-use be_sdk_beui::be_block::ObjectId;
-use be_sdk_beui::be_block::be_block_model::{Anchor, FieldRef, List};
-use be_sdk_beui::be_block::presence::PresenceKind;
+use be_sdk_beui::be_block_content::ObjectId;
+use be_sdk_beui::be_block_content::be_block_model::{Anchor, FieldRef, List};
+use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor, PeerPresence};

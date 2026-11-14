@@ -189,7 +189,7 @@ struct ContentLink {
     delivered: bool,
     awaiting_preview: bool,
     gesturing: bool,
-    described: Option<be_block::Entries>,
+    described: Option<be_block_content::Entries>,
 }
 
 impl ContentLink {
@@ -3936,6 +3936,18 @@ impl Instances {
             instance,
             EditorEvent::ShowDialog(DialogRequest { block, dialog }),
         )]
+    }
+
+    /// Tells the instance where in its block it was opened (`editor-event.reveal`).
+    pub(super) fn reveal(
+        &self,
+        instance: EditorInstanceId,
+        at: be_sdk_api::SearchLocation,
+    ) -> Vec<Outbound> {
+        match self.entries.contains_key(&instance) {
+            true => vec![Outbound::Event(instance, EditorEvent::Reveal(at))],
+            false => Vec::new(),
+        }
     }
 
     pub(super) fn publish(&mut self, open: be_sdk_api::ops::MethodId, value: Arc<Vec<u8>>) -> bool {

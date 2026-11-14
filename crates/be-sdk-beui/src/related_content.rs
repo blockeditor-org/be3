@@ -3,8 +3,8 @@ use std::rc::Rc;
 use beui::reactive::*;
 use uuid::Uuid;
 
-use be_block::Root;
-use be_block::be_block_model::{Document, Field, FieldRef, List, Model, ObjectId};
+use be_block_content::Root;
+use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model, ObjectId};
 use be_sdk::Objects;
 
 use crate::{ContentProjection, Editor};
@@ -25,7 +25,7 @@ impl<C> Copy for RelatedContent<C> {}
 
 impl<C> RelatedContent<C>
 where
-    C: be_block::LiveEdit + Clone + Default,
+    C: be_block_content::LiveEdit + Clone + Default,
 {
     pub(crate) fn new(editor: Editor, id: Memo<Option<Uuid>>) -> Self {
         Self {
@@ -78,7 +78,7 @@ where
 
 impl<R: Root + 'static> RelatedContent<Document<R>>
 where
-    Document<R>: be_block::LiveEdit + Clone + Default,
+    Document<R>: be_block_content::LiveEdit + Clone + Default,
 {
     pub fn objects<M: 'static, T: Model + 'static>(
         &self,

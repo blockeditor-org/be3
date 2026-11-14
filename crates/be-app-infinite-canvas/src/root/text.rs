@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use be_sdk_beui::be_block::be_block_model::ObjectId;
+use be_sdk_beui::be_block_content::be_block_model::ObjectId;
 use be_sdk_beui::beui::native::with_document;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

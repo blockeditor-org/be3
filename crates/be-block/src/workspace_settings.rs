@@ -2,9 +2,9 @@ use be_block_model::{BlockRef, Document, Edit, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::metadata::MetaKey;
-use crate::settings::{Follows, KindVisibility, Layered, union};
-use crate::{ChildChange, Root};
+use be_block_content::layered::{Follows, KindVisibility, Layered, union};
+use be_block_content::metadata::MetaKey;
+use be_block_content::{ChildChange, Root};
 
 pub use be_block_graph::{EDIT_KINDS, PREFIXES_TYPE, TAGS_TYPE};
 
@@ -161,7 +161,7 @@ impl Root for Tag {
         Some(self.name.clone()).filter(|name| !name.trim().is_empty())
     }
 
-    fn describe(&self, metadata: &mut crate::BlockMetadata) {
+    fn describe(&self, metadata: &mut be_block_content::BlockMetadata) {
         metadata.insert(&TAG_COLOR, &self.color);
     }
 }
@@ -225,7 +225,7 @@ impl Layered for Tags {
 
 pub type TagsContent = Document<Tags>;
 
-pub fn tagged(metadata: &crate::BlockMetadata) -> Vec<Uuid> {
+pub fn tagged(metadata: &be_block_content::BlockMetadata) -> Vec<Uuid> {
     metadata
         .get(&TAGGED)
         .unwrap_or_default()
@@ -234,7 +234,7 @@ pub fn tagged(metadata: &crate::BlockMetadata) -> Vec<Uuid> {
         .collect()
 }
 
-pub fn retagged(metadata: &crate::BlockMetadata, tag: Uuid, on: bool) -> Vec<BlockRef> {
+pub fn retagged(metadata: &be_block_content::BlockMetadata, tag: Uuid, on: bool) -> Vec<BlockRef> {
     let mut tags = tagged(metadata);
     tags.retain(|held| *held != tag);
     if on {

@@ -18,8 +18,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -32,8 +32,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -46,8 +46,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -60,8 +60,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -74,8 +74,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -88,8 +88,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -102,8 +102,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -116,8 +116,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
@@ -130,8 +130,8 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-block-commit:be-block-commit",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-block-model:be-block-model",
-                "//crates/be-block:be-block",
                 "//crates/be-sdk-type-guest:be-sdk-type-guest",
                 "//third-party/rust:uuid-1.29.1",
             ],
