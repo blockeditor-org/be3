@@ -29,7 +29,8 @@ through the bundle's `automate` export.
 
 `./scripts/buck run //crates/be-host:web` serves the bundle with every app and a be-server
 behind it on http://127.0.0.1:8080 without a browser (`-- --backend HOST:PORT` moves the
-server). It and every other web bundle `./scripts/buck run` serves
+server). be-server's `--auth-origin` is `http://` and the `--addr` given, so sign in from
+http://127.0.0.1:8080, not localhost. It and every other web bundle `./scripts/buck run` serves
 (`//crates/beui-web-demo:web`, `//crates/beui-demo:web-html`,
 `//crates/be-tool-paint-review-web:web`) listen on loopback alone; `-- --addr HOST:PORT` moves
 them, and `-- --addr 0.0.0.0:PORT` is how to open one from another machine. A browser hands
