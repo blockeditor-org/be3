@@ -166,8 +166,7 @@ pub fn record(events: &str, context: &Context) -> Option<Value> {
                 .as_array()
                 .and_then(|commands| commands.last())
                 .and_then(|command| command["details"]["stderr"].as_str());
-            let cpu = output
-                .and_then(|output| output.lines().rev().find_map(cpu_seconds));
+            let cpu = output.and_then(|output| output.lines().rev().find_map(cpu_seconds));
             slow.push(json!({
                 "target": target(&action["key"]["owner"]),
                 "category": category,
