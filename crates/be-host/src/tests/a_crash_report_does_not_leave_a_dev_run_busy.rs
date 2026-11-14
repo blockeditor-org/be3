@@ -16,7 +16,7 @@ fn a_crash_report_does_not_leave_a_dev_run_busy() {
     core.crashed("be-host closed after this error the last time it ran.".to_owned());
 
     assert!(
-        core.busy().is_empty(),
+        core.busy(true).is_empty(),
         "the error screen waits for a person, so a driver can read it rather than wait forever"
     );
 }

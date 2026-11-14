@@ -23,7 +23,8 @@ signing in through the portal, making a folder, a canvas and a text block, drawi
 and a pen line of 10,000 samples (`HOST_BENCH_POINTS`), pasting 50 MB of text
 (`HOST_BENCH_TEXT_BYTES`), saving, closing and exporting; then a second device recovers the
 account, reopens both blocks and exports again. It fails unless both exports are identical and
-each block paints the same on both devices. It takes about three minutes; lower the two sizes
+each block paints the same on both devices; the text is painted from its start, since where a
+device left it scrolled is that device's own view state. It takes about three minutes; lower the two sizes
 while working on it.
 
 - It drives be-host headless through `be_tool_drive::Driven` with `BEUI_RENDERER=none`, so it

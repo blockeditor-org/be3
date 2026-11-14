@@ -36,7 +36,7 @@ fn a_child_added_while_its_folder_is_renamed_stays_in_it() {
     );
     set_name(workspace, Some("Team two".to_owned()));
     wait_until("everything reached the server", |shared| {
-        shared.busy().is_empty() && shared.unsynced().is_empty()
+        shared.busy(true).is_empty() && shared.unsynced().is_empty()
     });
     let held = runtime().block_on(async {
         let peer = harness.outside_peer().await;

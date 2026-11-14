@@ -323,6 +323,9 @@ struct Shell {
     document: Document,
     view: HostUiStore,
     core: HostCore,
+    /// Whether the last frame was hurried (`Context::hurried`), which `busy` needs: only then
+    /// does the host seal what its blocks owe at once.
+    hurried: bool,
 }
 
 impl Shell {
@@ -360,6 +363,7 @@ impl Shell {
             document,
             view: view.expect("the view store is created while the document is built"),
             core,
+            hurried: false,
         }
     }
 }
@@ -413,7 +417,8 @@ impl beui::native::Program for Shell {
             context.last_prepared(),
         );
         frame::begin(context);
-        if context.hurried() {
+        self.hurried = context.hurried();
+        if self.hurried {
             be_host_stack::seal_owed();
         }
         if context.input(|input| {
@@ -495,7 +500,7 @@ impl beui::native::Program for Shell {
         if self.core.error.is_some() {
             return Vec::new();
         }
-        let mut reasons = self.core.busy();
+        let mut reasons = self.core.busy(self.hurried);
         reasons.extend(be_host_runtime::busy());
         reasons.extend(compositor::owes_frame());
         reasons
@@ -1198,11 +1203,11 @@ impl HostCore {
     }
 
     /// Why a driver should wait: the host's own work and the block store's, nothing once an
-    /// error screen waits for a person.
-    fn busy(&self) -> Vec<String> {
+    /// error screen waits for a person. `hurried` as for `be_host_stack::busy`.
+    fn busy(&self, hurried: bool) -> Vec<String> {
         let mut reasons = self.own_busy();
         if self.error.is_none() {
-            reasons.extend(be_host_stack::busy());
+            reasons.extend(be_host_stack::busy(hurried));
         }
         reasons
     }
