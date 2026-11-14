@@ -296,9 +296,13 @@ async fn pump(
     let mut let_go = holding.subscribe();
     let mut held: Vec<u8> = Vec::new();
     // Answers on their way, each due its delay after it was read (`delay_answers`): a burst
-    // arrives together, late, rather than one delay after another.
-    let mut delayed: std::collections::VecDeque<(tokio::time::Instant, Vec<u8>)> =
-        std::collections::VecDeque::new();
+    // arrives together, late, rather than one delay after another. While answers are delayed,
+    // every write goes through here, so what was held never overtakes them.
+    let delay = match heard {
+        Some(_) => std::time::Duration::ZERO,
+        None => link.answer_delay,
+    };
+    let mut delayed: Delayed = std::collections::VecDeque::new();
     loop {
         if *link.jammed.borrow() {
             std::future::pending::<()>().await;
@@ -328,12 +332,9 @@ async fn pump(
         };
         let Some(read) = read else {
             // Let go: what was held goes now, in order.
-            if let Some(to) = &mut to
-                && to.write_all(&held).await.is_err()
-            {
+            if !send(&mut to, &mut delayed, delay, std::mem::take(&mut held)).await {
                 return;
             }
-            held.clear();
             continue;
         };
         let read = match read {
@@ -391,27 +392,39 @@ async fn pump(
             held.extend_from_slice(&buffer[..read]);
             continue;
         }
-        if let Some(to) = &mut to
-            && !held.is_empty()
-        {
-            if to.write_all(&held).await.is_err() {
-                return;
-            }
-            held.clear();
-        }
-        if heard.is_none() && !link.answer_delay.is_zero() {
-            delayed.push_back((
-                tokio::time::Instant::now() + link.answer_delay,
-                buffer[..read].to_vec(),
-            ));
-            continue;
-        }
-        if let Some(to) = &mut to
-            && to.write_all(&buffer[..read]).await.is_err()
+        if !held.is_empty() && !send(&mut to, &mut delayed, delay, std::mem::take(&mut held)).await
         {
             return;
         }
+        if !send(&mut to, &mut delayed, delay, buffer[..read].to_vec()).await {
+            return;
+        }
     }
+}
+
+/// Writes held or delayed bytes go out through, each with when it is due.
+type Delayed = std::collections::VecDeque<(tokio::time::Instant, Vec<u8>)>;
+
+/// Writes `bytes` now, or with a `delay` queues them `delay` from now and never before what is
+/// queued already, so they keep their order. Answers whether the connection is still there.
+async fn send(
+    to: &mut Option<&mut OwnedWriteHalf>,
+    delayed: &mut Delayed,
+    delay: std::time::Duration,
+    bytes: Vec<u8>,
+) -> bool {
+    if delay.is_zero() {
+        return match to {
+            Some(to) => to.write_all(&bytes).await.is_ok(),
+            None => true,
+        };
+    }
+    let mut due = tokio::time::Instant::now() + delay;
+    if let Some((last, _)) = delayed.back() {
+        due = due.max(*last);
+    }
+    delayed.push_back((due, bytes));
+    true
 }
 
 /// What a pump woke for.
