@@ -43,15 +43,27 @@ struct Object {
     sql: String,
 }
 
+/// How long a connection waits for another connection to the same database to release its
+/// lock before failing with `SQLITE_BUSY`.
+pub const BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Opens the database at `path`, waiting up to `BUSY_TIMEOUT` on other connections to it.
 pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
     #[cfg(target_os = "wasi")]
-    {
-        Connection::open_with_flags_and_vfs(path, rusqlite::OpenFlags::default(), "unix-none")
-    }
+    let connection =
+        Connection::open_with_flags_and_vfs(path, rusqlite::OpenFlags::default(), "unix-none")?;
     #[cfg(not(target_os = "wasi"))]
-    {
-        Connection::open(path)
-    }
+    let connection = Connection::open(path)?;
+    connection.busy_timeout(BUSY_TIMEOUT)?;
+    Ok(connection)
+}
+
+/// Begins a transaction that may write, taking the write lock up front. A deferred
+/// transaction that reads and then writes fails at once with `SQLITE_BUSY` while another
+/// connection holds the lock, since SQLite never runs the busy handler for a read upgrading to
+/// a write; this one waits out the connection's busy timeout (`BUSY_TIMEOUT` from `open`).
+pub fn write_transaction(connection: &Connection) -> rusqlite::Result<rusqlite::Transaction<'_>> {
+    rusqlite::Transaction::new_unchecked(connection, rusqlite::TransactionBehavior::Immediate)
 }
 
 /// Adds a missing table, index, or a missing column that has a default, and refuses anything
@@ -60,10 +72,9 @@ pub fn open(path: impl AsRef<std::path::Path>) -> rusqlite::Result<Connection> {
 pub fn ensure(connection: &Connection, declared: &str) -> Result<(), SchemaError> {
     let wanted = Connection::open_in_memory()?;
     wanted.execute_batch(declared)?;
-    // Immediate, so two connections opening one new database at once take turns: a deferred
-    // transaction would read no tables in both, and the second to write would fail at once.
-    let transaction =
-        rusqlite::Transaction::new_unchecked(connection, rusqlite::TransactionBehavior::Immediate)?;
+    // A write transaction, so two connections with a busy timeout opening one new database at
+    // once take turns: deferred, both would read no tables and the second to write would fail.
+    let transaction = write_transaction(connection)?;
     let existing = objects(&transaction)?;
     let mut problems = Vec::new();
     for (name, object) in objects(&wanted)? {

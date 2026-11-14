@@ -65,7 +65,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
 
     store
         .with_database(move |_, database| {
-        let transaction = crate::store::write_transaction(database).unwrap();
+        let transaction = be_block_sqlite_schema::write_transaction(database).unwrap();
         for index in 0..MAX_CONTACT_LINKS_PER_ACCOUNT {
             transaction
                 .execute(

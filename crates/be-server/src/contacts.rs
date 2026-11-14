@@ -467,7 +467,7 @@ impl ServerStore {
         let Some(grant) = found.grant else {
             return self
                 .with_database(move |_, database| {
-                    let transaction = crate::store::write_transaction(database)?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     mark_accepted(&transaction, link, caller, &card)?;
                     befriend(&transaction, owner, &[], caller, &contact)?;
                     transaction.commit()?;
@@ -480,7 +480,7 @@ impl ServerStore {
         };
         let granted = self
             .with_graph(grant.organization, move |store, graph, database| {
-                let transaction = crate::store::write_transaction(database)?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 mark_accepted(&transaction, link, caller, &card)?;
                 befriend(&transaction, owner, &[], caller, &contact)?;
                 let owner_role = role_in(&transaction, owner, grant.organization)?;
@@ -645,7 +645,7 @@ impl ServerStore {
     ) -> Result<Vec<Granted>, ServerError> {
         let shared = {
             self.with_database(move |_, database| {
-                let transaction = crate::store::write_transaction(database)?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 transaction.execute(
                     "DELETE FROM contacts WHERE (account_id = ?1 AND contact_id = ?2)
                         OR (account_id = ?2 AND contact_id = ?1)",
@@ -720,7 +720,7 @@ impl ServerStore {
                             }
                         }
                     }
-                    let transaction = crate::store::write_transaction(database)?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let mut revoked = Vec::new();
                     for (block, grantee) in grants {
                         let before = graph.audience(block);

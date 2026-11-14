@@ -29,7 +29,7 @@ impl ServerKey {
         if let Some(held) = Self::load(connection)? {
             return Ok(held);
         }
-        let transaction = crate::store::write_transaction(connection)?;
+        let transaction = be_block_sqlite_schema::write_transaction(connection)?;
         let made = match Self::load(&transaction)? {
             Some(held) => held,
             None => Self::create(&transaction)?,

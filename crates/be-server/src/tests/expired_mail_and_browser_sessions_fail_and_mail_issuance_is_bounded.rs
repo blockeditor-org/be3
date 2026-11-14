@@ -35,7 +35,7 @@ async fn expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded() {
             .unwrap()
             .is_none()
     );
-    let database = rusqlite::Connection::open(harness.directory.join("metadata.sqlite")).unwrap();
+    let database = metadata_database(&harness.directory);
     database
         .execute("UPDATE account_mail SET expires = 0", [])
         .unwrap();
