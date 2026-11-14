@@ -4,6 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
+mod binds;
 mod links;
 mod stats;
 
@@ -178,6 +179,7 @@ impl Run {
     fn verify(&mut self) {
         if self.options.lint {
             self.executable_bits();
+            self.wildcard_binds();
         }
         self.generated();
         self.links();
@@ -264,6 +266,33 @@ impl Run {
                 self.failed = true;
             }
         }
+    }
+
+    /// Fails on a Caddyfile or harness that would listen on every interface
+    /// (binds.rs).
+    fn wildcard_binds(&mut self) {
+        let Some(listed) = git(&["ls-files", "-z"]) else {
+            self.failed = true;
+            return;
+        };
+        let mut problems = Vec::new();
+        for path in listed.split('\0') {
+            if path.is_empty() || path.starts_with("external/") || path.starts_with("third-party/") {
+                continue;
+            }
+            // A file that is not text, or is gone from the working tree, holds no address.
+            if let Ok(text) = fs::read_to_string(path) {
+                problems.extend(binds::wildcard_binds(path, &text));
+            }
+        }
+        if problems.is_empty() {
+            return;
+        }
+        println!("These would listen on every interface (guides/hosting.md, \"Listening\"):");
+        for problem in problems {
+            println!("  {problem}");
+        }
+        self.failed = true;
     }
 
     fn generated(&mut self) {
