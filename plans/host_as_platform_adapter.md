@@ -4,8 +4,8 @@ Depends on: plans/local_accounts.md.
 
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS
 services. Everything with a UI moves into wasm guests: a root guest the host calls synchronously,
-which is the app, and below it the shell and apps as today. The block stack moves into the root
-guest, and the host knows nothing of it.
+which is the app, and below it the shell and apps as today. The root guest runs the block stack
+as an instance of its own, and the host knows nothing of it.
 
 Why:
 
@@ -29,7 +29,7 @@ revision history editor being unable to change a block.
 ```
 host (native, per platform)
  └─ root guest: the compositor, or Space while it is on, calling the compositor   synchronous
-     ├─ the block stack, on the root guest's own threads
+     ├─ the block stack: its own instance and thread, spawned by the root guest
      └─ the shell (workspace-ui, or the desktop app under --desktop) and apps     asynchronous
 ```
 
@@ -66,8 +66,8 @@ no text and no fallback UI of its own.
 ## The root guest
 
 The root guest is the app. If it traps, be-host exits as it would on a panic today, so this is no
-worse than now. Apps below the root are restarted by the
-compositor as the host restarts them today.
+worse than now. Apps below the root are restarted by the compositor as the host restarts them
+today.
 
 The host calls it inline on its frame thread rather than stepping it on a worker:
 
@@ -75,20 +75,30 @@ The host calls it inline on its frame thread rather than stepping it on a worker
 (XR)  xrWaitFrame, xrBeginFrame, locate the head and controllers
       guest.input(events)
       guest.frame(predicted display time, poses)
-        records and submits its GPU work; returns the layer list and an accessibility update
+        lays out and asks its children for frames; returns Pending while it waits for them
+      the host waits on the children's answers, up to the frame's deadline, then calls again
+      guest.frame(...)
+        paints and submits its GPU work; returns the layer list and an accessibility update
 (XR)  xrEndFrame
 ```
+
+**Settling children.** Today the host waits for every app's answer before painting, up to the
+frame's deadline (guides/apps/runtime.md, Settling), so a child the parent resized or moved is
+drawn in its new place in the same frame. The root guest keeps that, without blocking its main
+thread: its frame export is resumable. Inside, the compositor writes ordinary async Rust that
+awaits its children's commits; the export returns `Pending` naming what it waits for, and the
+host, which owns the children's channels, calls it again when they answer or the deadline
+passes. The engine needs no async support of its own, so this works on wasmtime and on the web's
+main thread alike. If that proves awkward, the fallback is two exports, `layout` and `present`,
+with the host waiting between them.
 
 Its rules:
 
 - It is be-host's own module, staged with it, never one from user bytes.
-- It never blocks its main thread: no waiting on atomics or on locks other threads hold. Its own
-  background threads may, and the block stack runs on them. These are the browser main thread's
-  rules, which beui already follows.
-- Each call has a deadline, enforced with wasmtime's epoch interruption. On a miss the host keeps
-  the previous frame (with a headset, the runtime reprojects it) and calls again on the next
-  frame.
-- It never waits for its children inside a call. It reads their latest frames.
+- It never blocks its main thread: no waiting on atomics or on locks another thread may hold.
+  These are the browser main thread's rules, which beui already follows.
+- Its own calls have no deadline; only waiting for children does (`Host::frame_deadline`). A slow
+  root frame is a slow frame, as a slow host frame is today.
 - While Space is on, Space is the root and calls the compositor inline in the same call.
 - On the web it runs on the page's main thread, called from `requestAnimationFrame` or the XR
   session's frame callback: WebXR runs only there, and a page cannot call into a worker
@@ -251,11 +261,17 @@ the compositor inline. Neither the compositor nor any app knows about VR.
   guides/beui/space.md), so Space places them as panels of their own. Drawing a window's layers
   apart in 3D is not planned.
 
-## The block stack in the root guest
+## The block stack
 
-The root guest runs the block stack in-process, on threads of its own, as the web build already
-runs it in `web/be-worker.js`: a second instance of the module on the page's shared memory. The
-host does not know it is there; it only grants the root guest capabilities.
+The block stack runs on its own thread, as it does natively today (`be-host-stack/src/worker.rs`,
+the peer's loop). The root guest spawns it through the sandbox API as an instance of its own,
+with its own memory, so nothing is shared between it and the compositor: they talk only through
+messages, the commands and change notices they use today (`ChangeWatch`). Neither ever spins. The
+block stack's thread waits with `memory.atomic.wait`, which a Web Worker allows, and the
+compositor's main thread never waits. This replaces the web build's second instance on the
+page's shared memory (`web/be-worker.js`) and its spinning lock (`be_wasm_threads::Mutex`). The
+host does not know what the instance is; it only serves the capabilities the root guest grants
+it. If it traps, the root guest ends the app, as a panic does today.
 
 be-block-client, be-host-base and be-host-stack already run as wasm on the web: SQLite on OPFS,
 and the browser's WebSocket and `fetch`. They gain a backend over the host's capabilities and drop
@@ -264,11 +280,12 @@ the native tokio, rustls and tungstenite path, so each has one transport.
 - **Files:** a WASI preopen natively, OPFS on the web.
 - **Network:** WebSocket and HTTP. Natively the proxy credential header is allowed; the web
   refuses it, as a browser does.
-- **Apps' block calls** reach the root guest, which answers them on the block stack's threads, so
-  a slow query never holds up a frame, and keeps the per-app rules the host enforces now.
+- **Apps' block calls** reach the root guest, which passes them to the block stack as messages,
+  so a slow query never holds up a frame. The block stack keeps the per-app rules the host
+  enforces now.
 - **Local accounts** need no server (plans/local_accounts.md), so be-server leaves be-host.
-- **Without a UI:** for Android push and background sync the host starts the root guest with no
-  window, and it runs the block stack alone.
+- **Without a UI:** for Android push and background sync the host starts the root guest through
+  an entry point that spawns only the block stack and starts no UI. Measure its memory.
 - **Native builds:** the crates stay portable, so their native tests, be-server and the CLIs keep
   building natively.
 
@@ -276,8 +293,7 @@ Costs:
 
 - **Build time:** `./scripts/verify` gets slower, since the block stack and SQLite are compiled to
   wasm and precompiled on top of the native builds the tests need.
-- **Run time:** wasm is slower, especially for hashing and encryption, which have no AES or SHA
-  instructions. Measure a large blob import and the first sync of a large workspace.
+- **Run time:** wasm runs roughly 30% slower, which native guests could later win back.
 
 ## Other moves
 
@@ -319,9 +335,9 @@ Each step lands on its own.
 2. Spawning staged apps. A test guest embeds one editor without the host's compositor.
 3. The layer list and the forwarding router, and how native and the web realize them, with the
    host's current UI as their only producer, so nothing changes visibly.
-4. The synchronous root entry with deadlines. The compositor takes over `src/compositor`,
+4. The synchronous, resumable root entry. The compositor takes over `src/compositor`,
    `src/ui`, the camera and the orchestration.
-5. The block stack in the root guest, behind capabilities.
+5. The block stack as an instance the root guest spawns, behind capabilities.
 6. Space as a guest, offscreen windows, and the host's OpenXR part, with late latching.
 7. Strip the host: drop beui's widgets, text and fonts, the block stack, be-server and audio
    decoding. Update guides/apps/runtime.md, guides/desktop.md, guides/running/web.md,
