@@ -19,7 +19,11 @@ fn a_run_keeps_only_the_paintings_that_differ() {
     fs::write(made.join("same.browser.paint"), painting("<p>same</p>")).unwrap();
     fs::write(accepted.join("same.browser.paint"), painting("<p>same</p>")).unwrap();
     fs::write(made.join("moved.browser.paint"), painting("<p>after</p>")).unwrap();
-    fs::write(accepted.join("moved.browser.paint"), painting("<p>before</p>")).unwrap();
+    fs::write(
+        accepted.join("moved.browser.paint"),
+        painting("<p>before</p>"),
+    )
+    .unwrap();
     let differ = changed_paintings(&made, &accepted, &changed);
     assert_eq!(differ.len(), 1);
     assert_eq!(differ[0].0, "moved.browser.paint");
