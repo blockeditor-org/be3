@@ -12,7 +12,7 @@ fn an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner() {
 
     let mut appends = harness
         .relay()
-        .count(|method| method == be_block_protocol::__args::SESSIONS_SESSION_APPEND);
+        .count(|method, _| method == be_block_protocol::__args::SESSIONS_SESSION_APPEND);
     add(block, 3);
     wait_for_count(block, 7);
     harness

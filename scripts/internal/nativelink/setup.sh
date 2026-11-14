@@ -1,7 +1,8 @@
 #!/bin/bash
 # Run as root on a new Hetzner server (Ubuntu 24.04): `scp -r` scripts/internal/nativelink and scripts/internal/re-relay there, side by side, and run it with the server's public
 # name, `bash setup.sh nl.be3.pfg.pw` (its DNS record must point at the server). It installs NativeLink (cache, scheduler and worker in one process,
-# nativelink.json5) and Caddy (Caddyfile), and makes Caddy's token on first run. Running it again updates both.
+# nativelink.json5), Caddy (Caddyfile) and the dashboard (dashboard/), and makes Caddy's tokens on first run. Running it again
+# updates them all.
 set -euo pipefail; cd "$(dirname "$(readlink -f "$0")")"; export DEBIAN_FRONTEND=noninteractive
 NL_HOST=${1:?usage: setup.sh PUBLIC_NAME}
 NL_VERSION=1.8.3
@@ -12,6 +13,13 @@ IMAGE=docker.io/library/buildpack-deps@sha256:2607512c685336a441eba9719ab17da071
 # Only key logins (Hetzner's image allows passwords for users other than root).
 printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/10-keys-only.conf
 systemctl reload ssh
+# 16 GB of swap, which the server's image lacks: the worker does not schedule by memory, so a release build's LTO
+# link (about 10 GB) beside 15 other actions can run out, and swap slows that down rather than OOM-killing the link.
+# Swappiness 10 keeps the CAS's files in the page cache rather than swapping out what runs.
+if [ ! -e /swapfile ]; then fallocate -l 16G /swapfile; chmod 600 /swapfile; mkswap /swapfile >/dev/null; fi
+swapon --show=NAME --noheadings | grep -qx /swapfile || swapon /swapfile
+grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+echo 'vm.swappiness = 10' > /etc/sysctl.d/90-swap.conf; sysctl -q -p /etc/sysctl.d/90-swap.conf
 command -v docker >/dev/null || { apt-get update -qq && apt-get install -y -qq docker.io >/dev/null; }
 systemctl enable --now docker
 docker pull -q "$IMAGE" >/dev/null
@@ -34,14 +42,49 @@ fi
 ( cd "$RELAY_SOURCE" && CGO_ENABLED=0 GOTOOLCHAIN=local /usr/local/go/bin/go build -trimpath -o /usr/local/bin/re-relay . )
 install -d /etc/nativelink /etc/caddy /var/lib/nativelink
 install -m0644 nativelink.json5 /etc/nativelink/nativelink.json5
-install -m0644 Caddyfile /etc/caddy/Caddyfile
-# Caddy's token, made once: clients' BE3_NL_TOKEN (guides/build_server.md).
-if [ ! -s /etc/nl-caddy.env ]; then
-  ( umask 077; echo "NL_TUNNEL_TOKEN=$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')" > /etc/nl-caddy.env )
-fi
+install -m0644 Caddyfile dashboard/gate.html /etc/caddy/
+# Caddy's tokens, each made once: clients' BE3_NL_TOKEN and the dashboard's cookie (guides/build_server.md).
+token() { head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9'; }
+( umask 077; touch /etc/nl-caddy.env
+  grep -q '^NL_TUNNEL_TOKEN=.' /etc/nl-caddy.env || echo "NL_TUNNEL_TOKEN=$(token)" >> /etc/nl-caddy.env
+  grep -q '^NL_DASH_TOKEN=.' /etc/nl-caddy.env || echo "NL_DASH_TOKEN=$(token)" >> /etc/nl-caddy.env )
 sed -i '/^NL_HOST=/d' /etc/nl-caddy.env; echo "NL_HOST=$NL_HOST" >> /etc/nl-caddy.env
-install -m0644 nativelink.service nl-caddy.service nl-tunnel.service /etc/systemd/system/
+
+# The dashboard (dashboard/, guides/build_server.md): node_exporter for the machine's metrics, the OpenTelemetry
+# Collector for NativeLink's, Prometheus to keep them, nl-stats.py for the builds' records, and Grafana to show them.
+PROMETHEUS_IMAGE=docker.io/prom/prometheus@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2   # v3.15.1
+OTEL_IMAGE=docker.io/otel/opentelemetry-collector-contrib@sha256:39923a8e431bd1f57be82411999d389fcfe40857492e4365456d97a4c1f74be6   # 0.162.0
+GRAFANA_IMAGE=docker.io/grafana/grafana@sha256:9b031995a5483a44f80a5dd214a70cecb31448b42d765b44d3756e17b855775f   # 13.0.13
+SQLITE_PLUGIN_VERSION=4.0.6
+SQLITE_PLUGIN_SHA256=e5ce2354dd26ba9bea56b37f9ed4050cc917a46b858a0a191e1cafda382bf18a   # grafana.com's published digest
+dpkg -s prometheus-node-exporter sqlite3 >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq --no-install-recommends prometheus-node-exporter sqlite3 >/dev/null; }
+echo 'ARGS="--web.listen-address=127.0.0.1:9100"' > /etc/default/prometheus-node-exporter
+for image in "$PROMETHEUS_IMAGE" "$OTEL_IMAGE" "$GRAFANA_IMAGE"; do docker pull -q "$image" >/dev/null; done
+install -d /etc/nl-dashboard/grafana/provisioning/datasources /etc/nl-dashboard/grafana/provisioning/dashboards \
+  /etc/nl-dashboard/grafana/provisioning/plugins /etc/nl-dashboard/grafana/provisioning/alerting \
+  /etc/nl-dashboard/grafana/dashboards /usr/local/lib/nl-stats /var/lib/nl-stats /var/lib/prometheus/node-exporter
+install -d -o 65534 -g 65534 /var/lib/nl-prometheus
+install -d -o 472 -g 0 /var/lib/nl-grafana /var/lib/nl-grafana/plugins
+install -m0644 dashboard/prometheus.yml dashboard/otel-collector.yaml /etc/nl-dashboard/
+install -m0644 dashboard/grafana-datasources.yaml /etc/nl-dashboard/grafana/provisioning/datasources/
+install -m0644 dashboard/grafana-dashboards.yaml /etc/nl-dashboard/grafana/provisioning/dashboards/
+install -m0644 dashboard/build-server.json /etc/nl-dashboard/grafana/dashboards/
+install -m0644 dashboard/nl-stats.py /usr/local/lib/nl-stats/
+if [ "$(cat /var/lib/nl-grafana/plugins/frser-sqlite-datasource.version 2>/dev/null)" != "$SQLITE_PLUGIN_VERSION" ]; then
+  curl -fsSL --retry 3 -o /tmp/sqlite-plugin.zip \
+    "https://grafana.com/api/plugins/frser-sqlite-datasource/versions/$SQLITE_PLUGIN_VERSION/download"
+  echo "$SQLITE_PLUGIN_SHA256  /tmp/sqlite-plugin.zip" | sha256sum -c -
+  rm -rf /var/lib/nl-grafana/plugins/frser-sqlite-datasource
+  python3 -m zipfile -e /tmp/sqlite-plugin.zip /var/lib/nl-grafana/plugins/
+  chmod 0755 /var/lib/nl-grafana/plugins/frser-sqlite-datasource/gpx_*   # zipfile keeps no modes
+  echo "$SQLITE_PLUGIN_VERSION" > /var/lib/nl-grafana/plugins/frser-sqlite-datasource.version
+  chown -R 472:0 /var/lib/nl-grafana/plugins
+fi
+
+UNITS="nativelink nl-caddy nl-tunnel nl-stats nl-prometheus nl-otel nl-grafana prometheus-node-exporter"
+install -m0644 nativelink.service nl-caddy.service nl-tunnel.service dashboard/nl-stats.service \
+  dashboard/nl-prometheus.service dashboard/nl-otel.service dashboard/nl-grafana.service /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable nativelink nl-caddy nl-tunnel
-systemctl restart nativelink nl-caddy nl-tunnel
-sleep 5; systemctl is-active nativelink nl-caddy nl-tunnel
+systemctl enable $UNITS
+systemctl restart $UNITS
+sleep 5; systemctl is-active $UNITS

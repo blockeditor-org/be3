@@ -29,8 +29,9 @@ struct State {
     counters: Mutex<Vec<Counter>>,
 }
 
+/// What a counter counts: the calls whose method and encoded arguments it matches.
 type Counter = (
-    Box<dyn Fn(be_wasm_ops::MethodId) -> bool + Send>,
+    Box<dyn Fn(be_wasm_ops::MethodId, &[u8]) -> bool + Send>,
     watch::Sender<u64>,
 );
 
@@ -168,7 +169,7 @@ impl Relay {
 
     pub fn count(
         &self,
-        counted: impl Fn(be_wasm_ops::MethodId) -> bool + Send + 'static,
+        counted: impl Fn(be_wasm_ops::MethodId, &[u8]) -> bool + Send + 'static,
     ) -> watch::Receiver<u64> {
         let (sender, receiver) = watch::channel(0);
         self.state
@@ -321,7 +322,10 @@ async fn pump(
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner);
                 for (counted, count) in counters.iter() {
-                    let matched = messages.iter().filter(|method| counted(**method)).count();
+                    let matched = messages
+                        .iter()
+                        .filter(|(method, args)| counted(*method, args))
+                        .count();
                     if matched > 0 {
                         count.send_modify(|count| *count += matched as u64);
                     }
@@ -360,7 +364,7 @@ struct Frames {
 }
 
 impl Frames {
-    fn messages_in(&mut self, bytes: &[u8]) -> Vec<be_wasm_ops::MethodId> {
+    fn messages_in(&mut self, bytes: &[u8]) -> Vec<(be_wasm_ops::MethodId, Vec<u8>)> {
         self.unread.extend_from_slice(bytes);
         if !self.upgraded {
             let Some(end) = self
@@ -375,10 +379,10 @@ impl Frames {
         }
         let mut messages = Vec::new();
         while let Some((payload, length)) = frame(&self.unread) {
-            if let Ok(be_wasm_ops::Frame::Start { method, .. }) =
+            if let Ok(be_wasm_ops::Frame::Start { method, args, .. }) =
                 be_wasm_ops::decode_frame(&payload)
             {
-                messages.push(method);
+                messages.push((method, args));
             }
             self.unread.drain(..length);
         }

@@ -18,7 +18,7 @@ async fn a_request_on_a_link_gone_silent_fails_without_waiting_for_the_idle_ping
 
     relay.stall();
     let answer = crate::ask(client::organizations::list_organizations(&connection));
-    let mut pings = relay.count(|method| method == be_block_protocol::__args::CONNECTION_PING);
+    let mut pings = relay.count(|method, _| method == be_block_protocol::__args::CONNECTION_PING);
     let mut due = connection.due();
     due.wait_for(|due| *due < clock.now() + PING_INTERVAL)
         .await
