@@ -15,6 +15,10 @@ pub enum State {
 pub struct ClientSession {
     state: State,
     screens: HashSet<ScreenId>,
+    /// Every screen the host has given, the ones since taken back too: input arrives on a stream
+    /// of its own, so some aimed at a screen the host just took back can follow the screens
+    /// that dropped it, and is ignored rather than refused.
+    given: HashSet<ScreenId>,
     app: AppIdentity,
     instances: HashSet<EditorInstanceId>,
     surface: Option<SurfaceSpec>,
@@ -31,6 +35,7 @@ impl ClientSession {
         Self {
             state: State::AwaitingHello,
             screens: HashSet::default(),
+            given: HashSet::default(),
             app: AppIdentity {
                 id: id.into(),
                 name: name.into(),
@@ -87,10 +92,11 @@ impl ClientSession {
                     ));
                 }
                 self.screens = screens.iter().map(|screen| screen.screen).collect();
+                self.given.extend(self.screens.iter().copied());
                 Ok(())
             }
             (State::Running, Delivery::Input(input)) => {
-                match input.screen.is_opened() || self.screens.contains(&input.screen) {
+                match input.screen.is_opened() || self.given.contains(&input.screen) {
                     true => Ok(()),
                     false => Err(format!(
                         "input arrived for screen {}, which this app was not given",

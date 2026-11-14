@@ -326,3 +326,11 @@ web_host_test(
     server = "//crates/be-server-bin:bin",
     test = "web-test/a_child_placed_in_a_popover_shows_above_it.mjs",
 )
+
+web_host_test(
+    name = "push-web-host-test",
+    bundle = ":web",
+    caddyfile = ":Caddyfile",
+    server = "//crates/be-server-bin:bin",
+    test = "web-test/a_push_shows_who_wrote_what_where_once_and_signing_out_forgets_its_endpoint.mjs",
+)

@@ -73,6 +73,7 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
 
 mod accepts_new_preferences_while_running;
 mod accepts_ordered_lifecycle;
+mod ignores_input_for_a_screen_taken_back_but_refuses_one_never_given;
 mod opens_and_closes_editor_instance;
 mod refuses_to_draw_without_a_surface;
 mod rejects_out_of_order_messages;

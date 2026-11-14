@@ -8,7 +8,7 @@ Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
-            [--fcm-credentials FILE] [--push-host HOST]...
+            [--fcm-credentials FILE] [--push-host HOST]... [--allow-local-push-endpoints]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -43,6 +43,10 @@ Usage:
   --push-host HOST          Also push to Web Push endpoints on HOST, exactly: a self-hosted
                             UnifiedPush server such as ntfy. Without, only the known push
                             services (FCM, Mozilla, Apple, Windows) are pushed to
+  --allow-local-push-endpoints
+                            Let Web Push endpoints be http:// and on loopback or private
+                            addresses, for a test that serves one with --push-host; without,
+                            an endpoint is https:// on a public address
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -197,6 +201,7 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
                 }
                 config.push.hosts.to_mut().push(host);
             }
+            "--allow-local-push-endpoints" => config.push.allow_local_endpoints = true,
             "--object-cache" => {
                 cache_bytes = arguments
                     .next()

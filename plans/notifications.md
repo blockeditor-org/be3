@@ -19,7 +19,7 @@ takes a push yet.
   missing a key shows a generic "New message" naming nothing; it drops a push it
   already showed (the server can resend one within
   `MAX_NOTIFICATION_AGE_MILLISECONDS`); pressing one opens the block; and it
-  unregisters its endpoint when its account signs out (`forget_this_device`).
+  has the server forget its endpoint when its account signs out (`web_push::sign_out`).
   Android's receiving service does the same.
 - **The lock screen** shows a notification's text in plaintext, whoever holds
   the device. A setting to show only "New message" there is a follow-up
@@ -37,13 +37,7 @@ takes a push yet.
 
 ## Order of work
 
-1. A Chromium test of the whole web page (`push-web-test` covers the worker and
-   `push.js` with a test worker): delivering a push to the service worker
-   (DevTools `ServiceWorker.deliverPushMessage`) with a tab open shows the
-   decrypted text under the sender's and block's names; with none, or without
-   the key, "New message"; the same push delivered twice shows once. Signing
-   out unregisters the endpoint.
-2. Android through UnifiedPush, with the receiving service. Done: on the
+1. Android through UnifiedPush, with the receiving service. Done: on the
    emulator, with a test distributor app and the app closed, a push shows the
    decrypted notification and opens the block. Signing out unregisters the
    endpoint.
