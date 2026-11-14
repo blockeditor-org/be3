@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::be_block_model::RichText;
+use be_sdk_beui::be_block_content::be_block_model::RichText;
 use be_sdk_beui::beui::{Key, Modifiers};
 use be_type_infinite_canvas::{CanvasStrokeStyle, CanvasTextSize};
 use beui_text_editor_core::schema::basic::{BOLD, ITALIC, STRIKETHROUGH, UNDERLINE, mark};

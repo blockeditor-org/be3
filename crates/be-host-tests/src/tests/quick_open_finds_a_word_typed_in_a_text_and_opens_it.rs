@@ -47,5 +47,7 @@ fn quick_open_finds_a_word_typed_in_a_text_and_opens_it() {
         1,
         "the text opens again"
     );
+    // It opens at the hit: the word quick open found is selected.
+    host.snapshot("quick_open_opens_a_text_at_the_word_it_found");
     host.close();
 }

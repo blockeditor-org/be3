@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::blob::{Blob, BlobKind};
-use be_block::plain::extension;
+use be_block_content::blob::{Blob, BlobKind};
+use be_block_content::plain::extension;
 use be_sdk_type_guest::BlobFile;
 
 const PDF_MAGIC: &[u8] = b"%PDF-";

@@ -1,11 +1,11 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_block_client::{Peer, Saved, Write};
 use be_block_commit::CommitId;
+use be_block_content::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_block_graph::BlockParent;
-use be_block_protocol::BlockSummary;
+use be_block_protocol::{BlockSummary, Listing};
 use be_block_store::ObjectStore;
 use be_block_type_host::Modules;
 use be_sdk_type_api::{Change as Edit, ChildChange, Description, FileChange};
@@ -432,7 +432,7 @@ impl<S: ObjectStore> Tracker<S> {
                     block_type: summary.content_type,
                     parent,
                     name: metadata.name(),
-                    prefix: metadata.get(&be_block::ROW_PREFIX),
+                    prefix: metadata.get(&be_block_content::ROW_PREFIX),
                     references: summary.references,
                     access: summary.access,
                     head: summary.head,
@@ -448,7 +448,7 @@ impl<S: ObjectStore> Tracker<S> {
         }
         let (roots, shared) = futures_util::future::try_join(
             self.peer.children(BlockParent::Root),
-            self.peer.shared(),
+            self.peer.list(Listing::Shared),
         )
         .await
         .map_err(explain)?;
@@ -760,7 +760,7 @@ impl<S: ObjectStore> Tracker<S> {
         let (database, schema) = self.load_plain(id).await?;
         let mut sources: Vec<Uuid> = self
             .peer
-            .backrefs(id)
+            .list(Listing::Backrefs(id))
             .await
             .map_err(explain)?
             .into_iter()
@@ -1043,7 +1043,7 @@ impl<S: ObjectStore> Tracker<S> {
         self.save(view, &DatabaseViewContent::new(&shown)).await?;
         self.place(parent, view).await?;
         let mut held = BlockMetadata::named(name);
-        held.insert(&be_block::ROW_PREFIX, &prefix);
+        held.insert(&be_block_content::ROW_PREFIX, &prefix);
         self.peer
             .create_block(
                 database,
@@ -1323,7 +1323,7 @@ impl<S: ObjectStore> Tracker<S> {
             row: row.as_uuid(),
         };
         let mut own = Vec::new();
-        let mut elsewhere: Vec<(Uuid, be_block::Edit)> = Vec::new();
+        let mut elsewhere: Vec<(Uuid, be_block_content::Edit)> = Vec::new();
         let mut retitled = None;
         for assignment in assignments {
             match loaded.field(&assignment.field)? {
@@ -1367,7 +1367,9 @@ impl<S: ObjectStore> Tracker<S> {
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         if let (Some(title), Some(page)) = (&retitled, page) {
             self.peer
-                .define(page, |metadata| metadata.insert(&be_block::NAME, title))
+                .define(page, |metadata| {
+                    metadata.insert(&be_block_content::NAME, title)
+                })
                 .await
                 .map_err(explain)?;
         }
@@ -1388,7 +1390,7 @@ impl<S: ObjectStore> Tracker<S> {
         field: &DatabaseField,
         assignment: &Assignment,
         labels: &Labels,
-    ) -> Result<be_block::Edit, String> {
+    ) -> Result<be_block_content::Edit, String> {
         if field.field_type == DatabaseFieldType::Relation && field.relation_options.multiple {
             let wanted = self.wanted_links(current, field, assignment, labels)?;
             return Ok(loaded.database.set_links(row, field.id, &wanted));
@@ -1662,7 +1664,7 @@ impl<S: ObjectStore> Tracker<S> {
                     let title = target_schema.title_field().ok_or_else(|| {
                         format!("the database {} links to has no title column", field.name)
                     })?;
-                    let adds: Vec<be_block::Edit> = missing
+                    let adds: Vec<be_block_content::Edit> = missing
                         .iter()
                         .map(|name| {
                             Database::add_row([(title, DatabaseValue::String(name.clone()))]).1

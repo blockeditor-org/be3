@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -28,7 +28,7 @@ fn a_block_renamed_in_the_files_is_found_by_its_new_name() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -40,7 +40,7 @@ fn a_block_renamed_in_the_files_is_found_by_its_new_name() {
         note,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Pantry"),
+        be_block_content::BlockMetadata::named("Pantry"),
         Some(TextBlock::of("apples and pears").encode()),
         false,
     );

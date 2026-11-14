@@ -6,8 +6,8 @@ use uuid::Uuid;
 
 pub use be_lib_ui_keys::{Key, Modifiers};
 
-use be_block::Root;
-use be_block::presence::{ChannelKind, PresenceKind};
+use be_block_content::Root;
+use be_block_content::presence::{ChannelKind, PresenceKind};
 
 pub const HISTORY_LINES: usize = 10_000;
 

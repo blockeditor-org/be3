@@ -390,6 +390,7 @@ fn request_of(open: OpenRequest) -> WireOpen {
         block_type: open.block_type.into_bytes(),
         via: open.via.map(Uuid::into_bytes),
         editor: open.editor.map(Uuid::into_bytes),
+        at: open.at,
     }
 }
 

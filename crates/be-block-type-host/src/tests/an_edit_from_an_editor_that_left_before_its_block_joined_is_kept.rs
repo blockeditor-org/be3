@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::FromEditor;
 use be_type_text::{TextBlock, TextContent};
 
@@ -32,7 +32,7 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
             block,
             TextContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::default(),
+            &be_block_content::BlockMetadata::default(),
             false,
         )
         .await

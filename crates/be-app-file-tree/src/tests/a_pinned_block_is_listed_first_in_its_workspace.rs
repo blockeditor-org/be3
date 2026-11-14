@@ -1,5 +1,6 @@
-use be_sdk_beui::be_block::be_block_model::BlockRef;
-use be_sdk_beui::be_block::{BlockContent, Home, HomeContent, SETTINGS, Settings, SettingsContent};
+use be_sdk_beui::be_block::{Home, HomeContent, Settings, SettingsContent};
+use be_sdk_beui::be_block_content::be_block_model::BlockRef;
+use be_sdk_beui::be_block_content::{BlockContent, SETTINGS};
 use be_sdk_beui::{BlockInfo, BlockParent, BlockQuery};
 
 use super::*;

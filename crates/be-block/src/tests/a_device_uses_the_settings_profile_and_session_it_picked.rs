@@ -1,6 +1,7 @@
 use super::*;
 use crate::settings::{Settings, SettingsContent};
-use crate::{ChildChange, DESKTOP_EDITOR, Root, WORKSPACE_EDITOR};
+use crate::{DESKTOP_EDITOR, WORKSPACE_EDITOR};
+use be_block_content::{ChildChange, Root};
 
 #[test]
 fn a_device_uses_the_settings_profile_and_session_it_picked() {

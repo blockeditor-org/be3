@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ChildChange;
+use be_block_content::ChildChange;
 use be_type_text::{TextBlock, TextContent};
 use be_type_workspace::WorkspaceContent;
 
@@ -14,7 +14,7 @@ fn a_search_index_write_that_fails_is_queued_again() {
         workspace,
         WorkspaceContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("Team"),
+        be_block_content::BlockMetadata::named("Team"),
         None,
         false,
     );
@@ -29,7 +29,7 @@ fn a_search_index_write_that_fails_is_queued_again() {
         note,
         TextContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Block(workspace),
-        be_block::BlockMetadata::named("Note"),
+        be_block_content::BlockMetadata::named("Note"),
         Some(TextBlock::of("").encode()),
         false,
     );

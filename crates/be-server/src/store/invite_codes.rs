@@ -32,8 +32,7 @@ pub struct InviteCode {
 
 fn open(data_dir: &Path) -> Result<Connection, ServerError> {
     std::fs::create_dir_all(data_dir)?;
-    let connection = Connection::open(data_dir.join("metadata.sqlite"))?;
-    connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    let connection = be_block_sqlite_schema::open(data_dir.join("metadata.sqlite"))?;
     schema::initialize(&connection)?;
     Ok(connection)
 }

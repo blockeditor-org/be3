@@ -1,7 +1,7 @@
-use be_block::be_block_model::Document;
-use be_block::blob::{Blob, BlobKind};
-use be_block::plain::{extension, extension_of, media_type_of};
-use be_block::{BlockContent, Root};
+use be_block_content::be_block_model::Document;
+use be_block_content::blob::{Blob, BlobKind};
+use be_block_content::plain::{extension, extension_of, media_type_of};
+use be_block_content::{BlockContent, Root};
 use be_sdk_type_api::PlainFile;
 
 pub trait FileForm: BlockContent {

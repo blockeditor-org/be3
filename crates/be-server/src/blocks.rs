@@ -476,7 +476,7 @@ impl ServerStore {
             node.owner_only = owner_only;
             graph.insert(block, node)?;
             let (kind, parent_id) = encode_parent(parent);
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let payer = payer_for_new(&transaction, identity.organization, parent, identity.account)?;
             transaction.execute(
                 "INSERT INTO blocks
@@ -538,7 +538,7 @@ impl ServerStore {
             require_one_index(graph, block, &references)?;
             let relinked = relinked(graph, block, &references);
             let organization = identity.organization.to_string();
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "UPDATE blocks SET metadata = ?3, version = version + 1 WHERE organization_id = ?1 AND id = ?2",
                 params![organization, block.to_string(), metadata],
@@ -818,7 +818,7 @@ impl ServerStore {
                         .get(block)
                         .is_some_and(|node| node.metadata != metadata))
                 .then(|| relinked.clone().unwrap_or_default());
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let existing: Option<i64> = transaction
                     .query_row(
                         "SELECT 1 FROM block_commits
@@ -961,22 +961,19 @@ impl ServerStore {
         .await
     }
 
-    /// Which of `hashes` the caller lacks, as far as it may know: an object it neither uploaded
-    /// nor may read is missing to it whether or not someone else stored it.
-    pub async fn missing_objects(
+    /// Whether the caller holds each of `hashes`, as far as it may know: an object it neither
+    /// uploaded nor may read is not held by it whether or not someone else stored it.
+    pub async fn held_objects(
         &self,
         identity: Identity,
         hashes: Vec<Hash>,
-    ) -> Result<Vec<Hash>, ServerError> {
+    ) -> Result<Vec<bool>, ServerError> {
         self.confirm_uploads(identity, hashes.clone()).await?;
         self.with_graph(identity.organization, move |store, graph, database| {
-            let mut missing = Vec::new();
-            for hash in hashes {
-                if !store.holdable(graph, database, identity, hash)? {
-                    missing.push(hash);
-                }
-            }
-            Ok(missing)
+            hashes
+                .into_iter()
+                .map(|hash| store.holdable(graph, database, identity, hash))
+                .collect()
         })
         .await
     }
@@ -1107,7 +1104,7 @@ impl ServerStore {
             store.keeping_refs(database, || {
                 require_edit(graph, &visibility(identity), block)?;
                 store.require_holdable(graph, database, identity, &objects, "held")?;
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let holding =
                     store.before_holding(&transaction, graph, identity, block, &objects)?;
                 let organization = identity.organization.to_string();
@@ -1209,7 +1206,7 @@ impl ServerStore {
                                 .push(Hash::from_hex(&hash).ok_or(ServerError::Corrupt)?);
                         }
                     }
-                    let transaction = database.unchecked_transaction()?;
+                    let transaction = be_block_sqlite_schema::write_transaction(database)?;
                     let mut refs = store.object_refs();
                     let mut released = Vec::new();
                     let mut freed = Vec::new();
@@ -1319,7 +1316,7 @@ impl ServerStore {
                     block,
                 )?),
             };
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             store_keys(
                 graph,
                 &transaction,
@@ -1712,7 +1709,7 @@ impl ServerStore {
                     chosen.insert(block);
                 }
                 let detached = removable(graph, chosen);
-                let transaction = database.unchecked_transaction()?;
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let mut refs = store.object_refs();
                 let mut freed = Vec::new();
                 let mut removed = Vec::new();
@@ -1877,7 +1874,7 @@ impl ServerStore {
                 }
             }
             let before = graph.audience(block);
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             revoke_or_grant(
                 graph,
                 &transaction,

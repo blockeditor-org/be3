@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use be_block::ContentError;
+use be_block_content::ContentError;
 use be_block_protocol::ErrorCode;
 use be_block_store::{Hash, StoreError};
 

@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{BlockContent, ObjectId};
+use be_sdk_beui::be_block_content::{BlockContent, ObjectId};
 use be_sdk_beui::beui::icons::{
     ICON_CHEVRON_DOWN, ICON_CHEVRON_UP, ICON_ELLIPSIS, ICON_EXTERNAL_LINK, ICON_FILE_PLUS,
     ICON_TRASH, ICON_X,

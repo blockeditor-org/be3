@@ -1,4 +1,4 @@
-use be_block::Part;
+use be_block_content::Part;
 use be_block_graph::Access;
 use be_block_store::{Manifest, Node, ObjectStore};
 use be_type_text::TextContent;

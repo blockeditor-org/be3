@@ -77,7 +77,7 @@ fn an_edit_made_while_a_switch_writes_its_block_is_merged_in() {
         .expect("the edit is saved");
         peer.define(versioned.note, |held| {
             held.defined
-                .extend(be_block::BlockMetadata::named("Renamed").defined);
+                .extend(be_block_content::BlockMetadata::named("Renamed").defined);
         })
         .await
         .expect("the note is renamed");

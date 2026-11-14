@@ -12,7 +12,7 @@ async fn a_definition_the_server_refuses_leaves_the_block_as_the_server_has_it()
             Uuid::now_v7(),
             TextContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Plan"),
+            &be_block_content::BlockMetadata::named("Plan"),
             false,
         )
         .await
@@ -26,7 +26,7 @@ async fn a_definition_the_server_refuses_leaves_the_block_as_the_server_has_it()
     };
     owner
         .keep_definition(block, |metadata| {
-            metadata.insert(&be_block::NAME, &"n".repeat(70 * 1024));
+            metadata.insert(&be_block_content::NAME, &"n".repeat(70 * 1024));
         })
         .await
         .expect("the definition is kept here");

@@ -5,7 +5,7 @@ use be_sdk_beui::beui::native::{core_painter, wrap_painter};
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::SpanStyle;
 use be_sdk_beui::beui::native::painting::{Punches, painting, rasterize};
 use be_sdk_beui::beui::native::rich::{RichLayout, SpanKind};

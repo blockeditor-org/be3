@@ -11,6 +11,7 @@ argon2 = "0.5"
 async-trait = "0.1"
 chacha20poly1305 = "0.10"
 be-block = { path = "../be-block" }
+be-block-content = { path = "../be-block-content" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
 be-block-keys = { path = "../be-block-keys" }

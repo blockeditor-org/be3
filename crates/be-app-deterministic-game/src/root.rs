@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

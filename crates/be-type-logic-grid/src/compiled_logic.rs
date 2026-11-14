@@ -11,7 +11,7 @@ use logicgame::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::Root;
+use be_block_content::Root;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CompileError {

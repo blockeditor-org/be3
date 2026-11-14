@@ -11,7 +11,7 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -25,7 +25,7 @@ fn a_block_named_before_it_arrives_is_created_with_that_name() {
         later,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

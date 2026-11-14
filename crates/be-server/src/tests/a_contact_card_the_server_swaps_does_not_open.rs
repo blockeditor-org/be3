@@ -34,7 +34,7 @@ async fn a_contact_card_the_server_swaps_does_not_open() {
         public: RecoveryPhrase::generate().secret().public(),
         ..honest.clone()
     };
-    let database = rusqlite::Connection::open(harness.directory.join("metadata.sqlite")).unwrap();
+    let database = metadata_database(&harness.directory);
     database
         .execute(
             "UPDATE contact_links SET card = ?1 WHERE id = ?2",

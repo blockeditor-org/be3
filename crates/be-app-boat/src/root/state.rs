@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::be_block::{SettingsLayer, ViewState};
+use be_sdk_beui::be_block_content::{SettingsLayer, ViewState};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Task};
 use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings, BoatTerminal, TerminalAgent};

@@ -2,8 +2,8 @@
 //! carried with the keys this device holds, and the server's endpoints and modes.
 //! guides/blocks/server.md, "Notifications".
 
-use be_block::Announcement;
 use be_block_commit::now_milliseconds;
+use be_block_content::Announcement;
 use be_block_protocol::{
     BlockNotifyMode, MAX_NOTIFICATION_BYTES, NotifyMode, PushEndpoint, PushMessage, client,
 };

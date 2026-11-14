@@ -1,5 +1,6 @@
-use be_block::{BlockContent, ContentError};
+use be_block_content::{BlockContent, ContentError};
 use be_block_graph::BlockParent;
+use be_block_protocol::Listing;
 use be_block_store::{ChunkerConfig, MemoryStore};
 use be_server::Running;
 use uuid::Uuid;
@@ -14,7 +15,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
         .iter()
         .map(|bytes| be_block_protocol::ObjectLength {
             hash: be_block_store::Hash::of(bytes),
-            length: bytes.len() as u64,
+            length: Some(bytes.len() as u64),
         })
         .collect();
     let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
@@ -23,6 +24,9 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
     ))
     .await?;
     for (url, bytes) in urls.into_iter().zip(objects) {
+        let Some(url) = url else {
+            continue;
+        };
         let headers: Vec<(String, String)> = url
             .headers
             .into_iter()
@@ -274,7 +278,7 @@ impl Harness {
     }
 
     fn database(&self) -> rusqlite::Connection {
-        rusqlite::Connection::open(self.server.directory.join("metadata.sqlite")).unwrap()
+        be_block_sqlite_schema::open(self.server.directory.join("metadata.sqlite")).unwrap()
     }
 
     async fn stop(self) {
@@ -287,7 +291,7 @@ async fn workspace(peer: &Peer<MemoryStore>, name: &str) -> Uuid {
         Uuid::now_v7(),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named(name),
+        &be_block_content::BlockMetadata::named(name),
         false,
     )
     .await
@@ -300,7 +304,7 @@ async fn my_files(peer: &Peer<MemoryStore>) -> Uuid {
         be_block::my_files(peer.organization(), peer.account()),
         be_type_workspace::WorkspaceContent::CONTENT_TYPE,
         BlockParent::Root,
-        &be_block::BlockMetadata::named("My files"),
+        &be_block_content::BlockMetadata::named("My files"),
         false,
     )
     .await
@@ -353,7 +357,7 @@ async fn note(owner: &Peer<MemoryStore>) -> Uuid {
             Uuid::now_v7(),
             be_type_workspace::WorkspaceContent::CONTENT_TYPE,
             BlockParent::Root,
-            &be_block::BlockMetadata::named("Notes"),
+            &be_block_content::BlockMetadata::named("Notes"),
             false,
         )
         .await

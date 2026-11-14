@@ -1,4 +1,4 @@
-use be_block::BlockContent;
+use be_block_content::BlockContent;
 
 use crate::{AudioContent, AudioFile};
 

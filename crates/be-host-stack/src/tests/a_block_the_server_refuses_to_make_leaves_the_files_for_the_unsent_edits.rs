@@ -12,7 +12,7 @@ fn a_block_the_server_refuses_to_make_leaves_the_files_for_the_unsent_edits() {
         block,
         CounterContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
-        be_block::BlockMetadata::named("n".repeat(70 * 1024)),
+        be_block_content::BlockMetadata::named("n".repeat(70 * 1024)),
         None,
         false,
     );

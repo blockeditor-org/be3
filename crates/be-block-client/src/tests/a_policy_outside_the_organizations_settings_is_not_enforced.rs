@@ -1,6 +1,7 @@
 use be_block::{
-    OrganizationPolicies, OrganizationPoliciesContent, Root, Settings, SettingsContent, WhoMay,
+    OrganizationPolicies, OrganizationPoliciesContent, Settings, SettingsContent, WhoMay,
 };
+use be_block_content::Root;
 
 use super::*;
 

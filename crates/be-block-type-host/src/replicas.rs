@@ -91,8 +91,8 @@ pub(crate) fn answer_in(
 }
 
 /// An announcement as the type module sent it.
-fn announcement(sent: be_sdk_type_api::Announcement) -> be_block::Announcement {
-    be_block::Announcement {
+fn announcement(sent: be_sdk_type_api::Announcement) -> be_block_content::Announcement {
+    be_block_content::Announcement {
         key: sent.key,
         text: sent.text,
         several: sent.several,
@@ -567,15 +567,13 @@ impl<H: Host> Replicas<H> {
     }
 
     fn leave(&mut self, shared: &Arc<Mutex<H>>, peer: &Peer<H::Store>, block: Uuid) {
-        let left = peer.leave_session(block);
+        let left = peer.connection().leave_session(block);
         let unwatched = peer.unwatch(block);
         self.left += 1;
         H::leaving(shared, true);
         let io = self.io.clone();
         H::spawn(async move {
-            if let Ok(left) = left {
-                let _ = left.await;
-            }
+            let _ = left.await;
             if let Ok(unwatched) = unwatched {
                 let _ = unwatched.await;
             }
@@ -843,7 +841,7 @@ impl<H: Host> Replicas<H> {
                 if owned && H::reshaped(shared, block, &kind.schema) {
                     reset::<H>(peer, block, &kind).await?;
                 }
-                let (client, session, journal) = peer.join_session(block)?.await?;
+                let (client, session, journal) = peer.connection().join_session(block).await?;
                 peer.watch(block);
                 let head = peer.remote_head(block).await?;
                 let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
@@ -1651,7 +1649,7 @@ impl<H: Host> Replicas<H> {
         }))
     }
 
-    /// A commit's searchable text (`be_block::BlockContent::search_text`), as the indexer can
+    /// A commit's searchable text (`be_block_content::BlockContent::search_text`), as the indexer can
     /// trust it whatever the type answered: only the documents `keys` names (none for every
     /// one), each key once, a `source` only if it is a part of this commit, and no body for a
     /// document whose source is in `indexed`, the hashes of parts whose text the index holds
@@ -1996,7 +1994,7 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    pub fn resynchronize(&mut self, (peer, shared): Ctx<'_, H>) {
+    pub fn resynchronize(&mut self, (peer, _): Ctx<'_, H>) {
         for (replica, block) in self
             .open
             .iter()
@@ -2004,13 +2002,7 @@ impl<H: Host> Replicas<H> {
             .map(|(replica, open)| (*replica, open.block))
             .collect::<Vec<_>>()
         {
-            let joining = match peer.join_session(block) {
-                Ok(joining) => joining,
-                Err(error) => {
-                    H::record(shared, error);
-                    continue;
-                }
-            };
+            let joining = peer.connection().join_session(block);
             let io = self.io.clone();
             H::spawn(async move {
                 let joined = joining.await.map(|(client, session, _)| (client, session));
@@ -2264,7 +2256,7 @@ impl<H: Host> Replicas<H> {
         let io = self.io.clone();
         H::spawn(async move {
             let joined = async {
-                let (client, session, _) = peer.join_session(block)?.await?;
+                let (client, session, _) = peer.connection().join_session(block).await?;
                 peer.watch(block);
                 let head = peer.remote_head(block).await?;
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block)))
@@ -2645,7 +2637,7 @@ impl<H: Host> Replicas<H> {
                 relay,
                 announcements,
             } => {
-                let announcements: Vec<(u64, be_block::Announcement)> = announcements
+                let announcements: Vec<(u64, be_block_content::Announcement)> = announcements
                     .into_iter()
                     .map(|announced| (announced.sequence, announcement(announced.announcement)))
                     .collect();
@@ -2956,14 +2948,7 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                let claiming = match peer.claim_ownership(block, generation) {
-                    Ok(claiming) => claiming,
-                    Err(error) if unreachable(&error) => return false,
-                    Err(error) => {
-                        H::record(shared, error);
-                        return false;
-                    }
-                };
+                let claiming = peer.connection().claim_ownership(block, generation);
                 let io = self.io.clone();
                 H::spawn(async move {
                     let claimed = claiming.await;
@@ -2984,14 +2969,7 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                let answer = match peer.heartbeat(block, generation, clean_at) {
-                    Ok(answer) => answer,
-                    Err(error) if unreachable(&error) => return false,
-                    Err(error) => {
-                        H::record(shared, error);
-                        return false;
-                    }
-                };
+                let answer = peer.connection().heartbeat(block, generation, clean_at);
                 let shared = Arc::clone(shared);
                 H::spawn(async move {
                     if let Err(error) = answer.await
@@ -3149,7 +3127,7 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
     Box::pin(async move {
         peer.ensure_type(block, content_type, BlockParent::Detached)
             .await?;
-        let (client, session, journal) = peer.join_session(block)?.await?;
+        let (client, session, journal) = peer.connection().join_session(block).await?;
         peer.watch(block);
         let head = peer.remote_head(block).await?;
         let journal = journal.and_then(|journal| peer.open_journal(journal).ok());

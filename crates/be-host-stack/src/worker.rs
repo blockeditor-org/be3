@@ -6,10 +6,10 @@ use std::{
 
 use be_wasm_threads::Mutex;
 
-use be_block::BlockMetadata;
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig, Write};
 use be_block_client::{Event, ask};
 use be_block_commit::CommitId;
+use be_block_content::BlockMetadata;
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{AccessList, BlockSummary, client};
 use be_block_type_host::Conflict;
@@ -194,7 +194,7 @@ pub(super) enum Command {
     },
     Define {
         block: Uuid,
-        changes: Vec<be_block::Definition>,
+        changes: Vec<be_block_content::Definition>,
     },
     SetAccess {
         block: Uuid,
@@ -3386,7 +3386,11 @@ async fn apply(
             // A new name is a commit of the block's that its search index has yet to take, as an
             // edit an open block seals is (`Searching::sealed`), though no session of it is open
             // (a rename in the files).
-            if defined.is_ok() && changes.iter().any(|(key, _)| *key == be_block::NAME.id) {
+            if defined.is_ok()
+                && changes
+                    .iter()
+                    .any(|(key, _)| *key == be_block_content::NAME.id)
+            {
                 shared
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -3477,7 +3481,7 @@ async fn plain_file(
         .await?
         .ok_or("This block has no plain-file form.")?;
     if file.name.is_none() {
-        file.name = Some(be_block::plain::export_name(&name, &file.extension));
+        file.name = Some(be_block_content::plain::export_name(&name, &file.extension));
     }
     Ok(file)
 }
@@ -4031,13 +4035,9 @@ async fn list(
         futures_util::future::join_all(unlisted.into_iter().map(|listing| peer.unlist(listing)));
     let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
         match *listing {
-            Listing::Children(parent) => peer.children(parent).await,
-            Listing::Deleted => peer.deleted().await,
-            Listing::Shared => peer.shared().await,
-            Listing::Backrefs(block) => peer.backrefs(block).await,
-            Listing::References(block) => peer.referenced(block).await,
+            // A block's own summary answers from the outbox and offline as `summary` does.
             Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
-            Listing::OpenSettings(block) => peer.open_settings(block).await,
+            listing => peer.list(listing).await,
         }
     }));
     let (_, answers) = futures_util::future::join(unlists, lists).await;

@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use be_sdk_beui::be_block::SettingsLayer;
+use be_sdk_beui::be_block_content::SettingsLayer;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{BlockParent, BlockQuery, Failure, KeptEdit, TerminalHostSource};
 use be_type_boat::{Boat, BoatSettings, TerminalAgent};
@@ -707,7 +707,7 @@ impl State {
         }
         self.editor.host().delete_block(
             block,
-            <TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            <TerminalContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
             BlockParent::Unfiled,
         );
     }
@@ -902,7 +902,7 @@ impl State {
     pub(crate) fn open_terminal(&self, block: Uuid) {
         self.editor.host().open_block(
             block,
-            <TerminalContent as be_sdk_beui::be_block::BlockContent>::CONTENT_TYPE,
+            <TerminalContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE,
         );
     }
 }

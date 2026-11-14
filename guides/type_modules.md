@@ -15,6 +15,15 @@ talks to its host only through typed operations. be-host's peer, `be` and
   that every `Document<R>` and `Blob<K>` works with unchanged.
 - `crates/be-block-type-host`: the host half every host shares (Hosts, below).
 
+A type module is pure Rust and small. It builds for
+`wasm32-unknown-unknown` and runs with no WASI (`be_wasm_host::Host::pure`),
+so it links no C or C++ and no crate made for hosts. Its types crate depends
+on `crates/be-block-content` (`BlockContent` and the traits beside it,
+metadata, `Root`, blobs, settings kinds' `Layered`) and never on
+`crates/be-block`, which holds the types the host applies itself and their
+heavier dependencies, such as the search index's. What a type needs that
+only be-block has moves to be-block-content, or out of the type.
+
 ## Operations and WIT
 
 Every protocol in the repository (apps, type modules, the GPU, the network
@@ -168,7 +177,7 @@ host owes a replica (the WIT documents each call):
   `resume-session` are async imports the host completes. A replica waits on
   one answer at a time. `load` answers a commit's stored form with the parts it
   was saved in (`loaded`, which becomes a `be_block_store::Stored`), only the
-  first part's bytes for a type that loads only that (`be_block::Loads`).
+  first part's bytes for a type that loads only that (`be_block_content::Loads`).
   `read-part` reads a range of a saved part, which a replica answering an
   editor's `Read` uses outside that one-answer rule (guides/blocks/apps.md,
   "Reading a range"). `written` carries the parts a save keeps as they were as
@@ -187,7 +196,7 @@ The sender calls `put-part(bytes)`, which seals the bytes under the block's
 current key, uploads them and has the server hold them for the block
 (`hold-objects` with `hold.until-committed`), and answers the `part-ref`
 once the upload is done. Only then does it send the operation, with that ref
-(a `be_block::PartRef`) in its own payload. The hold ends when a commit of the
+(a `be_block_content::PartRef`) in its own payload. The hold ends when a commit of the
 block that uses the part publishes, or once `upload_grace` passed and the
 block's journal holds no entries (an uncommitted operation may still name the
 part). A type's part is put by an editor: `EditorMirror::put_part`
@@ -203,7 +212,7 @@ not joined yet, is refused.
 
 Each replica that applies the operation keeps the part in its parts as
 `Part::Reused`, so whoever commits next saves a manifest reusing it, uploading
-nothing (the server holds it, so `missing-objects` names none of it) and
+nothing (the server holds it, so `upload-urls` asks for none of it) and
 downloading its nodes, never its chunks: its top object to learn its key, and
 the rest to list the commit's objects. That needs the server, so an owner
 offline cannot seal a commit reusing a part it never fetched. A type that only
@@ -240,7 +249,7 @@ Outside a session (`Replicas::merge`, which `merge_diverged` and version
 control's combine call, and `be sync`) the host merges a block with whichever
 request its type has. `merge3` takes each side's whole bytes and answers
 `merged`, the Rust `Merge::merge3` over whole values. A type that loads only its
-first part and implements `be_block::MergeParts` registers it
+first part and implements `be_block_content::MergeParts` registers it
 (`Registration::merge_parts`, `be_block_types![T { merge_parts }]`), which sets
 `type-info.merges-parts`; the host then calls `merge-parts` with each side as
 `loaded` (the first part's bytes and the part list, or content not saved yet as
@@ -440,7 +449,7 @@ rebase. The rules an agent most needs:
 An edit made on this device can tell the block's members who are not connected
 about itself once the server holds it (chat: each message it sends). The type
 names what it tells with `LiveEdit::announcements`, asked as the edit is made,
-of content that holds it: `be_block::Announcement`'s text, the accounts it
+of content that holds it: `be_block_content::Announcement`'s text, the accounts it
 mentions, a `key` naming what it announces (chat: the message), unique in the
 block and the same when the edit is made again, and `several`, the text for
 several sent together with `{count}` for how many (chat: "{count} new

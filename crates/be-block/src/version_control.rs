@@ -5,7 +5,7 @@ use be_block_model::{Document, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{BlockMetadata, Root};
+use be_block_content::{BlockMetadata, Root};
 
 pub const MAIN_BRANCH: &str = "main";
 
@@ -255,7 +255,7 @@ pub fn masked(id: Uuid, mask: u128) -> Uuid {
 }
 
 pub fn local_id(real: Uuid, metadata: &BlockMetadata, mask: u128) -> Uuid {
-    match metadata.get(&crate::LOCAL_ID) {
+    match metadata.get(&be_block_content::LOCAL_ID) {
         Some(local) if masked(local, mask) == real => local,
         _ => real,
     }

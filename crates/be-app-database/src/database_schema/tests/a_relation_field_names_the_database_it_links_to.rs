@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::BlockContent;
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::{BlockInfo, BlockParent};
 use be_type_database::database::DatabaseContent;
 use be_type_database::database_schema::{DatabaseFieldType, DatabaseRelationOptions};

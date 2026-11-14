@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::{BlockContent, Thumbhash};
+use be_sdk_beui::be_block_content::{BlockContent, Thumbhash};
 use be_sdk_beui::beui::Image;
 use be_type_image::ImageContent;
 

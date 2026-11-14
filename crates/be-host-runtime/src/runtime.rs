@@ -1599,8 +1599,13 @@ pub fn place_screens(
     super::web::set_background(background);
     let mut layers = super::web::overlays(blits, viewport, pixels_per_point, scale);
     let mut placed = HashMap::<u32, Vec<super::web::Placement>>::default();
-    for (order, blit) in blits.iter().enumerate() {
-        if let Some(placement) = super::web::placement(blit, order, scale) {
+    let lifted = super::presenter::lifted(
+        blits
+            .iter()
+            .map(|blit| (blit.quad.rect, blit.layer.is_some())),
+    );
+    for (order, (blit, above)) in blits.iter().zip(lifted).enumerate() {
+        if let Some(placement) = super::web::placement(blit, order, above, scale) {
             placed.entry(blit.surface).or_default().push(placement);
         }
     }
@@ -2276,6 +2281,18 @@ pub fn show_dialog(
         let calls = runtime.instances.show_dialog(instance, block, dialog);
         runtime.send(calls);
     });
+}
+
+/// Tells the instance where in its block it was opened, which it selects where it can. Answers
+/// whether it could: false until the instance is open.
+pub fn reveal(app_id: &str, instance: EditorInstanceId, at: be_sdk_api::SearchLocation) -> bool {
+    with(app_id, |runtime| {
+        let calls = runtime.instances.reveal(instance, at);
+        let told = !calls.is_empty();
+        runtime.send(calls);
+        told
+    })
+    .unwrap_or(false)
 }
 
 pub fn show_history(

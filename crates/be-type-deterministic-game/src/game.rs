@@ -2,8 +2,8 @@ use be_block_model::{Anchor, Bytes, Document, Edit, List, Model, ObjectId};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::Root;
-use be_block::blob::{Blob, BlobKind};
+use be_block_content::Root;
+use be_block_content::blob::{Blob, BlobKind};
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct GameModuleHeader {

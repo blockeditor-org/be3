@@ -6082,11 +6082,6 @@ third_party = {
                     ":unicode-normalization-0.1.25",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":unicode-normalization-0.1.25",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":unicode-normalization-0.1.25",
@@ -22029,16 +22024,6 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":potential_utf-0.1.5",
-                    ":utf8_iter-1.0.4",
-                    ":yoke-0.8.4",
-                    ":zerofrom-0.1.8",
-                    ":zerovec-0.11.9",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -22181,18 +22166,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":litemap-0.8.2",
-                    ":tinystr-0.8.5",
-                    ":writeable-0.6.4",
-                    ":zerovec-0.11.9",
-                ],
-                "features": [
-                    "zerovec",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":litemap-0.8.2",
@@ -22545,21 +22518,6 @@ third_party = {
                     "default",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":icu_collections-2.4.0",
-                    ":icu_locale_core-2.4.0",
-                    ":icu_properties_data-2.4.0",
-                    ":icu_provider-2.4.0",
-                    ":zerotrie-0.2.5",
-                    ":zerovec-0.11.9",
-                ],
-                "features": [
-                    "compiled_data",
-                    "default",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -22627,7 +22585,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -22768,20 +22725,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":icu_locale_core-2.4.0",
-                    ":writeable-0.6.4",
-                    ":yoke-0.8.4",
-                    ":zerofrom-0.1.8",
-                    ":zerotrie-0.2.5",
-                    ":zerovec-0.11.9",
-                ],
-                "features": [
-                    "baked",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
@@ -27298,7 +27241,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -35842,14 +35784,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":zerovec-0.11.9",
-                ],
-                "features": [
-                    "zerovec",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":zerovec-0.11.9",
                 ],
@@ -50653,15 +50587,6 @@ third_party = {
                     "zerovec",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":zerovec-0.11.9",
-                ],
-                "features": [
-                    "zerovec",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -50783,16 +50708,6 @@ third_party = {
                     "tinyvec_macros",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":tinyvec_macros-0.1.1",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "tinyvec_macros",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":tinyvec_macros-0.1.1",
@@ -50843,7 +50758,6 @@ third_party = {
             "macos-x86_64": {},
             "wasi": {},
             "wasi-guest": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -54693,15 +54607,6 @@ third_party = {
                     "std",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":tinyvec-1.12.0",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":tinyvec-1.12.0",
@@ -55852,7 +55757,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -65216,7 +65120,6 @@ third_party = {
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -66597,17 +66500,6 @@ third_party = {
                     "zerofrom",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":stable_deref_trait-1.2.1",
-                    ":yoke-derive-0.8.4",
-                    ":zerofrom-0.1.8",
-                ],
-                "features": [
-                    "derive",
-                    "zerofrom",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":stable_deref_trait-1.2.1",
@@ -67210,14 +67102,6 @@ third_party = {
                     "derive",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":zerofrom-derive-0.1.7",
-                ],
-                "features": [
-                    "derive",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":zerofrom-derive-0.1.7",
@@ -67535,17 +67419,6 @@ third_party = {
                     "zerofrom",
                 ],
             },
-            "wasm32": {
-                "deps": [
-                    ":displaydoc-0.2.6",
-                    ":yoke-0.8.4",
-                    ":zerofrom-0.1.8",
-                ],
-                "features": [
-                    "yoke",
-                    "zerofrom",
-                ],
-            },
             "windows-arm64": {
                 "deps": [
                     ":displaydoc-0.2.6",
@@ -67681,17 +67554,6 @@ third_party = {
                 ],
             },
             "wasi-html": {
-                "deps": [
-                    ":yoke-0.8.4",
-                    ":zerofrom-0.1.8",
-                    ":zerovec-derive-0.11.7",
-                ],
-                "features": [
-                    "derive",
-                    "yoke",
-                ],
-            },
-            "wasm32": {
                 "deps": [
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",

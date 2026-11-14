@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use be_block::blob::{Blob, BlobKind};
-use be_block::plain::media_type_of;
+use be_block_content::blob::{Blob, BlobKind};
+use be_block_content::plain::media_type_of;
 use be_sdk_type_guest::BlobFile;
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

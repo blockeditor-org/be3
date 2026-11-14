@@ -47,13 +47,9 @@ async fn an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within()
         matches!(&over, Err(Error { code, .. }) if *code == ErrorCode::OverQuota),
         "an upload past the quota is refused before any URL is signed: {over:?}"
     );
-    let missing = client
-        .call(|peer| client::objects::missing_objects(peer, vec![Hash::of(&object(3))]))
-        .await
-        .unwrap();
     assert_eq!(
-        missing,
-        vec![Hash::of(&object(3))],
+        client.download(Hash::of(&object(3))).await,
+        Ok(None),
         "a refused upload wrote nothing"
     );
     assert_eq!(

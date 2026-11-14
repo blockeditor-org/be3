@@ -11,13 +11,25 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
     let head = phone.summary(note).await.unwrap().head.unwrap();
     let manifest = phone.load_commit(head).await.unwrap().manifest;
     let chunks = phone.objects_of(&manifest).await.unwrap();
-    let missing = crate::ask(be_block_protocol::client::objects::missing_objects(
+    // Every object the save sent: the server holds them, so it asks for none again (their
+    // lengths, which only room for an upload is reserved by, do not matter).
+    let lengths = chunks
+        .iter()
+        .map(|hash| be_block_protocol::ObjectLength {
+            hash: *hash,
+            length: Some(1),
+        })
+        .collect();
+    let urls = crate::ask(be_block_protocol::client::objects::upload_urls(
         &phone.connection(),
-        chunks.clone(),
+        lengths,
     ))
     .await
     .unwrap();
-    assert!(missing.is_empty(), "the server lacks {missing:?}");
+    assert!(
+        urls.iter().all(Option::is_none),
+        "the server lacks some of them"
+    );
 
     let laptop = another(&harness, &phone).await;
     laptop.fetch(&chunks).await.unwrap();

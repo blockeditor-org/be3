@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_type_browser_tab::{BrowserTabContent, HistoryItem};
 
 fn titled(block: Uuid, title: &str) {

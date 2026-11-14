@@ -1,8 +1,6 @@
 use super::*;
-use crate::{
-    BlockMetadata,
-    version_control::{local_id, masked, scope_mask},
-};
+use crate::version_control::{local_id, masked, scope_mask};
+use be_block_content::BlockMetadata;
 
 #[test]
 fn a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope() {
@@ -11,7 +9,7 @@ fn a_checkout_copy_answers_to_its_local_id_only_in_its_own_scope() {
     let mask = scope_mask(first);
     let copy = masked(local, mask);
     let mut tagged = BlockMetadata::default();
-    tagged.insert(&crate::LOCAL_ID, &local);
+    tagged.insert(&be_block_content::LOCAL_ID, &local);
 
     assert_ne!(mask, 0);
     assert_eq!(mask, scope_mask(first));

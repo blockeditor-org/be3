@@ -1,5 +1,5 @@
 use super::*;
-use be_block::{BlockContent, LiveEdit};
+use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_api::BlockCommand;
 use be_sdk_api::{
     embed::host_services::Call,

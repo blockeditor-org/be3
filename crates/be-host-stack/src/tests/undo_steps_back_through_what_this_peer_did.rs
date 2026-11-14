@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::Edit;
+use be_block_content::Edit;
 use be_type_checklist::{Checklist, ChecklistContent};
 
 fn titles(shared: &Shared, block: Uuid) -> Option<Vec<String>> {

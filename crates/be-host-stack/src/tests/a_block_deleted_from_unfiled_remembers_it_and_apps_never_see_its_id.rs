@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{DELETED_FROM, DeletedFrom};
+use be_block_content::{DELETED_FROM, DeletedFrom};
 use be_block_graph::BlockParent;
 
 #[test]
@@ -12,7 +12,7 @@ fn a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id() {
         unfiled,
         be_block::UNFILED_TYPE,
         BlockParent::Root,
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );
@@ -21,7 +21,7 @@ fn a_block_deleted_from_unfiled_remembers_it_and_apps_never_see_its_id() {
         note,
         CounterContent::CONTENT_TYPE,
         BlockParent::Block(unfiled),
-        be_block::BlockMetadata::default(),
+        be_block_content::BlockMetadata::default(),
         None,
         false,
     );

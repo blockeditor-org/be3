@@ -1,4 +1,5 @@
-use be_sdk_beui::be_block::{self, BlockContent, SettingsContent};
+use be_sdk_beui::be_block::{self, SettingsContent};
+use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::MenuItem;

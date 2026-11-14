@@ -17,7 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -34,7 +34,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -51,7 +51,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -68,7 +68,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -85,7 +85,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -102,7 +102,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -117,7 +117,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",
@@ -134,7 +134,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
-                "//crates/be-block:be-block",
+                "//crates/be-block-content:be-block-content",
                 "//crates/be-sdk:be-sdk",
                 "//crates/beui-text-editor-core:beui-text-editor-core",
                 "//crates/beui:beui",

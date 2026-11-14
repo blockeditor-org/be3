@@ -19,7 +19,7 @@ async fn a_block_the_server_refused_to_make_is_not_listed_offline() {
             refused,
             TextContent::CONTENT_TYPE,
             BlockParent::Block(team),
-            &be_block::BlockMetadata::named("n".repeat(70 * 1024)),
+            &be_block_content::BlockMetadata::named("n".repeat(70 * 1024)),
             false,
         )
         .await

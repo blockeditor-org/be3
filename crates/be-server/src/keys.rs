@@ -811,7 +811,7 @@ impl ServerStore {
     pub async fn put_keys(&self, identity: Identity, set: KeySet) -> Result<(), ServerError> {
         self.with_graph(identity.organization, move |_, graph, database| {
             let seen = visibility(identity);
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             store_keys(
                 graph,
                 &transaction,
@@ -957,7 +957,7 @@ impl ServerStore {
                     covered.insert(block);
                 }
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             store_keys(
                 graph,
                 &transaction,
@@ -1043,7 +1043,7 @@ impl ServerStore {
                     escrow.epoch
                 )));
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
                 "INSERT INTO keys
                     (organization_id, id, block_id, kind, epoch, created, public, signing, signature)
@@ -1282,7 +1282,7 @@ impl ServerStore {
                     ));
                 }
             }
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             for change in &changes {
                 transaction.execute(
                     "INSERT INTO key_changes (account_id, contact_id, position, sealed)
@@ -1339,7 +1339,7 @@ impl ServerStore {
     ) -> Result<(), ServerError> {
         let by = encode_wrapped_by(WrappedBy::Account(account));
         self.with_database(move |_, database| {
-            let transaction = database.unchecked_transaction()?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
             for key in &keys {
                 let updated = transaction.execute(
                     "UPDATE wrapped_keys SET sealed = ?4, sender = ?5

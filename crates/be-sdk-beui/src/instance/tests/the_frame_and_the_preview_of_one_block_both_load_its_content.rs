@@ -1,5 +1,5 @@
 use super::*;
-use be_block::ObjectId;
+use be_block_content::ObjectId;
 use be_sdk::HostContent;
 use be_type_presentation::PresentationContent;
 use beui::reactive::*;

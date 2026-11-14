@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::{ARTIFACT, Artifact, BlockMetadata};
+use be_block_content::{ARTIFACT, Artifact, BlockMetadata};
 
 fn described(source: Uuid) -> BlockMetadata {
     let mut metadata = BlockMetadata::named("Export");
@@ -17,7 +17,7 @@ fn described(source: Uuid) -> BlockMetadata {
 
 async fn backrefs(peer: &Peer<MemoryStore>, block: Uuid) -> Vec<Uuid> {
     let mut found: Vec<Uuid> = peer
-        .backrefs(block)
+        .list(Listing::Backrefs(block))
         .await
         .unwrap()
         .into_iter()

@@ -1,6 +1,6 @@
 use super::*;
 
-use be_block::NAME;
+use be_block_content::NAME;
 
 #[test]
 fn a_conflict_keeps_every_side_and_is_resolved_by_taking_one() {

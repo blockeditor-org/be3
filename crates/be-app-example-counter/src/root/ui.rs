@@ -1,5 +1,5 @@
 use be_sdk_beui::Editor;
-use be_sdk_beui::be_block::ObjectId;
+use be_sdk_beui::be_block_content::ObjectId;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

@@ -1,7 +1,7 @@
 use super::*;
 use be_type_workspace::WorkspaceContent;
 
-use be_block::BlockMetadata;
+use be_block_content::BlockMetadata;
 use be_type_text::{TextBlock, TextContent};
 
 #[tokio::test]
