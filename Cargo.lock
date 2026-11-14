@@ -3249,6 +3249,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "accesskit_android",
+ "base64 0.22.1",
  "beui-core",
  "beui-runner",
  "beui-types",
@@ -3258,6 +3259,7 @@ dependencies = [
  "ndk-context",
  "ndk-sys 0.6.0+11769913",
  "raw-window-handle",
+ "uuid",
 ]
 
 [[package]]
@@ -3322,6 +3324,9 @@ dependencies = [
  "clipboard-win",
  "futures-util",
  "image",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "pollster",
  "rfd",
  "winit",

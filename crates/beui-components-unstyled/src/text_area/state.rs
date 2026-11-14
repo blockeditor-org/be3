@@ -286,12 +286,19 @@ impl TextAreaState {
         fragment
     }
 
-    /// Puts the selection on the clipboard as a text fragment and its plain
-    /// text; a cut also removes it. Nothing happens without one.
+    /// Puts the selection on the clipboard as a text fragment, the
+    /// `text/html` its schema writes from it, and its plain text; a cut also
+    /// removes it. Nothing happens without one.
     pub fn copy_to_clipboard(&self, mode: CopyMode) {
         let fragment = self.copy(mode);
         if !fragment.is_empty() {
-            copy(Clip::items(fragment.items()));
+            let schema = self.schema();
+            let html = fragment
+                .schema
+                .as_ref()
+                .and(schema.html())
+                .and_then(|html| html.to_html(&fragment));
+            copy(Clip::items(fragment.items(html)));
         }
     }
 
