@@ -3,11 +3,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{BlockSummary, ErrorCode, Listing, client};
+use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome, client};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
-use super::{Drained, Peer, Reconciled, Saved};
+use super::{Drained, Peer, Reconciled};
 use crate::{
     ClientError,
     refs::{Creation, Defining, Moving, Op, Pending, PendingCounts, UnsentBlock},
@@ -36,6 +36,12 @@ impl<S: ObjectStore> Peer<S> {
     /// Whether the block's creation waits in the outbox: the server does not know the block yet.
     pub fn creating(&self, block: Uuid) -> bool {
         self.refs.creating(block)
+    }
+
+    /// Whether the server does not have the block: its creation waits in the outbox, or was
+    /// refused and set aside among the unsent edits, where it waits to be restored.
+    pub fn uncreated(&self, block: Uuid) -> bool {
+        self.refs.creating(block) || self.refs.creation_set_aside(block)
     }
 
     /// Whether a creation, move or definition of the block waits in the outbox, so what comes
@@ -133,7 +139,6 @@ impl<S: ObjectStore> Peer<S> {
         sequence: u64,
         published: &Pending,
         head: CommitId,
-        superseding: bool,
     ) -> Result<(), ClientError> {
         let block = published.block;
         let waiting: Vec<(u64, Pending)> = self
@@ -152,9 +157,7 @@ impl<S: ObjectStore> Peer<S> {
                 waiting.iter().map(|(_, pending)| pending.commit).collect();
             let reached = self.ancestors_among(head, &targets)?;
             for (other, pending) in &waiting {
-                let superseded =
-                    superseding && *other < sequence && pending.expected == published.expected;
-                if reached.contains(&pending.commit) || superseded {
+                if reached.contains(&pending.commit) {
                     settled.push(*other);
                     commits.insert(pending.commit);
                 }
@@ -166,6 +169,29 @@ impl<S: ObjectStore> Peer<S> {
                 local.is_none_or(|local| commits.contains(&local))
             })?;
         Ok(())
+    }
+
+    /// Whether a commit of `block` waits in the outbox ahead of `commit` (at `sequence`) that
+    /// `commit` does not descend from: sent first, `commit` would leave it behind.
+    pub(super) fn beside(
+        &self,
+        block: Uuid,
+        sequence: u64,
+        commit: CommitId,
+    ) -> Result<bool, ClientError> {
+        let ahead: HashSet<CommitId> = self
+            .refs
+            .pending_for(block)
+            .into_iter()
+            .filter_map(|(other, op)| match op {
+                Op::Publish(pending) if other < sequence => Some(pending.commit),
+                _ => None,
+            })
+            .collect();
+        if ahead.is_empty() {
+            return Ok(false);
+        }
+        Ok(self.ancestors_among(commit, &ahead)?.len() < ahead.len())
     }
 
     fn ancestors_among(
@@ -422,11 +448,11 @@ impl<S: ObjectStore> Peer<S> {
                 });
             };
             match self.send_pending(pending).await? {
-                Saved::Published(head) | Saved::Unchanged(head) => {
-                    self.settle(*sequence, pending, head, true)?;
+                PublishOutcome::Published(head) => {
+                    self.settle(*sequence, pending, head)?;
                     remote = Some(head);
                 }
-                Saved::Rejected { head } => remote = head,
+                PublishOutcome::Rejected(head) => remote = head,
             }
         }
         Err(ClientError::Contended)
@@ -604,17 +630,17 @@ impl<S: ObjectStore> Peer<S> {
     async fn drain_publish(&self, sequence: u64, pending: Pending) -> Result<Drained, ClientError> {
         let block = pending.block;
         match self.send_pending(&pending).await {
-            Ok(Saved::Published(head) | Saved::Unchanged(head)) => {
-                self.settle(sequence, &pending, head, false)?;
+            Ok(PublishOutcome::Published(head)) => {
+                self.settle(sequence, &pending, head)?;
                 Ok(Drained::Published { block, head })
             }
-            Ok(Saved::Rejected { head: Some(head) })
+            Ok(PublishOutcome::Rejected(Some(head)))
                 if self.contains(head, pending.commit).await? =>
             {
-                self.settle(sequence, &pending, head, false)?;
+                self.settle(sequence, &pending, head)?;
                 Ok(Drained::Published { block, head })
             }
-            Ok(Saved::Rejected { head }) => Ok(Drained::Diverged {
+            Ok(PublishOutcome::Rejected(head)) => Ok(Drained::Diverged {
                 block,
                 local: self.local_head(block).unwrap_or(pending.commit),
                 remote: head,

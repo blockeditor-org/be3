@@ -742,7 +742,7 @@ impl<H: Host> Replicas<H> {
     }
 
     /// What is asked of the modules and not yet answered, by block.
-    fn asking(&self) -> Vec<String> {
+    pub(crate) fn asking(&self) -> Vec<String> {
         self.asked
             .values()
             .map(|(replica, asked)| {
@@ -820,7 +820,7 @@ impl<H: Host> Replicas<H> {
         let known = peer
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
-        let uncreated = peer.creating(block);
+        let uncreated = cannot_join(peer, block);
         let joined = if known
             && peer.is_attached()
             && !uncreated
@@ -859,8 +859,9 @@ impl<H: Host> Replicas<H> {
                     peer.ensure_type(block, content_type, BlockParent::Detached)
                         .await?;
                 }
-                // Until the drain sends its creation, the server does not know the block: it
-                // opens as offline does and joins once that is sent (`created`).
+                // Until the drain sends its creation the server does not know the block, and
+                // without access to it the server refuses its session: it opens as offline does
+                // and joins once that changes (`created`).
                 if !peer.is_attached() || uncreated {
                     return Ok((OFFLINE_CLIENT, offline_session(None), None, true, None));
                 }
@@ -1764,6 +1765,9 @@ impl<H: Host> Replicas<H> {
         })
     }
 
+    /// Merges a block the drain found diverged (`Drained::Diverged`) and publishes the merge:
+    /// the server's head after it, or none when nothing reached the server (no type merges the
+    /// block, or the merge waits in the outbox, `Saved::Kept`, for a drain this asks for).
     pub async fn merge_diverged(
         &mut self,
         (peer, shared): Ctx<'_, H>,
@@ -1805,20 +1809,24 @@ impl<H: Host> Replicas<H> {
                         .merging(base, ours),
                 )
                 .await?;
+            if conflicts > 0 && !matches!(saved, Saved::Rejected { .. }) {
+                H::conflict(
+                    shared,
+                    block,
+                    crate::Conflict {
+                        ours,
+                        theirs,
+                        count: conflicts,
+                    },
+                );
+            }
             match saved {
-                Saved::Published(head) | Saved::Unchanged(head) => {
-                    if conflicts > 0 {
-                        H::conflict(
-                            shared,
-                            block,
-                            crate::Conflict {
-                                ours,
-                                theirs,
-                                count: conflicts,
-                            },
-                        );
-                    }
-                    remote = Some(head);
+                Saved::Published(head) | Saved::Unchanged(head) => remote = Some(head),
+                // The merge waits in the outbox behind what goes first, and the server does not
+                // have it: the next drain sends them in order.
+                Saved::Kept(_) => {
+                    self.kept = true;
+                    return Ok(None);
                 }
                 Saved::Rejected { head } => remote = head,
             }
@@ -2298,7 +2306,7 @@ impl<H: Host> Replicas<H> {
             .open
             .iter()
             .filter(|(_, open)| {
-                !self.uncreated.contains(&open.block) || !waits_creation(peer, open.block)
+                !self.uncreated.contains(&open.block) || !cannot_join(peer, open.block)
             })
             .map(|(replica, _)| *replica)
             .collect();
@@ -2322,7 +2330,7 @@ impl<H: Host> Replicas<H> {
             .uncreated
             .iter()
             .copied()
-            .filter(|block| !waits_creation(peer, *block))
+            .filter(|block| !cannot_join(peer, *block))
             .collect();
         for block in sent {
             let Some((replica, open)) = self.replica_of(block) else {
@@ -2330,7 +2338,17 @@ impl<H: Host> Replicas<H> {
                 continue;
             };
             if !open.status.clean || !peer.pending_commits(block).is_empty() {
-                self.seal_later(block, false);
+                // This runs every pass of the loop: asked again while a seal is on its way, or
+                // while it owes none (its commits wait for the drain, its seal for a timer),
+                // its module would wake the loop every pass.
+                let sealing = open.publishing > 0
+                    || self
+                        .asked
+                        .values()
+                        .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)));
+                if open.status.owes_seal && !sealing {
+                    self.seal_later(block, false);
+                }
                 continue;
             }
             self.uncreated.remove(&block);
@@ -2965,12 +2983,16 @@ impl<H: Host> Replicas<H> {
                         Ok(Saved::Published(head)) => {
                             (Ok(PublishOutcome::Published(head)), Some(head))
                         }
-                        Ok(Saved::Unchanged(head))
+                        // Kept in the outbox, or nothing to seal on a head that waits there.
+                        Ok(Saved::Kept(head) | Saved::Unchanged(head))
                             if peer.pending_commits(block).contains(&head) =>
                         {
                             (Ok(PublishOutcome::Kept(head)), None)
                         }
-                        Ok(Saved::Unchanged(head)) => (Ok(PublishOutcome::Published(head)), None),
+                        // Kept, and a drain has sent it since; or nothing to seal.
+                        Ok(Saved::Kept(head) | Saved::Unchanged(head)) => {
+                            (Ok(PublishOutcome::Published(head)), None)
+                        }
                         Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
                         Err(error) => (Err(error.to_string()), None),
                     };
@@ -3208,11 +3230,13 @@ impl<H: Host> Replicas<H> {
     }
 }
 
-/// Whether the server does not have `block` yet: its creation waits in the outbox, or was
-/// refused and set aside (`Peer::unsent`), where it waits to be restored. Its replica does not
-/// join until it is sent.
-fn waits_creation<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
-    peer.creating(block) || peer.is_unsent(block)
+/// Whether `block`'s replica stays out of its session: the server does not have the block yet
+/// (`Peer::uncreated`), or this account may not view it. It joins once that changes (`created`).
+fn cannot_join<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid) -> bool {
+    peer.uncreated(block)
+        || peer
+            .known_summary(block)
+            .is_some_and(|summary| !summary.access.can_view())
 }
 
 /// Joins `block`'s session, for a replica that shows before it has (`Replicas::open`).
@@ -3255,18 +3279,18 @@ async fn commit<H: Host>(
     publishing.keep(commit);
     sealed();
     if local || !peer.is_attached() {
-        return Ok(Saved::Unchanged(commit));
+        return Ok(Saved::Kept(commit));
     }
     let saved = peer.publish_sealed(block, commit).await;
     if !publishing.settle() {
-        return Ok(Saved::Unchanged(commit));
+        return Ok(Saved::Kept(commit));
     }
     match saved {
         Ok(Saved::Rejected { head }) => {
             peer.withdraw(block, commit, before)?;
             Ok(Saved::Rejected { head })
         }
-        Err(error) if unreachable(&error) => Ok(Saved::Unchanged(commit)),
+        Err(error) if unreachable(&error) => Ok(Saved::Kept(commit)),
         saved => saved,
     }
 }
@@ -3283,7 +3307,22 @@ async fn reset<H: Host>(
     block: Uuid,
     kind: &types::Kind,
 ) -> Result<(), ClientError> {
+    // All a block the server lacks has is this device's: nothing else to reset to, and its
+    // creation is not set aside.
+    if peer.uncreated(block) {
+        return Ok(());
+    }
     let mut expected = peer.remote_head(block).await?;
+    // What this device kept of the block and has not sent is set aside among the unsent edits,
+    // to be restored or discarded, before the blank is written, rather than waiting ahead of it
+    // to be merged into it. It is set aside with no refusal: one would set aside the blank and
+    // every later edit too (`Peer::refusal`).
+    if !peer.pending_commits(block).is_empty() {
+        peer.move_to_unsent(block, None)?;
+        if let Some(head) = expected {
+            peer.remember(block, head)?;
+        }
+    }
     for _ in 0..4 {
         match peer
             .write(

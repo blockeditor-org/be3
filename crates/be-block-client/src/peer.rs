@@ -120,15 +120,23 @@ impl PeerConfig {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Saved {
+    /// The write changed nothing: the block stays at this head.
     Unchanged(CommitId),
+    /// The server took the commit: its head.
     Published(CommitId),
-    Rejected { head: Option<CommitId> },
+    /// Sealed and kept in the outbox, which sends it later (`Peer::drain`): the server does not
+    /// have it yet.
+    Kept(CommitId),
+    Rejected {
+        head: Option<CommitId>,
+    },
 }
 
 impl Saved {
+    /// The head the write left the block at on this device, unless it was rejected.
     pub fn published(self) -> Option<CommitId> {
         match self {
-            Self::Unchanged(head) | Self::Published(head) => Some(head),
+            Self::Unchanged(head) | Self::Published(head) | Self::Kept(head) => Some(head),
             Self::Rejected { .. } => None,
         }
     }
@@ -1330,7 +1338,7 @@ impl<S: ObjectStore> Peer<S> {
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
         // The server does not know a block whose creation waits in the outbox, or was refused.
-        if (self.refs.creating(block) || self.refs.refused(block).is_some())
+        if self.uncreated(block)
             && let Some(summary) = self.refs.summary(block)
         {
             return Ok(self.refs.current(vec![summary]).remove(0));
@@ -1671,8 +1679,9 @@ impl<S: ObjectStore> Peer<S> {
         )
     }
 
-    /// `seal` then `publish_sealed`. On `Rejected` it drops the commit from the outbox, since
-    /// the caller retries or merges.
+    /// `seal` then `publish_sealed`: `Kept` when the commit waits in the outbox behind what
+    /// goes first. On `Rejected` it drops the commit from the outbox, since the caller retries
+    /// or merges.
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {
@@ -1839,21 +1848,28 @@ impl<S: ObjectStore> Peer<S> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
-        // A creation, move or definition of the block waits ahead of it in the outbox: the drain
-        // sends them in order. Offline, sending fails as any other does.
+        // A creation, move or definition of the block waits in the outbox, or a commit of it
+        // sealed before this one that this one does not build on (a definition's commit on the
+        // same head): the drain sends them in order, and the server refuses this one as stale
+        // once they moved its head on, to be merged with them (`Drained::Diverged`). Offline,
+        // sending fails as any other does.
         if self.is_attached()
-            && (self.refs.has_structural(block) || self.refs.refused(block).is_some())
+            && (self.refs.has_structural(block)
+                || self.refs.refused(block).is_some()
+                || self.beside(block, sequence, commit)?)
         {
-            return Ok(Saved::Unchanged(commit));
+            return Ok(Saved::Kept(commit));
         }
-        let saved = self.send_pending(&pending).await?;
-        if let Saved::Published(head) = saved {
-            self.settle(sequence, &pending, head, true)?;
-        }
-        Ok(saved)
+        Ok(match self.send_pending(&pending).await? {
+            PublishOutcome::Published(head) => {
+                self.settle(sequence, &pending, head)?;
+                Saved::Published(head)
+            }
+            PublishOutcome::Rejected(head) => Saved::Rejected { head },
+        })
     }
 
-    async fn send_pending(&self, pending: &Pending) -> Result<Saved, ClientError> {
+    async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
         let Pending {
             block,
             commit: id,
@@ -1915,15 +1931,10 @@ impl<S: ObjectStore> Peer<S> {
                 None => break publish(Vec::new()).await?,
             }
         };
-        match response {
-            PublishOutcome::Published(head) => Ok(Saved::Published(head)),
-            PublishOutcome::Rejected(head) => {
-                if let Some(head) = head {
-                    self.refs.set_remote(block, head, self.behind())?;
-                }
-                Ok(Saved::Rejected { head })
-            }
+        if let PublishOutcome::Rejected(Some(head)) = response {
+            self.refs.set_remote(block, head, self.behind())?;
         }
+        Ok(response)
     }
 
     fn carried(
@@ -2147,21 +2158,43 @@ impl<S: ObjectStore> Peer<S> {
         access: Access,
         public: &be_block_keys::RecoveryPublic,
     ) -> Result<(), ClientError> {
-        self.grant(block, account, access).await?;
         if !access.can_view() {
-            return Ok(());
+            return self.grant(block, account, access).await;
         }
-        self.seal_share(block, account, public).await
+        // The key goes first: the grant tells the account's devices at once, and a device that
+        // finds no key for the block then shows it locked until something else opens a key.
+        // Not when this device thinks the grant will be refused: a refused grant leaves the
+        // block as it was, not made a scope of its own, and one it was wrong about is keyed
+        // after.
+        match self.summary(block).await?.access.can_manage() {
+            true => {
+                self.seal_share(block, account, public).await?;
+                self.grant(block, account, access).await
+            }
+            false => {
+                self.grant(block, account, access).await?;
+                self.seal_share(block, account, public).await
+            }
+        }
     }
 
     pub async fn open_inside(&self, block: Uuid, access: Access) -> Result<(), ClientError> {
-        self.grant(block, be_block_graph::ANYONE_INSIDE, access)
-            .await?;
+        let grant = || self.grant(block, be_block_graph::ANYONE_INSIDE, access);
         if !access.can_view() {
-            return Ok(());
+            return grant().await;
+        }
+        // As `share`. Its author opens a kind of settings while editing it, so editing is the
+        // least the server takes.
+        let keyed_first = self.summary(block).await?.access.can_edit();
+        if !keyed_first {
+            grant().await?;
         }
         let keys = self.own_scope(block).await?;
-        self.put_keys(keys).await
+        self.put_keys(keys).await?;
+        if keyed_first {
+            grant().await?;
+        }
+        Ok(())
     }
 
     pub async fn seal_share(
