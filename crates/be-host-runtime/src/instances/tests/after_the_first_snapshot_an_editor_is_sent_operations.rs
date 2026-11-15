@@ -63,6 +63,11 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         }]
     );
 
+    // Once the server orders the editor's edit the block owes a seal, so the host's edit below
+    // is the only one of this device's the server lacks.
+    be_host_stack::wait_until("the server ordered the editor's edit", |shared| {
+        (shared.owing > 0).then_some(())
+    });
     let elsewhere = CounterContent::encode_operation(&Counter::add(5));
     be_host_stack::operate(block, elsewhere.clone());
     counted(block, 7);
