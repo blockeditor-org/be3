@@ -571,7 +571,9 @@ impl Driver for Board {
     fn track(&self, point: DragPoint, order: Order) {
         if self.placing() {
             if self.carried_by(point.pointer) {
+                self.order(order);
                 self.place(point, false);
+                self.edge_scroll(point);
             }
             return;
         }
