@@ -57,14 +57,10 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         disabled: Prop<bool>,
         on_preview: Callback<Option<Color32>>,
     ) -> Self {
-        let first = value.get_untracked();
-        let color = create_signal(Model::from_color_keeping(first, Model::default()));
-        let dragging = create_signal(false);
-        create_effect(move || {
-            let next = value.get();
-            let held = color.get_untracked();
-            color.set(Model::from_color_keeping(next, held));
+        let color = create_linked_signal(move |held: Option<&Model>| {
+            Model::from_color_keeping(value.get(), held.copied().unwrap_or_default())
         });
+        let dragging = create_signal(false);
         Self {
             color,
             value,
@@ -215,11 +211,11 @@ pub struct HexText {
 
 impl HexText {
     pub fn new(shown: Memo<Color32>, alpha: bool, apply: Callback<Color32>) -> Self {
-        let text = create_signal(hex_text(shown.get_untracked(), alpha));
-        create_effect(move || {
+        let text = create_linked_signal(move |typed: Option<&String>| {
             let next = shown.get();
-            if parse_typed(&text.get_untracked(), next) != Some(next) {
-                text.set(hex_text(next, alpha));
+            match typed {
+                Some(typed) if parse_typed(typed, next) == Some(next) => typed.clone(),
+                _ => hex_text(next, alpha),
             }
         });
         Self {

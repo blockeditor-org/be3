@@ -74,22 +74,18 @@ pub fn NumberInput(
     on_preview: Callback<Option<f64>>,
     on_scrub: Callback<bool>,
 ) -> NodeId {
-    let text = create_signal(format_number(
-        value.get_untracked(),
-        decimals.get_untracked(),
-    ));
+    let text = create_linked_signal(move |typed: Option<&String>| {
+        let next = value.get();
+        match typed {
+            Some(typed) if parse(typed) == Some(next) => typed.clone(),
+            _ => format_number(next, decimals.get_untracked()),
+        }
+    });
     let editing = create_signal(false);
     let refocus = create_signal(false);
     let hovered = create_signal(false);
     let active = create_signal(false);
     let focused = create_signal(false);
-    create_effect(move || {
-        let next = value.get();
-        let held = text.get_untracked();
-        if parse(&held) != Some(next) {
-            text.set(format_number(next, decimals.get_untracked()));
-        }
-    });
     let off = create_memo(move || disabled.get());
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::SpinButton);

@@ -79,22 +79,27 @@ pub fn RenameView(editor: Editor, block: Uuid, sheet: bool) -> NodeId {
         info.with(|info| info())
             .map(|info| info.label(editor.block_types().as_ref()).name)
     });
-    let initial = untrack(|| named.get()).unwrap_or_default();
     let known = create_memo(move || named.with(Option::is_some));
-    let name = create_signal(initial.clone());
-    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
-    let written = std::rc::Rc::new(std::cell::RefCell::new(initial));
+    let written = std::rc::Rc::new(std::cell::RefCell::new(
+        untrack(|| named.get()).unwrap_or_default(),
+    ));
     let edited = std::rc::Rc::new(std::cell::Cell::new(false));
     let (synced, typed) = (std::rc::Rc::clone(&written), std::rc::Rc::clone(&edited));
-    create_effect(move || {
-        let Some(known) = named.get() else {
-            return;
+    // The block's name until the user types one.
+    let name = create_linked_signal(move |held: Option<&String>| {
+        let known = named.get();
+        let Some(held) = held else {
+            return known.unwrap_or_default();
         };
-        if !typed.get() && *synced.borrow() != known {
-            synced.replace(known.clone());
-            untrack(|| name.set(known));
+        match known {
+            Some(known) if !typed.get() && *synced.borrow() != known => {
+                synced.replace(known.clone());
+                known
+            }
+            _ => held.clone(),
         }
     });
+    let invalid = create_memo(move || name.with(|name| name.len() > MAX_NAME_BYTES));
     create_effect(move || {
         let chosen = name.get();
         if *written.borrow() != chosen && !untrack(|| invalid.get()) {
