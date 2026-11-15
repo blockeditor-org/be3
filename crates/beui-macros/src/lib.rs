@@ -560,6 +560,18 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { value: impl Into<Option<#item>> },
             quote! { value.into() },
         )
+    } else if prop.optional_render.as_ref().is_some_and(|render| !render.raw) {
+        let inner = prop
+            .inner_ty
+            .as_ref()
+            .expect("an optional render prop has an inner type");
+        Setter {
+            method: ident.clone(),
+            generics: quote! { <__Passed> },
+            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalRender<#inner, __Passed> },
+            where_clause: quote! {},
+            value: quote! { ::__beui_tree::reactive::IntoOptionalRender::into_optional_render(value) },
+        }
     } else if let Some(render) = &prop.optional_render {
         render_setter(ident, render, |build| quote! { Some(#build) })
     } else if let Some(render) = &prop.render {

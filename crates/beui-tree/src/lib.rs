@@ -21,7 +21,7 @@ pub mod reactive {
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
-        ComponentRecord, HandsAValue, IntoRender, IntoRenderFn, MissingProp, Render, RenderFn,
+        ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp, Render, RenderFn,
         component, current_component, try_current_component,
     };
     pub use crate::control::{
