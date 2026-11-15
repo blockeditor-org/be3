@@ -353,6 +353,10 @@ impl Board {
         let Some(placing) = self.placing.borrow_mut().take() else {
             return false;
         };
+        // Let go outside every window, on no place: the source hears where.
+        let outside = (commit && placing.chosen.is_none() && self.outside.get())
+            .then(|| placing.carry.outside.clone().zip(placing.last))
+            .flatten();
         self.lifted.update(|lifted| *lifted = None);
         self.shown.set(None);
         self.current.set(None);
@@ -370,6 +374,9 @@ impl Board {
                     commit_to(Rc::clone(&placing.carry.payload), Rc::clone(drop));
                 }
             }
+        }
+        if let Some((outside, last)) = outside {
+            outside(last);
         }
         true
     }
