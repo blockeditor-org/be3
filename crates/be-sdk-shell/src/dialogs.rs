@@ -292,7 +292,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     let nobody = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.members.is_ok()))
-            && members.get().is_empty()
+            && members.with(Vec::is_empty)
     });
     let inviting = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.inviting.is_some()))
@@ -515,7 +515,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
     let name = create_memo(move || member.get().map(|member| member.name).unwrap_or_default());
     let email = create_memo(move || member.get().map(|member| member.email).unwrap_or_default());
     let fixed = create_memo(move || member.get().and_then(|member| member.fixed));
-    let is_fixed = create_memo(move || fixed.get().is_some());
+    let is_fixed = create_memo(move || fixed.with(Option::is_some));
     let fixed_text = create_memo(move || fixed.get().unwrap_or_default());
     let note = create_memo(move || member.get().and_then(|member| member.note));
     let note_text = create_memo(move || note.get().unwrap_or_default());

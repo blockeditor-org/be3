@@ -220,7 +220,7 @@ pub(crate) fn BlockPanel(
             == <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE
     });
     let preview = create_memo(move || preview.get());
-    let previewing = create_memo(move || preview.get().is_some());
+    let previewing = create_memo(move || preview.with(Option::is_some));
     let live = create_memo(move || !previewing.get());
     let child_menu = create_signal(Vec::<MenuNode>::new());
     dock_menu(create_memo(move || {
@@ -247,12 +247,17 @@ pub(crate) fn BlockPanel(
     view! {
         <Frame>
             <List spacing=Space::None>
-                <Show condition={!session}>
+                {match session {
+                true => Children::default(),
+                false => view! {
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
                     <DeletedBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
-                </Show>
+                },
+            }}
                 <TabBar bar={move || bar.call(())} own=true />
+                // A pair, not one `Show` with a fallback: `keep_alive` would also keep the preview's
+                // live editor of the last revision built and paused after the preview closes.
                 <Show keep_alive=true condition={live}>
                     <Dynamic value={content}>|content: Content| {
                         match content {
@@ -376,11 +381,14 @@ fn DockedBlockTab(
     }));
     view! {
         <List spacing=Space::None>
-            <Show condition={!session}>
-                <ArtifactBar workspace={workspace} info={info} />
-                <DeletedBar workspace={workspace} info={info} />
-                <LinkedBar workspace={workspace} info={info} />
-            </Show>
+            {match session {
+                true => Children::default(),
+                false => view! {
+                    <ArtifactBar workspace={workspace} info={info} />
+                    <DeletedBar workspace={workspace} info={info} />
+                    <LinkedBar workspace={workspace} info={info} />
+                },
+            }}
             <TabBar bar={move || bar.call(())} own />
             <ListItem grow=1.0>
                 <Layers @test_id={"workspace.block"}>{body}</Layers>

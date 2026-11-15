@@ -790,16 +790,14 @@ pub fn ProgramTab(
             on_close={move || workspace.close(tab)}
             back_closes=false
         >
-            <Layers>
-                <Dynamic
-                    value={window}
-                    fallback={move || view! {
-                        <Placeholder workspace tab />
-                    }}
-                >|window: HostWindowId|
-                    <WindowBody workspace tab window floating />
-                </Dynamic>
-            </Layers>
+            <Dynamic
+                value={window}
+                fallback={move || view! {
+                    <Placeholder workspace tab />
+                }}
+            >|window: HostWindowId|
+                <WindowBody workspace tab window floating />
+            </Dynamic>
         </DockTab>
     }
 }
@@ -952,7 +950,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     if let Some(control) = control {
         let called = create_memo(move || control.attention());
         create_effect(move || {
-            if called.get().is_some()
+            if called.with(Option::is_some)
                 && let Some(child) = untrack(|| heard.with(|heard| heard.child))
             {
                 untrack(|| workspace.host().focus_child(child));
@@ -989,24 +987,27 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 open_at={menu_at}
                 on_close={move || menu_at.set(None)}
                 items={view! {
-                    <Show condition={floating}>
-                        <MenuItem
-                            label="Hide"
-                            glyph=ICON_EYE_OFF
-                            row_test_id="workspace.window.menu.hide"
-                            on_click={move || workspace.hide(tab)}
-                        />
-                        <MenuItem
-                            label={fullscreen_label}
-                            glyph=ICON_FULLSCREEN
-                            row_test_id="workspace.window.menu.fullscreen"
-                            on_click={move || {
-                                workspace.on_dock_host(tab, |host, tab| {
-                                    host.toggle_window_fullscreen(tab);
-                                });
-                            }}
-                        />
-                    </Show>
+                    {match floating {
+                        false => Children::default(),
+                        true => view! {
+                            <MenuItem
+                                label="Hide"
+                                glyph=ICON_EYE_OFF
+                                row_test_id="workspace.window.menu.hide"
+                                on_click={move || workspace.hide(tab)}
+                            />
+                            <MenuItem
+                                label={fullscreen_label}
+                                glyph=ICON_FULLSCREEN
+                                row_test_id="workspace.window.menu.fullscreen"
+                                on_click={move || {
+                                    workspace.on_dock_host(tab, |host, tab| {
+                                        host.toggle_window_fullscreen(tab);
+                                    });
+                                }}
+                            />
+                        },
+                    }}
                     <MenuItem
                         label="Close"
                         glyph=ICON_X
