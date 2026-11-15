@@ -1161,8 +1161,9 @@ where
         })
     });
     let order = reorder.order;
-    // A row's glides arm when it moves in the order, and when the gap the list holds open
-    // moves past it: rows a gap passes shift with no change of place.
+    // A row's glides arm when its key moves in the order, and when the gap the list holds
+    // open moves past it: rows a gap passes shift with no change of place. A row a
+    // `VirtualList` hands another key has not moved: it shows another row now.
     let place = create_memo(move || order.with(|order| key.with(|key| order.iter().position(|shown| shown == key))));
     let below_gap = create_memo(move || {
         gap.with(|gap| match gap {
@@ -1173,10 +1174,16 @@ where
             _ => false,
         })
     });
-    let arm = Trackable::new(move || {
-        place.track();
-        below_gap.track();
-    });
+    let shifted = create_trigger();
+    create_effect_on_change(
+        move || (key.get(), place.get(), below_gap.get()),
+        move |(key, place, gap), (was_key, was_place, was_gap)| {
+            if key == was_key && (place != was_place || gap != was_gap) {
+                shifted.notify();
+            }
+        },
+    );
+    let arm = Trackable::from(shifted);
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
             Some(ReorderGap { before: None, size })
