@@ -46,6 +46,10 @@ interface types {
         /// No member the caller may remove has that account: it was removed,
         /// an agent collected with its block, or never a member.
         member-not-found,
+        /// A commit's time is more than `MAX_COMMIT_AHEAD` past the server's
+        /// clock: its device stamps it again by the server's clock and sends
+        /// it again (`Peer::restamp`).
+        commit-ahead,
     }
 
     /// A connection, as the server numbers them; a session's participants and

@@ -76,6 +76,27 @@ pub(super) fn forget(state: &mut super::State, block: Uuid, rows: &mut Vec<Row>)
     }
 }
 
+/// Moves what waits on a commit of `block` that was stamped again to its new id
+/// (`Refs::restamp`).
+pub(super) fn renamed(
+    state: &mut super::State,
+    block: Uuid,
+    renamed: &std::collections::HashMap<CommitId, CommitId>,
+    rows: &mut Vec<Row>,
+) {
+    let Some(held) = state.announcements.get_mut(&block) else {
+        return;
+    };
+    for (key, waiting) in held.iter_mut() {
+        if let Until::Commit(commit) = waiting.until
+            && let Some(new) = renamed.get(&commit)
+        {
+            waiting.until = Until::Commit(*new);
+            rows.push(row(Table::Announcement, key_of(block, key), &*waiting));
+        }
+    }
+}
+
 impl Refs {
     /// Keeps announcements of edits of `block` until `until`. A key already held, sent or kept
     /// with a commit is not kept again; one waiting in the journal is replaced, since the edit

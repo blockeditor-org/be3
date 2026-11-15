@@ -50,6 +50,7 @@ mod journal;
 mod notifications;
 mod offline;
 mod prefixes;
+mod restamp;
 mod rotation;
 mod transfers;
 
@@ -307,6 +308,10 @@ pub struct Peer<S: ObjectStore> {
     /// The server's clock as measured when the session opened, which commits are stamped by
     /// (`commit_time`, `server_now`).
     server_clock: Mutex<ServerClock>,
+    /// How far this device's clock reads past `now_milliseconds` (`local_now`): a test's fast
+    /// clock, beside a server in the same process that reads the true one.
+    #[cfg(test)]
+    clock_ahead: std::sync::atomic::AtomicI64,
 }
 
 /// What this device knows of the server's clock (`Peer::server_now`).
@@ -422,6 +427,8 @@ impl<S: ObjectStore> Peer<S> {
                 anchor: None,
                 offset: session.as_ref().and_then(|session| session.server_offset),
             }),
+            #[cfg(test)]
+            clock_ahead: std::sync::atomic::AtomicI64::new(0),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -446,7 +453,7 @@ impl<S: ObjectStore> Peer<S> {
     /// (`be_block_commit::commit_time`).
     pub fn commit_time(&self, parent: Option<&Commit>) -> i64 {
         be_block_commit::commit_time(
-            now_milliseconds(),
+            self.local_now(),
             self.server_now(),
             parent.map(|parent| parent.time),
         )
@@ -454,7 +461,29 @@ impl<S: ObjectStore> Peer<S> {
 
     /// The latest commit time this device believes (`be_block_commit::latest_believed`).
     pub fn latest_believed(&self) -> i64 {
-        be_block_commit::latest_believed(now_milliseconds(), self.server_now())
+        be_block_commit::latest_believed(self.local_now(), self.server_now())
+    }
+
+    /// This device's clock, which commits are stamped by until the server's is measured.
+    pub(crate) fn local_now(&self) -> i64 {
+        now_milliseconds().saturating_add(self.clock_ahead())
+    }
+
+    #[cfg(test)]
+    fn clock_ahead(&self) -> i64 {
+        self.clock_ahead.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    #[cfg(not(test))]
+    fn clock_ahead(&self) -> i64 {
+        0
+    }
+
+    /// Makes this device's clock read `ahead` past the true one (`local_now`).
+    #[cfg(test)]
+    pub(crate) fn set_clock_ahead(&self, ahead: i64) {
+        self.clock_ahead
+            .store(ahead, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// The server's clock now, as estimated: from when this run's session opened by the
@@ -475,14 +504,14 @@ impl<S: ObjectStore> Peer<S> {
             }
             _ => held
                 .offset
-                .map(|offset| now_milliseconds().saturating_add(offset)),
+                .map(|offset| self.local_now().saturating_add(offset)),
         }
     }
 
     /// Takes the server's clock it answered with as the session opened, unless it would pull
     /// commit times back too far (`be_block_commit::trusts_measurement`).
     fn measured_server(&self, server: i64, clock: &crate::Clock) {
-        let local = now_milliseconds();
+        let local = self.local_now();
         if !be_block_commit::trusts_measurement(local, server) {
             return;
         }

@@ -294,9 +294,23 @@ sends it. `Peer::write` does both.
   organization's lost-access policy never deletes it, and cached listings leave
   it out. What is made in it is set aside with its refusal, and restoring it
   restores them. A publish refused as a change the server will never take
-  (`InvalidRequest`, `ObjectTooLarge`) is set aside the same way rather than
-  sent again every round. A refused move or define puts back the summary the server has
+  (`InvalidRequest`, `ObjectTooLarge`, a `CommitAhead` it cannot stamp again)
+  is set aside the same way rather than sent again every round. A refused move or define puts back the summary the server has
   (`unchanged`, `Drained::Refused` with `restored`).
+- **Stamped again.** A commit stamped before the device measured the server's
+  clock, or by a clock that jumped since, can be past what the server takes
+  (`CommitAhead`, guides/blocks/server.md, limits). The drain then stamps it,
+  and every waiting commit of its block built on it, again by the server's
+  clock as just measured (`Peer::restamp`), moved back by how far the device's
+  clock runs ahead, and sends it again. A commit's id is its hash, so each gets
+  a new one (its change id stays), and the outbox, the local head, the head read
+  whole, the device's journal (base and seal) and what announcements wait on
+  move to it in one refs write; the drain reads each outbox entry as it stands
+  when it reaches it, and reports the new head (`Drained::Published`). One the
+  clock cannot move back is set aside like any change the server will never
+  take. Tests skew a peer's clock with
+  `Peer::set_clock_ahead`, since an embedded server reads the same
+  `now_milliseconds`.
 - `Peer::pending` counts outbox operations, local commits, their blocks and
   unsent blocks.
 
