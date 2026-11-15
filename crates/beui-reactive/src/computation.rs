@@ -477,6 +477,10 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
 /// `run` gets its value and the one before it (`None` on the first run) with nothing
 /// tracked, so what `run` reads does not wake it. Queued like `create_effect`.
 ///
+/// It runs when a dependency was written, not when `deps` returns something new: deps
+/// that change and change back before it runs (while its scope is paused, say) run it
+/// with `value == previous`. Compare them when that matters.
+///
 /// `deps` returns the values `run` needs, or `()` after `track`ing what should wake it:
 /// `create_effect_on(move || (pointer.get(), caret.get()), move |_, _| publish())`.
 pub fn create_effect_on<D: 'static>(
@@ -491,8 +495,9 @@ pub fn create_effect_on<D: 'static>(
     })
 }
 
-/// `create_effect_on` without its first run (SolidJS's `defer`): `deps` is read now, and
-/// `run` runs only after what it read changes, with the value before. For acting on a
+/// `create_effect_on` without its first run (SolidJS's `defer`): `deps` is read now, at
+/// creation, and `run` runs only after what it read changes, with the value before; a
+/// change made before the first flush still runs it. For acting on a
 /// change rather than on the state: begin a move each time the count of asked moves goes
 /// up.
 pub fn create_effect_on_change<D: 'static>(
@@ -517,19 +522,24 @@ pub fn create_effect_on_change<D: 'static>(
     Effect::of(&computation)
 }
 
-/// A signal that holds what was last written to it, but resets to `source` whenever what
-/// `source` reads changes, like Angular's `linkedSignal`: a draft seeded from a saved value
-/// and reset when the saved value changes. `source` runs now, and the reset is a binding,
-/// so a change to its inputs reaches the signal when effects next run.
+/// A signal that holds what was last written to it, but resets to what `source` returns
+/// whenever that changes, like Angular's `linkedSignal`: a draft seeded from a saved value
+/// and reset when the saved value changes. `source` is compared with what it returned
+/// before, so a change to what it reads that leaves its result the same keeps a draft.
+///
+/// `source` runs now. The reset is not synchronous: it is a binding, so after `source`'s
+/// inputs change the signal still holds the old value until effects next run (the end of
+/// the entry, or `flush()`).
 ///
 /// Like `create_memo`'s, the closure may take an annotated `previous: Option<&T>`: what the
 /// signal holds when the reset comes (`None` the first time), so a reset can keep part of
 /// what was written, such as text typed that still means the new value.
-pub fn create_linked_signal<T: PartialEq + 'static, M>(
+pub fn create_linked_signal<T: Clone + PartialEq + 'static, M>(
     mut source: impl Compute<T, M> + 'static,
 ) -> Signal<T> {
     let probed = probe(false, || source.compute(None));
     let constant = probed.constant();
+    let mut returned = probed.value.clone();
     let signal = create_signal(probed.value);
     if constant {
         if let Some(owner) = probed.owner {
@@ -539,7 +549,10 @@ pub fn create_linked_signal<T: PartialEq + 'static, M>(
     }
     let computation = Computation::new(None, move || {
         let value = signal.with_untracked(|held| source.compute(Some(held)));
-        signal.set(value);
+        if value != returned {
+            returned = value.clone();
+            signal.set(value);
+        }
         false
     });
     computation.binding.set(true);
