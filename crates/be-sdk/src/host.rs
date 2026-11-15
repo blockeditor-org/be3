@@ -1910,10 +1910,11 @@ impl EditorHost {
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
     }
 
-    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
-    /// none when the paste failed, which is reported to the host (`report_failure`). The first paste after a cut moves a block
-    /// cut from its parent here (`moved`), or names where a reference to it
-    /// was cut from (`cut_from`); otherwise the editor adds a reference.
+    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view, or
+    /// none when the paste failed, which is reported to the host
+    /// (`report_failure`). The first paste after a cut moves a block cut from
+    /// its parent here (`moved`), or names where a reference to it was cut
+    /// from (`cut_from`); otherwise the editor adds a reference.
     pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         let host = self.clone();
@@ -1921,7 +1922,7 @@ impl EditorHost {
             move |pasted| {
                 pasted
                     .unwrap_or_else(|failure| {
-                        host.report_failure(format!("The blocks could not be pasted: {failure}"));
+                        host.report_failure(format!("The blocks could not be pasted. {failure}"));
                         Vec::new()
                     })
                     .into_iter()

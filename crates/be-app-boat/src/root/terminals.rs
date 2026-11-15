@@ -671,7 +671,7 @@ impl State {
                     state
                         .editor
                         .host()
-                        .report_failure(format!("The terminal could not be made: {failure}"));
+                        .report_failure(format!("The terminal could not be made. {failure}"));
                     return;
                 }
             };
@@ -688,7 +688,7 @@ impl State {
                 state.editor.then(removed, |_| {});
                 state.unmake(block);
                 state.editor.host().report_failure(
-                    "The terminal could not be made: your settings have not loaded yet",
+                    "The terminal could not be made. Your settings have not loaded yet.",
                 );
                 return;
             }

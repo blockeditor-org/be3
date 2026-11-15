@@ -1165,7 +1165,7 @@ impl Workspace {
                     modes.remove(&block);
                 });
                 workspace.host().report_failure(format!(
-                    "The notifications setting was not changed: {failure}"
+                    "The notifications setting could not be changed. {failure}"
                 ));
             }
         });
@@ -1217,7 +1217,8 @@ impl Workspace {
         // organization's blocks have loaded; the host fails a creation committed there
         // before it exists, so this only spares asking first.
         if container.is_none() && self.my_files().is_none() {
-            self.host().report_failure("Your files are still loading.");
+            self.host()
+                .report_failure("The file could not be made. Your files are still loading.");
             return;
         }
         let parent = container.map_or(BlockParent::Unfiled, BlockParent::Block);

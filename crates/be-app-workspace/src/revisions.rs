@@ -197,7 +197,7 @@ impl RevisionHistory {
                 Err(error) => self
                     .editor
                     .host()
-                    .report_failure(format!("The revision could not be shown: {error}")),
+                    .report_failure(format!("The revision could not be shown. {error}")),
             }
         });
     }
@@ -238,7 +238,7 @@ impl RevisionHistory {
                 Err(error) => self
                     .editor
                     .host()
-                    .report_failure(format!("The revision could not be restored: {error}")),
+                    .report_failure(format!("The revision could not be restored. {error}")),
             }
         });
     }

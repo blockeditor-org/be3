@@ -2144,7 +2144,7 @@ impl CanvasState {
             Err(error) => {
                 self.editor
                     .host()
-                    .report_failure(format!("Could not copy canvas objects: {error}"));
+                    .report_failure(format!("The canvas objects could not be copied. {error}"));
                 return false;
             }
         };
@@ -2209,7 +2209,7 @@ impl CanvasState {
                     .collect::<Vec<_>>();
                 if named.len() != items.blocks.len() {
                     return self.editor.host().report_failure(
-                        "Could not paste canvas objects: the clip names the wrong number of blocks",
+                        "The canvas objects could not be pasted. The clip names the wrong number of blocks.",
                     );
                 }
                 for (block, from) in named.iter_mut().zip(items.blocks) {
@@ -2250,7 +2250,7 @@ impl CanvasState {
             Err(error) => self
                 .editor
                 .host()
-                .report_failure(format!("Could not paste canvas objects: {error}")),
+                .report_failure(format!("The canvas objects could not be pasted. {error}")),
         }
     }
 
@@ -3080,7 +3080,7 @@ impl CanvasState {
                     Err(failure) => state
                         .editor
                         .host()
-                        .report_failure(format!("Could not copy the block here: {failure}")),
+                        .report_failure(format!("The block could not be copied here. {failure}")),
                     Ok(_) => {}
                 });
             }

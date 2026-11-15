@@ -192,7 +192,7 @@ impl Slides {
                     return slides
                         .editor
                         .host()
-                        .report_failure(format!("The slide could not be duplicated: {failure}"));
+                        .report_failure(format!("The slide could not be duplicated. {failure}"));
                 }
                 Ok(_) => return,
             };
@@ -227,7 +227,7 @@ impl Slides {
                 Ok(Some((copy, _))) if slides.selected.is_alive() => copy,
                 Err(failure) => {
                     return slides.editor.host().report_failure(format!(
-                        "The slide's notes could not be duplicated: {failure}"
+                        "The slide's notes could not be duplicated. {failure}"
                     ));
                 }
                 Ok(_) => return,

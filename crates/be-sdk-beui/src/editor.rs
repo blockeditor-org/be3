@@ -1004,7 +1004,7 @@ impl Editor {
         state.picking.set(None);
         if let Err(failure) = &answer {
             self.host()
-                .report_failure(format!("The block could not be picked: {failure}"));
+                .report_failure(format!("The block could not be picked. {failure}"));
         }
         picking.answer(answer);
     }

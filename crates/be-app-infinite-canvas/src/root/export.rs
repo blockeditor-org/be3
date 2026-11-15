@@ -321,7 +321,7 @@ impl Exporter {
                     (Err(error), _) => {
                         editor
                             .host()
-                            .report_failure(format!("Could not export: {error}"));
+                            .report_failure(format!("The canvas could not be exported. {error}"));
                         return;
                     }
                 };
@@ -344,9 +344,9 @@ impl Exporter {
                         });
                         editor.then(asked, move |saved| {
                             if let FileSave::Failed(failure) = saved {
-                                editor
-                                    .host()
-                                    .report_failure(format!("Could not export: {failure}"));
+                                editor.host().report_failure(format!(
+                                    "The canvas could not be exported. {failure}"
+                                ));
                             }
                         });
                     }
