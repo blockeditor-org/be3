@@ -124,7 +124,6 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
 pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
     let unlock = view.unlock;
     let title = create_memo(move || format!("Unlock {}", unlock.get().account));
-    let code = create_memo(move || unlock.get().code.unwrap_or_default());
     let error = create_memo(move || unlock.get().error);
     let phrase = create_signal(String::new());
     let cannot = create_memo(move || phrase.get().trim().is_empty());
@@ -159,7 +158,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
             </List>
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show
-                value={move || unlock.get().code.is_some()}
+                value={move || unlock.get().code}
                 fallback={|| view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <ListItem grow=1.0>
@@ -174,7 +173,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
                         />
                     </List>
                 }}
-            >
+            >|code: ReadSignal<String>|
                 <List spacing=Space::Md>
                     <Text style=TextStyle::PARAGRAPH>"Type this code on the other device:"</Text>
                     <Text size=TextSize::Xl>{code}</Text>
