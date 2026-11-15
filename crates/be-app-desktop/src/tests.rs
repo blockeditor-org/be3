@@ -28,6 +28,8 @@ use uuid::Uuid;
 use crate::root::DesktopRoot;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
+mod a_band_opened_another_way_mid_swipe_goes_all_the_way_once_let_go;
+mod a_band_opened_with_the_pointer_already_away_goes_once_the_host_says_so;
 mod a_band_over_a_full_screen_window_comes_out_only_for_a_long_push;
 mod a_bar_menu_and_its_submenu_fit_the_work_area_of_a_short_window;
 mod a_bar_moved_on_one_display_stays_put_on_the_others;
