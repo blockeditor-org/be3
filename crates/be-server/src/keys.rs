@@ -1308,6 +1308,15 @@ impl ServerStore {
         Ok((public, sealed, own))
     }
 
+    /// Every access log `account` signed a record in, at its head (`recovery-key`'s `logs`).
+    pub async fn signed_logs(
+        &self,
+        account: Uuid,
+    ) -> Result<Vec<be_block_protocol::SignedLog>, ServerError> {
+        self.with_database(move |_, database| crate::access::signed_logs(&database, account))
+            .await
+    }
+
     pub async fn set_recovery_key(
         &self,
         account: Uuid,
@@ -1316,6 +1325,7 @@ impl ServerStore {
         sealed: Vec<SealedKey>,
         own: Vec<OwnSealed>,
         changes: Vec<KeyChange>,
+        retirements: Vec<be_block_protocol::Retirement>,
     ) -> Result<(), ServerError> {
         let (previous, held, mut held_own) = self.recovery_key(account).await?;
         if previous.is_none() {
@@ -1387,6 +1397,15 @@ impl ServerStore {
                     resealed_own[&(held.kind, held.id)],
                 )?;
             }
+            crate::access::append_retirements(
+                &transaction,
+                account,
+                &be_block_keys::PublicIdentity {
+                    public: be_block_keys::RecoveryPublic(public),
+                    signing: be_block_keys::SigningPublic(signing),
+                },
+                &retirements,
+            )?;
             transaction.execute(
                 "INSERT OR REPLACE INTO recovery_keys (account_id, public, signing)
                  VALUES (?1, ?2, ?3)",

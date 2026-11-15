@@ -2767,7 +2767,8 @@ fn about(listing: Listing) -> Option<Uuid> {
     }
 }
 
-/// The log of `log` as the server served it, once its root is the one pinned and checks.
+/// The log of `log` as the server served it, once it checks from the pinned root to its head
+/// (`be_block_keys::check_log`).
 fn checked_log(
     kind: be_block_keys::LogKind,
     log: Uuid,
@@ -2779,9 +2780,7 @@ fn checked_log(
         .map(|entry| be_block_keys::Entry::decode(entry))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ClientError::Forged(log))?;
-    let root = entries.first().ok_or(ClientError::Forged(log))?;
-    if root.hash() != pinned || root.checked_root(kind, log.into_bytes()).is_err() {
-        return Err(ClientError::Forged(log));
-    }
+    be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries)
+        .map_err(|_| ClientError::Forged(log))?;
     Ok(entries)
 }

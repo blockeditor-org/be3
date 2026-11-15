@@ -2415,12 +2415,14 @@ impl Client {
             Call::GetRecoveryKey { reply } => {
                 let found = async {
                     prelude?;
-                    let (public, sealed, own) =
-                        connection.store.recovery_key(connection.account()?).await?;
+                    let account = connection.account()?;
+                    let (public, sealed, own) = connection.store.recovery_key(account).await?;
+                    let logs = connection.store.signed_logs(account).await?;
                     Ok(RecoveryKey {
                         public,
                         sealed,
                         own,
+                        logs,
                     })
                 }
                 .await;
@@ -2433,6 +2435,7 @@ impl Client {
                 sealed,
                 own,
                 changes,
+                retirements,
             } => {
                 let set = async {
                     prelude?;
@@ -2440,7 +2443,7 @@ impl Client {
                     let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                     connection
                         .store
-                        .set_recovery_key(account, public, signing, sealed, own, changes)
+                        .set_recovery_key(account, public, signing, sealed, own, changes, retirements)
                         .await?;
                     connection.contacts_changed(&told).await;
                     Ok(())

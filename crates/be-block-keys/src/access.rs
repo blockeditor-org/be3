@@ -10,13 +10,18 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::{KeyError, PublicIdentity, RecoverySecret, verify_signature};
+use std::collections::HashMap;
+
+use crate::{KeyError, PublicIdentity, RecoverySecret, SigningPublic, verify_signature};
 
 /// What an access record's signature covers comes after this, so it never verifies as anything
 /// else the account's signing key signs (authorship has a domain of its own).
 const ACCESS_INFO: &[u8] = b"be3.access.v1";
 /// What an entry's hash covers comes after this.
 const ACCESS_HASH_INFO: &[u8] = b"be3.access.hash.v1";
+/// What an old signing key signs to hand an account's records on to its new keys comes after
+/// this (`Retirement::endorsement`).
+const RETIREMENT_INFO: &[u8] = b"be3.access.retirement.v1";
 
 /// The hash of an access log entry, by which the next entry and a device's pin name it.
 pub type EntryHash = [u8; 32];
@@ -27,6 +32,25 @@ pub enum Record {
     /// The first entry of a log: who made the block or organization, with the keys they made it
     /// with.
     Root(Root),
+    /// An account took a new recovery phrase: its records after this are signed with `new`
+    /// (plans/signed_access.md, "A new recovery phrase").
+    Retirement(Retirement),
+}
+
+/// An account's move to new keys, endorsed by the key it retires and signed (as an entry) by
+/// the new one: the server cannot retire an account to keys of its own, and the old key signs
+/// nothing in the log after it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Retirement {
+    pub account: [u8; 16],
+    pub old: SigningPublic,
+    pub new: PublicIdentity,
+    #[serde(with = "serde_bytes")]
+    pub endorsement: Vec<u8>,
+}
+
+fn endorsed(account: [u8; 16], new: &PublicIdentity) -> Vec<u8> {
+    [RETIREMENT_INFO, &account, &new.public.0, &new.signing.0].concat()
 }
 
 /// What a log is the log of, so a block's records never verify as an organization's, nor the
@@ -120,6 +144,35 @@ impl Entry {
         )
     }
 
+    /// The entry after `previous` in the log of `log` that retires `account`'s `old` keys for
+    /// `new`'s: endorsed by the old key, signed by the new one.
+    pub fn retirement(
+        old: &RecoverySecret,
+        new: &RecoverySecret,
+        account: [u8; 16],
+        log: [u8; 16],
+        previous: EntryHash,
+    ) -> Self {
+        use ed25519_dalek::Signer;
+        let endorsement = old
+            .signing_key()
+            .sign(&endorsed(account, &new.identity()))
+            .to_bytes()
+            .to_vec();
+        Self::sign(
+            new,
+            account,
+            log,
+            Some(previous),
+            Record::Retirement(Retirement {
+                account,
+                old: old.signing(),
+                new: new.identity(),
+                endorsement,
+            }),
+        )
+    }
+
     /// Whether the signature is `signing`'s over this entry.
     pub fn signed_by(&self, signing: &crate::SigningPublic) -> bool {
         verify_signature(
@@ -148,7 +201,9 @@ impl Entry {
     /// The root this entry is, when it is the well-formed, self-signed first entry of the `kind`
     /// log of `log`.
     pub fn checked_root(&self, kind: LogKind, log: [u8; 16]) -> Result<Root, KeyError> {
-        let Record::Root(root) = &self.record;
+        let Record::Root(root) = &self.record else {
+            return Err(KeyError::Record);
+        };
         let well_formed = root.kind == kind
             && self.log == log
             && self.previous.is_none()
@@ -204,4 +259,55 @@ impl CarriedKey {
             root,
         })
     }
+}
+
+/// A log checked from its root to its head (`check_log`): the hash of its head, and the signing
+/// key each account that holds a record in it signs with now.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Checked {
+    pub head: EntryHash,
+    pub signers: HashMap<[u8; 16], SigningPublic>,
+}
+
+/// Checks the `kind` log of `log` from its root, which must be the one `pinned`, to its head:
+/// every entry names the hash of the one before and is signed by its signer's current key, and a
+/// retirement moves an account to new keys only as endorsed by the key it retires. Anything else
+/// makes the whole log refused, since a device acts only on a log it checked to its head.
+pub fn check_log(
+    kind: LogKind,
+    log: [u8; 16],
+    pinned: EntryHash,
+    entries: &[Entry],
+) -> Result<Checked, KeyError> {
+    let (root, rest) = entries.split_first().ok_or(KeyError::Record)?;
+    let checked = root.checked_root(kind, log)?;
+    if root.hash() != pinned {
+        return Err(KeyError::Record);
+    }
+    let mut signers = HashMap::from([(checked.creator, checked.identity.signing)]);
+    let mut head = pinned;
+    for entry in rest {
+        let current = signers.get(&entry.signer).ok_or(KeyError::Record)?;
+        if entry.log != log || entry.previous != Some(head) {
+            return Err(KeyError::Record);
+        }
+        match &entry.record {
+            Record::Root(_) => return Err(KeyError::Record),
+            Record::Retirement(retirement) => {
+                let endorsed_by_current = retirement.account == entry.signer
+                    && retirement.old == *current
+                    && verify_signature(
+                        &current.0,
+                        &endorsed(retirement.account, &retirement.new),
+                        &retirement.endorsement,
+                    );
+                if !endorsed_by_current || !entry.signed_by(&retirement.new.signing) {
+                    return Err(KeyError::Record);
+                }
+                signers.insert(entry.signer, retirement.new.signing);
+            }
+        }
+        head = entry.hash();
+    }
+    Ok(Checked { head, signers })
 }
