@@ -268,8 +268,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             })
         })
     });
-    let company =
-        create_memo(move || listing.with(|listing| matches!(listing, Ok(listing) if listing.company)));
+    let company = create_memo(move || {
+        listing.with(|listing| matches!(listing, Ok(listing) if listing.company))
+    });
     let inside = create_memo(move || {
         listing.with(|listing| match listing {
             Ok(listing) => Share::inside_note(listing),
@@ -283,9 +284,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .map(|member| member.id)
             .collect::<Vec<_>>()
     });
-    let nobody = create_memo(move || {
-        listing.with(Result::is_ok) && members.with(Vec::is_empty)
-    });
+    let nobody = create_memo(move || listing.with(Result::is_ok) && members.with(Vec::is_empty));
     let inviting = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.inviting.is_some()))
     });

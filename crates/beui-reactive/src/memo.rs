@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
-use crate::runtime::{check_tracked_read, probe};
 use crate::loading::note_read;
+use crate::runtime::{check_tracked_read, probe};
 use crate::signal::{Get, Tracked, Value, readiness_of, track};
 
 pub struct Memo<T> {
@@ -35,7 +35,10 @@ pub fn create_memo<T: PartialEq + 'static, M>(
         }
     } else {
         output.source.set_readiness(readiness_of(
-            probed.read.iter().map(|(dependency, _)| dependency.source()),
+            probed
+                .read
+                .iter()
+                .map(|(dependency, _)| dependency.source()),
         ));
         let written = output.clone();
         let tracked: Rc<dyn Tracked> = output.clone();

@@ -64,7 +64,9 @@ impl RevisionHistory {
         });
         let host = editor.host();
         let listing = create_async_memo(move || {
-            let asked = head.get().map(|(block, _)| (block, host.list_revisions(block)));
+            let asked = head
+                .get()
+                .map(|(block, _)| (block, host.list_revisions(block)));
             async move {
                 let Some((block, asked)) = asked else {
                     return Ok(None);
@@ -232,9 +234,12 @@ fn revision_key(commit: &[u8; 32]) -> String {
 #[component]
 pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistory) -> NodeId {
     let entries = create_memo(move || {
-        history
-            .listed
-            .with(|listed| listed.as_ref().map(|(_, entries)| entries.clone()).unwrap_or_default())
+        history.listed.with(|listed| {
+            listed
+                .as_ref()
+                .map(|(_, entries)| entries.clone())
+                .unwrap_or_default()
+        })
     });
     let revisions = create_memo(move || {
         entries.with(|entries| {
@@ -250,7 +255,9 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
     let no_file = create_memo(move || history.target.get().is_none());
     // Whether the revisions shown are of another block than the target, or none.
     let elsewhere = create_memo(move || {
-        history.listed.with(|listed| listed.as_ref().map(|(block, _)| *block))
+        history
+            .listed
+            .with(|listed| listed.as_ref().map(|(block, _)| *block))
             != history.target.get().map(|item| item.id)
     });
     let stale = create_memo(move || history.busy.get() || elsewhere.get());
@@ -297,49 +304,49 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                         </Text>
                     </Show>
                     <Loading fallback>||
-                    <Show value={move || history.listing.pending() && elsewhere.get()}>
-                        <Text style=TextStyle::CAPTION>"Loading revisions…"</Text>
-                    </Show>
-                    <Show value={history.busy}>
-                        <Text style=TextStyle::CAPTION>"Working…"</Text>
-                    </Show>
-                    <Show
-                        value={move || {
-                            !no_file.get()
-                                && !history.listing.pending()
-                                && error.with(Option::is_none)
-                                && entries.with(Vec::is_empty)
-                        }}
-                    >
-                        <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
-                    </Show>
-                    <Show value={error}>|error: ReadSignal<String>|
-                        <ListingFailed history error />
-                    </Show>
-                    <ForEach value={keys}>|commit: [u8; 32]| {
-                        let label = create_memo(move || revisions.with(|entries| entries.get(&commit).map(|entry| {
-                            let date = revision_time(entry.time);
-                            format!("{date}{}", if history.selected.get().is_some_and(|selected| selected.commit == commit) { " · Preview" } else if entry.current { " · Current" } else { "" })
-                        }).unwrap_or_default()));
-                        view! {
-                            <Button
-                                label
-                                variant=ButtonVariant::Secondary
-                                disabled={stale}
-                                @test_id={format!("workspace.revision.{}", revision_key(&commit))}
-                                on_click={move || {
-                                    let revision = revisions.with(|entries| entries.get(&commit).cloned());
-                                    if let Some(revision) = revision {
-                                        history.choose(revision);
-                                        if workspace.phone().get_untracked() && let Some(item) = history.target.get_untracked()
-                                            && let Some(tab) = workspace.tab_showing(item.id) {
-                                            workspace.layout().show(&tab);
+                        <Show value={move || history.listing.pending() && elsewhere.get()}>
+                            <Text style=TextStyle::CAPTION>"Loading revisions…"</Text>
+                        </Show>
+                        <Show value={history.busy}>
+                            <Text style=TextStyle::CAPTION>"Working…"</Text>
+                        </Show>
+                        <Show
+                            value={move || {
+                                !no_file.get()
+                                    && !history.listing.pending()
+                                    && error.with(Option::is_none)
+                                    && entries.with(Vec::is_empty)
+                            }}
+                        >
+                            <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
+                        </Show>
+                        <Show value={error}>|error: ReadSignal<String>|
+                            <ListingFailed history error />
+                        </Show>
+                        <ForEach value={keys}>|commit: [u8; 32]| {
+                            let label = create_memo(move || revisions.with(|entries| entries.get(&commit).map(|entry| {
+                                let date = revision_time(entry.time);
+                                format!("{date}{}", if history.selected.get().is_some_and(|selected| selected.commit == commit) { " · Preview" } else if entry.current { " · Current" } else { "" })
+                            }).unwrap_or_default()));
+                            view! {
+                                <Button
+                                    label
+                                    variant=ButtonVariant::Secondary
+                                    disabled={stale}
+                                    @test_id={format!("workspace.revision.{}", revision_key(&commit))}
+                                    on_click={move || {
+                                        let revision = revisions.with(|entries| entries.get(&commit).cloned());
+                                        if let Some(revision) = revision {
+                                            history.choose(revision);
+                                            if workspace.phone().get_untracked() && let Some(item) = history.target.get_untracked()
+                                                && let Some(tab) = workspace.tab_showing(item.id) {
+                                                workspace.layout().show(&tab);
+                                            }
                                         }
-                                    }
-                                }}
-                            />
-                        }
-                    }</ForEach>
+                                    }}
+                                />
+                            }
+                        }</ForEach>
                     </Loading>
                 </List>
             </Frame>

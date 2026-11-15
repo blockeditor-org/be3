@@ -6,8 +6,8 @@ pub mod child_list;
 pub mod children;
 pub mod component;
 pub mod control;
-pub mod keep;
 mod errored;
+pub mod keep;
 pub mod prop;
 
 pub mod reactive {
@@ -26,11 +26,11 @@ pub mod reactive {
         ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp,
         Render, RenderFn, component, current_component, try_current_component,
     };
-    pub use crate::errored::Errored;
     pub use crate::control::{
         Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, ForEachFill, ForEachRef, Keyed, Loading,
         Match, Matched, RowArgs, RowKey, Show, ShowValue, ShownRow,
     };
+    pub use crate::errored::Errored;
     pub use crate::into_prop_via;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::keep::{kept_shown, provide_kept_shown};
@@ -41,9 +41,9 @@ pub mod reactive {
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
         AsyncMemo, Boundary, Effect, ErrorBoundary, Get, KeyedItems, KeyedStore, Memo,
-        OwnedKeyedStore, OwnedSignal, OwnedSource, OwnedStored, OwnedTrigger, Pending,
-        ReadSignal, Reader, Ready, RootScope, Scope, ScopeContext, Selector, Set, Signal, Source,
-        Store, Stored, StoredCell, Trackable, Trigger, child_scope, create_async_memo, create_binding,
+        OwnedKeyedStore, OwnedSignal, OwnedSource, OwnedStored, OwnedTrigger, Pending, ReadSignal,
+        Reader, Ready, RootScope, Scope, ScopeContext, Selector, Set, Signal, Source, Store,
+        Stored, StoredCell, Trackable, Trigger, child_scope, create_async_memo, create_binding,
         create_effect, create_effect_on, create_effect_on_change, create_linked_signal,
         create_memo, create_selector, create_signal, create_source, create_trigger, flush, hold,
         on_cleanup, owner_scope, provide_context, spawn_with, store, untrack, use_context,
