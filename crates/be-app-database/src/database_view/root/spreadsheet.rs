@@ -162,12 +162,6 @@ fn HeaderCell(
     sorted: Prop<Option<SortDirection>>,
     on_click: Callback<()>,
 ) -> NodeId {
-    let sorted = create_memo(move || sorted.get());
-    let glyph = move || match sorted.get() {
-        Some(SortDirection::Ascending) => Some(ICON_ARROW_UP),
-        Some(SortDirection::Descending) => Some(ICON_ARROW_DOWN),
-        None => None,
-    };
     view! {
         <Frame
             width=width
@@ -180,9 +174,12 @@ fn HeaderCell(
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text>{label}</Text>
                         <Spacer />
-                        <Show value={move || sorted.get().is_some()}>
+                        <Show value={sorted}>|direction: ReadSignal<SortDirection>|
                             <Text color=TextColor::Muted align=TextAlign::Center>
-                                <Icon glyph={glyph} />
+                                <Icon glyph={move || match direction.get() {
+                                    SortDirection::Ascending => Some(ICON_ARROW_UP),
+                                    SortDirection::Descending => Some(ICON_ARROW_DOWN),
+                                }} />
                             </Text>
                         </Show>
                     </List>

@@ -12,7 +12,6 @@ use super::state::{MapState, ZOOM_STEP};
 #[component]
 pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
     let error = state.last_error;
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let add = NodeRef::new();
 
     view! {
@@ -63,7 +62,7 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}
             />
-            <Show value={move || error.with(Option::is_some)}>
+            <Show value={error}>|reason: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </DockBarSurface>

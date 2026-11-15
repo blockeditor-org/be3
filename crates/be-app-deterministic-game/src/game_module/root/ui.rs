@@ -117,7 +117,6 @@ fn ModulePanel(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let busy = chooser.busy();
     let error = chooser.error();
-    let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     view! {
         <Frame fill=ColorRole::Surface>
@@ -131,7 +130,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                             @test_id={"game-module.replace"}
                             on_click={replace}
                         />
-                        <Show value={move || error.with(Option::is_some)}>
+                        <Show value={error}>|reason: ReadSignal<String>|
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>
