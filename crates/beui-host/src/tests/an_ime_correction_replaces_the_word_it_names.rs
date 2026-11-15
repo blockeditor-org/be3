@@ -21,7 +21,7 @@ fn an_ime_correction_replaces_the_word_it_names() {
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true
+                single_line=true scroll={plain_scroll()}
             />
         }
     });

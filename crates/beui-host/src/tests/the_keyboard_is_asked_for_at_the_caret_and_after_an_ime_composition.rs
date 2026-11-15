@@ -17,7 +17,7 @@ fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true
+                single_line=true scroll={plain_scroll()}
             />
         }
     });

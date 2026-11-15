@@ -40,7 +40,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
                     look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
-                    state={state}
+                    state={state} scroll={plain_scroll()}
                 />
             </Frame>
         }

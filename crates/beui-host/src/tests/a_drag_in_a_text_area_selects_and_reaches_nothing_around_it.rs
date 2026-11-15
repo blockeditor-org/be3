@@ -29,7 +29,7 @@ fn a_drag_in_a_text_area_selects_and_reaches_nothing_around_it() {
                     @node_ref=&area
                     state={state}
                     line_numbers=false
-                    disabled
+                    disabled scroll={plain_scroll()}
                 />
             </Interactive>
         }
