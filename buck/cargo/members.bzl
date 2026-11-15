@@ -182,6 +182,7 @@ members = [
     "crates/beui-dock",
     "crates/beui-dock-host",
     "crates/beui-dock-state",
+    "crates/beui-documents",
     "crates/beui-draw",
     "crates/beui-font-freetype",
     "crates/beui-fonts",

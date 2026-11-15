@@ -10,8 +10,13 @@ be-block-content = { path = "../be-block-content" }
 be-block-client = { path = "../be-block-client" }
 be-block-commit = { path = "../be-block-commit" }
 be-block-graph = { path = "../be-block-graph" }
-beui = { path = "../beui" }
-beui-host = { path = "../beui-host" }
+# The beui facade without its components, under the facade's name, so the runtime spells
+# every item as other crates do (`beui::Pos`, `beui::native::Context`) without depending
+# on the components (decisions/beui_facade_excludes_the_engine.md).
+beui = { path = "../beui-documents", package = "beui-documents" }
+beui-font-freetype = { path = "../beui-font-freetype" }
+beui-layer-drive = { path = "../beui-layer-drive" }
+beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 be-host-base = { path = "../be-host-base" }
 be-host-stack = { path = "../be-host-stack" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }

@@ -12,21 +12,23 @@ pub(crate) const CORE_FILES: [&str; 8] = [
     "crates\\beui-view\\src\\html.rs",
 ];
 
-const FACADES: [&str; 4] = [
+const FACADES: [&str; 6] = [
     "crates/beui/src/",
+    "crates/beui-documents/src/",
     "crates/beui-view/src/",
     "crates\\beui\\src\\",
+    "crates\\beui-documents\\src\\",
     "crates\\beui-view\\src\\",
 ];
 
 const ONE_CORE_MODULES: [(&str, &str, &str); 4] = [
     (
-        "crates/beui/src/lib.rs",
+        "crates/beui-documents/src/lib.rs",
         "native",
         "the native document: apps, documents, painting, gpu drawings and the native-only escapes; beui-host, which only the native core builds, adds the engine to it",
     ),
     (
-        "crates/beui/src/lib.rs",
+        "crates/beui-documents/src/lib.rs",
         "html",
         "running, hydrating and server-rendering a page on the HTML core",
     ),
