@@ -100,20 +100,10 @@ fn DefaultEditor(
         });
         format!("Default ({name})")
     });
-    let names = create_memo(move || {
-        choices.with(|choices| (0..choices.editors.len()).collect::<Vec<usize>>())
+    let ids = create_memo(move || {
+        choices.with(|choices| choices.editors.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
     });
-    let selected = create_memo(move || {
-        Some(chosen.get().map_or(0, |chosen| {
-            choices.with(|choices| {
-                choices
-                    .editors
-                    .iter()
-                    .position(|(id, _)| *id == chosen)
-                    .map_or(0, |index| index + 1)
-            })
-        }))
-    });
+    let selected = create_memo(move || Some(chosen.get()));
     let name = create_memo(move || choices.with(|choices| choices.name.clone()));
     let read_only = editor.read_only();
     view! {
@@ -128,27 +118,27 @@ fn DefaultEditor(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ChoiceOption label={inherited_label} />
-                        <ForEach keys={names}>|index: usize| {
+                        <ChoiceOption value=None label={inherited_label} />
+                        <ForEach keys={ids}>|id: Uuid| {
                             let label = create_memo(move || {
                                 choices.with(|choices| {
                                     choices
                                         .editors
-                                        .get(index)
+                                        .iter()
+                                        .find(|(known, _)| *known == id)
                                         .map(|(_, name)| name.clone())
                                         .unwrap_or_default()
                                 })
                             });
                             view! {
-                                <ChoiceOption label={label} />
+                                <ChoiceOption value={Some(id)} label={label} />
                             }
                         }</ForEach>
                     }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let chosen = index.and_then(|index| index.checked_sub(1)).and_then(|index| {
-                            choices.with_untracked(|choices| choices.editors.get(index).map(|(id, _)| *id))
-                        });
-                        set.call(chosen);
+                    selected={Binding::new(selected, move |chosen: Option<Option<Uuid>>| {
+                        if let Some(chosen) = chosen {
+                            set.call(chosen);
+                        }
                     })}
                     label={name}
                     disabled={read_only}

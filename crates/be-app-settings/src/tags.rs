@@ -116,10 +116,10 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
     let editable = editor.editable();
     let locked = create_memo(move || !editable.get());
     let rename = move |text: String| content.operate(Tag::rename(&text));
-    let selected = create_memo(move || TagColor::ALL.iter().position(|held| *held == color.get()));
-    let recolor = move |index: Option<usize>| {
-        if let Some(color) = index.and_then(|index| TagColor::ALL.get(index)) {
-            content.operate(Tag::recolor(*color));
+    let selected = create_memo(move || Some(color.get()));
+    let recolor = move |chosen: Option<TagColor>| {
+        if let Some(color) = chosen {
+            content.operate(Tag::recolor(color));
         }
     };
     let remove = move || editor.remove_tag(editor.block_id(), tag);
@@ -154,10 +154,8 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                         <Select
                             label="Color"
                             options={view! {
-                                <ForEach
-                                    keys={create_memo(|| (0..TagColor::ALL.len()).collect::<Vec<usize>>())}
-                                >|index: usize|
-                                    <ChoiceOption label={TagColor::ALL[index].label().to_owned()} />
+                                <ForEach keys={TagColor::ALL.to_vec()}>|color: TagColor|
+                                    <ChoiceOption value=color label={color.label().to_owned()} />
                                 </ForEach>
                             }}
                             selected={Binding::new(selected, recolor)}

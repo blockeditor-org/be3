@@ -373,10 +373,8 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
     let add_keys = create_memo(move || {
         addable.with(|rows| rows.iter().map(|(link, _)| *link).collect::<Vec<RowRef>>())
     });
-    let added = move |index: Option<usize>| {
-        let Some(link) = index.and_then(|index| {
-            addable.with_untracked(|rows| rows.get(index).map(|(link, _)| *link))
-        }) else {
+    let added = move |chosen: Option<RowRef>| {
+        let Some(link) = chosen else {
             return;
         };
         let mut wanted = links.get_untracked();
@@ -405,7 +403,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                         })
                                     });
                                     view! {
-                                        <ChoiceOption label={label} />
+                                        <ChoiceOption value=link label={label} />
                                     }
                                 }</ForEach>
                             }}

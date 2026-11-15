@@ -3087,11 +3087,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 reorder,
             });
             let order = reorder.order;
-            let selected = create_memo(move || {
-                let active = state.with(|state| state.active_entry(leaf))?;
-                order.with(|order| order.iter().position(|entry| *entry == active))
-            });
-            let entry_at = move |index: usize| order.with_untracked(|order| order.get(index).copied());
+            let selected = create_memo(move || state.with(|state| state.active_entry(leaf)));
             let tabs = view! {
                 <Choice
                     @node_ref=&tab_list
@@ -3100,12 +3096,12 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                             let dock = dock;
                             let label = create_memo(move || dock.entry_title(entry));
                             view! {
-                                <ChoiceOption label={label} />
+                                <ChoiceOption value=entry label={label} />
                             }
                         }</ForEach>
                     }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let Some(entry) = index.and_then(entry_at) else {
+                    selected={Binding::new(selected, move |entry: Option<Entry>| {
+                        let Some(entry) = entry else {
                             return;
                         };
                         dock.edit(|state| {
@@ -3124,15 +3120,12 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                             dock.give_keyboard(tab);
                         }
                     })}
-                    item={move |item: ChoiceItem| {
-                        let ChoiceItem { index, button } = item;
-                        match entry_at(index.get_untracked()) {
-                            Some(entry) => view! {
-                                <ReorderItem reorder item=entry>|_: ReorderItemHandle| {
-                                    button
-                                }</ReorderItem>
-                            },
-                            None => button,
+                    item={move |item: ChoiceItem<Entry>| {
+                        let ChoiceItem { value, button } = item;
+                        view! {
+                            <ReorderItem reorder item=value>|_: ReorderItemHandle| {
+                                button
+                            }</ReorderItem>
                         }
                     }}
                     kind=ChoiceKind::Tabs
@@ -3140,15 +3133,11 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     direction
                     shrink={create_memo(move || entries.with(Vec::len) == 1)}
                     spacing={dock.tab_spacing}
-                >|handle: ChoiceOptionHandle| {
+                >|handle: ChoiceOptionHandle<Entry>| {
                     let dock = dock;
-                    match entry_at(handle.index.get_untracked()) {
-                        Some(entry) => view! {
-                            <DockTabView dock leaf entry handle vertical />
-                        },
-                        None => view! {
-                            <Frame />
-                        },
+                    let entry = handle.value;
+                    view! {
+                        <DockTabView dock leaf entry handle vertical />
                     }
                 }</Choice>
             };
@@ -3164,7 +3153,7 @@ fn DockTabView(
     dock: State,
     leaf: LeafId,
     entry: Entry,
-    handle: ChoiceOptionHandle,
+    handle: ChoiceOptionHandle<Entry>,
     vertical: bool,
 ) -> NodeId {
     let ChoiceOptionHandle {

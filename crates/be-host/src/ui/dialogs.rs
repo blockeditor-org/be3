@@ -673,7 +673,6 @@ fn InvitePanel(
             .unwrap_or_default()
     });
     let has_link = create_memo(move || !link.get().is_empty());
-    let role_index = create_memo(move || usize::from(administrator.get()));
     let description = create_memo(move || match role.get() {
         OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
         OrganizationRole::Editor => {
@@ -689,10 +688,18 @@ fn InvitePanel(
                 <Text style=TextStyle::CAPTION>"Role"</Text>
                 <SegmentedControl
                     label="Role"
-                    selected={Binding::new(role_index, move |index: usize| administrator.set(index == 1))}
+                    selected={Binding::new(role, move |role: OrganizationRole| {
+                        administrator.set(role == OrganizationRole::Administrator)
+                    })}
                     options={view! {
-                        <ChoiceOption label={OrganizationRole::Editor.label()} />
-                        <ChoiceOption label={OrganizationRole::Administrator.label()} />
+                        <ChoiceOption
+                            value=OrganizationRole::Editor
+                            label={OrganizationRole::Editor.label()}
+                        />
+                        <ChoiceOption
+                            value=OrganizationRole::Administrator
+                            label={OrganizationRole::Administrator.label()}
+                        />
                     }}
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>

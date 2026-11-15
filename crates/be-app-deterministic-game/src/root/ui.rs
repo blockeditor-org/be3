@@ -438,7 +438,7 @@ fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
                                 names.with(|names| names.get(seat).cloned().unwrap_or_default())
                             });
                             view! {
-                                <ChoiceOption label />
+                                <ChoiceOption value=seat label />
                             }
                         }</ForEach>
                     }}
