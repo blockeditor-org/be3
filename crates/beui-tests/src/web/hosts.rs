@@ -44,7 +44,7 @@ pub(super) fn hydrating_claims_host_nodes() -> Checked {
         .map_err(|_| "the container joins the page")?;
     container.set_inner_html(&beui::html::render_to_string(move || {
         view! {
-            <Root>
+            <Root clear_color={beui::Color32::WHITE}>
                 <Hosted shown />
             </Root>
         }
@@ -56,7 +56,7 @@ pub(super) fn hydrating_claims_host_nodes() -> Checked {
     let before = every_node(&container);
     beui::html::hydrate("hosts", move || {
         view! {
-            <Root>
+            <Root clear_color={beui::Color32::WHITE}>
                 <Hosted shown />
             </Root>
         }
