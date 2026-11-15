@@ -31,7 +31,7 @@ async fn an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned
                 Some(base)
             )
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let ours = offline.local_head(note).unwrap();
     // The phone saves twice within the minute, so the server keeps only its last save: the

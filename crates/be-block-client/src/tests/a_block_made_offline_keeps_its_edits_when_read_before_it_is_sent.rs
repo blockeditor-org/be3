@@ -22,7 +22,7 @@ async fn a_block_made_offline_keeps_its_edits_when_read_before_it_is_sent() {
         offline
             .save(added, &TextBlock::of("made offline"), None)
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     harness.reconnect(&offline, owner.token()).await;
     assert_eq!(
