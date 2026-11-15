@@ -210,6 +210,12 @@ impl MergeBaseWalk {
             .flat_map(|side| side.frontier.iter().copied())
     }
 
+    /// How many commits the walk reached on the two sides: those whose parents it read, and
+    /// those it would read next.
+    pub fn reached(&self) -> usize {
+        self.sides.iter().map(|side| side.seen.len()).sum()
+    }
+
     /// Takes one level of parents on each side; answers once the walk is over, before it
     /// reaches commits it would have to fetch.
     pub fn step<S: ObjectStore>(
