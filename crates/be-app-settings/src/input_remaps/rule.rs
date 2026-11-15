@@ -149,7 +149,7 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
     let open = create_memo(move || edits.open.get() == Some((group, rule)));
     let on = create_memo(move || trigger_caps(&outline.get()));
     let result = create_memo(move || result_caps(&outline.get()));
-    let taps = create_memo(move || outline.get().does == Does::Tap);
+    let taps = create_memo(move || outline.with(|outline| outline.does == Does::Tap));
     let tags = create_memo(move || match open.get() {
         true => String::new(),
         false => options(&outline.get(), true).join(" \u{b7} "),
@@ -163,14 +163,13 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
             }
         })
     };
-    let first = rule == 0;
     view! {
         <List spacing=Space::None>
-            <Show condition={!first}>
+            {(rule != 0).then(|| view! {
                 <Frame padding={Padding::horizontal(Space::Xl)}>
                     <Separator />
                 </Frame>
-            </Show>
+            })}
             <unstyled::Button
                 label={label}
                 expanded={open}
@@ -282,7 +281,8 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
             .filter(|name| modifier_of(name).is_none())
             .collect::<Vec<_>>()
     });
-    let does = create_memo(move || match outline.get().does {
+    let does = create_memo(move || outline.with(|outline| outline.does));
+    let does_index = create_memo(move || match does.get() {
         Does::Send => 0,
         Does::Tap => 1,
         Does::Steps => 2,
@@ -298,7 +298,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
         }
     };
     let explained = move || {
-        match outline.get().does {
+        match does.get() {
             Does::Send => "Held down for as long as you hold it.",
             Does::Tap => "Pressed and let go once, each time you press it.",
             Does::Steps => "Taps and waits, in order, each time you press it.",
@@ -306,7 +306,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
         .to_owned()
     };
     let key_heading = move || {
-        match outline.get().does {
+        match does.get() {
             Does::Tap => "Taps",
             _ => "Acts as",
         }
@@ -405,13 +405,13 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                             <ChoiceOption label="Taps a key" />
                             <ChoiceOption label="Plays a sequence" />
                         }}
-                        selected={Binding::new(does, set_does)}
+                        selected={Binding::new(does_index, set_does)}
                         label="What it does"
                         @test_id={id("does")}
                     />
                 </Part>
                 <Show
-                    condition={move || outline.get().does == Does::Steps}
+                    condition={move || does.get() == Does::Steps}
                     fallback={move || view! {
                         <Part title={key_heading}>
                             <List
@@ -435,7 +435,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 />
                             </List>
                         </Part>
-                        <Show condition={move || outline.get().does == Does::Tap}>
+                        <Show condition={move || does.get() == Does::Tap}>
                             <Part
                                 title="Hold the tap for"
                                 description="Some games miss taps shorter than a frame or two."
@@ -547,7 +547,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 @test_id={id("keep")}
                             />
                         </MoreOption>
-                        <Show condition={move || outline.get().does != Does::Send}>
+                        <Show condition={move || does.get() != Does::Send}>
                             <MoreOption
                                 title="Keep held modifiers"
                                 description="Otherwise the Shift, Ctrl, Alt and Super you hold are let go during the taps."
@@ -769,14 +769,6 @@ fn StepTile(
             .unwrap_or(StepOutline::Wait { ms: 0 })
     });
     let tap = create_memo(move || matches!(shown.get(), StepOutline::Tap { .. }));
-    let wait = move || {
-        view! {
-            <Text style=TextStyle::CAPTION>
-                <Icon glyph=ICON_TIMER />
-                "wait"
-            </Text>
-        }
-    };
     let key = create_memo(move || match shown.get() {
         StepOutline::Tap { key, .. } => chord_caps(&key)
             .into_iter()
@@ -798,7 +790,15 @@ fn StepTile(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
                 <Text style=TextStyle::CAPTION>{number}</Text>
-                <Show condition={tap} fallback={wait}>
+                <Show
+                    condition={tap}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>
+                            <Icon glyph=ICON_TIMER />
+                            "wait"
+                        </Text>
+                    }}
+                >
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

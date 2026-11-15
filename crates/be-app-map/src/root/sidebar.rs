@@ -79,14 +79,14 @@ fn MapSidebar(state: MapState) -> NodeId {
             <RegionInspector state={state} />
             <Separator />
             <Show
-                condition={move || selected.get().is_some()}
+                condition={move || selected.with(Option::is_some)}
                 fallback={move || view! {
                     <PointList state={state} />
                 }}
             >
                 <PointDetails state={state} selected={selected} />
             </Show>
-            <Show condition={move || error.get().is_some()}>
+            <Show condition={move || error.with(Option::is_some)}>
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                     <Button
@@ -103,7 +103,7 @@ fn MapSidebar(state: MapState) -> NodeId {
 #[component]
 fn RegionInspector(state: MapState) -> NodeId {
     let region = state.preview_region;
-    let fixed = create_memo(move || region.get().is_some());
+    let fixed = create_memo(move || region.with(Option::is_some));
     let loose_color = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
@@ -271,7 +271,7 @@ fn PointList(state: MapState) -> NodeId {
             .map(|point| point.id)
             .collect::<Vec<Uuid>>()
     });
-    let empty = create_memo(move || ids.get().is_empty());
+    let empty = create_memo(move || ids.with(Vec::is_empty));
     let hint = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
@@ -384,7 +384,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary
-                    disabled={move || block.get().is_none()}
+                    disabled={move || block.with(Option::is_none)}
                     on_click={move || {
                         if let Some(target) = block.get_untracked() {
                             state.editor().host().open_block(target.id, target.block_type);

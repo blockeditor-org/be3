@@ -74,12 +74,8 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </Show>
             <Show condition={listed}>
                 <EmptyGroups data={data} />
-            </Show>
-            <Show condition={listed}>
-                <List spacing=SPACING>
-                    <Separator />
-                    <ShownFields data={data} />
-                </List>
+                <Separator />
+                <ShownFields data={data} />
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

@@ -24,7 +24,6 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let keys = create_memo(move || {
         block.map_or_else(Vec::new, |block| editor.available_tags(block).get())
     });
-    let unchangeable = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let manage = move || {
         let Some(block) = block else {
             return;
@@ -66,7 +65,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                         glyph=ICON_TAG
                         glyph_color={color}
                         checked={checked}
-                        disabled={unchangeable}
+                        disabled={move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit))}
                         row_test_id={format!("file-tree.tags.{tag}")}
                         on_click={move || {
                             if let Some(block) = block {

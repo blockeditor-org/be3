@@ -122,7 +122,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                     }}
                                 />
                                 <Show
-                                    condition={move || own.get() && editor.organization_settings().is_some()}
+                                    condition={move || editor.organization_settings().is_some()}
                                 >
                                     <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
                                         {ONLY_YOURS}
@@ -529,14 +529,13 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
 
 #[component]
 pub(super) fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeId {
-    let captioned = !caption.is_empty();
     view! {
         <List spacing=SPACING>
             <List spacing=CAPTION_SPACING>
                 <Text style=TextStyle::HEADING>{title}</Text>
-                <Show condition={captioned}>
+                {(!caption.is_empty()).then(|| view! {
                     <Text style=TextStyle::CAPTION>{caption}</Text>
-                </Show>
+                })}
             </List>
             {children}
         </List>
@@ -555,8 +554,9 @@ fn SettingRow(
     let label = create_memo(move || label.get());
     let detail = create_memo(move || detail.get());
     let off = create_memo(move || disabled.get());
+    let selected = create_memo(move || selected.get());
     view! {
-        <ListRow label={label} selected disabled={off} on_click={on_click}>
+        <ListRow label={label} selected={selected} disabled={off} on_click={on_click}>
             <Frame padding={Padding::vertical(ROW_PADDING)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_GAP>
                     <Text

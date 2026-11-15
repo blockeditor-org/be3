@@ -88,7 +88,6 @@ impl LogicGridEditor {
 #[component]
 pub(super) fn Hotbar(session: Session) -> NodeId {
     let nested = create_memo(move || session.read(|model| !model.active_hotbar_folder.is_empty()));
-    let top = create_memo(move || !nested.get());
     let title = create_memo(move || {
         session.read(|model| match model.active_hotbar_folder.is_empty() {
             true => "Hotbar".to_owned(),
@@ -122,7 +121,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                             icon_only=true
                             glyph=ICON_ARROW_UP
                             label="Up to the parent folder"
-                            disabled={top}
+                            disabled={move || !nested.get()}
                             @test_id={"logic-grid.hotbar-up"}
                             on_click={up}
                         />
@@ -240,9 +239,6 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
             .get()
             .is_some_and(|slot| slot.component || slot.folder)
     });
-    let not_component = create_memo(move || !shown.get().is_some_and(|slot| slot.component));
-    let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
-    let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
     let remove_slot = move || session.update(|model| model.remove_hotbar_slot(&path.value()));
     let open_folder =
         move || session.update(|model| model.toggle_hotbar_folder(path.value().to_vec()));
@@ -290,13 +286,13 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 items={view! {
                     <MenuItem
                         label="Remove from hotbar"
-                        disabled={not_component}
+                        disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.component))}
                         on_click={remove_slot}
                     />
-                    <MenuItem label="Open folder" disabled={not_folder} on_click={open_folder} />
+                    <MenuItem label="Open folder" disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.folder))} on_click={open_folder} />
                     <MenuItem
                         label="Remove folder"
-                        disabled={not_removable}
+                        disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.removable))}
                         on_click={remove_folder}
                     />
                 }}

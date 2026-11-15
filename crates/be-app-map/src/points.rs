@@ -40,7 +40,7 @@ pub(crate) fn Marker(
     let height = create_memo(move || MARKER_HEIGHT * unit.get());
     let named = create_memo({
         let label = label.clone();
-        move || !label.get().is_empty()
+        move || !label.with(String::is_empty)
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>

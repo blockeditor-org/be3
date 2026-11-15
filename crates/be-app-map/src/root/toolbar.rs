@@ -52,7 +52,7 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 icon_only=true
                 glyph=ICON_SCAN
                 label="Zoom to the preview region"
-                disabled={move || state.preview_region.get().is_none()}
+                disabled={move || state.preview_region.with(Option::is_none)}
                 @test_id={"map.zoom-region"}
                 on_click={move || state.request_fit()}
             />
@@ -63,7 +63,7 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}
             />
-            <Show condition={move || error.get().is_some()}>
+            <Show condition={move || error.with(Option::is_some)}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </DockBarSurface>

@@ -24,17 +24,19 @@ const ABOUT_MAP: &str =
 #[component]
 pub fn StoragePage(editor: Editor) -> NodeId {
     let usage = editor.watch::<StorageUsageWatch>();
-    let unknown = move || {
-        view! {
-            <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">{NO_SERVER}</Text>
-        }
-    };
     view! {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING>"Storage"</Text>
-                    <Show condition={move || usage.with(Option::is_some)} fallback={unknown}>
+                    <Show
+                        condition={move || usage.with(Option::is_some)}
+                        fallback={|| view! {
+                            <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">
+                                {NO_SERVER}
+                            </Text>
+                        }}
+                    >
                         <Usage usage />
                     </Show>
                     <Section title="What uses it" caption=ABOUT_MAP>

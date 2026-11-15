@@ -224,10 +224,9 @@ fn RelatedBlocks(
     let ids = create_memo(move || {
         refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
     });
-    let some = create_memo(move || !ids.get().is_empty());
     view! {
         <List spacing=Space::None>
-            <Show condition={some}>|| {
+            <Show condition={move || !ids.with(Vec::is_empty)}>|| {
                 let title = title.clone(); view! {
                     <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION>{title}</Text>

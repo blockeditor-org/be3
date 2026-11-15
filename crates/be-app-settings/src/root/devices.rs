@@ -316,21 +316,21 @@ fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) ->
                 .collect::<Vec<_>>()
         })
     });
-    let same = move || {
-        view! {
-            <Frame padding=SAME_PADDING>
-                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
-            </Frame>
-        }
-    };
     view! {
         <List spacing=Space::None>
-            <Show condition={move || !keys.with(Vec::is_empty)} fallback={same}>
-                <Table label="Devices and profiles" heading="Setting" columns={columns}>
-                    <ForEach keys={keys}>|key: String|
-                        <DevicesRow model={model} key={key} />
-                    </ForEach>
-                </Table>
+            <Show
+                condition={move || keys.with(Vec::is_empty)}
+                fallback={move || view! {
+                    <Table label="Devices and profiles" heading="Setting" columns={columns}>
+                        <ForEach keys={keys}>|key: String|
+                            <DevicesRow model={model} key={key} />
+                        </ForEach>
+                    </Table>
+                }}
+            >
+                <Frame padding=SAME_PADDING>
+                    <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
+                </Frame>
             </Show>
         </List>
     }

@@ -70,7 +70,6 @@ pub fn TagsView(editor: Editor) -> NodeId {
         editor.add_tag(editor.block_id(), &wanted, color);
         name.set(String::new());
     };
-    let locked = create_memo(move || !editable.get());
     view! {
         <SettingsPage>
             <SettingsSection title="Tags" description={description}>
@@ -85,7 +84,7 @@ pub fn TagsView(editor: Editor) -> NodeId {
                         <TextInput
                             value={Binding::new(name, move |text: String| name.set(text))}
                             placeholder="Name"
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={"tags.new-name"}
                         />
                         <Button
@@ -109,7 +108,6 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
     let name = content.project(|content| content.root().name.clone());
     let color = content.project(|content| content.root().color);
     let editable = editor.editable();
-    let locked = create_memo(move || !editable.get());
     let rename = move |text: String| content.operate(Tag::rename(&text));
     let selected = create_memo(move || TagColor::ALL.iter().position(|held| *held == color.get()));
     let recolor = move |index: Option<usize>| {
@@ -141,7 +139,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                     <Frame width=NAME_WIDTH>
                         <TextInput
                             value={Binding::new(name, rename)}
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={format!("tags.tag.{tag}.name")}
                         />
                     </Frame>
@@ -156,7 +154,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                                 </ForEach>
                             }}
                             selected={Binding::new(selected, recolor)}
-                            disabled={locked}
+                            disabled={move || !editable.get()}
                             @test_id={format!("tags.tag.{tag}.color")}
                         />
                     </Frame>
@@ -164,7 +162,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                         icon_only=true
                         glyph=ICON_TRASH
                         label="Remove tag"
-                        disabled={locked}
+                        disabled={move || !editable.get()}
                         @test_id={format!("tags.tag.{tag}.remove")}
                         on_click={remove}
                     />
