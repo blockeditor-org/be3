@@ -14,7 +14,7 @@ fn tries(block: Uuid) -> u32 {
 }
 
 fn wait_for_tries(block: Uuid, at_least: u32) {
-    crate::wait_until(|_| (tries(block) >= at_least).then_some(()));
+    crate::wait_until(&format!("tried to read the block {at_least} times"), |_| (tries(block) >= at_least).then_some(()));
 }
 
 /// Waits until a search for `text` answers exactly `blocks`, with nothing left to index.
@@ -24,7 +24,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should, with nothing left to send"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks && shared.waiting == 0 && !shared.draining)
@@ -87,7 +87,7 @@ fn a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart() {
     assert_eq!(settled(), None);
     reconnect(&mut harness);
     wait_for_tries(note, 3);
-    crate::wait_until(|shared| shared.search.settled_at.get(&index).copied());
+    crate::wait_until("settled the search index", |shared| shared.search.settled_at.get(&index).copied());
 
     // Its catch-ups now start past it, but a restart still reads it again: what was let go is
     // kept on this device. Read again, it is in no catch-up's page, so the watermark still
@@ -95,7 +95,7 @@ fn a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart() {
     stop();
     harness.connect();
     wait_for_tries(note, 4);
-    crate::wait_until(|shared| shared.search.settled_at.get(&index).copied());
+    crate::wait_until("settled the search index", |shared| shared.search.settled_at.get(&index).copied());
     finds("apples", &[]);
 
     // Once its commit reads, the next connection's catch-up indexes it.

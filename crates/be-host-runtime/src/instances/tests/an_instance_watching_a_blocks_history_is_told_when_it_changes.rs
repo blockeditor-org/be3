@@ -40,7 +40,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
         block,
         ChecklistContent::encode_operation(&Checklist::add("Standup").1),
     );
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("can undo the edit", |shared| {
         shared
             .histories
             .get(&block)

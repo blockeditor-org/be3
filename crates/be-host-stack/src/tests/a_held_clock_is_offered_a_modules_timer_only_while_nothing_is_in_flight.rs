@@ -20,7 +20,7 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
 
     add(owed, 2);
     wait_until("owes a seal for the edit", |shared| shared.owing > 0);
-    let due = crate::wait_until(|shared| shared.modules_due);
+    let due = crate::wait_until("offered the modules' timer", |shared| shared.modules_due);
     assert!(due > anchor, "the seal is due after the held moment");
     assert_eq!(harness.clock.now(), held, "the modules' clock stood still");
 
@@ -34,7 +34,7 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     add(owed, 4);
     // `parked` is set while the worker sleeps between rounds, so the round that saw the new edit
     // has ended and published what it offers.
-    let due = crate::wait_until(|shared| {
+    let due = crate::wait_until("parked the worker owing the new edit", |shared| {
         (shared.owing > 0 && shared.parked.is_some()).then_some(shared.modules_due)
     });
     assert_eq!(
@@ -49,7 +49,7 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
         shared.waiting == 0 && !shared.draining && shared.parked.is_some()
     });
     assert!(
-        crate::wait_until(|shared| Some(shared.owing)) > 0,
+        crate::wait_until("read what is owed", |shared| Some(shared.owing)) > 0,
         "the edit made after the seal is still owed"
     );
 }

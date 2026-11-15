@@ -12,7 +12,7 @@ fn found(text: &str) -> Vec<Uuid> {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("answered a search for {text:?}"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let mut found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         found.sort();
@@ -27,7 +27,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -60,7 +60,7 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
 
 /// Waits until search is idle and everything it wrote is sent.
 fn settled() {
-    crate::wait_until(|shared| {
+    crate::wait_until("settled search and sent what it wrote", |shared| {
         (shared.waiting == 0
             && shared
                 .search
@@ -103,7 +103,7 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     }
     assert_eq!(found("figs"), all);
     settled();
-    let index = crate::wait_until(|shared| {
+    let index = crate::wait_until("named the workspace's search index", |shared| {
         shared
             .graph
             .get(workspace)?
@@ -128,7 +128,7 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     other.merge_bytes.set(1);
     let grapes = other.index_note(workspace, index, "grapes");
     finds("grapes", &[grapes]);
-    crate::wait_until(|_| (peer.known_remote_head(index) != ours).then_some(()));
+    crate::wait_until("heard the other device's index head", |_| (peer.known_remote_head(index) != ours).then_some(()));
     crate::with_shared_mut(|shared| shared.search.hold_idle = false);
     send(Command::Sync);
     flush();
@@ -145,7 +145,7 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     // until nothing is over it.
     type_text(notes[0], 0, "grapefruit ");
     flush();
-    crate::wait_until(|shared| {
+    crate::wait_until("compacted the index while idle", |shared| {
         (shared.search.idle_compactions > 0
             && shared.search.idle_done(&peer)
             && shared.waiting == 0)

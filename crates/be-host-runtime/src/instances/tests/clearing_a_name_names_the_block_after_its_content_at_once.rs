@@ -19,7 +19,7 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
         block,
         &be_sdk_type_guest::editor::FromEditor::Resend,
     );
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("held and listed the tab", |shared| {
         (shared.blocks.contains_key(&block) && shared.graph.get(block).is_some()).then_some(())
     });
 
@@ -31,7 +31,7 @@ fn clearing_a_name_names_the_block_after_its_content_at_once() {
         .root()
         .replace(&HistoryItem::new("https://example.com/", "Example Domain"));
     be_host_stack::operate(block, BrowserTabContent::encode_operation(&edit));
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("titled the tab \"Example Domain\"", |shared| {
         let held = shared.blocks.get(&block)?;
         let tab = BrowserTabContent::decode(held.bytes()).ok()?;
         (tab.root().current().title == "Example Domain").then_some(())

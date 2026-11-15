@@ -8,7 +8,7 @@ use super::*;
 fn settings_are_not_made_again_by_a_host_that_has_not_heard_the_roots_listed() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("listed the roots", |shared| {
         shared
             .graph
             .ready(be_host_stack::Query::Roots)

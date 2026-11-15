@@ -20,7 +20,7 @@ fn seed(instances: &mut Instances, block: Uuid) {
 
 fn opened_at(block: Uuid) -> i64 {
     be_host_stack::open(block, CounterContent::CONTENT_TYPE);
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("opened the counter", |shared| {
         let held = shared.blocks.get(&block)?;
         CounterContent::decode(held.bytes())
             .ok()
@@ -32,7 +32,7 @@ fn opened_at(block: Uuid) -> i64 {
 fn an_app_seeds_only_blocks_it_holds() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
-    be_host_stack::wait_until(|_| {
+    be_host_stack::wait_until("knew the counter type", |_| {
         be_host_stack::is_known(CounterContent::CONTENT_TYPE).then_some(())
     });
     let own = Uuid::new_v4();

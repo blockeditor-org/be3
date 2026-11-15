@@ -50,12 +50,12 @@ fn a_search_index_write_that_fails_is_queued_again() {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until("found \"apples\" in the note", |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == [note]).then_some(())
     });
-    crate::wait_until(|shared| (shared.search.fail_writes == 0).then_some(()));
+    crate::wait_until("wrote the index after the failed writes", |shared| (shared.search.fail_writes == 0).then_some(()));
     let error = with_shared_mut(|shared| shared.error.clone()).flatten();
     assert!(
         !error.is_some_and(|error| error.starts_with("Indexing for search failed")),
