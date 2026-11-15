@@ -13,7 +13,7 @@ opener's and is a guest of the block's organization
 
 Open questions before building it:
 
-- Registering with no identity (plans/accounts.md): what the server asks of
+- Registering with no identity (guides/blocks/server.md, "Accounts"): what the server asks of
   such an account, and how it limits how many one person makes.
 - What happens to the account when its device is lost, since nobody saved its
   phrase: it ends with its last grant, or it can be claimed later.
