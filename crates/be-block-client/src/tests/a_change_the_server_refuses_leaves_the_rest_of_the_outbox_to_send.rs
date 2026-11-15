@@ -58,7 +58,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
         offline
             .save(note, &TextBlock::of("written while away"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let written = offline.local_head(note).unwrap();
 
