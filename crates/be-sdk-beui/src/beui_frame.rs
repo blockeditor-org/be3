@@ -14,7 +14,7 @@ use beui::{Key, KeyAt, KeyPhase, Pos2, Rect, Vec2, pos2};
 use crate::chrome::ChromeRoot;
 use crate::docked::DockedTabs;
 use crate::picking::Pickers;
-use crate::{BlockInfo, BlockList, BlockQuery, Editor};
+use crate::{BlockInfo, BlockList, BlockQuery, Editor, Pushed};
 
 const PALETTE: Chord = Chord::ctrl(Key::P).shift();
 
@@ -322,20 +322,20 @@ impl Watched {
     }
 
     fn history(&self) -> (bool, bool) {
-        self.editor.histories().track();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
     }
 
     /// The commit of the session restart undo stopped at, once nothing after it is left.
     fn stopped_at(&self) -> Option<[u8; 32]> {
-        self.editor.histories().track();
+        self.editor.pushed(Pushed::Histories).track();
         let history = self.editor.host().history(self.editor.block_id());
         history.restarted_at.filter(|_| !history.can_undo)
     }
 
     fn lost_edits(&self) -> bool {
-        self.editor.histories().track();
+        self.editor.pushed(Pushed::Histories).track();
         self.editor
             .host()
             .history(self.editor.block_id())
