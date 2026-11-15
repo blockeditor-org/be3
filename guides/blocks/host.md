@@ -101,12 +101,16 @@ The worker publishes at the end of each pass and before the host hears anything 
 change notices (`changes::post`) and the answers to the host's replies (`seen::hold_answer`,
 a flush's too) are held thread-locally and go in the update a task publishes once the worker
 yields, which then wakes the host. The host takes the updates once a frame, as be-host's
-frame starts (`take_updates` in `frame.rs`), so every read in a frame, be-host's and the app
-runtimes', reads one snapshot; then its watchers hear the changes and the replies' callbacks
-run with their answers, reading what the worker did before answering. A test has no frames:
-under `testing` a thread takes each update as it lands (`start`). What must block on the
-worker natively (a flush as the window closes, a push opened by the running stack) takes
-updates as it waits (`wait_for_answer`); the web's page never blocks. `wait_until`, and a
+frame starts (`take_updates_in_frame` in `frame.rs`), so every read in a frame, be-host's and
+the app runtimes', reads one snapshot; then its watchers hear the changes and the replies'
+callbacks run with their answers, reading what the worker did before answering. Answers that
+land after the stack stopped are lost with it. A test that runs no frames has a thread take
+each update as it lands under `testing` (`start`), until a frame takes them. What answers
+outside a frame awaits its reply taking updates as they land (`taking_updates`): a hidden
+tab runs no frames, and a push the service worker asks the page to open must still be
+answered (`web_push.rs`). What must block on the worker natively (a flush as the window
+closes, a push opened by the running stack) takes updates as it waits (`wait_for_answer`);
+the web's page never blocks. `wait_until`, and a
 test's change to `Shared`, publish and take too.
 
 What the host changes itself is an `Edit` (`create`, `define`, `set_parent`, `want`, an

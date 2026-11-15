@@ -205,7 +205,7 @@ pub(crate) fn begin(context: &beui::native::Context) {
         deliver(save);
     }
     // What the worker handed over since the last frame, read by everything this frame does.
-    be_host_stack::take_updates();
+    be_host_stack::take_updates_in_frame();
     be_host_stack::hold_clock(context.clock_stopped().then(|| context.now()));
     be_host_stack::pin_wall_clock(
         beui::reactive::wall_clock_is_pinned().then(beui::reactive::wall_clock),
