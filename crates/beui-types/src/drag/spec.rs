@@ -97,7 +97,8 @@ pub enum DragSpec<D> {
     Thrown { spec: Box<DragSpec<D>>, speed: f32 },
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
-    /// Anything else, from the point and the last frame.
+    /// Anything else, from the point and the last frame. For now it only draws: it chooses
+    /// no drop, so a release on it commits nothing.
     Custom(Rc<dyn Fn(DragPoint, &DragFrame) -> DragFrame>),
 }
 
@@ -251,24 +252,28 @@ impl<D: 'static> DragSpec<D> {
 }
 
 /// What a drag lifts: its payload, erased (a board hands it back typed), and the item's rect
-/// relative to the pointer, which the item keeps while it floats.
+/// relative to the pointer, which the item keeps while it floats. With no `item`, an
+/// `Interactive` lifting it gives its own node, held where it was pressed.
 #[derive(Clone)]
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
-    pub item: Rect,
+    pub item: Option<Rect>,
 }
 
 impl Carry {
     pub fn new<P: 'static>(payload: P) -> Self {
         Self {
             payload: Rc::new(payload),
-            item: Rect::ZERO,
+            item: None,
         }
     }
 
     /// The item's rect relative to the pointer, as the source drew it when lifted.
     pub fn item(self, item: Rect) -> Self {
-        Self { item, ..self }
+        Self {
+            item: Some(item),
+            ..self
+        }
     }
 }
 
@@ -347,7 +352,7 @@ pub fn evaluate<D: Clone>(
                 floating: found.floating,
                 chain: found.chain,
             },
-            drop: found.drop,
+            drop: found.drop.map(Dropped::owned),
         },
         None => Evaluated {
             frame: DragFrame {
@@ -361,17 +366,40 @@ pub fn evaluate<D: Clone>(
     }
 }
 
-struct Found<D> {
+/// What dropping on a found place means: borrowed from the spec until a place wins, so only
+/// the winner's is cloned.
+enum Dropped<'s, D> {
+    Spec(&'s D),
+    Made(D),
+}
+
+impl<D: Clone> Dropped<'_, D> {
+    fn owned(self) -> D {
+        match self {
+            Dropped::Spec(drop) => drop.clone(),
+            Dropped::Made(drop) => drop,
+        }
+    }
+}
+
+struct Found<'s, D> {
     item: Rect,
     chosen: Option<CandidateId>,
-    drop: Option<D>,
+    drop: Option<Dropped<'s, D>>,
     floating: bool,
     chain: bool,
     /// How far the place is from the carried item: what `closest` and `when_far` compare.
     distance: f32,
 }
 
-fn floated<D>(carried: Rect) -> Found<D> {
+impl<D> Found<'_, D> {
+    /// A place was found: anything chosen, not merely floating.
+    fn placed(&self) -> bool {
+        self.chosen.is_some()
+    }
+}
+
+fn floated<'s, D>(carried: Rect) -> Found<'s, D> {
     Found {
         item: carried,
         chosen: None,
@@ -388,13 +416,13 @@ fn distance(carried: Rect, rest: Rect) -> f32 {
 
 /// Gives every node of `spec` its id in depth-first order and evaluates it. `None` when no
 /// place can be found (a candidate whose node is gone).
-fn walk<D: Clone>(
-    spec: &DragSpec<D>,
+fn walk<'s, D: Clone>(
+    spec: &'s DragSpec<D>,
     evaluation: &Evaluation,
     last: &DragFrame,
     carried: Rect,
     next: &mut usize,
-) -> Option<Found<D>> {
+) -> Option<Found<'s, D>> {
     let id = CandidateId(*next);
     *next += 1;
     match spec {
@@ -413,38 +441,51 @@ fn walk<D: Clone>(
             Some(Found {
                 item: rest,
                 chosen: Some(id),
-                drop: Some(candidate.drop.clone()),
+                drop: Some(Dropped::Spec(&candidate.drop)),
                 floating: false,
                 chain: false,
                 distance,
             })
         }
         DragSpec::Closest { of, sticky } => {
-            let found: Vec<Found<D>> = of
-                .iter()
-                .filter_map(|spec| walk(spec, evaluation, last, carried, next))
-                .collect();
-            let held = found
-                .iter()
-                .position(|found| found.chosen.is_some() && found.chosen == last.chosen);
-            let nearest = found
-                .iter()
-                .enumerate()
-                .filter(|(_, found)| found.distance.is_finite())
-                .min_by(|(_, left), (_, right)| left.distance.total_cmp(&right.distance))
-                .map(|(at, _)| at);
-            let pick = match (held, nearest) {
-                (Some(held), Some(nearest))
-                    if found[held].distance.is_finite()
-                        && found[nearest].distance + sticky >= found[held].distance =>
-                {
-                    held
+            // The place held from the last frame, the nearest place, and the first floating
+            // found: a place always beats floating, so a far site floating never takes the
+            // item from a near site's place; it floats only when no place is in reach. A
+            // place infinitely far (a zone the pointer left) is let go.
+            let mut held: Option<Found<D>> = None;
+            let mut nearest: Option<Found<D>> = None;
+            let mut floats: Option<Found<D>> = None;
+            for spec in of {
+                let Some(found) = walk(spec, evaluation, last, carried, next) else {
+                    continue;
+                };
+                if !found.placed() {
+                    floats.get_or_insert(found);
+                    continue;
                 }
-                (_, Some(nearest)) => nearest,
-                (Some(held), None) => held,
-                (None, None) => return None,
-            };
-            found.into_iter().nth(pick)
+                if !found.distance.is_finite() {
+                    continue;
+                }
+                if found.chosen == last.chosen {
+                    held = Some(found);
+                } else if nearest
+                    .as_ref()
+                    .is_none_or(|nearest| found.distance < nearest.distance)
+                {
+                    nearest = Some(found);
+                }
+            }
+            match (held, nearest) {
+                (Some(held), Some(nearest)) => {
+                    match nearest.distance + sticky >= held.distance {
+                        true => Some(held),
+                        false => Some(nearest),
+                    }
+                }
+                (Some(held), None) => Some(held),
+                (None, Some(nearest)) => Some(nearest),
+                (None, None) => floats,
+            }
         }
         DragSpec::Free { area, drop } => {
             let (area, _) = (evaluation.placed)(area.try_get()?)?;
@@ -452,7 +493,7 @@ fn walk<D: Clone>(
             Some(Found {
                 item,
                 chosen: Some(id),
-                drop: Some(drop(item)),
+                drop: Some(Dropped::Made(drop(item))),
                 floating: false,
                 chain: false,
                 distance: distance(carried, item),
@@ -510,7 +551,7 @@ fn walk<D: Clone>(
             Some(Found {
                 item: carried,
                 chosen: Some(id),
-                drop: Some(drop.clone()),
+                drop: Some(Dropped::Spec(drop)),
                 floating: true,
                 chain: false,
                 distance: match inside {

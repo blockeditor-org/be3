@@ -218,7 +218,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      `beui-types`' `Space`/`Driver`, no new dependency); tests on the fake `Space` and a
      beui-tests screen both cores drive.
    - **1c:** the floating preview (`Carry::preview`, and the source's own face by default), a
-     `Driver` per pointer, keys on a lifted item, and publishing frames as presence.
+     `Driver` per pointer, keys on a lifted item, and publishing frames as presence. It owns a
+     source whose scope is dropped mid-carry (the item keeps floating, or is put down), and may
+     give a site an optional node, which the inspector and `Into` nesting want.
    - **1d:** beui-demo pages: the list above, free positioning that snaps into slots
      (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An
      inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector), that
