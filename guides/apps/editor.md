@@ -20,7 +20,9 @@ runs the command whose id comes back. The protocol knows nothing of beui.
 
 An editor adds its part while its view is built:
 `add_to_menu(vec![MenuNode::action(&action), MenuNode::submenu(..), ..])`
-over actions it registered; the part goes when the adding scope does. Every
+over actions it registered; the part goes when the adding scope does. It joins
+only its own frame's menu (`menu_scope`), though the app's other editors share its
+document. Every
 action is also in the command palette, and buttons and menu rows that take it
 as their `action` prop share its label, enabled state, tick and shortcut
 (guides/beui_keyboard.md, Actions and the command palette). An action with
