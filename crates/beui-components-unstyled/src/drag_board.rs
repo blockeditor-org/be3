@@ -31,6 +31,8 @@ struct Carried {
     refused: bool,
     last: Option<DragPoint>,
     floating: Option<bool>,
+    /// The first pointer to move it: with several pressing, only it moves the carry.
+    pointer: Option<PointerId>,
 }
 
 type Scrolling = (u64, f32, Rc<dyn Fn(Option<f32>)>);
@@ -169,6 +171,7 @@ impl Board {
             refused: false,
             last: None,
             floating: None,
+            pointer: Some(point.pointer),
         });
         for mark in marks {
             mark(true);
@@ -568,6 +571,12 @@ impl Driver for Board {
                 self.place(point, false);
             }
             return;
+        }
+        if let Some(carried) = self.carried.borrow_mut().as_mut() {
+            match carried.pointer {
+                Some(pointer) if pointer != point.pointer => return,
+                _ => carried.pointer = Some(point.pointer),
+            }
         }
         self.order(order);
         Board::track(self, point);

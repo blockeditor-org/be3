@@ -177,6 +177,9 @@ impl InteractiveNode {
     }
 }
 
+/// A press at `pos` in a node laid out at `rect`. Its `pointer` is a stand-in (the mouse,
+/// or for `touch` a finger 0); a pointer session overrides it with its own, and only a
+/// session's press reaches a drag.
 pub fn press_at(
     rect: Rect,
     scale: f32,

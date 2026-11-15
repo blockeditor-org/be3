@@ -85,8 +85,8 @@ mod web {
 
     use beui_types::clipboard::formats;
     use beui_types::input::{
-        ImeEvent, Input, KeyPress, PointerButton, PointerId, PointerInput, PointerPhase,
-        PointerPress, PointerStage, ScrollGesture, TouchId, WheelInput, ZoomGesture, scrolled,
+        ImeEvent, Input, KeyPress, PointerButton, PointerInput, PointerPhase,
+        PointerPress, PointerStage, ScrollGesture, WheelInput, ZoomGesture, scrolled,
     };
     use beui_types::{ClipItem, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;
@@ -235,14 +235,7 @@ mod web {
         stage: PointerStage,
     ) -> PointerInput {
         let at = placed(element, event.client_x().into(), event.client_y().into());
-        let pointer = match event.pointer_type().as_str() {
-            "touch" => PointerId::Touch(TouchId {
-                device: 0,
-                finger: event.pointer_id() as u64,
-            }),
-            "pen" => PointerId::Pen,
-            _ => PointerId::Mouse,
-        };
+        let pointer = crate::drags::pointer_of(Some(event));
         PointerInput {
             pointer,
             button: button(event.button()),

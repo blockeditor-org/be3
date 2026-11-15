@@ -1758,17 +1758,26 @@ fn track(doc: &mut Document, frame: &Frame) {
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, window, touch });
-    // The pointer is the one pressing, whose drag this frame re-sends.
-    let held = doc
+    let Some(drags) = doc.drags.clone() else {
+        return;
+    };
+    // Each pressing pointer re-sends its own drag this frame, at its own place: the board
+    // follows only the one that carries. With none pressing, the pointer is the mouse.
+    let mut points: Vec<beui_types::drag::DragPoint> = doc
         .pointers
         .sessions
         .iter()
-        .find(|session| session.role == Role::Press)
-        .map_or(PointerId::Mouse, |session| session.pointer);
-    if let Some(drags) = doc.drags.clone() {
-        let point = beui_types::drag::DragPoint::at(pos, modifiers)
-            .in_window(window)
-            .by(held);
+        .filter(|session| session.role == Role::Press)
+        .map(|session| {
+            beui_types::drag::DragPoint::at(session.pos, modifiers)
+                .in_window(session.window)
+                .by(session.pointer)
+        })
+        .collect();
+    if points.is_empty() {
+        points.push(beui_types::drag::DragPoint::at(pos, modifiers).in_window(window));
+    }
+    for point in points {
         drags.track(point, &|node| drag_order(doc, node));
     }
 }
