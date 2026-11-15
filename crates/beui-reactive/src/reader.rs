@@ -121,6 +121,8 @@ impl<T: 'static> From<Source<T>> for Reader<Ready<T>> {
 
 impl<T: 'static> From<AsyncMemo<T>> for Reader<Ready<T>> {
     fn from(memo: AsyncMemo<T>) -> Self {
-        memo.source().into()
+        Self(Held::Lent(store(Box::new(
+            move |f: &mut dyn FnMut(&Ready<T>)| memo.with(|value| f(value)),
+        ))))
     }
 }
