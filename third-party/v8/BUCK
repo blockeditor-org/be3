@@ -34,8 +34,8 @@ _PREBUILT = {
 
 # TODO(maintainer): rusty_v8 publishes no Android build. Until this names one
 # built by scripts/internal/build-rusty-v8-android.sh and hosted by us, with its
-# hash and size, Android keeps running guests on wasmtime (be-wasm-host's
-# Cargo.toml depends on `v8` everywhere else) and nothing builds this target.
+# hash and size, every Android build that runs guests fails here: Android
+# cannot run apps until then (plans/wasm_on_v8.md).
 # The crate ships no bindings for Android either, so the same build makes them.
 configured_once(
     http_file,
