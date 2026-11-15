@@ -32,14 +32,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
-## 8. Input
-
-- **Touches per window.** beui-core's `InputState::touches` is one list across
-  the windows an input serves, so fingers on two touch displays at once read as
-  one gesture, as a click in one window once counted toward a double-click in
-  another (`ClickCounter`). Done: a touch in one window never joins a gesture in
-  another, shown by a beui-core test with two windows' touches.
-
 ## 9. Version control's caches
 
 - **Trees and commits read once.** A version command in the lane runs on a `Versions` of its
