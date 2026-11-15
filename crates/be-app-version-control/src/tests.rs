@@ -7,6 +7,7 @@ use be_sdk_beui::{
     BeuiRoot, BlockCommand, ConflictSide, VersionBranch, VersionChange, VersionChangeKind,
     VersionCommand, VersionCommit, VersionOperation, VersionStatus, short_id,
 };
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 

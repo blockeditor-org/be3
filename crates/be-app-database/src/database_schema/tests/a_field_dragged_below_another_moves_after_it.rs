@@ -36,11 +36,9 @@ fn a_field_dragged_below_another_moves_after_it() {
     harness.hover(below);
     harness.next_frame();
     harness.up(below, PointerButton::Primary);
-    harness.run();
     assert_eq!(order(&harness), vec![ids[1], ids[2], ids[0]]);
 
     harness.click(format!("database-schema.up.{}", ids[0]));
-    harness.run();
     assert_eq!(
         order(&harness),
         vec![ids[1], ids[0], ids[2]],

@@ -75,7 +75,6 @@ fn every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape() {
 
     let grab = at_rest.center();
     editor.down(grab, PointerButton::Primary);
-    editor.run();
     sync(&mut editor, &mut peer);
     for step in 1..=12 {
         let at = grab + Vec2::new(step as f32 * 7.0, step as f32 * 11.0);
@@ -100,7 +99,6 @@ fn every_frame_of_a_drag_draws_a_bound_end_on_the_moved_shape() {
         );
     }
     editor.up(grab + Vec2::new(84.0, 132.0), PointerButton::Primary);
-    editor.run();
     sync(&mut editor, &mut peer);
     assert_follows(&editor, &placing, &target, &arrow, "after the drag");
     assert_follows(&peer, &placing, &target, &arrow, "the peer after the drag");

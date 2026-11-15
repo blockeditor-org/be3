@@ -30,6 +30,7 @@ fn a_floating_bar_dragged_by_its_grip_follows_to_the_end_and_lands_where_let_go(
         );
     }
     fixture.test.advance(std::time::Duration::from_millis(200));
+    fixture.test.run();
     fixture.test.desk_release(rest);
     fixture.test.settle();
     let landed = fixture.test.desk_rects_of("desktop.bar.apps");

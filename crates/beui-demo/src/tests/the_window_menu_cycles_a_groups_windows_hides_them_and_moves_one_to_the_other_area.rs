@@ -12,7 +12,7 @@ fn the_window_menu_cycles_a_groups_windows_hides_them_and_moves_one_to_the_other
     let mut test = alone(WIDE, Page::WindowManager);
     test.settle();
     for window in 1..=3 {
-        assert!(test.shows(&format!("wm.window.{window}")));
+        assert!(test.shown(&format!("wm.window.{window}")));
     }
 
     test.click("wm.window.1");
@@ -20,18 +20,18 @@ fn the_window_menu_cycles_a_groups_windows_hides_them_and_moves_one_to_the_other
     act(&mut test, "next_of_group");
     act(&mut test, "hide");
     assert!(
-        !test.shows("wm.window.2") && test.shows("wm.window.1"),
+        !test.shown("wm.window.2") && test.shown("wm.window.1"),
         "the next window of the notes' group took the focus, so it is the one hidden"
     );
 
     act(&mut test, "show_desktop");
     assert!(
-        !test.shows("wm.window.1") && !test.shows("wm.window.3"),
+        !test.shown("wm.window.1") && !test.shown("wm.window.3"),
         "show desktop hides every window"
     );
     act(&mut test, "show_desktop");
     assert!(
-        test.shows("wm.window.1") && test.shows("wm.window.3") && !test.shows("wm.window.2"),
+        test.shown("wm.window.1") && test.shown("wm.window.3") && !test.shown("wm.window.2"),
         "and a second time brings back what it hid"
     );
 
@@ -43,7 +43,7 @@ fn the_window_menu_cycles_a_groups_windows_hides_them_and_moves_one_to_the_other
 
     act(&mut test, "close");
     assert!(
-        !test.shows("wm.window.3"),
+        !test.shown("wm.window.3"),
         "close goes through the tab's own close"
     );
 }

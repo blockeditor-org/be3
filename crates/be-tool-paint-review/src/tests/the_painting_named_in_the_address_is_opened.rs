@@ -9,7 +9,7 @@ fn the_painting_named_in_the_address_is_opened() {
     let mut review = Review::open(Some("no.such_painting"));
     review.load(mixed());
     assert!(
-        review.test.shows("paint_review.grid"),
+        review.test.shown("paint_review.grid"),
         "a name the pull request did not change shows the grid"
     );
 }

@@ -66,7 +66,6 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
             ..Modifiers::NONE
         },
     );
-    editor.run();
     palette_runs(&mut editor, "copy as svg");
     let copied = editor.take_copied_text();
     let [svg] = copied.as_slice() else {
@@ -84,7 +83,6 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     );
 
     editor.double_click(format!("infinite-canvas.text.{}", note.id));
-    editor.run();
     editor.next_frame();
     let (angle, ..) = turned(&editor, "Turned note");
     assert_eq!(angle, 0.0, "text being edited is drawn upright");

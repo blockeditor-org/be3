@@ -21,7 +21,6 @@ fn a_reference_unlinked_while_the_text_is_open_is_rewritten_under_the_caret() {
     }
     editor.run();
     editor.type_text(",");
-    editor.run();
 
     assert_eq!(text(&editor), format!("see, {}", link(new)));
 }

@@ -9,6 +9,7 @@ use be_sdk_beui::{BlockInfo, BlockParent};
 
 use be_sdk_beui::be_block::SettingsContent;
 use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
@@ -161,14 +162,10 @@ impl SetUp {
             .position(|known| *known == class)
             .expect("every class is offered");
         self.editor.click("setup.kind");
-        self.editor.run();
         self.editor.key(Key::Home, Modifiers::NONE);
-        self.editor.run();
         for _ in 0..index {
             self.editor.key(Key::ArrowDown, Modifiers::NONE);
-            self.editor.run();
         }
         self.editor.key(Key::Enter, Modifiers::NONE);
-        self.editor.run();
     }
 }

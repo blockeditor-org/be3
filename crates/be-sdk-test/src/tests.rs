@@ -8,6 +8,7 @@ use beui::styled::*;
 use uuid::Uuid;
 
 use crate::BeuiTest;
+use crate::prelude::*;
 use be_sdk_beui::be_block::DisplaySettings;
 use be_sdk_beui::be_block::{
     DisplaySettingsContent, Settings, SettingsContent, SettingsProfile, SettingsProfileContent,

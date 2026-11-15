@@ -7,6 +7,7 @@ fn a_message_kept_offline_tells_the_other_members_even_when_the_chat_is_closed_a
     chat.write("Running late");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.run();
     assert!(chat.editor.take_announced().is_empty());
 

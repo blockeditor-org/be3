@@ -11,7 +11,6 @@ fn a_player_joins_by_clicking_the_deck_even_without_the_chrome() {
     editor.snapshot("a_player_joins_by_clicking_the_deck_even_without_the_chrome");
 
     editor.click("game.pile.0");
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), 1);

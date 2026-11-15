@@ -17,12 +17,10 @@ fn clicking_a_card_then_the_discard_pile_plays_it() {
 
     let on_it = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
     editor.click(on_it);
-    editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     editor.snapshot("clicking_a_card_selects_it");
 
     editor.click("game.pile.1");
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);

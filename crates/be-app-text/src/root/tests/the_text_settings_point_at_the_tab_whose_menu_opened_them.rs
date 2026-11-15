@@ -1,3 +1,4 @@
+use be_sdk_test::prelude::*;
 use super::editor;
 use beui::{Rect, pos2};
 

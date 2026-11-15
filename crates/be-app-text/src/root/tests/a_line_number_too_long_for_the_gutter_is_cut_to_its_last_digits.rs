@@ -8,7 +8,6 @@ fn a_line_number_too_long_for_the_gutter_is_cut_to_its_last_digits() {
     editor.pick_menu("text.line-numbers");
     editor.run();
     editor.scroll("text.surface", Vec2::new(0.0, 1.0e7));
-    editor.run();
 
     editor.snapshot("a_line_number_too_long_for_the_gutter_is_cut_to_its_last_digits");
 }

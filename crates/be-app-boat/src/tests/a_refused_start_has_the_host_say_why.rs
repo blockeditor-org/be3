@@ -5,9 +5,7 @@ fn a_refused_start_has_the_host_say_why() {
     let mut boat = Boat::listing(SANDBOXES);
 
     boat.test.click("boat.sandbox.bx_r4t8w3ne.start");
-    boat.test.run();
     boat.test.click("boat.sandbox.bx_r4t8w3ne.confirm");
-    boat.test.run();
     let resume = boat.fetch();
     boat.answer(&resume, 402, PAYMENT_REQUIRED);
 

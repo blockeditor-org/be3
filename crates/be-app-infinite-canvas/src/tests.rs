@@ -7,6 +7,7 @@ use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_database::database::DatabaseValue;
 use be_type_infinite_canvas::Canvas;
@@ -464,8 +465,7 @@ fn raster_canvas(entities: &[CanvasEntity]) -> Canvas {
 fn raster_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasRoot> {
     let mut editor = open(&raster_canvas(entities), false, &[]);
     let center = editor.rect_of("infinite-canvas.canvas").center();
-    editor.pinch(center, RASTER_ZOOM);
-    editor.run();
+    editor.zoom_view(center, RASTER_ZOOM);
     editor
 }
 
@@ -518,7 +518,6 @@ fn painted_scaled_layer() -> (BeuiTest<CanvasRoot>, Uuid) {
     editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center + Vec2::new(4.0, 4.0));
-    editor.run();
     (editor, layer.id)
 }
 

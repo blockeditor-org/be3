@@ -76,6 +76,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
         "choosing a file shows that file"
     );
     assert_eq!(fixture.focused(), Some(first));
+    fixture.test.settle();
 
     let switch = {
         let document = fixture.test.document();
@@ -89,6 +90,7 @@ fn a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches() {
     };
     fixture.test.click(switch);
     fixture.settle();
+    fixture.test.settle();
     tap(&mut fixture, "dock.switcher.close.2");
     assert_eq!(
         fixture.shown(),

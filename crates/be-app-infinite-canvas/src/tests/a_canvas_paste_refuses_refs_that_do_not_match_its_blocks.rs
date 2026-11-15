@@ -8,7 +8,6 @@ fn a_canvas_paste_refuses_refs_that_do_not_match_its_blocks() {
     shown.block = Some(Uuid::nil());
     let mut editor = editor(&[]);
     editor.click(editor.rect_of("infinite-canvas.canvas").center());
-    editor.run();
     let items = CanvasItems {
         canvas: Uuid::new_v4(),
         blocks: vec![Uuid::from_u128(5), Uuid::from_u128(6)],

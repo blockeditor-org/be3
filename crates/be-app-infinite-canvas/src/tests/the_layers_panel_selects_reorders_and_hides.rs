@@ -23,13 +23,11 @@ fn the_layers_panel_selects_reorders_and_hides() {
     );
 
     editor.click(format!("infinite-canvas.layer.{back}"));
-    editor.run();
     assert_eq!(
         editor.label("infinite-canvas.selection"),
         "Rectangle selected"
     );
     editor.click("infinite-canvas.delete");
-    editor.run();
     assert_eq!(
         order(&editor),
         vec![middle, front],
@@ -47,7 +45,6 @@ fn the_layers_panel_selects_reorders_and_hides() {
     );
 
     editor.click(format!("infinite-canvas.layer.{front}.visibility"));
-    editor.run();
     let hidden: Vec<_> = entities(&editor)
         .into_iter()
         .filter(|entity| entity.hidden)

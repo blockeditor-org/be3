@@ -32,20 +32,13 @@ fn in_a_windowed_desktop_the_keyboard_and_pasting_are_set_but_not_the_pointers()
         ("input.options", "caps:escape"),
     ] {
         editor.click(field);
-        editor.run();
         editor.type_text(text);
-        editor.run();
     }
     editor.click("input.repeat-delay");
-    editor.run();
     editor.key(Key::End, Modifiers::NONE);
-    editor.run();
     editor.click("input.repeat-rate");
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     editor.click("input.middle-click-paste");
-    editor.run();
 
     let set = content(&editor).root().clone();
     assert_eq!(set.keyboard_layout.as_deref(), Some("us,de"));

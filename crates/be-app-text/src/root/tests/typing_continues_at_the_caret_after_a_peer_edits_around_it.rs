@@ -11,7 +11,6 @@ fn typing_continues_at_the_caret_after_a_peer_edits_around_it() {
     assert_eq!(text(&editor), ">> hello world!");
 
     editor.type_text("big ");
-    editor.run();
 
     assert_eq!(text(&editor), ">> hello big world!");
 }

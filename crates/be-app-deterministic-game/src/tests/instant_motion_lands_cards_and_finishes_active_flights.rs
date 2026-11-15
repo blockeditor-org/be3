@@ -25,9 +25,7 @@ fn instant_motion_lands_cards_and_finishes_active_flights() {
     let flight = format!("game.flight.{}", id.0);
 
     editor.click(on_the_card(&editor, &held));
-    editor.run();
     editor.click("game.pile.1");
-    editor.run();
 
     assert_eq!(moves(&editor).len(), actions.len() + 1);
     assert!(editor.shown(&flight));

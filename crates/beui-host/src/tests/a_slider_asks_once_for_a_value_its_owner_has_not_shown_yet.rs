@@ -28,9 +28,9 @@ fn a_slider_asks_once_for_a_value_its_owner_has_not_shown_yet() {
     );
 
     asked.set(Vec::new());
-    program.run(&["down", "#volume+10,5"]);
-    program.run(&["pause", "100"]);
-    program.run(&["up"]);
+    program.drive(&["down", "#volume+10,5"]);
+    program.drive(&["pause", "100"]);
+    program.drive(&["up"]);
     assert_eq!(
         asked.get_untracked().len(),
         1,

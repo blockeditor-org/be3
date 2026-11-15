@@ -15,6 +15,7 @@ fn a_forged_deletion_of_a_closed_message_shows_where_it_was() {
         .collect();
     let mut chat = Harness::new(&initial);
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     let content = chat.content();
     let newest = content.segments().last().expect("a segment").last;
@@ -34,6 +35,7 @@ fn a_forged_deletion_of_a_closed_message_shows_where_it_was() {
     chat.editor
         .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
     chat.editor.advance(Duration::from_millis(100));
+    chat.editor.run();
     chat.run();
     assert!(
         chat.row(newest).contains("forged Message deleted"),

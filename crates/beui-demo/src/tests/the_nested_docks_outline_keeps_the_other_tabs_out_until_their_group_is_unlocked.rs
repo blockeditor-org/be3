@@ -26,7 +26,7 @@ fn the_nested_docks_outline_keeps_the_other_tabs_out_until_their_group_is_unlock
     test.hover(into_outline.clone());
     test.frame(Vec::new());
     assert!(
-        test.shows("dock.refused"),
+        test.shown("dock.refused"),
         "dragged over the locked area, the tab shows it is refused"
     );
     test.snapshot("the_nested_docks_outline_refuses_a_tab_dragged_over_it");

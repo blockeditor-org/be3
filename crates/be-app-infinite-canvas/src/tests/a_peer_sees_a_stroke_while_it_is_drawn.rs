@@ -17,7 +17,6 @@ fn a_peer_sees_a_stroke_while_it_is_drawn() {
     let mut held = BTreeMap::new();
 
     drawer.click("infinite-canvas.dock.tool.Pen");
-    drawer.run();
     let canvas = drawer.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(200.0, 0.0);
     let at = |along: f32| from + Vec2::new(400.0 * along, 60.0 * (along * 9.0).sin());

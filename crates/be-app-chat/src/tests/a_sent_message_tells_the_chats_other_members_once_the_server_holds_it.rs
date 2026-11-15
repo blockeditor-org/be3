@@ -11,6 +11,7 @@ fn a_sent_message_tells_the_chats_other_members_once_the_server_holds_it() {
     chat.write("Running late");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(
         chat.editor.take_announced(),
@@ -19,6 +20,7 @@ fn a_sent_message_tells_the_chats_other_members_once_the_server_holds_it() {
     );
 
     chat.editor.advance(Duration::from_secs(5));
+    chat.editor.run();
     chat.run();
     assert!(chat.editor.take_announced().is_empty(), "and only once");
 }

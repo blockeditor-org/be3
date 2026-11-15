@@ -1,3 +1,4 @@
+use be_sdk_test::prelude::*;
 use super::{editor, step_through_wrapped_line};
 
 #[test]

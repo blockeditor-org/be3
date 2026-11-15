@@ -6,7 +6,6 @@ fn the_pen_barrel_button_opens_the_context_menu() {
     let rectangle = card();
     let mut editor = editor(std::slice::from_ref(&rectangle));
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let center = editor
         .rect_of(&format!("infinite-canvas.entity.{}", rectangle.id))
         .center();
@@ -23,7 +22,6 @@ fn the_pen_barrel_button_opens_the_context_menu() {
     );
     assert_eq!(entities(&editor).len(), 1, "and draws nothing");
     editor.click("infinite-canvas.menu.canvas.delete");
-    editor.run();
     assert!(
         entities(&editor).is_empty(),
         "the menu acts on what the pen pointed at"

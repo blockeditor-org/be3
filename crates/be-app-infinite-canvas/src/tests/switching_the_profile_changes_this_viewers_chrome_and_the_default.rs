@@ -25,7 +25,6 @@ fn switching_the_profile_changes_this_viewers_chrome_and_the_default() {
         "the canvas reopens in the profile last used"
     );
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     assert!(!editor.shown("infinite-canvas.style"));
     editor.snapshot("switching_the_profile_changes_this_viewers_chrome_and_the_default");
 

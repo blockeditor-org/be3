@@ -8,12 +8,14 @@ fn a_discarded_message_does_not_return_as_not_sent_when_the_chat_opens_again() {
     chat.click("chat.send");
     let refused = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().refuse_kept();
     chat.run();
     assert!(chat.row(refused).contains("Not sent"));
 
     chat.click(&format!("chat.message.{refused}.discard"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     assert_eq!(chat.bodies(), ["Can you still see this chat?"]);
 
     chat.editor.store().close_replica(None);

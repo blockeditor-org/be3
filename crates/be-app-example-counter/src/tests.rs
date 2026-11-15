@@ -1,3 +1,4 @@
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_example_counter::{Counter as CounterModel, CounterContent};
 use uuid::Uuid;

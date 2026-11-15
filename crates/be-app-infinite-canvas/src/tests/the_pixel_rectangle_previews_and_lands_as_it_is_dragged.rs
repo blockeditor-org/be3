@@ -6,7 +6,6 @@ fn the_pixel_rectangle_previews_and_lands_as_it_is_dragged() {
     let layer = raster_layer(1, CanvasPoint::default(), 8);
     let mut editor = raster_editor(std::slice::from_ref(&layer));
     editor.key(Key::R, Modifiers::NONE);
-    editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
     let pixel = |x: f32, y: f32| center + Vec2::new(-32.0 + 8.0 * x + 4.0, -32.0 + 8.0 * y + 4.0);
 
@@ -32,9 +31,7 @@ fn the_pixel_rectangle_previews_and_lands_as_it_is_dragged() {
 
     editor.key(Key::X, Modifiers::NONE);
     editor.key(Key::H, Modifiers::NONE);
-    editor.run();
     editor.drag(pixel(0.0, 5.0), pixel(1.0, 6.0));
-    editor.run();
     let raster = raster_of(&editor, layer.id);
     assert_eq!(
         painted(&raster),

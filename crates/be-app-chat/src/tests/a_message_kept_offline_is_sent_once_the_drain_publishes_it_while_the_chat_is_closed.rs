@@ -8,6 +8,7 @@ fn a_message_kept_offline_is_sent_once_the_drain_publishes_it_while_the_chat_is_
     chat.click("chat.send");
     let late = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     assert!(chat.row(late).contains("Sending"));
 
     // Another chat is open while the device reconnects and the outbox drains, so no replica

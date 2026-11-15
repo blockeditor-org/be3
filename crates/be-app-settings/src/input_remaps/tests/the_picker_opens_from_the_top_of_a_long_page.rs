@@ -13,9 +13,7 @@ fn the_picker_opens_from_the_top_of_a_long_page() {
     editor.resize(Vec2::new(800.0, 600.0));
     editor.run();
     editor.click("input-remaps.group.0.rule.0");
-    editor.run();
     editor.click("input-remaps.group.0.rule.0.on");
-    editor.run();
     assert!(
         editor.shown("input-remaps.picker"),
         "the picker opens wherever the page is scrolled"

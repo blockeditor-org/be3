@@ -21,6 +21,7 @@ use be_sdk_beui::{
 use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_shell::{SHELL_BARS, SavedLayout, SavedProgram, saved_programs};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use std::collections::HashMap;
 use uuid::Uuid;

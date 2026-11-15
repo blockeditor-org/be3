@@ -7,11 +7,9 @@ fn the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed() {
 
     for _ in 0..4 {
         editor.click("infinite-canvas.pill.zoom-in");
-        editor.run();
     }
     editor.settle();
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let canvas = editor.rect_of("infinite-canvas.canvas");
     let from = canvas.center() - Vec2::new(150.0, 0.0);
     editor.pen(PenPhase::Move, from, 0.0);

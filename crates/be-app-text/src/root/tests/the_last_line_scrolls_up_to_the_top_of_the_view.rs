@@ -9,7 +9,6 @@ fn the_last_line_scrolls_up_to_the_top_of_the_view() {
         .collect::<String>();
     let mut editor = editor(text.trim_end());
     editor.scroll("text.surface", Vec2::new(0.0, 1.0e6));
-    editor.run();
 
     let document = editor.document();
     let surface = document

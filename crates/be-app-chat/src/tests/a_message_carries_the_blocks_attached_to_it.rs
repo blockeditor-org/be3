@@ -81,6 +81,7 @@ fn a_message_carries_the_blocks_attached_to_it() {
     // A message of attachments alone is sent: the body may be empty.
     chat.click("chat.send");
     chat.editor.advance(std::time::Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     let sent = chat.id(1);
     assert_eq!(

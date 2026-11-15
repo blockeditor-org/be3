@@ -9,7 +9,6 @@ fn a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale() {
     let applied = editor.applied(None);
 
     editor.key(Key::D, Modifiers::CTRL);
-    editor.run();
     assert_eq!(editor.applied(None), applied + 1);
     let [_, copy] = &rasters(&editor)[..] else {
         panic!("Ctrl+D adds one layer");
@@ -38,7 +37,6 @@ fn a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale() {
     );
 
     editor.click(center + Vec2::new(4.0, 4.0));
-    editor.run();
     editor.hold_modifiers(Modifiers::ALT);
     let from = center + Vec2::new(4.0, 4.0);
     editor.drag_along(&[

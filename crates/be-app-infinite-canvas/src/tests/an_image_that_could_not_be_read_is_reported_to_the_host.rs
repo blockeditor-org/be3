@@ -5,7 +5,6 @@ use be_sdk_test::HostCall;
 fn an_image_that_could_not_be_read_is_reported_to_the_host() {
     let mut editor = editor(&[]);
     editor.click(editor.rect_of("infinite-canvas.canvas").center());
-    editor.run();
     editor.take_requests();
 
     editor.run_action("canvas.add.image");

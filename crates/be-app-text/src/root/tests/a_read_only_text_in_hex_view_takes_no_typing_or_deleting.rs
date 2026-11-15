@@ -9,7 +9,6 @@ fn a_read_only_text_in_hex_view_takes_no_typing_or_deleting() {
     editor.pick_menu("text.hex");
     editor.run();
     editor.click("text.hex_bytes");
-    editor.run();
 
     editor.host().set_editable(false);
     editor.run();
@@ -21,23 +20,19 @@ fn a_read_only_text_in_hex_view_takes_no_typing_or_deleting() {
         (Key::Z, Modifiers::CTRL),
     ] {
         editor.key(key, modifiers);
-        editor.run();
     }
     editor.type_text("4");
-    editor.run();
     assert_eq!(text(&editor), "hello");
     assert_eq!(editor.store().applied(None), applied);
 
     editor.host().set_editable(true);
     editor.run();
     editor.type_text("1");
-    editor.run();
     assert_eq!(
         text(&editor),
         "hello",
         "one digit typed once the block is editable is half a byte"
     );
     editor.type_text("2");
-    editor.run();
     assert_eq!(text(&editor), "hello\x12");
 }

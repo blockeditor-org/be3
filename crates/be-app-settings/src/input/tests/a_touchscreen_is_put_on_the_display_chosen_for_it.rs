@@ -34,15 +34,10 @@ fn a_touchscreen_is_put_on_the_display_chosen_for_it() {
     assert_eq!(chosen(&editor), None, "it lands where it goes by itself");
 
     editor.click(DISPLAY);
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::ArrowDown, Modifiers::NONE);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
     assert_eq!(chosen(&editor).as_deref(), Some("WAC|Cintiq 16|1234"));
 
     reset(&mut editor, DISPLAY);

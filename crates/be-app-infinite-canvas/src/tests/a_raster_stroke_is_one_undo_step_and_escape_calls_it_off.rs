@@ -6,7 +6,6 @@ fn a_raster_stroke_is_one_undo_step_and_escape_calls_it_off() {
     let layer = raster_layer(1, CanvasPoint::default(), 16);
     let mut editor = raster_editor(std::slice::from_ref(&layer));
     editor.click("infinite-canvas.dock.tool.pencil");
-    editor.run();
     let center = editor.rect_of("infinite-canvas.canvas").center();
 
     let start = center + Vec2::new(-28.0, 4.0);
@@ -45,7 +44,6 @@ fn a_raster_stroke_is_one_undo_step_and_escape_calls_it_off() {
     editor.run();
     assert_eq!(painted(&raster_of(&editor, layer.id)), 4);
     editor.key(Key::Escape, Modifiers::NONE);
-    editor.run();
     assert_eq!(
         painted(&raster_of(&editor, layer.id)),
         0,

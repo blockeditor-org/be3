@@ -8,10 +8,8 @@ fn clicking_the_scene_grabs_the_cursor_and_escape_releases_it() {
     editor.snapshot("clicking_the_scene_grabs_the_cursor_and_escape_releases_it");
 
     editor.click("scene.viewport");
-    editor.run();
     assert!(editor.pointer_locked());
 
     editor.key(beui::Key::Escape, Modifiers::NONE);
-    editor.run();
     assert!(!editor.pointer_locked());
 }

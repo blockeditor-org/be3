@@ -8,6 +8,7 @@ use be_sdk_beui::beui::styled::Root;
 use be_sdk_beui::beui::{Key, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{BeuiRoot, Creation, EditorHost, OwnedEditor, be_sdk_ui::BlockLabel};
 use be_sdk_database::DatabaseBlockPickRequest;
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_database::database::{Database, DatabaseColor, DatabaseContent, DatabaseValue};
 use be_type_database::database_schema::{

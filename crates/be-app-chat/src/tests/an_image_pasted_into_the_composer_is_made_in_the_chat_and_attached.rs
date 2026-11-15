@@ -37,6 +37,7 @@ fn an_image_pasted_into_the_composer_is_made_in_the_chat_and_attached() {
 
     chat.click("chat.send");
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(
         chat.bodies(),

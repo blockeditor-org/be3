@@ -7,7 +7,6 @@ fn an_edit_stays_on_screen_until_the_host_takes_it() {
     store.defer(true);
 
     harness.click("counter.increment");
-    harness.run();
     harness.editor.hold(None, CounterContent::default());
     harness.run();
 

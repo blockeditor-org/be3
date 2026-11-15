@@ -19,7 +19,6 @@ fn dragging_a_card_onto_the_discard_pile_plays_it() {
     let from = on_the_card(&editor, &format!("game.card.{pile}.{card}"));
     let to = editor.rect_of("game.pile.1").center();
     editor.drag(from, to);
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), actions.len() + 1);

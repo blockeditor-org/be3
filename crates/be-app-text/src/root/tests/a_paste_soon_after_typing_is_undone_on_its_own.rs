@@ -9,8 +9,7 @@ fn a_paste_soon_after_typing_is_undone_on_its_own() {
     caret_at(&mut editor, 3);
 
     editor.type_text(" two");
-    editor.run();
-    editor.wait(std::time::Duration::from_millis(300));
+    editor.advance(std::time::Duration::from_millis(300));
     editor.step(vec![Input::Paste(ClipItem::text(" three"))]);
     editor.run();
     assert_eq!(text(&editor), "one two three");

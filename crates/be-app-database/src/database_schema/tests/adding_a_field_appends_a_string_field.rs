@@ -5,7 +5,6 @@ fn adding_a_field_appends_a_string_field() {
     let mut harness = editor();
 
     harness.click("database-schema.add-field");
-    harness.run();
 
     let fields = schema(&harness).fields();
     assert_eq!(fields.len(), 1);

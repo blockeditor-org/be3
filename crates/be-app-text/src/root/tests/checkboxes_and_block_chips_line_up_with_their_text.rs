@@ -1,3 +1,4 @@
+use be_sdk_test::prelude::*;
 use super::{
     BeuiTest, EditorHost, Key, ORGANIZATION_ID, OwnedEditor, TextBlock, TextRoot, Uuid, block_url,
 };
@@ -21,13 +22,11 @@ fn checkboxes_and_block_chips_line_up_with_their_text() {
     editor.record();
 
     editor.click("text.surface");
-    editor.run();
     for key in [Key::ArrowUp, Key::ArrowUp, Key::Home]
         .into_iter()
         .chain([Key::ArrowRight; 3])
     {
         editor.key(key, Modifiers::NONE);
-        editor.run();
     }
     editor.record();
 

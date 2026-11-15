@@ -6,7 +6,6 @@ fn the_tool_bar_pops_out_of_the_canvas_into_a_window() {
     let stage = editor.rect_of("infinite-canvas.canvas");
     let docked = editor.rect_of("infinite-canvas.dock");
     editor.click("infinite-canvas.dock.grip");
-    editor.run();
     editor.click("grip.dock.bar.window");
     editor.settle();
 

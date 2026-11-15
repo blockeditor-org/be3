@@ -7,6 +7,7 @@ fn a_message_sent_with_two_editors_of_the_chat_open_tells_once() {
     chat.write("Running late");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     beside.run();
     assert_eq!(
@@ -15,6 +16,7 @@ fn a_message_sent_with_two_editors_of_the_chat_open_tells_once() {
         "the replica both editors follow told the other members once"
     );
     beside.editor.advance(Duration::from_secs(5));
+    beside.editor.run();
     beside.run();
     assert!(beside.editor.take_announced().is_empty());
 }

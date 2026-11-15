@@ -6,17 +6,12 @@ use super::*;
 fn a_new_player_can_take_the_other_side() {
     let mut editor = editor(TIC_TAC_TOE.to_vec());
     editor.click("game.tile.0.0");
-    editor.run();
 
     editor.click("game.player");
-    editor.run();
     editor.type_text("New");
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 
     editor.click("game.tile.1.1");
-    editor.run();
 
     let played = moves(&editor);
     assert_eq!(played.len(), 2);

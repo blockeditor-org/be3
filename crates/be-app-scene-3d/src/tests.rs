@@ -1,4 +1,5 @@
 use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 

@@ -9,7 +9,6 @@ fn the_filters_go_in_the_query() {
     boat.test.click("boat.filter.label");
     boat.test.type_text("env=ci");
     boat.test.key(Key::Enter, Modifiers::NONE);
-    boat.test.run();
     let labelled = boat.fetch();
     assert_eq!(labelled.request.url, format!("{LIST}&label=env%3Dci"));
     boat.answer(&labelled, 200, LAST_PAGE);
@@ -17,7 +16,6 @@ fn the_filters_go_in_the_query() {
     boat.test.click("boat.filter.prefix");
     boat.test.type_text("nightly-");
     boat.test.key(Key::Enter, Modifiers::NONE);
-    boat.test.run();
     let both = boat.fetch();
     assert_eq!(
         both.request.url,

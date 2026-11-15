@@ -20,10 +20,10 @@ fn a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped() {
     test.hover(grab + Vec2::new(0.0, 6.0));
     test.next_frame();
     test.hover(past);
-    test.run();
     test.record();
     for _ in 0..3 {
         test.advance(Duration::from_millis(50));
+        test.run();
         test.record();
     }
     assert_eq!(
@@ -33,7 +33,6 @@ fn a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped() {
     );
 
     test.up(past, PointerButton::Primary);
-    test.run();
     test.record();
     test.settle();
     assert_eq!(slide_ids(&test), [ids[1], ids[0], ids[2]]);

@@ -6,7 +6,6 @@ fn once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects() {
     let rectangle = card();
     let mut editor = phone(std::slice::from_ref(&rectangle));
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let shape = editor.rect_of(&format!("infinite-canvas.entity.{}", rectangle.id));
 
     let from = shape.left_top() - Vec2::new(60.0, 60.0);
@@ -25,9 +24,7 @@ fn once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects() {
     assert_eq!(entities(&editor).len(), 2, "the pen draws");
 
     editor.fingers(TouchPhase::Start, &[(1, shape.center())]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, shape.center())]);
-    editor.run();
     assert_eq!(entities(&editor).len(), 2, "a finger draws nothing");
     assert!(
         editor.shown("infinite-canvas.selection-bar"),
@@ -40,11 +37,8 @@ fn once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects() {
 
     let empty = shape.right_bottom() + Vec2::new(40.0, 40.0);
     editor.fingers(TouchPhase::Start, &[(1, empty)]);
-    editor.run();
     editor.fingers(TouchPhase::Move, &[(1, empty + Vec2::new(60.0, 30.0))]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, empty + Vec2::new(60.0, 30.0))]);
-    editor.run();
     assert_eq!(
         entities(&editor).len(),
         2,

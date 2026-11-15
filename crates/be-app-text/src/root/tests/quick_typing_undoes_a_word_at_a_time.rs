@@ -8,7 +8,6 @@ fn quick_typing_undoes_a_word_at_a_time() {
     caret_at(&mut editor, 3);
 
     editor.type_text(" two three");
-    editor.run();
     assert_eq!(text(&editor), "one two three");
 
     let block = editor.block_id().expect("the editor has a block");

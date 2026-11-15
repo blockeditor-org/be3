@@ -7,7 +7,6 @@ fn zooming_in_draws_deeper_tiles_over_the_shallower_ones() {
 
     for _ in 0..5 {
         editor.click("map.zoom-in");
-        editor.run();
     }
 
     let deeper = requested_tiles(&mut editor);

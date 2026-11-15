@@ -1,4 +1,5 @@
 use be_sdk_beui::{Editor, EditorHost, OwnedEditor, PickedFile};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_deterministic_game::GameModuleFile;
 use uuid::Uuid;

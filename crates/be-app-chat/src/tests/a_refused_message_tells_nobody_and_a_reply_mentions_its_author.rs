@@ -8,6 +8,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
     chat.click("chat.send");
     let refused = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().refuse_kept();
     chat.run();
     assert!(chat.row(refused).contains("Not sent"));
@@ -18,6 +19,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
 
     chat.click(&format!("chat.message.{refused}.discard"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert!(
         chat.editor.take_announced().is_empty(),
@@ -29,6 +31,7 @@ fn a_refused_message_tells_nobody_and_a_reply_mentions_its_author() {
     chat.write("Yes, I can");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(
         chat.editor.take_announced(),

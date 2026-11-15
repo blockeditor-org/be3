@@ -21,6 +21,7 @@ fn a_window_that_rings_the_bell_flashes_its_chip() {
         .snapshot("a_window_that_rings_the_bell_flashes_its_chip");
 
     fixture.test.advance(Duration::from_secs(1));
+    fixture.test.run();
     fixture.settle();
     fixture
         .test

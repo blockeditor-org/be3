@@ -5,6 +5,7 @@ use be_sdk_beui::{
     DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch,
     InputReach, InputReachWatch, OwnedEditor, Pointing, Rotation,
 };
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use uuid::Uuid;
 
@@ -46,22 +47,16 @@ fn content(editor: &BeuiTest<InputSettingsRoot>) -> InputSettingsContent {
 
 fn reset(editor: &mut BeuiTest<InputSettingsRoot>, row: &str) {
     editor.click(format!("{row}.menu"));
-    editor.run();
     editor.click(format!("{row}.reset"));
-    editor.run();
 }
 
 fn choose_pointer(editor: &mut BeuiTest<InputSettingsRoot>, index: usize) {
     editor.click("input.pointer");
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     for _ in 0..index {
         editor.key(Key::ArrowDown, Modifiers::NONE);
-        editor.run();
     }
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 fn mouse() -> HostInputDevice {

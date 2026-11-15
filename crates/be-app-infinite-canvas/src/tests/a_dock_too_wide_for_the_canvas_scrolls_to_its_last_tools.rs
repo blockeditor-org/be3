@@ -24,11 +24,8 @@ fn a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools() {
     let from = dock.center() + Vec2::new(dock.width() / 3.0, 0.0);
     let to = from - Vec2::new(dock.width() * 2.0 / 3.0, 0.0);
     editor.fingers(TouchPhase::Start, &[(1, from)]);
-    editor.run();
     editor.fingers(TouchPhase::Move, &[(1, from + (to - from) * 0.5)]);
-    editor.run();
     editor.fingers(TouchPhase::Move, &[(1, to)]);
-    editor.run();
     editor.fingers(TouchPhase::End, &[(1, to)]);
     editor.settle();
 

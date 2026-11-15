@@ -10,12 +10,10 @@ fn resigning_asks_before_it_resigns() {
     let mut editor = editor_after(CHESS.to_vec(), actions.clone());
 
     editor.click(format!("game.control.{resign}"));
-    editor.run();
     assert_eq!(moves(&editor).len(), actions.len());
     editor.snapshot("resigning_asks_before_it_resigns");
 
     editor.click(format!("game.control.{resign}.confirm"));
-    editor.run();
 
     assert_eq!(moves(&editor).len(), actions.len() + 1);
     assert!(editor.shown("game.banner"));
