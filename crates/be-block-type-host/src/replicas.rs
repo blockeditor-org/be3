@@ -1835,6 +1835,18 @@ impl<H: Host> Replicas<H> {
         self.keeping = false;
     }
 
+    /// Whether a replica in a live session waits for the server to order edits it submitted: a
+    /// seal now would leave them out.
+    pub fn ordering(&self) -> bool {
+        self.open.values().any(|open| {
+            !open.made_up
+                && !open.joining
+                && !open.status.journaled
+                && !open.status.incompatible
+                && !open.status.diverged
+        })
+    }
+
     pub fn reported(&self) -> bool {
         self.open.values().all(|open| open.reporting.is_none())
     }
@@ -2956,10 +2968,18 @@ impl<H: Host> Replicas<H> {
                 .collect();
             let closing = open.closing && !open.joining;
             let asked = asked.remove(&replica).unwrap_or_default();
+            // In a live session it is opened again on the server's journal once it rejoined,
+            // and only then given its edits: one still on its way to the server when the
+            // module stopped would otherwise be made again before the order shows it.
+            let rejoins = !open.made_up && !open.joining;
+            let mut none = Vec::new();
             let (replies, pending, replay, departed) = (
                 &mut self.replies,
                 &mut self.asked,
-                &mut open.replay,
+                match rejoins {
+                    true => &mut none,
+                    false => &mut open.replay,
+                },
                 &open.departed,
             );
             let Some(handle) = self.modules.call(module, |connection| {
@@ -2991,7 +3011,7 @@ impl<H: Host> Replicas<H> {
             };
             open.handle = handle;
             self.handles.insert((module, handle.op()), replica);
-            if !open.made_up && !open.joining {
+            if rejoins {
                 let rejoin = self.rejoins;
                 self.rejoin(peer, replica, rejoin);
             }

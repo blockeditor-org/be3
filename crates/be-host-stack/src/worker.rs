@@ -1493,6 +1493,7 @@ impl Session<'_> {
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()
+                && !self.replicas.ordering()
             {
                 if !std::mem::replace(&mut kept_for_flushes, true) {
                     step(shared, Some("keeping the open blocks for a flush"));
