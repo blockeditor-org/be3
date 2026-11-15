@@ -133,6 +133,21 @@ FIXUPS = {
     # is in the directory each compile runs in, which made the -Zno-codegen
     # metadata wasmtime-wasi's dependents compile against and the rlib they link
     # disagree. The overlay leaves the includes out.
+    # V8, prebuilt and pinned per platform in third-party/v8, where cargo's
+    # build script downloads it or builds it from source.
+    "v8": {
+        "build_script_env": {
+            "RUSTY_V8_ARCHIVE": "$(location //third-party/v8:library)",
+            "RUSTY_V8_SRC_BINDING": select({
+                "DEFAULT": "",
+                "root//buck/platforms:android_arm64_setting": "$(location //third-party/v8:android_arm64_binding)",
+            }),
+        },
+        "overlay": {
+            "build.rs": "overlays/v8/build.rs",
+            "src/binding.rs": "overlays/v8/src/binding.rs",
+        },
+    },
     "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
     "webkit2gtk-sys": _PKG_CONFIG,
     # What the app GPU API needs of wgpu 29. It cannot finish a custom backend's

@@ -19,7 +19,7 @@ Why:
   (`GOT.tls`, guides/app_libraries.md, Thread-locals), relinking every library on every thread,
   `thread-spawn` on wasmtime (`be-wasm-host/src/threads.rs`) and in the browser
   (`be-host/web/threads.js`, `thread.js`, the locked list of thread-local blocks in `dylink.js`),
-  and a V8 runtime (plans/deferred/wasm_on_v8.md) would have to implement it again.
+  and a V8 runtime (plans/wasm_on_v8.md) would have to implement it again.
 - A shared memory only grows, so an instance keeps whatever its busiest thread needed, and its
   allocator takes a lock.
 
