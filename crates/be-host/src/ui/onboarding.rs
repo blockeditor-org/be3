@@ -15,6 +15,15 @@ use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
 use beui::{Align, Direction};
 
+/// What making a local account says of where it lives: on the web, only in this browser's
+/// storage, which clearing the site's data or a private window loses with no phrase to recover
+/// it (plans/local_accounts.md).
+const LOCAL_ACCOUNT_NOTE: &str = match cfg!(target_arch = "wasm32") {
+    true => "Your data stays in this browser only. Clearing this site's data, or a private \
+             window, deletes the account and everything in it. You only need a display name.",
+    false => "Your data stays on this device. You only need a display name.",
+};
+
 #[component]
 pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
     let message = create_memo(move || view.error.get().message);
@@ -345,7 +354,7 @@ pub(super) fn AddAccountDialog(
                             <Case is={Some(1)}>
                                 <List spacing=Space::Xl>
                                     <Text style=TextStyle::PARAGRAPH>
-                                        "Your data stays on this device. You only need a display name."
+                                        {LOCAL_ACCOUNT_NOTE}
                                     </Text>
                                     <List spacing=Space::Sm>
                                         <Text style=TextStyle::CAPTION>"Display name"</Text>
