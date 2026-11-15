@@ -130,6 +130,10 @@ pub struct Graph {
     /// Children that dropped out of their parent's references after they were placed there, for
     /// the worker to log with what it knows of the parent (`take_dropped`).
     dropped: Vec<Dropped>,
+    /// Blocks a listing's answer left out while this device held them as belonging there, for
+    /// the worker to log (`take_unlisted_held`): what makes a list show one entry fewer than it
+    /// should.
+    unlisted_held: Vec<UnlistedHeld>,
 }
 
 /// How many placed children `Graph::placed_recently` remembers.
@@ -143,6 +147,17 @@ pub struct Dropped {
     pub parent: Uuid,
     /// What set the parent's references without it: its open replica's report, or a listing.
     pub by: &'static str,
+}
+
+/// Blocks the server's answer to a listing left out while this device held each as belonging
+/// in it, with the revision the answer was read at and whether it answered a request made
+/// before a change asked for the listing again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnlistedHeld {
+    pub listing: Listing,
+    pub blocks: Vec<Uuid>,
+    pub revision: u64,
+    pub stale: bool,
 }
 
 impl Graph {
@@ -294,14 +309,14 @@ impl Graph {
         // cannot know of what that change added: what was listed stays until the answer
         // to the request after it, so a block made or moved here does not leave the
         // graph between its change settling and that answer.
-        let kept: Vec<Uuid> = match stale {
-            true => listed.members.iter().copied().collect(),
-            false => Vec::new(),
-        };
-        listed.members = nodes.iter().map(|node| node.id).collect();
+        let before = std::mem::replace(
+            &mut listed.members,
+            nodes.iter().map(|node| node.id).collect(),
+        );
+        let kept = before.iter().filter(|_| stale);
         listed.members.extend(
-            kept.into_iter()
-                .chain(self.unpublished.iter().copied())
+            kept.chain(self.unpublished.iter())
+                .copied()
                 .filter(|block| {
                     self.nodes
                         .get(block)
@@ -326,6 +341,23 @@ impl Graph {
                 .filter(|node| member(listing, node, &self.nodes) == Some(true))
                 .map(|node| node.id),
         );
+        let unlisted: Vec<Uuid> = before
+            .into_iter()
+            .filter(|block| !listed.members.contains(block))
+            .filter(|block| {
+                self.nodes
+                    .get(block)
+                    .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
+            })
+            .collect();
+        if !unlisted.is_empty() {
+            self.unlisted_held.push(UnlistedHeld {
+                listing,
+                blocks: unlisted,
+                revision,
+                stale,
+            });
+        }
         self.floor = self.floor.max(revision);
         for node in nodes {
             if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
@@ -626,6 +658,12 @@ impl Graph {
             }
             names_it
         });
+    }
+
+    /// What listings' answers left out of what this device held since this was last asked
+    /// (`UnlistedHeld`).
+    pub fn take_unlisted_held(&mut self) -> Vec<UnlistedHeld> {
+        std::mem::take(&mut self.unlisted_held)
     }
 
     /// The children that dropped out of their parent's references since this was last asked.

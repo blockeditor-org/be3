@@ -18,6 +18,24 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.counts()
     }
 
+    /// What waits in the outbox, in the order the drain sends it: each operation's kind and
+    /// block, for a host to name what keeps it from being in step.
+    pub fn outbox(&self) -> Vec<(&'static str, Uuid)> {
+        self.refs
+            .outbox()
+            .into_iter()
+            .map(|(_, op)| {
+                let kind = match op {
+                    Op::Create(_) => "create",
+                    Op::Publish(_) => "publish",
+                    Op::Move(_) => "move",
+                    Op::Define(_) => "define",
+                };
+                (kind, op.block())
+            })
+            .collect()
+    }
+
     pub fn has_pending(&self, block: Uuid) -> bool {
         self.refs.has_pending(block)
     }
