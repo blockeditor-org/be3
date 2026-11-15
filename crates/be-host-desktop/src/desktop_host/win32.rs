@@ -470,8 +470,7 @@ impl DesktopHost for Win32 {
         });
         let pressed = Rc::new(Cell::new(false));
         let press = Rc::new(RefCell::new(ContentPress::default()));
-        let rect_held = create_signal(Rect::ZERO);
-        let rect = rect_held.read_only();
+        let rect = create_signal(Rect::ZERO);
         let drawn = create_memo(move || {
             snapshot.with(|snapshot| {
                 snapshot
@@ -580,7 +579,7 @@ impl DesktopHost for Win32 {
         let rect_measured = measure(built);
         create_effect(move || {
             if let Some(measured) = rect_measured.get() {
-                rect_held.set(measured.rect);
+                rect.set(measured.rect);
             }
         });
         built

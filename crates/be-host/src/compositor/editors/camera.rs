@@ -246,8 +246,7 @@ pub(super) fn Camera(
         revision,
         ..
     } = spec;
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let holds = create_memo(move || {
         revision.get();
         match be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
@@ -440,7 +439,7 @@ pub(super) fn Camera(
     let shown = region.call(CameraView {
         view: shown,
         pan_drag,
-        rect,
+        rect: rect.read_only(),
     });
     let built = view! {
         <Interactive
@@ -457,7 +456,7 @@ pub(super) fn Camera(
     let measured = measure(built);
     create_effect(move || {
         if let Some(measured) = measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

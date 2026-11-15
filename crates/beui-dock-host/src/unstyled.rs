@@ -1806,8 +1806,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         tab_key,
     } = config;
     let dock_rect = dock_rect_held.read_only();
-    let outer_held = create_signal(Rect::ZERO);
-    let outer = outer_held.read_only();
+    let outer = create_signal(Rect::ZERO);
     let mode = create_memo(move || {
         let size = outer.get().size();
         let short = size.y > 0.0 && size.y < short_below && size.x < short_narrower_than;
@@ -1901,7 +1900,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         back_shade,
         icon_sidebar_width,
         rect: dock_rect,
-        outer,
+        outer: outer.read_only(),
         dock_body: NodeRef::new(),
         dock_pane: NodeRef::new(),
         opens: opens_windows(),
@@ -2027,7 +2026,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let outer_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = outer_measured.get() {
-            outer_held.set(measured.rect);
+            outer.set(measured.rect);
         }
     });
     if let Some(body) = dock.dock_body.try_get() {

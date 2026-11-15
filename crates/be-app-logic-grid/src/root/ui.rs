@@ -292,8 +292,7 @@ fn GridZoom(session: Session) -> NodeId {
 #[component]
 fn GridCanvas(session: Session) -> NodeId {
     let editor = session.editor();
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let view = editor.canvas();
     let world = editor.world();
     let camera = create_memo(move || grid_view(view.get(), world.get(), placed.get()));
@@ -407,7 +406,7 @@ fn GridCanvas(session: Session) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

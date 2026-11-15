@@ -8,7 +8,7 @@ use crate::styled::*;
 
 const WIDE: Vec2 = Vec2::new(1600.0, 1000.0);
 
-fn presses(heard: ReadSignal<Vec<Event>>) -> usize {
+fn presses(heard: impl Get<Vec<Event>>) -> usize {
     heard.with_untracked(|heard| {
         heard
             .iter()
@@ -67,7 +67,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     harness.settle();
     assert!(!open.get_untracked(), "the press outside closes the dialog");
     assert_eq!(
-        presses(heard.read_only()),
+        presses(heard),
         0,
         "the press that closed the dialog is not also the catcher's, {:?}",
         heard.get_untracked()
@@ -75,7 +75,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
 
     harness.click(outside);
     assert_eq!(
-        presses(heard.read_only()),
+        presses(heard),
         1,
         "the next press reaches the catcher, {:?}",
         heard.get_untracked()
@@ -87,7 +87,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     harness.settle();
     assert!(!open.get_untracked());
     assert_eq!(
-        presses(heard.read_only()),
+        presses(heard),
         1,
         "a press and release in frames of their own are kept from the catcher too, {:?}",
         heard.get_untracked()

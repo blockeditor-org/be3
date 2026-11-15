@@ -86,8 +86,7 @@ fn Grid(
     on_pick_slot: Callback<(i64, u8)>,
     on_pick_event: Callback<usize>,
 ) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let column_width =
         create_memo(move || ((size.get().x - GUTTER) / days as f32).max(MIN_COLUMN_WIDTH));
     let hours = create_memo(|| (0..=24u8).collect::<Vec<u8>>());
@@ -152,7 +151,7 @@ fn Grid(
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

@@ -35,8 +35,7 @@ pub fn WindowView(
     let (begin, steer) = carrier.map_or((None, None), |carrier| {
         (Some(carrier.begin), Some(carrier.steer))
     });
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let catcher = NodeRef::new();
     let popup_catcher = NodeRef::new();
     let shown_in = use_window().map(WindowHandle::real);
@@ -241,7 +240,7 @@ pub fn WindowView(
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built
