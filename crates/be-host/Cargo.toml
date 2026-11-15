@@ -72,6 +72,7 @@ be-sdk-window-stack = { path = "../be-sdk-window-stack" }
 qrcodegen = "1.8"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+be-host-server = { path = "../be-host-server" }
 beui-host = { path = "../beui-host" }
 beui-host-window = { path = "../beui-host-window" }
 directories-next = "2"

@@ -854,7 +854,7 @@ printed in the server log. `be-server login-link --data-dir be-server-data
 Open the portal at `localhost`, not `127.0.0.1`: passkeys need a host name for
 their RP ID. `--oidc-providers FILE` adds providers (guides/hosting.md).
 Deployments also set `--auth-origin` (guides/hosting.md). The native host
-embeds be-server for a local account (`be-host-stack/src/embedded_server.rs`,
+embeds be-server for a local account (`crates/be-host-server`,
 ephemeral port, data under the host's); `./scripts/buck run //crates/be-host:web`
 starts one beside the web build.
 
