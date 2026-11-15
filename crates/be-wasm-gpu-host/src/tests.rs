@@ -104,4 +104,5 @@ mod an_unknown_pass_handle_is_reported;
 mod destroying_the_apps_device_leaves_the_hosts_device_working;
 mod every_webgpu_limit_of_the_device_is_forwarded;
 mod only_a_texture_the_app_created_is_destroyed;
+mod only_the_calls_that_record_into_a_pass_go_untimed;
 mod submitted_work_wakes_the_app_once_the_gpu_has_done_it;
