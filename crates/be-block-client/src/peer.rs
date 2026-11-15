@@ -407,7 +407,7 @@ impl<S: ObjectStore> Peer<S> {
                 role: OrganizationRole::Editor,
                 kind: OrganizationKind::Personal,
                 escrows: Vec::new(),
-                pinned: None,
+                pinned: crate::contacts::Pinned::default(),
                 server: None,
                 server_offset: None,
             })?;
