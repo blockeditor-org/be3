@@ -142,6 +142,9 @@ pub enum ClientError {
     Encoding(String),
     Contended,
     Locked(uuid::Uuid),
+    /// This device's edits to the block were discarded and it may not edit it: it keeps none
+    /// (`Refs::keep_open_edits`).
+    Discarded(uuid::Uuid),
     Unexpected,
     Incompatible { ours: String, theirs: String },
     NoBuild(String),
@@ -170,6 +173,9 @@ impl fmt::Display for ClientError {
             }
             Self::Locked(_) => formatter.write_str(
                 "this block is locked: its key has not been shared with this account yet",
+            ),
+            Self::Discarded(_) => formatter.write_str(
+                "this device's edits to this block were discarded, and it may not edit it",
             ),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(

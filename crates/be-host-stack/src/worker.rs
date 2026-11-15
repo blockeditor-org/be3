@@ -702,6 +702,10 @@ pub struct Shared {
     /// What the outbox held when `waiting` was counted, for `unsynced` to name.
     pub outbox: Vec<(&'static str, Uuid)>,
     pub unsent: Vec<be_block_client::UnsentBlock>,
+    /// Blocks whose local edits were discarded with their unsent edits as the grace period
+    /// passed (`expire_unsent`): their open replicas close at the next pass
+    /// (`Replicas::stop_keeping`).
+    pub discarded: Vec<Uuid>,
     pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
     pub search: super::search::Searching,
@@ -1603,6 +1607,15 @@ impl Session<'_> {
             // only in the replicas' changes.
             moved |= self.replicas.take_changed();
             moved |= report(peer, shared);
+            let discarded = std::mem::take(
+                &mut shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .discarded,
+            );
+            for block in discarded {
+                self.replicas.stop_keeping(block);
+            }
             let typing = !self.replicas.modules.settled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
@@ -2083,13 +2096,18 @@ pub(super) fn expired_unsent(
         .collect()
 }
 
-pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
+/// Discards what expired of the unsent edits, answering the blocks discarded.
+pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) -> Vec<Uuid> {
     let company = peer.kind() == be_block_protocol::OrganizationKind::Company;
     let choice = crate::offline_choice::choice(Uuid::nil());
+    let mut discarded = Vec::new();
     for block in expired_unsent(&peer.unsent(), company, &choice, now) {
-        let _ = peer.discard_unsent(block);
+        if peer.discard_unsent(block).is_ok() {
+            discarded.push(block);
+        }
         let _ = peer.forget_cached(block);
     }
+    discarded
 }
 
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
@@ -2098,10 +2116,11 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .wall
         .now();
-    expire_unsent(peer, now);
+    let discarded = expire_unsent(peer, now);
     let counts = peer.pending();
     let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.discarded.extend(discarded);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
     held.outbox = outbox;
