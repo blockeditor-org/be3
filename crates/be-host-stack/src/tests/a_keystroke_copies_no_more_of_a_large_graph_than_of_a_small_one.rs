@@ -9,7 +9,7 @@ fn copied_by_a_keystroke(block: Uuid, count: &mut i64) -> u64 {
     add(block, 1);
     wait_for_count(block, *count);
     flush();
-    copied() - before
+    copied().saturating_sub(before)
 }
 
 #[test]
