@@ -10,7 +10,7 @@ fn a_fallback_given_after_the_children_or_outside_view_is_inferred() {
     let page = scope.run(|| {
         let after = Show()
             .value(shown)
-            .children_block(|| {
+            .then(|| {
                 SingleChild(view! {
                     <Element tag="b" text="then" />
                 })

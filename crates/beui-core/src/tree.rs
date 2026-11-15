@@ -7,7 +7,7 @@ use std::rc::Weak;
 
 use beui_tree::reactive::LazyChild;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, Reader, ScopeContext, Set, Signal,
+    ComponentContext, Get, IntoSlotHost, Prop, Reader, ScopeContext, Set, Signal,
     SlotHost, SlotId, create_effect, create_memo, create_signal, current_component, on_cleanup,
 };
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
@@ -79,9 +79,9 @@ pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
     crate::accessibility::reference(node)
 }
 
-pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
+pub fn component_accessibility(node: Prop<accesskit::Node>) {
     let bindings = bindings();
-    let node = node.into_prop();
+
     create_effect(move || {
         let node = node.get();
         let rank = bindings.rank.get();

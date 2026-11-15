@@ -15,86 +15,17 @@ mod associated;
 struct Prop {
     ident: Ident,
     ty: Type,
-    inner_ty: Option<Type>,
-    optional_reactive_inner_ty: Option<Type>,
-    reactive_inner_ty: Option<Type>,
-    binding_inner_ty: Option<Type>,
-    render: Option<Render>,
-    optional_render: Option<Render>,
-    func_args: Option<Vec<Type>>,
-    optional_func_args: Option<Vec<Type>>,
-    is_children: bool,
-    is_child: bool,
-    is_optional_child: bool,
-    callback_signature: Option<proc_macro2::TokenStream>,
-    optional_callback_signature: Option<proc_macro2::TokenStream>,
-    is_click_callback: bool,
-    is_optional_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
-    /// A `Prop<V>` whose `V` is one of the component's own type parameters: its type comes from
-    /// what is passed, so it takes a signal, memo or closure (`IntoReadProp`).
+    /// Typed by one of the component's own type parameters: it takes what is passed as it
+    /// is, and a tag that leaves it out infers that parameter as `MissingProp`.
+    bare: bool,
+    /// Its last type argument is one of the component's own type parameters (`Prop<V>`,
+    /// `RenderFn<H, B>`) that no other prop names: what is passed decides that parameter, so
+    /// it is taken without converting it (`Exact`).
     exact: bool,
-    required_binding: bool,
-}
-
-struct Render {
-    once: bool,
-    handle: Option<Type>,
-    child: Option<Type>,
-    /// The child type is one of the component's own type parameters, so the closure's value
-    /// is kept as it is and decides that parameter (a `Show` branch's count).
-    raw: bool,
-}
-
-fn render_kind(ty: &Type) -> Option<Render> {
-    let once = if is_named_type(ty, "Render") {
-        true
-    } else if is_named_type(ty, "RenderFn") {
-        false
-    } else {
-        return None;
-    };
-    let name = if once { "Render" } else { "RenderFn" };
-    let args = generic_args(ty, name).unwrap_or_default();
-    let handle = args.first().cloned().filter(|handle| !is_unit_type(handle));
-    Some(Render {
-        once,
-        handle,
-        child: args.get(1).cloned(),
-        raw: false,
-    })
-}
-
-fn is_unit_type(ty: &Type) -> bool {
-    matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
-}
-
-fn render_child(render: &Render) -> proc_macro2::TokenStream {
-    match &render.child {
-        Some(child) => quote! { #child },
-        None => quote! { ::__beui_tree::reactive::NodeId },
-    }
-}
-
-fn callback_signature(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
-    let args = generic_args(ty, "Callback").unwrap_or_default();
-    match args.as_slice() {
-        [value] => Ok(quote! { ::__beui_tree::reactive::IntoCallback<#value, ()> }),
-        [value, result] => Ok(quote! { ::__beui_tree::reactive::IntoCallback<#value, #result> }),
-        _ => Err(syn::Error::new_spanned(
-            ty,
-            "a `Callback` prop takes one or two type arguments, as `Callback<Value>` or `Callback<Value, Result>`",
-        )),
-    }
-}
-
-fn func_args(ty: &Type) -> Option<Vec<Type>> {
-    if !is_named_type(ty, "Func") {
-        return None;
-    }
-    let args = generic_args(ty, "Func")?;
-    (args.len() == 2).then_some(args)
+    /// `#[prop(required)]`: given even though its type has a value when left out.
+    required: bool,
 }
 
 struct Setter {
@@ -105,586 +36,139 @@ struct Setter {
     value: proc_macro2::TokenStream,
 }
 
-fn func_setter(
-    method: &Ident,
-    args: &[Type],
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let (value, result) = (&args[0], &args[1]);
-    Setter {
-        method: method.clone(),
-        generics: quote! {},
-        args: quote! { value: impl ::__beui_tree::reactive::IntoFunc<#value, #result> },
-        where_clause: quote! {},
-        value: wrap(quote! { ::__beui_tree::reactive::IntoFunc::into_func(value) }),
-    }
-}
-
-struct RenderOutput {
-    child: proc_macro2::TokenStream,
-    item: Option<proc_macro2::TokenStream>,
-}
-
-impl RenderOutput {
-    fn built_bound(&self) -> proc_macro2::TokenStream {
-        let child = &self.child;
-        match &self.item {
-            Some(item) => quote! { ::__beui_tree::reactive::IntoSegment<#item> },
-            None => quote! { ::__beui_tree::reactive::IntoChild<#child> },
-        }
-    }
-
-    fn block_bound(&self) -> proc_macro2::TokenStream {
-        let child = &self.child;
-        match &self.item {
-            Some(item) => quote! { ::__beui_tree::reactive::IntoSegments<#item> },
-            None => quote! { ::__beui_tree::reactive::OneChild<#child> },
-        }
-    }
-
-    fn wrap_built(&self, built: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-        let child = &self.child;
-        match &self.item {
-            Some(_) => {
-                quote! { ::__beui_tree::reactive::Children::from(::__beui_tree::reactive::into_segment(#built)) }
-            }
-            None => quote! { ::__beui_tree::reactive::into_child::<#child>(#built) },
-        }
-    }
-
-    fn wrap_block(&self, block: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-        let child = &self.child;
-        match &self.item {
-            Some(_) => quote! { ::__beui_tree::reactive::Children::from_block(#block) },
-            None => quote! { <_ as ::__beui_tree::reactive::OneChild<#child>>::one_child(#block) },
-        }
-    }
-}
-
-fn render_output(render: &Render) -> RenderOutput {
-    let child = render_child(render);
-    let item = render
-        .child
-        .as_ref()
-        .filter(|ty| is_named_type(ty, "Children"))
-        .map(|_| quote! { <#child as ::__beui_tree::reactive::ChildrenSlot>::Child });
-    RenderOutput { child, item }
-}
-
-fn render_new(render: &Render) -> proc_macro2::TokenStream {
-    if render.once {
-        quote! { ::__beui_tree::reactive::Render::new }
+/// The type a prop's setter converts what it is passed into.
+fn prop_target(prop: &Prop) -> proc_macro2::TokenStream {
+    let ty = &prop.ty;
+    if prop.exact {
+        quote! { ::__beui_tree::reactive::Exact<#ty> }
     } else {
-        quote! { ::__beui_tree::reactive::RenderFn::new }
+        quote! { #ty }
     }
 }
 
-fn render_fn_bound(render: &Render, args: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    if render.once {
-        quote! { ::core::ops::FnOnce(#args) }
-    } else {
-        quote! { ::core::ops::Fn(#args) }
-    }
-}
-
-fn render_setter(
-    method: &Ident,
-    render: &Render,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let child = render_child(render);
-    if render.raw {
-        let handle = render
-            .handle
-            .clone()
-            .unwrap_or_else(|| syn::parse_quote!(()));
-        let new = render_new(render);
-        let (bound, build) = match &render.handle {
-            Some(_) => (
-                render_fn_bound(render, quote! { #handle }),
-                quote! { #new(value) },
-            ),
-            None => (
-                render_fn_bound(render, quote! {}),
-                quote! { #new(move |()| value()) },
-            ),
-        };
+/// A prop's one setter. `view!` calls it by the prop's name, and the children slot's also as
+/// `__children`, with the children wrapped by the shape they are written in.
+fn prop_setter(prop: &Prop, method: Ident) -> Setter {
+    let ty = &prop.ty;
+    if prop.bare {
         return Setter {
-            method: method.clone(),
+            method,
             generics: quote! {},
-            args: quote! { value: impl #bound -> #child + 'static },
+            args: quote! { value: #ty },
             where_clause: quote! {},
-            value: wrap(build),
+            value: quote! { value },
         };
     }
-    let (generics, signature, where_clause, build) = match (&render.handle, render.once) {
-        (Some(handle), true) => (
-            quote! {},
-            quote! { ::__beui_tree::reactive::IntoRender<#handle, #child> },
-            quote! {},
-            quote! { ::__beui_tree::reactive::IntoRender::into_render(value) },
-        ),
-        (Some(handle), false) => (
-            quote! {},
-            quote! { ::__beui_tree::reactive::IntoRenderFn<#handle, #child> },
-            quote! {},
-            quote! { ::__beui_tree::reactive::IntoRenderFn::into_render_fn(value) },
-        ),
-        (None, _) => {
-            let output = render_output(render);
-            let bound = render_fn_bound(render, quote! {});
-            let built_bound = output.built_bound();
-            let new = render_new(render);
-            let built = output.wrap_built(quote! { value() });
-            (
-                quote! { <Built> },
-                quote! { #bound -> Built + 'static },
-                quote! { where Built: #built_bound },
-                quote! { #new(move |()| #built) },
-            )
-        }
+    let target = prop_target(prop);
+    let convert = quote! {
+        <__Passed as ::__beui_tree::reactive::IntoPropValue<#target, __By>>::into_prop_value(value)
     };
     Setter {
-        method: method.clone(),
-        generics,
-        args: quote! { value: impl #signature },
-        where_clause,
-        value: wrap(build),
+        method,
+        generics: quote! { <__Passed, __By> },
+        args: quote! { value: __Passed },
+        where_clause: quote! { where __Passed: ::__beui_tree::reactive::IntoPropValue<#target, __By> },
+        value: if prop.exact {
+            quote! { #convert.0 }
+        } else {
+            convert
+        },
     }
 }
 
-fn render_children_closure(
-    render: &Render,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let output = render_output(render);
-    let new = render_new(render);
-    if render.raw {
-        let child = &output.child;
-        let handle = render
-            .handle
-            .clone()
-            .unwrap_or_else(|| syn::parse_quote!(()));
-        let (bound, build) = match &render.handle {
-            Some(_) => (
-                render_fn_bound(render, quote! { #handle }),
-                quote! { #new(value) },
-            ),
-            None => (
-                render_fn_bound(render, quote! {}),
-                quote! { #new(move |()| value()) },
-            ),
-        };
-        return Setter {
-            method: format_ident!("children_render"),
-            generics: quote! { <ChildrenFn> },
-            args: quote! { value: ChildrenFn },
-            where_clause: quote! { where ChildrenFn: #bound -> #child + 'static, },
-            value: wrap(build),
-        };
-    }
-    let (bound, where_clause, build) = match &render.handle {
-        Some(handle) if output.item.is_none() => {
-            let child = &output.child;
-            let (into, convert) = if render.once {
-                (
-                    quote! { ::__beui_tree::reactive::IntoRender<#handle, #child> },
-                    quote! { ::__beui_tree::reactive::IntoRender::into_render(value) },
-                )
-            } else {
-                (
-                    quote! { ::__beui_tree::reactive::IntoRenderFn<#handle, #child> },
-                    quote! { ::__beui_tree::reactive::IntoRenderFn::into_render_fn(value) },
+fn prop_setters(prop: &Prop, children_slot: bool) -> Vec<Setter> {
+    let mut setters = vec![prop_setter(prop, prop.ident.clone())];
+    if children_slot {
+        let mut children = prop_setter(prop, format_ident!("__children"));
+        if !prop.bare {
+            let target = prop_target(prop);
+            children.generics = quote! { <__Make, __Passed, __By> };
+            children.args = quote! { make: __Make };
+            children.where_clause = quote! {
+                where
+                    __Make: ::core::ops::FnOnce(::__beui_tree::reactive::Slot<#target>) -> __Passed,
+                    __Passed: ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>>,
+            };
+            let convert = quote! {
+                <__Passed as ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>>>::into_prop_value(
+                    make(::__beui_tree::reactive::Slot::new()),
                 )
             };
-            let bound = render_fn_bound(render, quote! { #handle });
-            (
-                quote! { #bound -> Built + 'static + #into },
-                quote! {},
-                convert,
-            )
+            children.value = if prop.exact {
+                quote! { #convert.0 }
+            } else {
+                convert
+            };
         }
-        Some(handle) => {
-            let bound = render_fn_bound(render, quote! { #handle });
-            let built_bound = output.built_bound();
-            let built = output.wrap_built(quote! { value(handle) });
-            (
-                quote! { #bound -> Built + 'static },
-                quote! { Built: #built_bound, },
-                quote! { #new(move |handle: #handle| #built) },
-            )
-        }
-        None => {
-            let bound = render_fn_bound(render, quote! {});
-            let built_bound = output.built_bound();
-            let built = output.wrap_built(quote! { value() });
-            (
-                quote! { #bound -> Built + 'static },
-                quote! { Built: #built_bound, },
-                quote! { #new(move |()| #built) },
-            )
-        }
-    };
-    Setter {
-        method: format_ident!("children_render"),
-        generics: quote! { <ChildrenFn, Built> },
-        args: quote! { value: ChildrenFn },
-        where_clause: quote! {
-            where
-                ChildrenFn: #bound,
-                #where_clause
-        },
-        value: wrap(build),
+        setters.push(children);
     }
+    setters
 }
 
-/// A `|| { ... }` closure child: built again each time the slot builds, ignoring what it is
-/// handed.
-fn render_children_unit(
-    render: &Render,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let unit = Render {
-        once: render.once,
-        handle: None,
-        child: render.child.clone(),
-        raw: render.raw,
-    };
-    let mut setter = render_children_closure(&unit, |build| build);
-    setter.method = format_ident!("children_render_unit");
-    if render.handle.is_some() {
-        let handle = render.handle.clone();
-        let new = render_new(render);
-        let inner = setter.value;
-        setter.value = wrap(quote! {{
-            let unit = #inner;
-            #new(move |_handle: #handle| unit.call(()))
-        }});
+/// A default written in `#[prop(default = ..)]` converts the way a passed value does.
+fn default_value(prop: &Prop, default: &Expr) -> proc_macro2::TokenStream {
+    if prop.bare {
+        return quote! { #default };
+    }
+    let target = prop_target(prop);
+    let convert = quote! { ::__beui_tree::reactive::IntoPropValue::<#target, _>::into_prop_value(#default) };
+    if prop.exact {
+        quote! { #convert.0 }
     } else {
-        setter.value = wrap(setter.value);
-    }
-    setter
-}
-
-fn render_children_block(
-    render: &Render,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let handle = render
-        .handle
-        .clone()
-        .unwrap_or_else(|| syn::parse_quote!(()));
-    let output = render_output(render);
-    let bound = render_fn_bound(render, quote! {});
-    let new = render_new(render);
-    if render.raw {
-        let child = &output.child;
-        return Setter {
-            method: format_ident!("children_block"),
-            generics: quote! { <ChildrenFn> },
-            args: quote! { children: ChildrenFn },
-            where_clause: quote! { where ChildrenFn: #bound -> #child + 'static, },
-            value: wrap(quote! { #new(move |_handle: #handle| children()) }),
-        };
-    }
-    let block_bound = output.block_bound();
-    let built = output.wrap_block(quote! { children() });
-    Setter {
-        method: format_ident!("children_block"),
-        generics: quote! { <ChildrenFn, ChildrenBlock> },
-        args: quote! { children: ChildrenFn },
-        where_clause: quote! {
-            where
-                ChildrenFn: #bound -> ChildrenBlock + 'static,
-                ChildrenBlock: #block_bound,
-        },
-        value: wrap(quote! { #new(move |_handle: #handle| #built) }),
+        convert
     }
 }
 
-fn render_children_with(
-    render: &Render,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    let Some(handle) = &render.handle else {
-        return no_children_with();
+fn own_param_ident(ty: &Type) -> Option<Ident> {
+    match ty {
+        Type::Path(path) if path.qself.is_none() => path.path.get_ident().cloned(),
+        _ => None,
+    }
+}
+
+/// Whether `ty` names `param` as a type of its own, not only through a projection such as
+/// `V::Handed` or `<V as Trait>::Item`.
+fn mentions_bare(ty: &Type, param: &Ident) -> bool {
+    let tokens: Vec<proc_macro2::TokenTree> = quote! { #ty }.into_iter().collect();
+    fn walk(tokens: &[proc_macro2::TokenTree], param: &Ident) -> bool {
+        tokens.iter().enumerate().any(|(index, token)| match token {
+            proc_macro2::TokenTree::Ident(ident) if ident == param => {
+                !matches!(
+                    tokens.get(index + 1),
+                    Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
+                ) && !matches!(
+                    tokens.get(index + 1),
+                    Some(proc_macro2::TokenTree::Ident(next)) if next == "as"
+                )
+            }
+            proc_macro2::TokenTree::Group(group) => {
+                let inner: Vec<_> = group.stream().into_iter().collect();
+                walk(&inner, param)
+            }
+            _ => false,
+        })
+    }
+    walk(&tokens, param)
+}
+
+fn is_own_param(ty: &Type, params: &[Ident]) -> bool {
+    matches!(ty, Type::Path(path) if path.qself.is_none()
+        && path.path.get_ident().is_some_and(|ident| params.contains(ident)))
+}
+
+/// The last type argument of `ty`'s last path segment: `V` in `Prop<V>`, `B` in
+/// `RenderFn<H, B>`.
+fn last_type_arg(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else {
+        return None;
     };
-    let output = render_output(render);
-    let bound = render_fn_bound(render, quote! { #handle });
-    let new = render_new(render);
-    if render.raw {
-        let child = &output.child;
-        return Setter {
-            method: format_ident!("children_with"),
-            generics: quote! { <ChildrenFn> },
-            args: quote! { children: ChildrenFn },
-            where_clause: quote! { where ChildrenFn: #bound -> #child + 'static, },
-            value: wrap(quote! { #new(children) }),
-        };
-    }
-    let block_bound = output.block_bound();
-    let built = output.wrap_block(quote! { children(handle) });
-    Setter {
-        method: format_ident!("children_with"),
-        generics: quote! { <ChildrenFn, ChildrenBlock> },
-        args: quote! { children: ChildrenFn },
-        where_clause: quote! {
-            where
-                ChildrenFn: #bound -> ChildrenBlock + 'static,
-                ChildrenBlock: #block_bound,
-        },
-        value: wrap(quote! { #new(move |handle: #handle| #built) }),
-    }
-}
-
-fn no_children_with() -> Setter {
-    Setter {
-        method: format_ident!("children_with"),
-        generics: quote! { <ChildrenFn> },
-        args: quote! { children: ChildrenFn },
-        where_clause: quote! { where ChildrenFn: ::__beui_tree::reactive::HandsAValue },
-        value: quote! { ::__beui_tree::reactive::HandsAValue::bind(children) },
-    }
-}
-
-fn no_children_render() -> Setter {
-    Setter {
-        method: format_ident!("children_render"),
-        generics: quote! { <ChildrenFn> },
-        args: quote! { children: ChildrenFn },
-        where_clause: quote! { where ChildrenFn: ::__beui_tree::reactive::BuildsItsChildren },
-        value: quote! { ::__beui_tree::reactive::BuildsItsChildren::build(children) },
-    }
-}
-
-fn no_children_render_unit() -> Setter {
-    Setter {
-        method: format_ident!("children_render_unit"),
-        ..no_children_render()
-    }
-}
-
-fn children_setters(prop: &Prop) -> Vec<Setter> {
-    let block = format_ident!("children_block");
-    if prop.is_children {
-        let ty = &prop.ty;
-        let child = quote! { <#ty as ::__beui_tree::reactive::ChildrenSlot>::Child };
-        return vec![
-            Setter {
-                method: block,
-                generics: quote! { <ChildrenBlock> },
-                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::IntoSegments<#child> },
-                value: quote! { ::__beui_tree::reactive::Children::from_block(children()) },
-            },
-            no_children_with(),
-            no_children_render(),
-            no_children_render_unit(),
-        ];
-    }
-    if prop.is_optional_child {
-        let item = prop
-            .inner_ty
-            .as_ref()
-            .expect("an optional child has an inner type");
-        return vec![
-            Setter {
-                method: block,
-                generics: quote! { <ChildrenBlock> },
-                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::AtMostOneChild<#item> },
-                value: quote! { ::__beui_tree::reactive::AtMostOneChild::at_most_one_child(children()) },
-            },
-            no_children_with(),
-            no_children_render(),
-            no_children_render_unit(),
-        ];
-    }
-    if prop.is_child {
-        let ty = &prop.ty;
-        return vec![
-            Setter {
-                method: block,
-                generics: quote! { <ChildrenBlock> },
-                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::OneChild<#ty> },
-                value: quote! { ::__beui_tree::reactive::OneChild::one_child(children()) },
-            },
-            no_children_with(),
-            no_children_render(),
-            no_children_render_unit(),
-        ];
-    }
-    match &prop.optional_render {
-        Some(render) => vec![
-            render_children_closure(render, |build| quote! { Some(#build) }),
-            render_children_unit(render, |build| quote! { Some(#build) }),
-            render_children_block(render, |build| quote! { Some(#build) }),
-            render_children_with(render, |build| quote! { Some(#build) }),
-        ],
-        None => {
-            let render = prop.render.as_ref().expect("checked by the caller");
-            vec![
-                render_children_closure(render, |build| build),
-                render_children_unit(render, |build| build),
-                render_children_block(render, |build| build),
-                render_children_with(render, |build| build),
-            ]
-        }
-    }
-}
-
-fn named_setter(prop: &Prop) -> Setter {
-    let ident = &prop.ident;
-    let plain = |args: proc_macro2::TokenStream, value: proc_macro2::TokenStream| Setter {
-        method: ident.clone(),
-        generics: quote! {},
-        args,
-        where_clause: quote! {},
-        value,
+    let PathArguments::AngleBracketed(args) = &path.path.segments.last()?.arguments else {
+        return None;
     };
-    if prop.is_children {
-        let ty = &prop.ty;
-        plain(quote! { value: impl Into<#ty> }, quote! { value.into() })
-    } else if prop.is_child {
-        let ty = &prop.ty;
-        plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoChild<#ty> },
-            quote! { ::__beui_tree::reactive::IntoChild::into_child(value) },
-        )
-    } else if prop.is_optional_child {
-        let item = prop
-            .inner_ty
-            .as_ref()
-            .expect("an optional child has an inner type");
-        plain(
-            quote! { value: impl Into<Option<#item>> },
-            quote! { value.into() },
-        )
-    } else if prop
-        .optional_render
-        .as_ref()
-        .is_some_and(|render| !render.raw)
-    {
-        let inner = prop
-            .inner_ty
-            .as_ref()
-            .expect("an optional render prop has an inner type");
-        Setter {
-            method: ident.clone(),
-            generics: quote! { <__Passed> },
-            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalRender<#inner, __Passed> },
-            where_clause: quote! {},
-            value: quote! { ::__beui_tree::reactive::IntoOptionalRender::into_optional_render(value) },
-        }
-    } else if let Some(render) = &prop.optional_render {
-        render_setter(ident, render, |build| quote! { Some(#build) })
-    } else if let Some(render) = &prop.render {
-        render_setter(ident, render, |build| build)
-    } else if let Some(args) = &prop.optional_func_args {
-        let (value, result) = (&args[0], &args[1]);
-        Setter {
-            method: ident.clone(),
-            generics: quote! { <__Passed> },
-            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalFunc<#value, #result, __Passed> },
-            where_clause: quote! {},
-            value: quote! { ::__beui_tree::reactive::IntoOptionalFunc::into_optional_func(value) },
-        }
-    } else if let Some(args) = &prop.func_args {
-        func_setter(ident, args, |build| build)
-    } else if prop.is_optional_click_callback {
-        plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoUnitCallback },
-            quote! { Some(::__beui_tree::reactive::IntoUnitCallback::into_unit_callback(value)) },
-        )
-    } else if let Some(signature) = &prop.optional_callback_signature {
-        plain(
-            quote! { value: impl #signature },
-            quote! { Some(::__beui_tree::reactive::IntoCallback::into_callback(value)) },
-        )
-    } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
-        Setter {
-            method: ident.clone(),
-            generics: quote! { <__Passed> },
-            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalProp<#inner_ty, __Passed> },
-            where_clause: quote! {},
-            value: quote! { ::__beui_tree::reactive::IntoOptionalProp::into_optional_prop(value) },
-        }
-    } else if let Some(inner_ty) = &prop.inner_ty {
-        if is_string_type(inner_ty) {
-            plain(
-                quote! { value: impl Into<String> },
-                quote! { Some(value.into()) },
-            )
-        } else if is_primitive_type(inner_ty) {
-            plain(quote! { value: #inner_ty }, quote! { Some(value) })
-        } else {
-            plain(
-                quote! { value: impl Into<Option<#inner_ty>> },
-                quote! { value.into() },
-            )
-        }
-    } else if prop.is_click_callback {
-        plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoUnitCallback },
-            quote! { ::__beui_tree::reactive::IntoUnitCallback::into_unit_callback(value) },
-        )
-    } else if let Some(signature) = &prop.callback_signature {
-        plain(
-            quote! { value: impl #signature },
-            quote! { ::__beui_tree::reactive::IntoCallback::into_callback(value) },
-        )
-    } else if let Some(inner_ty) = &prop.reactive_inner_ty {
-        reactive_setter(ident, inner_ty, prop.exact, |build| build)
-    } else if let Some(inner_ty) = &prop.binding_inner_ty {
-        plain(
-            quote! { value: impl ::__beui_tree::reactive::IntoBinding<#inner_ty> },
-            quote! { ::__beui_tree::reactive::IntoBinding::into_binding(value) },
-        )
-    } else if is_string_type(&prop.ty) {
-        plain(quote! { value: impl Into<String> }, quote! { value.into() })
-    } else {
-        let ty = &prop.ty;
-        plain(quote! { value: #ty }, quote! { value })
-    }
-}
-
-/// A `Prop<T>` prop's setter: it takes a value, a signal or memo, or a closure.
-fn reactive_setter(
-    method: &Ident,
-    inner_ty: &Type,
-    exact: bool,
-    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
-) -> Setter {
-    if exact {
-        return Setter {
-            method: method.clone(),
-            generics: quote! { <__Passed> },
-            args: quote! { value: impl ::__beui_tree::reactive::IntoReadProp<#inner_ty, __Passed> },
-            where_clause: quote! {},
-            value: wrap(quote! { ::__beui_tree::reactive::IntoReadProp::into_read_prop(value) }),
-        };
-    }
-    Setter {
-        method: method.clone(),
-        generics: quote! { <__Passed> },
-        args: quote! { value: impl ::__beui_tree::reactive::IntoPropWith<#inner_ty, __Passed> },
-        where_clause: quote! {},
-        value: wrap(quote! { ::__beui_tree::reactive::IntoPropWith::into_prop_with(value) }),
-    }
-}
-
-fn prop_is_required(prop: &Prop) -> bool {
-    if prop.inner_ty.is_some() || prop.is_children {
-        return false;
-    }
-    if prop.is_child || prop.required_binding {
-        return true;
-    }
-    prop.default.is_none()
-        && prop.callback_signature.is_none()
-        && !prop.is_click_callback
-        && prop.binding_inner_ty.is_none()
+    args.args.iter().rev().find_map(|arg| match arg {
+        GenericArgument::Type(ty) => Some(ty),
+        _ => None,
+    })
 }
 
 fn angle_bracketed(items: &[proc_macro2::TokenStream]) -> proc_macro2::TokenStream {
@@ -745,125 +229,6 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
         Err(meta.error("expected `children`, `required` or `default = <expr>`"))
     })?;
     Ok(parsed)
-}
-
-fn generic_inner(ty: &Type, name: &str) -> Option<Type> {
-    let Type::Path(path) = ty else {
-        return None;
-    };
-    let segment = path.path.segments.last()?;
-    if segment.ident != name {
-        return None;
-    }
-    let PathArguments::AngleBracketed(args) = &segment.arguments else {
-        return None;
-    };
-    args.args.iter().find_map(|arg| match arg {
-        GenericArgument::Type(ty) => Some(ty.clone()),
-        _ => None,
-    })
-}
-
-fn generic_args(ty: &Type, name: &str) -> Option<Vec<Type>> {
-    let Type::Path(path) = ty else {
-        return None;
-    };
-    let segment = path.path.segments.last()?;
-    if segment.ident != name {
-        return None;
-    }
-    let PathArguments::AngleBracketed(args) = &segment.arguments else {
-        return Some(Vec::new());
-    };
-    Some(
-        args.args
-            .iter()
-            .filter_map(|arg| match arg {
-                GenericArgument::Type(ty) => Some(ty.clone()),
-                _ => None,
-            })
-            .collect(),
-    )
-}
-
-fn is_string_type(ty: &Type) -> bool {
-    let Type::Path(path) = ty else {
-        return false;
-    };
-    let Some(segment) = path.path.segments.last() else {
-        return false;
-    };
-    segment.ident == "String" && matches!(segment.arguments, PathArguments::None)
-}
-
-fn is_primitive_type(ty: &Type) -> bool {
-    const PRIMITIVES: [&str; 15] = [
-        "bool", "char", "f32", "f64", "i8", "i16", "i32", "i64", "i128", "isize", "u8", "u16",
-        "u32", "u64", "usize",
-    ];
-    let Type::Path(path) = ty else {
-        return false;
-    };
-    path.path
-        .get_ident()
-        .is_some_and(|ident| PRIMITIVES.iter().any(|primitive| ident == primitive))
-}
-
-/// `Callback<()>`: a prop that is called with nothing, so its setter also takes a
-/// closure without arguments.
-fn is_unit_callback(ty: &Type) -> bool {
-    is_named_type(ty, "Callback")
-        && matches!(
-            generic_args(ty, "Callback").as_deref(),
-            Some([Type::Tuple(tuple)]) if tuple.elems.is_empty()
-        )
-}
-
-fn own_param_ident(ty: &Type) -> Option<Ident> {
-    match ty {
-        Type::Path(path) if path.qself.is_none() => path.path.get_ident().cloned(),
-        _ => None,
-    }
-}
-
-/// Whether `ty` names `param` as a type of its own, not only through a projection such as
-/// `V::Handed` or `<V as Trait>::Item`.
-fn mentions_bare(ty: &Type, param: &Ident) -> bool {
-    let tokens: Vec<proc_macro2::TokenTree> = quote! { #ty }.into_iter().collect();
-    fn walk(tokens: &[proc_macro2::TokenTree], param: &Ident) -> bool {
-        tokens.iter().enumerate().any(|(index, token)| match token {
-            proc_macro2::TokenTree::Ident(ident) if ident == param => {
-                !matches!(
-                    tokens.get(index + 1),
-                    Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
-                ) && !matches!(
-                    tokens.get(index + 1),
-                    Some(proc_macro2::TokenTree::Ident(next)) if next == "as"
-                )
-            }
-            proc_macro2::TokenTree::Group(group) => {
-                let inner: Vec<_> = group.stream().into_iter().collect();
-                walk(&inner, param)
-            }
-            _ => false,
-        })
-    }
-    walk(&tokens, param)
-}
-
-fn is_own_param(ty: &Type, params: &[Ident]) -> bool {
-    matches!(ty, Type::Path(path) if path.qself.is_none()
-        && path.path.get_ident().is_some_and(|ident| params.contains(ident)))
-}
-
-fn is_named_type(ty: &Type, name: &str) -> bool {
-    let Type::Path(path) = ty else {
-        return false;
-    };
-    path.path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == name)
 }
 
 /// Makes a function a component, used as a tag in `view!`.
@@ -1027,79 +392,36 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 children,
                 required,
             } = take_prop_attr(attrs)?;
-            let binding_inner_ty = generic_inner(ty, "Binding");
-            if required && (binding_inner_ty.is_none() || default.is_some()) {
+            if required && default.is_some() {
                 return Err(syn::Error::new_spanned(
                     ty,
-                    "`#[prop(required)]` is for a `Binding<T>` with no default; other props are required unless they have one",
+                    "`#[prop(required)]` is for a prop with no default whose type has a value when left out (an `AbsentProp`, such as a `Binding<T>`)",
                 ));
             }
-            let callback_signature = is_named_type(ty, "Callback")
-                .then(|| callback_signature(ty))
-                .transpose()?;
-            let inner_ty = generic_inner(ty, "Option");
-            let is_optional_click_callback = inner_ty.as_ref().is_some_and(is_unit_callback);
-            let optional_callback_signature = inner_ty
-                .as_ref()
-                .filter(|inner| is_named_type(inner, "Callback"))
-                .map(crate::callback_signature)
-                .transpose()?;
-            let optional_reactive_inner_ty = inner_ty
-                .as_ref()
-                .and_then(|inner| generic_inner(inner, "Prop"));
-            let reactive_inner_ty = generic_inner(ty, "Prop");
-            let reactive_inner_ty_is_own = reactive_inner_ty
-                .as_ref()
-                .is_some_and(|inner| is_own_param(inner, &own_params));
-            let optional_render = inner_ty.as_ref().and_then(render_kind);
-            let optional_func_args = inner_ty.as_ref().and_then(func_args);
-            let is_children = is_named_type(ty, "Children");
-            let is_child = is_named_type(ty, "Child") || is_named_type(ty, "NodeId");
-            let is_optional_child = inner_ty
-                .as_ref()
-                .is_some_and(|inner| is_named_type(inner, "Child"));
-            let mut render = render_kind(ty);
-            let mut optional_render = optional_render;
-            for render in [&mut render, &mut optional_render].into_iter().flatten() {
-                render.raw = render
-                    .child
-                    .as_ref()
-                    .is_some_and(|child| is_own_param(child, &own_params));
-            }
+            let bare = is_own_param(ty, &own_params);
+            let exact = !bare
+                && last_type_arg(ty).is_some_and(|inner| is_own_param(inner, &own_params));
             Ok(Prop {
                 ident,
                 ty: (**ty).clone(),
-                inner_ty,
-                optional_reactive_inner_ty,
-                reactive_inner_ty,
-                binding_inner_ty,
-                render,
-                optional_render,
-                func_args: func_args(ty),
-                optional_func_args,
-                is_children,
-                is_child,
-                is_optional_child,
-                callback_signature,
-                optional_callback_signature,
-                is_click_callback: is_unit_callback(ty),
-                is_optional_click_callback,
                 default,
                 is_children_slot: children,
-                exact: reactive_inner_ty_is_own,
-                required_binding: required,
+                bare,
+                exact,
+                required,
             })
         })
         .collect::<syn::Result<_>>()?;
-    // A `Prop<V>` whose `V` no other prop names takes its type only from what is passed.
+    // A prop whose last type argument is a type parameter no other prop names takes its type
+    // only from what is passed; one another prop names converts as usual.
     let mentioned: Vec<bool> = props
         .iter()
         .enumerate()
         .map(|(index, prop)| {
-            let Some(inner) = prop.reactive_inner_ty.as_ref().filter(|_| prop.exact) else {
-                return false;
-            };
-            let Some(param) = own_param_ident(inner) else {
+            let Some(param) = last_type_arg(&prop.ty)
+                .filter(|_| prop.exact)
+                .and_then(own_param_ident)
+            else {
                 return false;
             };
             props
@@ -1137,28 +459,10 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         ));
     }
     let children_slot = designated.first().copied().or(named_children);
-    if let Some(slot) = children_slot {
-        let prop = &props[slot];
-        let known = prop.is_children
-            || prop.is_child
-            || prop.is_optional_child
-            || prop.render.is_some()
-            || prop.optional_render.is_some();
-        if !known {
-            return Err(syn::Error::new_spanned(
-                &prop.ty,
-                format!(
-                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children<_>`, `Child`, `Option<Child>`, `NodeId`, `Render<_>`, or `RenderFn<_>`",
-                    prop.ident,
-                ),
-            ));
-        }
-    }
-
     let required: Vec<usize> = props
         .iter()
         .enumerate()
-        .filter(|(_, prop)| prop_is_required(prop))
+        .filter(|(_, prop)| prop.default.is_none())
         .map(|(index, _)| index)
         .collect();
     let req_params: Vec<Ident> = required
@@ -1177,12 +481,46 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .iter()
         .zip(&req_traits)
         .map(|(index, trait_ident)| {
-            let prop = props[*index].ident.to_string();
+            let given = &props[*index];
+            let prop = given.ident.to_string();
             let message = format!("missing required prop `{prop}` on component `{name}`");
             let label = format!("this tag does not set `{prop}`");
             let note = format!(
                 "write `{prop}=...` in the tag, or give the prop a `#[prop(default = ...)]`"
             );
+            // A bare prop is its own typestate, so a tag that leaves it out infers its type
+            // parameter as `MissingProp`. Any other is kept as a `SetProp` once set, and left
+            // out it is its type's `AbsentProp`, if the type has one and the prop is not
+            // `#[prop(required)]`.
+            let impls = if given.bare {
+                quote! {
+                    #[doc(hidden)]
+                    impl<T> #trait_ident<T> for T {
+                        fn __prop(self) -> T {
+                            self
+                        }
+                    }
+                }
+            } else {
+                let absent = (!given.required).then(|| quote! {
+                    #[doc(hidden)]
+                    #[diagnostic::do_not_recommend]
+                    impl<T: ::__beui_tree::reactive::AbsentProp> #trait_ident<T> for ::__beui_tree::reactive::MissingProp {
+                        fn __prop(self) -> T {
+                            <T as ::__beui_tree::reactive::AbsentProp>::absent()
+                        }
+                    }
+                });
+                quote! {
+                    #[doc(hidden)]
+                    impl<T> #trait_ident<T> for ::__beui_tree::reactive::SetProp<T> {
+                        fn __prop(self) -> T {
+                            self.0
+                        }
+                    }
+                    #absent
+                }
+            };
             quote! {
                 #[doc(hidden)]
                 #[allow(non_camel_case_types)]
@@ -1191,12 +529,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                     fn __prop(self) -> T;
                 }
 
-                #[doc(hidden)]
-                impl<T> #trait_ident<T> for T {
-                    fn __prop(self) -> T {
-                        self
-                    }
-                }
+                #impls
             }
         });
 
@@ -1312,11 +645,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .filter(|(index, _)| req_slot_of[*index].is_none())
         .flat_map(|(index, prop)| {
             let ident = prop.ident.clone();
-            let mut setters = vec![named_setter(prop)];
-            if children_slot == Some(index) {
-                setters.extend(children_setters(prop));
-            }
-            setters
+            prop_setters(prop, children_slot == Some(index))
                 .into_iter()
                 .map(|setter| {
                     let Setter {
@@ -1378,7 +707,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 .cloned()
                 .chain(state_params.iter().map(|(other, param)| {
                     if *other == slot {
-                        quote! { #ty }
+                        if prop.bare {
+                            quote! { #ty }
+                        } else {
+                            quote! { ::__beui_tree::reactive::SetProp<#ty> }
+                        }
                     } else {
                         quote! { #param }
                     }
@@ -1386,10 +719,12 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 .collect();
             let set_args = angle_bracketed(&set_args);
 
-            let mut setters = vec![named_setter(prop)];
-            if children_slot == Some(*index) {
-                setters.extend(children_setters(prop));
-            }
+            let setters = prop_setters(prop, children_slot == Some(*index));
+            let set_value = if prop.bare {
+                quote! { __prop_value }
+            } else {
+                quote! { ::__beui_tree::reactive::SetProp(__prop_value) }
+            };
             let methods = setters.into_iter().map(|setter| {
                 let Setter {
                     method,
@@ -1406,7 +741,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                     {
                         let __prop_value = #value;
                         let #builder_ident { #ident: _, #(#others,)* } = self;
-                        #builder_ident { #ident: __prop_value, #(#others,)* }
+                        #builder_ident { #ident: #set_value, #(#others,)* }
                     }
                 }
             });
@@ -1419,27 +754,35 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         })
         .collect::<syn::Result<Vec<_>>>()?;
 
-    let field_lets = props.iter().enumerate().map(|(index, prop)| {
+    // A prop's value is settled inside the component's scope, so what a missing one makes (a
+    // binding's signal) belongs to the component.
+    let field_takes = props.iter().map(|prop| {
         let ident = &prop.ident;
-        let value = match req_slot_of[index] {
-            Some(slot) => {
-                let param = &req_params[slot];
-                let trait_ident = &req_traits[slot];
-                let ty = &prop.ty;
-                quote! { <#param as #trait_ident<#ty>>::__prop(self.#ident) }
-            }
-            None if prop.binding_inner_ty.is_some() => quote! { self.#ident },
-            None => match &prop.default {
-                Some(default) if prop.reactive_inner_ty.is_some() => quote! {
-                    self.#ident
-                        .unwrap_or_else(|| ::__beui_tree::reactive::IntoProp::into_prop(#default))
-                },
-                Some(default) => quote! { self.#ident.unwrap_or_else(|| #default) },
-                None => quote! { self.#ident.unwrap_or_default() },
-            },
-        };
-        quote! { let #ident = #value; }
+        quote! { let #ident = self.#ident; }
     });
+    let field_lets: Vec<proc_macro2::TokenStream> = props
+        .iter()
+        .enumerate()
+        .map(|(index, prop)| {
+            let ident = &prop.ident;
+            let value = match req_slot_of[index] {
+                Some(slot) => {
+                    let param = &req_params[slot];
+                    let trait_ident = &req_traits[slot];
+                    let ty = &prop.ty;
+                    quote! { <#param as #trait_ident<#ty>>::__prop(#ident) }
+                }
+                None => {
+                    let default = default_value(
+                        prop,
+                        prop.default.as_ref().expect("a prop with no typestate has a default"),
+                    );
+                    quote! { #ident.unwrap_or_else(|| #default) }
+                }
+            };
+            quote! { let #ident = #value; }
+        })
+        .collect();
 
     let build_where = {
         let bounds = required.iter().enumerate().map(|(slot, index)| {
@@ -1455,25 +798,10 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         }
     };
 
-    let owned_bindings = props
-        .iter()
-        .filter(|prop| prop.binding_inner_ty.is_some() && !prop.required_binding)
-        .map(|prop| {
-            let ident = &prop.ident;
-            let initial = match &prop.default {
-                Some(default) => quote! { #default },
-                None => quote! { ::core::default::Default::default() },
-            };
-            quote! {
-                let #ident = #ident.unwrap_or_else(|| {
-                    ::__beui_tree::reactive::Binding::from(::__beui_tree::reactive::create_signal(#initial))
-                });
-            }
-        });
     let finish = match finish {
         Finish::Body(block) => quote! {
             ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
-                #(#owned_bindings)*
+                #(#field_lets)*
                 ::__beui_tree::reactive::ComponentOutput::<#output_ty>::into_output(#block)
             })
         },
@@ -1481,7 +809,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             let idents = props.iter().map(|prop| &prop.ident);
             quote! {
                 {
-                    #(#owned_bindings)*
+                    #(#field_lets)*
                     #call(#(#idents),*)
                 }
             }
@@ -1531,7 +859,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             #[track_caller]
             pub fn build(self) #output #build_where {
                 let with_built = self.with_built;
-                #(#field_lets)*
+                #(#field_takes)*
                 let node = #finish;
                 for bind in with_built {
                     bind(&node);
@@ -2039,46 +1367,64 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     apply_modifiers(expand_view_body(node, builder, build, tag), &node.modifiers)
 }
 
+/// A tag's children reach its children slot's one setter, `__children`, wrapped by the shape
+/// they are written in; the slot's type says which shapes it takes.
 fn expand_view_body(
     node: &ViewNode,
     builder: proc_macro2::TokenStream,
     build: Ident,
     tag: proc_macro2::Span,
 ) -> proc_macro2::TokenStream {
-    match &node.children {
-        None => quote_spanned! { tag => #builder .#build() },
-        Some(children) => {
-            if let Some(head) = &node.head {
-                let span = head.span;
-                let params = match &head.pattern {
-                    Some(pattern) => quote! { |#pattern| },
-                    None => quote! { || },
-                };
-                if let Some(block) = &head.block {
-                    let method = match head.pattern {
-                        Some(_) => "children_render",
-                        None => "children_render_unit",
-                    };
-                    let children_render = format_ident!("{}", method, span = span);
-                    return quote_spanned! { span =>
-                        #builder .#children_render(move #params #block) .#build()
-                    };
-                }
-                if head.pattern.is_some() {
+    let Some(children) = &node.children else {
+        return quote_spanned! { tag => #builder .#build() };
+    };
+    let (span, wrapped) = match &node.head {
+        Some(head) => {
+            let span = head.span;
+            let params = match &head.pattern {
+                Some(pattern) => quote! { |#pattern| },
+                None => quote! { || },
+            };
+            match (&head.block, &head.pattern) {
+                (Some(block), Some(_)) => (
+                    span,
+                    quote_spanned! { span => __slot.closure(move #params #block) },
+                ),
+                (Some(block), None) => (
+                    span,
+                    quote_spanned! { span => ::__beui_tree::reactive::ChildUnitClosure(move #params #block) },
+                ),
+                (None, Some(_)) => {
                     let items = expand_child_block(children);
-                    let children_with = format_ident!("children_with", span = span);
-                    return quote_spanned! { span =>
-                        #builder .#children_with(move #params #items) .#build()
-                    };
+                    (
+                        span,
+                        quote_spanned! { span => __slot.with(move #params #items) },
+                    )
                 }
-            }
-            let items = expand_child_block(children);
-            let block = quote_spanned! { tag => move || #items };
-            let children_block = format_ident!("children_block", span = tag);
-            quote_spanned! { tag =>
-                #builder .#children_block(#block) .#build()
+                (None, None) => {
+                    let items = expand_child_block(children);
+                    (
+                        tag,
+                        quote_spanned! { tag => ::__beui_tree::reactive::ChildBlock(move || #items) },
+                    )
+                }
             }
         }
+        None => {
+            let items = expand_child_block(children);
+            (
+                tag,
+                quote_spanned! { tag => ::__beui_tree::reactive::ChildBlock(move || #items) },
+            )
+        }
+    };
+    let set = format_ident!("__children", span = span);
+    quote_spanned! { span =>
+        #builder .#set(|__slot| {
+            #[allow(unused_imports)]
+            use ::__beui_tree::reactive::{FnOnceSlot as _, FnSlot as _, NoHandedSlot as _};
+            #wrapped
+        }) .#build()
     }
 }
 

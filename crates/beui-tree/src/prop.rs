@@ -76,8 +76,20 @@ pub trait IntoProp<T> {
     message = "a `{Self}` cannot be passed as a `{T}` prop",
     label = "pass a `{T}`, a signal or memo of one, or a closure returning one"
 )]
+pub trait IntoPropFrom<T, M> {
+    fn into_prop_from(self) -> Prop<T>;
+}
+
+/// What a builder method or function that takes a prop asks for: anything a `Prop<T>`
+/// prop of a component takes (`IntoPropValue<Prop<T>, M>`), so a `Prop<T>` too.
 pub trait IntoPropWith<T, M> {
     fn into_prop_with(self) -> Prop<T>;
+}
+
+impl<T, M, V: crate::prop_value::IntoPropValue<Prop<T>, M>> IntoPropWith<T, M> for V {
+    fn into_prop_with(self) -> Prop<T> {
+        self.into_prop_value()
+    }
 }
 
 pub struct ByValue;
@@ -101,9 +113,9 @@ pub struct Given<M>(std::marker::PhantomData<M>);
 /// Marks an optional prop passed on from another component's.
 pub struct PassedOn;
 
-impl<T, M, V: IntoPropWith<T, M>> IntoOptionalProp<T, Given<M>> for V {
+impl<T, M, V: IntoPropFrom<T, M>> IntoOptionalProp<T, Given<M>> for V {
     fn into_optional_prop(self) -> Option<Prop<T>> {
-        Some(self.into_prop_with())
+        Some(self.into_prop_from())
     }
 }
 
@@ -126,11 +138,6 @@ pub trait IntoReadProp<T, M> {
     fn into_read_prop(self) -> Prop<T>;
 }
 
-impl<T: 'static> IntoReadProp<T, ByValue> for Prop<T> {
-    fn into_read_prop(self) -> Prop<T> {
-        self
-    }
-}
 
 impl<T: Clone + 'static> IntoReadProp<T, ByValue> for ReadSignal<T> {
     fn into_read_prop(self) -> Prop<T> {
@@ -161,26 +168,26 @@ pub trait IntoLiftedProp<T> {
     fn into_lifted_prop(self) -> Prop<T>;
 }
 
-impl<T, V: IntoLiftedProp<T>> IntoPropWith<T, ByLift> for V {
-    fn into_prop_with(self) -> Prop<T> {
+impl<T, V: IntoLiftedProp<T>> IntoPropFrom<T, ByLift> for V {
+    fn into_prop_from(self) -> Prop<T> {
         self.into_lifted_prop()
     }
 }
 
-impl<T, V: IntoProp<T>> IntoPropWith<T, ByValue> for V {
-    fn into_prop_with(self) -> Prop<T> {
+impl<T, V: IntoProp<T>> IntoPropFrom<T, ByValue> for V {
+    fn into_prop_from(self) -> Prop<T> {
         self.into_prop()
     }
 }
 
-impl<T: 'static, F: Fn() -> T + 'static> IntoPropWith<T, ByClosure> for F {
-    fn into_prop_with(self) -> Prop<T> {
+impl<T: 'static, F: Fn() -> T + 'static> IntoPropFrom<T, ByClosure> for F {
+    fn into_prop_from(self) -> Prop<T> {
         Prop::dynamic(self)
     }
 }
 
-impl<T: 'static, F: Fn() -> T + 'static> IntoPropWith<Option<T>, ByClosureLifted> for F {
-    fn into_prop_with(self) -> Prop<Option<T>> {
+impl<T: 'static, F: Fn() -> T + 'static> IntoPropFrom<Option<T>, ByClosureLifted> for F {
+    fn into_prop_from(self) -> Prop<Option<T>> {
         Prop::dynamic(move || Some(self()))
     }
 }
@@ -197,11 +204,6 @@ impl IntoProp<String> for &'static str {
     }
 }
 
-impl<T: 'static> IntoProp<T> for Prop<T> {
-    fn into_prop(self) -> Prop<T> {
-        self
-    }
-}
 
 impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     fn into_prop(self) -> Prop<T> {

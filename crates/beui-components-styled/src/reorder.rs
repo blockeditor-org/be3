@@ -30,7 +30,7 @@ pub fn Reorder<K, P>(
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
     on_drop_outside: Callback<(K, DragPoint)>,
-    preview: RenderFn<P>,
+    preview: RenderFn<P, NodeId>,
     #[prop(children)] content: Render<ReorderHandle<K, P>>,
 ) -> NodeId
 where

@@ -9,6 +9,7 @@ pub mod control;
 mod errored;
 pub mod keep;
 pub mod prop;
+pub mod prop_value;
 
 pub mod reactive {
     pub use crate::binding::{Binding, IntoBinding};
@@ -32,11 +33,18 @@ pub mod reactive {
     };
     pub use crate::errored::Errored;
     pub use crate::into_prop_via;
+    pub use crate::one_child_slot;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::keep::{kept_shown, provide_kept_shown};
     pub use crate::prop::{
         ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoFunc, IntoLiftedProp,
-        IntoOptionalFunc, IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,
+        IntoOptionalFunc, IntoOptionalProp, IntoProp, IntoPropFrom, IntoPropWith, IntoReadProp, PassedOn, Prop,
+    };
+    pub use crate::prop_value::{
+        AbsentProp, ByBlock, ByChildClosure, ByChildUnitClosure, ByChildWith, ByExact, ByInto,
+        ByProp, BySignal, ByUnitClosure, ChildBlock, ChildClosure, ChildUnitClosure, ChildWith, FnOnceSlot, FnSlot, NoHandedSlot, Slot,
+        Exact, IntoPropValue, Itself, SetProp, TakesBlock, TakesClosure, TakesOptionalBlock, TakesUnitClosure,
+        TakesWith, ChildShape, Val,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{

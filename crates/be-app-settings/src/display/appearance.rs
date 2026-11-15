@@ -183,7 +183,7 @@ fn ThemeSelect(
     view! {
         <PreferenceSelect
             choices={ThemeKind::ALL.to_vec()}
-            name={ThemeKind::name}
+            name={ThemeKind::name as fn(_) -> _}
             inherited
             chosen
             on_change
@@ -203,7 +203,7 @@ fn MotionSelect(
     view! {
         <PreferenceSelect
             choices={Motion::ALL.to_vec()}
-            name={Motion::name}
+            name={Motion::name as fn(_) -> _}
             inherited
             chosen
             on_change
