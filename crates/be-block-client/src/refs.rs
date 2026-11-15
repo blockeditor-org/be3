@@ -1008,6 +1008,47 @@ impl Refs {
         Some(placed)
     }
 
+    /// A local account's answer to `listing` (`Peer::local`), from every summary it holds, in
+    /// the order of block ids as a server's is: with no other member, it may see every block,
+    /// and no settings are hidden from it to open.
+    pub fn local_listing(&self, listing: Listing) -> Vec<BlockSummary> {
+        let state = self.state.lock().unwrap();
+        let placed = |parent: BlockParent| -> Vec<BlockSummary> {
+            state
+                .summaries
+                .values()
+                .filter(|summary| summary.parent == Some(parent))
+                .cloned()
+                .collect()
+        };
+        let mut found = match listing {
+            Listing::Children(parent) => placed(parent),
+            Listing::Deleted => placed(BlockParent::Detached),
+            Listing::Block(block) => state.summaries.get(&block).cloned().into_iter().collect(),
+            Listing::References(block) => state
+                .summaries
+                .get(&block)
+                .map(|summary| {
+                    summary
+                        .references
+                        .iter()
+                        .filter_map(|reference| state.summaries.get(reference).cloned())
+                        .collect()
+                })
+                .unwrap_or_default(),
+            Listing::Backrefs(block) => state
+                .summaries
+                .values()
+                .filter(|summary| summary.references.contains(&block))
+                .cloned()
+                .collect(),
+            Listing::Shared | Listing::OpenSettings(_) => Vec::new(),
+        };
+        found.sort_by_key(|summary| summary.id);
+        found.dedup_by_key(|summary| summary.id);
+        found
+    }
+
     pub fn newest_revision(&self) -> u64 {
         newest(&self.state.lock().unwrap())
     }
