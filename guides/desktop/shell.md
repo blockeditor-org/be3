@@ -46,7 +46,8 @@ pointer overshooting on its way to something by the edge never shows a band. Bey
 distance brings the band out as far, draining once the pushing stops; past half its thickness it
 opens all the way and the wall lifts. A swipe follows the finger and opens past half when let go.
 A band opened by the pointer starts sliding away the moment nothing keeps it out: the pointer has
-left its region and no bar holds it. While it slides away the region stays, and the pointer coming
+left its region and no bar holds it, or the host first reports that region with the pointer
+already out of it. While it slides away the region stays, and the pointer coming
 back brings it out again. One opened by a finger goes when a finger lands outside its region. Any
 menu or panel open from a bar holds its band out (guides/beui/docking.md, hidden bands), so Super
 opens Apps from an auto-hidden Apps bar and a grip's menu stays usable. Without the watch (a

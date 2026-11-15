@@ -309,6 +309,9 @@ fn HiddenBandEdge(
                 .resting
                 .is_some_and(|since| now.saturating_duration_since(since) >= SETTLE);
             if let Some(wall) = &heard.wall {
+                // A wall not heard before (just asked for again, as the band closed) is fresh, its
+                // `pushed` counting from zero, so all of it is new; so is all of one whose
+                // `pushed` went back, which only a fresh wall's can.
                 let push = match &before.wall {
                     Some(was) if wall.pushed >= was.pushed => wall.pushed - was.pushed,
                     _ => wall.pushed,
@@ -351,6 +354,11 @@ fn HiddenBandEdge(
                     held.pulling = Some(inward(edge, screen, touch).max(0.0));
                 }
             }
+            // No finger is swiping: the strip goes while the band is out (it opened another way
+            // mid-swipe), and the finger it held is never heard lifting there.
+            if heard.swipe.as_ref().and_then(|swipe| swipe.touch).is_none() {
+                held.pulling = None;
+            }
             motion.set(held);
             nudge();
         });
@@ -363,34 +371,46 @@ fn HiddenBandEdge(
         }
     });
     create_effect(move || {
-        open.get();
-        untrack(nudge);
+        let is_open = open.get();
+        untrack(|| {
+            if is_open {
+                // Whatever was pushing or swiping it out is spent: it must not leave the band
+                // part way out once it goes.
+                let mut held = motion.get();
+                held.pulling = None;
+                held.pressure = 0.0;
+                motion.set(held);
+            }
+            nudge();
+        });
     });
 
-    let near = create_memo(move || {
-        heard.with(|heard| heard.keep.as_ref().is_some_and(|keep| keep.pointer))
-    });
+    // Whether the pointer is near the band, once the host has said.
+    let near =
+        create_memo(move || heard.with(|heard| heard.keep.as_ref().map(|keep| keep.pointer)));
     create_effect(move || {
         if !open.get() {
             untrack(|| by_touch.set(false));
         }
     });
-    // Goes the moment nothing keeps it: not when nothing has kept it yet, as just after a push
-    // opens it and before the host says the pointer is near.
-    let stays = create_memo(move || held_out.get() || near.get() || by_touch.get());
-    let kept = StoredCell::new(false);
+    // Goes the moment nothing keeps it: not before the host has first said where the pointer is,
+    // as just after a push opens it, but then at once if the pointer is already away, as when it
+    // left before the host heard of the region around the band.
+    let stays = create_memo(move || held_out.get() || near.get() == Some(true) || by_touch.get());
+    let kept = StoredCell::new((false, None::<bool>));
     create_effect(move || {
-        let stays = stays.get();
+        let (stays, near) = (stays.get(), near.get());
         untrack(|| {
-            let was = kept.replace(stays);
-            if was && !stays && open.get() {
+            let (was, was_near) = kept.replace((stays, near));
+            let first_heard_away = was_near.is_none() && near == Some(false);
+            if !stays && (was || first_heard_away) && open.get() {
                 closing.set(animates.get());
                 open.set(false);
             }
         });
     });
     create_effect(move || {
-        if closing.get() && near.get() {
+        if closing.get() && near.get() == Some(true) {
             untrack(|| open.set(true));
         }
     });
