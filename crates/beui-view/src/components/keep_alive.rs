@@ -1,0 +1,203 @@
+//! `KeepAlive` and `Kept`: a subtree built once and kept, paused, while nothing shows it.
+
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use be_lib_stable_hash::HashMap;
+use beui_macros::component;
+use beui_reactive::{ScopeContext, current_scope};
+
+use crate::reactive::{
+    AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set,
+    Signal, create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack,
+    use_context,
+};
+
+/// Whether a kept subtree, and every kept subtree around it, is shown: false while it is
+/// kept but shown nowhere. Outside any `Kept` it is always true.
+pub fn kept_shown() -> Memo<bool> {
+    use_context::<KeptShown>()
+        .map(|shown| shown.0)
+        .unwrap_or_else(|| create_memo(|| true))
+}
+
+#[derive(Clone, Copy)]
+struct KeptShown(Memo<bool>);
+
+struct Entry {
+    node: NodeId,
+    scope: Rc<Scope>,
+    /// The `Kept` that shows it now, if any.
+    borrower: Signal<Option<u64>>,
+    /// Whether what the borrower sits in is shown.
+    around: Signal<Option<Memo<bool>>>,
+}
+
+struct Cache {
+    owner: Option<ScopeContext>,
+    entries: RefCell<HashMap<AnyKey, Entry>>,
+    next: Cell<u64>,
+    keeps: Option<Box<dyn Fn(&AnyKey) -> bool>>,
+}
+
+impl Cache {
+    fn kept(&self, key: &AnyKey) -> bool {
+        self.keeps.as_ref().is_none_or(|keeps| untrack(|| keeps(key)))
+    }
+
+    /// Forgets every entry its keep set dropped that nothing shows.
+    fn trim(&self) {
+        let Some(keeps) = &self.keeps else {
+            return;
+        };
+        let dropped: Vec<Entry> = {
+            let mut entries = self.entries.borrow_mut();
+            let gone: Vec<AnyKey> = entries
+                .iter()
+                .filter(|(key, entry)| {
+                    entry.borrower.get_untracked().is_none() && !keeps(key)
+                })
+                .map(|(key, _)| key.clone())
+                .collect();
+            gone.iter().filter_map(|key| entries.remove(key)).collect()
+        };
+        for entry in dropped {
+            entry.scope.dispose();
+        }
+    }
+}
+
+impl Drop for Cache {
+    fn drop(&mut self) {
+        for (_, entry) in self.entries.get_mut().drain() {
+            entry.scope.dispose();
+        }
+    }
+}
+
+#[derive(Clone)]
+struct KeepAliveCache(Rc<Cache>);
+
+/// Keeps the subtrees the `Kept`s inside it build, by key, while nothing shows them: a
+/// subtree is built the first time a `Kept` with its key is, paused (nothing in it runs)
+/// while no `Kept` shows it, and resumed and shown again by the next `Kept` with that key,
+/// wherever it is. Given `keep`, a key it no longer lists is dropped once nothing shows it.
+///
+/// A kept subtree belongs to the `KeepAlive`, so it reads the context provided around the
+/// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
+/// does.
+#[component]
+pub fn KeepAlive<KS>(keep: KS, #[prop(children)] content: Render<(), NodeId>) -> NodeId
+where
+    KS: KeepSet,
+{
+    let cache = Rc::new(Cache {
+        owner: current_scope(),
+        entries: RefCell::default(),
+        next: Cell::new(0),
+        keeps: keep.keeps(),
+    });
+    if cache.keeps.is_some() {
+        let watched = cache.clone();
+        create_effect(move || {
+            if let Some(keeps) = &watched.keeps {
+                // Read the keep set so a change to it trims what it dropped.
+                keeps(&AnyKey::new(()));
+            }
+            untrack(|| watched.trim());
+        });
+    }
+    provide_context(KeepAliveCache(cache));
+    content.call(())
+}
+
+/// A subtree its `KeepAlive` keeps by `key` (without one, the one unkeyed subtree of that
+/// `KeepAlive`): built the first time, shown here through a portal, and kept, paused, after
+/// this `Kept` goes, until another `Kept` with that key shows it again. Inside it,
+/// `kept_shown()` says whether it is shown.
+#[component]
+pub fn Kept<K>(key: K, #[prop(children)] content: Render<(), NodeId>) -> NodeId
+where
+    K: KeptKey,
+{
+    let KeepAliveCache(cache) =
+        use_context::<KeepAliveCache>().expect("a `Kept` is built inside a `KeepAlive`");
+    let key = key.into_any_key();
+    let me = cache.next.get();
+    cache.next.set(me + 1);
+    let around = kept_shown();
+    let found = cache.entries.borrow().get(&key).map(|entry| {
+        (entry.node, entry.scope.clone(), entry.borrower, entry.around)
+    });
+    let (node, borrower) = match found {
+        Some((node, scope, borrower, held_around)) => {
+            borrower.set(Some(me));
+            held_around.set(Some(around));
+            scope.resume();
+            (node, borrower)
+        }
+        None => {
+            let scope = Rc::new(
+                cache
+                    .owner
+                    .as_ref()
+                    .and_then(ScopeContext::child)
+                    .unwrap_or_else(Scope::detached)
+                    .pausable(),
+            );
+            let borrower = create_signal_in(&scope, Some(me));
+            let held_around = create_signal_in(&scope, Some(around));
+            let node = scope.context().run(|| {
+                let shown = create_memo(move || {
+                    borrower.get().is_some()
+                        && held_around.get().is_none_or(|around| around.get())
+                });
+                provide_context(KeptShown(shown));
+                content.call(())
+            });
+            cache.entries.borrow_mut().insert(
+                key.clone(),
+                Entry {
+                    node,
+                    scope,
+                    borrower,
+                    around: held_around,
+                },
+            );
+            (node, borrower)
+        }
+    };
+    let released = cache.clone();
+    on_cleanup(move || {
+        let entries = released.entries.borrow();
+        let Some(entry) = entries.get(&key) else {
+            return;
+        };
+        if entry.borrower.get_untracked() != Some(me) {
+            return;
+        }
+        entry.borrower.set(None);
+        entry.around.set(None);
+        let keep = released.kept(&key);
+        let scope = entry.scope.clone();
+        drop(entries);
+        match keep {
+            true => scope.pause(),
+            false => {
+                if let Some(entry) = released.entries.borrow_mut().remove(&key) {
+                    entry.scope.dispose();
+                }
+            }
+        }
+    });
+    let shown: ReadSignal<Option<u64>> = borrower.read_only();
+    crate::core::portal(Prop::dynamic(move || {
+        (shown.get() == Some(me)).then_some(node)
+    }))
+}
+
+/// A signal owned by `scope`, so it goes with the kept subtree rather than with the `Kept`
+/// that first built it.
+fn create_signal_in<T: 'static>(scope: &Rc<Scope>, value: T) -> Signal<T> {
+    scope.context().run(|| create_signal(value))
+}
