@@ -181,7 +181,11 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   also appends a retirement (`be_block_keys::Retirement`) to every access log
   the account signed in (`recovery-key`'s `logs`): endorsed by the old signing
   key, signed as an entry by the new one, and checked by the server and every
-  device, which take nothing the old key signs in that log after it. Each
+  device, which take nothing the old key signs in that log after it. The
+  endorsement is bound to no time or epoch: whoever holds an old phrase can
+  retire it in any log where it is still current, at any later moment, so a
+  thief who retires first wins those logs (plans/signed_access.md, "Accepted
+  limits"). Each
   verified contact gets a key change naming both new public keys
   (`contacts::new_identity`, `RecoverySecret::seal_key_change`, kept in
   `key_changes`); a contact's device
