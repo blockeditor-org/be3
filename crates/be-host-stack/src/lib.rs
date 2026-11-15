@@ -1006,13 +1006,15 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
         let left = deadline.saturating_duration_since(std::time::Instant::now());
         if left.is_zero() {
             let state = format!(
-                "\n  connected: {}, reached the server: {}, error: {:?}, waiting to reconnect: {}\n  \
+                "\n  connected: {}, reached the server: {}, error: {:?}, sync error: {:?}, waiting to reconnect: {}\n  \
                  commands not run: {}, edits owed: {} {:?} (sealed what was owed {} time(s)), asking the modules for {:?}, not yet durable: {}, draining the outbox: {}\n  \
                  listings loading: {}, listings failed: {}\n  \
-                 progressed: {}, wakes: {}, passes in a row that never waited: {}, open blocks: {}, saves: {}, graph revision: {}\n",
+                 progressed: {}, wakes: {}, passes in a row that never waited: {}, open blocks: {}, saves: {}, graph revision: {}\n  \
+                 versions that failed: {:?}\n",
                 held.connected,
                 held.reached,
                 held.error,
+                held.sync_error,
                 held.reconnect.is_some(),
                 held.pending,
                 held.owing,
@@ -1031,7 +1033,11 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.unwaited_passes,
                 held.blocks.len(),
                 held.saves,
-                held.graph.revision
+                held.graph.revision,
+                held.versions
+                    .iter()
+                    .filter_map(|(block, state)| Some((block.to_string(), state.status.error.as_ref()?)))
+                    .collect::<Vec<_>>()
             );
             drop(held);
             panic!(
