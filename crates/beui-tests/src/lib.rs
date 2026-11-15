@@ -78,6 +78,9 @@ pub fn Fixture(name: String) -> Root {
         "interactive" => view! {
             <InteractiveFixture />
         },
+        "host" => view! {
+            <HostFixture />
+        },
         "offset" => view! {
             <OffsetFixture />
         },
@@ -512,6 +515,79 @@ fn InteractiveFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={GREEN} />
             </Interactive>
             <Text color={INK}>{text}</Text>
+        </List>
+    }
+}
+
+/// Control flow in slots that take one node, held by a host node: it is placed as its child
+/// would be (a share of a row, a grid span), and swaps while its child is focused, pressed or
+/// dragged.
+#[component]
+fn HostFixture() -> NodeId {
+    let swapped = create_signal(false);
+    let swaps = create_signal(0_u32);
+    let swap = move || {
+        swapped.set(!swapped.get_untracked());
+        swaps.set(swaps.get_untracked() + 1);
+    };
+    let plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let hosted: NodeId = into_child(view! {
+        <Show condition={swapped} fallback={move || view! {
+            <Interactive
+                @test_id="host.first"
+                focusable=true
+                on_key={move |press: KeyPress| {
+                    if press.pressed && press.key == Key::Enter {
+                        swap();
+                    }
+                    false
+                }}
+                on_press={move |_: beui::PointerPress| swap()}
+            >
+                <Frame height=20.0 fill={GREEN} />
+            </Interactive>
+        }}>
+            <Interactive
+                @test_id="host.second"
+                on_drag={move |_: beui::PointerPress| swap()}
+            >
+                <Frame height=40.0 fill={AMBER} />
+            </Interactive>
+        </Show>
+    });
+    let cell_plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let cell_hosted: NodeId = into_child(view! {
+        <Show condition={swapped} fallback={|| view! { <Frame height=20.0 fill={GREEN} /> }}>
+            <Frame height=20.0 fill={AMBER} />
+        </Show>
+    });
+    let rects = [plain, hosted, cell_plain, cell_hosted].map(measured_rect);
+    let report = create_memo(move || {
+        let [plain, hosted, cell_plain, cell_hosted] = rects.map(|rect| size(rect.get()));
+        format!(
+            "Row {plain} {hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
+            swaps.get()
+        )
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem grow=1.0>{plain}</ListItem>
+                    <ListItem grow=2.0>{hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <Grid columns={vec![beui::Track::Fraction(1.0); 3]}>
+                    <GridCell>{cell_plain}</GridCell>
+                    <GridCell span=2>{cell_hosted}</GridCell>
+                </Grid>
+            </Frame>
+            <Text color={INK}>{report}</Text>
         </List>
     }
 }
