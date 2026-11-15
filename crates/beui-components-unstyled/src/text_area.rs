@@ -1700,8 +1700,6 @@ pub fn TextArea(
     };
     let width = create_memo(move || size.get().x);
     let height = create_memo(move || size.get().y);
-    let has_menu = completion_menu.is_some();
-    let menu = create_memo(move || has_menu && completing.get());
     if !single_line {
         action_scope(&outer);
         actions::register(state, locked, find);
@@ -1739,13 +1737,11 @@ pub fn TextArea(
                         </ListItem>
                     },
                 }}
-                <Show value={menu}>|| {
-                    let menu = completion_menu
-                        .expect("a completion menu is only shown when the area was given one");
-                    view! {
+                {completion_menu.map(|menu| view! {
+                    <Show value={completing}>
                         <Completions cx menu />
-                    }
-                }</Show>
+                    </Show>
+                })}
             </List>
         </Frame>
     };
