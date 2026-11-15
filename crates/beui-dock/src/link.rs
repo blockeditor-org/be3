@@ -468,14 +468,16 @@ impl DockJoin {
         // back, with the same declaration, once shown and the tab is free again.
         if let Some(shown) = kept_shown() {
             let following = Rc::clone(&link);
-            let version = following.registry.version;
-            create_effect(move || {
-                let shown = shown.get();
-                if version.is_alive() {
-                    version.get();
-                }
-                untrack(|| following.follow_shown(shown));
-            });
+            let changed = following.registry.changed;
+            create_effect_on(
+                move || {
+                    if changed.is_alive() {
+                        changed.track();
+                    }
+                    shown.get()
+                },
+                move |&shown, _| following.follow_shown(shown),
+            );
         }
         let held = Rc::clone(&link);
         on_cleanup(move || held.release());
