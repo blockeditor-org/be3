@@ -52,10 +52,11 @@ pub(crate) enum Table {
     ContactNames,
     OpenEdits,
     SetAside,
+    Dropped,
 }
 
 impl Table {
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 21] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -76,6 +77,7 @@ impl Table {
         Self::ContactNames,
         Self::OpenEdits,
         Self::SetAside,
+        Self::Dropped,
     ];
 
     pub fn code(self) -> u8 {
@@ -100,6 +102,7 @@ impl Table {
             Self::ContactNames => 18,
             Self::OpenEdits => 19,
             Self::SetAside => 20,
+            Self::Dropped => 21,
         }
     }
 
@@ -377,6 +380,9 @@ struct State {
     let_go: HashMap<Uuid, Option<ListedBlock>>,
     open_edits: HashMap<Uuid, OpenEdits>,
     set_aside: HashMap<Uuid, Vec<SetAside>>,
+    /// Blocks whose local edits were discarded with their unsent edits (`drop_local_edits`):
+    /// none are kept for them until this account may edit them again or they are forgotten.
+    dropped: HashSet<Uuid>,
     next: u64,
 }
 
@@ -562,6 +568,9 @@ impl State {
             }
             Table::SetAside => {
                 self.set_aside.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Dropped => {
+                self.dropped.insert(uuid_key(&row.key)?);
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
@@ -1269,24 +1278,45 @@ impl Refs {
 
     /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
     /// later replica of the block on this device goes on with.
-    /// Keeps nothing for a block this account may not edit (lost access, `lose_access`, or
-    /// was made a viewer): its edits can never reach it, and kept they would keep it from being
-    /// forgotten.
-    pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<(), StoreError> {
+    /// Whether `block`'s local edits were discarded and this account may not edit it: none are
+    /// kept for it (`keep_open_edits`).
+    pub fn discarded(&self, block: Uuid) -> bool {
+        let state = self.state.lock().unwrap();
+        state.dropped.contains(&block)
+            && !state
+                .summaries
+                .get(&block)
+                .is_some_and(|summary| summary.access.can_edit())
+    }
+
+    /// Keeps `edits` as `block`'s, answering whether it did: not for a block whose local edits
+    /// were discarded (`drop_local_edits`) while this account may not edit it, as kept they
+    /// would keep it from being forgotten. Once it may edit it again, they are kept again.
+    pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<bool, StoreError> {
         let mut state = self.state.lock().unwrap();
-        if state
-            .summaries
-            .get(&block)
-            .is_some_and(|summary| !summary.access.can_edit())
-        {
-            return Ok(());
+        let mut rows = Vec::new();
+        if state.dropped.contains(&block) {
+            let may_edit = state
+                .summaries
+                .get(&block)
+                .is_some_and(|summary| summary.access.can_edit());
+            if !may_edit {
+                return Ok(false);
+            }
+            state.dropped.remove(&block);
+            rows.push(Row {
+                table: Table::Dropped,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
         }
-        if state.open_edits.get(&block) == Some(&edits) {
-            return Ok(());
+        if state.open_edits.get(&block) != Some(&edits) {
+            state.open_edits.insert(block, edits.clone());
+            rows.push(row(Table::OpenEdits, block.as_bytes().to_vec(), &edits));
         }
-        state.open_edits.insert(block, edits.clone());
         drop(state);
-        self.write(vec![row(Table::OpenEdits, block.as_bytes().to_vec(), &edits)])
+        self.write(rows)?;
+        Ok(true)
     }
 
     /// Moves `block`'s kept edits aside (`SetAside`), for a replica to open under a fresh origin.
@@ -1771,6 +1801,7 @@ impl Refs {
                 for (table, gone_too) in [
                     (Table::OpenEdits, state.open_edits.remove(block).is_some()),
                     (Table::SetAside, state.set_aside.remove(block).is_some()),
+                    (Table::Dropped, state.dropped.remove(block)),
                 ] {
                     if gone_too {
                         rows.push(Row {
@@ -1941,6 +1972,8 @@ impl Refs {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
+            state.dropped.insert(block);
+            rows.push(row(Table::Dropped, block.as_bytes().to_vec(), &()));
             if state.open_edits.remove(&block).is_some() {
                 rows.push(Row {
                     table: Table::OpenEdits,
