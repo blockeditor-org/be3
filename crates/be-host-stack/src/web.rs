@@ -100,8 +100,9 @@ thread_local! {
 }
 
 /// On the host's worker, has `work` run at the start of each pass of a stack's loop, ahead of
-/// the pass's own work: the host's files are kept first (be-host's `host_files`), so a change
-/// to them waits for no pass to end.
+/// the pass's own work: the host's files are kept then (be-host's `host_files`) if the worker
+/// has not yielded since, so a change to them waits at most for the synchronous stretch it
+/// arrived in.
 pub fn run_first(work: impl FnMut() + 'static) {
     FIRST.with_borrow_mut(|first| first.push(Box::new(work)));
 }

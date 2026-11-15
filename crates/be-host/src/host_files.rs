@@ -95,14 +95,6 @@ impl WorkspaceCache {
         Some(web::store(jobs.clone(), Default::default()))
     }
 
-    /// Has the host's worker tell `post` of each change it could not keep.
-    #[cfg(target_arch = "wasm32")]
-    pub(crate) fn report_failures(&self, post: be_host_base::host::Post<String>) {
-        if let Keep::Elsewhere(jobs) = &self.keep {
-            let _ = jobs.send(web::Job::ReportTo(post));
-        }
-    }
-
     pub(crate) fn set(&mut self, url: &str, account: Uuid, organizations: Vec<Organization>) {
         match &self.keep {
             Keep::Here(refs) => {
@@ -124,7 +116,7 @@ impl WorkspaceCache {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) use web::open;
+pub(crate) use web::{Unkept, open};
 
 #[cfg(target_arch = "wasm32")]
 mod web {
@@ -137,10 +129,17 @@ mod web {
 
     use super::{Keep, Listed, WorkspaceCache, read};
 
+    /// A change the host's worker could not keep: what it was, in words for the person
+    /// (`Write::what`), and why.
+    pub(crate) struct Unkept {
+        pub(crate) what: String,
+        pub(crate) error: String,
+    }
+
     /// A change the page sends the host's worker to keep.
     pub(crate) enum Job {
         /// Where to tell the page of a change that could not be kept.
-        ReportTo(be_host_base::host::Post<String>),
+        ReportTo(be_host_base::host::Post<Unkept>),
         State(Write),
         /// Deletes `host.sqlite3` and keeps the changes after in a fresh one.
         ForgetState,
@@ -153,11 +152,27 @@ mod web {
 
     type Opened = Result<(Held, Listed), String>;
 
+    impl Job {
+        fn what(&self) -> String {
+            match self {
+                Job::State(write) => write.what(),
+                Job::ForgetState => "deleting this device's saved data".to_owned(),
+                Job::Workspaces { .. } => "the organizations you last listed".to_owned(),
+                Job::ReportTo(_) => String::new(),
+            }
+        }
+    }
+
     /// Starts the host's worker on the host's files in `data_dir`, and waits, without blocking
-    /// the page, for what they hold.
-    pub(crate) async fn open(data_dir: PathBuf) -> Result<(HostStateStore, WorkspaceCache), String> {
+    /// the page, for what they hold. A change it cannot keep is told to `report`, from the first
+    /// one on.
+    pub(crate) async fn open(
+        data_dir: PathBuf,
+        report: be_host_base::host::Post<Unkept>,
+    ) -> Result<(HostStateStore, WorkspaceCache), String> {
         let (answer, answered) = oneshot::channel::<Opened>();
         let (jobs, taken) = mpsc::unbounded_channel();
+        let _ = jobs.send(Job::ReportTo(report));
         be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken)));
         let (held, listed) = answered
             .await
@@ -185,11 +200,12 @@ mod web {
         keeper: Option<Keeper>,
         refs: Option<be_block_client::RefsDb>,
         taken: mpsc::UnboundedReceiver<Job>,
-        report: Option<be_host_base::host::Post<String>>,
+        report: Option<be_host_base::host::Post<Unkept>>,
     }
 
     impl Kept {
         fn run(&mut self, job: Job) {
+            let what = job.what();
             let kept = match job {
                 Job::ReportTo(post) => {
                     self.report = Some(post);
@@ -221,8 +237,8 @@ mod web {
             };
             if let Err(error) = kept {
                 match &self.report {
-                    Some(report) => report.send(error),
-                    None => eprintln!("be-host: a change to the host's files was not kept: {error}"),
+                    Some(report) => report.send(Unkept { what, error }),
+                    None => eprintln!("be-host: {what} was not kept: {error}"),
                 }
             }
         }
@@ -235,9 +251,9 @@ mod web {
         }
     }
 
-    /// In the host's worker: opens the files, answers what they hold, then keeps each change,
-    /// ahead of the stacks' work: the worker's loop keeps what was sent before each pass
-    /// (`be_host_stack::run_first`), so a change waits for no pass of a stack to end.
+    /// In the host's worker: opens the files, answers what they hold, then keeps each change
+    /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
+    /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
     async fn keep(
         data_dir: PathBuf,
         answer: oneshot::Sender<Opened>,

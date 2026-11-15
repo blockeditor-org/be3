@@ -131,9 +131,10 @@ survives a reload. Traps that shape this code:
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals
   within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
-  A change to the host's own state (a sign-in, a setting) is kept by the host's worker as soon
-  as it takes the message, ahead of the stacks' passes (`be_host_stack::run_first`); one made
-  in the moment before an unload can still be lost (decisions/web_host_state_in_a_worker.md).
+  A change to the host's own state (a sign-in, a setting) is kept when the host's worker next
+  yields or finishes a pass, whichever comes first (`be_host_stack::run_first`), so it waits
+  at most for the synchronous stretch it arrived in; one made in that stretch before an unload
+  is lost (decisions/web_host_state_in_a_worker.md).
 - Every context counts the monotonic clock from `performance.timeOrigin`, so an `Instant` means
   the same time in the page and the worker.
 - `web/sw.js`, the service worker, keeps what the page fetched (network first, except `/api` and

@@ -211,14 +211,15 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     // page's start-up look stays up (`#status`), then the host shows its first screen.
     // An error named `BeSavedData` tells the page (host.js) the saved data could not be read,
     // not that drawing failed.
-    let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR))
+    let (failures, report) = desk().mailbox(HostCore::host_files_failed);
+    let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR), report)
         .await
         .map_err(|error| {
             let error = web_sys::js_sys::Error::new(&error);
             error.set_name("BeSavedData");
             wasm_bindgen::JsValue::from(error)
         })?;
-    let mut core = HostCore::new(host_state, workspaces)
+    let mut core = HostCore::new(host_state, workspaces, Some(failures))
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     if let Some(status) = web_sys::window()
         .and_then(|window| window.document())
@@ -932,16 +933,16 @@ impl HostCore {
         Ok(core)
     }
 
-    /// With what the host's worker read of its files (`host_files::open`).
+    /// With what the host's worker read of its files (`host_files::open`), and the mailbox it
+    /// tells of a change it could not keep.
     #[cfg(target_arch = "wasm32")]
     fn new(
         host_state: HostStateStore,
         workspaces: host_files::WorkspaceCache,
+        failures: Option<host::Mailbox>,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut core = Self::with_state(host_state, String::new())?;
-        let (mailbox, post) = desk().mailbox(HostCore::host_files_failed);
-        workspaces.report_failures(post);
-        core.host_files_failed = Some(mailbox);
+        core.host_files_failed = failures;
         core.workspaces = workspaces;
         core.data_dir = PathBuf::from(WEB_DATA_DIR);
         Ok(core)
@@ -950,9 +951,10 @@ impl HostCore {
     /// A change to the host's files the web's host worker could not keep (out of space, a
     /// failed write), shown as a host error, as a write that fails in place is.
     #[cfg(target_arch = "wasm32")]
-    fn host_files_failed(&mut self, error: String) {
+    fn host_files_failed(&mut self, unkept: host_files::Unkept) {
         notices::report(format!(
-            "This device could not keep a change to its settings: {error}"
+            "This device could not save {}: it will be gone after the page reloads ({}).",
+            unkept.what, unkept.error
         ));
     }
 
@@ -4276,7 +4278,7 @@ impl HostCore {
         be_host_stack::stop();
         let host_state = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
         let workspaces = std::mem::take(&mut self.workspaces);
-        match Self::new(host_state, workspaces) {
+        match Self::new(host_state, workspaces, self.host_files_failed.take()) {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
         }

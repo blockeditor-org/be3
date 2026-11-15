@@ -69,6 +69,36 @@ pub enum Write {
     SetRemapper(Option<Vec<u8>>),
 }
 
+impl Write {
+    /// What the change keeps, in words for the person, for a change that could not be kept.
+    pub fn what(&self) -> String {
+        let server = |saved: &SavedAccount| match &saved.server {
+            ServerLocation::Local => "this device's own server".to_owned(),
+            ServerLocation::Remote(url) => url.clone(),
+        };
+        match self {
+            Write::SaveAccount(saved) => format!("signing in to {}", server(saved)),
+            Write::RemoveAccount(saved) => format!("signing out of {}", server(saved)),
+            Write::SetSetting(key, _) if ACTIVE.contains(&key.as_str()) => {
+                "switching accounts".to_owned()
+            }
+            Write::RemoveSettings(keys) if keys.iter().any(|key| ACTIVE.contains(&key.as_str())) => {
+                "switching accounts".to_owned()
+            }
+            Write::SetSetting(key, _) if key.starts_with("organization ") => {
+                "the organization you last opened".to_owned()
+            }
+            Write::SetLastOrganization(..) => "the organization you last opened".to_owned(),
+            Write::SetIdentity(..) => "your unlocked keys".to_owned(),
+            Write::SetSetting(..)
+            | Write::RemoveSettings(_)
+            | Write::SetInputSettings(_)
+            | Write::SetDisplaySettings(_)
+            | Write::SetRemapper(_) => "a setting".to_owned(),
+        }
+    }
+}
+
 pub(super) const ACTIVE: [&str; 2] = ["active_server", "active_account"];
 
 pub(super) fn organization_key(saved: &SavedAccount) -> String {

@@ -30,13 +30,15 @@ and reads them at once.
 ## Consequences
 
 - A change to the host state reaches its file a moment after the page makes it: the page's
-  copy changes at once, and the worker keeps the change as it takes the message, ahead of the
-  stacks' passes (`be_host_stack::run_first` drains the changes sent before each pass). A
-  change made in the moment before the page unloads, before the worker has taken it, is lost;
-  a native host writes in place and loses none. The changes are sign-ins, account switches and
-  settings, which the person makes and sees, and can make again.
-- A change the worker cannot keep (out of space, a failed write) is told to the page by letter
-  and shown as a host error, as a write that fails in place was.
+  copy changes at once, and the worker keeps the change when it next yields or finishes a
+  pass, whichever comes first (`be_host_stack::run_first` keeps what was sent at the start of
+  each pass), so it waits at most for the synchronous stretch it arrived in. A change made in
+  the moment before the page unloads, within that stretch, is lost; a native host writes in
+  place and loses none. The changes are sign-ins, account switches and settings, which the
+  person makes and sees, and can make again.
+- A change the worker cannot keep (out of space, a failed write), from the first one on, is
+  told to the page by letter and shown as a host error that says what is lost: "This device
+  could not save signing in to … : it will be gone after the page reloads (…)" (`Write::what`).
 - The page reads its copy, not the file: a change another tab makes to `host.sqlite3` is not
   seen until the page starts again, as before (one tab owns the files, `block-files` lock).
 
