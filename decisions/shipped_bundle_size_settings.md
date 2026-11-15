@@ -1,4 +1,4 @@
-# The deployed bundle uses fat LTO, type modules at opt-level s, and keeps symbols and precompiled code
+# The deployed bundle uses fat LTO, type modules at opt-level s, and keeps symbols (and once precompiled code)
 
 `./scripts/deploy` builds with fat LTO and one codegen unit (`buck/constraints:lto`, a ten-minute link),
 release builds use legacy symbol mangling and build first-party crates for
