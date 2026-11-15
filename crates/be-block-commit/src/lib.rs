@@ -74,16 +74,31 @@ static PINNED_NOW: AtomicI64 = AtomicI64::new(UNPINNED);
 const UNPINNED: i64 = i64::MIN;
 
 /// The time commits are stamped with and the server's retention reads, in milliseconds since
-/// the epoch: the system clock unless `pin_now` pinned it.
+/// the epoch: the system clock, moved by `shift_now`, unless `pin_now` pinned it.
 pub fn now_milliseconds() -> i64 {
     match PINNED_NOW.load(Ordering::Relaxed) {
-        UNPINNED => SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| {
-                i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
-            }),
+        UNPINNED => system_milliseconds().saturating_add(SHIFT.load(Ordering::Relaxed)),
         pinned => pinned,
     }
+}
+
+fn system_milliseconds() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |elapsed| {
+            i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX)
+        })
+}
+
+static SHIFT: AtomicI64 = AtomicI64::new(0);
+
+/// Has `now_milliseconds` read `at` now and run on from there with the system clock, for the
+/// whole process: a test whose devices' clocks start at a set moment
+/// (`beui_core::timer::TEST_WALL_CLOCK`) runs a server in its own process on a clock that
+/// agrees with theirs, as a server's and its devices' clocks do, and still moves on, which its
+/// sessions and leases need.
+pub fn start_now_at(at: i64) {
+    SHIFT.store(at.saturating_sub(system_milliseconds()), Ordering::Relaxed);
 }
 
 /// Pins `now_milliseconds` for the whole process, `None` unpins it. A test drives it: be-host
