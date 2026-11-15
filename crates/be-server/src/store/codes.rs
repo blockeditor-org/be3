@@ -33,9 +33,8 @@ pub const CODES_PER_NETWORK: i64 = 40;
 /// counted whether or not it has one. Large and quick to refill, since a stranger spending it
 /// only delays the owner's codes from addresses the owner never used.
 pub const CODES_PER_ACCOUNT: i64 = 20;
-/// Registration codes outstanding at once, apart from every per-address cap, with the
-/// registration and email-change links (`portal::MAX_MAIL_LINKS`): only holders of an invite
-/// code can take one.
+/// Registration codes outstanding at once, apart from every per-address cap: only holders of
+/// an invite code can take one.
 pub const MAX_REGISTRATION_CODES: i64 = 1024;
 /// Registration codes one invite code may have waiting at once.
 pub const REGISTRATION_CODES_PER_INVITE: i64 = 8;
