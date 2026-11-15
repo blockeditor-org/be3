@@ -214,12 +214,12 @@ fn TypeItems(
                     .find(|entry| tile_key(entry) == key)
             }
         });
-        let separated = create_memo({
+        let separated = {
             let key = key.clone();
             move || placing && first.get().as_ref() == Some(&key)
-        });
+        };
         view! {
-            <TypeItem act key entry separated />
+            <TypeItem act key entry separated={separated} />
         }
     };
     match placing {
@@ -281,7 +281,7 @@ fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<Me
                     slides.get().into_iter().find(|entry| tile_key(entry) == key)
                 } });
                 view! {
-                    <TypeItem act key entry separated={create_memo(|| false)} />
+                    <TypeItem act key entry />
                 }
             }</ForEach>
         </MenuGrid>
@@ -295,21 +295,18 @@ fn TypeItem(
     act: Act,
     key: String,
     entry: Memo<Option<TemplateEntry>>,
-    separated: Memo<bool>,
+    #[prop(default = false)] separated: Prop<bool>,
 ) -> MenuItem {
-    let glyph_color = create_memo(move || {
-        entry
-            .get()
-            .and_then(|entry| entry.color)
-            .map(|[r, g, b]| Color::from(Color32::from_rgb(r, g, b)))
-    });
-    let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <MenuItem
-            label
-            glyph
-            glyph_color
+            label={move || entry.get().map(|entry| entry.name).unwrap_or_default()}
+            glyph={move || entry.get().and_then(|entry| entry.icon)}
+            glyph_color={move || {
+                entry
+                    .get()
+                    .and_then(|entry| entry.color)
+                    .map(|[r, g, b]| Color::from(Color32::from_rgb(r, g, b)))
+            }}
             separated
             then=MenuThen::Stay
             row_test_id={format!("picker.menu.{key}")}
@@ -381,13 +378,12 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let importing = create_memo(move || {
         held.with(|held| held.as_ref().is_some_and(|held| held.importing.is_some()))
     });
-    let label = create_memo(move || match importing.get() {
-        true => "Importing…".to_owned(),
-        false => "Import a file…".to_owned(),
-    });
     view! {
         <MenuItem
-            label
+            label={move || match importing.get() {
+                true => "Importing…".to_owned(),
+                false => "Import a file…".to_owned(),
+            }}
             glyph=ICON_FILE_UP
             disabled={importing}
             then=MenuThen::Stay
@@ -400,7 +396,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
 #[component]
 fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem {
     let place = create_memo(move || held.with(|held| held.as_ref().and_then(|held| held.place)));
-    let label = create_memo(move || {
+    let label = move || {
         let types = picker.types();
         match place.get() {
             Some(BlockParent::Block(id)) => picker
@@ -410,8 +406,8 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
             Some(BlockParent::Unfiled) => "Unfiled".to_owned(),
             _ => "Top level".to_owned(),
         }
-    });
-    let glyph = create_memo(move || {
+    };
+    let glyph = move || {
         let types = picker.types();
         place
             .get()
@@ -423,7 +419,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
                 _ => ICON_FOLDER,
             })
             .to_owned()
-    });
+    };
     let rows = create_memo(move || {
         let types = picker.types();
         held.with(|held| {
@@ -439,7 +435,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
             .collect::<Vec<_>>()
     });
     view! {
-        <MenuItem lead="New in" label glyph page=true row_test_id="picker.location">
+        <MenuItem lead="New in" label={label} glyph={glyph} page=true row_test_id="picker.location">
             <ForEach keys>|key: TreeKey| {
                 let row = create_memo({ let key = key.clone(); move || {
                     rows.get().into_iter().find(|row| row.key == key)
@@ -460,9 +456,6 @@ fn PlaceItem(
     row: Memo<Option<TreeRow>>,
 ) -> MenuItem {
     let id = key.id();
-    let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
-    let glyph = create_memo(move || row.get().and_then(|row| row.icon));
-    let depth = create_memo(move || row.get().map(|row| row.depth));
     let unfolded = key.clone();
     let expanded = Binding::new(
         Prop::dynamic(move || {
@@ -477,16 +470,14 @@ fn PlaceItem(
             ))
         },
     );
-    let checked =
-        create_memo(move || Some(id.is_some() && place.get().and_then(BlockParent::block) == id));
     let named = id.map_or_else(String::new, |id| format!("picker.place.{id}"));
     view! {
         <MenuItem
-            label
-            glyph
-            depth
+            label={move || row.get().map(|row| row.name).unwrap_or_default()}
+            glyph={move || row.get().and_then(|row| row.icon)}
+            depth={move || row.get().map(|row| row.depth)}
             expanded
-            checked
+            checked={move || Some(id.is_some() && place.get().and_then(BlockParent::block) == id)}
             then=MenuThen::Back
             row_test_id={named}
             on_click={move || {
@@ -513,14 +504,13 @@ fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
             let layout = use_context::<DialogLayout>();
             let creating = create_memo(move || held.with(|held| held.as_ref().is_some_and(|held| held.creating.is_some())));
             let viewport = use_viewport_size();
-            let sheet = create_memo(move || layout.is_some_and(|layout| layout.sheet.get()));
-            let height = create_memo(move || match (creating.get(), sheet.get()) {
-                (true, _) => Length::INTRINSIC,
-                (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
-                (false, false) => Length::Size(DIALOG_HEIGHT),
-            });
+            let sheet = move || layout.is_some_and(|layout| layout.sheet.get());
             view! {
-                <Frame height>
+                <Frame height={move || match (creating.get(), sheet()) {
+                    (true, _) => Length::INTRINSIC,
+                    (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
+                    (false, false) => Length::Size(DIALOG_HEIGHT),
+                }}>
                     <PickerSurface picker />
                 </Frame>
             }
@@ -655,7 +645,6 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             .map(|group| group.title)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || titles.get().is_empty());
     view! {
         <DialogBody
             id="picker"
@@ -667,7 +656,7 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             <ListItem grow=1.0>
                 <Scroll bleed=SIDE_BLEED>
                     <List spacing=ROW_SPACING>
-                        <Show condition={empty}>
+                        <Show condition={move || titles.with(Vec::is_empty)}>
                             <Text style=TextStyle::CAPTION>"No block types match."</Text>
                         </Show>
                         <ForEach keys={titles}>|title: String| {
@@ -707,20 +696,17 @@ fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
 
 #[component]
 fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId {
-    let glyph_color = create_memo(move || {
-        let color = entry.get().and_then(|entry| entry.color);
-        Some(color.map_or(TextColor::Muted, |[r, g, b]| {
-            TextColor::Custom(Color32::from_rgb(r, g, b).into())
-        }))
-    });
-    let label = create_memo(move || entry.get().map(|entry| entry.name).unwrap_or_default());
-    let glyph = create_memo(move || entry.get().and_then(|entry| entry.icon));
     view! {
         <ListRow
             @test_id={format!("picker.more.{key}")}
-            label
-            glyph
-            glyph_color
+            label={move || entry.get().map(|entry| entry.name).unwrap_or_default()}
+            glyph={move || entry.get().and_then(|entry| entry.icon)}
+            glyph_color={move || {
+                let color = entry.get().and_then(|entry| entry.color);
+                Some(color.map_or(TextColor::Muted, |[r, g, b]| {
+                    TextColor::Custom(Color32::from_rgb(r, g, b).into())
+                }))
+            }}
             size=RowSize::Regular
             on_click={move || {
                 if let Some(entry) = entry.get_untracked() {
@@ -754,7 +740,6 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             .map(|row| row.key)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || keys.get().is_empty());
     let selected = create_memo(move || {
         let key = held.with(|held| held.as_ref().and_then(|held| held.selected.clone()))?;
         rows.with(|rows| rows.iter().find(|row| row.key == key).cloned())
@@ -762,7 +747,6 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
     let chosen = create_memo(move || selected.get().filter(|row| row.enabled));
     let unready = create_memo(move || chosen.get().is_none());
     let above = create_memo(move || selected.get().map(|row| row.above).unwrap_or_default());
-    let has_above = create_memo(move || !above.get().is_empty());
     let name = create_memo(move || selected.get().map(|row| row.name).unwrap_or_default());
     let link = move |row: TreeRow| {
         if let (true, Some(id)) = (row.enabled, row.key.id()) {
@@ -796,7 +780,6 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             false => "No matching blocks.".to_owned(),
         }
     });
-    let named = create_memo(move || !name.get().is_empty());
     view! {
         <DialogBody
             id="picker"
@@ -818,7 +801,7 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                 placeholder="Search by name or UUID"
                 act
             />
-            <Show condition={empty}>
+            <Show condition={move || keys.with(Vec::is_empty)}>
                 <Text style=TextStyle::CAPTION>{empty_text}</Text>
             </Show>
             <ListItem grow=1.0>
@@ -847,9 +830,9 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                     }
                 }</Tree>
             </ListItem>
-            <Show condition={named}>
+            <Show condition={move || name.with(|name| !name.is_empty())}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
-                    <Show condition={has_above}>
+                    <Show condition={move || above.with(|above| !above.is_empty())}>
                         <Text size=TextSize::Sm color=TextColor::Muted overflow=Overflow::Ellipsis>
                             {above}
                         </Text>
@@ -866,28 +849,27 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
 
 #[component]
 fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
-    let glyph = create_memo(move || row.get().and_then(|row| row.icon));
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let detail = create_memo(move || row.get().map(|row| row.detail).unwrap_or_default());
-    let section = create_memo(move || row.get().is_some_and(|row| row.section));
-    let color =
-        create_memo(
-            move || match row.get().is_some_and(|row| row.enabled || row.section) {
-                true => TextColor::Default,
-                false => TextColor::Muted,
-            },
-        );
-    let weight = create_memo(move || match section.get() {
-        true => Weight::Bold,
-        false => Weight::Normal,
-    });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
-                <Icon glyph={glyph} />
+                <Icon glyph={move || row.get().and_then(|row| row.icon)} />
             </Text>
             <ListItem grow=1.0>
-                <Text color weight overflow=Overflow::Ellipsis>{label}</Text>
+                <Text
+                    color={move || match row.get().is_some_and(|row| row.enabled || row.section) {
+                        true => TextColor::Default,
+                        false => TextColor::Muted,
+                    }}
+                    weight={move || match row.get().is_some_and(|row| row.section) {
+                        true => Weight::Bold,
+                        false => Weight::Normal,
+                    }}
+                    overflow=Overflow::Ellipsis
+                >
+                    {label}
+                </Text>
             </ListItem>
             <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
         </List>
@@ -966,15 +948,13 @@ fn creation_height(held: Option<&Pick>) -> f32 {
 
 #[component]
 fn PickerError(picker: Picker, error: Memo<Option<PickError>>, act: Act, node: NodeRef) -> NodeId {
-    let open = create_memo(move || error.get().is_some());
+    let open = move || error.with(Option::is_some);
     let title = create_memo(move || error.get().map(|error| error.title).unwrap_or_default());
     let text = create_memo(move || error.get().map(|error| error.message).unwrap_or_default());
-    let color = create_memo(
-        move || match error.get().is_some_and(|error| error.failed) {
-            true => TextColor::Danger,
-            false => TextColor::Default,
-        },
-    );
+    let color = move || match error.with(|error| error.as_ref().is_some_and(|error| error.failed)) {
+        true => TextColor::Danger,
+        false => TextColor::Default,
+    };
     if picker.sheet {
         return view! {
             <Dialog
@@ -994,7 +974,7 @@ fn PickerError(picker: Picker, error: Memo<Option<PickError>>, act: Act, node: N
             anchor={OverlayAnchor::Point(Pos2::ZERO)}
             placement=Placement::At
             policy=LayerPolicy::BlocksAll
-            open
+            open={open}
             on_dismiss={move |why: Dismiss| {
                 if matches!(why, Dismiss::Escape | Dismiss::Back) {
                     act.call(PickAction::DismissError);
