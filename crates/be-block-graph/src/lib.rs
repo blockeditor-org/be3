@@ -501,6 +501,13 @@ impl BlockGraph {
             .unwrap_or_default()
     }
 
+    /// Whether `from` references `to`, without reading its references.
+    pub fn refers(&self, from: Uuid, to: Uuid) -> bool {
+        self.backrefs
+            .get(&to)
+            .is_some_and(|referrers| referrers.contains(&from))
+    }
+
     pub fn backrefs(&self, id: Uuid) -> Vec<Uuid> {
         self.backrefs
             .get(&id)

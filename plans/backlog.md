@@ -42,14 +42,3 @@ Fixed items are removed as they land.
   (`Windows::idle` stays in be-host) or that the device is on power. Done: the
   host passes both to the stack, and the pass waits for them, shown by a stack
   test where an index over the cap is left alone on battery.
-
-## 11. Large folders
-
-- **What the hub keeps of a large folder.** `WatchHub` keeps, per connection,
-  the `Facts` of every block it told the connection of, references included
-  (`watch.rs`), so each connection listing or reading a folder of
-  `MAX_REFERENCES` entries holds a copy of its whole reference set beside the
-  graph's. Done: the hub reads references from the graph when it matches a
-  change, keeping only what the connection was told that the graph cannot
-  answer, and a server test shows its memory per connection does not grow with
-  a folder's references.
