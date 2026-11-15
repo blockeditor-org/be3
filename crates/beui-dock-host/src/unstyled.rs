@@ -560,6 +560,16 @@ impl State {
         self.icon.call(tab)
     }
 
+    /// The tab `tab` stands in for (`DockState::standing_in`): a joined editor's stage names, counts
+    /// and closes as its document's tab.
+    fn standing(&self, tab: TabId) -> TabId {
+        self.state.with(|state| state.standing_in(tab))
+    }
+
+    fn standing_closable(&self, tab: TabId) -> bool {
+        self.closable.call(self.standing(tab))
+    }
+
     fn standing_tab(&self, entry: Entry) -> Option<TabId> {
         match entry {
             Entry::Tab(tab) => Some(tab),
@@ -2205,7 +2215,9 @@ fn DockStack(dock: State) -> NodeId {
     let occupied = create_memo(move || shown.with(Option::is_some));
     let backward = create_memo(move || state.with(|state| state.back().is_some()));
     let switching = create_signal(false);
-    let tabs = create_memo(move || state.with(|state| state.switchable(state.recent_tabs())));
+    let tabs = create_memo(move || {
+        state.with(|state| one_per_document(state, state.switchable(state.recent_tabs())))
+    });
     let bar = dock
         .stack
         .map(|stack| stack.call(stack_handle(dock, shown, backward, tabs, switching)));
@@ -2297,7 +2309,7 @@ fn BackPreview(dock: State, switching: Signal<bool>) -> NodeId {
     let shown = create_memo(move || Some(behind));
     let backward = after.back().is_some();
     let backward = create_memo(move || backward);
-    let tabs = after.switchable(after.recent_tabs());
+    let tabs = one_per_document(&after, after.switchable(after.recent_tabs()));
     let tabs = create_memo(move || tabs.clone());
     let bar = dock
         .stack
@@ -2321,13 +2333,9 @@ fn stack_handle(
     switching: Signal<bool>,
 ) -> DockStackHandle {
     // A joined editor's stage stands in for the tab its dock took the place of: the bar names the
-    // document, not the editor's stage tab.
-    let state = dock.state;
-    let standing = create_memo(move || {
-        shown
-            .get()
-            .map(|tab| state.with(|state| state.standing_in(tab)))
-    });
+    // document, not the editor's stage tab. Its menu stays the stage's own, deliberately: what
+    // the stage offers (its editor's actions) is what the bar holds.
+    let standing = create_memo(move || shown.get().map(|tab| dock.standing(tab)));
     let title = create_memo(move || {
         standing
             .get()
@@ -2340,14 +2348,8 @@ fn stack_handle(
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
     // The badge counts what the switcher lists as open, its cards: not the tabs that are always
     // there (the files list, settings), which it lists as rows.
-    let closable = dock.closable;
     let open_tabs = create_memo(move || {
-        let mut standing: Vec<TabId> = tabs.with(|tabs| {
-            state.with(|state| tabs.iter().map(|tab| state.standing_in(*tab)).collect())
-        });
-        standing.sort_by_key(|tab| tab.value());
-        standing.dedup();
-        standing.into_iter().filter(|tab| closable.call(*tab)).count()
+        tabs.with(|tabs| tabs.iter().filter(|tab| dock.standing_closable(**tab)).count())
     });
     let switch_label = create_memo(move || match open_tabs.get() {
         0 => "No open tabs".to_owned(),
@@ -2373,22 +2375,20 @@ fn switcher_handle(
     tabs: Memo<Vec<TabId>>,
     switching: Signal<bool>,
 ) -> DockSwitcherHandle {
-    let closable = dock.closable;
     let state = dock.state;
     let open = create_memo(move || {
         tabs.with(|tabs| {
             tabs.iter()
                 .copied()
-                .filter(|tab| closable.call(*tab))
+                .filter(|tab| dock.standing_closable(*tab))
                 .collect::<Vec<_>>()
         })
     });
     let fixed = create_memo(move || {
         state.with(|state| {
-            state
-                .switchable(state.all_tabs())
+            one_per_document(state, state.switchable(state.all_tabs()))
                 .into_iter()
-                .filter(|tab| !closable.call(*tab))
+                .filter(|tab| !dock.standing_closable(*tab))
                 .collect::<Vec<_>>()
         })
     });
@@ -2397,13 +2397,14 @@ fn switcher_handle(
         close: Callback::new(move |()| switching.set(false)),
         tabs: open,
         fixed,
+        // A card shows the document its tab stands in for, and picking it shows the tab itself.
         card: Func::new(move |tab: TabId| DockSwitcherCardHandle {
             tab,
-            test_key: dock.test_key(tab),
-            title: create_memo(move || dock.title(tab)),
-            icon: create_memo(move || dock.icon(tab)),
+            test_key: dock.test_key(dock.standing(tab)),
+            title: create_memo(move || dock.title(dock.standing(tab))),
+            icon: create_memo(move || dock.icon(dock.standing(tab))),
             current: create_memo(move || shown.get() == Some(tab)),
-            closable: dock.closable.call(tab),
+            closable: dock.standing_closable(tab),
             menu: create_memo(move || {
                 closing_switcher(
                     dock_menu_items(dock.menus.read_only(), Some(tab)),
@@ -2414,9 +2415,23 @@ fn switcher_handle(
                 switching.set(false);
                 dock.show(tab);
             }),
-            close: Callback::new(move |()| dock.close_tab(tab)),
+            close: Callback::new(move |()| dock.close_tab(dock.standing(tab))),
         }),
     }
+}
+
+/// `tabs` with one tab for each document they show: a joined editor's stage and the tab it stands
+/// in for (`DockState::standing_in`) are one, kept at the first.
+fn one_per_document(state: &DockState, tabs: Vec<TabId>) -> Vec<TabId> {
+    let mut seen = Vec::new();
+    tabs.into_iter()
+        .filter(|tab| {
+            let standing = state.standing_in(*tab);
+            let new = !seen.contains(&standing);
+            seen.push(standing);
+            new
+        })
+        .collect()
 }
 
 fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNode> {
