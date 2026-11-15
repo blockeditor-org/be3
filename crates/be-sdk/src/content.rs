@@ -108,9 +108,11 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
         self.adopt_lazily();
         let told = self.0.told.get() || self.0.due.borrow().is_none();
         if self.loaded() && told {
-            Ok(())
-        } else {
-            Err(Unready::Loading)
+            return Ok(());
+        }
+        match self.0.mirror.borrow().failure() {
+            Some(reason) if !self.loaded() => Err(Unready::Failed(reason.to_owned())),
+            _ => Err(Unready::Loading),
         }
     }
 

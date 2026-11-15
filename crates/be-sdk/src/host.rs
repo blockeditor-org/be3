@@ -1383,7 +1383,8 @@ impl EditorHost {
             | ToEditor::Operations(_)
             | ToEditor::Range { .. }
             | ToEditor::PartPut { .. }
-            | ToEditor::Lacking { .. }) => {
+            | ToEditor::Lacking { .. }
+            | ToEditor::Failed(_)) => {
                 if self.followed.borrow().contains_key(&block) {
                     self.update_content(block, content);
                 }
