@@ -682,7 +682,8 @@ pub(crate) fn AppView(
     provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
-    let asked = use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked);
+    let asked = docked_focus(instance, &region)
+        .or_else(|| use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked));
     provide_context(ChildFocus(None));
     super::intercept::intercept_keys(app_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
@@ -1652,9 +1653,19 @@ fn focus_when_given(
     // start takes.
     let up = create_memo(move || state.with(|view| !view.loading && view.error.is_none()));
     let failed = create_memo(move || state.with(|view| view.error.is_some()));
+    // A docked child shows its content in its dock's tab views: the one holding it takes the
+    // keyboard, and counts as the child being up, and the main view leaves the gift to it.
+    let takes = move || {
+        let holds = be_host_runtime::content_view(&app.value(), own) == region;
+        match region == ViewId::MAIN {
+            true => !be_host_runtime::docked(own),
+            false => holds,
+        }
+    };
     create_effect(move || {
+        revision.get();
         let (up, failed) = (up.get(), failed.get());
-        if !asked.asked.get() || !(up || failed) {
+        if !asked.asked.get() || !(up || failed) || !untrack(takes) {
             return;
         }
         let editor = (asked.placer.app, asked.placer.instance);
@@ -1686,6 +1697,9 @@ fn focus_when_given(
             let Some(node) = catcher.try_get() else {
                 return;
             };
+            if !takes() {
+                return;
+            }
             let AskedFocus { placer, child, .. } = asked;
             let placing = placer.app;
             let editor = (placing, placer.instance);
@@ -1727,6 +1741,21 @@ fn focus_when_given(
             });
         });
     });
+}
+
+/// A docked child's dock tab view is built where its placer's tab shows, not among the placer's
+/// children, so it learns the gift from the placement the host keeps.
+fn docked_focus(instance: EditorInstanceId, region: &View) -> Option<AskedFocus> {
+    if region.placement != ViewPlacement::Dock {
+        return None;
+    }
+    let (app, placer, child) = be_host_runtime::docked_placer(instance)?;
+    let placer = Placer::new(&app, placer, ViewId::MAIN);
+    Some(AskedFocus {
+        asked: create_memo(move || gifts::gives(placer.app, placer.instance, child)),
+        placer,
+        child,
+    })
 }
 
 fn key_progress(app: &str, instance: EditorInstanceId, view: Memo<PlacedView>) -> KeyProgress {

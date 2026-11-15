@@ -9,7 +9,7 @@ use beui::NodeId;
 use beui::dock::SplitSize;
 use beui::dock::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
-    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredTab, DockDragStage, DockEdge,
+    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab, DockDragStage, DockEdge,
     DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
     DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
     DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
@@ -1084,6 +1084,7 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
                             key: key.clone(),
                             pinned: *pinned,
                             child: None,
+                            title: String::new(),
                         },
                         root: Box::new(spec_node(root, path, empty)),
                     }),
@@ -1324,12 +1325,21 @@ fn declaration_from_api(
             pane: bar.pane.as_ref().map(|pane| paths.tab(pane)),
         })
         .collect();
+    let groups = nodes
+        .groups()
+        .into_iter()
+        .filter(|group| !group.title.is_empty())
+        .map(|group| DockDeclaredGroup {
+            key: group.key.clone(),
+            title: group.title.clone(),
+        })
+        .collect();
     Some(DockDeclaration {
         spec,
         tabs,
         dialogs,
         bars,
-        groups: Vec::new(),
+        groups,
         hosts: Vec::new(),
     })
 }

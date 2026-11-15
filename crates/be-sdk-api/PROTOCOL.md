@@ -534,7 +534,7 @@ that places a child in the body of one of its dock's tabs names that tab
 `dock-item`s with depths, as menus are, and each tab's `dock-tab`, with a key
 that names it for good) and draws no chrome. The host splices each
 declaration into its placer's in place of that tab, as a pinned group
-(`dock-group.child`) whose tabs it names through the child
+(`dock-group.child`, titled as that tab was) whose tabs it names through the child
 (`dock-tab-path.via`) and whose keys it prefixes with the tab's key and the
 child's block id (`dock_prefix`, `DockDeclaration::splice`), up to the root,
 the instance whose own frame is not docked: only the root hears its docked
