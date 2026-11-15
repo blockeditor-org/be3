@@ -25,7 +25,7 @@ async fn a_connection_holds_a_bounded_number_of_listings() {
     hub.list(client, read)
         .await
         .expect("a block's own listing takes no room");
-    hub.listed(client, read, &[]).await;
+    hub.listed(client, read, Vec::new()).await;
     hub.unlist(client, first).await;
     hub.list(client, listing)
         .await

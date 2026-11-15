@@ -163,7 +163,17 @@ host owes a replica (the WIT documents each call):
 - **Opening.** The host calls `head-moved` for every head landing after the
   one in `opening`; the replica does not reconcile on opening. After a
   reconnect, `reopen` starts the replica over and the host replays what it
-  kept and re-asks what was unanswered.
+  kept and re-asks what was unanswered. It keeps each local edit (an editor's
+  message, a `change`) until a status covers it: `status.taken` counts the
+  local edits the replica took since it opened, so a status made before it
+  took the latest does not let the host drop them; `sealed-taken` says how
+  many of them its head holds (all once it is clean) and `journaled-taken` how
+  many its head and this device's journal on it hold, so a reopened replica is
+  given only what neither holds (guides/blocks/host.md, Opening again). An
+  owner sequences local edits in the order it takes them, those it holds back
+  during a seal included, which keeps both counts exact. The host numbers each
+  opening (`opening.epoch`) and ignores a status whose `epoch` is not the
+  current one: an earlier opening made it.
 - **What the server holds.** `append` answers whether the server took the
   entries, `publish` answers `kept` for a commit sealed on this device alone
   (offline, or behind others in its outbox), `drained` says those commits
@@ -520,9 +530,15 @@ commit dropped by block.
 A local editor follows the replica as a peer follows an owner. The host
 `attach`es an editor instance (with whether it may edit) and `detach`es it;
 the editor's messages are `editor::FromEditor` (operations, gestures,
-replace, presence) and the replica answers `editor::ToEditor` (a snapshot on
-attach, then operations and peers' presence). A replica drops edits from an
-editor attached read-only. On the app protocol both directions travel
+replace, presence) and the replica answers `editor::ToEditor` (a snapshot,
+then operations and peers' presence). A replica drops edits from an
+editor attached read-only, but counts them as it counts every operation an
+editor sends. `attach` carries `acknowledged`, how many of the editor's
+operations the content the replica opened on holds, and the replica sends the
+editor nothing of the content until `resent`: the host calls it right after
+`attach`, or, for an editor still open across a reopen or restart, after it
+gave the replica again what it kept of the editor's edits, so the snapshot
+counts them all in the editor's own count. Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
 editor messages, since a shortcut may undo a block no editor shows.

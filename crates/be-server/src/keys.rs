@@ -1,9 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::Bound;
 
 use be_block_graph::BlockGraph;
 use be_block_protocol::{
-    ErrorCode, EscrowKey, KeyChange, KeyKind, KeyRow, KeySet, KeyWork, OrganizationKind, OwnKind,
-    OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
+    ErrorCode, EscrowKey, KeyChange, KeyKind, KeyPage, KeyRow, KeySet, KeyWork, OrganizationKind,
+    OwnKind, OwnSealed, SealedKey, SigningKey, Unsealed, WrappedBy, WrappedKey,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -146,13 +147,15 @@ pub(crate) fn wraps_of(
     Ok(wraps)
 }
 
-pub(crate) fn served_keys(
+/// The key rows `get-keys` serves of `blocks`, by id: those of the blocks the caller may view,
+/// and to an administrator the organization's escrow keys.
+fn served_rows(
     graph: &BlockGraph,
     connection: &Connection,
     identity: Identity,
     seen: &Visibility,
     blocks: impl IntoIterator<Item = Uuid>,
-) -> Result<KeySet, ServerError> {
+) -> Result<BTreeMap<Uuid, KeyRow>, ServerError> {
     let mut keys = BTreeMap::new();
     for block in blocks {
         if !seen.can_view(graph, block) {
@@ -167,21 +170,44 @@ pub(crate) fn served_keys(
             keys.insert(row.id, row);
         }
     }
-    let mut wrapped = Vec::new();
-    for key in keys.keys() {
-        for wrap in wraps_of(connection, identity.organization, *key)? {
-            let served = match wrap.wrapped_by {
+    Ok(keys)
+}
+
+/// The rows of `served` after `after`, in the order of their ids, each with its wraps by the
+/// caller's account or by a served key, while they fit in `room` bytes and at least one. Only
+/// the page's own wraps are read.
+fn page_of(
+    connection: &Connection,
+    identity: Identity,
+    served: &BTreeMap<Uuid, KeyRow>,
+    after: Option<Uuid>,
+    mut room: usize,
+) -> Result<KeyPage, ServerError> {
+    let rows = match after {
+        Some(after) => served.range((Bound::Excluded(after), Bound::Unbounded)),
+        None => served.range(..),
+    };
+    let mut page = KeySet::default();
+    for (id, row) in rows {
+        let wrapped: Vec<WrappedKey> = wraps_of(connection, identity.organization, *id)?
+            .into_iter()
+            .filter(|wrap| match wrap.wrapped_by {
                 WrappedBy::Account(account) => account == identity.account,
-                WrappedBy::Key(by) => keys.contains_key(&by),
-            };
-            if served {
-                wrapped.push(wrap);
-            }
+                WrappedBy::Key(by) => served.contains_key(&by),
+            })
+            .collect();
+        let size = be_block_protocol::encoded_len(row) + be_block_protocol::encoded_len(&wrapped);
+        if size > room && !page.keys.is_empty() {
+            let next = page.keys.last().map(|row| row.id);
+            return Ok(KeyPage { keys: page, next });
         }
+        room = room.saturating_sub(size);
+        page.keys.push(row.clone());
+        page.wrapped.extend(wrapped);
     }
-    Ok(KeySet {
-        keys: keys.into_values().collect(),
-        wrapped,
+    Ok(KeyPage {
+        keys: page,
+        next: None,
     })
 }
 
@@ -798,11 +824,16 @@ pub(crate) fn forget_block_keys(
 }
 
 impl ServerStore {
+    /// A page of the keys `get-keys` serves: those after `after` in the order of their ids, each
+    /// with its wraps, while they fit in `ServerConfig::key_page_bytes` (at least one). A key made with a
+    /// smaller id while a client pages is not skipped for good: `keys-changed` tells it to
+    /// read again.
     pub async fn get_keys(
         &self,
         identity: Identity,
         blocks: Option<Vec<Uuid>>,
-    ) -> Result<KeySet, ServerError> {
+        after: Option<Uuid>,
+    ) -> Result<KeyPage, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let seen = visibility(identity);
             if identity.bound.is_none() {
@@ -834,7 +865,8 @@ impl ServerStore {
                     })
                     .collect(),
             };
-            served_keys(graph, database, identity, &seen, wanted)
+            let served = served_rows(graph, database, identity, &seen, wanted)?;
+            page_of(database, identity, &served, after, store.key_page_bytes())
         })
         .await
     }

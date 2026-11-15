@@ -52,6 +52,7 @@ const CONNECTING: &[&str] = &[
     "upload-urls",
     "download-urls",
     "list-blocks",
+    "read-summaries",
     "unlist",
     "changes",
     "get-keys",

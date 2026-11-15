@@ -227,7 +227,7 @@ impl KeyChord {
     /// "Ctrl+Shift+P", "Super"; on Apple's systems, where Cmd is held as
     /// `ctrl`, "Cmd+Shift+P" and "Option" for `alt`.
     pub fn label(self) -> String {
-        self.label_as(APPLE.load(Ordering::Relaxed))
+        self.label_as(apple_keys())
     }
 
     fn label_as(self, apple: bool) -> String {
@@ -249,14 +249,22 @@ impl KeyChord {
     }
 }
 
-/// Whether chords are named as on Apple's systems; see [`name_keys_as_apple`].
+/// Whether keys follow Apple's systems; see [`set_apple_keys`].
 static APPLE: AtomicBool = AtomicBool::new(cfg!(target_vendor = "apple"));
 
-/// Names chords as on Apple's systems from now on, or not. A build for
-/// Apple's systems does from the start; a platform that learns where it runs
-/// only when it starts, as a browser's does, says so here.
-pub fn name_keys_as_apple(apple: bool) {
+/// Makes keys follow Apple's systems from now on, or not: chords are named
+/// with Cmd and Option, and controls take Apple's keys where they differ
+/// (a text area's Cmd+Left goes to the line's start, not the word's). A build
+/// for Apple's systems does from the start; a platform that learns where it
+/// runs only when it starts, as a browser's does, says so here.
+pub fn set_apple_keys(apple: bool) {
     APPLE.store(apple, Ordering::Relaxed);
+}
+
+/// Whether keys follow Apple's systems, where Command is held as `ctrl`; see
+/// [`set_apple_keys`].
+pub fn apple_keys() -> bool {
+    APPLE.load(Ordering::Relaxed)
 }
 
 fn key_label(key: Key, apple: bool) -> String {

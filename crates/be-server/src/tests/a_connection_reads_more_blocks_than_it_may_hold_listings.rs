@@ -16,7 +16,12 @@ async fn a_connection_reads_more_blocks_than_it_may_hold_listings() {
             .expect("reading a block was refused");
         assert!(new);
         let summary = BlockSummary::no_access(block, CONTENT, be_block_graph::Access::KnowExists);
-        hub.listed(client, read, &[summary]).await;
+        hub.listed(
+            client,
+            read,
+            vec![(block, crate::watch::Facts::of(&summary, false))],
+        )
+        .await;
     }
     hub.list(client, Listing::Children(BlockParent::Root))
         .await

@@ -22,6 +22,8 @@ struct Inner {
     /// set the database up at once; it makes accounts and signs devices in.
     store: be_server::ServerStore,
     relays: Mutex<Vec<Weak<Relay>>>,
+    /// How long each device's relay holds each answer of the server's (`slow`).
+    latency: Mutex<std::time::Duration>,
     runtime: tokio::runtime::Runtime,
 }
 
@@ -54,6 +56,7 @@ impl Server {
                 running,
                 store,
                 relays: Mutex::new(Vec::new()),
+                latency: Mutex::new(std::time::Duration::ZERO),
                 runtime,
             }),
         }
@@ -81,6 +84,16 @@ impl Server {
         }
     }
 
+    /// Has the server answer the devices started from now on `by` late, as a distant or busy
+    /// one does, each answer in order.
+    pub fn slow(&self, by: std::time::Duration) {
+        *self
+            .inner
+            .latency
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = by;
+    }
+
     /// Takes the server away from every device, or brings it back; each device's own
     /// [`crate::HostTest::online`] then tells it so.
     pub fn offline(&self, offline: bool) {
@@ -92,6 +105,17 @@ impl Server {
     /// A network of its own for one device, carrying its connections to the server.
     pub(crate) fn relay(&self) -> Arc<Relay> {
         let relay = Arc::new(Relay::start(self.inner.running.address));
+        // `stress --latency` (crates/be-tool-local) slows every answer too.
+        let stressed = std::env::var("HOST_TEST_LATENCY_MS")
+            .ok()
+            .and_then(|milliseconds| milliseconds.parse().ok())
+            .map_or(std::time::Duration::ZERO, std::time::Duration::from_millis);
+        let latency = *self
+            .inner
+            .latency
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        relay.delay_answers(latency.max(stressed));
         self.inner
             .relays
             .lock()

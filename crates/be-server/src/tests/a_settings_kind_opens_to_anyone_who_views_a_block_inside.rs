@@ -61,7 +61,7 @@ async fn a_settings_kind_opens_to_anyone_who_views_a_block_inside() {
     assert_eq!(access_of(&mut guest, kind).await, Access::View);
     assert!(!access_of(&mut guest, settings).await.can_view());
     let listed = guest
-        .call(|peer| client::blocks::list_blocks(peer, Listing::OpenSettings(note)))
+        .call(|peer| client::blocks::list_blocks(peer, Listing::OpenSettings(note), None))
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = listed else {
         panic!("listing the open settings failed: {listed:?}");

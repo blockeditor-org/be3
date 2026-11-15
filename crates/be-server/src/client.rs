@@ -16,10 +16,10 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::{
-    CONTENTS_BYTES, Identity, PublishOutcome, ServerConfig, ServerError, ServerStore, Services,
+    Identity, PublishOutcome, SUMMARY_BYTES, ServerConfig, ServerError, ServerStore, Services,
     SessionRegistry, WatchHub,
     address::{Anonymous, Eviction},
-    browser_auth, contacts,
+    browser_auth, contacts, contents_room,
     limits::{
         MAX_PAIRING_BYTES, MAX_RELAY_BYTES, MAX_SESSIONS_PER_CONNECTION, MAX_STREAMS_PER_CONNECTION,
     },
@@ -142,7 +142,9 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
             // before the store answers, which refuses less than `KnowExists` as not found.
+            // A listing's `rest`, which leaves out what the caller may not know of.
             blocks::Call::ListBlocks { .. }
+            | blocks::Call::ReadSummaries { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::CollectDetached { .. } => Rule::Organization,
             blocks::Call::Changes { .. } => Rule::SignedIn,
@@ -260,6 +262,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             blocks::Call::SetMetadata { .. }
             | blocks::Call::Publish { .. }
             | blocks::Call::ReadContents { .. }
+            | blocks::Call::ReadSummaries { .. }
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
@@ -1626,15 +1629,17 @@ impl Client {
                     prelude?;
                     let (blocks, hashes) = connection
                         .store
-                        .read_contents(connection.identity()?, blocks, held)
+                        .read_contents(connection.identity()?, blocks, held, SUMMARY_BYTES)
                         .await?;
-                    let objects = connection.store.get_objects(hashes, CONTENTS_BYTES).await?;
+                    let (objects_room, journals_room) =
+                        contents_room(be_block_protocol::encoded_len(&blocks));
+                    let objects = connection.store.get_objects(hashes, objects_room).await?;
                     let journals = connection
                         .store
                         .read_journals(
                             connection.identity()?.organization,
                             blocks.iter().map(|summary| summary.id).collect(),
-                            CONTENTS_BYTES / 2,
+                            journals_room,
                         )
                         .await?;
                     Ok(Contents {
@@ -1686,13 +1691,37 @@ impl Client {
                 .await;
                 self.reply(reply, moved);
             }
-            Call::ListBlocks { reply, listing } => {
+            Call::ListBlocks {
+                reply,
+                listing,
+                after,
+            } => {
                 let listed = async {
                     prelude?;
-                    connection.list(listing).await
+                    connection.list(listing, after).await
                 }
                 .await;
                 self.reply(reply, listed);
+            }
+            Call::ReadSummaries { reply, blocks } => {
+                let read = async {
+                    prelude?;
+                    if blocks.len() > be_block_protocol::MAX_SUMMARIES_ASKED {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            format!(
+                                "ask for at most {} summaries at a time",
+                                be_block_protocol::MAX_SUMMARIES_ASKED
+                            ),
+                        ));
+                    }
+                    connection
+                        .store
+                        .read_summaries(connection.identity()?, blocks, SUMMARY_BYTES)
+                        .await
+                }
+                .await;
+                self.reply(reply, read);
             }
             Call::Unlist { reply, listing } => {
                 let unlisted = async {
@@ -2208,12 +2237,16 @@ impl Client {
         use embed::keys::Call;
         let connection = &self.connection;
         match call {
-            Call::GetKeys { reply, blocks } => {
+            Call::GetKeys {
+                reply,
+                blocks,
+                after,
+            } => {
                 let keys = async {
                     prelude?;
                     connection
                         .store
-                        .get_keys(connection.identity()?, blocks)
+                        .get_keys(connection.identity()?, blocks, after)
                         .await
                 }
                 .await;
@@ -2715,30 +2748,27 @@ impl Connection {
         }
     }
 
-    async fn list(&self, listing: Listing) -> Result<be_block_protocol::Listed, ServerError> {
+    async fn list(
+        &self,
+        listing: Listing,
+        after: Option<Uuid>,
+    ) -> Result<be_block_protocol::Listed, ServerError> {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
-        let listed = async {
-            Ok::<_, ServerError>(match listing {
-                Listing::Shared => self.store.list_shared(identity).await?,
-                Listing::Children(parent) => self.store.list_children(identity, parent).await?,
-                Listing::Deleted => self.store.list_deleted(identity).await?,
-                Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
-                Listing::References(block) => self.store.list_references(identity, block).await?,
-                Listing::Block(block) => {
-                    let summary = self.store.read_block(identity, block).await?;
-                    be_block_protocol::Listed {
-                        revision: summary.revision,
-                        blocks: vec![summary],
-                    }
-                }
-                Listing::OpenSettings(block) => {
-                    self.store.list_open_settings(identity, block).await?
-                }
-            })
-        }
-        .await;
-        let listed = match listed {
+        let listed = match listing {
+            Listing::Block(block) => self.store.read_block(identity, block).await.map(|summary| {
+                let told = vec![(block, crate::watch::Facts::of(&summary, false))];
+                let listed = be_block_protocol::Listed {
+                    revision: summary.revision,
+                    blocks: vec![summary],
+                    rest: Vec::new(),
+                    next: None,
+                };
+                (listed, told)
+            }),
+            _ => self.store.list_page(identity, listing, after).await,
+        };
+        let (listed, told) = match listed {
             Ok(listed) => listed,
             Err(error) => {
                 self.hub.refused(self.client, listing, new).await;
@@ -2749,7 +2779,7 @@ impl Connection {
         if let Listing::Block(block) = listing {
             crate::store::held::listing(block).await;
         }
-        self.hub.listed(self.client, listing, &listed.blocks).await;
+        self.hub.listed(self.client, listing, told).await;
         Ok(listed)
     }
 

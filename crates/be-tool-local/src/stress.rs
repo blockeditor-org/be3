@@ -6,9 +6,12 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 use std::{env, fs, thread};
 
-const USAGE: &str = "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS]";
+const USAGE: &str = "usage: local-tools stress NAME [--repeat N] [--parallel K] [--limit SECONDS] [--apps A,B] [--latency MS]";
 const HARNESS: &str = "//crates/be-host-tests:test-harness";
 const BUNDLE: &str = "//crates/be-host-tests:host-with-all";
+const LIBRARIES: &str = "//crates/be-host-tests:host-libraries";
+/// The apps every test's host stages (`BASE` in crates/be-host-tests/apps.bzl).
+const BASE_APPS: [&str; 2] = ["file-tree", "workspace"];
 const HOST: &str = "//crates/be-host:bin";
 const AMD64: &str = "//buck/sysroot:amd64";
 const AMD64_TEST: &str = "//buck/sysroot:amd64-test";
@@ -41,9 +44,9 @@ const ENVIRONMENT: [&str; 6] = [
 /// 6, Debugging), a painting that differs from the accepted one included. `./scripts/test` caches a passing run, so running it again proves
 /// nothing.
 ///
-/// Every run uses the one host that has every app (`:host-with-all`), where `./scripts/test`
-/// stages the apps a test names in `APPS` in crates/be-host-tests/BUCK: a test that fails only
-/// for want of an app, or only with all of them, differs between the two.
+/// Every run uses the one host that has every app (`:host-with-all`), unless `--apps` names the
+/// apps a test names in `APPS` in crates/be-host-tests/BUCK: then it stages only those, as
+/// `./scripts/test` and verify do, so a flake that needs the smaller host's timing shows too.
 pub fn main(arguments: Vec<String>) -> ExitCode {
     match run(arguments) {
         Ok(failed) => match failed {
@@ -63,6 +66,10 @@ struct Options {
     repeat: usize,
     parallel: usize,
     limit: Duration,
+    /// The apps to stage beside `BASE_APPS`, or `None` for every app.
+    apps: Option<Vec<String>>,
+    /// How long the server takes to answer a device of a test's `Server`, through its relay.
+    latency: Option<Duration>,
 }
 
 /// Twice the cores: enough to slow every step down, short of the load at which single steps
@@ -76,6 +83,8 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
     let mut repeat = REPEAT;
     let mut parallel = parallel;
     let mut limit = LIMIT;
+    let mut apps = None;
+    let mut latency = None;
     let mut arguments = arguments.into_iter();
     while let Some(argument) = arguments.next() {
         let mut number = |what: &str| -> Result<usize, String> {
@@ -89,6 +98,23 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
             "--repeat" => repeat = number("--repeat")?,
             "--parallel" => parallel = number("--parallel")?,
             "--limit" => limit = Duration::from_secs(number("--limit")? as u64),
+            "--latency" => {
+                latency = Some(Duration::from_millis(number("--latency")? as u64));
+            }
+            "--apps" => {
+                let listed = arguments
+                    .next()
+                    .ok_or_else(|| format!("--apps takes the apps, as A,B or nothing\n{USAGE}"))?;
+                let mut named: Vec<String> = listed
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|app| !app.is_empty() && !BASE_APPS.contains(app))
+                    .map(str::to_owned)
+                    .collect();
+                named.sort();
+                named.dedup();
+                apps = Some(named);
+            }
             flag if flag.starts_with('-') => return Err(format!("unknown flag {flag}\n{USAGE}")),
             _ if name.is_some() => return Err(USAGE.to_owned()),
             _ => name = Some(argument),
@@ -99,6 +125,8 @@ fn options(arguments: Vec<String>, parallel: usize) -> Result<Options, String> {
         repeat,
         parallel,
         limit,
+        apps,
+        latency,
     })
 }
 
@@ -110,7 +138,7 @@ struct Failure {
 
 fn run(arguments: Vec<String>) -> Result<usize, String> {
     let options = options(arguments, default_parallel())?;
-    let built = build()?;
+    let built = build(options.apps.as_deref())?;
     let output = PathBuf::from(OUTPUT).join(file_name(&options.name));
     let _ = fs::remove_dir_all(&output);
     fs::create_dir_all(&output)
@@ -127,9 +155,7 @@ fn run(arguments: Vec<String>) -> Result<usize, String> {
                     }
                     let log = output.join(format!("{run}.log"));
                     let paintings = output.join(run.to_string());
-                    if let Err(reason) =
-                        once(&built, &options.name, options.limit, &log, &paintings)
-                    {
+                    if let Err(reason) = once(&built, &options, &log, &paintings) {
                         failures
                             .lock()
                             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -228,12 +254,32 @@ struct Built {
     environment: Vec<(&'static str, String)>,
 }
 
-/// What `run_env` in crates/be-host-tests/BUCK sets for the harness, built here.
-fn build() -> Result<Built, String> {
-    let targets = [HARNESS, BUNDLE, HOST, AMD64_TEST, AMD64, LAVAPIPE];
+/// The host that stages `apps` beside the base ones, as crates/be-host-tests/apps.bzl names it.
+fn host_with(apps: &[String]) -> String {
+    match apps.is_empty() {
+        true => "//crates/be-host-tests:host-with-base".to_owned(),
+        false => format!("//crates/be-host-tests:host-with-{}", apps.join("+")),
+    }
+}
+
+/// What `run_env` in crates/be-host-tests/BUCK sets for the harness, built here; with `apps`,
+/// what `apart_env` sets instead for a test that names them.
+fn build(apps: Option<&[String]>) -> Result<Built, String> {
+    let bundle_target = apps.map_or_else(|| BUNDLE.to_owned(), host_with);
+    let mut targets = vec![
+        HARNESS,
+        bundle_target.as_str(),
+        HOST,
+        AMD64_TEST,
+        AMD64,
+        LAVAPIPE,
+    ];
+    if apps.is_some() {
+        targets.push(LIBRARIES);
+    }
     let output = Command::new("./scripts/buck")
         .args(["build", "--show-full-output"])
-        .args(targets)
+        .args(&targets)
         .stderr(Stdio::inherit())
         .output()
         .map_err(|error| format!("could not run ./scripts/buck: {error}"))?;
@@ -255,33 +301,50 @@ fn build() -> Result<Built, String> {
     let amd64 = path(AMD64)?;
     let libraries = |sysroot: &Path| sysroot.join("usr/lib/x86_64-linux-gnu");
     let [bundle, host, libraries_variable, icd, xkb, manifest] = ENVIRONMENT;
+    let bundled = match apps {
+        None => path(BUNDLE)?.display().to_string(),
+        Some(_) => format!(
+            "{}:{}",
+            path(&bundle_target)?.display(),
+            path(LIBRARIES)?.display()
+        ),
+    };
+    let mut environment = vec![
+        (bundle, bundled),
+        (host, path(HOST)?.display().to_string()),
+        (
+            libraries_variable,
+            format!(
+                "{}:{}",
+                libraries(&amd64_test).display(),
+                libraries(&amd64).display()
+            ),
+        ),
+        (icd, path(LAVAPIPE)?.display().to_string()),
+        (
+            xkb,
+            amd64_test.join("usr/share/X11/xkb").display().to_string(),
+        ),
+        (
+            manifest,
+            env::current_dir()
+                .map_err(|error| format!("no working directory: {error}"))?
+                .join("crates/be-host-tests")
+                .display()
+                .to_string(),
+        ),
+    ];
+    if let Some(apps) = apps {
+        let mut staged: Vec<&str> = BASE_APPS
+            .into_iter()
+            .chain(apps.iter().map(String::as_str))
+            .collect();
+        staged.sort_unstable();
+        environment.push(("HOST_TEST_APPS", staged.join(",")));
+    }
     Ok(Built {
         harness: path(HARNESS)?,
-        environment: vec![
-            (bundle, path(BUNDLE)?.display().to_string()),
-            (host, path(HOST)?.display().to_string()),
-            (
-                libraries_variable,
-                format!(
-                    "{}:{}",
-                    libraries(&amd64_test).display(),
-                    libraries(&amd64).display()
-                ),
-            ),
-            (icd, path(LAVAPIPE)?.display().to_string()),
-            (
-                xkb,
-                amd64_test.join("usr/share/X11/xkb").display().to_string(),
-            ),
-            (
-                manifest,
-                env::current_dir()
-                    .map_err(|error| format!("no working directory: {error}"))?
-                    .join("crates/be-host-tests")
-                    .display()
-                    .to_string(),
-            ),
-        ],
+        environment,
     })
 }
 
@@ -290,16 +353,15 @@ fn build() -> Result<Built, String> {
 /// painting differs from the accepted one. The run writes its paintings into `paintings`/made
 /// (MADE_PAINTINGS) rather than comparing them itself, so that every run keeps its own: those
 /// that differ stay in `paintings`/changed with a `.why` beside each, and the rest is removed.
-fn once(
-    built: &Built,
-    name: &str,
-    limit: Duration,
-    log: &Path,
-    paintings: &Path,
-) -> Result<(), String> {
+fn once(built: &Built, options: &Options, log: &Path, paintings: &Path) -> Result<(), String> {
+    let limit = options.limit;
     let made = paintings.join("made");
-    let mut child = Command::new(&built.harness)
-        .arg(name)
+    let mut command = Command::new(&built.harness);
+    if let Some(latency) = options.latency {
+        command.env("HOST_TEST_LATENCY_MS", latency.as_millis().to_string());
+    }
+    let mut child = command
+        .arg(&options.name)
         .envs(built.environment.iter().map(|(key, value)| (key, value)))
         .env("MADE_PAINTINGS", &made)
         .stdin(Stdio::null())

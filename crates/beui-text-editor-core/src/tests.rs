@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use super::*;
 
+mod a_delete_to_the_lines_edge_takes_only_the_break_when_already_there;
 mod a_long_fenced_block_stays_code_wherever_it_is_read;
 mod atomic_units_are_single_cursor_units;
 mod changes_since_coalesce_the_edits_after_a_revision;
@@ -11,6 +12,7 @@ mod collapsible_sections_detects_indentation_blocks;
 mod collapsible_sections_detects_markdown_headings;
 mod core;
 mod ctrl_d;
+mod document_moves_reach_the_ends_from_a_selection_and_extend_it;
 mod double_click_selects_the_word_beside_the_caret_within_its_line;
 mod down_and_up_arrows_step_through_a_fenced_code_block;
 mod down_arrow_skips_past_a_collapsed_section;

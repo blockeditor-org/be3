@@ -63,7 +63,7 @@ async fn a_blocks_references_are_listed_and_announced_together() {
         .await;
     other.read_block(view).await;
     let response = other
-        .call(|peer| client::blocks::list_blocks(peer, Listing::References(view)))
+        .call(|peer| client::blocks::list_blocks(peer, Listing::References(view), None))
         .await;
     let Ok(be_block_protocol::Listed { blocks, .. }) = response else {
         panic!("{response:?}");

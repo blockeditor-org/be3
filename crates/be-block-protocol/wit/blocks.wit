@@ -126,8 +126,9 @@ interface blocks {
         head: bool,
     }
 
-    /// The summaries asked for, and as many of the objects of their heads as
-    /// fit in half a frame, in order; a client asks again for the rest.
+    /// The summaries of the first blocks asked for that fit in a sixteenth of
+    /// a frame, and as many of the objects of their heads as fit in half a
+    /// frame, in order; a client asks again for the rest.
     record contents {
         blocks: list<block-summary>,
         objects: list<list<u8>>,
@@ -140,7 +141,18 @@ interface blocks {
     /// that changes after the answer does so at a later revision.
     record listed {
         revision: u64,
+        /// The listing's first blocks in the order of their ids (after
+        /// `after`), as many as fit in an eighth of a frame and at least one.
         blocks: list<block-summary>,
+        /// The listing's next blocks after those, as many ids as fit in a
+        /// sixteenth of a frame: the ids are as of `revision`, and a client
+        /// reads their summaries with `read-summaries`, which are as of when
+        /// it reads them. The connection is told of their changes as of
+        /// `blocks`'.
+        rest: list<block-id>,
+        /// The last block of the page when the listing goes on past it: a
+        /// client lists again after it.
+        next: option<block-id>,
     }
 
     /// What `collect-detached` deleted and freed.
@@ -230,16 +242,28 @@ interface blocks {
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
 
-    /// Summaries of `blocks`, their journals, and the objects of their heads
-    /// the caller does not hold, those of the commits in `held` left out.
+    /// Summaries of the first of `blocks`, as many as fit in the answer and
+    /// at least one, their journals, and the objects of their heads the
+    /// caller does not hold, those of the commits in `held` left out. A
+    /// client asks again for the blocks left out.
     read-contents: async func(blocks: list<block-id>, held: list<commit-id>) -> result<contents, error>;
 
     /// Moves a block, with the keys it needs under its new parent.
     set-parent: async func(block: block-id, parent: block-parent, keys: key-set) -> result<_, error>;
 
-    /// The blocks of a listing, which the connection's `changes` stream then
-    /// follows until `unlist`.
-    list-blocks: async func(listing: listing) -> result<listed, error>;
+    /// A page of the blocks of a listing, in the order of their ids, which
+    /// the connection's `changes` stream then follows until `unlist`: from
+    /// the first, or from the first id past `after` (a `listed.next`) as
+    /// the listing is now. A block that stays in the listing is on exactly
+    /// one page; one that joins or leaves between pages is told on
+    /// `changes`.
+    list-blocks: async func(listing: listing, after: option<block-id>) -> result<listed, error>;
+
+    /// The summaries of the first of `blocks` (at most 4096 asked), as many
+    /// as fit in a sixteenth of a frame and at least one, in order: none
+    /// for a block the caller may not know of, or that no longer exists. A
+    /// client asks again for the rest. Lists nothing.
+    read-summaries: async func(blocks: list<block-id>) -> result<list<option<block-summary>>, error>;
 
     /// Stops following a listing.
     unlist: async func(listing: listing) -> result<_, error>;

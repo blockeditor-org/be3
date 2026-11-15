@@ -1019,10 +1019,11 @@ impl ServerStore {
                     let Some(bytes) = read? else {
                         continue;
                     };
-                    if bytes.len() > room {
+                    let size = be_block_protocol::encoded_len(&bytes);
+                    if size > room {
                         return Ok(objects);
                     }
-                    room -= bytes.len();
+                    room -= size;
                     objects.push(bytes);
                 }
             }

@@ -42,6 +42,22 @@ pub use sessions::*;
 pub use types::*;
 
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
+/// The most blocks one `read-summaries` names.
+pub const MAX_SUMMARIES_ASKED: usize = 4096;
+/// What a frame spends on more than its answer's items: the op's envelope and the lengths and
+/// fixed fields around them. An answer sized to fit leaves this much of a frame spare.
+pub const FRAME_ENVELOPE_BYTES: usize = 64 * 1024;
+/// The blocks one block references, which its server refuses past (`create-block`,
+/// `set-metadata`, `publish`) and a client before it sends them. Every summary lists them, so
+/// with a block's largest metadata (64 KiB on the server) a summary still fits a frame on its
+/// own, which every answer of many summaries sends alone if it must.
+pub const MAX_REFERENCES: usize = 250_000;
+/// The bytes `value` takes in a frame, whose values are postcard: what a server measures an
+/// answer by so that it fits.
+pub fn encoded_len<T: Serialize + ?Sized>(value: &T) -> usize {
+    postcard::serialize_with_flavor(value, postcard::ser_flavors::Size::default())
+        .unwrap_or(usize::MAX)
+}
 /// The largest object the server stores.
 pub const MAX_OBJECT_BYTES: usize = 8 * 1024 * 1024;
 /// The most objects one `upload-urls` or `download-urls` call names, which keeps its answer
@@ -175,23 +191,39 @@ impl ReferenceChange {
         self.removed.is_empty() && self.added.is_empty()
     }
 
-    /// `before` without what was removed, with each added reference put in at its index (or
-    /// at the end, past it), each reference once.
-    pub fn apply(&self, before: &[Uuid]) -> Vec<Uuid> {
-        let removed: std::collections::HashSet<_> = self.removed.iter().collect();
-        let mut references: Vec<Uuid> = before
-            .iter()
-            .filter(|reference| !removed.contains(reference))
-            .copied()
-            .collect();
-        for placed in &self.added {
-            references.retain(|reference| *reference != placed.block);
-            let index = usize::try_from(placed.index)
-                .unwrap_or(usize::MAX)
-                .min(references.len());
-            references.insert(index, placed.block);
+    /// `before` without what was removed, with each added reference put in at its index (or at
+    /// the end, past it), in one pass. An added reference `before` already holds moves to its
+    /// index, since a client diffs against its own view of the list, which may already hold it;
+    /// removing one `before` lacks changes nothing. A change `between` never makes, naming an
+    /// added reference twice or with indices that do not increase, is none, and a server
+    /// refuses it.
+    pub fn apply(&self, before: &[Uuid]) -> Option<Vec<Uuid>> {
+        let mut added = std::collections::HashSet::with_capacity(self.added.len());
+        let canonical = self.added.iter().all(|placed| added.insert(placed.block))
+            && self
+                .added
+                .windows(2)
+                .all(|pair| pair[0].index < pair[1].index);
+        if !canonical {
+            return None;
         }
-        references
+        let gone: std::collections::HashSet<&Uuid> = self.removed.iter().chain(&added).collect();
+        let mut kept = before
+            .iter()
+            .filter(|reference| !gone.contains(reference))
+            .copied();
+        let mut merged = Vec::with_capacity(before.len() + self.added.len());
+        for placed in &self.added {
+            let index = usize::try_from(placed.index).unwrap_or(usize::MAX);
+            while merged.len() < index
+                && let Some(reference) = kept.next()
+            {
+                merged.push(reference);
+            }
+            merged.push(placed.block);
+        }
+        merged.extend(kept);
+        Some(merged)
     }
 }
 

@@ -27,7 +27,10 @@ the instance and the replica.
 - Host to app: `Snapshot { content_type, bytes, length, session, unsettled,
   applied }`, where `length` is the whole stored form's,
   where `applied` counts operations *this instance* sent that the snapshot
-  holds, which is how an app tells its own unacknowledged edits from others';
+  holds (taken or refused, and across replicas reopened under it), which is
+  how an app tells its own unacknowledged edits from others': `EditorMirror`
+  drops that many from the front of what it sent, counting from what it was
+  told landed, and rebuilds its view on the snapshot with the rest on top;
   `Operations` (each marked `mine`, with `unsettled` and, for a peer's
   operation that goes beneath them, the rebased `beneath`); `Lacking` (below,
   "Sending"); `Presence`;

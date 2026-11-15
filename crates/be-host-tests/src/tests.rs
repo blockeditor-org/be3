@@ -2,6 +2,7 @@ use crate::{HostTest, Options, Server};
 
 mod a_beui_demos_dock_joins_the_workspace_dock_as_a_locked_group;
 mod a_block_added_from_the_files_is_named_in_its_row;
+mod a_block_added_to_my_files_from_a_slow_server_stays_in_it;
 mod a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside;
 mod a_canvas_in_a_canvas_shows_its_tool_bar_in_place_of_the_outer_ones;
 mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;

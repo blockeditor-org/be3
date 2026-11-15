@@ -281,14 +281,7 @@ impl crate::store::ServerStore {
                 .map(|block| {
                     let journal = read(database, organization, block)?
                         .filter(|journal| !journal.entries.is_empty() || journal.lost);
-                    let size = journal.as_ref().map_or(0, |journal| {
-                        journal.base.state.len()
-                            + journal
-                                .entries
-                                .iter()
-                                .map(|entry| entry.payload.len() + 16)
-                                .sum::<usize>()
-                    });
+                    let size = be_block_protocol::encoded_len(&journal);
                     Ok(match size <= left {
                         true => {
                             left -= size;

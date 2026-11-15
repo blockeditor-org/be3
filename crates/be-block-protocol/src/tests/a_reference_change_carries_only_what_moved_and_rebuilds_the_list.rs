@@ -31,7 +31,7 @@ fn a_reference_change_carries_only_what_moved_and_rebuilds_the_list() {
     ];
     for after in cases {
         let change = ReferenceChange::between(&before, &after);
-        assert_eq!(change.apply(&before), after);
+        assert_eq!(change.apply(&before), Some(after.clone()));
         let moved = change.removed.len() + change.added.len();
         match after.len() {
             1000 if after == before => assert!(change.is_empty()),
@@ -44,12 +44,34 @@ fn a_reference_change_carries_only_what_moved_and_rebuilds_the_list() {
     }
     assert!(ReferenceChange::between(&[], &[]).is_empty());
 
+    // Removing a reference the list lacks changes nothing, and one past the end goes last.
     let tolerant = ReferenceChange {
-        removed: ids(&[42]),
+        removed: ids(&[42, 1]),
         added: vec![PlacedReference {
             index: 99,
             block: Uuid::from_u128(1),
         }],
     };
-    assert_eq!(tolerant.apply(&ids(&[1, 2])), ids(&[2, 1]));
+    assert_eq!(tolerant.apply(&ids(&[1, 2])), Some(ids(&[2, 1])));
+    let placed = |index: u32, seed: u128| PlacedReference {
+        index,
+        block: Uuid::from_u128(seed),
+    };
+    // Adding one the list already holds moves it to its index.
+    let readded = ReferenceChange {
+        removed: Vec::new(),
+        added: vec![placed(0, 2), placed(2, 9)],
+    };
+    assert_eq!(readded.apply(&ids(&[1, 2])), Some(ids(&[2, 1, 9])));
+    // A change `between` never makes is refused: naming one twice, or indices out of order.
+    for added in [
+        vec![placed(0, 7), placed(1, 7)],
+        vec![placed(1, 7), placed(0, 8)],
+    ] {
+        let change = ReferenceChange {
+            removed: Vec::new(),
+            added,
+        };
+        assert_eq!(change.apply(&ids(&[1, 2])), None, "{change:?}");
+    }
 }

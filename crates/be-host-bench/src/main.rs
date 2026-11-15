@@ -380,12 +380,13 @@ impl Host {
 
     fn failed(&mut self, words: &[&str], error: &str) -> String {
         let driven = self.driven();
-        let tree = match driven.request(&["tree"]) {
-            Ok(Reply::Text(tree)) => tree,
+        let ask = |words: &[&str]| match driven.request(words) {
+            Ok(Reply::Text(text)) => text,
             _ => "(the host did not answer)".to_owned(),
         };
+        let (state, frames, tree) = (ask(&["state"]), ask(&["frames"]), ask(&["tree"]));
         format!(
-            "{} failed: {error}\n\nWhat the host shows:\n{tree}\n\n{}",
+            "{} failed: {error}\n\nThe host's state:\n{state}\n\nIts frames since the last asked:\n{frames}\n\nWhat the host shows:\n{tree}\n\n{}",
             words.join(" "),
             driven.log_report()
         )

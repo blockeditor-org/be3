@@ -27,6 +27,9 @@ struct State {
     jamming: Mutex<bool>,
     heard: watch::Sender<u64>,
     counters: Mutex<Vec<Counter>>,
+    /// How long each read from the server waits before it goes on to the client
+    /// (`delay_answers`).
+    answer_delay: Mutex<std::time::Duration>,
 }
 
 /// What a counter counts: the calls whose method and encoded arguments it matches.
@@ -44,6 +47,7 @@ struct Link {
     /// let go (`hold_requests`, `hold_answers`).
     holding_requests: watch::Sender<bool>,
     holding_answers: watch::Sender<bool>,
+    answer_delay: std::time::Duration,
 }
 
 impl Relay {
@@ -52,6 +56,7 @@ impl Relay {
             .worker_threads(1)
             .thread_name("fault-relay")
             .enable_io()
+            .enable_time()
             .build()
             .expect("the relay's runtime starts");
         let listener = {
@@ -75,6 +80,7 @@ impl Relay {
             jamming: Mutex::new(false),
             heard: watch::Sender::new(0),
             counters: Mutex::new(Vec::new()),
+            answer_delay: Mutex::new(std::time::Duration::ZERO),
         });
         runtime.spawn(accept(listener, Arc::clone(&state)));
         Self {
@@ -128,6 +134,18 @@ impl Relay {
         for link in self.state.links() {
             link.holding_answers.send_replace(holding);
         }
+    }
+
+    /// Delays what the server answers on each connection opened from now on by `by`, as a
+    /// distant or busy server would: each read from the server goes on `by` after it came, in
+    /// order, so a burst arrives together, late. A flake that needs a slow server shows under
+    /// `stress --latency` (guides/testing_a_gui.md), not only on a loaded build server.
+    pub fn delay_answers(&self, by: std::time::Duration) {
+        *self
+            .state
+            .answer_delay
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = by;
     }
 
     pub fn cut(&self) {
@@ -207,6 +225,10 @@ async fn accept(listener: TcpListener, state: Arc<State>) {
             cut: watch::Sender::new(false),
             holding_requests: watch::Sender::new(false),
             holding_answers: watch::Sender::new(false),
+            answer_delay: *state
+                .answer_delay
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
         };
         {
             // Checked under the links' lock, which `offline` takes to cut them after setting
@@ -273,29 +295,60 @@ async fn pump(
     };
     let mut let_go = holding.subscribe();
     let mut held: Vec<u8> = Vec::new();
+    // Answers on their way, each due its delay after it was read (`delay_answers`): a burst
+    // arrives together, late, rather than one delay after another. While answers are delayed,
+    // every write goes through here, so what was held never overtakes them.
+    let delay = match heard {
+        Some(_) => std::time::Duration::ZERO,
+        None => link.answer_delay,
+    };
+    let mut delayed: Delayed = std::collections::VecDeque::new();
     loop {
         if *link.jammed.borrow() {
             std::future::pending::<()>().await;
         }
-        let read = tokio::select! {
-            read = from.read(&mut buffer) => Some(read),
+        let due = delayed.front().map(|(due, _)| *due);
+        let woke = tokio::select! {
+            read = from.read(&mut buffer) => Woke::Read(read),
             let_go = let_go.wait_for(|holding| !*holding), if !held.is_empty() => {
                 drop(let_go);
-                None
+                Woke::LetGo
+            }
+            () = tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)),
+                if due.is_some() => Woke::Due,
+        };
+        let read = match woke {
+            Woke::Read(read) => Some(read),
+            Woke::LetGo => None,
+            Woke::Due => {
+                if let Some((_, bytes)) = delayed.pop_front()
+                    && let Some(to) = &mut to
+                    && to.write_all(&bytes).await.is_err()
+                {
+                    return;
+                }
+                continue;
             }
         };
         let Some(read) = read else {
             // Let go: what was held goes now, in order.
-            if let Some(to) = &mut to
-                && to.write_all(&held).await.is_err()
-            {
+            if !send(&mut to, &mut delayed, delay, std::mem::take(&mut held)).await {
                 return;
             }
-            held.clear();
             continue;
         };
         let read = match read {
-            Ok(0) | Err(_) => return,
+            Ok(0) | Err(_) => {
+                for (due, bytes) in delayed {
+                    tokio::time::sleep_until(due).await;
+                    if let Some(to) = &mut to
+                        && to.write_all(&bytes).await.is_err()
+                    {
+                        return;
+                    }
+                }
+                return;
+            }
             Ok(read) => read,
         };
         if let Some(state) = heard {
@@ -339,20 +392,48 @@ async fn pump(
             held.extend_from_slice(&buffer[..read]);
             continue;
         }
-        if let Some(to) = &mut to
-            && !held.is_empty()
-        {
-            if to.write_all(&held).await.is_err() {
-                return;
-            }
-            held.clear();
-        }
-        if let Some(to) = &mut to
-            && to.write_all(&buffer[..read]).await.is_err()
+        if !held.is_empty() && !send(&mut to, &mut delayed, delay, std::mem::take(&mut held)).await
         {
             return;
         }
+        if !send(&mut to, &mut delayed, delay, buffer[..read].to_vec()).await {
+            return;
+        }
     }
+}
+
+/// Writes held or delayed bytes go out through, each with when it is due.
+type Delayed = std::collections::VecDeque<(tokio::time::Instant, Vec<u8>)>;
+
+/// Writes `bytes` now, or with a `delay` queues them `delay` from now and never before what is
+/// queued already, so they keep their order. Answers whether the connection is still there.
+async fn send(
+    to: &mut Option<&mut OwnedWriteHalf>,
+    delayed: &mut Delayed,
+    delay: std::time::Duration,
+    bytes: Vec<u8>,
+) -> bool {
+    if delay.is_zero() {
+        return match to {
+            Some(to) => to.write_all(&bytes).await.is_ok(),
+            None => true,
+        };
+    }
+    let mut due = tokio::time::Instant::now() + delay;
+    if let Some((last, _)) = delayed.back() {
+        due = due.max(*last);
+    }
+    delayed.push_back((due, bytes));
+    true
+}
+
+/// What a pump woke for.
+enum Woke {
+    Read(std::io::Result<usize>),
+    /// What was held back is let go.
+    LetGo,
+    /// The first delayed answer is due.
+    Due,
 }
 
 const RECEIVE_BUFFER: u32 = 64 * 1024;

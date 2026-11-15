@@ -9,7 +9,7 @@ async fn a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_af
     let first = client.create_block(BlockParent::Root).await;
 
     let listed = client
-        .call(|peer| client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root)))
+        .call(|peer| client::blocks::list_blocks(peer, Listing::Children(BlockParent::Root), None))
         .await
         .expect("listing failed");
     let summary = listed
