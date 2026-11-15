@@ -116,6 +116,25 @@ impl State {
         true
     }
 
+    /// Lets go of every key the keyboard holds, without telling any window: the keyboard has
+    /// left them all.
+    pub(crate) fn release_keys(&mut self) {
+        let placeless: Vec<Held> = self.placeless.held.drain().map(|(_, held)| held).collect();
+        for held in placeless {
+            self.release_held(Some(held));
+        }
+        let mut keys: Vec<u32> = self
+            .keyboard()
+            .pressed_keys()
+            .into_iter()
+            .map(|keycode| keycode.raw() - EVDEV_OFFSET)
+            .collect();
+        keys.sort_unstable();
+        for code in keys {
+            self.key(code, false);
+        }
+    }
+
     fn release_held(&mut self, held: Option<Held>) {
         match held {
             Some(Held::Placed(code)) => self.forward(code, false, None),

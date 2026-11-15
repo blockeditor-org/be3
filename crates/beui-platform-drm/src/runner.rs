@@ -1224,7 +1224,13 @@ impl Session {
         }
         if !config.same_keymap(&self.input) {
             match Keyboard::new(&config) {
-                Some(keyboard) => self.keyboard = keyboard,
+                Some(mut keyboard) => {
+                    let changed = keyboard.carry(&self.keyboard);
+                    self.keyboard = keyboard;
+                    if let Some(input) = changed {
+                        self.push(input);
+                    }
+                }
                 None => {
                     self.problems.report(format!(
                         "The keyboard layout {:?} ({:?}, {:?}) could not be compiled, so the last one stays.",
@@ -1733,6 +1739,10 @@ impl Card for Session {
         }
         if let Some((panel, _)) = &mut self.epaper {
             panel.take_over();
+        }
+        // Keys held when the session left were let go there, and their releases never come.
+        for input in self.keyboard.release_all() {
+            self.push(input);
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {
             if self.keyboard.modifiers() != Modifiers::NONE {
