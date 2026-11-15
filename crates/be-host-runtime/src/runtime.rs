@@ -2459,11 +2459,6 @@ pub fn frame_rects(app_id: &str, instance: EditorInstanceId, view: ViewId) -> Op
     .flatten()
 }
 
-/// Whether the instance's dock joins its placer's, so its content shows in its dock's tab views.
-pub fn docked(instance: EditorInstanceId) -> bool {
-    crate::docks::docked(instance)
-}
-
 /// For a docked instance: the app and instance placing it, and its child id there.
 pub fn docked_placer(
     instance: EditorInstanceId,
