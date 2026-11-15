@@ -520,6 +520,7 @@ mod a_tab_dragged_into_another_pane_hears_its_content_take_the_keyboard;
 mod a_tab_dropped_in_the_frame_it_last_moved_lands_where_it_was_let_go;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
 mod a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown;
+mod a_tab_past_the_edge_of_a_narrow_inspectors_strip_scrolls_into_view_and_opens;
 mod a_tab_split_out_of_a_window_keeps_its_panel_on_screen;
 mod a_tag_can_take_a_node_ref_and_a_test_id_slot_at_once;
 mod a_taller_window_keeps_the_layout_and_paint_of_what_it_did_not_resize;
@@ -1755,6 +1756,26 @@ impl Harness {
             self.scroll_at(
                 at,
                 Vec2::new(0.0, panel.bottom() - rect.bottom()),
+                Modifiers::NONE,
+            );
+            self.settle();
+        }
+        for _ in 0..4 {
+            let inspector = self.inspector();
+            let row = inspector.tab_node(tab);
+            let rect = inspector.document.node_rect(row).expect("the tab is laid out");
+            let shown = inspector
+                .document
+                .rects
+                .visible(&row)
+                .expect("the tab is laid out");
+            if shown.right() >= rect.right() && shown.left() <= rect.left() {
+                break;
+            }
+            let at = pos2(shown.right().min(rect.left()) - 4.0, rect.center().y);
+            self.scroll_at(
+                at,
+                Vec2::new(shown.right() - rect.right(), 0.0),
                 Modifiers::NONE,
             );
             self.settle();

@@ -968,7 +968,6 @@ const SNAP_CHIP: Vec2 = Vec2::new(96.0, 40.0);
 fn SnapArea() -> NodeId {
     let at = create_signal(Pos2::new(136.0, 100.0));
     let area = NodeRef::new();
-    let placed = measure_ref(area);
     let site = unstyled::use_drop_site(
         Func::new(|_: ()| true),
         Func::new(move |_: ()| {
@@ -978,10 +977,9 @@ fn SnapArea() -> NodeId {
             drag::closest(slots).when_far(drag::free(area, Placed::Free))
         }),
         Callback::new(move |((), placed_at): ((), Placed)| {
-            let origin = placed.get_untracked().map_or(Pos2::ZERO, |rect| rect.min);
             at.set(match placed_at {
                 Placed::Slot(slot) => SNAP_SLOTS[slot],
-                Placed::Free(rect) => Pos2::ZERO + (rect.min - origin),
+                Placed::Free(rect) => rect.min,
             });
         }),
     );
@@ -1083,19 +1081,6 @@ fn DragSwitch() -> NodeId {
             </List>
         </Frame>
     }
-}
-
-/// The rect `node` is laid out at, once it is.
-fn measure_ref(node: NodeRef) -> Memo<Option<Rect>> {
-    let measured = create_signal(None::<ReadSignal<Option<beui::reactive::Measured>>>);
-    create_effect(move || {
-        if measured.get_untracked().is_none()
-            && let Some(node) = node.try_get()
-        {
-            measured.set(Some(measure(node)));
-        }
-    });
-    create_memo(move || measured.get().and_then(|measured| measured.get()).map(|m| m.rect))
 }
 
 #[sample]

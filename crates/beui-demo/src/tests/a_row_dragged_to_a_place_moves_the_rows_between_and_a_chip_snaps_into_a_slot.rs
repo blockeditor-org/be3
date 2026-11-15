@@ -28,5 +28,19 @@ fn a_row_dragged_to_a_place_moves_the_rows_between_and_a_chip_snaps_into_a_slot(
     test.up(chip + Vec2::new(110.0, -70.0), PointerButton::Primary);
     test.settle();
     test.record();
+
+    let snapped = test.rect_of("demo.snap.chip");
+    let away = Vec2::new(-200.0, 110.0);
+    test.down(snapped.center(), PointerButton::Primary);
+    test.frame(vec![Input::PointerMoved(snapped.center() + Vec2::new(-6.0, 0.0))]);
+    test.frame(vec![Input::PointerMoved(snapped.center() + away)]);
+    test.settle();
+    test.up(snapped.center() + away, PointerButton::Primary);
+    test.settle();
+    assert_eq!(
+        test.rect_of("demo.snap.chip"),
+        snapped.translate(away),
+        "a chip let go far from every slot stays where it was let go"
+    );
     test.snapshot("a_row_dragged_to_a_place_moves_the_rows_between_and_a_chip_snaps_into_a_slot");
 }
