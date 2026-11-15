@@ -36,17 +36,21 @@ Things that place relative to the bars:
 
 **Hidden bands** (`root/edges.rs`). A docked band's grip menu offers Auto-hide (every dock of the
 desktop calls `offer_hidden_bands`); an auto-hidden band, and every band over a fullscreen window,
-hides (guides/beui/docking.md, hidden bands). `HiddenBands` reports each one's edge of its display
-to the host in desktop points (`desktop::displays::set_edges`), which walls the pointer there, even
-between displays, and reports pushes and swipes (`ScreenEdgesWatch`; guides/beui/platforms.md,
-screen edges). Pushed distance brings the band out as far, draining once the pushing stops; past
-half its thickness it opens all the way and the wall lifts. Over a fullscreen window
-(`deliberate`) a push first has to cover the band's whole thickness. A swipe follows the finger and
-opens past half when let go. A band opened by the pointer goes once the pointer has been out of the
-band and a thickness around it for `GOES_AFTER`; one opened by a finger goes when a finger lands
-elsewhere. A bar's open panel (`BarPopup`) holds its band out, so Super opens Apps from an
-auto-hidden Apps bar. Without the watch (a windowed desktop) nothing reveals a band but a held
-panel.
+hides (guides/beui/docking.md, hidden bands). `HiddenBands` asks the host, in desktop points, for
+a wall along each hidden band's edge, a strip just inside it that captures fingers, and, while the
+band is out, a region a thickness around it (`desktop::displays::set_screen_input`), and hears
+back what happened at each (`ScreenInputWatch`; guides/beui/platforms.md, screen input). The host
+holds no policy: every rule is in `root/edges.rs`. A push counts only once the pointer has rested
+against the wall for `SETTLE`, and the first band's thickness of it brings nothing out, so a
+pointer overshooting on its way to something by the edge never shows a band. Beyond that, pushed
+distance brings the band out as far, draining once the pushing stops; past half its thickness it
+opens all the way and the wall lifts. A swipe follows the finger and opens past half when let go.
+A band opened by the pointer starts sliding away the moment nothing keeps it out: the pointer has
+left its region and no bar holds it. While it slides away the region stays, and the pointer coming
+back brings it out again. One opened by a finger goes when a finger lands outside its region. Any
+menu or panel open from a bar holds its band out (guides/beui/docking.md, hidden bands), so Super
+opens Apps from an auto-hidden Apps bar and a grip's menu stays usable. Without the watch (a
+windowed desktop) nothing reveals a band but a held one.
 
 **Displays.** Bar ids are `bar::Bars::of(display)` (be-sdk-shell's `SHELL_BARS + 3 * display`).
 Display 0's bars are dock bars of the main dock. Each further display's `Display` view holds a
