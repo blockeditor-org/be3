@@ -44,6 +44,7 @@ fn offline_session(head: Option<CommitId>) -> SessionState {
         owner: Some(OFFLINE_CLIENT),
         participants: vec![OFFLINE_CLIENT],
         clean_at: head,
+        tag: None,
     }
 }
 
@@ -53,6 +54,7 @@ fn joining_session(head: Option<CommitId>) -> SessionState {
         owner: Some(JOINING_OWNER),
         participants: vec![JOINING_OWNER, OFFLINE_CLIENT],
         clean_at: head,
+        tag: None,
     }
 }
 
@@ -1024,12 +1026,12 @@ impl<H: Host> Replicas<H> {
             .known_summary(block)
             .is_some_and(|summary| summary.content_type == content_type);
         let uncreated = cannot_join(peer, block);
+        let tag = self.tag_of(content_type);
         let joined = if known
             && peer.is_attached()
             && !uncreated
             && !(owned && H::reshaped(shared, block, &kind.schema))
         {
-            let tag = self.tag_of(content_type);
             let joining = joining(peer, block, content_type, tag);
             let waited = self.modules.clock().sleep(EARLY_OPEN);
             match futures_util::future::select(joining, waited).await {
@@ -1473,10 +1475,11 @@ impl<H: Host> Replicas<H> {
             owner: Some(open.client),
             participants: vec![open.client],
             clean_at: None,
+            tag: None,
         };
         let session = open.session.clone();
         self.with_replica(replica, |handle, connection| {
-            handle.lease(connection, session, false);
+            handle.lease(connection, session);
         });
     }
 
@@ -3163,12 +3166,9 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.remove(&replica) else {
             return false;
         };
-        // What opens after it holds the local edits its journal holds, as a reopen counts them
-        // (`reopening`), or only those its seals held when an append failed.
-        let held = match open.append_failed {
-            true => open.status.sealed_taken,
-            false => open.journaled_taken.max(open.status.sealed_taken),
-        };
+        // What opens after it holds the local edits the order holds, as a reopen counts them
+        // (`reopening`).
+        let held = open.journaled_taken.max(open.status.sealed_taken);
         untaken(
             &mut self.forwarded,
             open.block,
