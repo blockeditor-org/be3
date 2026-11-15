@@ -260,7 +260,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
 
 #[component]
 fn TerminalPiece(piece: Piece) -> TextChild {
-    match piece {
+    let child: TextChild = match piece {
         Piece::Break => view! {
             <Break />
         }
@@ -305,5 +305,6 @@ fn TerminalPiece(piece: Piece) -> TextChild {
             };
             span.into_child()
         }
-    }
+    };
+    child
 }

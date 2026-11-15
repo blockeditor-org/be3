@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, LazyChild, Prop, Reader, ScopeContext, Set,
+    ComponentContext, Get, IntoSlotHost, LazyChild, Prop, Reader, ScopeContext, Set,
     Signal, SlotHost, SlotId, create_effect, create_signal, current_component,
 };
 pub use beui_types::node::BuildsNode;
@@ -70,9 +70,9 @@ pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
     accesskit::NodeId(node.key())
 }
 
-pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
+pub fn component_accessibility(node: Prop<accesskit::Node>) {
     let bindings = bindings();
-    let node = node.into_prop();
+
     create_effect(move || {
         let node = node.get();
         match bindings.target.get() {

@@ -58,6 +58,8 @@ impl<P: ParentKind> Counted for Placed<P> {
     type Count = CountOne;
 }
 
+beui_tree::one_child_slot!(<P: ParentKind> Placed<P>);
+
 impl<P: ParentKind> SlotChild for Placed<P> {
     type Stored = PlacedItem<P>;
     type Node = NodeId;
@@ -88,21 +90,24 @@ impl<P: ParentKind> FromPlaced<P> for Placed<P> {
     }
 }
 
-impl<P: ParentKind, T: FromPlaced<P>> IntoChild<T> for Placed<P> {
-    fn into_child(self) -> T {
-        T::from_placed(self)
+impl<P: ParentKind, Q: ParentKind> IntoChild<Placed<Q>> for Placed<P>
+where
+    Placed<Q>: FromPlaced<P>,
+{
+    fn into_child(self) -> Placed<Q> {
+        Placed::<Q>::from_placed(self)
     }
 }
 
 impl<P: ParentKind, T: FromPlaced<P> + SlotChild> IntoSegment<T> for Placed<P> {
     fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::One(self.into_child())
+        ChildSegment::One(T::from_placed(self))
     }
 }
 
 impl<P: ParentKind, T: FromPlaced<P> + SlotChild> From<Placed<P>> for Children<T> {
     fn from(child: Placed<P>) -> Self {
-        Self::from(ChildSegment::One(child.into_child()))
+        Self::from(ChildSegment::One(T::from_placed(child)))
     }
 }
 
@@ -130,6 +135,20 @@ impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
 impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
     fn into_segment(self) -> ChildSegment<Placed<P>> {
         ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
+    }
+}
+
+impl<P: BareChild> beui_tree::reactive::IntoPropValue<Children<Placed<P>>, beui_tree::reactive::Val<beui_tree::reactive::ByInto>> for NodeId {
+    fn into_prop_value(self) -> Children<Placed<P>> {
+        self.into()
+    }
+}
+
+impl<P: ParentKind, T: FromPlaced<P> + SlotChild>
+    beui_tree::reactive::IntoPropValue<Children<T>, beui_tree::reactive::Val<beui_tree::reactive::ByInto>> for Placed<P>
+{
+    fn into_prop_value(self) -> Children<T> {
+        self.into()
     }
 }
 

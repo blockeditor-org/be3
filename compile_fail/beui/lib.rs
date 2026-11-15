@@ -8,6 +8,8 @@ mod a_for_each_row_takes_what_the_list_hands_it;
 mod a_frame_takes_one_child;
 mod a_keyed_with_an_empty_fallback_takes_an_option;
 mod a_list_item_is_only_a_list_child;
+mod a_list_item_takes_one_child;
+mod a_list_takes_its_children_built;
 mod a_loading_hands_its_content_no_value;
 mod a_node_ref_names_a_node;
 mod a_required_binding_has_no_default;
