@@ -100,6 +100,31 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// Keeps what the host holds of an open block's local edits no journal holds yet, each
+    /// frame sealed with the block's key; none forgets them (`refs::OpenEdits`).
+    pub async fn keep_open_edits(
+        &self,
+        block: Uuid,
+        mut edits: crate::OpenEdits,
+    ) -> Result<(), ClientError> {
+        if !edits.edits.is_empty() {
+            let key = self.sealing_key(block).await?;
+            for (_, frame) in &mut edits.edits {
+                *frame = self.commits.vault().seal(key, frame)?;
+            }
+        }
+        Ok(self.refs.keep_open_edits(block, edits)?)
+    }
+
+    /// What the host kept of `block`'s local edits before it last stopped, opened.
+    pub fn open_edits(&self, block: Uuid) -> Option<crate::OpenEdits> {
+        let mut edits = self.refs.open_edits(block)?;
+        for (_, frame) in &mut edits.edits {
+            *frame = self.commits.vault().open(frame).ok()?;
+        }
+        Some(edits)
+    }
+
     /// This device's journal of `block`, sealed as it keeps it.
     pub fn sealed_journal(&self, block: Uuid) -> Option<Journal> {
         self.refs.journal(block)

@@ -49,10 +49,11 @@ pub(crate) enum Table {
     Summary,
     Held,
     LetGo,
+    OpenEdits,
 }
 
 impl Table {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -70,6 +71,7 @@ impl Table {
         Self::Summary,
         Self::Held,
         Self::LetGo,
+        Self::OpenEdits,
     ];
 
     pub fn code(self) -> u8 {
@@ -91,6 +93,7 @@ impl Table {
             Self::Summary => 15,
             Self::Held => 16,
             Self::LetGo => 17,
+            Self::OpenEdits => 18,
         }
     }
 
@@ -345,6 +348,7 @@ struct State {
     /// Blocks the search indexer let go after their commit could not be read, with what a
     /// catch-up listed of them: read again when the next catch-up starts, across restarts.
     let_go: HashMap<Uuid, Option<ListedBlock>>,
+    open_edits: HashMap<Uuid, OpenEdits>,
     next: u64,
 }
 
@@ -360,6 +364,21 @@ struct JournalHead {
 }
 
 #[derive(Clone, Debug)]
+/// An open block's local edits no journal holds yet, as the host gave them its replica: kept so
+/// a replica opened after the host stopped is given them again, as one opened again in the same
+/// run is (guides/blocks/host.md, "Opening again").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OpenEdits {
+    /// The replica's origin, which its submissions name.
+    pub origin: u64,
+    /// How many local edits came before the first of `edits` (`opening.taken-before`).
+    pub given_up: u64,
+    /// The last of them submitted to the server, which may hold it.
+    pub submitted_through: u64,
+    /// Each edit's editor and frame, sealed with the block's key.
+    pub edits: Vec<(u64, Vec<u8>)>,
+}
+
 struct Journaled {
     head: JournalHead,
     entries: BTreeMap<u64, JournalEntry>,
@@ -468,6 +487,9 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::OpenEdits => {
+                self.open_edits.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -1085,6 +1107,41 @@ impl Refs {
             account.as_bytes().to_vec(),
             &known,
         )])
+    }
+
+    /// What the host keeps of an open block's local edits no journal holds yet, to give its
+    /// replica again after the host stops (`OpenEdits`).
+    pub fn open_edits(&self, block: Uuid) -> Option<OpenEdits> {
+        self.state.lock().unwrap().open_edits.get(&block).cloned()
+    }
+
+    /// Keeps `edits` as `block`'s, or forgets them when they hold no edit.
+    pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let value = match edits.edits.is_empty() {
+            true => {
+                if state.open_edits.remove(&block).is_none() {
+                    return Ok(());
+                }
+                None
+            }
+            false => {
+                if state.open_edits.get(&block) == Some(&edits) {
+                    return Ok(());
+                }
+                state.open_edits.insert(block, edits.clone());
+                Some(edits)
+            }
+        };
+        drop(state);
+        self.write(vec![match value {
+            Some(edits) => row(Table::OpenEdits, block.as_bytes().to_vec(), &edits),
+            None => Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            },
+        }])
     }
 
     /// The blocks the search indexer let go (`let_go`).

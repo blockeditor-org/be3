@@ -590,6 +590,7 @@ impl Inner {
                 tag: TAG,
                 origin: self.next_commit + 1,
                 taken_before: 0,
+                doubtful_through: 0,
                 head,
                 session: session(),
                 journal: None,

@@ -116,8 +116,8 @@ no network), and hands every later connection to it with `attach`.
 session submitted (`Replicas::ordering`), seals, and waits until every open
 block is kept: in the server's journal, this device's, or a local commit. It
 waits for the server no longer than `FLUSH_TIMEOUT`, so closing a host whose
-server stopped answering does not hang; what that server never ordered is lost
-(decisions/live_edits_are_ordered_by_the_server.md). `stop()` flushes first,
+server stopped answering does not hang; what that server never ordered is
+still kept on the device (Opening again, below). `stop()` flushes first,
 so organization changes do too, because closing the connection would lose an
 edit on its way; `crash` does not. What a flush kept is sent as the outbox
 drains. Commands that seal the open blocks first (a version snapshot, the
@@ -160,7 +160,14 @@ the connection a stopping stack closed.
   `origin` (`Open::origin`) and is told how many local edits it is no longer
   given (`Open::given_up`, `opening.taken-before`), so it numbers what it is given
   again as before and skips what the order holds already: an edit whose answer
-  was lost is never made twice.
+  was lost is never made twice. The same holds across a stop or crash: the host
+  keeps each open block's origin, `given_up`, the last edit it submitted online
+  (`Open::submitted_through`) and the editors' frames in `replay`
+  (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`),
+  and a replica opened later is given them under that origin. Opened before it
+  joins (offline, or joining), those the server may hold already only show
+  (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
+  they could land twice. Once joined, the order says which it holds.
 - **Opening early.** A block this device knows opens from its local head in a
   session a placeholder holds (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened

@@ -85,6 +85,7 @@ pub(crate) struct Opened {
     pub(crate) tag: SessionTag,
     pub(crate) origin: u64,
     pub(crate) taken_before: u64,
+    pub(crate) doubtful_through: u64,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
@@ -581,6 +582,13 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// How many local edits earlier openings of this replica took that this one is not given
     /// (`opening.taken-before`): `taken` counts on from there.
     taken_before: u64,
+    /// The last local edit given again that an earlier opening submitted without hearing it
+    /// ordered (`opening.doubtful-through`): shown, in `doubtful`, but neither numbered nor
+    /// submitted, since the server may hold it already. Only before the replica joins.
+    doubtful_through: u64,
+    /// Those edits, in the order made, with the number of the first.
+    doubtful: Vec<C::Op>,
+    first_doubtful: Option<u64>,
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
@@ -822,6 +830,9 @@ where
             taken: 0,
             sealed_taken: 0,
             taken_before: opened.taken_before,
+            doubtful_through: opened.doubtful_through,
+            doubtful: Vec::new(),
+            first_doubtful: None,
             replacing_from: None,
             epoch: opened.epoch,
             beaten: None,
@@ -1202,6 +1213,9 @@ where
         if local && self.edit_number() <= self.own_through {
             return self.job_already_ordered(job);
         }
+        if local && self.edit_number() <= self.doubtful_through {
+            return self.job_doubtful(job);
+        }
         match job {
             Job::Input(input) => self.handle(input),
             Job::Heard { from, message, .. } => self.heard(from, message),
@@ -1225,6 +1239,32 @@ where
             }) => match FromEditor::decode(&bytes) {
                 Some(FromEditor::Operate(_)) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
+                }
+                Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
+                Some(message) => self.handle_editor(editor, message),
+            },
+            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(true)),
+            _ => {}
+        }
+    }
+
+    /// A local edit an earlier opening submitted without hearing it ordered, given again before
+    /// this one joined: it shows, and waits for the server's order to say whether it holds it.
+    fn job_doubtful(&mut self, job: Job<C>) {
+        match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => match FromEditor::decode(&bytes) {
+                Some(FromEditor::Operate(bytes)) => {
+                    *self.acknowledged.entry(editor).or_default() += 1;
+                    if let Ok(operation) = C::decode_operation(&bytes) {
+                        self.first_doubtful.get_or_insert(self.edit_number());
+                        self.doubtful.push(operation);
+                        self.rebuild_visible();
+                        self.reproject();
+                    }
                 }
                 Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
                 Some(message) => self.handle_editor(editor, message),
@@ -2544,7 +2584,7 @@ where
     }
 
     fn is_clean(&self) -> bool {
-        self.pending.is_empty() && self.unsent.is_empty() && !self.owes()
+        self.pending.is_empty() && self.unsent.is_empty() && self.doubtful.is_empty() && !self.owes()
     }
 
     /// Whether the holder owes a seal: the order went past its last seal, or a stash waits to
@@ -3307,7 +3347,12 @@ where
 
     fn report(&mut self) {
         let clean = self.loaded && self.is_clean();
-        let unconfirmed = !self.pending.is_empty() || !self.unsent.is_empty();
+        let unconfirmed =
+            !self.pending.is_empty() || !self.unsent.is_empty() || !self.doubtful.is_empty();
+        // Nothing from the first doubtful edit on is held anywhere but by the host.
+        let doubtful_cap = self
+            .first_doubtful
+            .map(|first| first.saturating_sub(1).saturating_sub(self.taken_before));
         let ordered = match self.replacing_from {
             Some(from) => from.saturating_sub(1),
             None => self.taken,
@@ -3321,6 +3366,7 @@ where
                 .saturating_sub(self.taken_before)
                 .min(ordered),
         };
+        let journaled_taken = doubtful_cap.map_or(journaled_taken, |cap| journaled_taken.min(cap));
         let sealed_taken = match clean {
             true => ordered,
             false => self
@@ -3434,6 +3480,9 @@ where
             }
         }
         for (operation, ..) in &self.unsent {
+            visible.apply(operation);
+        }
+        for operation in &self.doubtful {
             visible.apply(operation);
         }
         self.replace_visible(visible);

@@ -35,9 +35,7 @@ bases, floors and times, never content.
 ## Accepted limits
 
 - The server can drop, hold back or replay an entry, or number it differently for different
-  participants, which would leave their copies different. It cannot read or forge one.
+  participants, which would leave their copies different. It cannot read or forge one. Fork
+  detection would catch the last (plans/signed_access.md, Accepted limits, "Forks").
 - Offline there is no server: the device numbers in its own order over its own journal, and
   what it orders reaches the others as a commit that merges, not as operations.
-- An edit is durable once the server numbered it, or once the device numbered it offline. While
-  a connection is up but the server does not answer, an edit waits on its replica, shown
-  unsaved, and a crash loses it.

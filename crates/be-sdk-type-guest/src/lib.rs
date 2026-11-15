@@ -452,6 +452,7 @@ impl Module {
                 tag: opening.tag,
                 origin: opening.origin,
                 taken_before: opening.taken_before,
+                doubtful_through: opening.doubtful_through,
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),

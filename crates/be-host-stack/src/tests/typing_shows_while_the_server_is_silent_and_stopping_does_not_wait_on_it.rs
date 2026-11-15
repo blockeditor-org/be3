@@ -1,8 +1,7 @@
 use super::*;
 
-/// Edits show at once while the server says nothing, and stopping does not wait on it. What it
-/// never ordered is lost (decisions/live_edits_are_ordered_by_the_server.md, Accepted limits):
-/// the device keeps what the server held before it went silent.
+/// Edits show at once while the server says nothing, and stopping does not wait on it longer
+/// than a flush does. The device keeps the edits, and sends them once it is back.
 #[test]
 fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
     let harness = Harness::relayed().on_manual_clock();
@@ -34,7 +33,8 @@ fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
 
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
-    wait_for_count(block, 1);
+    wait_for_count(block, 7);
+    flush_and_send();
     let saved = runtime().block_on(async {
         harness
             .outside_peer()
@@ -44,5 +44,5 @@ fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
             .expect("the counter opens from the server")
             .map(|counter| counter.root().value())
     });
-    assert_eq!(saved, Some(1));
+    assert_eq!(saved, Some(7));
 }

@@ -26,6 +26,12 @@ interface replicas {
         /// How many local edits the host gave earlier openings of this replica
         /// and gives this one no more: the first edit it is given is the next.
         taken-before: u64,
+        /// The last of the local edits it is given again that an earlier
+        /// opening submitted to the server without hearing it ordered, when it
+        /// opens before joining its session (after the host stopped): it shows
+        /// them, but neither numbers nor submits them, since the server may
+        /// hold them already. Once joined, the server's order says which.
+        doubtful-through: u64,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,
