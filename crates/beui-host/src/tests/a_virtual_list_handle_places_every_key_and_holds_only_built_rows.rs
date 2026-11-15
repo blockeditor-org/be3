@@ -21,10 +21,10 @@ fn a_virtual_list_handle_places_every_key_and_holds_only_built_rows() {
                             <Frame
                                 @test_id={format!("row.{}", key.get_untracked())}
                                 height=VIRTUAL_ITEM_HEIGHT
-                                fill={move || match index.get() % 2 {
+                                fill={move || Color::from(match index.get() % 2 {
                                     0 => Color32::WHITE,
                                     _ => Color32::BLACK,
-                                }}
+                                })}
                             />
                         </VirtualList>
                     </Scroll>
