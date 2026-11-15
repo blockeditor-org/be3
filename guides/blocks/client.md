@@ -284,7 +284,8 @@ sends it. `Peer::write` does both.
   the server gave before those reached it would otherwise undo them here.
   Sending a move carries its databases' prefixes along (`Moving::from`).
   `Peer::history` answers offline with the history the device holds, walked
-  from the server's head as last heard (`history_held`).
+  from the server's head as last heard (`history_held`): it can hold commits
+  the server has since pruned, where online it lists only what the server keeps.
   Sharing, access, members, invites, agents, contacts and pairing need the
   server.
 - **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an
