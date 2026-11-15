@@ -905,13 +905,12 @@ pub(crate) fn AppView(
             let focused =
                 try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let progress = key_progress(&app, instance, state);
-            let owed =
-                be_host_runtime::settle_keys(
-                    &settled_view.value(),
-                    &key_placers.value(),
-                    progress,
-                    focused,
-                );
+            let owed = be_host_runtime::settle_keys(
+                &settled_view.value(),
+                &key_placers.value(),
+                progress,
+                focused,
+            );
             if let Some(modifiers) = owed {
                 let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {

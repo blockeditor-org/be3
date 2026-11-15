@@ -28,7 +28,11 @@ fn a_view_that_goes_with_nowhere_for_its_content_to_go_ends_its_gift() {
         &mut input,
         pass,
     );
-    assert_eq!(input.events, [], "the gift ended with its view: no other view is owed its keys");
+    assert_eq!(
+        input.events,
+        [],
+        "the gift ended with its view: no other view is owed its keys"
+    );
     assert_eq!(
         own_keys(
             &mut instances,

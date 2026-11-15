@@ -1832,7 +1832,9 @@ pub fn route_keys(
     // its own are waiting.
     for (placer, instance) in placers {
         with(placer, |runtime| {
-            runtime.instances.owe_keys(*instance, view, app, input, pass);
+            runtime
+                .instances
+                .owe_keys(*instance, view, app, input, pass);
         });
     }
 }

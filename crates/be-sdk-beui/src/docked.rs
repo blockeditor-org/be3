@@ -894,9 +894,10 @@ fn DockBarBody(
             .filter(|size| size.x > 0.0 && size.y > 0.0)
             .unwrap_or(EMPTY_BAR);
         let across = bar.and_then(|bar| match bar.placement {
-            api::DockBarPlacement::Over(at) | api::DockBarPlacement::Beside(at) => {
-                Some(matches!(at.edge, api::DockEdge::Top | api::DockEdge::Bottom))
-            }
+            api::DockBarPlacement::Over(at) | api::DockBarPlacement::Beside(at) => Some(matches!(
+                at.edge,
+                api::DockEdge::Top | api::DockEdge::Bottom
+            )),
             api::DockBarPlacement::Window(_) => None,
         });
         (size, across)
