@@ -1203,8 +1203,9 @@ impl Session<'_> {
             }
         }
         let mut flushes = Vec::new();
-        // Version commands that snapshot the open blocks, held until the server ordered what
-        // they were sent after, which a seal then holds.
+        // Commands that seal the open blocks first (a version snapshot, the bookmark a restore
+        // keeps), held until the server ordered what they were sent after, which a seal then
+        // holds.
         let mut after_order: Vec<Command> = Vec::new();
         let mut kept_for_flushes = false;
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
@@ -1365,7 +1366,11 @@ impl Session<'_> {
                                 self.uploads.add(blocks);
                                 ran.done(false);
                             }
-                            command @ Command::Version { .. }
+                            command @ (Command::Version { .. }
+                            | Command::Revision {
+                                request: super::revisions::Asked::Restore(_),
+                                ..
+                            })
                                 if !after_order.is_empty()
                                     || ran.replicas.ordering()
                                     || !ran.replicas.modules.settled() =>

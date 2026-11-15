@@ -56,7 +56,6 @@ fn a_fork_pulls_and_pushes_through_its_upstream() {
     });
     version(fork, VersionCommand::PullUpstream);
     wait_until("pulled the upstream's branch", |shared| {
-        eprintln!("DEBUG fork settled={} fork={:?} upstream={:?}", settled(shared, fork), head_of(shared, fork).map(|h| h[0]), head_of(shared, versioned.repository).map(|h| h[0]));
         settled(shared, fork) && head_of(shared, fork) == head_of(shared, versioned.repository)
     });
 
