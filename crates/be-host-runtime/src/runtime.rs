@@ -259,6 +259,9 @@ pub(super) struct Runtime {
     /// The person asked to restart the app; the next `poll` does.
     restart_asked: bool,
     taking_in: bool,
+    /// A frame held until the poll applies the children and docks its layout brought
+    /// (`Runtime::pump`), so both show in the same host frame.
+    held_frame: Option<Frame>,
     layouts_heard: u64,
     presents_heard: u64,
     /// Presents applied, in the order the app sent them among its other answers.
@@ -544,6 +547,7 @@ impl Runtime {
             queued: Vec::new(),
             held: Vec::new(),
             taking_in: false,
+            held_frame: None,
             layouts_heard: 0,
             presents_heard: 0,
             presents_applied: 0,
@@ -1053,24 +1057,49 @@ impl Runtime {
         for image in previews::take_withdrawn(&self.app.identity.id) {
             self.backend.withdraw(image);
         }
-        if let Some(mut frame) = self.backend.received_frame() {
-            let previewed = self.export_previews(&frame);
-            let mut changed = true;
-            if frame.composited() {
-                frame.set_damage(self.presents.damage_through(frame.presents()));
-                changed = frame_changed(frame.damage());
-                self.shared.borrow_mut().publish(&self.layout, Some(frame));
-                self.close_anchored();
-                self.frames += 1;
-                be_host_base::performance::record_group_count(
-                    PACING,
-                    &format!("{} frames", self.app.identity.id),
-                    self.frames,
-                );
+        if let Some(frame) = self.backend.received_frame() {
+            self.received(frame);
+        }
+    }
+
+    /// Shows a frame the app presented, unless its layout brought children or docks that wait
+    /// for the poll: shown now, its painting (a dock's bar showing the tab it switched to) would
+    /// sit a frame over the children it replaces, so it waits for that poll and is shown with
+    /// them (`hear`).
+    fn received(&mut self, frame: Frame) {
+        let waits = !self.taking_in
+            && self.held.iter().any(
+                |held| matches!(held, Answer::Laid(laid) if laid.presented_by <= self.presents_heard),
+            );
+        match waits {
+            true => {
+                self.held_frame = Some(frame);
+                host::request_repaint();
             }
-            if previewed || changed {
-                mark(&self.app.identity.id);
+            false => {
+                self.held_frame = None;
+                self.show_frame(frame);
             }
+        }
+    }
+
+    fn show_frame(&mut self, mut frame: Frame) {
+        let previewed = self.export_previews(&frame);
+        let mut changed = true;
+        if frame.composited() {
+            frame.set_damage(self.presents.damage_through(frame.presents()));
+            changed = frame_changed(frame.damage());
+            self.shared.borrow_mut().publish(&self.layout, Some(frame));
+            self.close_anchored();
+            self.frames += 1;
+            be_host_base::performance::record_group_count(
+                PACING,
+                &format!("{} frames", self.app.identity.id),
+                self.frames,
+            );
+        }
+        if previewed || changed {
+            mark(&self.app.identity.id);
         }
     }
 
@@ -1118,6 +1147,11 @@ impl Runtime {
             host::request_repaint();
         }
         self.apply(answers);
+        if self.taking_in
+            && let Some(frame) = self.held_frame.take()
+        {
+            self.show_frame(frame);
+        }
         self.answer();
     }
 
