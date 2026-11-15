@@ -8,11 +8,10 @@ use be_wasm_gpu_host::{
     be_wasm_gpu_abi::embed::device::Caller,
     transport::{Transport, Transported},
 };
-use wasmtime::{AsContextMut, Caller as Calling, Extern, SharedMemory, Store, StoreLimits};
-use wasmtime_wasi::p1::WasiP1Ctx;
 
-use crate::threads::{Spawner, Spawns};
-use crate::wake::{Wake, Wakes};
+use crate::engine;
+use crate::threads::Spawner;
+use crate::wake::Wake;
 
 pub type Connect = Arc<dyn Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync>;
 
@@ -38,84 +37,130 @@ impl Device {
     }
 }
 
+/// A guest's linear memory as the host reads and writes it.
 pub(crate) enum Memory {
-    Shared(SharedMemory),
-    Own(Option<wasmtime::Memory>),
+    /// Not known yet: a module that exports its memory has not been instantiated.
+    None,
+    /// A shared memory, which never moves (V8 reserves its maximum) and only grows, so a call
+    /// reads where it is and how long it is without V8, which a fast-API call may not reach.
+    Shared(v8::SharedRef<v8::BackingStore>),
+    /// A memory of the guest's own, which may move when it grows: every call that reads it asks
+    /// V8 for its buffer, so only calls made through a scope may.
+    Own(v8::Global<v8::Object>),
+}
+
+impl Memory {
+    pub(crate) fn shared(&self) -> Option<&v8::SharedRef<v8::BackingStore>> {
+        match self {
+            Self::Shared(store) => Some(store),
+            Self::None | Self::Own(_) => None,
+        }
+    }
+}
+
+/// Where a memory's bytes are, for one call.
+#[derive(Clone, Copy)]
+pub(crate) struct View {
+    base: *mut u8,
+    size: usize,
+}
+
+impl View {
+    pub(crate) const EMPTY: Self = Self {
+        base: std::ptr::null_mut(),
+        size: 0,
+    };
+
+    pub(crate) fn of(store: &v8::BackingStore) -> Self {
+        Self {
+            base: store
+                .data()
+                .map_or(std::ptr::null_mut(), |data| data.as_ptr().cast()),
+            size: store.byte_length(),
+        }
+    }
+
+    pub(crate) fn size(&self) -> usize {
+        self.size
+    }
+
+    fn range(&self, pointer: u32, length: usize) -> Result<std::ops::Range<usize>, String> {
+        if self.base.is_null() {
+            return Err(NO_MEMORY.to_owned());
+        }
+        let start = pointer as usize;
+        let end = start
+            .checked_add(length)
+            .ok_or_else(|| "an app pointer overflowed".to_owned())?;
+        if end > self.size {
+            return Err(format!(
+                "an app pointer ran past its memory: {start}..{end} of {}",
+                self.size
+            ));
+        }
+        Ok(start..end)
+    }
+
+    pub(crate) fn read(&self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
+        let range = self.range(pointer, length as usize)?;
+        let mut bytes = vec![0u8; range.len()];
+        // unsafe(ffi): the range lies inside the memory, checked above, and the memory stays where
+        // it is for the call. Another guest thread may write it meanwhile, as it may under any
+        // engine; the bytes read are then whatever it wrote.
+        unsafe {
+            std::ptr::copy_nonoverlapping(self.base.add(range.start), bytes.as_mut_ptr(), range.len())
+        };
+        Ok(bytes)
+    }
+
+    pub(crate) fn write(&self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
+        let range = self.range(pointer, bytes.len())?;
+        // unsafe(ffi): as in read.
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), self.base.add(range.start), bytes.len()) };
+        Ok(())
+    }
 }
 
 pub struct State {
-    pub(crate) wasi: WasiP1Ctx,
     pub(crate) memory: Memory,
+    /// The `WebAssembly.Memory` on this isolate, when it is shared, which the host grows.
+    pub(crate) memory_object: Option<v8::Global<v8::Object>>,
     pub(crate) device: Device,
     pub(crate) imports: Imports,
     pub(crate) error: Option<String>,
+    /// Why a host call stopped the guest, which the call that ran it reports.
     pub(crate) fatal: Option<String>,
+    /// The message the guest panicked with.
+    pub(crate) panicked: Option<String>,
     pub(crate) returned: Vec<u8>,
     pub(crate) transport: Transport,
     pub(crate) threads: Arc<Spawner>,
     pub(crate) wake: Arc<Wake>,
     pub(crate) gpu_time: Duration,
     pub(crate) submit_time: Duration,
-    pub(crate) limits: StoreLimits,
-}
-
-impl Drop for State {
-    fn drop(&mut self) {
-        self.threads.release();
-    }
-}
-
-pub(crate) struct Threaded {
-    pub(crate) wasi: WasiP1Ctx,
-    pub(crate) threads: Arc<Spawner>,
-    pub(crate) wake: Arc<Wake>,
-}
-
-impl Spawns for State {
-    fn spawner(&self) -> &Arc<Spawner> {
-        &self.threads
-    }
-}
-
-impl Spawns for Threaded {
-    fn spawner(&self) -> &Arc<Spawner> {
-        &self.threads
-    }
-}
-
-impl Wakes for State {
-    fn wake(&self) -> &Arc<Wake> {
-        &self.wake
-    }
-}
-
-impl Wakes for Threaded {
-    fn wake(&self) -> &Arc<Wake> {
-        &self.wake
-    }
-}
-
-pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-    let data = memory.data();
-    let start = pointer as usize;
-    let end = start
-        .checked_add(length as usize)
-        .ok_or_else(|| "an app pointer overflowed".to_owned())?;
-    if end > data.len() {
-        return Err(format!(
-            "an app pointer ran past its memory: {start}..{end} of {}",
-            data.len()
-        ));
-    }
-    let mut bytes = vec![0u8; length as usize];
-    for (offset, byte) in bytes.iter_mut().enumerate() {
-        // unsafe(ffi)
-        *byte = unsafe { *data[start + offset].get() };
-    }
-    Ok(bytes)
+    pub(crate) isolate: v8::IsolateHandle,
 }
 
 impl State {
+    /// The memory as it is now, when it is shared.
+    pub(crate) fn view(&self) -> View {
+        self.memory.shared().map_or(View::EMPTY, |store| View::of(store))
+    }
+
+    /// The memory as it is now, whichever it is.
+    pub(crate) fn view_in(&self, scope: &mut v8::PinScope<'_, '_>) -> View {
+        match &self.memory {
+            Memory::None => View::EMPTY,
+            Memory::Shared(store) => View::of(store),
+            Memory::Own(memory) => {
+                let memory = v8::Local::new(scope, memory);
+                engine::get(scope, memory, "buffer")
+                    .and_then(|buffer| v8::Local::<v8::ArrayBuffer>::try_from(buffer).ok())
+                    .map_or(View::EMPTY, |buffer| View::of(&buffer.get_backing_store()))
+            }
+        }
+    }
+
     pub(crate) fn gpu(&mut self) -> Result<&mut Gpu, String> {
         if let Device::Unconnected { connect, wakes } = &self.device {
             self.device = match connect() {
@@ -148,11 +193,7 @@ impl State {
         if let Device::Ready(gpu) = &mut self.device {
             let started = Instant::now();
             let result = call(gpu.as_mut());
-            let took = started.elapsed();
-            self.gpu_time += took;
-            if function == "submit" {
-                self.submit_time += took;
-            }
+            self.took(function, started.elapsed());
             return Some(result);
         }
         let gpu = match self.gpu() {
@@ -164,12 +205,15 @@ impl State {
         };
         let started = Instant::now();
         let result = call(gpu);
-        let took = started.elapsed();
+        self.took(function, started.elapsed());
+        Some(result)
+    }
+
+    fn took(&mut self, function: &str, took: Duration) {
         self.gpu_time += took;
         if function == "submit" {
             self.submit_time += took;
         }
-        Some(result)
     }
 
     pub(crate) fn refuse(&mut self, message: String) {
@@ -188,124 +232,44 @@ impl State {
     }
 }
 
-pub(crate) trait Holds: AsContextMut<Data = State> {
-    fn state(&mut self) -> &mut State;
+/// The State behind an import's data, which is the `v8::External` every host function of an
+/// isolate is made with.
+///
+/// # Safety
+///
+/// The State outlives the isolate's functions (App and the thread that runs an app thread free it
+/// only after their isolate), and V8 runs one call of an isolate at a time, so nothing else holds
+/// it while an import runs.
+pub(crate) unsafe fn state_of<'a>(data: v8::Local<v8::Value>) -> &'a mut State {
+    let external: v8::Local<v8::External> = data
+        .try_into()
+        .unwrap_or_else(|_| unreachable!("every host function is made with its State"));
+    // unsafe(ffi): as the function's contract says.
+    unsafe { &mut *external.value().cast::<State>() }
 }
 
-impl Holds for Store<State> {
-    fn state(&mut self) -> &mut State {
-        self.data_mut()
-    }
-}
-
-impl Holds for Calling<'_, State> {
-    fn state(&mut self) -> &mut State {
-        self.data_mut()
-    }
-}
+const NO_MEMORY: &str = "the app has no memory to read from";
 
 pub(crate) struct Guest<'a> {
     state: &'a mut State,
-    own: Option<&'a mut [u8]>,
+    view: View,
 }
 
 impl<'a> Guest<'a> {
-    pub(crate) fn of(context: &'a mut impl Holds) -> Self {
-        let own = match context.as_context().data().memory {
-            Memory::Own(memory) => memory,
-            Memory::Shared(_) => None,
-        };
-        match own {
-            Some(memory) => {
-                let (own, state) = memory.data_and_store_mut(context);
-                Self {
-                    state,
-                    own: Some(own),
-                }
-            }
-            None => Self {
-                state: context.state(),
-                own: None,
-            },
-        }
-    }
-
-    pub(crate) fn calling(caller: &'a mut Calling<'_, State>) -> Self {
-        if let Memory::Own(None) = caller.data().memory
-            && let Some(Extern::Memory(memory)) = caller.get_export(MEMORY_EXPORT)
-        {
-            caller.data_mut().memory = Memory::Own(Some(memory));
-        }
-        Self::of(caller)
-    }
-
-    pub(crate) fn state(&mut self) -> &mut State {
-        self.state
-    }
-
-    fn range(&self, pointer: u32, length: usize) -> Result<std::ops::Range<usize>, String> {
-        let size = match (&self.own, &self.state.memory) {
-            (Some(own), _) => own.len(),
-            (None, Memory::Shared(shared)) => shared.data().len(),
-            (None, Memory::Own(_)) => return Err(NO_MEMORY.to_owned()),
-        };
-        let start = pointer as usize;
-        let end = start
-            .checked_add(length)
-            .ok_or_else(|| "an app pointer overflowed".to_owned())?;
-        if end > size {
-            return Err(format!(
-                "an app pointer ran past its memory: {start}..{end} of {size}"
-            ));
-        }
-        Ok(start..end)
+    pub(crate) fn new(state: &'a mut State, view: View) -> Self {
+        Self { state, view }
     }
 }
-
-pub(crate) trait Reads: Sized {
-    fn read(caller: &mut Calling<'_, Self>, pointer: u32, length: u32) -> Result<Vec<u8>, String>;
-}
-
-impl Reads for State {
-    fn read(caller: &mut Calling<'_, Self>, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        Guest::calling(caller).read(pointer, length)
-    }
-}
-
-impl Reads for Threaded {
-    fn read(caller: &mut Calling<'_, Self>, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        caller.data().threads.read(pointer, length)
-    }
-}
-
-const MEMORY_EXPORT: &str = "memory";
-const NO_MEMORY: &str = "the app has no memory to read from";
 
 impl Caller for Guest<'_> {
     type Host = Gpu;
 
     fn read(&mut self, pointer: u32, length: u32) -> Result<Vec<u8>, String> {
-        let range = self.range(pointer, length as usize)?;
-        match (&self.own, &self.state.memory) {
-            (Some(own), _) => Ok(own[range].to_vec()),
-            (None, Memory::Shared(shared)) => read(shared, pointer, length),
-            (None, Memory::Own(_)) => Err(NO_MEMORY.to_owned()),
-        }
+        self.view.read(pointer, length)
     }
 
     fn write(&mut self, pointer: u32, bytes: &[u8]) -> Result<(), String> {
-        let range = self.range(pointer, bytes.len())?;
-        match (&mut self.own, &self.state.memory) {
-            (Some(own), _) => own[range].copy_from_slice(bytes),
-            (None, Memory::Shared(shared)) => {
-                for (cell, byte) in shared.data()[range].iter().zip(bytes) {
-                    // unsafe(ffi)
-                    unsafe { *cell.get() = *byte };
-                }
-            }
-            (None, Memory::Own(_)) => return Err(NO_MEMORY.to_owned()),
-        }
-        Ok(())
+        self.view.write(pointer, bytes)
     }
 
     #[inline]

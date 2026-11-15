@@ -65628,6 +65628,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65637,6 +65638,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65646,6 +65648,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65655,6 +65658,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65664,6 +65668,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65673,6 +65678,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -65682,6 +65688,7 @@ third_party = {
                 ],
                 "features": [
                     "component-model",
+                    "default",
                     "std",
                 ],
             },
@@ -66319,6 +66326,167 @@ third_party = {
         ],
         "version": "0.254.0",
     },
+    "wasmparser-0.257.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Yury Delendik <ydelendik@mozilla.com>",
+            "CARGO_PKG_DESCRIPTION": "A simple event-driven library for parsing WebAssembly binary files.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser",
+            "CARGO_PKG_LICENSE": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/bytecodealliance/wasm-tools/tree/main/crates/wasmparser",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "wasmparser",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "wasmparser",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":hashbrown-0.17.1",
+                    ":indexmap-2.14.0",
+                    ":semver-1.0.28",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "component-model",
+                    "default",
+                    "features",
+                    "hash-collections",
+                    "serde",
+                    "simd",
+                    "std",
+                    "validate",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "version": "0.257.1",
+    },
     "wasmprinter-0.254.0": {
         "build_script": None,
         "env": {
@@ -66476,7 +66644,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                 ],
                 "features": [
                     "async",
@@ -66492,7 +66659,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66528,7 +66694,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                 ],
                 "features": [
                     "async",
@@ -66544,7 +66709,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66580,7 +66744,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                 ],
                 "features": [
                     "async",
@@ -66596,7 +66759,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66632,7 +66794,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                 ],
                 "features": [
                     "async",
@@ -66648,7 +66809,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66684,7 +66844,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                 ],
                 "features": [
                     "async",
@@ -66700,7 +66859,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66734,7 +66892,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                     ":windows-sys-0.61.2",
                 ],
                 "features": [
@@ -66751,7 +66908,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
@@ -66785,7 +66941,6 @@ third_party = {
                     ":target-lexicon-0.13.5",
                     ":wasmparser-0.254.0",
                     ":wasmtime-environ-48.0.1",
-                    ":wat-1.257.1",
                     ":windows-sys-0.61.2",
                 ],
                 "features": [
@@ -66802,7 +66957,6 @@ third_party = {
                     "std",
                     "threads",
                     "wasmtime-jit-icache-coherence",
-                    "wat",
                 ],
                 "named_deps": {
                     "wasmtime_cache": ":wasmtime-internal-cache-48.0.1",
