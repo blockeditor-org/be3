@@ -380,15 +380,14 @@ fn DropMarker(
             }
         }
     });
-    let shown = create_memo(move || preview.get().is_some());
-    let rect = create_memo(move || preview.get().unwrap_or(Rect::ZERO));
-    let x = create_memo(move || rect.get().left());
-    let y = create_memo(move || rect.get().top());
-    let width = create_memo(move || rect.get().width());
-    let height = create_memo(move || rect.get().height());
     view! {
-        <Show value={shown}>
-            <CanvasItem x={x} y={y} width={width} height={height}>
+        <Show value={preview}>|rect: ReadSignal<Rect>|
+            <CanvasItem
+                x={move || rect.get().left()}
+                y={move || rect.get().top()}
+                width={move || rect.get().width()}
+                height={move || rect.get().height()}
+            >
                 <Frame fill=ColorRole::AccentSoft radius=CLIP_RADIUS border={Border::FOCUS} />
             </CanvasItem>
         </Show>

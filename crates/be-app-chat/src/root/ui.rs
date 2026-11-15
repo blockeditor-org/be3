@@ -484,8 +484,6 @@ pub fn Chat(editor: Editor) -> NodeId {
         let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
         Some(quoted.with(|row| format!("Replying to {}: {}", row.author, excerpt(&row.body))))
     });
-    let reply_label = create_memo(move || replying.get().unwrap_or_default());
-    let has_reply = create_memo(move || replying.get().is_some());
     let editing = create_memo(move || composer.editing.get().is_some());
 
     // The messages sent from this device that the server lacks: sending, or not sent once
@@ -629,7 +627,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </List>
                     </Show>
-                    <Show value={has_reply}>
+                    <Show value={replying}>|reply_label: ReadSignal<String>|
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::CAPTION>{reply_label}</Text>
