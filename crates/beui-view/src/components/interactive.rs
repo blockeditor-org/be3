@@ -148,29 +148,41 @@ fn lifting(
     on_drag: Callback<PointerPress>,
 ) -> (Callback<PointerPress>, Callback<PointerPress>) {
     let asked = std::rc::Rc::new(std::cell::Cell::new(false));
+    // Whether this press lifted a carry: the board follows its drags from then on, so they
+    // are not this node's to hear.
+    let lifted = std::rc::Rc::new(std::cell::Cell::new(false));
     let origin = std::rc::Rc::new(std::cell::Cell::new(None::<PointerPress>));
     let pressed = {
-        let (asked, origin) = (std::rc::Rc::clone(&asked), std::rc::Rc::clone(&origin));
+        let (asked, lifted, origin) = (
+            std::rc::Rc::clone(&asked),
+            std::rc::Rc::clone(&lifted),
+            std::rc::Rc::clone(&origin),
+        );
         Callback::new(move |press: PointerPress| {
             asked.set(false);
+            lifted.set(false);
             origin.set(Some(press));
             on_press.call(press);
         })
     };
     let dragged = Callback::new(move |press: PointerPress| {
+        if lifted.get() {
+            return;
+        }
         if !asked.replace(true)
             && let Some(driver) = crate::drag::driver()
             && !driver.carrying()
             && let Some(mut carry) = drag.call(press)
         {
             // Unless the carry says otherwise, the item is this node, held where it was pressed.
-            if carry.item == crate::types::Rect::ZERO {
+            if carry.item.is_none() {
                 let at = origin.get().unwrap_or(press);
-                carry.item = crate::types::Rect::from_min_size(
+                carry.item = Some(crate::types::Rect::from_min_size(
                     crate::types::Pos2::ZERO - at.local.to_vec2(),
                     at.size,
-                );
+                ));
             }
+            lifted.set(true);
             driver.lift(carry, crate::drag::DragPoint::of(press));
             return;
         }
