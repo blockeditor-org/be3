@@ -158,17 +158,31 @@ impl<S: ObjectStore> Peer<S> {
         let head = self
             .known_remote_head(block)
             .or_else(|| self.refs.summary(block).and_then(|summary| summary.head));
+        // Each commit after its parents (a walk that puts a commit down once every parent it
+        // holds is down), then oldest first, which keeps that order where two share a time.
         let mut entries = Vec::new();
-        let mut seen = HashSet::new();
-        let mut frontier: Vec<CommitId> = head.into_iter().collect();
-        while let Some(id) = frontier.pop() {
-            if !seen.insert(id) {
+        let mut done = HashSet::new();
+        let mut stack: Vec<(CommitId, bool)> = head.into_iter().map(|id| (id, false)).collect();
+        while let Some((id, parents_down)) = stack.pop() {
+            if done.contains(&id) {
                 continue;
             }
             let Some(commit) = self.commits.try_get(id)? else {
+                done.insert(id);
                 continue;
             };
-            frontier.extend(commit.parents.iter().copied());
+            if !parents_down {
+                stack.push((id, true));
+                stack.extend(
+                    commit
+                        .parents
+                        .iter()
+                        .filter(|parent| !done.contains(*parent))
+                        .map(|parent| (*parent, false)),
+                );
+                continue;
+            }
+            done.insert(id);
             entries.push(be_block_protocol::HistoryEntry {
                 commit: id,
                 parents: commit.parents,
@@ -177,7 +191,7 @@ impl<S: ObjectStore> Peer<S> {
                 head: Some(id) == head,
             });
         }
-        entries.sort_by_key(|entry| (entry.time, entry.commit));
+        entries.sort_by_key(|entry| entry.time);
         Ok(entries)
     }
 
