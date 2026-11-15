@@ -112,11 +112,17 @@ no network), and hands every later connection to it with `attach`.
 
 ## Disconnects, offline and stopping
 
-`flush()` seals and waits until every open block is kept on the device (in its
-journal or as a local commit), not for the server, so closing a host whose
-server stopped answering does not wait for it; `stop()` and organization
-changes go through it, because a session merely dropped loses everything since
-the last autosave. What a flush kept is sent as the outbox drains.
+`flush()` waits until the server ordered every edit an open replica in a live
+session submitted (`Replicas::ordering`), seals, and waits until every open
+block is kept: in the server's journal, this device's, or a local commit. It
+waits for the server no longer than `FLUSH_TIMEOUT`, so closing a host whose
+server stopped answering does not hang; what that server never ordered is lost
+(decisions/live_edits_are_ordered_by_the_server.md). `stop()` flushes first,
+so organization changes do too, because closing the connection would lose an
+edit on its way; `crash` does not. What a flush kept is sent as the outbox
+drains. Commands that seal the open blocks first (a version snapshot, the
+bookmark a restore keeps) wait the same way in the worker (`after_order`), and
+until the modules took every edit sent before them.
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
@@ -140,7 +146,13 @@ the connection a stopping stack closed.
   since, and its holder merges them in), or on a seal made on that base that the
   journal reaches (`opening.sealed-head`); offline, on this device's journal when
   it is on the head, entries included, `journal-kept` when this device numbered
-  them. This device's journal keeps the server's as joining answered it. The
+  them. This device's journal keeps the server's as joining answered it. A
+  server with no journal of the block starts one at its head: online, this
+  device's journal is passed over then, unless it holds what only this device
+  numbered, and a replica joining as the lease holder first starts the server's
+  journal from this device's when that is on the server's head
+  (`started_from_mirror`), so the session state its last seal kept, which an
+  editor shown that content numbers its next edit by, goes on. The
   replica is given again the local edits its module took that neither the head
   nor the order holds (`Open::replay`): every status cuts `replay` at
   `status.sealed-taken` (what its head holds, a replacement on its way not
@@ -187,16 +199,21 @@ the connection a stopping stack closed.
   (`searched`, cleared when a search opens keys and on reconnecting), a message
   still locked is dropped and recorded, so a peer sealing with a key this device
   cannot get costs one search.
+- **A module that restarts** has its replicas opened again on this device's
+  journal and, in a live session, joined again before it is given their edits
+  (`Replicas::restart`), so the replica opens on the server's journal: this
+  device's copy was never trimmed by another device's seals, and an edit on its
+  way when the module stopped is found in the order rather than made again.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (edits not yet in the device's journal, `Replicas::counts`' third
-number, plus every command sent and not yet carried out, `Shared::pending`, and
-imports; an edit that is journaled but not yet committed is durable and not
-counted). The "Saving changes" toast follows `unsaved`.
+`unsaved` (edits no journal holds yet, `Replicas::counts`' third number: in a
+live session, until the server ordered them; plus every command sent and not
+yet carried out, `Shared::pending`, and imports; an edit a journal holds but no
+commit yet is durable and not counted). The "Saving changes" toast follows `unsaved`.
 
 The close and switch guards ask only while `be_host_stack::flush()` returns
 more than zero. It returns the worker's count as it answers the flush: open

@@ -417,7 +417,9 @@ order: `Sealed`, presence and channel messages. The rules an agent most needs:
   submits a barrier `Reload` of it, so the holder's next seal has it as second
   parent and both stay in history. A replica whose edits the barrier drops (not
   yet numbered, or numbered after the replacement's base) stashes what it showed
-  and submits a `Keep`. Every editor is sent a new snapshot.
+  and submits a `Keep`. Every editor is sent a new snapshot. The change is
+  answered once the server holds the reload, not when the order brings it back:
+  a host that waits on the answer may be what would hand the replica the order.
 - **Who sends what.** The server takes submissions only from editors of the
   session's build. Relayed messages carry the kind the server checked
   (`relay-kind`, `wire::kind`): `peer` for presence and channel messages, `edit`
