@@ -24,7 +24,6 @@ const CARD_HEIGHT: f32 = 104.0;
 #[component]
 pub fn Kanban(data: Data) -> NodeId {
     let status = status_field(data);
-    let missing = create_memo(move || status.get().is_none());
     let ready = create_memo(move || status.get().is_some());
     let columns = create_memo(move || {
         data.groups.with(|groups| {
@@ -37,14 +36,16 @@ pub fn Kanban(data: Data) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={missing}>
-                    <Frame padding=PADDING>
-                        <Text style=TextStyle::CAPTION>
-                            "Choose the choice field whose options make the columns, under Display."
-                        </Text>
-                    </Frame>
-                </Show>
-                <Show condition={ready}>
+                <Show
+                    condition={ready}
+                    fallback={|| view! {
+                        <Frame padding=PADDING>
+                            <Text style=TextStyle::CAPTION>
+                                "Choose the choice field whose options make the columns, under Display."
+                            </Text>
+                        </Frame>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Scroll direction=Direction::Horizontal>
                             <Frame padding=PADDING>
@@ -72,13 +73,12 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
         let closed = group.with(|group| group.as_ref().is_some_and(|group| group.closed));
         closed != data.toggled.with(|toggled| toggled.contains(&key))
     });
-    let open = create_memo(move || !folded.get());
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Show condition={open}>
-                <OpenColumn data={data} group={group} key={key} />
-            </Show>
-            <Show condition={folded}>
+            <Show
+                condition={folded}
+                fallback={move || view! { <OpenColumn data={data} group={group} key={key} /> }}
+            >
                 <FoldedColumn data={data} group={group} key={key} />
             </Show>
         </List>
@@ -210,12 +210,11 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
             });
             let (column_id, add_id) = (column_id.clone(), add_id.clone());
             let landing_shown = create_memo(move || landing.get().is_some());
-            let landing_height = create_memo(move || Size::Custom(landing.get().unwrap_or(0.0)));
             view! {
                 <Frame
                     width={Size::Custom(COLUMN_WIDTH)}
                     fill=ColorRole::Surface
-                    border={create_memo(move || visited.get().then_some(Border::new(ColorRole::Accent).width(Stroke::Focus)))}
+                    border={move || visited.get().then_some(Border::new(ColorRole::Accent).width(Stroke::Focus))}
                     radius=Radius::Lg
                     padding={Padding::horizontal(Space::Md).bottom(Space::Md)}
                     @test_id={column_id}
@@ -246,7 +245,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                             </List>
                         </Frame>
                         <Show condition={landing_shown}>
-                            <Frame height={landing_height} />
+                            <Frame height={move || Length::Size(Size::Custom(landing.get().unwrap_or(0.0)))} />
                         </Show>
                         <ListItem grow=1.0>
                             <Scroll>

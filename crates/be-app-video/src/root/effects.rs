@@ -14,13 +14,14 @@ use beui::{Align, Direction};
 pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     let clip = create_memo(move || state.selected_clip());
     let chosen = create_memo(move || clip.get().is_some());
-    let none = create_memo(move || !chosen.get());
     view! {
         <List spacing=Space::Md>
-            <Show condition={none}>
-                <Text style=TextStyle::CAPTION>"Select a clip to see its effects."</Text>
-            </Show>
-            <Show condition={chosen}>
+            <Show
+                condition={chosen}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Select a clip to see its effects."</Text>
+                }}
+            >
                 <ClipInspector state={state} clip={clip} />
             </Show>
         </List>

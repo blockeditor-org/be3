@@ -145,10 +145,9 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
             .get()
             .map(|id| ChildTarget::new(id, DatabaseSchemaContent::CONTENT_TYPE))
     });
-    let missing = create_memo(move || schema.get().is_none());
     view! {
         <List spacing=Space::None>
-            <Show condition={missing}>
+            <Show condition={move || schema.get().is_none()}>
                 <Text style=TextStyle::CAPTION>"This database has no schema."</Text>
             </Show>
             <ListItem grow=1.0>
