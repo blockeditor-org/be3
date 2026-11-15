@@ -16,6 +16,7 @@ Usage:
   be-server invite-code create [--data-dir DIR] [--uses N] [--expires DAYS]
   be-server invite-code list [--data-dir DIR]
   be-server invite-code revoke [--data-dir DIR] ID
+  be-server login-link [--data-dir DIR] --auth-origin URL (--email EMAIL | --account ID)
 
   --addr ADDR               Address to listen on (default: 127.0.0.1:9090)
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
@@ -67,6 +68,12 @@ code once; the server keeps only its hash. --uses limits how many accounts it
 makes and --expires how many days it works (by default neither is limited).
 `list` shows each code's id, uses and expiry, and `revoke ID` deletes one.
 These work on the data directory while the server runs.
+
+`login-link` prints a link that signs in to the account with that email or id,
+once, within fifteen minutes, in place of a code from the log; using it signs
+out the account's other sessions. For an email with no account, using it makes
+the account, with no invite code: that is how a new server's first account is
+made. --auth-origin is the server's own. It too works while the server runs.
 
 RUST_LOG sets what is logged (default: info).";
 
@@ -122,6 +129,10 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
         Some("backup-key") => {
             println!("{}", backup::BackupKey::generate().to_hex());
             return Ok(());
+        }
+        Some("login-link") => {
+            arguments.next();
+            return login_link(arguments).map_err(|error| error.to_string().into());
         }
         Some("invite-code") => {
             arguments.next();
@@ -398,6 +409,47 @@ fn maintain(command: &str, options: Options) -> Result<(), Box<dyn Error + Send 
             );
         }
     }
+    Ok(())
+}
+
+fn login_link(
+    mut arguments: impl Iterator<Item = String>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    use be_server::store::login_links::{self, LinkFor};
+    let mut data_dir = PathBuf::from("be-server-data");
+    let mut origin = None;
+    let mut email = None;
+    let mut account = None;
+    while let Some(argument) = arguments.next() {
+        let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
+        match argument.as_str() {
+            "--data-dir" => data_dir = PathBuf::from(value()?),
+            "--auth-origin" => origin = Some(value()?),
+            "--email" => email = Some(value()?),
+            "--account" => account = Some(be_server::store::parse_uuid(&value()?)?),
+            other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
+        }
+    }
+    let origin = origin.ok_or(format!(
+        "name the portal's origin with --auth-origin\n\n{USAGE}"
+    ))?;
+    be_server::mail::validate_origin(&origin)?;
+    let whom = match (&email, account) {
+        (Some(email), None) => LinkFor::Email(email),
+        (None, Some(account)) => LinkFor::Account(account),
+        _ => return Err(format!("name one of --email or --account\n\n{USAGE}").into()),
+    };
+    let link = login_links::create(&data_dir, whom)?;
+    println!("{origin}{}", login_links::path(&link.token));
+    eprintln!(
+        "a login link for {} made, good once for fifteen minutes{}",
+        link.email,
+        if link.registers {
+            "; using it makes the account"
+        } else {
+            ""
+        }
+    );
     Ok(())
 }
 

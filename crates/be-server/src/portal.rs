@@ -167,6 +167,12 @@ pub(crate) async fn handle(
                 if let Some(profile) = profile.as_ref() { identity_notice(services, &profile.email, &removed.subject); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
+            "/auth/link" => {
+                let session = services.store.use_login_link(value("token"), address).await?;
+                if !token.is_empty() { services.store.logout(token).await?; }
+                response.cookie = Some(session);
+                response.location = Some("/auth".into());
+            },
             "/auth/verify" => {
                 let old_email = services.store.confirm_mail(value("token")).await?;
                 services.mail.send(Email { recipient: old_email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() });
@@ -306,6 +312,7 @@ pub(crate) async fn handle(
         "/auth/register" if !config.allow_registration => Screen::RegistrationClosed,
         "/auth/register" => Screen::Register,
         "/auth/verify" => Screen::Verify,
+        "/auth/link" => Screen::LoginLink,
         "/auth/settings" => Screen::Settings,
         "/auth/sessions" => Screen::Sessions,
         "/auth/approved" => Screen::Approved,
@@ -326,6 +333,7 @@ pub(crate) async fn handle(
             | "/auth/login"
             | "/auth/register"
             | "/auth/verify"
+            | "/auth/link"
             | "/auth/settings"
             | "/auth/sessions"
             | "/auth/approved"

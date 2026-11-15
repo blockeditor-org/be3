@@ -612,7 +612,11 @@ is the alternative if registration opens. Changing the email, removing an
 identity and ending other sessions need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
 (`sessions.proved`), which signing in by code or recovering also gives.
-Removing an identity mails a notice. `--allow-login` lets anyone sign in, by
+Removing an identity mails a notice. An operator's login link
+(`store/login_links.rs`, `be-server login-link`) signs in once within
+`LOGIN_LINK_LIFETIME` as recovering does, and for an email with no account
+makes it, with no invite code; `/auth/link` shows it with a button, so a
+mail scanner opening the link spends nothing. `--allow-login` lets anyone sign in, by
 any identity, and `--allow-registration` lets anyone make an account, by any
 identity, with an invite code.
 

@@ -8,6 +8,8 @@ pub enum Screen {
     Register,
     RegistrationClosed,
     Verify,
+    /// An operator's login link, waiting for the person to use it.
+    LoginLink,
     Approve,
     Account,
     Settings,

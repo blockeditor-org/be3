@@ -18,6 +18,7 @@ pub fn title(page: &Page) -> String {
         Screen::SignIn | Screen::SignInClosed => "Sign in",
         Screen::Register | Screen::RegistrationClosed => "Create an account",
         Screen::Verify => "Verify your email address",
+        Screen::LoginLink => "Sign in with a link",
         Screen::Approve => "Approve sign-in",
         Screen::Account => "Your account",
         Screen::Settings => "Account settings",
@@ -238,6 +239,21 @@ fn Body(page: Shown) -> NodeId {
                         hidden={page.token()}
                     >
                         <Submit label="Verify email" />
+                    </PortalForm>
+                </List>
+            </Card>
+        },
+        Screen::LoginLink => view! {
+            <Card>
+                <List spacing=Space::Xl>
+                    <Heading
+                        glyph={Some(ICON_KEY_ROUND)}
+                        title="Sign in with a link"
+                        lead="Your server's operator made this link for you. It works once, and signs out every other session of the account."
+                    />
+                    <Notice text={page.general()} />
+                    <PortalForm action="/auth/link" csrf={page.csrf()} hidden={page.token()}>
+                        <Submit label="Sign in" />
                     </PortalForm>
                 </List>
             </Card>

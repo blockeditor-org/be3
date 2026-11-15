@@ -1,5 +1,6 @@
 pub mod codes;
 pub mod invite_codes;
+pub mod login_links;
 pub(crate) mod portal;
 pub(crate) mod remembered;
 
