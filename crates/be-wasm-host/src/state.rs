@@ -146,6 +146,9 @@ impl State {
         call: impl FnOnce(&mut Gpu) -> R,
     ) -> Option<R> {
         if let Device::Ready(gpu) = &mut self.device {
+            if be_wasm_gpu_host::only_records(function) {
+                return Some(call(gpu.as_mut()));
+            }
             let started = Instant::now();
             let result = call(gpu.as_mut());
             let took = started.elapsed();
