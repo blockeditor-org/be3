@@ -49,11 +49,9 @@ async fn keep_every_commit(harness: &Harness) {
 #[test]
 fn edits_deeper_than_the_merge_base_walk_are_merged_over_the_head_the_command_read() {
     let harness = Harness::start();
-    let runtime = runtime();
-    // Before the stack connects, so it reads the settings as they end up rather than hearing
-    // them change under the versioning that follows.
-    runtime.block_on(keep_every_commit(&harness));
     harness.connect();
+    let runtime = runtime();
+    runtime.block_on(keep_every_commit(&harness));
     let versioned = start_versioning("hello\n");
     show_version(
         versioned.checkout,
