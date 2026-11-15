@@ -189,7 +189,7 @@ desktop's further-display bars keep an unreadable value until it is reset.
 kept, skipping editability since view state is the viewer's own. `keep(restore,
 current)` is the usual pairing: put back once, then write whatever is shown.
 A handle made inside a `Loaded` makes it wait for the view block, while the
-block is one the viewer can see (`Workspace::wait_for_layout` makes one for the
+block is one the viewer can see (`Workspace::hold_for_saved_layout` makes one for the
 shells, whose `Workspace` is made outside the boundary). View state is written on every change (each scroll, each caret move) and
 never debounced, delayed or written only as the editor hides (the one
 exception is a cache of data from an outside service, whose unchanged

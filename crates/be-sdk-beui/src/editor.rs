@@ -210,7 +210,10 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
 /// Runs async memos (`create_async_memo`) on be-sdk's executor. An answer arrives with a
 /// message from the host, which the editor draws a frame for.
 pub(crate) fn run_async_memos() {
-    spawn_with(be_sdk_api::ops::guest::spawn);
+    spawn_with(|future| {
+        be_sdk_api::ops::guest::spawn(future);
+        Ok(())
+    });
 }
 
 #[derive(Default)]

@@ -170,7 +170,7 @@ fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor);
     view! {
         <Loaded label="Loading the desktop">|| {
-            workspace.wait_for_layout();
+            workspace.hold_for_saved_layout();
             view! {
                 <Container>|_|
                     <DesktopBody workspace />

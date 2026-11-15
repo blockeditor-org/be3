@@ -31,6 +31,7 @@ pub mod environment;
 mod intake;
 mod layer;
 pub mod renderer;
+mod tasks;
 
 pub use controller::{Controller, Hand, HandPose};
 use intake::{Drain, Intake};
@@ -200,6 +201,7 @@ pub struct Runner {
     context: Context,
     rendering: Option<Rendering>,
     waker: Option<Waker>,
+    tasks: std::rc::Rc<tasks::Tasks>,
     events: Vec<Event>,
     /// Input that ends something, kept from frames that could not run for want
     /// of a surface, for the next frame that can. Not counted by `has_events`, so
@@ -264,6 +266,7 @@ impl Runner {
             context,
             rendering: None,
             waker: None,
+            tasks: tasks::Tasks::install(),
             events: Vec::new(),
             held: Vec::new(),
             held_events: Vec::new(),
@@ -311,6 +314,7 @@ impl Runner {
         self.rendering = Some(rendering);
         self.waker = Some(setup.waker.clone());
         self.context.set_waker(setup.waker.clone());
+        self.tasks.wake_with(setup.waker.clone());
         self.program.setup(&setup);
         for layer in &mut self.layers {
             layer.setup(&setup);
@@ -480,6 +484,7 @@ impl Runner {
         safe_area: SafeArea,
     ) -> Option<Frame> {
         let started = std::time::Instant::now();
+        self.tasks.poll_woken();
         let rendering = self.rendering.as_mut()?;
         match rendering.recover() {
             Ok(false) => {}

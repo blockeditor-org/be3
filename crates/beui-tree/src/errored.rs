@@ -8,11 +8,11 @@ use crate::component::{Render, RenderFn};
 use crate::control::{built, mount};
 
 /// Shows `content`, and `fallback` instead while a value read under it has failed
-/// (`Pending::Failed`), even after a `Loading` around it revealed. The fallback gets the
-/// failure and the boundary, whose `reset()` asks again: the async memos made under it run
-/// once more, and the content shows as soon as nothing read under it has failed. The content
-/// is kept while the fallback shows. A `Loading` inside it that has not revealed yet shows a
-/// failure as its own fallback instead.
+/// (`Pending::Failed`), whether or not a `Loading` around or inside it has revealed. The
+/// fallback gets the failure and the boundary, whose `reset()` asks again: the async memos
+/// made under it run once more, as do the failed ones a failure read under it came from, and
+/// the content shows as soon as nothing read under it has failed. The content is kept while
+/// the fallback shows.
 #[component]
 pub fn Errored<C, B, F>(
     fallback: RenderFn<(String, ErrorBoundary), F>,

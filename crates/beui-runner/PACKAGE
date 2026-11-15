@@ -18,6 +18,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -31,6 +32,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -44,6 +46,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -57,6 +60,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -70,6 +74,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -83,6 +88,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -96,6 +102,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -109,6 +116,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
@@ -122,6 +130,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/beui-core:beui-core",
+                "//crates/beui-reactive:beui-reactive",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:accesskit-0.24.1",
                 "//third-party/rust:raw-window-handle-0.6.2",
