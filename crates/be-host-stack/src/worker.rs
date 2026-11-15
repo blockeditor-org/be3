@@ -1203,6 +1203,9 @@ impl Session<'_> {
             }
         }
         let mut flushes = Vec::new();
+        // Version commands that snapshot the open blocks, held until the server ordered what
+        // they were sent after, which a seal then holds.
+        let mut after_order: Vec<Command> = Vec::new();
         let mut kept_for_flushes = false;
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
         let mut stopping = false;
@@ -1362,6 +1365,11 @@ impl Session<'_> {
                                 self.uploads.add(blocks);
                                 ran.done(false);
                             }
+                            command @ Command::Version { .. }
+                                if !after_order.is_empty() || ran.replicas.ordering() =>
+                            {
+                                after_order.push(command);
+                            }
                             command => {
                                 let runs = self
                                     .uploads
@@ -1490,6 +1498,23 @@ impl Session<'_> {
             )
             .await;
             spawn_listings(peer, shared, &self.tasks.0);
+            if !after_order.is_empty() && !self.replicas.ordering() {
+                let mut ran = Ran {
+                    peer,
+                    replicas: &mut *self.replicas,
+                    wanted: &mut self.wanted,
+                    shared,
+                    config: self.config,
+                    flushes: &mut flushes,
+                    tasks: &self.tasks.0,
+                    served: &mut self.served,
+                    calls: &self.calls.0,
+                };
+                for command in std::mem::take(&mut after_order) {
+                    step(shared, Some(command.name()));
+                    moved |= ran.carry_out(command).await;
+                }
+            }
             if self.line.quiet()
                 && (self.uploads.is_empty() || !self.line.is_up())
                 && !flushes.is_empty()

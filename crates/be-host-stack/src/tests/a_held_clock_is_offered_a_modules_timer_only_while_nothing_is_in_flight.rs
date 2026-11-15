@@ -24,9 +24,10 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     assert!(due > anchor, "the seal is due after the held moment");
     assert_eq!(harness.clock.now(), held, "the modules' clock stood still");
 
-    harness.relay().hold_requests(true);
     add(sent, 3);
+    // Owed once the server ordered it, so the server goes silent only then.
     wait_until("owes a seal for both edits", |shared| shared.owing == 2);
+    harness.relay().hold_requests(true);
     // Sealed, `sent`'s edit is published and waits on the stalled server; `owed` edits again,
     // so a module timer waits too.
     seal_owed();
