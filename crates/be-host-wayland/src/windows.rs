@@ -483,9 +483,7 @@ impl Windows {
         if focused && let Some(dialog) = self.blocked_by(id) {
             self.raise(dialog);
         }
-        if let Some(signals) = self.signals(id)
-            && signals.focused.get_untracked() != focused
-        {
+        if let Some(signals) = self.signals(id) {
             signals.focused.set(focused);
         }
         let was = inner.focused.get();

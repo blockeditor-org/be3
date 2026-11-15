@@ -154,9 +154,7 @@ fn apply_shell() {
         return;
     };
     let held = SHELL.with(|shell| *shell.borrow());
-    if let Some(shell) = held
-        && shell.get_untracked() != block
-    {
+    if let Some(shell) = held {
         shell.set(block);
     }
 }
