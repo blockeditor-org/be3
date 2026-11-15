@@ -278,8 +278,11 @@ struct State {
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
     /// The panels built now, kept by the dock's `KeepAlive` (`Held::Panel`).
     panels: Signal<HashMap<TabId, NodeId>>,
-    /// Whether each built panel is shown now (its `Kept`'s `kept_shown()`).
-    panel_shown: Stored<RefCell<HashMap<TabId, Memo<bool>>>>,
+    /// How many views show each tab's panel now: panes and the fullscreen view, not the back
+    /// preview, which only pictures the page a back gesture goes to.
+    showing: Stored<RefCell<HashMap<TabId, usize>>>,
+    /// The tabs whose own dock joined this one, shown as that dock's tabs.
+    hosts: Memo<Vec<TabId>>,
     handles: Signal<HashMap<TabId, (NodeRef, bool)>>,
     owner: Stored<Option<ScopeContext>>,
     tab: RenderFn<DockTabHandle>,
@@ -428,16 +431,12 @@ impl DockTabDriver for State {
         if !self.panels.is_alive() {
             return;
         }
-        // A view of a tab's content that takes the keyboard while no view shows its panel (an
-        // app putting it back on a popup's trigger as a press on another tab closes the popup)
-        // does not show the tab again.
-        let hidden = self
-            .panel_shown
-            .value()
-            .borrow()
-            .get(&tab)
-            .is_some_and(|shown| !shown.get_untracked());
-        if hidden {
+        // A view of a tab's content that takes the keyboard while no view shows its built panel
+        // (an app putting it back on a popup's trigger as a press on another tab closes the
+        // popup) does not show the tab again; a tab whose own dock joined shows as its tabs.
+        let built = self.panels.with_untracked(|panels| panels.contains_key(&tab));
+        let showing = self.showing.value().borrow().get(&tab).copied().unwrap_or(0);
+        if built && showing == 0 && !self.hosts.with_untracked(|hosts| hosts.contains(&tab)) {
             return;
         }
         self.content_keyboard.set(Some(tab));
@@ -655,6 +654,25 @@ impl State {
         })
     }
 
+    /// Counts a view showing `tab`'s panel for as long as the scope it is called in lasts.
+    fn count_showing(&self, tab: TabId) {
+        *self.showing.value().borrow_mut().entry(tab).or_default() += 1;
+        let showing = self.showing;
+        on_cleanup(move || {
+            if !showing.is_alive() {
+                return;
+            }
+            let held = showing.value();
+            let mut showing = held.borrow_mut();
+            if let Some(count) = showing.get_mut(&tab) {
+                *count -= 1;
+                if *count == 0 {
+                    showing.remove(&tab);
+                }
+            }
+        });
+    }
+
     /// Builds `tab`'s panel, in the scope of the `Kept` that keeps it (`DockPanel`).
     fn build_panel(&self, tab: TabId) -> NodeId {
         let control = self.tab_control(tab);
@@ -668,14 +686,8 @@ impl State {
         untrack(|| self.panels.update(|panels| {
             panels.insert(tab, panel);
         }));
-        if let Some(shown) = kept_shown() {
-            self.panel_shown.value().borrow_mut().insert(tab, shown);
-        }
-        let (panels, remembered, panel_shown) = (self.panels, self.remembered, self.panel_shown);
+        let (panels, remembered) = (self.panels, self.remembered);
         on_cleanup(move || {
-            if panel_shown.is_alive() {
-                panel_shown.value().borrow_mut().remove(&tab);
-            }
             if panels.is_alive() {
                 panels.update(|panels| {
                     panels.remove(&tab);
@@ -1877,7 +1889,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: create_signal(HashMap::default()),
-        panel_shown: store(RefCell::default()),
+        showing: store(RefCell::default()),
+        hosts,
         handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
@@ -3054,6 +3067,7 @@ enum Held {
 fn DockPanel(dock: State, tab: Prop<Option<TabId>>) -> NodeId {
     view! {
         <Dynamic value={tab} fallback=()>|tab: TabId| {
+            dock.count_showing(tab);
             view! {
                 <Kept key={Held::Panel(tab)}>|| { dock.build_panel(tab) }</Kept>
             }

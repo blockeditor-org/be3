@@ -91,8 +91,9 @@ floated, or switched between tiled and stacked. A panel no pane shows is paused,
 not read by a screen reader; it is dropped once its tab leaves the dock. The panel of a tab whose
 own dock joined this one is in `KeepAlive`'s `awake`: shown as that dock's tabs, it keeps running
 and reads as shown (`kept_shown()`), so the join holds. A view of a tab's content that takes the
-keyboard while no view shows its panel (an app putting it back on a popup's trigger as a press on
-another tab closes the popup) does not show the tab again. Tab content is built inside the dock's
+keyboard while no pane or fullscreen view shows its panel (an app putting it back on a popup's
+trigger as a press on another tab closes the popup) does not show the tab again; the back preview,
+which only pictures the page a back gesture goes to, does not count. Tab content is built inside the dock's
 `KeepAlive`, so a `Kept` in it with no `KeepAlive` of its own joins the dock's, which keeps only
 the dock's keys: give it its own `KeepAlive`.
 
