@@ -39,7 +39,6 @@ pub enum Shape {
     Map,
     Grid,
     Latest,
-    Ranked,
     Series { accepts: fn(&[u8]) -> bool },
 }
 
@@ -104,7 +103,6 @@ impl Kind {
                 Shape::Map => "map".to_owned(),
                 Shape::Grid => "grid".to_owned(),
                 Shape::Latest => "latest".to_owned(),
-                Shape::Ranked => "ranked".to_owned(),
                 Shape::Series { .. } => "series".to_owned(),
             };
             let critical = if property.critical { " critical" } else { "" };

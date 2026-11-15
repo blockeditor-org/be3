@@ -6,7 +6,7 @@ use be_block_content::{
 use std::collections::BTreeMap;
 
 use be_block_model::{
-    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Place, RankedMap, Series,
+    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Place, Series,
     Step, Touched,
 };
 use serde::{Deserialize, Serialize};
@@ -29,12 +29,12 @@ pub struct ChatHeader {
     pub messages: List<Message>,
     /// Each person's latest edit of each message, ranked by its count (`MessageEdit::seq`):
     /// the message's author's is what it says (`ChatContent::edit_of`).
-    pub edits: RankedMap<EditSlot, MessageEdit>,
+    pub edits: LatestMap<EditSlot, MessageEdit>,
     /// Each message deleted, by its id. The message itself is removed (it stays in version
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
     /// Each reaction's latest record, ranked by its count (`Reaction::seq`).
-    pub reactions: RankedMap<ReactionKey, Reaction>,
+    pub reactions: LatestMap<ReactionKey, Reaction>,
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
@@ -474,7 +474,7 @@ impl ChatContent {
         self.header.read::<Message>(id)
     }
 
-    fn edits(&self) -> RankedMap<EditSlot, MessageEdit> {
+    fn edits(&self) -> LatestMap<EditSlot, MessageEdit> {
         self.header.field(ObjectId::ROOT, ChatHeader::EDITS)
     }
 
@@ -514,7 +514,7 @@ impl ChatContent {
         };
         let slots: Vec<&ReactionKey> = map
             .written_range(first..)
-            .map(|(slot, _, _)| slot)
+            .map(|(slot, _)| slot)
             .take_while(|slot| slot.message == message)
             .collect();
         slots
@@ -523,7 +523,7 @@ impl ChatContent {
             .collect()
     }
 
-    fn reaction_map(&self) -> RankedMap<ReactionKey, Reaction> {
+    fn reaction_map(&self) -> LatestMap<ReactionKey, Reaction> {
         self.header.field(ObjectId::ROOT, ChatHeader::REACTIONS)
     }
 
@@ -852,8 +852,11 @@ impl ChatContent {
             message,
             author: edit.author,
         };
-        let stamp = self.edits().next(&slot, stamp_time(edit.time), edit.author);
-        [ChatHeader::EDITS.rank(ObjectId::ROOT, &slot, edit.seq, Some(edit), stamp)]
+        let stamp = self
+            .edits()
+            .next(&slot, stamp_time(edit.time), edit.author)
+            .ranked(edit.seq);
+        [ChatHeader::EDITS.put(ObjectId::ROOT, &slot, Some(edit), stamp)]
             .into_iter()
             .collect()
     }
@@ -901,7 +904,8 @@ impl ChatContent {
                 .filter(|key| key.message == message)
                 .map(|key| {
                     let rank = edits.rank(key).saturating_add(1);
-                    ChatHeader::EDITS.rank(ObjectId::ROOT, key, rank, None, edits.next(key, at, author))
+                    let stamp = edits.next(key, at, author).ranked(rank);
+                    ChatHeader::EDITS.put(ObjectId::ROOT, key, None, stamp)
                 }),
         );
         changes.extend(
@@ -910,8 +914,8 @@ impl ChatContent {
                 .filter(|key| key.message == message)
                 .map(|key| {
                     let rank = reactions.rank(key).saturating_add(1);
-                    let stamp = reactions.next(key, at, author);
-                    ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, rank, None, stamp)
+                    let stamp = reactions.next(key, at, author).ranked(rank);
+                    ChatHeader::REACTIONS.put(ObjectId::ROOT, key, None, stamp)
                 }),
         );
         changes.into_iter().collect()
@@ -972,8 +976,9 @@ impl ChatContent {
     pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
         let stamp = self
             .reaction_map()
-            .next(key, stamp_time(reaction.time), key.author);
-        [ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, reaction.seq, Some(reaction), stamp)]
+            .next(key, stamp_time(reaction.time), key.author)
+            .ranked(reaction.seq);
+        [ChatHeader::REACTIONS.put(ObjectId::ROOT, key, Some(reaction), stamp)]
             .into_iter()
             .collect()
     }
@@ -1014,7 +1019,7 @@ impl SlotRecord<ReactionKey> for Reaction {
 /// removal, or a record whose count is not its rank (one put back counts lower, so it never
 /// takes the place of a later one: it can only be put at a rank it does not sign), or it
 /// reached `MAX_SEQ - 1`, where one record put back over another leaves no trace.
-fn head<S: Ord + Clone, V: SlotRecord<S>>(map: &RankedMap<S, V>, slot: &S) -> Head<V> {
+fn head<S: Ord + Clone, V: SlotRecord<S>>(map: &LatestMap<S, V>, slot: &S) -> Head<V> {
     let rank = map.rank(slot);
     let record = map.get(slot).cloned().map(|mut record| {
         record.take_slot(slot);
@@ -1035,13 +1040,13 @@ const MAX_SEQ: u64 = 1 << 32;
 /// The count of the next record of `slot`: one past its rank, so a chain goes on past a
 /// record someone else removed or put higher, which it outranks. It saturates, so a slot at
 /// the top still takes its author's records, at the same rank by a later stamp.
-fn next_seq<S: Ord, V>(map: &RankedMap<S, V>, slot: &S) -> u64 {
+fn next_seq<S: Ord, V>(map: &LatestMap<S, V>, slot: &S) -> u64 {
     map.rank(slot).saturating_add(1).max(1)
 }
 
 /// Reactions grouped by message and then by name, leaving out those to deleted messages.
 fn grouped_reactions(
-    reactions: &RankedMap<ReactionKey, Reaction>,
+    reactions: &LatestMap<ReactionKey, Reaction>,
     deletions: &LatestMap<ObjectId, Deletion>,
 ) -> BTreeMap<ObjectId, Vec<(String, Vec<Uuid>)>> {
     let mut grouped: BTreeMap<ObjectId, BTreeMap<String, Vec<Uuid>>> = BTreeMap::new();

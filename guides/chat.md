@@ -26,8 +26,8 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
-- **Records chain**: edits and reactions are `RankedMap`s
-  (guides/blocks/content_types.md) with one record per slot: an edit slot is
+- **Records chain**: edits and reactions are `LatestMap`s whose writes are
+  ranked (guides/blocks/content_types.md), one record per slot: an edit slot is
   a message and an author (`EditSlot`; only the message's author's counts), a
   reaction slot its `ReactionKey`. Each record signs its count (`seq`, one past
   the slot's rank) and the key of the record it replaces (`previous`;

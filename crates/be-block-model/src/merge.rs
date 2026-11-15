@@ -176,9 +176,6 @@ fn merge_fields(base: &Object, ours: &Object, theirs: &Object, conflicts: &mut u
                 (Value::Latest(_), Value::Latest(mine), Value::Latest(other)) => {
                     Value::Latest(crate::latest::merge(mine, other))
                 }
-                (Value::Ranked(_), Value::Ranked(mine), Value::Ranked(other)) => {
-                    Value::Ranked(crate::ranked::merge(mine, other))
-                }
                 (Value::Text(before), Value::Text(mine), Value::Text(other)) => {
                     Value::Text(merge_text(before, mine, other, conflicts))
                 }
@@ -363,7 +360,6 @@ fn blank_like(object: &Object) -> Object {
                 Value::Map(_) => Value::Map(BTreeMap::new()),
                 Value::Grid(cells) => Value::Grid(cells.emptied()),
                 Value::Latest(_) => Value::Latest(BTreeMap::new()),
-                Value::Ranked(_) => Value::Ranked(BTreeMap::new()),
                 Value::Text(_) => Value::Text(Sequence::default()),
                 Value::Rich(_) => Value::Rich(Rich::default()),
                 Value::Series(_) => Value::Series(Sequence::default()),

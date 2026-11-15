@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block_content::be_block_model::RankedMap;
+use be_sdk_beui::be_block_content::be_block_model::LatestMap;
 use be_type_chat::{ChatHeader, Deletion, EditSlot, MessageEdit, Reaction};
 
 fn sign(account: Uuid, bytes: &[u8]) -> Signature {
@@ -44,16 +44,15 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
         message: lunch,
         author: ROSA,
     };
-    let edits: RankedMap<EditSlot, MessageEdit> = chat
+    let edits: LatestMap<EditSlot, MessageEdit> = chat
         .content()
         .header()
         .field(ObjectId::ROOT, ChatHeader::EDITS);
-    let raised = ChatHeader::EDITS.rank(
+    let raised = ChatHeader::EDITS.put(
         ObjectId::ROOT,
         &slot,
-        99,
         Some(&second),
-        edits.next(&slot, 99, sam),
+        edits.next(&slot, 99, sam).ranked(99),
     );
     chat.arrive([raised].into_iter().collect());
     assert_eq!(
