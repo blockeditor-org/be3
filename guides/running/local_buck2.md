@@ -37,7 +37,7 @@ in buck/platforms/profile.bzl), and `program` outputs always do. With them, buck
 output where its action ran and copies it to a path named for its hash, so every rlib is stored
 twice, and each change to a crate leaves the previous copy under its old hash: for one small
 crate this measured 6% more than without them, plus the size of its rlib for every edit. The
-rules that are not rust, such as the sysroots, `__precompiled__` and the downloads, still use them,
+rules that are not rust, such as the sysroots and the downloads, still use them,
 so old versions of those pile up too: in one day of agents' builds here, buck-out reached 49 GB,
 about 20 GB of it in the content-based layout (`buck-out/v2/art/root/{crates,buck,third-party}`),
 of which 8.5 GB was those scratch copies. The host tests share one `be-host` and one directory
@@ -64,6 +64,5 @@ On 8 cores with `rustc_threads = 2`, measured:
   buck2 has no local action cache, so a new daemon runs every action again (11,500 of them);
   only downloads survive. Keep the daemon running between verifies.
 
-The slowest actions in a full run: libghostty-vt's Zig build (2 minutes), be-host's precompiled
-app libraries and cranelift-codegen (about a minute each), then the browser tests of beui-tests
+The slowest actions in a full run: libghostty-vt's Zig build (2 minutes), then the browser tests of beui-tests
 and beui-demo-html and be-host-stack's tests (40 to 50 seconds).

@@ -56,13 +56,14 @@ def dev_only(flags):
 # override.
 #
 # - toolchain: cargo's dev profile on the host, its app profile on wasm, since
-#   cranelift is far slower at an unoptimised module, and its release profile.
+#   an unoptimised module is far slower to compile to machine code and to run,
+#   and its release profile.
 #   The opt level is also what tells build scripts OPT_LEVEL, so the
 #   toolchain's release level is 3 everywhere: libm's build script fails at s.
 # - member, every workspace crate: on wasm outside a release build, 1 rather
 #   than the app profile's 2. A change under beui recompiles each of them for
 #   the apps, and at 2 that took a third of the CPU ./scripts/verify spent on a
-#   change to geometry, for modules no slower to precompile or test. In a
+#   change to geometry, for modules no slower to test. In a
 #   release build on wasm32-unknown-unknown, which is the type modules (and
 #   the games, input remaps and the browser's gpu shim, whose heavy part is
 #   third-party), `s`: the checklist's module went from 2.29 MB to 1.67 MB
@@ -80,16 +81,14 @@ def dev_only(flags):
 #   so a change under beui recompiles every app, and at 2 LLVM made that the
 #   longest part of ./scripts/verify: thirty apps took 1,130 seconds of
 #   compiling at 2 and 270 at 0. The modules are about two and a half times the
-#   size and take half as long again to precompile, and the app tests ran no
-#   slower.
+#   size, and the app tests ran no slower.
 # - app_test, a crate's tests compiled to wasm (app_tests): 1 on wasm, 0 in a
 #   release build. A change to beui recompiles about thirty test crates at
-#   once, each then precompiled (wasm_test_harness). The modules are linked
-#   against the app libraries, so a module is only its crate and tests:
-#   checklist's compiles in about 13 CPU s and precompiles in under 4. At 2
-#   LLVM took twice as long for a module a little smaller to precompile; 1
-#   took the same rustc time as 0 and 15% less precompiling, measured when the
-#   modules still held their dependencies.
+#   once. The modules are linked against the app libraries, so a module is
+#   only its crate and tests: checklist's compiles in about 13 CPU s. At 2 LLVM
+#   took twice as long, for a module a little smaller; 1 took the same rustc
+#   time as 0 and its module took 15% less to compile to machine code,
+#   measured when the modules still held their dependencies.
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {

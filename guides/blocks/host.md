@@ -9,7 +9,7 @@ handed content and graph answers and hands back operations and graph commands
 
 The host's peer names no content type. Every type runs in a type module
 (guides/type_modules.md): an app's own, named by its manifest's `block_types`,
-staged beside the app as `NAME.wasm` with its `.cwasm` and `NAME.sha256` (the
+staged beside the app as `NAME.wasm` with `NAME.sha256` (the
 tag of its sessions), one instance per app; and the host's own types
 (`be_sdk_type_host`'s `be_block_types!`: settings, repository, checkout), run
 in process as its `BlockTypes`.
