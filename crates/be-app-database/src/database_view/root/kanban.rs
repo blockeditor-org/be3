@@ -211,7 +211,6 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                     .flatten()
             });
             let (column_id, add_id) = (column_id.clone(), add_id.clone());
-            let landing_shown = create_memo(move || landing.get().is_some());
             view! {
                 <Frame
                     width={Size::Custom(COLUMN_WIDTH)}
@@ -246,10 +245,8 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 />
                             </List>
                         </Frame>
-                        <Show value={landing_shown}>
-                            <Frame
-                                height={move || Length::Size(Size::Custom(landing.get().unwrap_or(0.0)))}
-                            />
+                        <Show value={landing}>|landing: ReadSignal<f32>|
+                            <Frame height={move || Length::Size(Size::Custom(landing.get()))} />
                         </Show>
                         <ListItem grow=1.0>
                             <Scroll>

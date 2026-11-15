@@ -300,10 +300,8 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
             overlay.draw(&painter.transformed(rect.min.to_vec2(), 1.0))
         }));
     });
-    let present = create_memo(move || bounds.with(Option::is_some));
-    let rect = create_memo(move || bounds.get().unwrap_or(Rect::ZERO));
     view! {
-        <Show value={present}>
+        <Show value={bounds}>|rect: ReadSignal<Rect>|
             <CanvasItem
                 x={create_memo(move || rect.get().left())}
                 y={create_memo(move || rect.get().top())}

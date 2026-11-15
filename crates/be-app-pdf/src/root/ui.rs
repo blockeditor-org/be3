@@ -88,8 +88,6 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let busy = chooser.busy();
     let blocked = create_memo(move || read_only.get() || busy.get());
     let failure = chooser.error();
-    let refused = create_memo(move || failure.get().is_some());
-    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = move || chooser.open();
     let name = block.project(|pdf| pdf.header().source_name.clone());
 
@@ -107,8 +105,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let details = Details {
         name,
         blocked,
-        refused,
-        refusal,
+        failure,
         choose: Callback::new(move |()| choose()),
     };
     view! {
@@ -143,8 +140,7 @@ struct Controls {
 struct Details {
     name: ReadSignal<String>,
     blocked: Memo<bool>,
-    refused: Memo<bool>,
-    refusal: Memo<String>,
+    failure: ReadSignal<Option<String>>,
     choose: Callback<()>,
 }
 
@@ -235,8 +231,7 @@ fn DetailsPanel(details: Details) -> NodeId {
     let Details {
         name,
         blocked,
-        refused,
-        refusal,
+        failure,
         choose,
     } = details;
     view! {
@@ -249,7 +244,7 @@ fn DetailsPanel(details: Details) -> NodeId {
                 @test_id={"pdf.replace"}
                 on_click={move || choose.call(())}
             />
-            <Show value={refused}>
+            <Show value={failure}>|refusal: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
             </Show>
         </List>
