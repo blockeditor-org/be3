@@ -418,6 +418,8 @@ pub struct OpenEdits {
 /// sent, and kept until they read and are told so, then only as a tombstone.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SetAside {
+    /// Names it among the block's, as the newest are kept.
+    pub id: Uuid,
     /// How many edits were set aside.
     pub count: usize,
     /// The edits, until they read and were told so.
@@ -1386,6 +1388,7 @@ impl Refs {
         };
         let aside = state.set_aside.entry(block).or_default();
         aside.push(SetAside {
+            id: Uuid::new_v4(),
             count: kept.edits.len(),
             kept: Some(kept),
         });
@@ -1413,13 +1416,13 @@ impl Refs {
             .collect()
     }
 
-    /// Leaves `block`'s set-aside edits at `index` a tombstone, once they read and were told.
-    pub fn tombstone_set_aside(&self, block: Uuid, index: usize) -> Result<(), StoreError> {
+    /// Leaves `block`'s set-aside edits `id` a tombstone, once they read and were told.
+    pub fn tombstone_set_aside(&self, block: Uuid, id: Uuid) -> Result<(), StoreError> {
         let mut state = self.state.lock().unwrap();
         let Some(aside) = state.set_aside.get_mut(&block) else {
             return Ok(());
         };
-        let Some(entry) = aside.get_mut(index) else {
+        let Some(entry) = aside.iter_mut().find(|entry| entry.id == id) else {
             return Ok(());
         };
         entry.kept = None;
@@ -2020,6 +2023,38 @@ impl Refs {
         };
         self.write(rows)?;
         Ok(true)
+    }
+
+    /// Drops the local edits this device keeps of `block` beside its outbox: its kept edits
+    /// (`OpenEdits`) and its journal. For a block this account lost access to, which they can
+    /// never reach and which `forget` would otherwise keep for them.
+    pub fn drop_local_edits(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.open_edits.remove(&block).is_some() {
+                rows.push(Row {
+                    table: Table::OpenEdits,
+                    key: block.as_bytes().to_vec(),
+                    value: None,
+                });
+            }
+            if let Some(journal) = state.journals.remove(&block) {
+                for sequence in journal.entries.into_keys() {
+                    rows.push(Row {
+                        table: Table::JournalEntry,
+                        key: journal_entry_key(block, sequence),
+                        value: None,
+                    });
+                }
+                rows.push(Row {
+                    table: Table::JournalBase,
+                    key: block.as_bytes().to_vec(),
+                    value: None,
+                });
+            }
+        }
+        self.write(rows)
     }
 
     pub fn take_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {
