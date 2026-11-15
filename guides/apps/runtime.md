@@ -128,7 +128,7 @@ painting) while it still holds the view, and draws it if the view is shown
 again, until the app's new frame of it has been drawn; so a text's format bar
 never blanks for a frame when a tab switch brings it back before its app
 answers. The kept frame goes when that frame is drawn, the instance closes, or
-the app restarts, and only the eight views hidden last keep theirs
+the app restarts, and only the eight views of an app hidden last keep theirs
 (`MOST_KEPT`): one hidden longer may show empty for a frame when shown again.
 The web keeps none: its surfaces are the app worker's canvases.
 

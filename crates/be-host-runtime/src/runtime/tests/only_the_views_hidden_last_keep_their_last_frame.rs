@@ -122,6 +122,30 @@ fn only_the_views_hidden_last_keep_their_last_frame() {
         (11..19).collect::<Vec<u32>>(),
         "of nine views hidden, the eight hidden last keep their frame and the first lets its go"
     );
+
+    // Show again the view hidden longest that kept its frame, in the layout that hides one more.
+    let (back, back_screen) = views[1];
+    show(back);
+    let tenth = bar(9);
+    let tenth_screen = show(tenth);
+    with(APP, |runtime| {
+        runtime.place(be_sdk_api::ScreenLayout {
+            screens: vec![on(tenth_screen, tenth, 30)],
+        })
+    });
+    unmount_view(APP, INSTANCE, tenth.id, 1);
+    with(APP, |runtime| {
+        runtime.place(be_sdk_api::ScreenLayout {
+            screens: vec![on(back_screen, back, 31)],
+        })
+    });
+    assert!(
+        retained().contains(&11),
+        "a view the layout shows again keeps its last frame though more were hidden since"
+    );
     close(APP, INSTANCE);
-    assert!(retained().is_empty(), "and they all go with their instance");
+    assert!(
+        !retained().iter().any(|surface| (10..31).contains(surface)),
+        "and every kept frame goes with its instance"
+    );
 }
