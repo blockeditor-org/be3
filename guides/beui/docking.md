@@ -207,7 +207,10 @@ host to place. The link comes from the `DockJoin` of the tab body the `Docking` 
 dock in place; a platform's slot (`DockHostSlot::new`) hosts it elsewhere, which is how a dock in an
 app reaches the host across the app protocol (be-sdk-api PROTOCOL.md, "Docks cross apps").
 
-A `Docking` inside a `DockTab` of another joins it and draws nothing. Nesting happens in the
+A `Docking` inside a `DockTab` of another joins it and draws nothing. Built in a `Show` with
+`keep_alive`, the join lets the tab go while that branch is hidden (`kept_shown`) and takes it back,
+with its declaration, once shown and the tab is free; a workspace keeps a live editor this way
+under a revision's preview. Nesting happens in the
 client: the outer dock splices the inner one in as a pinned group keyed `joined:<tab>`, so a host
 only ever sees one declaration, and the inner `DockingLayout` goes through the outer dock. Each layer saves its own layout: the outer snapshot keeps only the hosting tab, so the
 inner dock's owner saves the inner snapshot (be-sdk-beui does, through a `DockKeeper` in every
