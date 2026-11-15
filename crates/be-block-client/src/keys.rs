@@ -251,9 +251,18 @@ impl KeyBook {
     }
 
     pub fn escrow_wrap(&self, key: Uuid) -> Result<Option<WrappedKey>, StoreError> {
-        let Some(escrow) = self.escrow() else {
-            return Ok(None);
-        };
+        match self.escrow() {
+            Some(escrow) => self.escrow_wrap_under(key, &escrow),
+            None => Ok(None),
+        }
+    }
+
+    /// `key` wrapped under `escrow`, unless it is owner-only or already wrapped under it.
+    pub fn escrow_wrap_under(
+        &self,
+        key: Uuid,
+        escrow: &EscrowKey,
+    ) -> Result<Option<WrappedKey>, StoreError> {
         if self.owner_only(key) {
             return Ok(None);
         }
@@ -269,6 +278,9 @@ impl KeyBook {
         }))
     }
 
+    /// A new escrow key, chained to the latest, with its secret sealed to this account. It is
+    /// not this device's escrow until the server holds it (`adopt_escrow`): a key made
+    /// meanwhile and wrapped under it would be refused by a server that does not know it.
     pub fn mint_escrow(&self) -> Result<(EscrowKey, KeySet), StoreError> {
         let previous = {
             let escrow = self.escrow.lock().unwrap();
@@ -306,9 +318,6 @@ impl KeyBook {
         self.ring
             .insert(escrow.id, ContentKey::from_bytes(secret.to_bytes()));
         self.trusted.lock().unwrap().insert(escrow.id);
-        let mut chain = self.escrow.lock().unwrap().chain.clone();
-        chain.push(escrow.clone());
-        self.set_escrows(chain);
         let wrapped = vec![self.seal_to(escrow.id, self.account, &self.identity.public())?];
         Ok((
             escrow,
@@ -317,6 +326,13 @@ impl KeyBook {
                 wrapped,
             },
         ))
+    }
+
+    /// Makes a minted escrow (`mint_escrow`) the latest in the chain, once the server holds it.
+    pub fn adopt_escrow(&self, escrow: EscrowKey) {
+        let mut chain = self.escrow.lock().unwrap().chain.clone();
+        chain.push(escrow);
+        self.set_escrows(chain);
     }
 
     pub fn keys_of_kind(&self, kind: KeyKind) -> Vec<KeyRow> {

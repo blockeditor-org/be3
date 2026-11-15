@@ -99,7 +99,9 @@ organization id, sealed to each administrator. The first administrator device
 to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
-by the current one over `EscrowKey::chained`.
+by the current one over `EscrowKey::chained`. A minted escrow key becomes the
+device's escrow (`KeyBook::adopt_escrow`) only once the server holds it, since
+the server refuses a key wrapped under one it does not know.
 
 An owner-only block is never escrowed
 (decisions/owner_only_settings_are_never_escrowed.md): its scope key

@@ -170,12 +170,13 @@ impl<S: ObjectStore> Peer<S> {
         }
         for row in self.keys.keys_of_kind(KeyKind::Scope) {
             if self.keys.trusted(row.id)
-                && let Some(wrap) = self.keys.escrow_wrap(row.id)?
+                && let Some(wrap) = self.keys.escrow_wrap_under(row.id, &escrow)?
             {
                 keys.wrapped.push(wrap);
             }
         }
         client::keys::create_escrow(&self.connection(), escrow.clone(), keys.clone()).await??;
+        self.keys.adopt_escrow(escrow);
         self.recorded(&keys);
         self.save_pin().await
     }
