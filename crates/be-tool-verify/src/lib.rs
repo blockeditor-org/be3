@@ -596,7 +596,7 @@ impl Run {
         }
         if !earlier.is_empty() {
             println!(
-                "These paintings were left as they are: the build failed and their tests did not compare them in it, so what is at their tests' outputs is an earlier build's:"
+                "These paintings were left as they are: the build failed and their tests did not compare them in it (they did not run, or were up to date), so they are accepted once a build succeeds:"
             );
             for painting in &earlier {
                 println!("  {}", slashed(painting));
