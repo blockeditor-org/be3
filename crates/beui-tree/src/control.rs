@@ -6,8 +6,8 @@ use std::rc::Rc;
 
 use beui_macros::component;
 use beui_reactive::{
-    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Signal, StoredCell, create_binding,
-    create_signal, store, untrack,
+    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Signal, Stored, StoredCell,
+    Trigger, create_binding, create_signal, create_trigger, store, untrack,
 };
 
 use crate::child_list::SlotId;
@@ -373,6 +373,8 @@ struct Rows<C: SlotChild> {
     changed: Signal<u64>,
     /// While the `fallback` fills the place, the rows must not.
     empty: Cell<bool>,
+    /// Tells the `ForEach`'s handle what each row holds once the rows fill their place.
+    shown: RefCell<Option<Box<dyn Fn(Vec<Vec<C::Stored>>)>>>,
 }
 
 impl<C: SlotChild> Rows<C> {
@@ -381,14 +383,20 @@ impl<C: SlotChild> Rows<C> {
             return;
         }
         let runs = self.runs.borrow();
-        let mut items = Vec::new();
-        for row in self.order.borrow().iter() {
-            match row {
-                Row::One(stored) => items.push(stored.clone()),
-                Row::Run(slot, _) => items.extend(runs.get(slot).into_iter().flatten().cloned()),
-            }
+        let rows: Vec<Vec<C::Stored>> = self
+            .order
+            .borrow()
+            .iter()
+            .map(|row| match row {
+                Row::One(stored) => vec![stored.clone()],
+                Row::Run(slot, _) => runs.get(slot).cloned().unwrap_or_default(),
+            })
+            .collect();
+        drop(runs);
+        self.slot.fill(rows.iter().flatten().cloned().collect());
+        if let Some(shown) = self.shown.borrow().as_ref() {
+            shown(rows);
         }
-        self.slot.fill(items);
     }
 
     fn build(self: &Rc<Self>, children: Children<C>) -> Row<C> {
@@ -432,6 +440,101 @@ impl<C: SlotChild> SlotHost<C> for Rows<C> {
     }
 }
 
+/// A handle on what a `ForEach` built: the order it shows, each key's place in it, and the
+/// children each key's row holds (one on the fast path, a run for a row of several).
+/// Made like a `NodeRef`, handed to the `ForEach` as `handle`, and empty until it builds;
+/// a key no longer shown has no place and no children. `S` is how the `ForEach`'s children
+/// are kept: `NodeId` for node children.
+pub struct ForEachRef<K: 'static, S: 'static> {
+    shown: Stored<RefCell<Vec<ShownRow<K, S>>>>,
+    changed: Trigger,
+}
+
+struct ShownRow<K, S> {
+    key: K,
+    index: ReadSignal<usize>,
+    children: Vec<S>,
+}
+
+impl<K, S> Clone for ForEachRef<K, S> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K, S> Copy for ForEachRef<K, S> {}
+
+impl<K: Clone + PartialEq + 'static, S: Clone + 'static> Default for ForEachRef<K, S> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
+    /// Panics with no current scope, like `store`.
+    pub fn new() -> Self {
+        Self {
+            shown: store(RefCell::new(Vec::new())),
+            changed: create_trigger(),
+        }
+    }
+
+    /// The keys shown, in order; tracked, so a computation reading it reruns when the order
+    /// or a row's children change.
+    pub fn keys(&self) -> Vec<K> {
+        self.changed.track();
+        self.with_shown(|shown| shown.iter().map(|row| row.key.clone()).collect())
+    }
+
+    /// Where `key` sits in the order shown, as the signal its row was handed.
+    pub fn index(&self, key: &K) -> Option<ReadSignal<usize>> {
+        self.with_shown(|shown| shown.iter().find(|row| row.key == *key).map(|row| row.index))
+    }
+
+    /// Where `key` sits now, untracked.
+    pub fn index_of(&self, key: &K) -> Option<usize> {
+        self.index(key).map(|index| index.get_untracked())
+    }
+
+    /// The children `key`'s row holds; none for a key not shown.
+    pub fn children_of(&self, key: &K) -> Vec<S> {
+        self.with_shown(|shown| {
+            shown
+                .iter()
+                .find(|row| row.key == *key)
+                .map(|row| row.children.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    /// The key whose row holds `child`.
+    pub fn key_of(&self, child: &S) -> Option<K>
+    where
+        S: PartialEq,
+    {
+        self.with_shown(|shown| {
+            shown
+                .iter()
+                .find(|row| row.children.contains(child))
+                .map(|row| row.key.clone())
+        })
+    }
+
+    fn with_shown<R>(&self, read: impl FnOnce(&[ShownRow<K, S>]) -> R) -> R {
+        match self.shown.try_value() {
+            Some(shown) => read(&shown.borrow()),
+            None => read(&[]),
+        }
+    }
+
+    fn show(&self, rows: Vec<ShownRow<K, S>>) {
+        if let Some(shown) = self.shown.try_value() {
+            *shown.borrow_mut() = rows;
+            self.changed.notify();
+        }
+    }
+}
+
 struct BuiltRow<C: SlotChild, T> {
     row: Row<C>,
     item: Option<Signal<T>>,
@@ -452,12 +555,13 @@ impl<C: SlotChild, T> Clone for BuiltRow<C, T> {
 /// order of `value`. Without a `key` an item is its own key, and a row is handed the item;
 /// with one a row is handed a signal of its item, which changes in place. A row may take
 /// its `index` too. A row builds any number of children. Given a `fallback`, it shows while
-/// `value` is empty.
+/// `value` is empty. Given a `handle`, it tells it what it shows (`ForEachRef`).
 #[component]
 pub fn ForEach<T, KF, H, C, R, F>(
     value: Prop<Vec<T>>,
     key: KF,
     fallback: F,
+    #[prop(default = None)] handle: Option<ForEachRef<KF::Key, C::Stored>>,
     #[prop(children)] view: RenderFn<H, R>,
 ) -> DynamicSegment<C>
 where
@@ -479,7 +583,25 @@ where
             building: Cell::new(false),
             changed: create_signal(0),
             empty: Cell::new(false),
+            shown: RefCell::new(None),
         });
+        let shown_keys = Rc::new(RefCell::new(Vec::<(KF::Key, ReadSignal<usize>)>::new()));
+        if let Some(handle) = handle {
+            let shown_keys = shown_keys.clone();
+            *rows.shown.borrow_mut() = Some(Box::new(move |children: Vec<Vec<C::Stored>>| {
+                let keys = shown_keys.borrow();
+                handle.show(
+                    keys.iter()
+                        .zip(children)
+                        .map(|((key, index), children)| ShownRow {
+                            key: key.clone(),
+                            index: *index,
+                            children,
+                        })
+                        .collect(),
+                );
+            }));
+        }
         {
             let rows = rows.clone();
             create_binding(move || {
@@ -523,6 +645,10 @@ where
                 drop(built.value().map(Vec::new()));
                 rows.order.borrow_mut().clear();
                 rows.runs.borrow_mut().clear();
+                shown_keys.borrow_mut().clear();
+                if let Some(handle) = handle {
+                    handle.show(Vec::new());
+                }
                 return;
             }
             drop(empty.value().borrow_mut().take());
@@ -547,6 +673,7 @@ where
                 }
             }
             rows.building.set(true);
+            let order = keys.clone();
             built.value().map(keys).commit(|kept, gone| {
                 let mut runs = rows.runs.borrow_mut();
                 for gone in gone {
@@ -563,6 +690,11 @@ where
                         KF::refresh(signal, item);
                     }
                 }
+                *shown_keys.borrow_mut() = order
+                    .into_iter()
+                    .zip(&kept)
+                    .map(|(key, built)| (key, built.index.read_only()))
+                    .collect();
                 *rows.order.borrow_mut() = kept.into_iter().map(|built| built.row).collect();
             });
             pending.borrow_mut().clear();

@@ -14,6 +14,7 @@ mod a_closure_is_a_prop_read_as_a_getter;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
 mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
 mod a_for_each_builds_a_row_for_each_repeat_of_an_item;
+mod a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal;
 mod a_for_each_keeps_its_fallback_when_a_row_changes_as_the_list_empties;
 mod a_for_each_shows_its_fallback_while_it_has_no_keys;
 mod a_match_shows_the_first_case_that_holds;
@@ -73,6 +74,12 @@ impl DomNode {
 }
 
 impl ChildValue for DomNode {}
+
+impl PartialEq for DomNode {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
 
 crate::child_type!(DomNode);
 
