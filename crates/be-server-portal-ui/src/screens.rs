@@ -1,5 +1,6 @@
 use be_server_portal::{
-    Field as Named, IdentityRow, Page, ProviderLink, Screen, Session, SessionKind, with_code,
+    Field as Named, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink, Screen, Session,
+    SessionKind, with_code,
 };
 use beui::icons::{
     Glyph, ICON_BLOCKS, ICON_CIRCLE_ALERT, ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_GLOBE,
@@ -11,6 +12,7 @@ use beui::styled::*;
 use beui::{Align, Align2, Direction, Extent, Justify, NodeId, TextAlign};
 
 use crate::form::{Field, PageLink, PortalForm, Submit, fixed};
+use crate::passkey::PasskeyButton;
 
 const PRODUCT: &str = "be3";
 
@@ -57,6 +59,11 @@ impl Shown {
 
     fn code_problem(self) -> String {
         self.read(|page| page.code_problem.clone())
+    }
+
+    /// The passkey ceremony the page offers for `step`, if it offers that one.
+    fn passkey(self, step: PasskeyStep) -> Option<PasskeyOffer> {
+        self.read(|page| page.passkey.clone().filter(|offer| offer.step == step))
     }
 
     fn general(self) -> String {
@@ -428,6 +435,14 @@ fn SignIn(page: Shown) -> NodeId {
                         />
                         <Submit label="Email me a code" />
                     </PortalForm>
+                    {page.passkey(PasskeyStep::SignIn).map(|offer| view! {
+                        <PasskeyButton
+                            offer
+                            csrf={page.csrf()}
+                            code={page.code()}
+                            label="Sign in with a passkey"
+                        />
+                    })}
                     <Providers page />
                     <List
                         direction=Direction::Horizontal
@@ -735,6 +750,11 @@ fn Settings(page: Shown) -> NodeId {
         }
         _ => String::new(),
     };
+    let add_passkey = page.passkey(PasskeyStep::Add).filter(|_| fresh).map(|offer| {
+        view! {
+            <PasskeyButton offer csrf={page.csrf()} code={String::new()} label="Add a passkey" />
+        }
+    });
     let saved = match page.read(|page| page.saved) {
         true => "Your changes were saved.".to_owned(),
         false => String::new(),
@@ -753,6 +773,7 @@ fn Settings(page: Shown) -> NodeId {
                 <ForEach value={identities}>|identity: IdentityRow|
                     <IdentityLine identity csrf={csrf.clone()} fresh />
                 </ForEach>
+                {add_passkey}
                 {(fresh && !adding.is_empty()).then(|| view! {
                     <List spacing=Space::Md>
                         <ForEach value={adding.clone()}>|provider: ProviderLink|
@@ -870,14 +891,23 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
             page.proof_providers.clone(),
         )
     });
-    let lead = match (fresh, emailed) {
-        (true, _) => {
-            format!("You confirmed it is you, so you can {doing} for the next few minutes.")
-        }
-        (false, true) => format!("To {doing}, first confirm it is you with a code we email you."),
-        (false, false) => {
-            format!("To {doing}, first confirm it is you with a provider you sign in with.")
-        }
+    let passkey = page.passkey(PasskeyStep::Proof);
+    let ways: Vec<&str> = [
+        (emailed, "a code we email you"),
+        (passkey.is_some(), "a passkey"),
+        (!providers.is_empty(), "a provider you sign in with"),
+    ]
+    .into_iter()
+    .filter_map(|(has, way)| has.then_some(way))
+    .collect();
+    let ways = match ways.split_last() {
+        Some((last, [])) => (*last).to_owned(),
+        Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+        None => "one of your ways to sign in".to_owned(),
+    };
+    let lead = match fresh {
+        true => format!("You confirmed it is you, so you can {doing} for the next few minutes."),
+        false => format!("To {doing}, first confirm it is you with {ways}."),
     };
     view! {
         <Frame border={Some(Border::DEFAULT)} radius=Radius::Lg padding={Padding::all(Space::Xl)}>
@@ -893,6 +923,14 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
                     <PortalForm action="/auth/proof" csrf={page.csrf()}>
                         <Submit label="Email me a code" variant=ButtonVariant::Secondary />
                     </PortalForm>
+                })}
+                {passkey.filter(|_| !fresh).map(|offer| view! {
+                    <PasskeyButton
+                        offer
+                        csrf={page.csrf()}
+                        code={String::new()}
+                        label="Confirm with a passkey"
+                    />
                 })}
                 {(!fresh && !providers.is_empty()).then(|| view! {
                     <List spacing=Space::Md>
@@ -911,17 +949,19 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
 
 #[component]
 fn IdentityLine(identity: IdentityRow, csrf: String, fresh: bool) -> NodeId {
-    let email = identity.kind == "email";
-    let detail = match (email, identity.removable) {
-        (true, true) => "Email: a code we send signs you in",
-        (true, false) => "Email: your only way to sign in",
-        (false, true) => "Provider: signing in with it signs you in",
-        (false, false) => "Provider: your only way to sign in",
+    let detail = match (identity.kind.as_str(), identity.removable) {
+        ("email", true) => "Email: a code we send signs you in",
+        ("email", false) => "Email: your only way to sign in",
+        ("passkey", true) => "Passkey: this device or password manager signs you in",
+        ("passkey", false) => "Passkey: your only way to sign in",
+        (_, true) => "Provider: signing in with it signs you in",
+        (_, false) => "Provider: your only way to sign in",
     }
     .to_owned();
-    let glyph = match email {
-        true => ICON_MAIL,
-        false => ICON_LOG_IN,
+    let glyph = match identity.kind.as_str() {
+        "email" => ICON_MAIL,
+        "passkey" => ICON_KEY_ROUND,
+        _ => ICON_LOG_IN,
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>

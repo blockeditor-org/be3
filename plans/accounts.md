@@ -3,7 +3,8 @@
 Depends on: none.
 
 Today a remote account signs in, registers and recovers by a code mailed to its
-email, or signs in with an OpenID Connect provider the operator configured; an operator invite code gates registration
+email, or signs in with an OpenID Connect provider the operator configured or a
+passkey it added; an operator invite code gates registration
 (guides/blocks/server.md, "Accounts"). Passwords are gone
 (decisions/accounts_have_no_passwords.md). The portal also changes an email
 (`email_change_link`) and lists browser sessions. Mail goes through
@@ -140,17 +141,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    the plain-HTTP setup uses a cookie name of its own. An account with no
    email is told nothing when an identity is added or removed: give it the
    notice in the app, on its other sessions, as the rules above say.
-2. **Passkeys.** Register and use WebAuthn credentials in the portal with
-   `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
-   wasm, which the CSP already allows (`script-src 'self'
-   'wasm-unsafe-eval'`, `connect-src 'self'`). The RP ID is the
-   `--auth-origin` host. Passkeys are discoverable, so signing in with one
-   needs no email first. Allow several per account and list them for removal.
-   Push them only once the browser UI is good enough. Changing `--auth-origin`
-   orphans every passkey and every provider's registered redirect URI; say so
-   in guides/hosting.md. Done: tests with a software authenticator: register,
-   sign in without an email, remove, and a passkey for another RP ID refused.
-3. **Invitations stop depending on email.** Today an invitation is already a
+2. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
@@ -204,7 +195,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-4. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+3. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
    redirect URIs), and the invitation lines in guides/blocks/keys.md

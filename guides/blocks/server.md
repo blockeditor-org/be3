@@ -607,8 +607,8 @@ changes an app session calls it.
 
 ### Accounts
 
-An account signs in with any of its **identities** (`identities`: an `email`
-or a provider, `oidc`; passkeys in plans/accounts.md), never its last removed.
+An account signs in with any of its **identities** (`identities`: an `email`,
+a provider, `oidc`, or a `passkey`), never its last removed.
 `accounts.email` is the account's verified email, if it has one; an account
 made through a provider may have none, and then the protocol's `email` is the
 empty string, as it is for a local profile
@@ -634,11 +634,11 @@ an invite code that leak is small, and mailing "you already have an account"
 is the alternative if registration opens. Changing the email, removing an
 identity and ending any session but the browser's own need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email, or a sign-in with one of
-its providers, in the last few minutes (`sessions.proved`), which signing in by
-code or provider, or recovering, also gives.
+its providers or passkeys, in the last few minutes (`sessions.proved`), which
+signing in by code, provider or passkey, or recovering, also gives.
 Removing an identity, adding a provider (from the settings page or by a link
-code) and a provider moving the account's email each mail the account's email,
-the old one for a move. Removing the email identity also clears
+code) or a passkey, and a provider moving the account's email each mail the
+account's email, the old one for a move. Removing the email identity also clears
 `accounts.email`, and an account with no email never gains one from a
 provider it already has, since its owner may have removed it. An operator's login link
 (`store/login_links.rs`, `be-server login-link`) signs in once within
@@ -681,6 +681,25 @@ email it gave only while its account holds that email. Begun sign-ins are capped
 and overall. At start the server warns how many accounts sign in only with
 providers it no longer has (`stranded_by_providers`); `login-link --account`
 lets one in.
+
+**Passkeys** are WebAuthn credentials (`passkeys.rs` with `webauthn-rs`, and
+`store/passkeys.rs`) whose RP ID is the portal's origin's host (`--auth-origin`,
+or `localhost` in development; an IP address has none, and then no page offers
+one). A passkey identity's subject is its credential id and its `credential`
+the key and counter; its user handle is the account's id. They are made
+discoverable (`residentKey: required`), so the sign-in page offers one before an
+email is typed. A page that offers a ceremony (sign-in; on settings and
+sessions, adding one when the proof is fresh, else proving with one) begins it
+when it renders and keeps its state in the page's form token
+(`browser_auth::Sessions::form`), which is bound to the browser's session,
+single use and ten minutes long. The portal's wasm
+(`be-server-portal-ui/src/web.rs`) calls `navigator.credentials` with the
+page's options (`PasskeyOffer`, WebAuthn's JSON) and posts
+`PublicKeyCredential.toJSON()` to `/auth/passkey/{sign-in,proof,add}` in a form
+it builds, with the page's token, so the answer meets the portal's Origin check
+and spends the ceremony; webauthn-rs checks the challenge, the origin, the RP
+ID's hash and user verification. Adding checks the fresh proof again when it
+lands. Tests use a software authenticator (`fake_authenticator.rs`).
 
 The protocol has the browser sign-in's one-shot `begin-browser-login` and
 `poll-browser-login` ("Signing in" above), token `Authenticate`, header
