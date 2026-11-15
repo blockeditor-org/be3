@@ -240,19 +240,19 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
         };
         let mut held = self.holding(doc, &rows);
         self.measure_held(doc, list, painter, &mut held, cross);
-        let shift = match rows.first() {
+        // The origin, which the next layout lays the rows out from, is the anchor while it is
+        // built, else the first row built. The shift is the origin's: how far the rows measured
+        // so far moved it, which the offset takes up so it stays where it is shown.
+        let origin = self
+            .anchor
+            .as_ref()
+            .and_then(|anchor| rows.iter().find(|row| row.key == *anchor))
+            .or(rows.first());
+        let shift = match origin {
             Some(row) => {
                 let wanted = self.metrics.position(row.index);
-                let shift = wanted - row.position;
-                // Every built row is laid out from the origin with its measured length, so the
-                // shift is the same for each; the origin is the anchor while it is built.
-                let origin = self
-                    .anchor
-                    .as_ref()
-                    .and_then(|anchor| rows.iter().find(|row| row.key == *anchor))
-                    .unwrap_or(row);
-                self.origin = Some((origin.key.clone(), self.metrics.position(origin.index)));
-                shift
+                self.origin = Some((row.key.clone(), wanted));
+                wanted - row.position
             }
             None => {
                 self.origin = None;

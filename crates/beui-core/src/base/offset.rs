@@ -353,7 +353,11 @@ impl Element for OffsetNode {
             self.reached_end = Some(frame);
         }
         self.position = Some(position);
-        if !self.on_change.is_empty() && self.reported != Some(position) {
+        // A layout that shifted the offset lays the content out again in this frame: the
+        // position is reported from that one, where the offset and the content's places agree.
+        // Reported from this one, it would pair the rows the shift has yet to move with the
+        // offset before it.
+        if !self.on_change.is_empty() && shift == 0.0 && self.reported != Some(position) {
             self.reported = Some(position);
             let on_change = self.on_change;
             doc.report_after_layout(move || on_change.call(position));

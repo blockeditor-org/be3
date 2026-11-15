@@ -540,53 +540,12 @@ impl Surface {
         }
     }
 
-    /// Follows where the row of the line starting at `line_start` is placed, while it is built.
-    fn track_row_of(&self, line_start: usize) {
-        let Some(node) = self
-            .entry(self.line_of(line_start))
-            .and_then(|entry| entry.row.try_get())
-        else {
-            return;
-        };
-        let held = self.held.value();
-        let measured = *held
-            .measured
-            .borrow_mut()
-            .entry(node)
-            .or_insert_with(|| measure(node));
-        measured.track();
-    }
-
-    /// The line at the top of the view, and how far into it the view begins: the first laid-out
-    /// row that reaches below the top, read from the row itself (the list's offsets for rows can
-    /// still be the estimates the layout that built them replaced), so a view beginning in the
-    /// space after a row names the next row, a little below the top, which is built where the
-    /// view is and so settles when scrolled back to. With no row laid out there, the list's
-    /// offsets are all there is.
+    /// The line at the top of the view, and how far into it the view begins.
     fn top_anchor(&self, offset: f32) -> Option<ScrollAnchor> {
-        let starts = self.starts.get_untracked();
-        let canvas = self.canvas_rect()?;
-        let viewport = self.scroll.get_untracked().viewport;
-        let laid_out = {
-            let held = self.held.value();
-            let rows = held.rows.borrow();
-            rows.iter()
-                .filter_map(|(line, entry)| {
-                    let rect = entry.rect(&held)?;
-                    let top = (rect.min.y - canvas.min.y) / self.scale();
-                    let bottom = (rect.max.y - canvas.min.y) / self.scale();
-                    (bottom > offset && top < offset + viewport).then_some((*line, top))
-                })
-                .min_by(|a, b| a.1.total_cmp(&b.1))
-        };
-        if let Some((line, top)) = laid_out {
-            return Some(ScrollAnchor {
-                line_start: *starts.get(line)?,
-                within: offset - top,
-            });
-        }
         let visible = self.visible.get_untracked();
+        let starts = self.starts.get_untracked();
         let list = self.list.try_get()?;
+        let canvas = self.canvas_rect()?;
         let top = (self.held.value().rect_of(list)?.min.y - canvas.min.y) / self.scale();
         let line_y = |line: &usize| list.row_offset(line).map(|row| top + row);
         let below = visible.partition_point(|line| line_y(line).is_some_and(|y| y <= offset));
@@ -1707,29 +1666,20 @@ pub fn TextArea(
     // moves it on at once, in the layout that built the row, so the scroll settles in the frame
     // that started it rather than in later frames that ask for no time.
     let rights = cx.rights;
-    // A row's rect is read as its last layout left it, which can be the layout before this one:
-    // the effect also follows the rect of the row it relied on (the line a `scroll_to` is on its
-    // way to, or the line it reported at the top), and runs again once that row is placed anew.
     create_effect(move || {
         let position = scrolled.get();
         rights.track();
         if single_line || position.viewport <= 0.0 {
             return;
         }
-        let relied = untrack(|| match state.pending_scroll() {
-            Some(anchor) => {
-                cx.scroll_to_anchor(anchor);
-                Some(state.pending_scroll().unwrap_or(anchor).line_start)
-            }
+        untrack(|| match state.pending_scroll() {
+            Some(anchor) => cx.scroll_to_anchor(anchor),
             None => {
-                let anchor = cx.top_anchor(position.clamped())?;
-                state.set_scrolled(anchor);
-                Some(anchor.line_start)
+                if let Some(anchor) = cx.top_anchor(position.clamped()) {
+                    state.set_scrolled(anchor);
+                }
             }
         });
-        if let Some(line_start) = relied {
-            cx.track_row_of(line_start);
-        }
     });
     create_effect_on(
         move || scrolled.get(),
