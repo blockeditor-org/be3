@@ -2,9 +2,8 @@ use super::*;
 
 /// Edits made to an open block whose edit access was taken away meanwhile are set aside among
 /// the unsent edits. Discarded, they take the edits this device kept of the block with them,
-/// and its open replica keeps none from then on: what it made after is sealed as it closes and
-/// set aside in its turn, and once that is discarded too nothing keeps the block from being
-/// forgotten.
+/// and its open replica closes: what it made after is sealed as it closes and set aside in its
+/// turn, and once that is discarded too nothing keeps the block from being forgotten.
 #[test]
 fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept() {
     let harness = Harness::relayed();
@@ -86,17 +85,17 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
     });
     crate::close(block);
     flush();
-    // What the replica made after was sealed as it closed, and set aside in its turn: shown,
-    // never kept out of sight.
-    wait_until("set aside what was typed after", |held| {
-        held.unsent
-            .iter()
-            .any(|unsent| unsent.block == block && unsent.refused.is_none())
+    // What the replica made after the edits it was given was sealed as it closed, and set aside
+    // in its turn unless it went with them: shown, never kept out of sight.
+    wait_until("closed it and sent or set aside what it made", |held| {
+        held.waiting == 0 && !held.blocks.contains_key(&block)
     });
-    crate::discard_unsent(block);
-    wait_until("discarded it", |held| {
-        !held.unsent.iter().any(|unsent| unsent.block == block)
-    });
+    if crate::unsent().iter().any(|unsent| unsent.block == block) {
+        crate::discard_unsent(block);
+        wait_until("discarded it", |held| {
+            !held.unsent.iter().any(|unsent| unsent.block == block)
+        });
+    }
     // Nothing keeps it: what it still lists of the block, which it may view, is learned again.
     wait_until("kept nothing that keeps the block", |held| {
         held.peer.as_ref().is_some_and(|peer| {

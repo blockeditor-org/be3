@@ -687,6 +687,10 @@ pub struct Shared {
     /// Whether an editor watches the account's storage (`Command::Storage`).
     pub storage_watched: bool,
     pub owned: std::collections::HashSet<Uuid>,
+    /// Blocks whose local edits were discarded with their unsent edits as the grace period
+    /// passed (`expire_unsent`): their open replicas close at the next pass
+    /// (`Replicas::stop_keeping`).
+    pub discarded: Vec<Uuid>,
     pub wall: Wall,
     pub search: super::search::Searching,
     /// The `Searching::shown_revision` that `Seen::searched` was made at.
@@ -1635,6 +1639,15 @@ impl Session<'_> {
             // only in the replicas' changes.
             moved |= self.replicas.take_changed();
             moved |= report(peer, shared);
+            let discarded = std::mem::take(
+                &mut shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .discarded,
+            );
+            for block in discarded {
+                self.replicas.stop_keeping(block);
+            }
             let typing = !self.replicas.modules.settled();
             // A held clock is moved to a module's timer only when nothing but that timer can
             // make progress: the line is up, nothing sent waits for an answer, and no module is
@@ -2151,6 +2164,7 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     let counts = peer.pending();
     let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.discarded.extend(expired.iter().copied());
     held.reach_dirty.extend(expired);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;

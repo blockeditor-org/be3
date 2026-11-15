@@ -220,10 +220,13 @@ the connection a stopping stack closed.
   block whose kept edits hold any is not forgotten, until this account lost
   access to it and its unsent edits are discarded (`Peer::discard_unsent`,
   which drops its kept edits and journal too; the unsent list shows how many
-  such edits it holds, `UnsentBlock::kept_edits`). From then on its open
-  replica keeps none (`Replicas::stop_keeping`), and nothing is kept for a
-  block this account may not edit (`Refs::keep_open_edits`); what the replica
-  made after is sealed as it closes and set aside in its turn. Opened before it
+  such edits it holds, `UnsentBlock::kept_edits`). Its open replica closes
+  (`Replicas::stop_keeping`): what it made after is sealed as it closes and
+  set aside in its turn, and one opened next starts under a fresh origin. The
+  discard marks the block (`Refs::drop_local_edits`, kept until the block is
+  forgotten or this account may edit it again): while marked, keeping its
+  edits fails (`ClientError::Discarded`), so a submission waits rather than
+  going out unkept. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after
