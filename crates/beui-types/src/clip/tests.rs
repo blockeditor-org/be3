@@ -1,4 +1,5 @@
 use super::*;
 mod a_clipboard_with_a_size_limit_carries_what_fits_in_order;
+mod text_beyond_a_clipboards_limit_is_cut_short_with_a_notice;
 mod a_held_clip_with_crlf_text_is_still_ours_when_read_back_with_lf;
 mod system_text_has_lf_line_breaks_in_beui_and_crlf_on_windows;
