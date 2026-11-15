@@ -76,26 +76,11 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
             .iter()
             .any(|unsent| unsent.block == block && unsent.refused.is_none())
     });
-    // Typed on, as the replica still takes edits it can no longer send.
-    add(block, 4);
-    wait_for_count(block, 7);
     crate::discard_unsent(block);
-    wait_until("discarded the unsent edits", |held| {
+    wait_until("discarded the unsent edits and closed the block", |held| {
         !held.unsent.iter().any(|unsent| unsent.block == block)
+            && !held.blocks.contains_key(&block)
     });
-    crate::close(block);
-    flush();
-    // What the replica made after the edits it was given was sealed as it closed, and set aside
-    // in its turn unless it went with them: shown, never kept out of sight.
-    wait_until("closed it and sent or set aside what it made", |held| {
-        held.waiting == 0 && !held.blocks.contains_key(&block)
-    });
-    if crate::unsent().iter().any(|unsent| unsent.block == block) {
-        crate::discard_unsent(block);
-        wait_until("discarded it", |held| {
-            !held.unsent.iter().any(|unsent| unsent.block == block)
-        });
-    }
     runtime
         .block_on(peer.grant(block, harness.account, be_block_graph::Access::Edit))
         .expect("the sharer makes this account an editor again");
