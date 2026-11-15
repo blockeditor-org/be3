@@ -218,7 +218,8 @@ posts its gestures back to the host could feel closer to native, but that is not
 
 ## The sandbox API
 
-A new WIT interface the host serves to the root guest, and later to apps:
+A new WIT interface the host serves to the root guest, and later to apps
+(plans/single_threaded_guests.md, step 1):
 
 - `compile(bytes) -> module`, hashed and cached. It completes later: natively the host compiles
   on a thread of its own, and on the web with `WebAssembly.compile`, or in the spawned worker
@@ -289,11 +290,13 @@ the compositor. Neither the compositor nor any app knows about VR.
   `Layer` does today (`WindowHosting::Any`): each window the compositor opens becomes a panel, and
   a dock tab popped out becomes a panel rather than an OS window. The simulator is one real
   window.
-- **Pixels:** Space opens an offscreen window for each panel. The compositor returns its layer
-  list for that window to the host, as for any window, since the host ran its frame. The host
-  composites the list into the panel's texture, only when it has damage, and hands Space the
-  texture by handle on the host's device. A panel the headset shows as a composition layer is composited straight into that
-  layer's swapchain image, so nothing is drawn twice. Space draws the other panels into the eye
+- **Pixels:** for each window the compositor opens, Space opens an offscreen window of the
+  host's and answers the compositor with that window's id, so the ids the compositor uses are the
+  host's own. The compositor returns its layer list for that window to the host, as for any
+  window, since the host ran its frame. The host composites the list into the panel's texture,
+  only when it has damage, and hands Space the texture by handle on the host's device. A panel
+  the headset shows as a composition layer is composited straight into that layer's swapchain
+  image, so nothing is drawn twice. Space draws the other panels into the eye
   buffer from their textures, with mipmaps, so distant text doesn't shimmer. It never reads an
   app's surface itself. WebXR is not part of this plan
   (plans/deferred/vr.md, M11).

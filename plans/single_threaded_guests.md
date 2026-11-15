@@ -63,7 +63,10 @@ not write its own.
 
 ## Steps
 
-1. A worker API in be-sdk over the sandbox API's spawn: an entry point, a channel, and byte
+1. Serve the sandbox API to apps. An app may spawn only its own staged module, at another entry
+   point, with the imports the host serves that app; modules from bytes stay the root guest's
+   until a plan gives apps a reason for them (the Games app's game modules would be one).
+   Then a worker API in be-sdk over that spawn: an entry point, a channel, and byte
    buffers carried as messages.
 2. Port the map and PDF workers to it.
 3. Build every guest, and the C libraries guests link (wasi-libc, libc++, PDFium, FreeType,
