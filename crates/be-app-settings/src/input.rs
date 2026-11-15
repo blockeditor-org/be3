@@ -28,7 +28,7 @@ impl be_sdk_beui::BeuiRoot for InputSettingsRoot {
                         <List spacing=Space::None>
                             <Keyed
                                 value={device}
-                                key={|device: bool| device}
+                                key={|device: &bool| *device}
                             >|_device: ReadSignal<bool>|
                                 <ListItem grow=1.0>
                                     <InputSettingsView editor={editor} settings={settings} />

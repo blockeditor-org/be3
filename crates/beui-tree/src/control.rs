@@ -17,7 +17,7 @@ use crate::children::{
 };
 use crate::child_list::SlotId;
 use crate::component::{MissingProp, Render, RenderFn};
-use crate::prop::{Func, Prop};
+use crate::prop::Prop;
 
 type Built<C> = RenderFn<(), Children<C>>;
 
@@ -696,15 +696,16 @@ where
 /// change that keeps the key updates in place. Given a `fallback`, `value` is an `Option`
 /// and the fallback shows while it is `None`.
 #[component]
-pub fn Keyed<V, K, C, B, F>(
+pub fn Keyed<V, K, KF, C, B, F>(
     value: Prop<V>,
     fallback: F,
-    key: Func<F::Handed, K>,
+    key: KF,
     #[prop(children)] view: RenderFn<ReadSignal<F::Handed>, B>,
 ) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
     V: Clone + 'static,
     K: PartialEq + 'static,
+    KF: Fn(&F::Handed) -> K + 'static,
     C: SlotChild,
     B: Branch<C>,
     F: ValueFallback<V, C>,
@@ -719,7 +720,7 @@ where
             let held = store(RefCell::new(None::<(Option<K>, Option<Scope>)>));
             create_binding(move || {
                 let value = F::split(value.get());
-                let next = value.clone().map(|value| key.call(value));
+                let next = value.as_ref().map(&key);
                 let held = held.value();
                 let mut held = held.borrow_mut();
                 if held.as_ref().is_some_and(|(key, _)| *key == next) {
