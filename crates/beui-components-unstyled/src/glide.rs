@@ -254,3 +254,11 @@ pub fn Glide(
     });
     node
 }
+
+/// The node holding a `Glide`'s child where it is drawn, given the node the `Glide` returned:
+/// measure it to hit-test what a person sees, since a gliding child is drawn off the place
+/// layout gave the glide.
+pub fn drawn_child(glide: NodeId) -> Option<NodeId> {
+    let inner = *glide.children().first()?;
+    inner.children().first().copied()
+}

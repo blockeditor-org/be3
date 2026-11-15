@@ -363,8 +363,8 @@ impl Movement {
     pub const fn spring(self) -> Spring {
         match self {
             Movement::Settle | Movement::Enter | Movement::Leave => Spring {
-                stiffness: 420.0,
-                damping: 32.0,
+                stiffness: 500.0,
+                damping: 42.0,
             },
             Movement::Rubber => Spring {
                 stiffness: 180.0,
