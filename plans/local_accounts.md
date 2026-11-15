@@ -59,10 +59,16 @@ Each says whether a server account offline has the same gap.
 3. **Making the account, its organization and its roots.** The server makes a local profile
    (`create-local-profile`), puts it in the personal organization and answers the roots and
    settings a host looks for at sign-in. A local account makes its ids, roots and settings on the
-   device. Whether a server account offline shares this gap is open (step 1).
+   device. A server account offline already makes workspaces: a root's creation waits in the
+   outbox like any other block's (be-block-client's
+   `a_workspace_made_offline_reaches_the_server_with_its_keys`). Making the account and its
+   organization is local accounts only.
 4. **Keys.** The server stores key rows and records rotations (`GetKeys`, `rotations`). A local
-   account keeps its rows on the device only. Whether a server account offline shares this gap is
-   open (step 1).
+   account keeps its rows on the device only. A server account offline mints a new block's keys
+   on the device and sends them with its creation through the outbox. Rotation and escrow run
+   only on key work the server hands out (`Peer::tend`), after a member is removed, so they
+   never start offline; a local account has one member and nothing to rotate. Local accounts
+   only.
 5. **The graph.** The server works out access and the `size` and `tree_size` it lists. A local
    account's one member has everything, and sizes are counted on the device. Offline listings
    already answer from summaries.
@@ -76,16 +82,12 @@ Each says whether a server account offline has the same gap.
 
 ## Steps
 
-1. Find out, on a server account offline, whether making a workspace works (a root's creation
-   waiting in the outbox like any other block's), and whether making and rotating keys is kept
-   and sent later. Record the outcome in gaps 3 and 4: shared with server accounts, and filled
-   in step 2, or local accounts only, and filled in step 3.
-2. Fill the gaps server accounts share (2, and 3, 4 and 6 where they apply), moving logic from
-   the server into the client.
-3. A peer with no server: its local head is final, and its account, roots and settings are made
+1. Fill the gaps server accounts share (2, and 6 where it applies), moving logic from the server
+   into the client.
+2. A peer with no server: its local head is final, and its account, roots and settings are made
    on the device.
-4. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
-5. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
+3. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
+4. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
    be-server as a test dependency. Update guides/hosting.md (Local profiles and the default
    server), guides/blocks/server.md (Running it, Tests), guides/blocks/host.md and
    guides/running/native.md.
