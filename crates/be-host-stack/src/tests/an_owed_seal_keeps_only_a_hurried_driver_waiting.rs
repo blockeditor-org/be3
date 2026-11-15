@@ -15,6 +15,8 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
                 content_type: Uuid::new_v4(),
                 publish_error: None,
                 journaled: true,
+                unjournaled: None,
+                now: 0,
                 unreported: false,
                 publishing: 0,
                 joining: false,

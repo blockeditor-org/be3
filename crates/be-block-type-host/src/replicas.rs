@@ -588,6 +588,11 @@ pub struct Owing {
     /// Why its last publish failed, if it did.
     pub publish_error: Option<String>,
     pub journaled: bool,
+    /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
+    pub unjournaled: Option<String>,
+    /// The modules' clock as the host last counted (`Modules::now`), which the timers in
+    /// `unjournaled` read on.
+    pub now: u64,
     /// Whether an editor sent it something its module has not reported on yet.
     pub unreported: bool,
     /// Publishes of it not yet answered.
@@ -597,12 +602,14 @@ pub struct Owing {
 }
 
 impl Owing {
-    fn of(open: &Open) -> Self {
+    fn of(open: &Open, now: u64) -> Self {
         Self {
             block: open.block,
             content_type: open.content_type,
             publish_error: open.publish_error.clone(),
             journaled: open.status.journaled,
+            unjournaled: open.status.unjournaled.clone(),
+            now,
             unreported: open.unreported(),
             publishing: open.publishing,
             joining: open.joining,
@@ -615,10 +622,12 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            "{} of type {} (journaled: {}, unjournaled: {:?} at {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
             self.block,
             self.content_type,
             self.journaled,
+            self.unjournaled,
+            self.now,
             self.unreported,
             self.publishing,
             self.joining,
@@ -3643,6 +3652,7 @@ impl<H: Host> Replicas<H> {
     /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
     /// for its commit.
     pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
+        let now = self.modules.now();
         let unsealed = self
             .open
             .values()
@@ -3652,13 +3662,13 @@ impl<H: Host> Replicas<H> {
             .open
             .values()
             .filter(|open| open.status.owes_seal)
-            .map(Owing::of)
+            .map(|open| Owing::of(open, now))
             .collect();
         let undurable = self
             .open
             .values()
             .filter(|open| open.unreported() || (!open.status.clean && !open.status.journaled))
-            .map(Owing::of)
+            .map(|open| Owing::of(open, now))
             .collect();
         (unsealed, owing, undurable)
     }
