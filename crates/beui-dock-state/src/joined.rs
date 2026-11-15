@@ -254,28 +254,42 @@ impl DockState {
             .map(|group| group.id)
     }
 
-    /// A group of one bare pane stands for its hosting tab: its tab wears the host's title, icon and
-    /// close, and the host's home holds it.
-    /// The tab `tab` stands in for: itself, or, while it is the stage of a joined group (its only,
-    /// bare pane, `stands_for`), the tab that group took the place of, followed outwards. What a
-    /// stacked dock names and counts, so a document reads as itself, not as its editor's stage.
+    /// The tab `tab` stands in for: itself, or, while it shows in the bare stage of a joined group
+    /// (its only bare pane, or the bare pane beside its side panes, `stage_of`), the tab that group
+    /// took the place of, followed outwards. What a stacked dock names and counts, so a document
+    /// reads as itself, not as its editor's stage.
     pub fn standing_in(&self, tab: TabId) -> TabId {
         let mut standing = tab;
+        let mut entry = Entry::Tab(tab);
         for _ in 0..MAX_STANDING_DEPTH {
-            let Some((leaf, _)) = self.locate(Entry::Tab(standing)) else {
+            let Some((leaf, _)) = self.locate(entry) else {
                 break;
             };
             let Some(Tree::Group(group)) = self.tree_of(leaf) else {
                 break;
             };
-            match self.stands_for(group) {
-                Some(host) => standing = host,
-                None => break,
+            let Some(host) = self.group(group).and_then(|group| joined_host(group.key.as_deref()?))
+            else {
+                break;
+            };
+            let tree = Tree::Group(group);
+            let stage = match self.tree_leaves(tree)[..] {
+                [only] => self.is_bare(only).then_some(only),
+                _ => self.stage_of(tree),
+            };
+            if stage != Some(leaf) {
+                break;
             }
+            // The host tab gave way to the group, so the group is what stands in the dock
+            // around it: go on outwards from where the group is.
+            standing = host;
+            entry = Entry::Group(group);
         }
         standing
     }
 
+    /// A group of one bare pane stands for its hosting tab: its tab wears the host's title, icon and
+    /// close, and the host's home holds it.
     pub fn stands_for(&self, group: GroupId) -> Option<TabId> {
         let host = joined_host(self.group(group)?.key.as_deref()?)?;
         let [leaf] = self.tree_leaves(Tree::Group(group))[..] else {
