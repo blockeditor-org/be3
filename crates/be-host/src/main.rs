@@ -12,16 +12,16 @@ mod frame;
 mod input;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod instance;
+mod invitations;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
-mod invitations;
 mod members;
-mod qr;
 #[cfg(target_os = "linux")]
 mod memory;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
 mod pressed_notifications;
+mod qr;
 mod reveals;
 mod root_settings;
 mod shell_route;
@@ -1810,10 +1810,9 @@ impl HostCore {
             // A preview read is kept: the account signed in can't take the invitation, and is
             // told whose it is and offered another account.
             Err(error)
-                if self
-                    .joining
-                    .as_ref()
-                    .is_some_and(|joining| joining.preview.is_some() && joining.invitation.is_none()) =>
+                if self.joining.as_ref().is_some_and(|joining| {
+                    joining.preview.is_some() && joining.invitation.is_none()
+                }) =>
             {
                 if let Some(joining) = &mut self.joining {
                     joining.refused = Some(error.message);

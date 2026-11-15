@@ -34,7 +34,10 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     );
     assert_eq!(row.state, InvitationState::Waiting);
     assert_eq!(row.code, b"the code sealed to the inviter");
-    assert_eq!(row.expires - row.created, crate::limits::INVITATION_LIFETIME * 1000);
+    assert_eq!(
+        row.expires - row.created,
+        crate::limits::INVITATION_LIFETIME * 1000
+    );
     // Read before signing in, a one-shot call: the organization's name and the sealed card,
     // and nothing else, and the inviter then sees it opened.
     let preview = harness
@@ -85,6 +88,9 @@ async fn an_invitation_is_read_before_sign_in_and_listed_as_it_goes() {
     let listing = joiner
         .call(|peer| client::contacts::list_invitations(peer, organization))
         .await;
-    assert!(refused_as(&listing, ErrorCode::PermissionDenied), "{listing:?}");
+    assert!(
+        refused_as(&listing, ErrorCode::PermissionDenied),
+        "{listing:?}"
+    );
     harness.stop().await;
 }

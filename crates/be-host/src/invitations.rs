@@ -141,18 +141,16 @@ fn row(invite: &Invite) -> InvitationRow {
             "Accepted".to_owned(),
             format!("By {} on {}", invite.accepter, date(invite.ended)),
         ),
-        InvitationState::Expired => (
-            "Expired".to_owned(),
-            format!("On {}", date(invite.expires)),
-        ),
-        InvitationState::Revoked => (
-            "Revoked".to_owned(),
-            format!("On {}", date(invite.ended)),
-        ),
+        InvitationState::Expired => ("Expired".to_owned(), format!("On {}", date(invite.expires))),
+        InvitationState::Revoked => ("Revoked".to_owned(), format!("On {}", date(invite.ended))),
     };
     InvitationRow {
         id: invite.id,
-        title: format!("{state} · made by {} on {}", invite.inviter, date(invite.created)),
+        title: format!(
+            "{state} · made by {} on {}",
+            invite.inviter,
+            date(invite.created)
+        ),
         detail,
         link: invite.link.clone().filter(|_| open),
         revocable: open,
@@ -172,7 +170,11 @@ fn date(milliseconds: i64) -> String {
     let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let shifted = (5 * day_of_year + 2) / 153;
     let day = day_of_year - (153 * shifted + 2) / 5 + 1;
-    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let month = if shifted < 10 {
+        shifted + 3
+    } else {
+        shifted - 9
+    };
     let year = year_of_era + era * 400 + i64::from(month <= 2);
     format!("{year}-{month:02}-{day:02}")
 }

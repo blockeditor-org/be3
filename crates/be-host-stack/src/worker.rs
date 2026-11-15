@@ -553,7 +553,10 @@ pub(super) enum InvitationsCommand {
     Create(LinkReply),
     List(InvitationsReply),
     /// Answers the list as it is after.
-    Revoke { link: Uuid, reply: InvitationsReply },
+    Revoke {
+        link: Uuid,
+        reply: InvitationsReply,
+    },
 }
 
 type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
@@ -2723,9 +2726,11 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
 
 async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCommand) {
     match command {
-        InvitationsCommand::Create(reply) => {
-            reply(invite(peer, config).await.map_err(|error| error.to_string()))
-        }
+        InvitationsCommand::Create(reply) => reply(
+            invite(peer, config)
+                .await
+                .map_err(|error| error.to_string()),
+        ),
         InvitationsCommand::List(reply) => reply(
             list_invitations(peer, config)
                 .await
@@ -2761,11 +2766,12 @@ async fn list_invitations(
     Ok(rows
         .into_iter()
         .map(|row| crate::Invite {
-            link: be_block_client::contacts::invitation_link_code(identity, &row.code)
-                .map(|code| {
+            link: be_block_client::contacts::invitation_link_code(identity, &row.code).map(
+                |code| {
                     crate::own_invitation(&config.server_url, peer.account(), &code);
                     crate::invite_link::link(&base, &code)
-                }),
+                },
+            ),
             id: row.id,
             inviter: row.inviter_name,
             state: row.state,

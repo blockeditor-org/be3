@@ -6,7 +6,10 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
     let mut admin = harness.client().await;
     admin.register("admin@example.com").await;
     let organization = admin.organization("team").await;
-    let link = admin.invite(organization).await.expect("an administrator invites");
+    let link = admin
+        .invite(organization)
+        .await
+        .expect("an administrator invites");
     // Bound to no email: whoever holds the link reads and accepts it.
     let mut anyone = harness.member("anyone@elsewhere.example").await;
     let found = anyone
@@ -42,6 +45,9 @@ async fn an_invitation_joins_any_account_as_an_editor_once() {
     let accepted = second
         .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
         .await;
-    assert!(refused_as(&accepted, ErrorCode::LinkNotFound), "{accepted:?}");
+    assert!(
+        refused_as(&accepted, ErrorCode::LinkNotFound),
+        "{accepted:?}"
+    );
     harness.stop().await;
 }

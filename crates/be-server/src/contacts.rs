@@ -282,7 +282,13 @@ type LinkRow = (
 fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
     Ok((
         (row.get(0)?, row.get(1)?, row.get(2)?),
-        (row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?),
+        (
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+        ),
         (row.get(8)?, row.get(9)?, row.get(10)?, row.get(11)?),
         Invited {
             created: row.get(12)?,
@@ -393,7 +399,10 @@ fn mark_opened(connection: &Connection, link: Uuid) -> Result<(), ServerError> {
 }
 
 /// The organization's name, if it still exists.
-fn organization_name(connection: &Connection, organization: Uuid) -> Result<Option<String>, ServerError> {
+fn organization_name(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Option<String>, ServerError> {
     Ok(connection
         .query_row(
             "SELECT name FROM organizations WHERE id = ?1",
@@ -652,7 +661,8 @@ impl ServerStore {
     pub async fn link(&self, caller: Uuid, link: Uuid) -> Result<Link, ServerError> {
         self.with_database(move |_, database| {
             let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
-            if let (LinkKind::Invitation(invitation), Some(invited)) = (&stored.kind, stored.invited)
+            if let (LinkKind::Invitation(invitation), Some(invited)) =
+                (&stored.kind, stored.invited)
             {
                 let state = invitation_state(&database, &stored, invited, invitation.organization)?;
                 if !matches!(state, InvitationState::Waiting | InvitationState::Opened) {
@@ -715,7 +725,11 @@ impl ServerStore {
             // An ended invitation says only that it ended.
             let open = state == InvitationState::Opened;
             Ok(InvitationPreview {
-                organization_name: if open { organization_name } else { String::new() },
+                organization_name: if open {
+                    organization_name
+                } else {
+                    String::new()
+                },
                 card: if open { stored.card } else { Vec::new() },
                 state,
             })

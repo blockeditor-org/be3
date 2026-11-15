@@ -6,8 +6,8 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnKind,
-    OwnSealed, PendingGrant, SealedKey, client,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnKind, OwnSealed, PendingGrant,
+    SealedKey, client,
 };
 use uuid::Uuid;
 
@@ -471,14 +471,15 @@ pub async fn preview_invitation(
     code: &InviteCode,
 ) -> Result<(be_block_protocol::InvitationPreview, Option<ContactCard>), ClientError> {
     let id = link_id(code);
-    let preview =
-        crate::call_once(server_url, move |peer| client::contacts::read_invitation(peer, id))
-            .await?;
+    let preview = crate::call_once(server_url, move |peer| {
+        client::contacts::read_invitation(peer, id)
+    })
+    .await?;
     let card = match preview.card.is_empty() {
         true => None,
-        false => Some(
-            ContactCard::open(code, CardRole::Owner, &preview.card).map_err(|_| tampered())?,
-        ),
+        false => {
+            Some(ContactCard::open(code, CardRole::Owner, &preview.card).map_err(|_| tampered())?)
+        }
     };
     Ok((preview, card))
 }

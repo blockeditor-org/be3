@@ -1606,7 +1606,11 @@ fn own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteC
 }
 
 /// Whether `code` is an invitation `account` on `server_url` made or listed as its own here.
-pub fn is_own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteCode) -> bool {
+pub fn is_own_invitation(
+    server_url: &str,
+    account: Uuid,
+    code: &be_block_keys::InviteCode,
+) -> bool {
     OWN_INVITATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -1636,7 +1640,9 @@ type InvitationsReply = Box<dyn FnOnce(Result<Vec<Invite>, String>) + Send>;
 
 /// The organization's invitations, newest first; an administrator's only.
 pub fn list_invitations(reply: InvitationsReply) {
-    send(Command::Invitations(worker::InvitationsCommand::List(reply)));
+    send(Command::Invitations(worker::InvitationsCommand::List(
+        reply,
+    )));
 }
 
 /// Revokes an invitation still outstanding, and answers the list after.

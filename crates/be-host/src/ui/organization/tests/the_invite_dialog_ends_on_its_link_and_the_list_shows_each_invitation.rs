@@ -10,7 +10,8 @@ fn the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation() {
             busy: false,
             error: None,
             link: Some(
-                "https://api.be3.example/#invite/ABCDEFGHJKMNPQRSTVWXYZ234567ABCDEFGHJKMNP".to_owned(),
+                "https://api.be3.example/#invite/ABCDEFGHJKMNPQRSTVWXYZ234567ABCDEFGHJKMNP"
+                    .to_owned(),
             ),
         }),
         ..Default::default()
@@ -18,16 +19,15 @@ fn the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation() {
     shown.painted("the_invite_dialog_ends_on_its_link");
     // Each invitation's state, whose it is and when: copy and revoke for an open one of the
     // person's own, a fresh link for an expired one.
-    let row = |id: u128, title: &str, detail: &str, own: bool, open: bool, expired: bool| {
-        InvitationRow {
+    let row =
+        |id: u128, title: &str, detail: &str, own: bool, open: bool, expired: bool| InvitationRow {
             id: uuid::Uuid::from_u128(id),
             title: title.to_owned(),
             detail: detail.to_owned(),
             link: (own && open).then(|| "https://api.be3.example/#invite/CODE".to_owned()),
             revocable: open,
             renewable: expired,
-        }
-    };
+        };
     let mut shown = Shown::dialogs(HostUi {
         invitations: Some(InvitationsView {
             rows: vec![

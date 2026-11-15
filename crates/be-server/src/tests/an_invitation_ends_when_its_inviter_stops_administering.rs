@@ -20,9 +20,7 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         .unwrap()
         .account;
     let promoted = owner
-        .call(|peer| {
-            client::members::set_role(peer, account, OrganizationRole::Administrator)
-        })
+        .call(|peer| client::members::set_role(peer, account, OrganizationRole::Administrator))
         .await;
     assert!(matches!(promoted, Ok(())), "{promoted:?}");
     deputy.open(organization).await;
@@ -49,7 +47,10 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         )
         .unwrap();
     let accepted = invited.accept(link, &[]).await;
-    assert!(refused_as(&accepted, ErrorCode::LinkNotFound), "{accepted:?}");
+    assert!(
+        refused_as(&accepted, ErrorCode::LinkNotFound),
+        "{accepted:?}"
+    );
     let preview = harness
         .once(move |peer| client::contacts::read_invitation(peer, link))
         .await
@@ -61,7 +62,10 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         .await
         .unwrap();
     assert_eq!(
-        listed.iter().find(|row| row.id == link).map(|row| row.state),
+        listed
+            .iter()
+            .find(|row| row.id == link)
+            .map(|row| row.state),
         Some(InvitationState::Revoked)
     );
     harness.stop().await;

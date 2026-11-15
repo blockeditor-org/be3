@@ -44,5 +44,9 @@ fn an_invite_link_says_whose_it_is_before_and_after_signing_in() {
             </beui::styled::Root>
         }
     });
-    painting_of("an_invite_link_for_an_account_already_a_member", document, false);
+    painting_of(
+        "an_invite_link_for_an_account_already_a_member",
+        document,
+        false,
+    );
 }

@@ -655,7 +655,11 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                 view! {
                     <Card>
                         <List spacing=Space::Md>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
                                 <ListItem grow=1.0>
                                     <List spacing=Space::Xs2>
                                         <Text size=TextSize::Lg>{title}</Text>
@@ -679,9 +683,16 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                                 </Show>
                             </List>
                             <Show value={refused}>
-                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Md
+                                >
                                     <ListItem grow=1.0>
-                                        <Text style=TextStyle::CAPTION @test_id={"host.join.problem"}>
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            @test_id={"host.join.problem"}
+                                        >
                                             {problem}
                                         </Text>
                                     </ListItem>

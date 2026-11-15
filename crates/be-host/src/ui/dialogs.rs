@@ -11,7 +11,7 @@ use be_host_accounts_ui::ErrorText;
 use super::{
     AgentRow, ContactRow, HostUiStore, InvitationRow, MemberRow, UiCommand, UnsentRow, send,
 };
-use beui::{Align, Direction, Extent};
+use beui::{Align, Direction};
 
 #[component]
 pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
@@ -99,8 +99,8 @@ fn InvitePanel(view: HostUiStore) -> NodeId {
                             />
                             <List align=Align::Center spacing=Space::None>
                                 <Frame
-                                    width={Extent::px(Size::Custom(192.0).px())}
-                                    height={Extent::px(Size::Custom(192.0).px())}
+                                    width={Size::Custom(192.0)}
+                                    height={Size::Custom(192.0)}
                                     @test_id={"host.invite.qr"}
                                 >
                                     <Picture image={code} smooth=false />

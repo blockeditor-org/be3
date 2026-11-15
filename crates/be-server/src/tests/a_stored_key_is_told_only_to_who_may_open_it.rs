@@ -12,10 +12,7 @@ async fn member(
 ) -> (TestClient, Uuid, Stream<()>) {
     let mut member = harness.client().await;
     let account = member.register(email).await;
-    let link = owner
-        .invite(organization)
-        .await
-        .expect("inviting failed");
+    let link = owner.invite(organization).await.expect("inviting failed");
     let accepted = member.accept(link, &[]).await;
     assert!(accepted.is_ok(), "{accepted:?}");
     member.open(organization).await;
