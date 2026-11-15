@@ -45,6 +45,15 @@ const SCHEMA: &str = "
         id      INTEGER PRIMARY KEY CHECK (id = 0),
         content BLOB NOT NULL
     );
+    CREATE TABLE push_receiver (
+        id       INTEGER PRIMARY KEY CHECK (id = 0),
+        keys     BLOB NOT NULL,
+        endpoint TEXT
+    );
+    CREATE TABLE shown_pushes (
+        digest BLOB PRIMARY KEY,
+        at     INTEGER NOT NULL
+    );
 ";
 
 enum Opened {
@@ -377,6 +386,68 @@ impl HostStateStore {
 
     pub fn set_tried_display_modes(&self, modes: &str) -> Result<(), HostStateError> {
         self.set_setting("tried_display_modes", modes)
+    }
+
+    /// This device's keys for pushes it decrypts itself (Android's UnifiedPush receiver), made
+    /// by `make` the first time. Two callers at once agree on the first one kept.
+    pub fn push_keys_or_make(
+        &self,
+        make: impl FnOnce() -> Vec<u8>,
+    ) -> Result<Vec<u8>, HostStateError> {
+        if let Some(keys) = self.push_keys()? {
+            return Ok(keys);
+        }
+        self.connection.execute(
+            "INSERT OR IGNORE INTO push_receiver (id, keys) VALUES (0, ?1)",
+            params![make()],
+        )?;
+        self.push_keys()?
+            .ok_or_else(|| HostStateError::from("the push keys were not kept".to_owned()))
+    }
+
+    pub fn push_keys(&self) -> Result<Option<Vec<u8>>, HostStateError> {
+        Ok(self
+            .connection
+            .query_row("SELECT keys FROM push_receiver", [], |row| row.get(0))
+            .optional()?)
+    }
+
+    /// The endpoint the push distributor gave this device, until it takes it back.
+    pub fn push_endpoint(&self) -> Result<Option<String>, HostStateError> {
+        Ok(self
+            .connection
+            .query_row("SELECT endpoint FROM push_receiver", [], |row| row.get(0))
+            .optional()?
+            .flatten())
+    }
+
+    /// Keeps the endpoint with the keys it was made for: nothing is kept without keys.
+    pub fn set_push_endpoint(&self, endpoint: Option<&str>) -> Result<(), HostStateError> {
+        self.connection.execute(
+            "UPDATE push_receiver SET endpoint = ?1",
+            params![endpoint],
+        )?;
+        Ok(())
+    }
+
+    /// Notes that the push whose sealed bytes hash to `digest` was shown at `at`, and forgets
+    /// those shown before `forget_before`: false when it was shown already, so a push the server
+    /// resent is dropped.
+    pub fn first_showing(
+        &self,
+        digest: &[u8],
+        at: i64,
+        forget_before: i64,
+    ) -> Result<bool, HostStateError> {
+        self.connection.execute(
+            "DELETE FROM shown_pushes WHERE at < ?1",
+            params![forget_before],
+        )?;
+        let added = self.connection.execute(
+            "INSERT OR IGNORE INTO shown_pushes (digest, at) VALUES (?1, ?2)",
+            params![digest, at],
+        )?;
+        Ok(added == 1)
     }
 
     fn setting(&self, key: &str) -> Result<Option<String>, HostStateError> {

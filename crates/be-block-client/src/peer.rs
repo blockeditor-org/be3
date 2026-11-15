@@ -655,6 +655,23 @@ impl<S: ObjectStore> Peer<S> {
                 .collect(),
         );
         self.keys.set_contacts(verified);
+        let _ = self.refs.set_contact_names(
+            contacts
+                .iter()
+                .map(|contact| (contact.account, contact.display_name.clone()))
+                .collect(),
+        );
+    }
+
+    /// A contact's name as the server last listed it, kept for when there is no connection.
+    pub fn contact_name(&self, account: Uuid) -> Option<String> {
+        self.refs.contact_name(account)
+    }
+
+    /// The name of `block` as this device last heard it, with no network: from its kept
+    /// summary, opened with the keys kept here.
+    pub fn kept_name(&self, block: Uuid) -> Option<String> {
+        self.metadata(&self.refs.summary(block)?).ok()?.name()
     }
 
     pub fn kind(&self) -> OrganizationKind {
