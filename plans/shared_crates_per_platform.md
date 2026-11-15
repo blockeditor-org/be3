@@ -66,8 +66,10 @@ unicode and icu data build for them too, though no app indexes anything:
 2. Make be-sdk depend on be-block-content only, and have the apps that use a
    built-in (the eight above, plus be-sdk-beui's settings) depend on be-block
    themselves; or move what be-sdk's `root_settings` needs into a crate the
-   SDK owns. Apps that use no built-in (checklist, text, chat, image, video,
-   pdf, map, the examples, ...) then stop building be-block. Mostly
+   SDK owns; and do the same for be-sdk-beui, which depends on be-block too.
+   Cutting both edges stops the twenty apps that use no built-in (checklist,
+   text, chat, image, video, pdf, map, the examples, ...) from building
+   be-block; cutting be-sdk's alone frees one. Mostly
    mechanical; deciding which of `root_settings` is SDK surface is the design
    part.
 3. Split be-block-commit's host-only parts from what the replica uses:
