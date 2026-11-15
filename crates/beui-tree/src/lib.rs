@@ -12,8 +12,8 @@ pub mod prop;
 pub mod prop_value;
 
 pub mod reactive {
-    pub use crate::binding::{Binding, IntoBinding};
-    pub use crate::callback::{Callback, IntoCallback, IntoUnitCallback};
+    pub use crate::binding::Binding;
+    pub use crate::callback::Callback;
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{
         AtMostOneChild, Branch, ChildSegment, ChildSlot, Children, ChildrenSlot, ComponentOutput,
@@ -23,8 +23,8 @@ pub mod reactive {
         SlotHost, Unwrapped, ValueFallback, ZeroOrOne, into_child, into_segment,
     };
     pub use crate::component::{
-        BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
-        ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp,
+        Build, BuildFn, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
+        ComponentRecord, MissingProp,
         Render, RenderFn, component, current_component, try_current_component,
     };
     pub use crate::control::{
@@ -37,13 +37,13 @@ pub mod reactive {
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::keep::{kept_shown, provide_kept_shown};
     pub use crate::prop::{
-        ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoFunc, IntoLiftedProp,
-        IntoOptionalFunc, IntoOptionalProp, IntoProp, IntoPropFrom, IntoPropWith, IntoReadProp, PassedOn, Prop,
+        ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoLiftedProp, IntoProp,
+        IntoPropFrom, IntoReadProp, Prop,
     };
     pub use crate::prop_value::{
         AbsentProp, ByBlock, ByChildClosure, ByChildUnitClosure, ByChildWith, ByExact, ByInto,
         ByProp, BySignal, ByUnitClosure, ChildBlock, ChildClosure, ChildUnitClosure, ChildWith, FnOnceSlot, FnSlot, NoHandedSlot, Slot,
-        Exact, IntoPropValue, Itself, SetProp, TakesBlock, TakesClosure, TakesOptionalBlock, TakesUnitClosure,
+        Exact, IntoPropValue, Is, Itself, MarkedRequired, PropOr, PropTakes, ReadProp, ReadPropTakes, SameType, SetProp, TakesBlock, TakesClosure, TakesNoChildren, TakesOptionalBlock, TakesUnitClosure,
         TakesWith, ChildShape, Val,
     };
     pub use beui_macros::{component, view};

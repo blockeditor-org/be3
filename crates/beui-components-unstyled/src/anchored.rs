@@ -11,7 +11,7 @@ use beui_view::types::{Dismiss, LayerPolicy};
 pub struct AnchoredSheetHandle {
     pub open: Memo<bool>,
     pub on_close: Callback<()>,
-    pub content: Render,
+    pub content: Build<NodeId>,
 }
 
 #[derive(Clone, Copy)]
@@ -22,8 +22,8 @@ pub struct AnchoredHandle {
 
 #[derive(Clone, Copy)]
 pub struct AnchoredStyle {
-    pub(crate) dropdown: RenderFn<NodeId>,
-    pub(crate) sheet: RenderFn<AnchoredSheetHandle>,
+    pub(crate) dropdown: RenderFn<NodeId, NodeId>,
+    pub(crate) sheet: RenderFn<AnchoredSheetHandle, NodeId>,
 }
 
 impl AnchoredStyle {
@@ -64,7 +64,7 @@ pub fn Anchored(
     trigger: Option<NodeRef>,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: RenderFn<AnchoredHandle>,
+    #[prop(children)] content: RenderFn<AnchoredHandle, NodeId>,
 ) -> NodeId {
     let mut was_open = false;
     let mut touched = false;
@@ -108,7 +108,7 @@ pub fn Anchored(
                 style.sheet.call(AnchoredSheetHandle {
                     open: raised,
                     on_close: Callback::new(move |()| on_dismiss.call(())),
-                    content: Render::new(move |()| {
+                    content: Build::new(move || {
                         content.call(AnchoredHandle {
                             sheet: true,
                             shown: raised,

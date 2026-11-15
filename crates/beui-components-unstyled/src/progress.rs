@@ -26,7 +26,7 @@ pub struct ProgressHandle {
 pub fn Progress(
     value: Prop<Option<f32>>,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(children)] content: Render<ProgressHandle>,
+    #[prop(children)] content: Render<ProgressHandle, NodeId>,
 ) -> NodeId {
     let value = create_memo(move || value.get().map(|value| value.clamp(0.0, 1.0)));
     let indeterminate = create_memo(move || value.with(Option::is_none));

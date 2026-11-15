@@ -15,7 +15,13 @@ asks for. A new parent implements `ParentKind` (and `BareChild` if a bare
 `NodeId` should fit). A slot holds runs, not a flat list, which is how a
 fragment, `Show` or `ForEach` fills places among siblings it does not own. A
 `Vec` of nodes does not fill a slot; write a `ForEach` over the keys inside the
-same `view!`.
+same `view!`. A slot may also be a render prop (`Render`, `RenderFn`, `Build`,
+`BuildFn`, or an `Option` of one). `view!` hands the children to the slot's one
+setter wrapped by how they are written (tags, `|| {..}`, `|value| {..}`,
+`|value| <Tag />`), and the slot type says which it takes (`TakesBlock`,
+`TakesUnitClosure`, `TakesClosure`, `TakesWith`): a child type takes tags that
+build one, `Children` takes a run, and only a render handed a value takes
+`|value|`. A new child type gets its impls from `child_type!`.
 
 **Control flow.** Every control-flow component reads its value from `value`,
 takes its children as its body, and takes a `fallback` for when there is
@@ -108,7 +114,10 @@ them, as they do outside any component.
 `#[component]` as well as each method; props go on the trait's declaration.
 Use them as `<A::View editor />`. A component method takes no `self`.
 
-**Props.** A `Prop<T>` prop takes a `T`, a signal or memo of one, or a closure
+**Props.** Every setter `#[component]` writes takes `impl IntoPropValue<P, M>`
+for the prop's declared type `P`, and each prop type says in `beui-tree`
+(`prop_value.rs`) what it takes; the macro reads no type names. Every type takes
+itself. A `Prop<T>` prop also takes a `T`, a signal or memo of one, or a closure
 returning one, which it reads as a getter: `value={move || !hex.get()}`.
 Pass a derived value as a closure. Make a memo instead when its output changes
 less often than its inputs (a boolean from a scroll offset or a long list), so
@@ -116,11 +125,33 @@ what reads it is not woken for nothing, or when it is costly and read in
 several places. Pass a signal or memo as it is, not as `move || memo.get()`. A closure
 returns the prop's own type: the conversions a prop type adds with
 `into_prop_via!` (a `Space` for a `Padding`) apply to values, signals and memos,
-not to closures. Every builder method and function that takes a prop takes
-`impl IntoPropWith<T, M>`, never `impl IntoProp<T>`, so it takes a closure too. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
-clone a non-`Copy` prop in a block head:
+not to closures. An `Option<X>` takes what an `X` takes, or an `Option<X>` passed
+on as it is; a `String` takes a `&str`; a `Callback<T>` takes an `FnMut(T)`, a
+`Signal<T>` (which it sets) or a `Binding<T>`, and a `Callback<()>` also a
+closure without arguments (`on_click={move || ..}`), called with `.call(())`; a
+render prop takes a closure taking its handle, or one taking nothing. A plain
+type takes only itself, so a `From` conversion a caller wants is an
+`IntoPropValue` impl on the prop's type, and a function item passed for a
+`fn(..)` prop is cast (`name={ThemeKind::name as fn(_) -> _}`). Every builder
+method and function that takes a prop takes `impl IntoPropValue<Prop<T>, M>`
+(or `<Callback<T>, M>`), never `impl IntoProp<T>`, so it takes what a tag would.
+
+A prop whose last type argument is one of the component's own type parameters,
+named by no other prop (`Show`'s `value: Prop<V>`, its `then: RenderFn<V::Handed,
+B>`), takes what is passed without converting it (`Exact`), so that parameter
+follows what is passed: a signal, memo or closure for the `Prop`, and the very
+value a closure builds for the render. A prop typed by a bare type parameter
+takes its value as it is. Write every type argument of a render (`Render<H, C>`,
+`RenderFn<H, C>`); one handed nothing is a `Build<C>` or `BuildFn<C>`, and the
+macro rejects `Render<(), C>`.
+
+An un-annotated closure parameter is inferred only from how the body uses it,
+not from the prop: `on_change={|v| ..}` that calls a method on `v` names its type
+(`|v: String|`). A closure written between tags is typed by its slot, so
+`<Show value={picked}>|item| { item.get(); .. }</Show>` needs none. A tag's
+children are built in a `move` closure, so inside a render closure that runs
+more than once, clone a non-`Copy` prop in a block head:
 `<Show value={shown}>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
-A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.
 
 **Ownership.** A node belongs to the scope it was built in and leaves the tree
 when that scope is disposed, so a subtree that outlives its builder (one shown

@@ -931,8 +931,8 @@ pub fn Reorder<K, P>(
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
     on_drop_outside: Callback<(K, DragPoint)>,
-    preview: RenderFn<P>,
-    #[prop(children)] content: Render<ReorderHandle<K, P>>,
+    preview: RenderFn<P, NodeId>,
+    #[prop(children)] content: Render<ReorderHandle<K, P>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -1151,7 +1151,7 @@ pub fn ReorderItem<K, P>(
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
     on_click: Callback<()>,
-    #[prop(children)] content: Render<ReorderItemHandle>,
+    #[prop(children)] content: Render<ReorderItemHandle, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,

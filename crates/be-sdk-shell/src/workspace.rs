@@ -1329,14 +1329,14 @@ impl Workspace {
 pub fn BlockTab(
     workspace: Workspace,
     tab: TabId,
-    #[prop(default = None)] bar: Option<RenderFn<(), NodeId>>,
+    #[prop(default = None)] bar: Option<BuildFn<NodeId>>,
     #[prop(default = None)] preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
 ) -> DockEntry<TabId> {
     let title = workspace.tab_title(tab);
     let icon = workspace.tab_glyph(tab);
     let bar = RenderFn::new(move |()| match bar {
-        Some(bar) => bar.call(()),
+        Some(bar) => bar.call(),
         None => view! {
             <List spacing=Space::None />
         },

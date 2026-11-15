@@ -286,7 +286,7 @@ pub fn ColorPickerArea(
     picker: ColorPickerState,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<ColorAreaHandle>,
+    #[prop(children)] content: Render<ColorAreaHandle, NodeId>,
 ) -> NodeId {
     view! {
         <ColorArea
@@ -304,7 +304,7 @@ pub fn ColorPickerArea(
 pub fn HueSlider(
     picker: ColorPickerState,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<SliderHandle>,
+    #[prop(children)] content: Render<SliderHandle, NodeId>,
 ) -> NodeId {
     let color = picker.color();
     let hue = create_memo(move || color.get().hue);
@@ -326,7 +326,7 @@ pub fn HueSlider(
 pub fn AlphaSlider(
     picker: ColorPickerState,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<SliderHandle>,
+    #[prop(children)] content: Render<SliderHandle, NodeId>,
 ) -> NodeId {
     let color = picker.color();
     let alpha = create_memo(move || color.get().alpha);
@@ -352,7 +352,7 @@ pub fn Swatches(
     picker: ColorPickerState,
     swatches: Vec<Color32>,
     spacing: f32,
-    #[prop(children)] content: RenderFn<SwatchHandle>,
+    #[prop(children)] content: RenderFn<SwatchHandle, NodeId>,
 ) -> NodeId {
     let shown = picker.shown();
     let held = swatches.clone();

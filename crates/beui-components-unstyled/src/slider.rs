@@ -79,7 +79,7 @@ pub fn Slider(
     #[prop(default = 0.0)] thumb: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    #[prop(children)] content: Option<Render<SliderHandle>>,
+    #[prop(children)] content: Option<Render<SliderHandle, NodeId>>,
     on_drag_change: Callback<bool>,
     on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,

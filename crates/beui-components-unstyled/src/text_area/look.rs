@@ -9,8 +9,8 @@ use super::hooks::{LeafSpan, PlainLine, TextLeaf, TextLine, TextMarker};
 #[derive(Clone, Copy)]
 pub struct TextAreaLook {
     pub leaf: RenderFn<TextLeaf, Span>,
-    pub marker: RenderFn<TextMarker>,
-    pub line: RenderFn<TextLine>,
+    pub marker: RenderFn<TextMarker, NodeId>,
+    pub line: RenderFn<TextLine, NodeId>,
     pub geometry: Prop<TextAreaGeometry>,
 }
 

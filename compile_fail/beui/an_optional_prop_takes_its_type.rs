@@ -4,5 +4,5 @@ use beui::styled::*;
 
 #[component]
 fn Case() -> NodeId {
-    view! { <List spacing=Space::None><Spacer grow="wide" /></List> } //~ ERROR cannot be passed as an optional `f32` prop
+    view! { <List spacing=Space::None><Spacer grow="wide" /></List> } //~ ERROR cannot be passed as a `f32` prop
 }

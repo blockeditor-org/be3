@@ -52,7 +52,7 @@ pub fn Modal(
     motion: ModalMotion,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render<ModalHandle>,
+    #[prop(children)] content: Render<ModalHandle, NodeId>,
 ) -> NodeId {
     let presence = create_signal(match motion {
         ModalMotion::Slides(_) | ModalMotion::Still => 1.0_f32,

@@ -231,7 +231,7 @@ where
 #[component]
 pub fn DockDocumentBody<K, T, I>(
     document: DockDocument<K, T, I>,
-    #[prop(children)] body: RenderFn<ReadSignal<T>>,
+    #[prop(children)] body: RenderFn<ReadSignal<T>, NodeId>,
 ) -> NodeId
 where
     K: DockKey,

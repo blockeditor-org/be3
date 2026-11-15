@@ -95,9 +95,9 @@ pub fn Calendar(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] show: Prop<Option<Date>>,
     #[prop(default = 0.0)] spacing: f32,
-    header: Render<CalendarHeaderHandle>,
-    weekday: RenderFn<Weekday>,
-    cell: RenderFn<CalendarCellHandle>,
+    header: Render<CalendarHeaderHandle, NodeId>,
+    weekday: RenderFn<Weekday, NodeId>,
+    cell: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     let today = today.get_untracked().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
@@ -263,7 +263,7 @@ fn CalendarYearRow(
     row: usize,
     first_year: Memo<i32>,
     spacing: f32,
-    year: RenderFn<CalendarCellHandle>,
+    year: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     component_accessibility(Node::new(Role::Row));
     view! {
@@ -287,7 +287,7 @@ fn CalendarYear(
     state: State,
     offset: i32,
     first_year: Memo<i32>,
-    face: RenderFn<CalendarCellHandle>,
+    face: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     let year = create_memo(move || first_year.get() + offset);
     let selected = create_memo(move || {
@@ -364,7 +364,7 @@ fn CalendarGrid(
 }
 
 #[component]
-fn CalendarWeekday(weekday: Weekday, face: RenderFn<Weekday>) -> NodeId {
+fn CalendarWeekday(weekday: Weekday, face: RenderFn<Weekday, NodeId>) -> NodeId {
     let mut node = Node::new(Role::ColumnHeader);
     node.set_label(weekday.name());
     component_accessibility(node);
@@ -379,7 +379,7 @@ fn CalendarWeek(
     week: usize,
     grid_start: Memo<Date>,
     spacing: f32,
-    day: RenderFn<CalendarCellHandle>,
+    day: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     component_accessibility(Node::new(Role::Row));
     view! {
@@ -403,7 +403,7 @@ fn CalendarDay(
     state: State,
     offset: i64,
     grid_start: Memo<Date>,
-    face: RenderFn<CalendarCellHandle>,
+    face: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     let date = create_memo(move || grid_start.get().add_days(offset));
     let selected = create_memo(move || state.selected.get() == Some(date.get()));
@@ -465,7 +465,7 @@ fn CalendarMonthRow(
     state: State,
     row: usize,
     spacing: f32,
-    month: RenderFn<CalendarCellHandle>,
+    month: RenderFn<CalendarCellHandle, NodeId>,
 ) -> NodeId {
     component_accessibility(Node::new(Role::Row));
     view! {
@@ -484,7 +484,7 @@ fn CalendarMonthRow(
 }
 
 #[component]
-fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -> NodeId {
+fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle, NodeId>) -> NodeId {
     let month = create_memo(move || Date::new(state.active.get().year, number, 1));
     let selected = create_memo(move || {
         state

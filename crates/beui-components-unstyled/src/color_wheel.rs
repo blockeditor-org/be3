@@ -201,7 +201,7 @@ pub fn ColorWheel(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<ColorWheelHandle>,
+    #[prop(children)] content: Render<ColorWheelHandle, NodeId>,
     on_drag_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {

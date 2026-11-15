@@ -143,8 +143,8 @@ pub fn DateTimeField(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = None)] focus_segment: Prop<Option<DateSegment>>,
     #[prop(default = String::new())] label: Prop<String>,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
     on_focus_change: Callback<bool>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_draft: Callback<DateDraft>,
@@ -258,8 +258,8 @@ fn SegmentView(
     state: State,
     segment: DateSegment,
     prefix: String,
-    literal: RenderFn<String>,
-    face: RenderFn<DateSegmentHandle>,
+    literal: RenderFn<String, NodeId>,
+    face: RenderFn<DateSegmentHandle, NodeId>,
 ) -> NodeId {
     let hovered = create_signal(false);
     let is_focused = create_signal(false);

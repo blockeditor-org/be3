@@ -53,7 +53,7 @@ pub fn TimeList(
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     scroll: ScrollStyle,
-    option: RenderFn<TimeOptionHandle>,
+    option: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
@@ -127,7 +127,7 @@ fn TimeRow(
     row: usize,
     spacing: f32,
     hour_cycle: HourCycle,
-    face: RenderFn<TimeOptionHandle>,
+    face: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let columns = state.columns;
     let times = state.times;
@@ -172,7 +172,7 @@ fn TimeOption(
     state: State,
     minutes: u32,
     hour_cycle: HourCycle,
-    face: RenderFn<TimeOptionHandle>,
+    face: RenderFn<TimeOptionHandle, NodeId>,
 ) -> NodeId {
     let time = Time::from_minutes(minutes);
     let label = time.format(hour_cycle);

@@ -8,7 +8,7 @@ use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{
-    AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set, Signal,
+    AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Build, Scope, Set, Signal,
     Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup, provide_context,
     provide_kept_shown, untrack, use_context,
 };
@@ -95,7 +95,7 @@ struct KeepAliveCache(Rc<Cache>);
 pub fn KeepAlive<B, KS, AS>(
     keep: KS,
     awake: AS,
-    #[prop(children)] content: Render<(), B>,
+    #[prop(children)] content: Build<B>,
 ) -> B::Output
 where
     B: Unwrapped + 'static,
@@ -139,7 +139,7 @@ where
         }
     });
     provide_context(KeepAliveCache(cache));
-    content.call(()).unwrapped()
+    content.call().unwrapped()
 }
 
 /// A subtree its `KeepAlive` keeps by `key` (without one, the one unkeyed subtree of that
@@ -148,7 +148,7 @@ where
 /// `kept_shown()` says whether it is shown, so what it holds outside itself (a dock it
 /// joined) lets go while it is hidden. A `Kept` inside another one's subtree pauses with it.
 #[component]
-pub fn Kept<K>(key: K, #[prop(children)] content: Render<(), NodeId>) -> NodeId
+pub fn Kept<K>(key: K, #[prop(children)] content: Build<NodeId>) -> NodeId
 where
     K: KeptKey,
 {
@@ -194,7 +194,7 @@ where
                         && held_around.get().is_none_or(|around| around.get())
                 });
                 provide_kept_shown(shown);
-                content.call(())
+                content.call()
             });
             cache.entries.borrow_mut().insert(
                 key.clone(),

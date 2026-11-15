@@ -122,7 +122,7 @@ pub(super) fn Collapsing<T>(
     options: Children<ChoiceOption<T>>,
     #[prop(required)] selected: Binding<T>,
     label: Memo<String>,
-    #[prop(children)] wide: Render<Wide<T>>,
+    #[prop(children)] wide: Render<Wide<T>, NodeId>,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,

@@ -37,7 +37,8 @@ those macros' doc comments.
 - Use a component as a tag: `<Button label="Save" on_click={save} />`. The
   generated builder is not an API; only the macro checks props, routes `@`
   modifiers and keeps render props unbuilt. To pass a component around, pass a
-  `Render`/`RenderFn` closure that writes a `view!`.
+  `Render`/`RenderFn` (or, handed nothing, `Build`/`BuildFn`) closure that
+  writes a `view!`.
 - Bind signals and memos to props rather than reading them while building. Key
   a `ForEach` by item identity, never by content, so rows keep their nodes,
   focus and caret. State a control both shows and changes is one `Binding<T>`

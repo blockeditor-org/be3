@@ -122,7 +122,7 @@ pub fn TextInput(
     #[prop(default = String::new())] autocomplete: Prop<String>,
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(default = false)] multiline: bool,
-    #[prop(children)] content: Option<Render<TextInputHandle>>,
+    #[prop(children)] content: Option<Render<TextInputHandle, NodeId>>,
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     style: TextInputStyle,

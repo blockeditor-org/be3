@@ -33,7 +33,7 @@ impl DialogControl {
 pub(crate) fn AppDialog(
     host: EditorHost,
     control: Rc<Cell<Option<DialogControl>>>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let narrow = create_signal(false);
     let inset = create_signal(0.0_f32);
@@ -75,7 +75,7 @@ pub(crate) fn AppDialog(
             escape
         },
     );
-    let body = content.call(());
+    let body = content.call();
     on_back(true, move |gesture| {
         if gesture == BackGesture::Invoked {
             dismiss.call(());
@@ -85,14 +85,14 @@ pub(crate) fn AppDialog(
 }
 
 #[component]
-pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Render) -> NodeId {
+pub(crate) fn SettingsDialog(artifacts: Artifacts, #[prop(children)] content: Build<NodeId>) -> NodeId {
     let settings = artifacts.settings();
     let saved = artifacts.saved_settings();
     let unchanged =
         create_memo(move || settings.with(|settings| saved.with(|saved| settings == saved)));
     let cancel = artifacts.host().clone();
     let apply = artifacts.host().clone();
-    let body = content.call(());
+    let body = content.call();
     view! {
         <DialogBody
             title="Dynamic artifact settings"

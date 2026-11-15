@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use std::any::Any;
 
 use crate::reactive::{
-    Get, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedTrigger, Prop,
+    Get, IntoPropValue, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedTrigger, Prop,
     create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
 };
 use crate::types::icons::Glyph;
@@ -164,12 +164,12 @@ impl Action {
     #[allow(clippy::new_ret_no_self)]
     pub fn new<M1>(
         id: impl Into<String>,
-        label: impl IntoPropWith<String, M1>,
+        label: impl IntoPropValue<Prop<String>, M1>,
         run: impl Fn() + 'static,
     ) -> ActionBuilder {
         ActionBuilder {
             id: id.into(),
-            label: label.into_prop_with(),
+            label: label.into_prop_value(),
             glyph: None,
             shortcuts: Vec::new(),
             enabled: Prop::Static(true),
@@ -307,19 +307,19 @@ impl ActionBuilder {
         self
     }
 
-    pub fn enabled<M>(mut self, enabled: impl IntoPropWith<bool, M>) -> Self {
-        self.enabled = enabled.into_prop_with();
+    pub fn enabled<M>(mut self, enabled: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        self.enabled = enabled.into_prop_value();
         self
     }
 
-    pub fn checked<M>(mut self, checked: impl IntoPropWith<bool, M>) -> Self {
-        self.checked = Some(checked.into_prop_with());
+    pub fn checked<M>(mut self, checked: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        self.checked = Some(checked.into_prop_value());
         self.radio = false;
         self
     }
 
-    pub fn radio<M1>(mut self, chosen: impl IntoPropWith<bool, M1>) -> Self {
-        self.checked = Some(chosen.into_prop_with());
+    pub fn radio<M1>(mut self, chosen: impl IntoPropValue<Prop<bool>, M1>) -> Self {
+        self.checked = Some(chosen.into_prop_value());
         self.radio = true;
         self
     }

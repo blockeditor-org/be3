@@ -33,7 +33,7 @@ pub fn Popover(
     band: Option<NodeRef>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
     leading: Option<Child>,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
 ) -> NodeId {
     let max_width = create_memo(move || Some(max_width.get()));
     let surface = popover_surface(max_width);
@@ -57,8 +57,8 @@ pub fn Popover(
     }
 }
 
-pub fn popover_surface<M1>(max_width: impl IntoPropWith<Option<Size>, M1>) -> AnchoredStyle {
-    let max_width = max_width.into_prop_with();
+pub fn popover_surface<M1>(max_width: impl IntoPropValue<Prop<Option<Size>>, M1>) -> AnchoredStyle {
+    let max_width = max_width.into_prop_value();
     AnchoredStyle::new(
         move |content| {
             view! {

@@ -29,7 +29,7 @@ pub fn PointerLock(
     on_motion: Callback<Vec2>,
     on_key: Callback<KeyPress, bool>,
     accessibility: Option<Prop<Node>>,
-    #[prop(children)] content: Option<Render<PointerLockHandle>>,
+    #[prop(children)] content: Option<Render<PointerLockHandle, NodeId>>,
 ) -> NodeId {
     let current = locked;
     let hovered = create_signal(false);

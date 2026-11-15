@@ -504,7 +504,7 @@ impl DockHostLayout {
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
                 on_close: closable.then(|| Callback::new(move |()| layout.close(tab))),
-                content: RenderFn::new(move |()| layout.body(tab)),
+                content: BuildFn::new(move || layout.body(tab)),
             };
             (described, parts)
         });
@@ -546,29 +546,29 @@ struct HostStyle {
     back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    frame: Option<RenderFn<NodeId>>,
-    fullscreen: Option<RenderFn<NodeId>>,
-    away: Option<RenderFn<DockAwayHandle>>,
-    chrome: Option<RenderFn<DockChromeHandle>>,
-    bar: Option<RenderFn<DockBarHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    strip: Option<RenderFn<DockStripHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<DockHighlightHandle>>,
-    refused: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-    switcher: Option<RenderFn<DockSwitcherHandle>>,
-    switch: Option<RenderFn<DockSwitchHandle>>,
-    dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    tab: RenderFn<DockTabHandle, NodeId>,
+    frame: Option<RenderFn<NodeId, NodeId>>,
+    fullscreen: Option<RenderFn<NodeId, NodeId>>,
+    away: Option<RenderFn<DockAwayHandle, NodeId>>,
+    chrome: Option<RenderFn<DockChromeHandle, NodeId>>,
+    bar: Option<RenderFn<DockBarHandle, NodeId>>,
+    splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
+    strip: Option<RenderFn<DockStripHandle, NodeId>>,
+    grip: Option<RenderFn<DockGripHandle, NodeId>>,
+    highlight: Option<RenderFn<DockHighlightHandle, NodeId>>,
+    refused: Option<BuildFn<NodeId>>,
+    preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
+    stack: Option<RenderFn<DockStackHandle, NodeId>>,
+    switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
+    switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
+    dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
     dialog_beak: f32,
     curves: DockCurves,
     dialog_radius: f32,
     dialog_scrim: Prop<Color>,
     window_border: f32,
     bar_margin: f32,
-    bar_band: Option<RenderFn<DockBarBandHandle>>,
+    bar_band: Option<RenderFn<DockBarBandHandle, NodeId>>,
 }
 
 #[derive(Clone)]
@@ -934,35 +934,35 @@ pub fn DockHost(
     back_shade: Prop<Color>,
     icon_sidebar_width: f32,
     #[prop(default = 0.0)] inset: Prop<f32>,
-    tab: RenderFn<DockTabHandle>,
-    frame: Option<RenderFn<NodeId>>,
-    fullscreen: Option<RenderFn<NodeId>>,
-    away: Option<RenderFn<DockAwayHandle>>,
-    chrome: Option<RenderFn<DockChromeHandle>>,
-    bar: Option<RenderFn<DockBarHandle>>,
-    splitter: Option<RenderFn<DockSplitterHandle>>,
-    strip: Option<RenderFn<DockStripHandle>>,
-    grip: Option<RenderFn<DockGripHandle>>,
-    highlight: Option<RenderFn<DockHighlightHandle>>,
-    refused: Option<RenderFn<()>>,
-    preview: Option<RenderFn<DockPreviewHandle>>,
-    stack: Option<RenderFn<DockStackHandle>>,
-    switcher: Option<RenderFn<DockSwitcherHandle>>,
-    switch: Option<RenderFn<DockSwitchHandle>>,
-    dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    tab: RenderFn<DockTabHandle, NodeId>,
+    frame: Option<RenderFn<NodeId, NodeId>>,
+    fullscreen: Option<RenderFn<NodeId, NodeId>>,
+    away: Option<RenderFn<DockAwayHandle, NodeId>>,
+    chrome: Option<RenderFn<DockChromeHandle, NodeId>>,
+    bar: Option<RenderFn<DockBarHandle, NodeId>>,
+    splitter: Option<RenderFn<DockSplitterHandle, NodeId>>,
+    strip: Option<RenderFn<DockStripHandle, NodeId>>,
+    grip: Option<RenderFn<DockGripHandle, NodeId>>,
+    highlight: Option<RenderFn<DockHighlightHandle, NodeId>>,
+    refused: Option<BuildFn<NodeId>>,
+    preview: Option<RenderFn<DockPreviewHandle, NodeId>>,
+    stack: Option<RenderFn<DockStackHandle, NodeId>>,
+    switcher: Option<RenderFn<DockSwitcherHandle, NodeId>>,
+    switch: Option<RenderFn<DockSwitchHandle, NodeId>>,
+    dialog_chrome: Option<RenderFn<DockDialogHandle, NodeId>>,
     #[prop(default = 0.0)] dialog_beak: f32,
     curves: DockCurves,
     #[prop(default = 0.0)] dialog_radius: f32,
     #[prop(default = Color::TRANSPARENT)] dialog_scrim: Prop<Color>,
     #[prop(default = 0.0)] window_border: f32,
     #[prop(default = 0.0)] bar_margin: f32,
-    bar_band: Option<RenderFn<DockBarBandHandle>>,
-    #[prop(children)] content: Render,
+    bar_band: Option<RenderFn<DockBarBandHandle, NodeId>>,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let joined =
         use_context::<DockHostSlot>().is_some_and(|slot| !slot.is_local() && !slot.is_claimed());
     if joined {
-        return content.call(());
+        return content.call();
     }
     let style = HostStyle {
         api,
@@ -1031,5 +1031,5 @@ pub fn DockHost(
     });
     provide_context(DockJoin::none());
     provide_context(DockHostSlot::local(link));
-    content.call(())
+    content.call()
 }

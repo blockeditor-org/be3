@@ -185,9 +185,9 @@ pub fn Choice<T>(
     #[prop(default = CursorIcon::PointingHand)] cursor: CursorIcon,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = None)] item: Option<RenderFn<ChoiceItem<T>>>,
+    #[prop(default = None)] item: Option<RenderFn<ChoiceItem<T>, NodeId>>,
     #[prop(default = None)] handle: Option<ForEachRef<T, NodeId>>,
-    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>>>,
+    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>, NodeId>>,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,

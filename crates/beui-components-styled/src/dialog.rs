@@ -54,7 +54,7 @@ pub fn Modal(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let theme = use_theme();
     let color = create_memo(move || match scrim {
@@ -76,7 +76,7 @@ pub fn Modal(
             motion
             on_dismiss={on_dismiss}
         >|_: ModalHandle| {
-            content.call(())
+            content.call()
         }</unstyled::Modal>
     }
 }
@@ -93,12 +93,12 @@ pub fn Dialog(
     #[prop(default = Vec::new())] actions: Vec<DialogAction>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render<(), Children<ListItem>>,
+    #[prop(children)] content: Build<Children<ListItem>>,
 ) -> NodeId {
     view! {
         <DialogFrame open kind width size anchor on_dismiss={on_dismiss}>
             <DialogBody kind title id actions scrolls on_dismiss={on_dismiss}>
-                {content.call(())}
+                {content.call()}
             </DialogBody>
         </DialogFrame>
     }
@@ -117,7 +117,7 @@ pub fn DialogFrame(
     #[prop(default = DialogSize::Small)] size: DialogSize,
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let theme = use_theme();
     let scrim = create_memo(move || theme.scrim.get());
@@ -149,7 +149,7 @@ pub fn DialogFrame(
                     },
                 }
             }}
-            body={move |_: DialogLayout| content.call(())}
+            body={move |_: DialogLayout| content.call()}
         />
     }
 }
@@ -184,7 +184,7 @@ pub fn DialogBody(
     #[prop(default = true)] focuses: Prop<bool>,
     #[prop(default = true)] scrolls: bool,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render<(), Children<ListItem>>,
+    #[prop(children)] content: Build<Children<ListItem>>,
 ) -> NodeId {
     let id = create_memo(move || id.get());
     let layout = use_context::<DialogLayout>();
@@ -199,7 +199,7 @@ pub fn DialogBody(
             focuses
             on_dismiss={on_dismiss}
             face={move |handle: DialogBodyHandle| view! {
-                <DialogBodyFace handle id scrolls inset>{content.call(())}</DialogBodyFace>
+                <DialogBodyFace handle id scrolls inset>{content.call()}</DialogBodyFace>
             }}
         />
     }

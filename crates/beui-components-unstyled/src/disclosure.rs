@@ -23,7 +23,7 @@ struct State {
 pub fn Disclosure(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
-    header: Render<DisclosureHandle>,
+    header: Render<DisclosureHandle, NodeId>,
     children: NodeId,
     open: Binding<bool>,
 ) -> NodeId {

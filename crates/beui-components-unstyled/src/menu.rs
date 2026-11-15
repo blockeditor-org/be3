@@ -313,8 +313,8 @@ struct State {
 pub(crate) fn MenuList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,
     items: Run<MenuItem>,
-    row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<NodeId>>,
+    row: Option<RenderFn<MenuRowHandle, NodeId>>,
+    panel: Option<RenderFn<NodeId, NodeId>>,
     spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
@@ -453,8 +453,8 @@ pub(crate) fn MenuList(
 fn MenuPage(
     state: State,
     index: usize,
-    row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<NodeId>,
+    row: RenderFn<MenuRowHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
 ) -> NodeId {
     let item = state.rows.value().borrow()[index].item.clone();
     let leave = MenuParent(Some(Callback::new(move |()| {
@@ -495,7 +495,7 @@ fn MenuBackRow(
     title: Memo<String>,
     test_id: Prop<String>,
     focused: Selector<Focus>,
-    row: RenderFn<MenuRowHandle>,
+    row: RenderFn<MenuRowHandle, NodeId>,
 ) -> NodeId {
     let content = move |handle: ButtonHandle| {
         watch_hover(state, Focus::Back, handle.pointed);
@@ -603,7 +603,7 @@ fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
 }
 
 #[component]
-fn MenuCaptionRow(state: State, index: usize, row: RenderFn<MenuRowHandle>) -> NodeId {
+fn MenuCaptionRow(state: State, index: usize, row: RenderFn<MenuRowHandle, NodeId>) -> NodeId {
     let item = state.rows.value().borrow()[index].item.clone();
     row.call(MenuRowHandle {
         separated: item.separated.into_prop(),
@@ -617,7 +617,7 @@ fn MenuGridRow(
     index: usize,
     columns: usize,
     focused: Selector<Focus>,
-    row: RenderFn<MenuRowHandle>,
+    row: RenderFn<MenuRowHandle, NodeId>,
 ) -> NodeId {
     let (item, tiles) = {
         let rows = state.rows.value();
@@ -661,7 +661,7 @@ fn MenuTile(
     index: usize,
     tile: usize,
     focused: Selector<Focus>,
-    row: RenderFn<MenuRowHandle>,
+    row: RenderFn<MenuRowHandle, NodeId>,
 ) -> NodeId {
     let (grid, button) = {
         let rows = state.rows.value();
@@ -705,8 +705,8 @@ fn MenuRow(
     state: State,
     index: usize,
     focused: Selector<Focus>,
-    row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<NodeId>,
+    row: RenderFn<MenuRowHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
 ) -> NodeId {
     let (item, button, open, content_ref) = {
         let rows = state.rows.value();

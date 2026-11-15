@@ -206,7 +206,7 @@ pub fn Tree<K>(
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
-    #[prop(children)] row: Option<RenderFn<TreeRowHandle<K>>>,
+    #[prop(children)] row: Option<RenderFn<TreeRowHandle<K>, NodeId>>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -356,7 +356,7 @@ fn TreeRow<K>(
     focused: Selector<Option<K>>,
     state: State<K>,
     nodes: Nodes<K>,
-    row: RenderFn<TreeRowHandle<K>>,
+    row: RenderFn<TreeRowHandle<K>, NodeId>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
     on_drag_move: Callback<(K, Pos2)>,
@@ -484,7 +484,7 @@ where
 pub fn TreeRowMenuButton(
     menu: TreeRowMenu,
     #[prop(default = String::from("More actions"))] label: Prop<String>,
-    #[prop(children)] trigger: Render<PopupTriggerHandle>,
+    #[prop(children)] trigger: Render<PopupTriggerHandle, NodeId>,
 ) -> NodeId {
     let TreeRowMenu { items, style } = menu;
     view! {
@@ -510,7 +510,7 @@ pub fn TreeToggle(
     item: Memo<TreeItem>,
     toggle: Callback<()>,
     #[prop(default = String::new())] button_test_id: String,
-    #[prop(children)] content: RenderFn<TreeToggleHandle>,
+    #[prop(children)] content: RenderFn<TreeToggleHandle, NodeId>,
 ) -> DynamicSegment<ListItem> {
     let expanded = create_memo(move || item.get().expanded);
     view! {
@@ -628,7 +628,7 @@ pub fn TreeRowEditor(
     edit: TreeRowEdit,
     #[prop(default = String::from("Name"))] label: Prop<String>,
     style: TextInputStyle,
-    #[prop(children)] content: Render<TextInputHandle>,
+    #[prop(children)] content: Render<TextInputHandle, NodeId>,
 ) -> NodeId {
     let TreeRowEdit { item, finish } = edit;
     let initial = item.get_untracked().label;
@@ -698,7 +698,7 @@ pub fn TreeReveal<K>(
     tree: ComponentRef<TreeApi<K>>,
     viewport: NodeRef,
     on_reveal: Callback<K>,
-    button: RenderFn<TreeRevealHandle>,
+    button: RenderFn<TreeRevealHandle, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,

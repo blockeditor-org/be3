@@ -4,7 +4,7 @@ use crate::reactive::Get;
 use crate::reactive::Memo;
 use crate::reactive::NodeRef;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
+use crate::reactive::{RenderFn, BuildFn};
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_binding;
@@ -48,7 +48,7 @@ pub(crate) fn overlay(
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
-    content: RenderFn<()>,
+    content: BuildFn<NodeId>,
 ) -> NodeId {
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
@@ -113,7 +113,7 @@ pub(crate) fn overlay(
                         let scope = owner.run(Scope::detached);
                         let built = scope.context().run(|| {
                             presence.provide();
-                            content.call(())
+                            content.call()
                         });
                         *held = Some(Mounted {
                             content: built,

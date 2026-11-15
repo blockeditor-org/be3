@@ -67,7 +67,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let theme = crate::theme::use_theme();
     let scrim = create_memo(move || ColorRole::Scrim.resolve(&theme));
@@ -88,7 +88,7 @@ pub fn ModalSheet(
             }}
             on_close={on_close}
         >|| {
-            content.call(())
+            content.call()
         }</unstyled::ModalSheet>
     }
 }
@@ -108,7 +108,7 @@ pub(crate) fn AnchoredSheet(handle: AnchoredSheetHandle, padding: Space) -> Node
             fit=true
             on_close={on_close}
         >||
-            <Frame padding>{content.call(())}</Frame>
+            <Frame padding>{content.call()}</Frame>
         </ModalSheet>
     }
 }

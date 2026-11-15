@@ -61,8 +61,8 @@ pub enum PaletteItems {
 }
 
 impl PaletteItems {
-    pub fn list<M1>(items: impl IntoPropWith<Vec<PaletteItem>, M1>) -> Self {
-        Self::List(items.into_prop_with())
+    pub fn list<M1>(items: impl IntoPropValue<Prop<Vec<PaletteItem>>, M1>) -> Self {
+        Self::List(items.into_prop_value())
     }
 }
 
@@ -116,11 +116,11 @@ pub fn CommandPalette(
     spacing: f32,
     scrim: Prop<Color>,
     search_placeholder: Prop<String>,
-    search_content: RenderFn<TextInputHandle>,
+    search_content: RenderFn<TextInputHandle, NodeId>,
     search_style: TextInputStyle,
     scroll: ScrollStyle,
-    row: RenderFn<CommandRowHandle>,
-    #[prop(children)] panel: Option<RenderFn<NodeId>>,
+    row: RenderFn<CommandRowHandle, NodeId>,
+    #[prop(children)] panel: Option<RenderFn<NodeId, NodeId>>,
 ) -> NodeId {
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let lists_actions = matches!(items, PaletteItems::Actions);

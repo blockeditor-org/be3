@@ -44,7 +44,7 @@ const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
 const MENU_INSET: Space = Space::Md;
 
 #[component]
-pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListItem>>) -> NodeId {
+pub fn SettingsPage(#[prop(children)] sections: Build<Children<ListItem>>) -> NodeId {
     view! {
         <Scroll>
             <Frame
@@ -53,7 +53,7 @@ pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListItem>>) 
             >
                 <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET.px())}>
                     <unstyled::Container>|_size|
-                        <List spacing=PAGE_SPACING children={sections.call(())} />
+                        <List spacing=PAGE_SPACING children={sections.call()} />
                     </unstyled::Container>
                 </Frame>
             </Frame>

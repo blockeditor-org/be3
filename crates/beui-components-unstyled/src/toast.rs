@@ -88,8 +88,8 @@ pub fn Toasts(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    more: RenderFn<Memo<usize>>,
-    #[prop(children)] card: RenderFn<ToastHandle>,
+    more: RenderFn<Memo<usize>, NodeId>,
+    #[prop(children)] card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let all = create_memo(move || toasts.get());
     let open = create_memo(move || all.with(|toasts| !toasts.is_empty()));
@@ -148,8 +148,8 @@ fn ToastStack(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    more: RenderFn<Memo<usize>>,
-    card: RenderFn<ToastHandle>,
+    more: RenderFn<Memo<usize>, NodeId>,
+    card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Log);
@@ -180,7 +180,7 @@ fn ToastItem(
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
-    card: RenderFn<ToastHandle>,
+    card: RenderFn<ToastHandle, NodeId>,
 ) -> NodeId {
     let id = toast.id;
     let expiry = create_timer(move || {

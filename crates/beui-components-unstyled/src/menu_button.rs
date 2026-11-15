@@ -13,7 +13,7 @@ use beui_view::types::{Placement, PointerPress, Rect, ScrollGesture};
 #[component]
 pub fn MenuButton(
     items: Children<MenuItem>,
-    trigger: Render<PopupTriggerHandle>,
+    trigger: Render<PopupTriggerHandle, NodeId>,
     menu: MenuStyle,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,

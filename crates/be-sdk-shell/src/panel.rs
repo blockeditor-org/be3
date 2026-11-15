@@ -195,7 +195,7 @@ fn read_item_info(
 pub(crate) fn BlockPanel(
     workspace: Workspace,
     tab: TabId,
-    bar: RenderFn<(), NodeId>,
+    bar: BuildFn<NodeId>,
     preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
 ) -> NodeId {
@@ -234,7 +234,7 @@ pub(crate) fn BlockPanel(
                 info={info.read_only()}
                 session
                 docked
-                bar={move || bar.call(())}
+                bar={move || bar.call()}
             />
         }
     });
@@ -246,7 +246,7 @@ pub(crate) fn BlockPanel(
                     <DeletedBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
-                <TabBar bar={move || bar.call(())} own=true />
+                <TabBar bar={move || bar.call()} own=true />
                 <KeepAlive>
                     <Show value={move || !previewing.get()}>
                         <ListItem grow=1.0>
@@ -358,7 +358,7 @@ fn DockedBlockTab(
     info: ReadSignal<Option<TabInfo>>,
     session: bool,
     docked: ChildDockTab,
-    bar: RenderFn<(), NodeId>,
+    bar: BuildFn<NodeId>,
 ) -> NodeId {
     let ChildDockTab { menu, body, owner } = docked;
     let own = owner.is_none();
@@ -391,7 +391,7 @@ fn DockedBlockTab(
                 <DeletedBar workspace={workspace} info={info} />
                 <LinkedBar workspace={workspace} info={info} />
             })}
-            <TabBar bar={move || bar.call(())} own />
+            <TabBar bar={move || bar.call()} own />
             <ListItem grow=1.0>
                 <Layers @test_id={"workspace.block"}>{body}</Layers>
             </ListItem>
@@ -400,9 +400,9 @@ fn DockedBlockTab(
 }
 
 #[component]
-fn TabBar(bar: RenderFn<(), NodeId>, own: bool) -> NodeId {
+fn TabBar(bar: BuildFn<NodeId>, own: bool) -> NodeId {
     match own {
-        true => bar.call(()),
+        true => bar.call(),
         false => view! {
             <List spacing=Space::None />
         },

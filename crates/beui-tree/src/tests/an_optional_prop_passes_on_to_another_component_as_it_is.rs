@@ -1,10 +1,10 @@
 use super::*;
-use crate::reactive::RenderFn;
+use crate::reactive::BuildFn;
 
 #[component]
 fn Inner(
     #[prop(default = None)] label: Option<Prop<String>>,
-    #[prop(default = None)] after: Option<RenderFn<(), DomNode>>,
+    #[prop(default = None)] after: Option<BuildFn<DomNode>>,
 ) -> DomNode {
     let text = match label {
         Some(label) => label.get_untracked(),
@@ -14,7 +14,7 @@ fn Inner(
         <Element tag="p" text={text} />
     };
     if let Some(after) = after {
-        page.0.children.borrow_mut().push(after.call(()));
+        page.0.children.borrow_mut().push(after.call());
     }
     page
 }
@@ -22,7 +22,7 @@ fn Inner(
 #[component]
 fn Outer(
     #[prop(default = None)] label: Option<Prop<String>>,
-    #[prop(default = None)] after: Option<RenderFn<(), DomNode>>,
+    #[prop(default = None)] after: Option<BuildFn<DomNode>>,
 ) -> DomNode {
     view! {
         <Inner label after />

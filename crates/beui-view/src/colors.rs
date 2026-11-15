@@ -2,7 +2,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::reactive::{
-    Get, IntoPropWith, Memo, Set, Signal, create_effect, create_memo, create_signal, on_cleanup,
+    Get, IntoPropValue, Prop, Memo, Set, Signal, create_effect, create_memo, create_signal, on_cleanup,
     tree_local, untrack,
 };
 use crate::types::{Color, Color32, ColorDefinitions, ColorScheme};
@@ -54,8 +54,8 @@ fn current() -> Option<Registry> {
         .filter(|registry| registry.defined.is_alive() && registry.scheme.is_alive())
 }
 
-pub fn define_colors<M1>(definitions: impl IntoPropWith<ColorDefinitions, M1>) {
-    let definitions = definitions.into_prop_with();
+pub fn define_colors<M1>(definitions: impl IntoPropValue<Prop<ColorDefinitions>, M1>) {
+    let definitions = definitions.into_prop_value();
     let key = NEXT.with(|next| next.replace(next.get() + 1));
     let held = Rc::new(Cell::new(None::<Registry>));
     let defined = held.clone();

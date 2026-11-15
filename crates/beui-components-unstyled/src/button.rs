@@ -34,7 +34,7 @@ struct State {
 #[component]
 pub fn Button(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ButtonApi>,
-    #[prop(children)] content: Option<Render<ButtonHandle>>,
+    #[prop(children)] content: Option<Render<ButtonHandle, NodeId>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] description: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,

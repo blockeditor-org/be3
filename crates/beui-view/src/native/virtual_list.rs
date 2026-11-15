@@ -56,7 +56,7 @@ pub(crate) fn virtual_list<K>(
     anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     handle: Option<ForEachRef<K, NodeId>>,
-    item: RenderFn<(ReadSignal<K>, ReadSignal<usize>)>,
+    item: RenderFn<(ReadSignal<K>, ReadSignal<usize>), NodeId>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,

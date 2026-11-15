@@ -45,7 +45,7 @@ pub fn ChildBlock(
     on_details: Callback<()>,
     on_focus: Callback<()>,
     docked_tab: Option<RenderFn<ChildDockTab, NodeId>>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let placed = create_memo(move || block.get().map(SubregionContent::Block));
     let placing = Placing {
@@ -92,7 +92,7 @@ pub fn Subregion(
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    #[prop(children)] content: Option<Render<ChildBlockHandle>>,
+    #[prop(children)] content: Option<Render<ChildBlockHandle, NodeId>>,
 ) -> NodeId {
     let layout = use_context::<DialogLayout>();
     let modal = use_modal();
@@ -149,7 +149,7 @@ struct Placing {
     on_state: Callback<ChildState>,
     on_details: Callback<()>,
     on_focus: Callback<()>,
-    content: Option<Render<ChildBlockHandle>>,
+    content: Option<Render<ChildBlockHandle, NodeId>>,
 }
 
 #[component]

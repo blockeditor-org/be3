@@ -631,7 +631,7 @@ fn popup_surface() -> AnchoredStyle {
             } = handle;
             view! {
                 <beui::styled::ModalSheet open={open} fit=true on_close={on_close}>||
-                    <Frame padding=Space::Lg>{content.call(())}</Frame>
+                    <Frame padding=Space::Lg>{content.call()}</Frame>
                 </beui::styled::ModalSheet>
             }
         },

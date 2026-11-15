@@ -1036,7 +1036,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 }
 
 #[component]
-fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId {
+fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize, NodeId>, index: usize) -> NodeId {
     let content = render.call(index);
     view! {
         <Overlay
@@ -1052,7 +1052,7 @@ fn WidgetPopup(anchor: NodeRef, render: RenderFn<usize>, index: usize) -> NodeId
 }
 
 #[component]
-fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
+fn BlockSlot(render: RenderFn<usize, NodeId>, index: usize, size: Vec2) -> NodeId {
     let content = render.call(index);
     view! {
         <Frame width={size.x} height={size.y}>{content}</Frame>

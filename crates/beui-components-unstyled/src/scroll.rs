@@ -105,11 +105,11 @@ impl ScrollStyle {
     /// Natively they do nothing.
     pub fn browser_colors<M1, M2>(
         self,
-        thumb: impl IntoPropWith<Color, M1>,
-        track: impl IntoPropWith<Color, M2>,
+        thumb: impl IntoPropValue<Prop<Color>, M1>,
+        track: impl IntoPropValue<Prop<Color>, M2>,
     ) -> Self {
         Self {
-            browser: Some((thumb.into_prop_with(), track.into_prop_with())),
+            browser: Some((thumb.into_prop_value(), track.into_prop_value())),
             ..self
         }
     }
@@ -689,7 +689,7 @@ fn Scrolling(
     focus_ring: Prop<Option<Outline>>,
     style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
-    #[prop(children)] content: Render<Callback<ScrollPosition>>,
+    #[prop(children)] content: Render<Callback<ScrollPosition>, NodeId>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
     let settles = Rc::new(Cell::new(None::<Stored<Motion>>));

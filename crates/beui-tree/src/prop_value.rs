@@ -20,7 +20,7 @@ use crate::children::{
     ChildSegment, Children, DynamicSegment, IntoChild, IntoSegments, OneChild,
     Run, SlotChild,
 };
-use crate::component::{Render, RenderFn};
+use crate::component::{Build, BuildFn, Render, RenderFn};
 use crate::prop::{
     ByClosure, ByValue, Func, Given, IntoPropFrom, IntoReadProp, Prop,
 };
@@ -48,8 +48,70 @@ pub trait AbsentProp: Sized {
     fn absent() -> Self;
 }
 
+/// What `#[prop(required)]` asks of a prop's type: one with an `AbsentProp` value, at least
+/// for some of its parameters (a `Binding<T>` has one when `T: Default`), which the tag then
+/// sets all the same.
+#[diagnostic::on_unimplemented(
+    message = "`#[prop(required)]` is for a prop whose type has a value when it is left out (a `Binding<T>`), and a `{Self}` has none",
+    label = "this prop is required already: remove `#[prop(required)]`"
+)]
+pub trait MarkedRequired {}
+
+impl<T> MarkedRequired for Option<T> {}
+impl<V, R> MarkedRequired for Callback<V, R> {}
+impl<T> MarkedRequired for Binding<T> {}
+impl<C: SlotChild> MarkedRequired for Children<C> {}
+
 /// A prop a tag has set, as the builder keeps it until `build`.
 pub struct SetProp<T>(pub T);
+
+/// A prop with a `#[prop(default = ..)]`: what was set, or the default.
+pub trait PropOr<T> {
+    fn prop_or(self, default: impl FnOnce() -> T) -> T;
+}
+
+impl<T> PropOr<T> for SetProp<T> {
+    fn prop_or(self, _default: impl FnOnce() -> T) -> T {
+        self.0
+    }
+}
+
+impl<T> PropOr<T> for crate::component::MissingProp {
+    fn prop_or(self, default: impl FnOnce() -> T) -> T {
+        default()
+    }
+}
+
+/// A type the builder names through a parameter of its own, equal to it, so that its
+/// signatures hold no projection of the component's parameters.
+pub trait Is<T> {
+    fn is(self) -> T;
+}
+
+impl<T> Is<T> for T {
+    fn is(self) -> T {
+        self
+    }
+}
+
+/// The builder's output parameter, once `build` knows it is the component's output: so the
+/// builder type needs none of the component's bounds to name what it builds.
+pub trait SameType<T> {
+    #[allow(clippy::type_complexity)]
+    fn same(binds: Vec<Box<dyn FnOnce(&Self)>>) -> Vec<Box<dyn FnOnce(&T)>>;
+
+    fn from_output(output: T) -> Self;
+}
+
+impl<T> SameType<T> for T {
+    fn same(binds: Vec<Box<dyn FnOnce(&T)>>) -> Vec<Box<dyn FnOnce(&T)>> {
+        binds
+    }
+
+    fn from_output(output: T) -> T {
+        output
+    }
+}
 
 pub struct Itself;
 pub struct ByUnitClosure;
@@ -71,7 +133,6 @@ pub struct Val<M>(std::marker::PhantomData<M>);
 /// diagnostics are the ones shown.
 pub struct ChildShape<M>(std::marker::PhantomData<M>);
 
-#[diagnostic::do_not_recommend]
 impl<P> IntoPropValue<P, Val<Itself>> for P {
     fn into_prop_value(self) -> P {
         self
@@ -81,29 +142,75 @@ impl<P> IntoPropValue<P, Val<Itself>> for P {
 // Prop<T>
 
 /// What `IntoPropFrom` takes: everything but a `Prop<T>` itself, which every type takes.
-impl<T, V: IntoPropFrom<T, M>, M> IntoPropValue<Prop<T>, Val<ByProp<M>>> for V {
+/// It goes through `PropTakes`, a trait of `T`'s, so that a value the prop does not take is
+/// reported against `T` (rustc reports a failure on the value's own type through the first
+/// trait it was asked for, which names the whole `Prop<T>`).
+impl<T, V, M> IntoPropValue<Prop<T>, Val<ByProp<M>>> for V
+where
+    T: PropTakes<V, M>,
+{
     fn into_prop_value(self) -> Prop<T> {
-        self.into_prop_from()
+        T::take(self)
+    }
+}
+
+#[diagnostic::on_unimplemented(
+    message = "a `{V}` cannot be passed as a `{Self}` prop",
+    label = "pass a `{Self}`, a signal or memo of one, or a closure returning one"
+)]
+pub trait PropTakes<V, M>: Sized {
+    fn take(value: V) -> Prop<Self>;
+}
+
+#[diagnostic::do_not_recommend]
+impl<T, V: IntoPropFrom<T, M>, M> PropTakes<V, M> for T {
+    fn take(value: V) -> Prop<T> {
+        value.into_prop_from()
     }
 }
 
 /// Any type passed as itself where its exact type is taken.
-#[diagnostic::do_not_recommend]
 impl<P> IntoPropValue<Exact<P>, Val<Itself>> for P {
     fn into_prop_value(self) -> Exact<P> {
         Exact(self)
     }
 }
 
-impl<T, M, V: IntoReadProp<T, M>> IntoPropValue<Exact<Prop<T>>, Val<ByExact<M>>> for V {
+/// A `Prop` whose type comes from what is passed takes a signal, memo or closure, through
+/// `ReadPropTakes`, a trait of `ReadProp<T>`'s, for the same reason as `PropTakes`.
+impl<T, M, V> IntoPropValue<Exact<Prop<T>>, Val<ByExact<M>>> for V
+where
+    ReadProp<T>: ReadPropTakes<V, M, Value = T>,
+{
     fn into_prop_value(self) -> Exact<Prop<T>> {
-        Exact(self.into_read_prop())
+        Exact(<ReadProp<T> as ReadPropTakes<V, M>>::take_read(self))
+    }
+}
+
+/// Names a `Prop<T>` read as it changes, for `ReadPropTakes`'s message.
+pub struct ReadProp<T>(std::marker::PhantomData<T>);
+
+#[diagnostic::on_unimplemented(
+    message = "this prop is read as it changes and its type comes from what is passed, so a `{V}` cannot fill it",
+    label = "pass a signal, memo or closure (`move || ..`); for a value fixed when the view is built, write plain Rust such as `shown.then(|| view! {{..}})`"
+)]
+pub trait ReadPropTakes<V, M> {
+    type Value;
+
+    fn take_read(value: V) -> Prop<Self::Value>;
+}
+
+#[diagnostic::do_not_recommend]
+impl<T, V: IntoReadProp<T, M>, M> ReadPropTakes<V, M> for ReadProp<T> {
+    type Value = T;
+
+    fn take_read(value: V) -> Prop<T> {
+        value.into_read_prop()
     }
 }
 
 // Option<X>
 
-#[diagnostic::do_not_recommend]
 impl<X, V, M> IntoPropValue<Option<X>, Val<Given<M>>> for V
 where
     V: IntoPropValue<X, Val<M>>,
@@ -157,7 +264,7 @@ impl<V: PartialEq + 'static> IntoPropValue<Callback<V>, Val<BySignal>> for Signa
 
 impl<T: Clone + PartialEq + 'static> IntoPropValue<Callback<T>, Val<BySignal>> for Binding<T> {
     fn into_prop_value(self) -> Callback<T> {
-        crate::callback::IntoCallback::into_callback(self)
+        Callback::from(self)
     }
 }
 
@@ -269,6 +376,36 @@ impl<H, C, F: FnOnce() -> C + 'static> IntoPropValue<Exact<Render<H, C>>, Val<By
     }
 }
 
+
+// Build<C> and BuildFn<C>: a closure taking nothing.
+
+impl<C: 'static, R: IntoChild<C>, F: Fn() -> R + 'static> IntoPropValue<BuildFn<C>, Val<ByUnitClosure>>
+    for F
+{
+    fn into_prop_value(self) -> BuildFn<C> {
+        BuildFn::new(move || self().into_child())
+    }
+}
+
+impl<C, R: IntoChild<C>, F: FnOnce() -> R + 'static> IntoPropValue<Build<C>, Val<ByUnitClosure>>
+    for F
+{
+    fn into_prop_value(self) -> Build<C> {
+        Build::new(move || self().into_child())
+    }
+}
+
+impl<C: 'static, F: Fn() -> C + 'static> IntoPropValue<Exact<BuildFn<C>>, Val<ByUnitClosure>> for F {
+    fn into_prop_value(self) -> Exact<BuildFn<C>> {
+        Exact(BuildFn::new(self))
+    }
+}
+
+impl<C, F: FnOnce() -> C + 'static> IntoPropValue<Exact<Build<C>>, Val<ByUnitClosure>> for F {
+    fn into_prop_value(self) -> Exact<Build<C>> {
+        Exact(Build::new(self))
+    }
+}
 
 // Children<C>
 
@@ -599,6 +736,86 @@ macro_rules! render_slot {
 }
 
 render_slot!(RenderFn, Fn, (: 'static));
+
+/// Never implemented: what children written between the tags of a component with no
+/// children slot are asked for, so they are reported with this message.
+#[diagnostic::on_unimplemented(
+    message = "this component takes no children",
+    label = "write the tag as `<Tag />`, with nothing between its tags"
+)]
+pub trait TakesNoChildren {}
+
+/// Never implemented: a slot that hands its children nothing asks it of a closure that names a
+/// value, so that closure is reported with this message.
+#[diagnostic::on_unimplemented(
+    message = "this component hands nothing to its children, so there is no value to name",
+    label = "write these children without `|value|`"
+)]
+pub trait HandsAValue {}
+
+macro_rules! build_slot {
+    ($build:ident, $fn:ident, ($($static:tt)*)) => {
+        impl<C $($static)*, F: $fn() -> B + 'static, B: OneChild<C>> TakesBlock<F> for $build<C> {
+            fn take_block(block: F) -> Self {
+                $build::new(move || block().one_child())
+            }
+        }
+
+        impl<C $($static)*, F: $fn() -> B + 'static, B: IntoChild<C>> TakesUnitClosure<F> for $build<C> {
+            fn take_unit_closure(closure: F) -> Self {
+                $build::new(move || closure().into_child())
+            }
+        }
+
+        impl<C $($static)*, F: HandsAValue> TakesClosure<F> for $build<C> {
+            fn take_closure(_closure: F) -> Self {
+                unreachable!("`HandsAValue` has no impls")
+            }
+        }
+
+        impl<C $($static)*, F: HandsAValue> TakesWith<F> for $build<C> {
+            fn take_with(_closure: F) -> Self {
+                unreachable!("`HandsAValue` has no impls")
+            }
+        }
+
+        impl<C $($static)*, F: $fn() -> C + 'static> TakesBlock<F> for Exact<$build<C>> {
+            fn take_block(block: F) -> Self {
+                Exact($build::new(block))
+            }
+        }
+
+        impl<C $($static)*, F: $fn() -> C + 'static> TakesUnitClosure<F> for Exact<$build<C>> {
+            fn take_unit_closure(closure: F) -> Self {
+                Exact($build::new(closure))
+            }
+        }
+
+        impl<C $($static)*, F: HandsAValue> TakesClosure<F> for Exact<$build<C>> {
+            fn take_closure(_closure: F) -> Self {
+                unreachable!("`HandsAValue` has no impls")
+            }
+        }
+
+        impl<C $($static)*, F: HandsAValue> TakesWith<F> for Exact<$build<C>> {
+            fn take_with(_closure: F) -> Self {
+                unreachable!("`HandsAValue` has no impls")
+            }
+        }
+
+        impl<C $($static)*, F> TakesOptionalBlock<F> for $build<C>
+        where
+            $build<C>: TakesBlock<F>,
+        {
+            fn take_optional_block(block: F) -> Option<Self> {
+                Some($build::take_block(block))
+            }
+        }
+    };
+}
+
+build_slot!(BuildFn, Fn, (: 'static));
+build_slot!(Build, FnOnce, ());
 
 /// An optional render slot built from what the render takes.
 impl<X: TakesClosure<F>, F> TakesClosure<F> for Option<X> {

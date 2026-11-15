@@ -137,7 +137,7 @@ pub fn Scrollbar(
     #[prop(default = true)] shown: Prop<bool>,
     on_scroll_to: Callback<f32>,
     on_engage: Callback<bool>,
-    #[prop(children)] content: Render<ScrollbarHandle>,
+    #[prop(children)] content: Render<ScrollbarHandle, NodeId>,
 ) -> NodeId {
     let position = create_memo(move || position.get());
     let hovered = create_signal(false);

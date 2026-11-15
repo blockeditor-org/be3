@@ -4,7 +4,7 @@ use beui_macros::component;
 use beui_reactive::{ErrorBoundary, Scope, create_binding, store};
 
 use crate::children::{Branch, ChildSlot, Count, Counted, DynamicSegment, FormOf, Or, SlotChild};
-use crate::component::{Render, RenderFn};
+use crate::component::{Build, RenderFn};
 use crate::control::{built, mount};
 
 /// Shows `content`, and `fallback` instead while a value read under it has failed
@@ -16,7 +16,7 @@ use crate::control::{built, mount};
 #[component]
 pub fn Errored<C, B, F>(
     fallback: RenderFn<(String, ErrorBoundary), F>,
-    #[prop(children)] content: Render<(), B>,
+    #[prop(children)] content: Build<B>,
 ) -> FormOf<C, <B as Counted>::Count, <F as Counted>::Count>
 where
     C: SlotChild,
@@ -32,7 +32,7 @@ where
                 let boundary = ErrorBoundary::provide();
                 (
                     boundary,
-                    content.call(()).into_children().mount_hidden(slot.clone()),
+                    content.call().into_children().mount_hidden(slot.clone()),
                 )
             });
             host.set_visible(true);
