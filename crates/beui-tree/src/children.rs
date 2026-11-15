@@ -359,7 +359,11 @@ impl<T: SlotChild> ChildValue for DynamicSegment<T> {
              (such as `component_placed` or `component_state`) have no node to attach to",
             component.name(),
         );
-        self.scope = Some(scope.clone());
+        // A run handed on through components that wrap it mounts in the innermost one's scope,
+        // which sees the context every one of them provides.
+        if self.scope.is_none() {
+            self.scope = Some(scope.clone());
+        }
     }
 }
 

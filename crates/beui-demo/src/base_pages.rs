@@ -528,6 +528,9 @@ pub(crate) fn ControlFlowPage() -> NodeId {
             <Sample title="Dynamic" code={vec![DynamicCount::SOURCE, Tile::SOURCE]}>
                 <DynamicCount />
             </Sample>
+            <Sample title="KeepAlive and Kept" code={vec![KeptCounter::SOURCE]}>
+                <KeptCounter />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -540,7 +543,7 @@ fn ShowToggle() -> NodeId {
         <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Shown" on={shown} />
             <Show value={shown}>
-                <Tile label="Built the first time it is shown, and kept while hidden" />
+                <Tile label="Built each time it is shown, and dropped while hidden" />
             </Show>
         </List>
     }
@@ -765,6 +768,46 @@ fn DynamicCount() -> NodeId {
                 <Tile label={format!("Built again for {count}")} />
             </Dynamic>
         </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeptCounter() -> NodeId {
+    let shown = create_signal(true);
+    let right = create_signal(false);
+    let left_shown = create_memo(move || shown.get() && !right.get());
+    let right_shown = create_memo(move || shown.get() && right.get());
+    // Built once, then kept, paused, while hidden, and shown in whichever column holds it.
+    let counter = move || {
+        let count = create_signal(0u32);
+        view! {
+            <Button
+                label={move || format!("Clicked {} times", count.get())}
+                variant=ButtonVariant::Secondary
+                on_click={move || count.update(|count| *count += 1)}
+            />
+        }
+    };
+    view! {
+        <KeepAlive>
+            <List spacing={SECTION_SPACING.px()}>
+                <LabelledSwitch label="Shown" on={shown} />
+                <LabelledSwitch label="In the right column" on={right} />
+                <List direction=Direction::Horizontal spacing={SECTION_SPACING.px()}>
+                    <Frame width=180.0>
+                        <Show value={left_shown}>
+                            <Kept>{counter()}</Kept>
+                        </Show>
+                    </Frame>
+                    <Frame width=180.0>
+                        <Show value={right_shown}>
+                            <Kept>{counter()}</Kept>
+                        </Show>
+                    </Frame>
+                </List>
+            </List>
+        </KeepAlive>
     }
 }
 
