@@ -31,10 +31,10 @@ that need a real terminal on a real machine, such as `claude`, from inside be-ho
 The host writes its emulator's state into `Terminal` as ordinary edits through its `Session`,
 after every PTY read: rows that scrolled off move into `history`, then every shown row that
 differs, the cursor, size, colours and title are set. The replica seals on its own schedule like
-any owner (guides/type_modules.md). Viewers just render the document.
+any lease holder (guides/type_modules.md). Viewers just render the document.
 
-Who writes is decided by the live session's lease: a host writes only while its replica owns the
-session, stands by while another `TerminalHost` owns it, and otherwise claims every few seconds
+Who writes is decided by the live session's lease: a host writes only while its replica holds the
+lease, stands by while another `TerminalHost` holds it, and otherwise claims every few seconds
 (`CLAIM_INTERVAL`). A host that becomes the writer and finds a shell in the document that isn't
 its own restores: the old screen goes into history behind a faint `Restored session: <date>`
 line and a new shell starts. After the shell exits, the next key starts another.

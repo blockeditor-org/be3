@@ -67,7 +67,9 @@ mod a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_with;
 mod a_folder_listed_again_answers_offline_as_of_the_newer_listing;
 mod a_folder_of_blocks_with_large_metadata_reads_in_answers_that_fit_a_frame;
 mod a_folder_shared_with_a_contact_opens_for_them_alone;
-mod a_journal_rebased_with_no_seal_noted_reads_back_on_its_base;
+mod a_rebased_journal_reads_back_on_its_base_with_what_came_after;
+mod kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent;
+mod kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_it_arrives;
 mod a_key_sealed_after_the_block_was_listed_unlocks_it;
 mod a_key_the_server_labels_as_the_organizations_settings_never_seals_another_block;
 mod a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used;
@@ -126,6 +128,7 @@ mod objects_move_between_devices_and_a_bucket_directly;
 mod objects_move_through_the_servers_own_s3_endpoint;
 mod references_declared_by_content_reach_the_graph;
 mod relayed_messages_reach_one_peer_or_all_of_them_sealed;
+mod a_submission_reaches_every_participant_numbered_and_sealed;
 mod removing_a_member_rotates_a_workspaces_search_index_with_it;
 mod removing_a_member_rotates_the_organizations_settings;
 mod removing_a_member_shuts_them_out_and_rotates_what_they_could_read;
@@ -492,3 +495,6 @@ fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option
     refs.cached_listing(listing)
         .map(|blocks| blocks.iter().map(|summary| summary.id).collect())
 }
+
+/// The build of a block's type the test peers run.
+const BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);

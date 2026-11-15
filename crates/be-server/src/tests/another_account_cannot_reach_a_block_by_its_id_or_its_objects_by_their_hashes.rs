@@ -135,7 +135,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
         "{response:?}"
     );
     let relayed = attacker
-        .relay(block, None, RelayKind::Edit, b"forged edit".to_vec())
+        .relay(block, None, RelayKind::Seal, b"forged edit".to_vec())
         .await;
     assert!(matches!(relayed, Ok(())), "{relayed:?}");
     let deleted = attacker
@@ -158,7 +158,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
     assert!(matches!(granted, Ok(())), "{granted:?}");
     viewer.join_session(block).await;
     let claimed = viewer.sessions[&block]
-        .claim_ownership(session.generation + 1)
+        .claim_lease(session.generation + 1)
         .await
         .expect("the connection stayed open");
     assert!(

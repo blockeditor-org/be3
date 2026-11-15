@@ -15,19 +15,21 @@ use crate::{Conflict, Host, Replicas, in_process, started};
 
 mod a_block_sent_while_its_replica_owes_a_seal_is_asked_for_it_once;
 mod a_block_whose_creation_waits_joins_once_it_is_sent_not_on_reconnecting;
-mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_for_this_devices_noted_seal;
+mod a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the_seal;
 mod a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting;
 mod a_merge_over_parts_reads_only_the_parts_each_side_changed;
 mod a_modules_answer_is_seen_after_the_host_task_spent_its_budget;
 mod a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it;
 mod a_reopened_replica_holds_an_editors_operations_less_those_replayed;
-mod a_replica_opened_again_takes_the_servers_journal_on_its_head_and_this_device_follows_it;
+mod a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it;
 mod a_replica_that_ended_uncounts_only_the_operations_it_never_took;
 mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
+mod an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a_crash;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
-mod an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica;
+mod an_edit_numbered_offline_after_a_seal_survives_joining;
+mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
@@ -188,6 +190,7 @@ fn with_devices<F: Future<Output = ()>>(
             }
         };
         let peer = device(None).await;
+        listen(&peer);
         let another = match another {
             true => Some(device(Some(peer.organization())).await),
             false => None,
@@ -202,6 +205,84 @@ fn with_devices<F: Future<Output = ()>>(
         .await;
         server.stop().await;
     });
+}
+
+thread_local! {
+    /// What the connection the test listens to says: the order's entries and leases, which the
+    /// worker's loop hands the replicas in be-host-stack.
+    static EVENTS: std::cell::RefCell<Option<(
+        Arc<be_block_client::Connection>,
+        tokio::sync::broadcast::Receiver<be_block_client::Event>,
+    )>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Listens to `peer`'s connection, a new one after it reconnects.
+fn listen(peer: &Peer<MemoryStore>) {
+    let connection = peer.connection();
+    EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        if events
+            .as_ref()
+            .is_none_or(|(listened, _)| !Arc::ptr_eq(listened, &connection))
+        {
+            let receiver = connection.subscribe();
+            *events = Some((connection, receiver));
+        }
+    });
+}
+
+/// Hands the replicas what the connection said since this was last asked.
+fn hear(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
+    listen(peer);
+    let heard: Vec<be_block_client::Event> = EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        let Some((_, receiver)) = events.as_mut() else {
+            return Vec::new();
+        };
+        std::iter::from_fn(|| receiver.try_recv().ok()).collect()
+    });
+    for event in heard {
+        replicas.heard((peer, shared), &event);
+    }
+}
+
+/// Waits for a module or the connection to say something, and hands the replicas all of it.
+async fn step(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
+    hear(peer, shared, replicas);
+    let listened = EVENTS.with(|events| events.borrow_mut().take());
+    // A module's timer (a seal due once its edits go quiet) is fired as the worker's loop would.
+    let wake_at = replicas.modules.wake_at();
+    let clock = replicas.modules.clock().clone();
+    let timer = async move {
+        match wake_at {
+            Some(at) => clock.sleep_until(at).await,
+            None => std::future::pending().await,
+        }
+    };
+    let listened = match listened {
+        Some((connection, mut receiver)) => {
+            let heard = tokio::select! {
+                () = replicas.woken() => None,
+                () = timer => None,
+                heard = receiver.recv() => heard.ok(),
+            };
+            EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
+            heard
+        }
+        None => {
+            tokio::select! {
+                () = replicas.woken() => {}
+                () = timer => {}
+            }
+            None
+        }
+    };
+    replicas.modules.tick_due();
+    if let Some(event) = listened {
+        replicas.heard((peer, shared), &event);
+    }
+    hear(peer, shared, replicas);
+    replicas.pump((peer, shared)).await;
 }
 
 /// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the

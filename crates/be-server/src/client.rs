@@ -167,8 +167,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             embed::sessions::Call::SessionRelay { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
-            embed::sessions::Call::SessionClaimOwnership { this, .. }
-            | embed::sessions::Call::SessionAppend { this, .. }
+            embed::sessions::Call::SessionClaimLease { this, .. }
+            | embed::sessions::Call::SessionSubmit { this, .. }
             | embed::sessions::Call::SessionRebaseJournal { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
@@ -284,8 +284,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | sessions::Call::SessionJoin { .. }
             | sessions::Call::SessionHeartbeat { .. }
             | sessions::Call::SessionRelay { .. }
-            | sessions::Call::SessionClaimOwnership { .. }
-            | sessions::Call::SessionAppend { .. }
+            | sessions::Call::SessionClaimLease { .. }
+            | sessions::Call::SessionSubmit { .. }
             | sessions::Call::SessionRebaseJournal { .. } => true,
         },
         Call::Keys(call) => match call {
@@ -379,7 +379,8 @@ enum Route {
 
 struct Streams {
     outlets: Outlets<Route>,
-    sessions: HashMap<OpId, Uuid>,
+    /// Each session resource's block, and the build its connection runs there.
+    sessions: HashMap<OpId, (Uuid, be_block_store::Hash)>,
 }
 
 impl Default for Streams {
@@ -734,6 +735,13 @@ impl Client {
                     sessions(block),
                 )?;
             }
+            Push::Sequenced { block, entry } => {
+                streams.send(
+                    &mut lock,
+                    SessionEvent::Sequenced((*entry).clone()),
+                    sessions(block),
+                )?;
+            }
             Push::Paired(message) => {
                 streams.send(&mut lock, message, |route| *route == Route::Paired)?;
             }
@@ -928,7 +936,7 @@ impl Client {
                 let place = match self.streams.events(session) {
                     Some((_, place)) => place,
                     None => match self.streams.sessions.get(&session) {
-                        Some(block) => Place {
+                        Some((block, _)) => Place {
                             organization: identity.organization,
                             block: *block,
                         },
@@ -1890,7 +1898,11 @@ impl Client {
     async fn sessions(&mut self, call: embed::sessions::Call, prelude: Result<(), ServerError>) {
         use embed::sessions::Call;
         match call {
-            Call::SessionNew { resource, block } => {
+            Call::SessionNew {
+                resource,
+                block,
+                tag,
+            } => {
                 if prelude.is_err() {
                     return self
                         .peer
@@ -1903,11 +1915,11 @@ impl Client {
                         .lock()
                         .complete(resource.op(), be_wasm_ops::Outcome::Err(OpError::Denied));
                 }
-                self.streams.sessions.insert(resource.op(), block);
+                self.streams.sessions.insert(resource.op(), (block, tag));
             }
             Call::SessionJoin { this, stream } => {
                 let session = this.op();
-                let Some(&block) = self.streams.sessions.get(&session) else {
+                let Some(&(block, tag)) = self.streams.sessions.get(&session) else {
                     stream.fail(&mut self.peer.lock(), OpError::Canceled);
                     return;
                 };
@@ -1925,7 +1937,7 @@ impl Client {
                         .is_ok();
                     let state = connection
                         .registry
-                        .join(place, connection.client, may_edit)
+                        .join(place, connection.client, may_edit, tag)
                         .await;
                     // As for a watch: a view lost since the check ran leaves the session again.
                     if let Err(error) = connection
@@ -1988,7 +2000,7 @@ impl Client {
                 };
                 let _ = streams.send(&mut lock, event, only);
             }
-            Call::SessionClaimOwnership {
+            Call::SessionClaimLease {
                 this,
                 reply,
                 generation,
@@ -2027,7 +2039,7 @@ impl Client {
                         .registry
                         .state(block)
                         .await
-                        .is_owner(connection.client)
+                        .is_holder(connection.client)
                         && connection
                             .store
                             .require_access(connection.identity()?, vec![block.block], Access::Edit)
@@ -2098,73 +2110,69 @@ impl Client {
                 .await;
                 self.reply(reply, relayed);
             }
-            Call::SessionAppend {
+            Call::SessionSubmit {
                 this,
                 reply,
-                generation,
-                tag,
-                entries,
-                relay,
+                origin,
+                counter,
+                base,
+                barrier,
+                payload,
             } => {
                 let block = self.joined(this.op());
+                let tag = self.tag_of(this.op());
                 let connection = &self.connection;
-                let appended = async {
+                let submitted = async {
                     prelude?;
                     let block = block?;
-                    let state = connection.registry.state(block).await;
-                    if !state.participants.contains(&connection.client) {
+                    if !connection
+                        .registry
+                        .participants(block)
+                        .await
+                        .contains(&connection.client)
+                    {
                         return Err(not_joined());
                     }
-                    for entry in &entries {
-                        crate::limits::at_most(
-                            "a journal entry",
-                            entry.payload.len(),
-                            MAX_RELAY_BYTES,
-                        )?;
+                    if !connection.registry.speaks(block, connection.client).await {
+                        return Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "the session speaks another build of the block's type".into(),
+                        ));
                     }
-                    let owns = state.is_owner(connection.client) && state.generation == generation;
-                    if owns {
-                        connection
-                            .store
-                            .append_journal(
-                                block.organization,
-                                block.block,
-                                generation,
-                                tag,
-                                entries.clone(),
-                            )
-                            .await?;
-                    }
-                    if relay {
-                        let received = be_block_commit::now_milliseconds();
-                        let participants = state.participants;
-                        for entry in entries {
-                            let message = Push::Relayed {
-                                block,
-                                from: connection.client,
-                                kind: RelayKind::Edit,
-                                payload: entry.payload.into(),
-                                received,
-                            };
-                            connection
-                                .hub
-                                .send_all(&participants, connection.client, &message)
-                                .await;
-                        }
+                    crate::limits::at_most("a submission", payload.len(), MAX_RELAY_BYTES)?;
+                    let submission = be_block_session::Submission {
+                        id: be_block_session::OpId { origin, counter },
+                        base,
+                        barrier,
+                        payload,
+                    };
+                    let numbered = connection
+                        .store
+                        .submit_journal(block.organization, block.block, tag?, submission)
+                        .await?;
+                    if let crate::journal::Submitted::Numbered(entry) = numbered {
+                        // Read after the entry is kept, so a connection joining meanwhile either
+                        // reads it in the journal or hears it here.
+                        let participants = connection.registry.participants(block).await;
+                        let message = Push::Sequenced {
+                            block,
+                            entry: std::sync::Arc::new(entry),
+                        };
+                        connection.hub.send_every(&participants, &message).await;
                     }
                     Ok(())
                 }
                 .await;
-                self.reply(reply, appended);
+                self.reply(reply, submitted);
             }
             Call::SessionRebaseJournal {
                 this,
                 reply,
                 generation,
-                tag,
                 base,
             } => {
                 let block = self.joined(this.op());
+                let tag = self.tag_of(this.op());
                 let connection = &self.connection;
                 let rebased = async {
                     prelude?;
@@ -2173,21 +2181,30 @@ impl Client {
                     if !state.participants.contains(&connection.client) {
                         return Err(not_joined());
                     }
-                    // Kept only from the current owner of its generation, as an append is: an
-                    // owner whose lease lapsed or passed rebases until the next `Lease` tells
-                    // it, and the journal is the new owner's to write.
-                    if !state.is_owner(connection.client) || state.generation != generation {
+                    // Kept only from the current holder of its generation: one whose lease
+                    // lapsed or passed seals until the next `Lease` tells it, and the journal is
+                    // the new holder's to trim.
+                    if !state.is_holder(connection.client) || state.generation != generation {
                         return Ok(());
                     }
                     connection
                         .store
-                        .rebase_journal(block.organization, block.block, generation, tag, base)
+                        .rebase_journal(block.organization, block.block, tag?, base)
                         .await
                 }
                 .await;
                 self.reply(reply, rebased);
             }
         }
+    }
+
+    /// The build a session's connection runs, as it named it.
+    fn tag_of(&self, session: OpId) -> Result<be_block_store::Hash, ServerError> {
+        self.streams
+            .sessions
+            .get(&session)
+            .map(|(_, tag)| *tag)
+            .ok_or_else(not_joined)
     }
 
     fn joined(&self, session: OpId) -> Result<Place, ServerError> {
