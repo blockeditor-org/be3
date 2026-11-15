@@ -29,6 +29,9 @@ fn a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_
         !chat.editor.shown(&format!("chat.message.{newest}")),
         "the closed messages are not read until the person goes back to them"
     );
+    // The first recent message names the newest closed one, which the segment's filter may hold:
+    // the segment is read to tell, and holds it, so nothing shows as missing.
+    assert!(!chat.editor.shown(&format!("chat.missing.{newest}")));
 
     // Scrolled to the start of the chat, the newest closed segment is read; the button reads
     // each older one.

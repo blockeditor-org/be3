@@ -69,7 +69,7 @@ pub struct Message {
     /// The last message its author saw when writing it.
     pub seen: Option<Prior>,
     /// Its author's own message before it, which a reader finds unless it was removed: the
-    /// gap shows even when nobody else saw that message (`ChatContent::missing_before`).
+    /// gap shows even when nobody else saw that message (`ChatContent::gaps`).
     pub own_previous: Option<Prior>,
     pub signature: Signature,
     /// When the server took the operation that sent it, in milliseconds since the Unix epoch
@@ -1181,34 +1181,48 @@ impl ChatContent {
         run
     }
 
-    /// Whether `message` may be in a closed segment, rather than recent or unknown here.
-    /// The messages missing from the recent ones, each before the first recent message that
-    /// names it (`Message::seen`, `Message::own_previous`) as `(that message, the missing one)`:
-    /// a message named so that is neither recent, deleted, nor maybe in a closed segment was
-    /// removed outright, which no signature covers. Only recent messages are checked, and a
-    /// message removed after its author's last is not named by any: it shows nothing.
-    pub fn missing_before(&self) -> Vec<(ObjectId, ObjectId)> {
+    /// The messages named by recent ones (`Message::seen`, `Message::own_previous`) that are
+    /// not recent and not deleted, each once, with the first recent message that names it:
+    /// one was removed outright, which no signature covers, unless it is in a closed segment
+    /// of `Gap::closed_in`. Only recent messages are checked, and a message removed after its
+    /// author's last is not named by any.
+    pub fn gaps(&self) -> Vec<Gap> {
         let recent = self.messages();
         let held: std::collections::HashSet<ObjectId> = recent.iter().copied().collect();
         let deletions = self.deletions();
         let mut named = std::collections::HashSet::new();
-        let mut missing = Vec::new();
+        let mut gaps = Vec::new();
         for id in recent {
             let Some(message) = self.message(id) else {
                 continue;
             };
             for prior in [message.seen, message.own_previous].into_iter().flatten() {
-                let gone = !held.contains(&prior.id)
-                    && !deletions.written(&prior.id)
-                    && !self.may_be_closed(prior.id);
+                let gone = !held.contains(&prior.id) && !deletions.written(&prior.id);
                 if gone && named.insert(prior.id) {
-                    missing.push((id, prior.id));
+                    gaps.push(Gap {
+                        naming: id,
+                        gone: prior.id,
+                        closed_in: self.closed_in(prior.id),
+                    });
                 }
             }
         }
-        missing
+        gaps
     }
 
+    /// The closed segments whose filter says they may hold `message`, leaving out any filter
+    /// too full to tell (`Segment::over_full`), which anyone with Edit could write to excuse
+    /// every message.
+    fn closed_in(&self, message: ObjectId) -> Vec<usize> {
+        self.segments()
+            .iter()
+            .enumerate()
+            .filter(|(_, segment)| !segment.over_full() && segment.may_hold(message))
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// Whether `message` may be in a closed segment, rather than recent or unknown here.
     pub fn may_be_closed(&self, message: ObjectId) -> bool {
         self.segments()
             .iter()
@@ -1220,6 +1234,18 @@ impl ChatContent {
     pub fn read_segment(&self, index: usize, bytes: &[u8]) -> Option<Vec<(ObjectId, Message)>> {
         self.segments().get(index)?.read(bytes)
     }
+}
+
+/// A message a recent one names that is not here (`ChatContent::gaps`).
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Gap {
+    /// The first recent message that names it, whose signature says it was there: a reader
+    /// trusts the gap only once that signature verifies.
+    pub naming: ObjectId,
+    pub gone: ObjectId,
+    /// The closed segments that may hold it, by index: it was removed outright unless one of
+    /// them, once read, does.
+    pub closed_in: Vec<usize>,
 }
 
 impl BlockContent for ChatContent {
