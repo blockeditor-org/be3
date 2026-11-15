@@ -2067,7 +2067,12 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let awake = create_memo(move || {
         let mut awake: Vec<Held> = hosts.get().into_iter().map(Held::Panel).collect();
         state.with(|state| {
-            awake.extend(state.joined_groups().into_iter().map(|(_, host)| Held::Panel(host)));
+            awake.extend(
+                state
+                    .joined_groups()
+                    .into_iter()
+                    .map(|(_, host)| Held::Panel(host)),
+            );
         });
         awake.extend(state.with(DockState::bars).into_iter().map(Held::Bar));
         awake

@@ -188,7 +188,8 @@ where
                 let awake = cache.awake;
                 let named = key.clone();
                 let shown = create_memo(move || {
-                    let woken = awake.is_some_and(|awake| awake.with(|awake| awake.contains(&named)));
+                    let woken =
+                        awake.is_some_and(|awake| awake.with(|awake| awake.contains(&named)));
                     (borrower.get().is_some() || woken)
                         && held_around.get().is_none_or(|around| around.get())
                 });
