@@ -85,8 +85,9 @@ changes:
   write.
 - `sorted_by_key` keeps the keys ordered by the closure's value, ties in the
   store's order; `filter` keeps the keys that pass, in the store's order. Both
-  move only the key whose result changed, and a reorder re-sorts from the
-  results they hold.
+  find where the changed key goes in O(log n), but moving it within the key
+  list is an O(n) memmove, and a write that leaves its result alone wakes
+  nothing. A reorder re-sorts from the results they hold.
 
 Each closure is called with the changed item only. A signal it reads is
 tracked, and a change to one rebuilds the view from every item once, at the
