@@ -27,6 +27,7 @@ mod a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_serv
 mod a_message_sent_after_a_discarded_one_does_not_show_as_not_sent_when_the_chat_opens_again;
 mod a_message_sent_after_a_discarded_one_is_sent_once_its_commit_drains_while_the_chat_is_closed;
 mod a_message_sent_after_a_discarded_one_shows_as_not_sent_when_it_is_refused_while_the_chat_is_closed;
+mod a_message_sent_offline_shows_when_it_arrived;
 mod a_message_sent_with_two_editors_of_the_chat_open_tells_once;
 mod a_message_shows_as_sending_until_it_is_delivered;
 mod a_message_shows_whether_its_author_signed_it;
@@ -168,7 +169,7 @@ impl Harness {
 
     fn arrive(&mut self, operation: Edit) {
         self.editor
-            .edit::<ChatContent>(None, &ChatOp::Edit(operation));
+            .edit::<ChatContent>(None, &ChatOp::from(operation));
         self.run();
     }
 

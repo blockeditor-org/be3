@@ -32,6 +32,7 @@ struct Stored {
     seen: Option<MessageHash>,
     #[serde(with = "serde_bytes")]
     signature: Vec<u8>,
+    arrival: Option<i64>,
 }
 
 impl Stored {
@@ -49,6 +50,7 @@ impl Stored {
                 .collect(),
             seen: message.seen,
             signature: message.signature.0.clone(),
+            arrival: message.arrival,
         }
     }
 
@@ -61,6 +63,7 @@ impl Stored {
             attachments: self.attachments.into_iter().map(BlockRef).collect(),
             seen: self.seen,
             signature: Signature(self.signature),
+            arrival: self.arrival,
         };
         (self.id, message)
     }

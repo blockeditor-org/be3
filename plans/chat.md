@@ -13,19 +13,6 @@ counts are built (guides/chat.md). What is left:
   unverified), with no framework types.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
-- **Arrival time.** The protocol half is built (guides/type_modules.md,
-  "Arrival time"): the owner stamps a follower's operation through
-  `LiveEdit::arrival`, and drops one that claims a stamp. Left for chat: keep the
-  stamp in the message op (`arrival` for `ChatContent`); its inverse operations
-  (undoing a delete, anything else derived from held content) must leave the
-  stamp off, since undo goes through `edit`, which refuses a claimed arrival, so a
-  restored message shows its arrival as unknown. Its `transform` must never copy
-  another operation's arrival stamp into the one it rebases: the owner would take
-  that rebased operation as claiming an arrival. A
-  message shows its claimed time and, once stamped, if it arrived well after
-  that, says it was sent offline and when it arrived. A message without a stamp
-  shows no arrival, never its claimed time. A dishonest session owner could
-  alter stored content, which plans/authorship.md accepts.
 - **The owner's own messages unstamped.** The owner applies its own operation
   before the server has seen it, so it carries no stamp. Stamping it needs
   `append` to answer the server time it took the entries at, the same time it
