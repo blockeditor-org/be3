@@ -699,6 +699,8 @@ pub struct Shared {
     pub owned: std::collections::HashSet<Uuid>,
     pub unreadable: HashMap<Uuid, String>,
     pub waiting: usize,
+    /// What the outbox held when `waiting` was counted, for `unsynced` to name.
+    pub outbox: Vec<(&'static str, Uuid)>,
     pub unsent: Vec<be_block_client::UnsentBlock>,
     pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
@@ -757,6 +759,25 @@ impl Shared {
         }
     }
 
+    /// Logs each listing whose answer left out blocks this device held as belonging in it
+    /// (`Graph::take_unlisted_held`): a list then shows fewer entries than this device made or
+    /// heard of, and the line says which listing, at which revision, and whether the answer was
+    /// to a request from before the change that asked for it again.
+    pub(crate) fn log_unlisted_held(&mut self) {
+        for unlisted in self.graph.take_unlisted_held() {
+            eprintln!(
+                "be-host: the answer to {listing:?} at revision {revision} left out {blocks:?}, \
+                 which this device holds as listed there (an answer to a request from before a \
+                 change asked again: {stale}), connected: {connected}",
+                listing = unlisted.listing,
+                revision = unlisted.revision,
+                blocks = unlisted.blocks,
+                stale = unlisted.stale,
+                connected = self.connected,
+            );
+        }
+    }
+
     /// What apps are told of a block depends on whether the host is connected
     /// (`BlockInfo::out_of_reach`), so they ask again when that changes.
     fn set_connected(&mut self, connected: bool) {
@@ -807,7 +828,26 @@ impl Shared {
         }
         let waiting = self.unsealed + self.waiting;
         if waiting > 0 {
-            reasons.push(format!("{waiting} edit(s) wait to be sent"));
+            // Named in full, so a wait that never ends says what it waited on: whether the
+            // edits were never sealed or sat in the outbox with no drain to send them.
+            let outbox: Vec<String> = self
+                .outbox
+                .iter()
+                .map(|(kind, block)| format!("{kind} {block}"))
+                .collect();
+            let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            reasons.push(format!(
+                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}",
+                self.unsealed,
+                unsealed.join("; "),
+                self.waiting,
+                outbox.join(", "),
+                self.drains,
+                match self.draining {
+                    true => "one under way",
+                    false => "none under way",
+                },
+            ));
         }
         reasons
     }
@@ -1235,10 +1275,11 @@ impl Session<'_> {
             .into_iter()
             .flatten()
             .min();
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .log_dropped();
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                held.log_dropped();
+                held.log_unlisted_held();
+            }
             step(shared, None);
             let woken = {
                 let waited = std::pin::pin!(wait(
@@ -2022,9 +2063,11 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .now();
     expire_unsent(peer, now);
     let counts = peer.pending();
+    let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
+    held.outbox = outbox;
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = peer.unsent();
@@ -2504,6 +2547,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.log_dropped();
+            held.log_unlisted_held();
             held.pending = held.pending.saturating_sub(1);
             let (owing, undurable);
             (held.unsealed, owing, undurable) = self.replicas.counts();
