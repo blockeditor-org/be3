@@ -9,7 +9,7 @@ pub enum Side {
     Theirs,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Comparison {
     pub block: Uuid,
     pub ours: Option<Result<Uuid, String>>,

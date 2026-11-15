@@ -92,7 +92,7 @@ impl Config {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct Content {
     pub content_type: Uuid,
     /// Behind an `Arc`, so copying a `Seen` to hand it over copies no open block's content.
@@ -990,8 +990,8 @@ pub fn remove_contact(account: Uuid) {
     send(Command::Contact(worker::ContactCommand::Remove(account)));
 }
 
-pub fn escrow_warning() -> Option<&'static str> {
-    with_seen(|shared| shared.escrow_warning).flatten()
+pub fn escrow_warning() -> Option<String> {
+    with_seen(|shared| shared.escrow_warning.clone()).flatten().map(seen::Words::into_owned)
 }
 
 pub fn status() -> Status {
@@ -1109,7 +1109,7 @@ pub fn busy(hurried: bool) -> Vec<String> {
     with_stack(|stack| {
         let pending = stack.pending();
         let view = stack.view();
-        view.busy_with(hurried, pending, view.search_busy)
+        view.busy_with(hurried, pending, view.search_busy.as_deref())
     })
     .unwrap_or_default()
 }

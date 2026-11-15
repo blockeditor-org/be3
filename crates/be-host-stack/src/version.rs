@@ -45,7 +45,7 @@ pub(crate) const MERGE_BASE_DEPTH: usize = 64;
 pub(crate) static WALKED: std::sync::Mutex<Vec<(MergeBase, usize)>> =
     std::sync::Mutex::new(Vec::new());
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct VersionState {
     pub revision: u64,
     pub status: VersionStatus,

@@ -27,7 +27,7 @@ fn a_placed_child_its_parent_drops_again_is_noted() {
         [Dropped {
             child,
             parent: files,
-            by: "its open replica's report",
+            by: "its open replica's report".into(),
         }]
     );
     assert_eq!(graph.deleted_root(child), Some(child));
@@ -41,7 +41,7 @@ fn a_placed_child_its_parent_drops_again_is_noted() {
         [Dropped {
             child,
             parent: files,
-            by: "a listing",
+            by: "a listing".into(),
         }]
     );
 

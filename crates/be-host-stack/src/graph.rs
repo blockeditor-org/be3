@@ -11,7 +11,7 @@ use be_block_repository::{local_id, masked, scope_mask};
 use be_sdk_api::BlockIdRole;
 use uuid::Uuid;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 #[cfg_attr(not(test), derive(Clone))]
 pub struct Node {
     pub id: Uuid,
@@ -90,7 +90,7 @@ pub struct Scope {
     pub mask: u128,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum Query {
     Roots,
     Detached,
@@ -104,7 +104,7 @@ pub enum Query {
     OpenSettings(Uuid),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub enum Owner {
     Host,
     Open,
@@ -115,7 +115,7 @@ pub enum Owner {
     Editor(u64),
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 enum Fetch {
     #[default]
     Wanted,
@@ -124,7 +124,7 @@ enum Fetch {
     Failed(String),
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 struct Listed {
     members: imbl::HashSet<Uuid>,
     fetch: Fetch,
@@ -133,7 +133,7 @@ struct Listed {
     again: bool,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct Graph {
     /// Counts the changes to the mirror, for the stack's own work to tell whether it moved;
     /// the host hears of each one as a change notice (`Changes::graph`).
@@ -182,18 +182,18 @@ const PLACED_REMEMBERED: usize = 64;
 
 /// A child that dropped out of its parent's references after they had taken it in, while it
 /// still names that parent: it reads as deleted (`Graph::dropped`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Dropped {
     pub child: Uuid,
     pub parent: Uuid,
     /// What set the parent's references without it: its open replica's report, or a listing.
-    pub by: &'static str,
+    pub by: crate::seen::Words,
 }
 
 /// Blocks the server's answer to a listing left out while this device held each as belonging
 /// in it, with the revision the answer was read at and whether it answered a request made
 /// before a change asked for the listing again.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct UnlistedHeld {
     pub listing: Listing,
     pub blocks: Vec<Uuid>,
@@ -788,7 +788,11 @@ impl Graph {
             let names_it =
                 nodes.get(&child).and_then(|node| node.parent) == Some(BlockParent::Block(parent));
             if names_it && !references.contains(&child) {
-                dropped.push(Dropped { child, parent, by });
+                dropped.push(Dropped {
+                    child,
+                    parent,
+                    by: crate::seen::Words::Borrowed(by),
+                });
                 return false;
             }
             names_it
