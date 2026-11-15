@@ -402,7 +402,10 @@ index and search it locally.
   (`Owner::Search`) and shows a hit only once the mirror holds it.
 - **Opening a hit.** Quick open (`OpenableBlock::at`) and the file tree's hit
   rows (`EditorHost::open_block_at`) open a hit's block with a
-  `search-location`: its document key and the words its first match covers.
+  `search-location`: its document key and the words its first match covers. A
+  phrase matches only where its words are in a row, as one range
+  (`Query::matches`), so the first match is where the text first matches the
+  query and the first place its words occur is the hit's.
   be-host keeps it (`reveals::Reveals`) until the editor showing that block
   is open, a few seconds at most, then sends it `editor-event.reveal`; a later
   open of the block, or its editor closing, lets go of it. be-sdk hands it on
