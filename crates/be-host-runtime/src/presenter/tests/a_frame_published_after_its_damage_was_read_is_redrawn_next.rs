@@ -56,13 +56,17 @@ fn a_frame_published_after_its_damage_was_read_is_redrawn_next() {
         height: 10,
     };
 
-    shared.borrow_mut().publish(&layout, Vec::new(), Some(frame(1, left)));
+    shared
+        .borrow_mut()
+        .publish(&layout, Vec::new(), Some(frame(1, left)));
     assert_eq!(
         blit.damage(&pieces, 0),
         Some(vec![Rect::from_min_max(Pos2::ZERO, pos2(0.1, 0.1))]),
     );
     let seen = shared.borrow().published.count();
-    shared.borrow_mut().publish(&layout, Vec::new(), Some(frame(2, right)));
+    shared
+        .borrow_mut()
+        .publish(&layout, Vec::new(), Some(frame(2, right)));
     assert_eq!(
         shared.borrow_mut().take_frames().len(),
         2,

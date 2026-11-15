@@ -69,9 +69,11 @@ fn show(view: View) -> ScreenId {
         None,
         None,
     );
-    with(APP, |runtime| runtime.instances.screen_id(INSTANCE, view.id))
-        .flatten()
-        .expect("the view has a screen")
+    with(APP, |runtime| {
+        runtime.instances.screen_id(INSTANCE, view.id)
+    })
+    .flatten()
+    .expect("the view has a screen")
 }
 
 fn on(screen: ScreenId, view: View, surface: u32) -> be_sdk_api::ScreenPlacement {
@@ -88,7 +90,8 @@ fn on(screen: ScreenId, view: View, surface: u32) -> be_sdk_api::ScreenPlacement
 }
 
 fn retained() -> Vec<u32> {
-    let mut held = with(APP, |runtime| runtime.retained_surfaces()).expect("the runtime is running");
+    let mut held =
+        with(APP, |runtime| runtime.retained_surfaces()).expect("the runtime is running");
     held.sort_unstable();
     held
 }
@@ -110,12 +113,18 @@ fn only_the_views_hidden_last_keep_their_last_frame() {
         .enumerate()
         .map(|(index, (view, screen))| on(*screen, *view, 10 + index as u32))
         .collect();
-    with(APP, |runtime| runtime.place(be_sdk_api::ScreenLayout { screens: all.clone() }));
+    with(APP, |runtime| {
+        runtime.place(be_sdk_api::ScreenLayout {
+            screens: all.clone(),
+        })
+    });
 
     for (index, (view, _)) in views.iter().enumerate() {
         unmount_view(APP, INSTANCE, view.id, 1);
         let left: Vec<_> = all[index + 1..].to_vec();
-        with(APP, |runtime| runtime.place(be_sdk_api::ScreenLayout { screens: left }));
+        with(APP, |runtime| {
+            runtime.place(be_sdk_api::ScreenLayout { screens: left })
+        });
     }
     assert_eq!(
         retained(),

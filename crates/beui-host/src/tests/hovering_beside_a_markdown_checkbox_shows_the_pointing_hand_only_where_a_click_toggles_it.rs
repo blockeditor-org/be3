@@ -33,10 +33,26 @@ fn hovering_beside_a_markdown_checkbox_shows_the_pointing_hand_only_where_a_clic
     let checkbox = harness.rect(harness.find("text.checkbox.0"));
     let y = checkbox.center().y;
     let points = [
-        ("just left of the box", pos2(checkbox.min.x - STEP, y), false),
-        ("just inside its left edge", pos2(checkbox.min.x + STEP, y), true),
-        ("just inside its right edge", pos2(checkbox.max.x - STEP, y), true),
-        ("just right of the box", pos2(checkbox.max.x + STEP, y), false),
+        (
+            "just left of the box",
+            pos2(checkbox.min.x - STEP, y),
+            false,
+        ),
+        (
+            "just inside its left edge",
+            pos2(checkbox.min.x + STEP, y),
+            true,
+        ),
+        (
+            "just inside its right edge",
+            pos2(checkbox.max.x - STEP, y),
+            true,
+        ),
+        (
+            "just right of the box",
+            pos2(checkbox.max.x + STEP, y),
+            false,
+        ),
     ];
     for (place, at, inside) in points {
         let output = harness.frame(vec![Input::PointerMoved(at)]);

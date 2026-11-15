@@ -122,7 +122,11 @@ fn a_view_shown_again_draws_its_last_frame_until_its_app_draws_it_anew() {
         .flatten()
         .expect("the view has a screen");
     laid_out(vec![on(screen, 3)]);
-    assert_eq!(shown_from(), Some(3), "the view draws the surface the app laid it out on");
+    assert_eq!(
+        shown_from(),
+        Some(3),
+        "the view draws the surface the app laid it out on"
+    );
 
     unmount_view(APP, INSTANCE, BAR.id, 1);
     laid_out(Vec::new());
@@ -176,7 +180,11 @@ fn a_view_shown_again_draws_its_last_frame_until_its_app_draws_it_anew() {
 
     unmount_view(APP, INSTANCE, BAR.id, 2);
     laid_out(Vec::new());
-    assert_eq!(retained(), vec![4], "hidden again, its last frame is kept again");
+    assert_eq!(
+        retained(),
+        vec![4],
+        "hidden again, its last frame is kept again"
+    );
     close(APP, INSTANCE);
     assert!(
         retained().is_empty(),
