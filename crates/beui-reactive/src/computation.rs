@@ -458,6 +458,13 @@ impl Effect {
             .is_none_or(|computation| computation.is_disposed())
     }
 
+    /// Runs it now if something it read changed, instead of when the queue reaches it.
+    pub(crate) fn run_if_due(&self) {
+        if let Some(computation) = self.computation() {
+            computation.refresh();
+        }
+    }
+
     /// Whether something it read changed since its last run, so it will run again. One that
     /// may have (a memo it read was woken) brings those memos up to date to tell, without
     /// running.
