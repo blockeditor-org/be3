@@ -1,9 +1,10 @@
 use super::*;
 
 /// How many local edits the host keeps of `block` on the device, to give its replica again.
-fn kept_edits(block: Uuid) -> usize {
-    crate::with_shared(|shared| shared.peer.clone())
-        .flatten()
+fn kept_edits(shared: &Shared, block: Uuid) -> usize {
+    shared
+        .peer
+        .as_ref()
         .and_then(|peer| peer.open_edits(block))
         .map_or(0, |kept| kept.edits.len())
 }
@@ -25,8 +26,8 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
     add(block, 2);
     add(block, 4);
     wait_for_count(block, 7);
-    wait_until("kept the edits the server has not ordered", |_| {
-        kept_edits(block) >= 2
+    wait_until("kept the edits the server has not ordered", |shared| {
+        kept_edits(shared, block) >= 2
     });
 
     crash();
@@ -48,7 +49,11 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
     });
     flush_and_send();
     assert_eq!(count_of(block), Some(7));
-    assert_eq!(kept_edits(block), 0, "nothing is left to give again");
+    assert_eq!(
+        crate::with_shared(|shared| kept_edits(shared, block)),
+        Some(0),
+        "nothing is left to give again"
+    );
     let saved = runtime().block_on(async {
         harness
             .outside_peer()
