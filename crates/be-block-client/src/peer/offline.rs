@@ -333,9 +333,14 @@ impl<S: ObjectStore> Peer<S> {
     async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
-        for (sequence, op) in self.refs.outbox() {
+        for (sequence, _) in self.refs.outbox() {
+            // Read as it stands now: a commit stamped again (`restamp`) rewrote what waits
+            // behind it.
+            let Some(op) = self.refs.op(sequence) else {
+                continue;
+            };
             let block = op.block();
-            if skip(block) || stopped.contains(&block) || !self.refs.holds(sequence) {
+            if skip(block) || stopped.contains(&block) {
                 continue;
             }
             // What was made since of a block the server refused to make joins it among the
@@ -627,9 +632,28 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    async fn drain_publish(&self, sequence: u64, pending: Pending) -> Result<Drained, ClientError> {
+    async fn drain_publish(
+        &self,
+        sequence: u64,
+        mut pending: Pending,
+    ) -> Result<Drained, ClientError> {
         let block = pending.block;
-        match self.send_pending(&pending).await {
+        let sent = loop {
+            match self.send_pending(&pending).await {
+                // Stamped by a clock running fast before this device measured the server's:
+                // stamped again, with what is built on it, and sent again.
+                Err(ClientError::Refused(ErrorCode::CommitAhead, _))
+                    if self.restamp(block).await? =>
+                {
+                    let Some(Op::Publish(restamped)) = self.refs.op(sequence) else {
+                        return Err(ClientError::MissingObject(pending.commit.hash()));
+                    };
+                    pending = restamped;
+                }
+                sent => break sent,
+            }
+        };
+        match sent {
             Ok(PublishOutcome::Published(head)) => {
                 self.settle(sequence, &pending, head)?;
                 Ok(Drained::Published { block, head })
@@ -847,8 +871,11 @@ pub(super) fn lost_access(code: ErrorCode) -> bool {
 }
 
 /// A refusal sending the same change again cannot get past: the change itself is wrong (a
-/// malformed request, an object over the size limit), where a quota, a missing key or the
-/// store may come right by the next try.
+/// malformed request, an object over the size limit, a time `restamp` could not move back),
+/// where a quota, a missing key or the store may come right by the next try.
 fn never_taken(code: ErrorCode) -> bool {
-    matches!(code, ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge)
+    matches!(
+        code,
+        ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge | ErrorCode::CommitAhead
+    )
 }

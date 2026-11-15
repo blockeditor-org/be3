@@ -824,7 +824,7 @@ impl ServerStore {
         let latest = be_block_commit::now_milliseconds().saturating_add(MAX_COMMIT_AHEAD);
         if time > latest {
             return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
+                ErrorCode::CommitAhead,
                 format!("a commit's time may be at most {latest}, not {time}: is this clock fast?"),
             ));
         }
