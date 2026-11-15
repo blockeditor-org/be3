@@ -5,14 +5,11 @@ use beui_types::clipboard::formats;
 /// How many UTF-16 code units a clip may take on the system clipboard, its
 /// text and the be3 formats' base64 in its extras together: a Parcel holds
 /// strings as UTF-16, and a clip crosses Binder, whose transactions stop near
-/// 1 MB, past which `setPrimaryClip` throws.
+/// 1 MB, past which `setPrimaryClip` throws. The plain text has first claim:
+/// beyond it, it goes there cut short with `CUT_SHORT` after it, and the be3
+/// formats take what it leaves, those beyond it staying in the held clip, for
+/// pastes in this program.
 const PARCEL_UNITS: usize = 400 * 1024;
-
-/// How much of that the plain text may take; what it leaves is the be3
-/// formats'. Text beyond it goes there cut short, with `CUT_SHORT` after it,
-/// and formats beyond what is left stay in the held clip, for pastes in this
-/// program.
-const TEXT_UNITS: usize = 192 * 1024;
 
 /// What ends text cut short to fit the clipboard.
 const CUT_SHORT: &str = "\n\n[Cut short: this copy was too large for the clipboard. \
@@ -27,12 +24,35 @@ const NONCE: &str = "be3/copy";
 /// MIME types, and its `ClipItem::stored` bytes, as base64, in the
 /// description's extras under that id, so another be3 program reads them,
 /// with a nonce of this copy. The clip a copy wrote stays held for its other
-/// representations while the clipboard's nonce is still its own. Written
+/// representations while the clipboard's nonce is still its own, or, when
+/// the copy could not be put there at all, until the clipboard changes. Written
 /// without an emulator to run it on: only its compiling is checked.
 #[derive(Default)]
 pub struct Clipboard {
     held: HeldClip,
-    nonce: Option<i64>,
+    mark: Option<Mark>,
+}
+
+/// How a paste tells the clipboard is still the held clip's.
+enum Mark {
+    /// The copy's nonce is in the clipboard's extras.
+    Nonce(i64),
+    /// The copy could not be put there, so the held clip answers pastes in
+    /// this program until the clipboard changes from what it then held.
+    Unchanged(Option<(Option<String>, Option<i64>)>),
+}
+
+impl Mark {
+    fn of(held: Option<&Held>) -> Option<(Option<String>, Option<i64>)> {
+        held.map(|held| (held.text.clone(), held.nonce))
+    }
+
+    fn ours(&self, now: Option<&Held>) -> bool {
+        match self {
+            Mark::Nonce(nonce) => now.is_some_and(|now| now.nonce == Some(*nonce)),
+            Mark::Unchanged(then) => *then == Mark::of(now),
+        }
+    }
 }
 
 impl Clipboard {
@@ -52,7 +72,7 @@ impl Clipboard {
                 (item.format, encoded)
             });
         let text = clip.plain_text().unwrap_or_default();
-        let text = beui_types::clip::cut_short(&text, TEXT_UNITS, CUT_SHORT);
+        let text = beui_types::clip::cut_short(&text, PARCEL_UNITS, CUT_SHORT);
         let left = PARCEL_UNITS - beui_types::clip::utf16_units(&text);
         let fitting = beui_types::clip::fitting(encoded, left, |(_, encoded)| encoded.len());
         let nonce = fresh_nonce();
@@ -60,15 +80,16 @@ impl Clipboard {
         // clipboard is this copy's when its text there was cut short.
         let set = android::set(&text, &fitting, nonce)
             .or_else(|_| android::set(&text, &[], nonce));
-        self.nonce = set.ok().map(|()| nonce);
+        self.mark = Some(match set {
+            Ok(()) => Mark::Nonce(nonce),
+            Err(_) => Mark::Unchanged(Mark::of(android::get().ok().flatten().as_ref())),
+        });
         self.held.copy(clip);
     }
 
     pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let now = android::get().ok().flatten();
-        let ours = self
-            .nonce
-            .is_some_and(|nonce| now.as_ref().is_some_and(|now| now.nonce == Some(nonce)));
+        let ours = self.mark.as_ref().is_some_and(|mark| mark.ours(now.as_ref()));
         if let Some(clip) = self.held.current(ours) {
             return clip.resolve(wanted, move |item| answer.send(item));
         }
