@@ -81,7 +81,9 @@ Each says whether a server account offline has the same gap.
 ## Steps
 
 1. A peer with no server: its local head is final, and its account, roots and settings are made
-   on the device.
+   on the device. The peer and the stack are built (`Peer::local`, `Config::is_local`;
+   guides/blocks/client.md, Saving and the outbox); be-host making the account, its organization
+   and its identity on the device comes with step 2.
 2. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
 3. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
    be-server as a test dependency. Update guides/hosting.md (Local profiles and the default

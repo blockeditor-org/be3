@@ -90,6 +90,12 @@ impl Config {
     fn socket_url(&self) -> String {
         crate::accounts::socket_url(&self.server_url)
     }
+
+    /// A local account's, which has no server (plans/local_accounts.md): its `server_url` is
+    /// empty, and its stack runs on a peer of its own (`Peer::local`).
+    pub fn is_local(&self) -> bool {
+        self.server_url.is_empty()
+    }
 }
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
@@ -131,6 +137,8 @@ pub struct Status {
     pub waiting: usize,
     pub syncing: bool,
     pub unsent: usize,
+    /// A local account's, with no server: saved once on this device, never offline.
+    pub local: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1091,6 +1099,7 @@ pub fn status() -> Status {
         waiting: shared.unsealed + shared.waiting,
         syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
+        local: shared.local,
     }
 }
 

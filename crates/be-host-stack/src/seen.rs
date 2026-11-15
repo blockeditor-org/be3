@@ -282,6 +282,9 @@ pub struct Seen {
     /// change them (`BlockInfo::out_of_reach`); empty while connected.
     pub out_of_reach: imbl::HashSet<Uuid>,
     pub reached: bool,
+    /// A local account's stack, which has no server (`Config::is_local`): what it makes is saved
+    /// as it is made, and nothing waits to reach a server.
+    pub local: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
     /// outbox has drained and the open replicas have rejoined their sessions.
