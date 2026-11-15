@@ -124,22 +124,13 @@ fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
 
 #[component]
 fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> NodeId {
-    let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=Space::Xs2>
-            <ForEach value={keys}>|index: usize| {
-                let line = create_memo(move || {
-                    lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
-                });
-                view! {
-                    <Text
-                        size=TextSize::Sm
-                        family={if monospace { Family::Mono } else { Family::Sans }}
-                    >
-                        {line}
-                    </Text>
-                }
-            }</ForEach>
+            <ForEach value={lines}>|line: String|
+                <Text size=TextSize::Sm family={if monospace { Family::Mono } else { Family::Sans }}>
+                    {line}
+                </Text>
+            </ForEach>
         </List>
     }
 }

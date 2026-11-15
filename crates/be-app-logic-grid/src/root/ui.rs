@@ -321,9 +321,6 @@ fn GridCanvas(session: Session) -> NodeId {
     });
 
     let labels = create_memo(move || session.read(LogicGridEditor::component_labels));
-    let label_keys = create_memo(move || {
-        labels.with(|labels| labels.iter().map(|label| label.key).collect::<Vec<_>>())
-    });
     let zoom = create_memo(move || camera.get().scale);
 
     let last = StoredCell::new(None::<[f32; 2]>);
@@ -387,16 +384,12 @@ fn GridCanvas(session: Session) -> NodeId {
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <Canvas view={shown}>
-                            <ForEach value={label_keys}>|key: LabelKey| {
-                                let label = create_memo(move || {
-                                    labels.with(|labels| {
-                                        labels.iter().find(|label| label.key == key).cloned()
-                                    })
-                                });
-                                view! {
-                                    <GridLabel label={label} zoom={zoom} />
-                                }
-                            }</ForEach>
+                            <ForEach
+                                value={labels}
+                                key={|label: &ComponentLabel| label.key}
+                            >|label: ReadSignal<ComponentLabel>|
+                                <GridLabel label={label} zoom={zoom} />
+                            </ForEach>
                             <ConfiguredStorage session={session} />
                         </Canvas>
                     </CanvasItem>
@@ -436,31 +429,19 @@ fn ConfiguredStorage(session: Session) -> CanvasItem {
 }
 
 #[component]
-fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem {
-    let rect = create_memo(move || label.get().map_or([0.0; 4], |label| label.rect));
+fn GridLabel(label: ReadSignal<ComponentLabel>, zoom: Memo<f32>) -> CanvasItem {
+    let rect = create_memo(move || label.with(|label| label.rect));
     let x = create_memo(move || rect.get()[0]);
     let y = create_memo(move || rect.get()[1]);
     let width = create_memo(move || rect.get()[2] - rect.get()[0]);
     let height = create_memo(move || rect.get()[3] - rect.get()[1]);
-    let text = create_memo(move || label.get().map(|label| label.text).unwrap_or_default());
+    let text = create_memo(move || label.with(|label| label.text.clone()));
     let size = create_memo(move || {
-        TextSize::Custom(
-            label
-                .get()
-                .map_or(LabelKind::Port.font_size(zoom.get()), |label| {
-                    label.kind.font_size(zoom.get())
-                }),
-        )
+        TextSize::Custom(label.with(|label| label.kind).font_size(zoom.get()))
     });
-    let color = create_memo(move || {
-        TextColor::Custom((label.get().map_or(LABEL_COLOR, |label| label.kind.color())).into())
-    });
-    let align = create_memo(move || label.get().map_or(TextAlign::Center, |label| label.align));
-    let vertical_align = create_memo(move || {
-        label
-            .get()
-            .map_or(TextAlign::Center, |label| label.vertical_align)
-    });
+    let color = create_memo(move || TextColor::Custom(label.with(|label| label.kind.color()).into()));
+    let align = create_memo(move || label.with(|label| label.align));
+    let vertical_align = create_memo(move || label.with(|label| label.vertical_align));
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Text size color={color} align={align} vertical_align={vertical_align}>{text}</Text>
