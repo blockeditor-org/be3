@@ -11,7 +11,7 @@ load(
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
-load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
+load("@root//buck/program:defs.bzl", "PrecompiledInfo", "app_data", "app_types", "program")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
@@ -226,6 +226,10 @@ BASE_LIBRARY = "root//crates/be-sdk-library-base:module"
 
 DEFAULT_LIBRARIES = [BASE_LIBRARY, "root//crates/be-sdk-library-beui:module"]
 
+# What an app's tests link that the app does not: be-sdk-test and what only
+# it uses, above DEFAULT_LIBRARIES (app_tests).
+TEST_LIBRARY = "root//crates/be-sdk-library-test:module"
+
 # What makes a module the root of every closure: wasi-libc's crt1-reactor.o,
 # whose _initialize sets up libc's main thread and runs the constructors. The
 # root and a standalone app are each a WASI reactor linked at fixed
@@ -385,6 +389,7 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
         env = test_env,
         exports = _guest_exports,
         extra_deps = extra_deps,
+        libraries = libraries,
     )
     examples = native.glob(["examples/*.rs"])
     if examples:
@@ -393,12 +398,20 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
             cargo_example(root.removeprefix("examples/").removesuffix(".rs"))
 
 # A crate's tests compiled to wasm and run by app-test-runner, which gives
-# the module an app's imports; an editor's, be-sdk's and
-# be-sdk-beui's.
+# the module an app's imports; an editor's, be-sdk's and be-sdk-beui's. The
+# module is linked against libraries as the app is (DEFAULT_LIBRARIES unless
+# given), and with DEFAULT_LIBRARIES against TEST_LIBRARY too, so it holds
+# only the crate, its tests and the generics they instantiate, and runs
+# against the libraries apps ship with (guides/app_libraries.md, Tests).
+# libraries = [] links a standalone test module.
 # The test crate itself is compiled at app_test's opt level, and its
 # dependencies as the app's are.
-def app_tests(exports = [], env = {}, extra_deps = []):
+def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
     facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    if libraries == DEFAULT_LIBRARIES:
+        libraries = DEFAULT_LIBRARIES + [TEST_LIBRARY]
     native.rust_binary(
         name = "test-module",
         crate = facts.crate,
@@ -407,6 +420,7 @@ def app_tests(exports = [], env = {}, extra_deps = []):
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
+        linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         rustc_flags = exports + ["--test"] + opt_flags("app_test"),
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
@@ -415,6 +429,7 @@ def app_tests(exports = [], env = {}, extra_deps = []):
     )
     wasm_test_harness(
         name = "test-harness",
+        libraries = libraries,
         module = ":test-module",
         precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/be-sdk-test-runner:bin",
@@ -440,12 +455,16 @@ def app_tests(exports = [], env = {}, extra_deps = []):
 # MADE_PAINTINGS' when it is set, to it and nothing else.
 #
 # The module is compiled for wasmtime once, in an action, rather than by every
-# test process - about forty seconds a module. It is compiled for the x86_64
-# baseline, since the compile runs on a worker and the test here, and only for
-# the host: elsewhere the runner compiles it when the test runs. --quick
-# compiles it without Cranelift's optimizations, which took a quarter off the
-# compile and left the tests' running time as it was; Cranelift's single-pass
-# register allocator, which would take off more, ran a deep paint out of stack.
+# test process. It is compiled for the x86_64 baseline, since the compile runs
+# on a worker and the test here, and only for the host: elsewhere the runner
+# compiles it when the test runs. --quick compiles it without Cranelift's
+# optimizations, which took a quarter off the compile and left the tests'
+# running time as it was; Cranelift's single-pass register allocator, which
+# would take off more, ran a deep paint out of stack.
+#
+# The libraries it is linked against are the ones be-host's :precompiled
+# compiles for every app, so every test and the host share one compile of
+# each; a library no app links is compiled here.
 def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     if not ctx.attrs.precompile:
         return cmd_args(module)
@@ -458,21 +477,43 @@ def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     )
     return cmd_args("--precompiled", artifact, module)
 
-# The app test's command: app-test-runner and the module, which draws through
-# the sysroot's lavapipe, as the renderer's tests do (the env app_tests gives
-# its be_test).
+def _library(ctx: AnalysisContext, library: Artifact) -> Artifact:
+    if not ctx.attrs.precompile:
+        return library
+    compiled = ctx.attrs._precompiled[PrecompiledInfo].artifacts
+    if library in compiled:
+        return compiled[library]
+    artifact = ctx.actions.declare_output(library.basename.removesuffix(".wasm") + ".cwasm")
+    ctx.actions.run(
+        cmd_args(ctx.attrs.runner[RunInfo], "--precompile-to", "--target", "x86_64-unknown-linux-gnu", artifact.as_output(), library),
+        category = "wasm_precompile",
+        identifier = library.basename,
+    )
+    return artifact
+
+# The app test's command: app-test-runner, each library in the module's
+# closure in order, and the module, which draws through the sysroot's
+# lavapipe, as the renderer's tests do (the env app_tests gives its be_test).
 def _wasm_test_harness_impl(ctx: AnalysisContext) -> list[Provider]:
     module = ctx.attrs.module[DefaultInfo].default_outputs[0]
+    closure = []
+    for library in ctx.attrs.libraries:
+        for wasm in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
+            if wasm not in closure:
+                closure.append(wasm)
+    libraries = [cmd_args("--library", _library(ctx, wasm)) for wasm in closure]
     return [
         DefaultInfo(default_output = module),
-        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], _precompiled(ctx, module))),
+        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], libraries, _precompiled(ctx, module))),
     ]
 
 wasm_test_harness = rule(
     attrs = {
+        "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
         "module": attrs.transition_dep(cfg = wasi_transition),
         "precompile": attrs.bool(default = True),
         "runner": attrs.dep(providers = [RunInfo]),
+        "_precompiled": attrs.default_only(attrs.dep(default = "root//crates/be-host:precompiled", providers = [PrecompiledInfo])),
     },
     impl = _wasm_test_harness_impl,
 )

@@ -88,6 +88,7 @@ members = [
     "crates/be-sdk-database",
     "crates/be-sdk-library-base",
     "crates/be-sdk-library-beui",
+    "crates/be-sdk-library-test",
     "crates/be-sdk-manifest",
     "crates/be-sdk-shell",
     "crates/be-sdk-terminal",

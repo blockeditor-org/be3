@@ -51,6 +51,9 @@ const APP_FLAGS: [&str; 7] = [
     "--export=__tls_align",
     "--export=__tls_base",
 ];
+const COMMAND_START: &str = "crt1-command.o";
+const STD: &str = "libstd-";
+const TEST_HARNESS: [&str; 3] = ["libtest-", "libgetopts-", "librustc_std_workspace_std-"];
 const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
@@ -396,9 +399,50 @@ pub fn listing(
     listing
 }
 
+fn is_rlib_of(argument: &str, prefix: &str) -> bool {
+    let name = basename(argument);
+    name.starts_with(prefix) && name.ends_with(".rlib")
+}
+
+/// The root holds libtest beside std: like std, Rust's prebuilt libtest is not
+/// position-independent, so a test module linked against the libraries
+/// (`app_tests` in buck/wasm/defs.bzl) cannot hold it, and finds it here.
+pub fn with_test_harness(arguments: Vec<String>, beside_std: &[String]) -> Vec<String> {
+    let mut rewritten = Vec::with_capacity(arguments.len() + TEST_HARNESS.len());
+    for argument in arguments {
+        let std = is_rlib_of(&argument, STD);
+        rewritten.push(argument);
+        if std {
+            rewritten.extend(
+                beside_std
+                    .iter()
+                    .filter(|path| TEST_HARNESS.iter().any(|prefix| is_rlib_of(path, prefix)))
+                    .cloned(),
+            );
+        }
+    }
+    rewritten
+}
+
+fn beside_std(arguments: &[String]) -> Result<Vec<String>, String> {
+    let Some(std) = arguments.iter().find(|argument| is_rlib_of(argument, STD)) else {
+        return Ok(Vec::new());
+    };
+    let directory = Path::new(std).parent().unwrap_or(Path::new("."));
+    let entries = std::fs::read_dir(directory)
+        .map_err(|error| format!("{} could not be listed: {error}", directory.display()))?;
+    let mut paths: Vec<String> = entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path().display().to_string())
+        .collect();
+    paths.sort();
+    Ok(paths)
+}
+
 fn link_root(linker: &str, arguments: Vec<String>, name: &str) -> Result<(), String> {
     let out = output(&arguments)?;
-    let (arguments, linked) = root_arguments(arguments);
+    let beside_std = beside_std(&arguments)?;
+    let (arguments, linked) = root_arguments(with_test_harness(arguments, &beside_std));
     let thread_locals = link_mapped(linker, arguments, &scratch(&out, ".map"))?;
     let bytes = module::with_short_symbols(&without_unused_sections(&read(&out)?)?)?;
     let listing = listing(name, &[], &linked, &thread_locals);
@@ -541,6 +585,7 @@ pub fn app_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<St
             continue;
         }
         let dropped = DROPPED_FROM_APPS.contains(&argument.as_str())
+            || basename(&argument) == COMMAND_START
             || (argument.starts_with("-l") && linked.contains(&argument))
             || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {

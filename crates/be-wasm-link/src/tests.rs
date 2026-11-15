@@ -124,6 +124,7 @@ mod a_missing_symbol_names_it_and_its_importer;
 mod a_response_file_is_split_as_lld_splits_it;
 mod a_root_link_takes_every_rust_object_whole;
 mod a_root_link_takes_libcxx_whole_once;
+mod a_root_link_takes_libtest_from_beside_std;
 mod a_symbol_two_libraries_define_is_refused;
 mod a_thread_local_another_module_defines_is_read_through_got_tls;
 mod a_thread_local_defined_in_the_link_stays_local;

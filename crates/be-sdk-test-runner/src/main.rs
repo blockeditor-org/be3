@@ -42,15 +42,19 @@ fn main() {
         }
         return;
     }
-    let (first, precompiled) = if first == "--precompiled" {
-        let artifact = arguments.next().map(PathBuf::from);
-        let Some(next) = arguments.next() else {
+    let mut precompiled = None;
+    let mut libraries = Vec::new();
+    let mut first = first;
+    while first == "--precompiled" || first == "--library" {
+        let (Some(path), Some(next)) = (arguments.next(), arguments.next()) else {
             usage(&program);
         };
-        (next, artifact)
-    } else {
-        (first, None)
-    };
+        match first.as_str() {
+            "--precompiled" => precompiled = Some(PathBuf::from(path)),
+            _ => libraries.push(PathBuf::from(path)),
+        }
+        first = next;
+    }
     let wasm = PathBuf::from(first);
     let mut arguments: Vec<String> = std::iter::once(wasm.to_string_lossy().into_owned())
         .chain(arguments)
@@ -65,7 +69,7 @@ fn main() {
         arguments.push("--nocapture".to_owned());
     }
 
-    match run(&wasm, &arguments, precompiled.as_deref()) {
+    match run(&wasm, &arguments, precompiled.as_deref(), &libraries) {
         Ok(code) => std::process::exit(code),
         Err(message) => {
             eprintln!("{message}");
@@ -90,7 +94,10 @@ fn absolute_guest_paths() {
 }
 
 fn usage(program: &str) -> ! {
-    eprintln!("Usage: {program} [--precompiled TESTS.cwasm] TESTS.wasm [test arguments...]");
+    eprintln!(
+        "Usage: {program} [--precompiled TESTS.cwasm] [--library LIBRARY.wasm|.cwasm]... \
+         TESTS.wasm [test arguments...]"
+    );
     eprintln!("       {program} --precompile TESTS.wasm...");
     eprintln!(
         "       {program} --precompile-to [--target TRIPLE] [--quick] TESTS.cwasm TESTS.wasm"
@@ -98,10 +105,15 @@ fn usage(program: &str) -> ! {
     std::process::exit(2);
 }
 
-fn run(wasm: &Path, arguments: &[String], precompiled: Option<&Path>) -> Result<i32, String> {
+fn run(
+    wasm: &Path,
+    arguments: &[String],
+    precompiled: Option<&Path>,
+    libraries: &[PathBuf],
+) -> Result<i32, String> {
     let directories = guest_directories()?;
     let host = Host::on_demand(gpu, None)?;
-    host.run_tests(wasm, arguments, &directories, precompiled)
+    host.run_tests(wasm, arguments, &directories, precompiled, libraries)
 }
 
 fn guest_directories() -> Result<Vec<PathBuf>, String> {
