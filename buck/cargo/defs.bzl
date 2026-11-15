@@ -61,6 +61,18 @@ def _per_platform(crate, pick, extra = []):
         return distinct[0]
     return select({"DEFAULT": []} | {setting: values.get(plan, []) for plan, setting in PLAN_SETTINGS.items()})
 
+# The dependencies a crate renames in its Cargo.toml (`beui = { package = "beui-documents" }`), name
+# to label, per platform as _per_platform gives its deps.
+def _per_platform_named(crate, pick):
+    values = {platform: pick(entry) for platform, entry in crate["platforms"].items()}
+    distinct = []
+    for value in values.values():
+        if value not in distinct:
+            distinct.append(value)
+    if len(distinct) <= 1:
+        return distinct[0] if distinct else {}
+    return select({"DEFAULT": {}} | {setting: values.get(plan, {}) for plan, setting in PLAN_SETTINGS.items()})
+
 # What makes a crate's targets incompatible with every platform cargo did not
 # plan it for (PLANS in crates/be-tool-buck/src/plan.rs says which), so that one
 # asked for there, such as an app crate built for anything but the guest's
@@ -175,6 +187,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], extra_srcs 
         deps = _per_platform(crate, lambda entry: entry["deps"], extra_deps),
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
+        named_deps = _per_platform_named(crate, lambda entry: entry.get("named_deps", {})),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         proc_macro = library["proc_macro"],
@@ -217,6 +230,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apa
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         env = compile_env,
+        named_deps = _per_platform_named(crate, lambda entry: entry.get("named_deps", {}) | entry.get("test_named_deps", {})),
         features = _per_platform(crate, lambda entry: entry["test_features"]),
         mapped_srcs = cargo_manifest_sources(resources, foreign_resources),
         rustc_flags = rustc_flags + ["--test"],
