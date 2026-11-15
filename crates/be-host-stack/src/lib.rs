@@ -411,25 +411,49 @@ pub(crate) fn wait_for_answer<T>(
     }
 }
 
-/// Awaits `answer`, which a reply's callback gives, taking the worker's updates as they land:
-/// the callback runs only as they are taken (`take_updates`), and a page that runs no frames
-/// (a hidden tab, which the browser gives no animation frames) takes none otherwise. What
+/// Awaits `answer`, which a reply's callback gives, while the worker's updates are taken as
+/// they land: the callback runs only as they are taken (`take_updates`), and a page that runs no
+/// frames (a hidden tab, which the browser gives no animation frames) takes none otherwise. What
 /// answers the browser outside a frame, such as a push the service worker asks the page to
-/// open, awaits its reply through this; the page never waits.
+/// open, awaits its reply through this; the page never waits. However many await at once, one
+/// task on the page takes the updates for them all (`pump`), the one that awaits the handover.
+#[cfg(target_arch = "wasm32")]
 pub async fn taking_updates<F: std::future::Future>(answer: F) -> F::Output {
-    let mut answer = std::pin::pin!(answer);
-    loop {
+    struct Awaiting;
+    impl Drop for Awaiting {
+        fn drop(&mut self) {
+            AWAITING.set(AWAITING.get() - 1);
+        }
+    }
+    AWAITING.set(AWAITING.get() + 1);
+    let _awaiting = Awaiting;
+    if !PUMPING.replace(true) {
+        platform::spawn_local(pump());
+    }
+    answer.await
+}
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    /// How many `taking_updates` await their answer.
+    static AWAITING: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Whether the task that takes updates for them runs (`pump`).
+    static PUMPING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Takes the worker's updates as each lands, while any `taking_updates` awaits its answer.
+#[cfg(target_arch = "wasm32")]
+async fn pump() {
+    while AWAITING.get() > 0 {
         let Some(handover) = with_stack(|stack| Arc::clone(&stack.handover)) else {
-            return answer.await;
+            break;
         };
         let handed = handover.handed();
         take_updates();
-        let landed = std::pin::pin!(handover.handed_past(handed));
-        match futures_util::future::select(answer.as_mut(), landed).await {
-            futures_util::future::Either::Left((answered, _)) => return answered,
-            futures_util::future::Either::Right(((), _)) => {}
-        }
+        // A stack that stops closes its handover, which ends this wait too.
+        handover.handed_past(handed).await;
     }
+    PUMPING.set(false);
 }
 
 fn stack() -> &'static Mutex<Option<Stack>> {
@@ -535,7 +559,6 @@ pub fn stop() {
     let stopped = stack.is_some();
     if let Some(mut stack) = stack {
         let taken = stack.catch_up();
-        #[cfg(not(target_arch = "wasm32"))]
         stack.handover.close();
         let mut kept = OWN_INVITATIONS
             .lock()
