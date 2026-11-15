@@ -679,7 +679,6 @@ impl TextAreaState {
                 style: SpanStyle::new(font, colors.syntax.markdown_plain_text),
                 hang: row.hang,
                 anywhere: false,
-                least: false,
             };
             lines.push(ProseLine {
                 layout: lay_out(&row.pieces(Vec2::splat(square)), options)?,

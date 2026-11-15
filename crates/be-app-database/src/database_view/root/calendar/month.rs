@@ -5,7 +5,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 
 use super::{Event, FIRST_DAY, events_on, forward, today};
-use beui::Direction;
+use beui::{Direction, Overflow};
 
 const CELL_SPACING: Space = Space::Xs2;
 const MAX_VISIBLE: usize = 3;
@@ -155,14 +155,18 @@ fn MonthCell(
                                 on_click={open}
                                 on_activate={open}
                             >
-                                <Text style=TextStyle::CAPTION color=TextColor::OnAccent>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    color=TextColor::OnAccent
+                                    overflow=Overflow::Ellipsis
+                                >
                                     {title}
                                 </Text>
                             </ListRow>
                         </Frame>
                     }
                 }</ForEach>
-                <Text style=TextStyle::CAPTION>{overflow}</Text>
+                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{overflow}</Text>
                 <Spacer />
             </List>
         </Frame>

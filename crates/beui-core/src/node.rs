@@ -108,9 +108,9 @@ pub trait Element: Any {
         None
     }
 
-    /// The least width the node can be laid out at without breaking what must not
-    /// break (a `Text`'s longest unbreakable run). Read by a row only for its growing
-    /// and shrinking children; memoised beside the measurements.
+    /// The least width the node can be laid out at (a `Frame`'s `min_width`; a `Text` claims
+    /// none, since it can wrap at any width). Read by a row only for its growing and shrinking
+    /// children; memoised beside the measurements.
     fn min_width(&self, _doc: &mut Document, _painter: &Painter) -> f32 {
         0.0
     }

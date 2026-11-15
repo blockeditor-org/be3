@@ -16,9 +16,21 @@ A `Span` with `isolate` is isolated for bidi, as HTML's `<bdi>`: it takes its ow
 
 A `Phrase` (`beui::text::Phrase`) is the same runs as a value, for a prop that takes a string: a dialog's `title` is a `Prop<Phrase>`, which takes a plain string as before. `Phrase::new().text("Leave ").quoted(name).text("?")` puts `name` in curly quotes, isolated inside them. A `Text` takes a `Phrase` (static, `Prop` or `Memo`) as content and lays out a `Span` per run, keeping them as the phrase changes; whatever needs one string (an accessibility label) joins the runs with `to_string()`.
 
-`overflow` wraps at words by default; `Ellipsis` cuts each line; `Visible` lays lines out unbroken for something that scrolls or clips. There is no clip mode: cut text is `Visible` inside something that clips. `on_truncated` reports whether ellipsised text is cut, so a component can show it whole another way (a tooltip). `WrapAt::Anywhere` in a monospace font holds exactly `cols` characters a line; measure the advance as `cursor_pos(_, 1).x`, since a galley's `size()` is rounded up.
+`overflow` wraps by default (see Wrapping below); `Ellipsis` cuts each line; `Visible` lays lines out unbroken for something that scrolls or clips. There is no clip mode: cut text is `Visible` inside something that clips. `on_truncated` reports whether ellipsised text is cut, so a component can show it whole another way (a tooltip). `WrapAt::Anywhere` in a monospace font holds exactly `cols` characters a line; measure the advance as `cursor_pos(_, 1).x`, since a galley's `size()` is rounded up.
 
-`marks` (selections), `glyphs` (centred markers such as a text area's whitespace marks) and `carets` are byte ranges over the joined content and only repaint when they change; so do colour and decoration changes. Shaping is cached per span. Bold and italic are synthesised by FreeType, not separate faces. A wrapping text's `min_width` is its longest unbreakable run, so a row never squeezes it into a column of letters.
+`marks` (selections), `glyphs` (centred markers such as a text area's whitespace marks) and `carets` are byte ranges over the joined content and only repaint when they change; so do colour and decoration changes. Shaping is cached per span. Bold and italic are synthesised by FreeType, not separate faces.
+
+### Wrapping
+
+Every wrapped text breaks lines by one rule, in `Builder::breakpoint` (`beui-core/src/rich.rs`), deliberately not the usual "last word that fits". The *break zone* is the last `BREAK_ZONE_EMS` (6) ems of a line's width, in the size of the `Text`'s own font. When the rest of a paragraph does not fit, the line breaks at the rightmost break point inside the zone of the best tier that has one:
+
+1. Good: a Unicode line break opportunity (UAX #14, the `unicode-linebreak` crate): after spaces and hyphens, between CJK characters, and so on; also after a hyphen that follows a letter or digit (UAX #14 keeps `-` with a digit after it, which would split ids and dates before their hyphens), either side of a `Gap`, and the end of a piece that says `break_after`.
+2. Less good: after `/ . _ : , ; ) ] }` or before `( [ {` inside a word, for code, paths and URLs.
+3. Last resort: any grapheme cluster boundary.
+
+A good break point before the zone is never used: with none of tier 1 or 2 in the zone, the line breaks at the rightmost grapheme boundary that fits, a few pixels from the edge, so a long word after a short one fills the line instead of leaving the short one alone. `WrapAt::Anywhere` makes every grapheme boundary good. Nothing makes a line wider than its width: a wrapping `Text` claims no `min_width`, so a row may squeeze it, and only a grapheme wider than the whole width overflows, on a line of its own, without widening the layout (`RichLayout::size`) or any other line.
+
+Breaking is one pass forward per line plus at most a zone past it, so laying out a paragraph is linear in its length. Each line records the range of widths that break it the same way (its `reach` and `limit`, which account for the zone moving with the width), so a resized `Text` reuses its layout while no line would change, and an edit resumes from the line before it.
 
 `measure_text(node)` answers index-to-point and point-to-index from the node's last layout. Inside a `Drawing`, `painter.lay_out_text` returns a `TextBlock` that `painter.draw_text` draws, so what is measured is what is drawn; the same `TextBlock` comes from `lay_out_text` outside one.
 

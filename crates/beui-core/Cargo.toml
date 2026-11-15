@@ -20,6 +20,7 @@ be-lib-stable-hash = { path = "../be-lib-stable-hash" }
 thumbhash = "0.1"
 be-lib-ui-types = { path = "../be-lib-ui-types" }
 beui-lucide = { path = "../beui-lucide" }
+unicode-linebreak = "0.1.5"
 
 [lints]
 workspace = true

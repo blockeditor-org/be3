@@ -54516,6 +54516,41 @@ third_party = {
         ],
         "version": "1.0.24",
     },
+    "unicode-linebreak-0.1.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Axel Forsman <axelsfor@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Implementation of the Unicode Line Breaking Algorithm",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/axelf4/unicode-linebreak",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/axelf4/unicode-linebreak",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "unicode_linebreak",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "unicode-linebreak",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "linux-x86_64-html": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "wasi-guest": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.5",
+    },
     "unicode-normalization-0.1.25": {
         "build_script": None,
         "env": {
