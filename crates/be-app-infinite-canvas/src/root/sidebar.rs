@@ -54,16 +54,16 @@ pub(crate) fn CanvasInspector(state: CanvasState) -> NodeId {
 
 #[component]
 fn CanvasPanels(state: CanvasState) -> NodeId {
-    let vector = create_memo(move || state.profile.get() == CanvasProfile::Vector);
-    let raster = create_memo(move || state.profile.get() == CanvasProfile::Raster);
     view! {
         <List spacing=Space::None>
-            <Show value={vector}>
-                <Inspector state={state} />
-            </Show>
-            <Show value={raster}>
-                <RasterPanel state={state} />
-            </Show>
+            <Match value={state.profile}>
+                <Case is={CanvasProfile::Vector}>
+                    <Inspector state={state} />
+                </Case>
+                <Case is={CanvasProfile::Raster}>
+                    <RasterPanel state={state} />
+                </Case>
+            </Match>
         </List>
     }
 }

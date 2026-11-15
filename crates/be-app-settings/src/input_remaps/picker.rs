@@ -122,10 +122,8 @@ pub(super) fn KeyPicker(
             });
         }
     });
-    let shown = move |which: Tab| {
-        create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
-    };
-    let pressing = shown(Tab::Press);
+    let current = create_memo(move || tabs.with(|tabs| tabs.get(tab.get()).copied()));
+    let pressing = create_memo(move || current.get() == Some(Tab::Press));
     let capture = editor.watch_while::<InputCaptureWatch>(move || {
         open.get() && pressing.get() && listening.get() && !resting.get()
     });
@@ -165,21 +163,23 @@ pub(super) fn KeyPicker(
                     label="Find the key by"
                     @test_id={"input-remaps.picker.tabs"}
                 />
-                <Show value={pressing}>
-                    <PressTab
-                        target={target}
-                        listening={listening}
-                        capture={capture}
-                        listen_again={listen_again}
-                        pick={pick}
-                    />
-                </Show>
-                <Show value={shown(Tab::Mouse)}>
-                    <MouseTab wheel={wheel} pick={pick} />
-                </Show>
-                <Show value={shown(Tab::AllKeys)}>
-                    <AllKeysTab query={query} wheel={wheel} pick={pick} />
-                </Show>
+                <Match value={current}>
+                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::Press)}>
+                        <PressTab
+                            target={target}
+                            listening={listening}
+                            capture={capture}
+                            listen_again={listen_again}
+                            pick={pick}
+                        />
+                    </Case>
+                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::Mouse)}>
+                        <MouseTab wheel={wheel} pick={pick} />
+                    </Case>
+                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::AllKeys)}>
+                        <AllKeysTab query={query} wheel={wheel} pick={pick} />
+                    </Case>
+                </Match>
                 <Separator />
                 <Show value={move || target.get() == Some(Target::Key)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
