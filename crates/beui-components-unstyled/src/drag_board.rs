@@ -174,7 +174,7 @@ impl Board {
             refused: false,
             last: None,
             floating: None,
-            pointer: Some(point.pointer),
+            pointer: None,
         });
         for mark in marks {
             mark(true);
