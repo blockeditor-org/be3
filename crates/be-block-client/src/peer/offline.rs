@@ -549,6 +549,7 @@ impl<S: ObjectStore> Peer<S> {
             Ok(summary) => {
                 self.refs.remove(&[sequence])?;
                 self.note(&summary);
+                self.escrow_created(&creation.keys).await;
                 Ok(Drained::Created { block })
             }
             Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {

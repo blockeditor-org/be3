@@ -101,7 +101,10 @@ every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
 by the current one over `EscrowKey::chained`. A minted escrow key becomes the
 device's escrow (`KeyBook::adopt_escrow`) only once the server holds it, since
-the server refuses a key wrapped under one it does not know.
+the server refuses a key wrapped under one it does not know. A block made under
+the old escrow is escrowed under the new one too: by the key work the rotation
+reads after adopting it (`unescrowed`) when the server already held the block,
+or else once the server takes the block (`Peer::escrow_created`).
 
 An owner-only block is never escrowed
 (decisions/owner_only_settings_are_never_escrowed.md): its scope key
