@@ -29,7 +29,7 @@ const PRIMITIVE_USERS: [&str; 26] = [
     "crates\\beui-layer-space\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
-    "crates\\beui-shared-tests\\",
+    "crates\\beui-tests\\",
 ];
 
 const COMPONENT_CRATES: [&str; 10] = [
