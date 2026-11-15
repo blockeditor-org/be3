@@ -1024,8 +1024,10 @@ fn head<S: Ord + Clone, V: CountedRecord<S>>(map: &LatestMap<Counted<S>, V>, slo
     let mut removed = None;
     let mut junk = false;
     for (key, record) in map.written_range(slot_range(slot)) {
+        // No honest author nears the bound: a slot there was tampered with, and stays cut.
+        junk |= key.seq >= MAX_SEQ - 1;
         match record {
-            _ if key.seq > MAX_SEQ => junk = true,
+            _ if key.seq >= MAX_SEQ => {}
             Some(record) => live = Some((key.seq, record)),
             None => removed = Some(key.seq),
         }
@@ -1039,20 +1041,21 @@ fn head<S: Ord + Clone, V: CountedRecord<S>>(map: &LatestMap<Counted<S>, V>, slo
     Head { record, cut }
 }
 
-/// The highest count a record takes: keys are not signed, so anyone with Edit can write one
-/// counted past it, which `head` takes for a cut rather than a record, and which no count
+/// Past the counts a record takes: keys are not signed, so anyone with Edit can write one this
+/// high or higher, which `head` takes for a cut rather than a record, and which no count
 /// overflows on.
 const MAX_SEQ: u64 = 1 << 32;
 
 /// The count of the next record of `slot`: one past the highest written, removed or not, so a
-/// chain goes on past a record someone else cut. At `MAX_SEQ` it stays there, so its author's
-/// records overwrite each other at that key rather than go unshown.
+/// chain goes on past a record someone else cut. It stops at `MAX_SEQ - 1`, so its author's
+/// records still show, overwriting each other at that key; a slot that reached it shows as cut
+/// for good, since one record put back over another there would leave no trace.
 fn next_seq<S: Ord + Clone, V>(map: &LatestMap<Counted<S>, V>, slot: &S) -> u64 {
     map.written_range(slot_range(slot))
         .map(|(key, _)| key.seq)
-        .filter(|seq| *seq <= MAX_SEQ)
+        .filter(|seq| *seq < MAX_SEQ)
         .last()
-        .map_or(1, |seq| (seq + 1).min(MAX_SEQ))
+        .map_or(1, |seq| (seq + 1).min(MAX_SEQ - 1))
 }
 
 /// Every count of `slot`.

@@ -98,6 +98,17 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     assert_eq!(after.seq, 3);
     let after = edited(&junk, [junk.put_edit(lunch, &after)]);
     assert_eq!(after.body(lunch).as_deref(), Some("lunch at four?"));
+    // One planted just below the bound, where the author's counts stop: their next edit shows,
+    // overwriting at that count, and the slot stays cut, since one put back there would leave
+    // no trace.
+    let bound = (1 << 32) - 1;
+    let planted = edit_at(&edit_at(&chat, &at(bound), Some(&once)), &at(bound), None);
+    let next = planted.next_edit(lunch, ADA, 14, "lunch at five?");
+    assert_eq!(next.seq, bound);
+    let planted = edited(&planted, [planted.put_edit(lunch, &next)]);
+    let head = planted.edit_head(lunch, ADA);
+    assert!(head.cut, "a slot at the bound stays altered");
+    assert_eq!(planted.body(lunch).as_deref(), Some("lunch at five?"));
     // A record filed under another author takes that author, which its signature does not cover.
     let bos = chat.next_edit(lunch, BO, 9, "Bo says three");
     let filed = edit_at(&chat, &at(3), Some(&bos));
