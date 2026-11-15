@@ -66,21 +66,15 @@ step, measure the CPU of the actions an edit it targets runs (guides/performance
 Measuring), and put the difference in the landing commit's message. Savings are from the
 simulation, per one-crate edit and per commit.
 
-### 1. The embedded server leaves be-host-stack
+### 1. The embedded server leaves be-host-stack (done)
 
-be-host-stack depends on be-server only for `embedded_server.rs` (81 lines), which be-host's
-`main.rs` starts, be-host-testing uses (`be_host_stack::embedded_server`) and be-host-stack's
-own tests use. Move it into a crate of its own, `be-host-server` (be-host family,
-buck/cargo/layers.bzl), that be-host and be-host-testing depend on and be-host-stack takes as a
-dev-dependency; be-host-stack keeps be-server as a dev-dependency.
+be-host-stack's library used be-server only to start the server be-host embeds; that is
+crates/be-host-server, which needs be-server and tokio alone, and be-host and be-host-testing
+depend on it. be-host-stack keeps be-server and be-host-server as test dependencies.
 
-- Saves: on each edit to be-server (39 of 300 commits), recompiling be-host-stack (16k
-  lines), be-host-runtime (17k) and be-host-desktop (4.6k). 0.7% of recompiled library lines
-  per edit, 0.2% per commit.
-- Disruption: one file and four users. No API changes.
-- Done: be-host-stack's library has no dependency on be-server (its `PACKAGE` lists it only
-  under `test_deps`); be-host and be-host-testing start the server through `be-host-server`;
-  the landing commit gives the CPU an edit to be-server runs, before and after.
+- Saved: 0.78% of recompiled library lines per edit, 0.80% per commit (re-measured on Nov 15
+  over the last 300 commits). An edit to be-server no longer runs the check and diagnostics of
+  be-host-stack, be-host-runtime and be-host-desktop (18 s on the build server) or their rlibs.
 
 ### 2. be-host-runtime depends on the engine crates, not the facade
 
@@ -114,6 +108,24 @@ beui-draw, beui-runner and accesskit directly.
   above and the check enforces it; the landing commit gives the CPU an edit to
   beui-components-styled runs, before and after.
 
+### 3. beui-dock-state depends on be-lib-geometry, not beui-types (done)
+
+beui-dock-state used only `Direction`, `Rect` and `Pos2` of beui-types; `Direction` moved into
+be-lib-geometry beside the other two, re-exported by beui-types.
+
+- Saved: 0.93% of recompiled library lines per edit, 1.26% per commit, 0.17 test targets per
+  edit. An edit to beui-types, beui-tree or beui-reactive no longer runs beui-dock-state's
+  compile (2.0 s on linux, 1.0 s on wasm) or its tests.
+
+### 4. Desktop programs and icons leave be-host-wayland (done)
+
+be-host-wayland's `programs` module (desktop entries, MIME globs, icon themes) is
+crates/be-host-programs, which the compositor, be-host-desktop and be-host-services depend on;
+be-host-services used nothing else of the compositor.
+
+- Saved: 0.72% of recompiled library lines per edit, 0.31% per commit. An edit to
+  be-host-wayland no longer runs be-host-services' compile and test link (6.8 s) or its tests.
+
 ## Ruled out
 
 - **be-sdk and be-sdk-beui off be-block**: be-sdk-beui's frame reads most of be-block (settings,
@@ -127,6 +139,10 @@ beui-draw, beui-runner and accesskit directly.
 - **An app compiled once, its tests a crate of their own**: piloted on checklist and
   infinite-canvas; it saves a share of each app's compile but makes everything its tests reach
   public and rewrites white-box tests in 12 apps (decisions/app_tests_compile_with_their_app.md).
+- **The beui facade without the dock** (apps reaching beui-dock-host through be-sdk-beui
+  rather than `beui`): be-sdk-beui puts a dock under every editor, so 0.34% per edit.
+- **unstyled off beui-view, beui-view off beui-html**: each uses the other throughout
+  (primitives, overlays, drag; the native core's escape to HTML nodes).
 - **Splitting crates inside the beui chain or the SDK** (beui-core, beui-types, the component
   crates, be-sdk-api, be-sdk): every app depends on all of each through the facade or the SDK,
   so the pieces would rebuild together (decisions/no_crate_splits_inside_dependency_chains.md).
