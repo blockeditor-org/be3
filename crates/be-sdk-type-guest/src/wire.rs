@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 /// holds with those before it, so a reopened replica skips the edits it is given again that
 /// the order holds already.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) struct Submitted {
-    pub(crate) through: u64,
-    pub(crate) entry: Entry,
+pub struct Submitted {
+    pub through: u64,
+    pub entry: Entry,
 }
 
 /// One entry of a session's order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub(crate) enum Entry {
+pub enum Entry {
     /// An operation, applied by every replica at its place.
     Operation(Payload),
     /// The content becomes `commit` (with `state` adopted when there is one) at this place:
@@ -39,17 +39,17 @@ pub(crate) enum Entry {
 }
 
 impl Submitted {
-    pub(crate) fn encode(&self) -> Vec<u8> {
+    pub fn encode(&self) -> Vec<u8> {
         be_block_protocol::encode(self).expect("entries always encode")
     }
 
-    pub(crate) fn decode(bytes: &[u8]) -> Option<Self> {
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
         be_block_protocol::decode(bytes).ok()
     }
 }
 
 /// What the server checks before relaying `message`: who may send it.
-pub(crate) fn kind(message: &SessionMessage) -> RelayKind {
+pub fn kind(message: &SessionMessage) -> RelayKind {
     match message {
         SessionMessage::Presence { .. } | SessionMessage::Channel { .. } => RelayKind::Peer,
         SessionMessage::Sealed { .. } => RelayKind::Edit,
@@ -58,14 +58,14 @@ pub(crate) fn kind(message: &SessionMessage) -> RelayKind {
 
 /// Whether a message the server relayed as `kind` may say this: what the server checked covers
 /// what it asks for. A viewer could label a `Sealed` as presence; it is dropped.
-pub(crate) fn sent_as(message: &SessionMessage, as_kind: RelayKind) -> bool {
+pub fn sent_as(message: &SessionMessage, as_kind: RelayKind) -> bool {
     as_kind == RelayKind::Edit || kind(message) == RelayKind::Peer
 }
 
-pub(crate) fn encode(message: &SessionMessage) -> Vec<u8> {
+pub fn encode(message: &SessionMessage) -> Vec<u8> {
     be_block_protocol::encode(message).expect("session messages always encode")
 }
 
-pub(crate) fn decode(bytes: &[u8]) -> Option<SessionMessage> {
+pub fn decode(bytes: &[u8]) -> Option<SessionMessage> {
     be_block_protocol::decode(bytes).ok()
 }

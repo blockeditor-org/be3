@@ -7,7 +7,7 @@ use be_block_protocol::{
     KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
     SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
-use be_block_session::{Resume, resume, takeover_needs_merge};
+use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use be_wasm_ops::net::{Peer, Pending, Stream};
 use futures_util::{SinkExt, StreamExt};
@@ -188,7 +188,9 @@ mod signing_keys_are_served_only_for_accounts_the_caller_knows;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
+mod the_server_orders_sealed_submissions_and_a_seal_trims_them;
 mod the_session_registry_forgets_the_longest_empty_sessions_first;
+mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
 mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
 mod unsigned_or_expired_s3_requests_are_refused;
@@ -285,6 +287,9 @@ impl Harness {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+/// The build of a block's type the test clients run.
+const BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
+
 enum Notice {
     BlockChanged {
         block: BlockSummary,
@@ -310,6 +315,10 @@ enum Notice {
         payload: Vec<u8>,
     },
     ContactsChanged,
+    Sequenced {
+        block: Uuid,
+        entry: be_block_protocol::JournalEntry,
+    },
 }
 
 enum Heard {
@@ -356,6 +365,9 @@ impl Heard {
                             payload,
                             received,
                         })),
+                        Poll::Ready(Some(SessionEvent::Sequenced(entry))) => {
+                            Poll::Ready(Some(Notice::Sequenced { block, entry }))
+                        }
                         Poll::Ready(Some(_)) => continue,
                         other => other.map(|_| None),
                     };
@@ -526,7 +538,16 @@ impl TestClient {
     }
 
     async fn try_join(&mut self, block: Uuid) -> Result<(ClientId, SessionState), Error> {
-        let session = client::sessions::Session::new(&self.peer, block);
+        self.try_join_as(block, BUILD).await
+    }
+
+    /// Joins `block`'s session running the build `tag` of its type.
+    async fn try_join_as(
+        &mut self,
+        block: Uuid,
+        tag: be_block_store::Hash,
+    ) -> Result<(ClientId, SessionState), Error> {
+        let session = client::sessions::Session::new(&self.peer, block, tag);
         let mut events = session.join();
         let joined = match events.recv().await {
             Some(SessionEvent::Joined { client, state, .. }) => Ok((client, state)),
@@ -543,6 +564,55 @@ impl TestClient {
 
     async fn join_session(&mut self, block: Uuid) -> (ClientId, SessionState) {
         self.try_join(block).await.expect("joining failed")
+    }
+
+    /// Hands `block`'s order a submission of `payload`, numbered `counter` by `origin`.
+    async fn submit(
+        &mut self,
+        block: Uuid,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        payload: Vec<u8>,
+    ) -> Result<(), Error> {
+        let submitted = self.sessions[&block].submit(origin, counter, base, false, payload);
+        let answered = submitted.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    async fn rebase_journal(
+        &mut self,
+        block: Uuid,
+        generation: u64,
+        base: be_block_protocol::JournalBase,
+    ) -> Result<(), Error> {
+        let rebased = self.sessions[&block].rebase_journal(generation, base);
+        let answered = rebased.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    /// What a reader of `block` is told of its journal.
+    async fn journal_of(&mut self, block: Uuid) -> Option<be_block_protocol::Journal> {
+        let response = self
+            .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
+            .await;
+        let Ok(contents) = response else {
+            panic!("reading failed: {response:?}");
+        };
+        contents.journals.into_iter().next().flatten()
+    }
+
+    /// The next entry of `block`'s order this client hears.
+    async fn sequenced(&mut self, of: Uuid) -> be_block_protocol::JournalEntry {
+        loop {
+            if let Notice::Sequenced { block, entry } = self.notification().await
+                && block == of
+            {
+                return entry;
+            }
+        }
     }
 
     async fn heartbeat(

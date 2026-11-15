@@ -49,10 +49,10 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     );
     assert_eq!(taken.clean_at, Some(first.0));
 
-    let head = laptop.read_block(block).await.head;
-    assert!(
-        !takeover_needs_merge(taken.clean_at, head),
-        "a session that was durable at the head demanded a merge on takeover"
+    assert_eq!(
+        laptop.read_block(block).await.head,
+        taken.clean_at,
+        "the session was durable at the head"
     );
 
     let second = author.compose(b"continued on the laptop\n", 2_000, Some(first.0));

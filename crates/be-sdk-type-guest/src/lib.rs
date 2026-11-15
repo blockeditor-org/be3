@@ -27,7 +27,7 @@ mod file;
 mod lacking;
 mod record;
 mod replica;
-mod wire;
+pub mod wire;
 
 pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
