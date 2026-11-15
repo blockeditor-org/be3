@@ -70,12 +70,13 @@ pub(crate) fn Stage(
 ) -> NodeId {
     let canvas = editor.canvas();
     let world_size = editor.world();
-    let annotations = create_signal(Vec::<Annotation>::new());
-    let pending = create_signal(None::<Annotation>);
-    create_effect(move || {
+    let annotations = create_linked_signal(move || {
         layout.track();
-        annotations.set(Vec::new());
-        pending.set(None);
+        Vec::<Annotation>::new()
+    });
+    let pending = create_linked_signal(move || {
+        layout.track();
+        None::<Annotation>
     });
     let bar = create_signal(Rect::ZERO);
 
