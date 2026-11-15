@@ -331,6 +331,9 @@ Costs:
   guests alike. With a headset, the clock is `xrWaitFrame`'s predicted display time.
 - **Memory:** the compositor decides which idle apps to stop. The host enforces hard limits and
   reports memory pressure.
+- **Starting early:** be-host starts a restored workspace's apps before its window
+  (decisions/host_startup_overlaps_app_loading.md). Once the root guest spawns apps, the host
+  starts the root guest that early too, so it can spawn them before the window opens.
 - **Locking:** after a resume or a lock request, the host shows nothing new until the root guest
   commits a frame it marks as locked.
 - **Desktop interfaces:** be3:desktop's shell-only interfaces (`shell_only` in
