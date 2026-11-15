@@ -1,6 +1,6 @@
 # The host as a platform adapter
 
-Depends on: plans/local_accounts.md (step 4 only) and plans/web_page_never_waits.md (step 5
+Depends on: plans/local_accounts.md (step 3 only) and plans/web_page_never_waits.md (step 5
 only).
 
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS

@@ -72,19 +72,18 @@ Each says whether a server account offline has the same gap.
 6. **History and reclaiming storage.** `fetch_history` reads history from the server, and holds,
    retention and reclamation run there (guides/blocks/server.md, Liveness and reclamation). A
    local account holds all its history, and reclaims with the same storage crates on the device.
-   Offline, a server account reads only the history the device holds.
+   Offline, a server account reads the history the device holds (`Peer::history`, filled);
+   holds, retention and reclamation stay the server's, so the rest is local accounts only.
 7. **What only a server can do:** sharing, access lists, members, invites, pairing a device,
    block agents, push and contacts. These are refused with "needs a server", as sharing, leaving
    and approving a device already are offline.
 
 ## Steps
 
-1. Fill the gaps server accounts share (6 where it applies), moving logic from the server into
-   the client.
-2. A peer with no server: its local head is final, and its account, roots and settings are made
+1. A peer with no server: its local head is final, and its account, roots and settings are made
    on the device.
-3. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
-4. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
+2. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
+3. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
    be-server as a test dependency. Update guides/hosting.md (Local profiles and the default
    server), guides/blocks/server.md (Running it, Tests), guides/blocks/host.md and
    guides/running/native.md.
