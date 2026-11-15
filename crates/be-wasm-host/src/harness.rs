@@ -4,15 +4,23 @@ use std::{
     time::Duration,
 };
 
-use wasmtime::{Linker, Module, Store, Trap, TypedFunc, WasmBacktrace};
+use wasmtime::{Linker, Store, Trap, TypedFunc, WasmBacktrace};
 use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
 use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
 
 use crate::{
-    Host, gpu, precompile::test_module, shared_memory, state::State, stderr::Tee, threads, wake,
+    Host, Stored,
+    dylink::{self, Program},
+    gpu, library_module,
+    precompile::test_module,
+    shared_memory,
+    state::State,
+    stderr::Tee,
+    threads, wake,
 };
 
 const START: &str = "_start";
+const MAIN: &str = "__main_void";
 const LISTING_CAPACITY: usize = 1 << 20;
 const CARRIED: [&str; 2] = ["--ignored", "--include-ignored"];
 const PANICKED: &str = " panicked at ";
@@ -34,9 +42,10 @@ impl Host {
         arguments: &[String],
         directories: &[PathBuf],
         precompiled: Option<&Path>,
+        libraries: &[PathBuf],
     ) -> Result<i32, String> {
-        let module = test_module(&self.engine, wasm, precompiled)?;
-        match self.run_instance(&module, arguments, directories, None, &Tee::default()) {
+        let module = &self.tests(wasm, precompiled, libraries)?;
+        match self.run_instance(module, arguments, directories, None, &Tee::default()) {
             Ok(0) => return Ok(0),
             Ok(_) => {}
             Err(failure) => eprintln!("{failure}"),
@@ -59,7 +68,7 @@ impl Host {
             let stdout = MemoryOutputPipe::new(usize::MAX);
             let stderr = Tee::held();
             let failure = match self.run_instance(
-                &module,
+                module,
                 &single,
                 directories,
                 Some(stdout.clone()),
@@ -89,9 +98,43 @@ impl Host {
         Ok(1)
     }
 
+    fn tests(
+        &self,
+        wasm: &Path,
+        precompiled: Option<&Path>,
+        libraries: &[PathBuf],
+    ) -> Result<Tests, String> {
+        let module = test_module(&self.engine, wasm, precompiled)?;
+        let identities = dylink::libraries(&module)?;
+        if identities.is_empty() {
+            return Ok(Tests {
+                program: Program::Whole(module),
+                identities,
+            });
+        }
+        if identities.len() != libraries.len() {
+            return Err(format!(
+                "the tests are linked against {} libraries, and {} were given",
+                identities.len(),
+                libraries.len()
+            ));
+        }
+        let mut modules = Vec::with_capacity(identities.len() + 1);
+        for (identity, path) in identities.iter().zip(libraries) {
+            let library = library_module(&self.engine, identity, Stored::file(path.clone())?)
+                .map_err(|error| format!("{} could not be loaded: {error}", path.display()))?;
+            modules.push(library);
+        }
+        modules.push(module);
+        Ok(Tests {
+            program: Program::Linked(modules.into()),
+            identities,
+        })
+    }
+
     fn list_tests(
         &self,
-        module: &Module,
+        module: &Tests,
         arguments: &[String],
         directories: &[PathBuf],
     ) -> Result<Vec<String>, String> {
@@ -123,12 +166,13 @@ impl Host {
 
     fn run_instance(
         &self,
-        module: &Module,
+        tests: &Tests,
         arguments: &[String],
         directories: &[PathBuf],
         stdout: Option<MemoryOutputPipe>,
         stderr: &Tee,
     ) -> Result<i32, String> {
+        let module = tests.program.first();
         let memory = shared_memory(&self.engine, module)?;
         let mut builder = WasiCtxBuilder::new();
         builder
@@ -166,7 +210,7 @@ impl Host {
             submit_time: Duration::ZERO,
             threads: threads::Spawner::new(
                 self.engine.clone(),
-                crate::dylink::Program::Whole(module.clone()),
+                tests.program.clone(),
                 Some(memory.clone()),
                 Arc::clone(&woken),
                 Arc::clone(&self.interrupt),
@@ -180,7 +224,7 @@ impl Host {
         p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
             .map_err(|error| format!("wasi could not be linked: {error}"))?;
         linker
-            .define(&store, "env", "memory", memory)
+            .define(&store, "env", "memory", memory.clone())
             .map_err(|error| format!("the test memory could not be linked: {error}"))?;
         gpu::link(&mut linker)?;
         crate::panic::link(&mut linker)?;
@@ -192,16 +236,36 @@ impl Host {
         let instance = linker
             .instantiate(&mut store, module)
             .map_err(|error| format!("the tests could not be instantiated: {error}"))?;
-        let start: TypedFunc<(), ()> = instance
-            .get_typed_func(&mut store, START)
-            .map_err(|error| format!("the tests have no usable {START} export: {error}"))?;
-        let outcome = start.call(&mut store, ());
+        let outcome = match &tests.program {
+            Program::Whole(_) => {
+                let start: TypedFunc<(), ()> = instance
+                    .get_typed_func(&mut store, START)
+                    .map_err(|error| format!("the tests have no usable {START} export: {error}"))?;
+                start.call(&mut store, ()).map(|()| 0)
+            }
+            Program::Linked(modules) => {
+                crate::initialize(&instance, &mut store)?;
+                let linked =
+                    dylink::plan(&mut store, modules, &tests.identities, &instance, &memory)?;
+                let thread = dylink::Thread {
+                    blocks: linked.take(&memory)?,
+                    root_block: dylink::main_thread_locals(&mut store, &instance)?,
+                    main: true,
+                };
+                store.data().threads.linked(Arc::clone(&linked));
+                let tests = dylink::link(&mut store, &linker, modules, &linked, instance, &thread)?;
+                let main: TypedFunc<(), i32> = tests
+                    .get_typed_func(&mut store, MAIN)
+                    .map_err(|error| format!("the tests have no usable {MAIN} export: {error}"))?;
+                main.call(&mut store, ())
+            }
+        };
         let state = store.data_mut();
         if let Some(failure) = state.take_error().or_else(|| state.threads.take_failure()) {
             return Err(failure);
         }
         match outcome {
-            Ok(()) => Ok(0),
+            Ok(code) => Ok(code),
             Err(error) => match error.downcast_ref::<I32Exit>() {
                 Some(exit) => Ok(exit.0),
                 None if aborted(&error) => Err(aborted_with_backtrace(&error)),
@@ -209,6 +273,14 @@ impl Host {
             },
         }
     }
+}
+
+// The tests, as one module with everything in it whose `_start` runs them, or
+// linked against the libraries in `identities` (guides/app_libraries.md), whose
+// `__main_void` runs them once the libraries are linked as an app's are.
+struct Tests {
+    program: Program,
+    identities: Vec<String>,
 }
 
 fn aborted(error: &wasmtime::Error) -> bool {

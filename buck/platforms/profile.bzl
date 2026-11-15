@@ -83,14 +83,13 @@ def dev_only(flags):
 #   size and take half as long again to precompile, and the app tests ran no
 #   slower.
 # - app_test, a crate's tests compiled to wasm (app_tests): 1 on wasm, 0 in a
-#   release build. Every module instantiates beui's generics anew, so a change
-#   to beui recompiles about thirty of them at once, and each is then
-#   precompiled (wasm_test_harness), which costs about as much CPU again. At 2
-#   LLVM is most of that: the step took twice as long, though the tests run
-#   faster and the modules are smaller to precompile. At 1 rather than 0
-#   checklist's tests took the same CPU to compile (93 s against 95) and 15%
-#   less to precompile (60 s against 71), since most of a module's code is
-#   its dependencies', compiled at their own levels.
+#   release build. A change to beui recompiles about thirty test crates at
+#   once, each then precompiled (wasm_test_harness). The modules are linked
+#   against the app libraries, so a module is only its crate and tests:
+#   checklist's compiles in about 13 CPU s and precompiles in under 4. At 2
+#   LLVM took twice as long for a module a little smaller to precompile; 1
+#   took the same rustc time as 0 and 15% less precompiling, measured when the
+#   modules still held their dependencies.
 # - fuzz, a fuzz target and the library under it (cargo_fuzz): optimised, as
 #   cargo-fuzz builds one.
 OPT_LEVELS = {

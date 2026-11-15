@@ -42,15 +42,22 @@ const DROPPED_FROM_APPS: [&str; 5] = [
     "--no-entry",
     "--export=__heap_base",
 ];
-const APP_FLAGS: [&str; 7] = [
+// -Bsymbolic binds what a module defines to its own definition. Without it a
+// module reaches its own symbols that others could define through GOT.func and
+// GOT.mem imports, which the loader answers from the lowest module that
+// exports the name: PDFium's FreeType took the address of its TT_RunIns and
+// was handed beui's.
+const APP_FLAGS: [&str; 8] = [
     "-shared",
     "--experimental-pic",
+    "-Bsymbolic",
     "--unresolved-symbols=import-dynamic",
     "--export=__wasm_init_tls",
     "--export=__tls_size",
     "--export=__tls_align",
     "--export=__tls_base",
 ];
+const COMMAND_START: &str = "crt1-command.o";
 const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
@@ -541,6 +548,7 @@ pub fn app_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<St
             continue;
         }
         let dropped = DROPPED_FROM_APPS.contains(&argument.as_str())
+            || basename(&argument) == COMMAND_START
             || (argument.starts_with("-l") && linked.contains(&argument))
             || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {

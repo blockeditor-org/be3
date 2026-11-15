@@ -215,7 +215,8 @@ painting it read. Only `buck2 test` (a plain `./scripts/test`)
 still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
 fail.
 
-- **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
+- **App tests** are the crate's tests compiled to wasm, linked against the app's libraries and
+  the test library (guides/app_libraries.md, Tests), and run by `be-sdk-test-runner`; they
   compare with only their crate's `snapshots/`, so one crate's paintings leave others cached.
   **Native tests that paint** are `cargo_test(paints = True, run_env = ...)` and work the same way.
   `run_apart = True` (crates/be-host-tests, crates/be-host-stack) makes each test file a
