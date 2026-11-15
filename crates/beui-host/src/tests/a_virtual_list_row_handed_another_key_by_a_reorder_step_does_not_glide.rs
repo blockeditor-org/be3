@@ -49,7 +49,10 @@ fn a_virtual_list_row_handed_another_key_by_a_reorder_step_does_not_glide() {
     harness.settle();
     let reorder = held.get().expect("the reorder handed its handle");
 
-    assert!(reorder.step(0, 30), "a step moves the first row far below the view");
+    assert!(
+        reorder.step(0, 30),
+        "a step moves the first row far below the view"
+    );
     harness.frame(Vec::new());
     assert_eq!(
         top_of(&harness, "row.1"),

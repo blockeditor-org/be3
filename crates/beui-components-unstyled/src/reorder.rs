@@ -182,7 +182,9 @@ fn mark_move<K, P>(state: &State<K, P>) {
 
 /// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
 /// Walks the rows the list built, not every key it has.
-fn shown_glides<K: Clone + PartialEq, P>(state: &State<K, P>) -> Vec<(K, NodeId, NodeId, GlideApi)> {
+fn shown_glides<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+) -> Vec<(K, NodeId, NodeId, GlideApi)> {
     let glides = state.glides.borrow();
     let mut shown = Vec::new();
     state.rows.for_each_row(|row| {
@@ -278,11 +280,7 @@ fn spacing<K: Clone + PartialEq, P>(state: &State<K, P>) -> f32 {
 fn slot_size<K: Clone + PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
     let direction = state.direction.get_untracked();
     let Some((start, end)) = glide_of(state, key)
-        .and_then(|(_, outer, ..)| {
-            measure(outer)
-                .get_untracked()
-                .map(|measured| measured.rect)
-        })
+        .and_then(|(_, outer, ..)| measure(outer).get_untracked().map(|measured| measured.rect))
         .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
     else {
         return 0.0;
@@ -1162,8 +1160,7 @@ where
     let state = reorder.state;
     let direction = reorder.direction;
     let key = create_memo(move || item.get());
-    let (lifted_key, raised_key, gap) =
-        state.with(|state| (state.lifted, state.raised, state.gap));
+    let (lifted_key, raised_key, gap) = state.with(|state| (state.lifted, state.raised, state.gap));
     let lifted = create_memo(move || {
         lifted_key.with(|lifted| {
             lifted
@@ -1193,7 +1190,10 @@ where
     let place = create_memo(move || places.with(|places| key.with(|key| places.get(key).copied())));
     let below_gap = create_memo(move || {
         gap.with(|gap| match gap {
-            Some(ReorderGap { before: Some(before), .. }) => {
+            Some(ReorderGap {
+                before: Some(before),
+                ..
+            }) => {
                 let at = places.with(|places| places.get(before).copied());
                 at.zip(place.get()).is_some_and(|(at, place)| at <= place)
             }

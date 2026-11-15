@@ -35,13 +35,26 @@ fn a_virtual_list_handle_places_every_key_and_holds_only_built_rows() {
     let mut harness = Harness::new(document);
     harness.settle();
     let last = VIRTUAL_ITEM_COUNT - 1;
-    assert_eq!(rows.keys().len(), VIRTUAL_ITEM_COUNT, "every key has a place");
+    assert_eq!(
+        rows.keys().len(),
+        VIRTUAL_ITEM_COUNT,
+        "every key has a place"
+    );
     assert_eq!(rows.index_of(&last), Some(last));
-    assert!(rows.nodes_of(&last).is_empty(), "a row not built holds no node");
+    assert!(
+        rows.nodes_of(&last).is_empty(),
+        "a row not built holds no node"
+    );
     let first = rows.nodes_of(&0);
-    assert_eq!(first, vec![harness.find("row.0")], "a built row holds the node it built");
+    assert_eq!(
+        first,
+        vec![harness.find("row.0")],
+        "a built row holds the node it built"
+    );
     assert_eq!(rows.key_of(&first[0]), Some(0));
-    let index = rows.index(&1).expect("a built row has the place it was handed");
+    let index = rows
+        .index(&1)
+        .expect("a built row has the place it was handed");
     assert_eq!(index.get_untracked(), 1);
 
     keys.update(|keys| keys.rotate_right(1));

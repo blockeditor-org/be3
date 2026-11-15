@@ -36,17 +36,29 @@ fn a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal()
     flush();
     assert_eq!(*rows.keys(), [3, 1, 2]);
     assert_eq!(rows.index_of(&1), Some(1), "a key's place follows it");
-    assert_eq!(html(1), first, "and so do the children its row built, unbuilt again");
+    assert_eq!(
+        html(1),
+        first,
+        "and so do the children its row built, unbuilt again"
+    );
     let index = rows.index(&1).expect("a shown key has a place");
 
     keys.set(vec![3, 4, 1, 2]);
     flush();
-    assert_eq!(index.get_untracked(), 2, "an insert above moves the place a row was handed");
+    assert_eq!(
+        index.get_untracked(),
+        2,
+        "an insert above moves the place a row was handed"
+    );
     assert_eq!(rows.index_of(&4), Some(1));
 
     marked.set(true);
     flush();
-    assert_eq!(html(1).len(), 2, "a row whose run grows holds its whole run");
+    assert_eq!(
+        html(1).len(),
+        2,
+        "a row whose run grows holds its whole run"
+    );
     let shown = rows.nodes_of(&4)[0].clone();
     assert_eq!(rows.key_of(&shown), Some(4));
 

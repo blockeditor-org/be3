@@ -586,7 +586,9 @@ impl Document {
         build: impl Fn(K, usize) -> NodeId + 'static,
     ) -> NodeOf<VirtualListNode<(K, usize)>> {
         self.arena
-            .insert(VirtualListNode::new(move |(key, repeat): (K, usize)| build(key, repeat)))
+            .insert(VirtualListNode::new(move |(key, repeat): (K, usize)| {
+                build(key, repeat)
+            }))
     }
 
     pub fn set_virtual_list_direction<K: Clone + Hash + Eq + 'static>(

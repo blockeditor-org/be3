@@ -390,7 +390,9 @@ impl<C: SlotChild> Rows<C> {
             for row in order.iter() {
                 match row {
                     Row::One(stored) => children.push(stored.clone()),
-                    Row::Run(slot, _) => children.extend(runs.get(slot).into_iter().flatten().cloned()),
+                    Row::Run(slot, _) => {
+                        children.extend(runs.get(slot).into_iter().flatten().cloned())
+                    }
                 }
             }
             drop((runs, order));
@@ -591,9 +593,9 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
     pub fn nodes_of(&self, key: &K) -> Vec<S> {
         self.with_shown(|shown| {
             let mut nodes = Vec::new();
-            shown
-                .row_of
-                .each(key, &mut |at| nodes.extend(shown.rows[at].nodes.iter().cloned()));
+            shown.row_of.each(key, &mut |at| {
+                nodes.extend(shown.rows[at].nodes.iter().cloned())
+            });
             nodes
         })
         .unwrap_or_default()
@@ -625,14 +627,11 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
     /// unless another list has taken it since. A list filling a handle another has taken
     /// since is two lists sharing one, a mistake.
     pub fn claim(&self) -> ForEachFill<K, S> {
-        let owner = self
-            .shown
-            .try_value()
-            .map_or(0, |shown| {
-                let mut shown = shown.borrow_mut();
-                shown.owner += 1;
-                shown.owner
-            });
+        let owner = self.shown.try_value().map_or(0, |shown| {
+            let mut shown = shown.borrow_mut();
+            shown.owner += 1;
+            shown.owner
+        });
         let handle = *self;
         beui_reactive::on_cleanup(move || {
             let current = handle
@@ -673,7 +672,9 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
             if !self.holds(&shown, owner) {
                 return;
             }
-            let Shown { rows: held, row_of, .. } = &mut *shown;
+            let Shown {
+                rows: held, row_of, ..
+            } = &mut *shown;
             *held = rows;
             row_of.fill(&mut held.iter().map(|row| &row.key));
             drop(shown);

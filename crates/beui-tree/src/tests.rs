@@ -38,6 +38,7 @@ mod handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic;
 mod modifiers_are_functions_on_built_values;
 mod modifiers_run_after_props_and_inside_render_slots;
 mod show_can_wrap_a_component_returning_multiple_children;
+mod two_lists_given_one_for_each_handle_is_a_mistake;
 
 thread_local! {
     static NEXT_ID: Cell<usize> = const { Cell::new(0) };
@@ -230,4 +231,3 @@ fn OrdinaryProps(test_id: String, node_ref: String) -> DomNode {
         <Element tag="p" text={format!("{test_id}:{node_ref}")} />
     }
 }
-mod two_lists_given_one_for_each_handle_is_a_mistake;

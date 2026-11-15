@@ -55,7 +55,11 @@ fn a_reorder_step_glides_only_the_rows_it_moves_and_an_order_changed_otherwise_s
         rising > REORDER_ROW && rising < 2.0 * REORDER_ROW,
         "then glides them, at {rising}"
     );
-    assert_eq!(top_of(&harness, "row.0"), 0.0, "and leaves the rows it did not move");
+    assert_eq!(
+        top_of(&harness, "row.0"),
+        0.0,
+        "and leaves the rows it did not move"
+    );
     assert_eq!(top_of(&harness, "row.3"), 3.0 * REORDER_ROW);
     harness.settle();
 

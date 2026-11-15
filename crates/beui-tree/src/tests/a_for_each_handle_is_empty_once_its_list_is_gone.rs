@@ -32,5 +32,9 @@ fn a_for_each_handle_is_empty_once_its_list_is_gone() {
             </Element>
         }
     });
-    assert_eq!(*rows.keys(), [3], "and the handle may be given to another list after");
+    assert_eq!(
+        *rows.keys(),
+        [3],
+        "and the handle may be given to another list after"
+    );
 }

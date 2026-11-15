@@ -517,7 +517,10 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                                             align=Align::Start
                                             spacing=TILE_SPACING
                                         >
-                                            <ForEach value={reorder.order} handle={reorder.rows}>|id: Uuid|
+                                            <ForEach
+                                                value={reorder.order}
+                                                handle={reorder.rows}
+                                            >|id: Uuid|
                                                 <SlideTile
                                                     editor={editor}
                                                     slides={slides}

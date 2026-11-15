@@ -26,8 +26,8 @@ pub mod reactive {
         Render, RenderFn, component, current_component, try_current_component,
     };
     pub use crate::control::{
-        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, ForEachFill, ForEachRef, Keyed, Loading, Match, Matched, RowArgs, ShownRow,
-        RowKey, Show, ShowValue,
+        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, ForEachFill, ForEachRef, Keyed, Loading,
+        Match, Matched, RowArgs, RowKey, Show, ShowValue, ShownRow,
     };
     pub use crate::into_prop_via;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};

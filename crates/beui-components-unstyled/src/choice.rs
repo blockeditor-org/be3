@@ -233,7 +233,13 @@ where
         let among = options.clone();
         create_effect(move || {
             rows_changed.track();
-            fill.keys(among.items().iter().map(|option| option.value.clone()).collect());
+            fill.keys(
+                among
+                    .items()
+                    .iter()
+                    .map(|option| option.value.clone())
+                    .collect(),
+            );
             let mut rows: Vec<ShownRow<T, NodeId>> = built_rows
                 .borrow()
                 .iter()

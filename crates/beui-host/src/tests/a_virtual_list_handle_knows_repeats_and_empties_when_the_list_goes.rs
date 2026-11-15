@@ -29,11 +29,19 @@ fn a_virtual_list_handle_knows_repeats_and_empties_when_the_list_goes() {
     });
     let mut harness = Harness::new(document);
     harness.settle();
-    assert_eq!(rows.index_of(&0), Some(0), "a repeated key is known by its first place");
+    assert_eq!(
+        rows.index_of(&0),
+        Some(0),
+        "a repeated key is known by its first place"
+    );
     assert_eq!(rows.nodes_of(&0).len(), 2, "and holds every repeat's row");
     let mut built = Vec::new();
     rows.for_each_row(|row| built.push((row.key, row.index.get_untracked())));
-    assert_eq!(built, [(0, 0), (1, 1), (0, 2)], "each repeat is handed its own place");
+    assert_eq!(
+        built,
+        [(0, 0), (1, 1), (0, 2)],
+        "each repeat is handed its own place"
+    );
 
     shown.set(false);
     harness.settle();

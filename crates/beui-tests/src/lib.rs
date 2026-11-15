@@ -810,7 +810,10 @@ fn VirtualHandleFixture() -> NodeId {
             <Frame width=160.0 height=200.0>
                 <Show value={shown}>
                     <VirtualList value={keys} handle={rows} item_size=20.0>|row: ReadSignal<u32>|
-                        <Frame height=20.0 fill={if row.get_untracked() == 0 { BLUE } else { GREEN }} />
+                        <Frame
+                            height=20.0
+                            fill={if row.get_untracked() == 0 { BLUE } else { GREEN }}
+                        />
                     </VirtualList>
                 </Show>
             </Frame>

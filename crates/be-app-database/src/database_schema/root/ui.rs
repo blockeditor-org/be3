@@ -136,7 +136,10 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                 on_move={moved}
                             >|reorder: ReorderHandle<Uuid, Uuid>|
                                 <List spacing=SECTION_SPACING>
-                                    <ForEach value={reorder.order} handle={reorder.rows}>|id: Uuid| {
+                                    <ForEach
+                                        value={reorder.order}
+                                        handle={reorder.rows}
+                                    >|id: Uuid| {
                                         let field = create_memo(move || {
                                             rows.with(|rows| {
                                                 rows.iter().find(|field| field.id == id).cloned()
