@@ -279,7 +279,7 @@ fn Stage(review: Review) -> NodeId {
         })
     });
     let camera = review.camera;
-    let fit_request = create_signal(0u64);
+    let fit_request = create_trigger();
     let centering = create_memo(move || (review.open.get(), content.get()));
 
     let image_of = move |slot: usize| {
@@ -314,7 +314,7 @@ fn Stage(review: Review) -> NodeId {
             <Container>|size: ReadSignal<Vec2>| {
                 create_effect(move || {
                     let (_, content) = centering.get();
-                    fit_request.get();
+                    fit_request.track();
                     let available = size.get();
                     if let Some(content) = content
                         && available.x > 0.0 && available.y > 0.0 {
@@ -460,7 +460,7 @@ fn Stage(review: Review) -> NodeId {
                                     variant=ButtonVariant::Secondary
                                     label="Fit"
                                     @test_id="paint_review.fit"
-                                    on_click={move || fit_request.update(|n| *n += 1)}
+                                    on_click={move || fit_request.notify()}
                                 />
                                 <Button
                                     variant=ButtonVariant::Secondary

@@ -81,7 +81,7 @@ struct State<K: 'static, P: 'static> {
     speed: Cell<f32>,
     frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
-    arm: Signal<u64>,
+    arm: Trigger,
     raised: Signal<Option<K>>,
     floating_at: Signal<Option<DragPoint>>,
     announcement: Signal<String>,
@@ -163,7 +163,7 @@ fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
 }
 
 fn bump<K, P>(state: &State<K, P>) {
-    state.arm.update(|arm| *arm += 1);
+    state.arm.notify();
 }
 
 fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<(NodeId, GlideApi)> {
@@ -939,7 +939,7 @@ where
         speed: Cell::new(0.0),
         frames: Cell::new(None),
         visited,
-        arm: create_signal(0),
+        arm: create_trigger(),
         raised: create_signal(None),
         floating_at,
         announcement,
@@ -1233,7 +1233,7 @@ where
     };
     let api = ComponentRef::<GlideApi>::new();
     let inner = view! {
-        <Glide arm={arm} within={Some(api)}>
+        <Glide arm={Some(arm)} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
@@ -1257,7 +1257,7 @@ where
     };
     let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row api arm={arm} from={from} raised={raised}>
+        <Glide @node_ref=&row api arm={Some(arm)} from={from} raised={raised}>
             <Frame padding={padding}>{inner}</Frame>
         </Glide>
     };

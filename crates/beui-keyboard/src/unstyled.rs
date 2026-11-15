@@ -20,7 +20,7 @@ pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, S
 #[derive(Clone, Copy)]
 pub struct KeyboardHandle {
     engine: Stored<RefCell<Engine>>,
-    revision: Signal<u64>,
+    changed: Trigger,
 }
 
 impl KeyboardHandle {
@@ -63,7 +63,7 @@ impl KeyboardHandle {
     }
 
     fn read<R>(&self, read: impl FnOnce(&Engine) -> R) -> R {
-        self.revision.get();
+        self.changed.track();
         self.engine.with(|engine| read(&engine.borrow()))
     }
 
@@ -79,7 +79,7 @@ impl KeyboardHandle {
         if paste {
             request_typed_paste();
         }
-        self.revision.update(|revision| *revision += 1);
+        self.changed.notify();
         result
     }
 }
@@ -98,8 +98,8 @@ pub struct KeyCapHandle {
 #[component]
 pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHandle>) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
-    let revision = create_signal(0u64);
-    let keyboard = KeyboardHandle { engine, revision };
+    let changed = create_trigger();
+    let keyboard = KeyboardHandle { engine, changed };
     let layer = keyboard.layer();
     let repeat = create_timer(move || {
         let now = now();

@@ -179,7 +179,7 @@ pub fn TextInput(
     });
     let edited = state.content();
     let empty = create_memo(move || {
-        edited.get();
+        edited.track();
         text_of(state).is_empty()
     });
     let clear = Callback::new(move |()| {
@@ -188,7 +188,7 @@ pub fn TextInput(
     let copy = Callback::new(move |()| beui_view::reactive::copy(Clip::text(text_of(state))));
     let content_changed = state.content();
     create_effect(move || {
-        content_changed.get();
+        content_changed.track();
         value.set(text_of(state));
     });
 

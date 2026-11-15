@@ -39,7 +39,7 @@ pub(super) fn dock_layout_key(block_type: uuid::Uuid) -> String {
 }
 
 pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
-    let declares = link.declares.read_only();
+    let declares = link.declares.handle();
     let declaring = link.declaring.read_only();
     let pushed = link.pushed;
     keep_layout(
@@ -48,7 +48,7 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
         editor,
         move || {
             pushed.get();
-            declares.get();
+            declares.track();
         },
         create_memo(move || declaring.get()),
     );

@@ -33,7 +33,7 @@ const EMPTY_BAR: beui::Vec2 = beui::vec2(1.0, 1.0);
 
 pub(crate) struct DockedTabs {
     link: RefCell<Option<Rc<ProtocolLink>>>,
-    revision: OwnedSignal<u64>,
+    revision: OwnedTrigger,
     slot: RefCell<Option<DockHostSlot>>,
     bars: RefCell<Option<Rc<dyn DockHostLink>>>,
     kept: Rc<Cell<bool>>,
@@ -46,7 +46,7 @@ impl Default for DockedTabs {
     fn default() -> Self {
         Self {
             link: RefCell::default(),
-            revision: OwnedSignal::new(0),
+            revision: OwnedTrigger::new(),
             slot: RefCell::default(),
             bars: RefCell::default(),
             kept: Rc::default(),
@@ -103,7 +103,7 @@ impl DockedTabs {
     }
 
     fn bump(&self) {
-        self.revision.handle().update(|revision| *revision += 1);
+        self.revision.notify();
     }
 
     pub(crate) fn link(
@@ -134,7 +134,7 @@ impl DockedTabs {
             empties: RefCell::default(),
             asking: self.asking.handle(),
             bar_sizes: OwnedSignal::new(HashMap::default()),
-            declares: OwnedSignal::new(0),
+            declares: OwnedTrigger::new(),
             declaring: OwnedSignal::new(false),
             saving: saved::Saving::default(),
             menued: RefCell::default(),
@@ -252,12 +252,12 @@ impl DockedTabs {
 
 #[component]
 pub(crate) fn DockedTabBody(tabs: Rc<DockedTabs>, tab: u64) -> NodeId {
-    let revised = tabs.revision.read_only();
+    let revised = tabs.revision.handle();
     let node = create_signal(None);
     let window = beui::styled::use_window();
     let left = Rc::clone(&tabs);
     create_effect(move || {
-        revised.get();
+        revised.track();
         let panel = untrack(|| tabs.panel(TabId::new(tab), window));
         node.set(panel);
     });
@@ -298,7 +298,7 @@ struct ProtocolLink {
     empties: RefCell<HashMap<String, u64>>,
     asking: Signal<Option<TabId>>,
     bar_sizes: OwnedSignal<HashMap<TabId, beui::Vec2>>,
-    declares: OwnedSignal<u64>,
+    declares: OwnedTrigger,
     declaring: OwnedSignal<bool>,
     saving: saved::Saving,
     menued: RefCell<Vec<ViewId>>,
@@ -562,7 +562,7 @@ impl DockHostLink for ProtocolLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.declared.borrow_mut() = Some(declaration);
         self.send();
-        self.declares.update(|declares| *declares += 1);
+        self.declares.notify();
         if !self.declaring.get_untracked() {
             self.declaring.set(true);
         }

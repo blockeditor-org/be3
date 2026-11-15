@@ -43,7 +43,7 @@ pub(crate) fn spans(level: f32) -> (f32, f32, f32) {
 #[component]
 pub(crate) fn LevelOsd(
     level: Memo<Option<OsdLevel>>,
-    shown: ReadSignal<u64>,
+    shown: Trigger,
     area: Memo<Rect>,
     id: String,
 ) -> NodeId {
@@ -77,18 +77,15 @@ pub(crate) fn LevelOsd(
         }
         None
     });
-    create_effect(move || {
-        let shown = shown.get();
-        untrack(|| {
-            if shown == 0 {
-                return;
-            }
+    create_effect_on_change(
+        move || shown.track(),
+        move |_, _| {
             fade.stop();
             since.set(Some(now()));
             opacity.set(1.0);
             ticking.restart(OSD_DURATION);
-        });
-    });
+        },
+    );
     let open = create_memo(move || opacity.get() > 0.0 && level.with(Option::is_some));
     // The margin goes on the anchor, not around the card: an overlay's whole content
     // rect takes the presses over the program windows under it, so transparent padding

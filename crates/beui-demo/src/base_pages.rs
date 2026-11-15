@@ -966,10 +966,10 @@ fn TiltedLabel() -> NodeId {
 #[component]
 fn GlidingPlanets() -> NodeId {
     let order = create_signal((0..5).collect::<Vec<usize>>());
-    let moved = create_signal(0_u64);
+    let moved = create_trigger();
     let reorder = move |change: fn(&mut Vec<usize>)| {
         order.update(change);
-        moved.update(|moved| *moved += 1);
+        moved.notify();
     };
     view! {
         <List @test_id="demo.layering.glide" spacing=12.0>
@@ -989,7 +989,7 @@ fn GlidingPlanets() -> NodeId {
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
                 <ForEach value={order}>|planet: usize|
-                    <Glide arm={moved}>
+                    <Glide arm={Some(moved)}>
                         <Tile label={PLANETS[planet].to_owned()} />
                     </Glide>
                 </ForEach>

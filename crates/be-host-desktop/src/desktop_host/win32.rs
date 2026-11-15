@@ -428,7 +428,7 @@ impl DesktopHost for Win32 {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let id = entry_id(window);
         let Some(signals) = signals() else {
             return view! {
@@ -482,7 +482,7 @@ impl DesktopHost for Win32 {
             drawn.track();
             resize(id, rect.get().size());
         });
-        create_effect_on_change(move || focus.get(), move |_, _| focus_entry(id, None));
+        create_effect_on_change(move || focus.track(), move |_, _| focus_entry(id, None));
         let drawn_width = create_memo(move || drawn.get().x);
         let drawn_height = create_memo(move || drawn.get().y);
         let popups = create_memo(move || {

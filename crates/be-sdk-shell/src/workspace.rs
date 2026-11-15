@@ -76,7 +76,7 @@ pub struct Workspace {
     /// Modes this workspace set, shown until the host publishes them: each with whether the
     /// host has answered, after which the next published modes take its place.
     setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
-    routes: Signal<u64>,
+    routes: Trigger,
     pub(crate) phone: Signal<bool>,
     focus: Signal<Focus>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
@@ -103,7 +103,7 @@ impl Workspace {
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
         let simulated = create_signal(HashMap::new());
-        let routes = create_signal(0);
+        let routes = create_trigger();
         let phone = create_signal(false);
         let dialog = create_signal(None);
         let share = create_signal(None);
@@ -862,7 +862,7 @@ impl Workspace {
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
-        self.routes.get();
+        self.routes.track();
         let active = current.or_else(|| inner.active.get());
         inner.active.set(active);
         let focus = Focus {
@@ -951,7 +951,7 @@ impl Workspace {
     }
 
     fn rerouted(&self) {
-        self.routes.update(|routes| *routes += 1);
+        self.routes.notify();
     }
 
     pub(crate) fn container_of(&self, id: Uuid) -> Option<Uuid> {

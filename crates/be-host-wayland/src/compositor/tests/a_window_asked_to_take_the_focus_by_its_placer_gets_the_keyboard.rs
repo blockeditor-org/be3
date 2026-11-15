@@ -1,12 +1,12 @@
 use super::*;
 
 thread_local! {
-    static ASKS: std::cell::Cell<Option<Signal<u64>>> = const { std::cell::Cell::new(None) };
+    static ASKS: std::cell::Cell<Option<Trigger>> = const { std::cell::Cell::new(None) };
 }
 
 #[component]
 fn Asked(windows: Windows) -> NodeId {
-    let asks = create_signal(0u64);
+    let asks = create_trigger();
     ASKS.with(|held| held.set(Some(asks)));
     let ids = create_memo(clone_list(&windows));
     view! {
@@ -14,7 +14,7 @@ fn Asked(windows: Windows) -> NodeId {
             <TextInput @test_id={"test.input"} value="" />
             <ForEach value={ids}>|id: WindowId|
                 <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
-                    <WindowView windows id focus={asks} />
+                    <WindowView windows id focus={Some(asks)} />
                 </Frame>
             </ForEach>
         </List>
@@ -36,7 +36,7 @@ fn a_window_asked_to_take_the_focus_by_its_placer_gets_the_keyboard() {
 
     ASKS.with(std::cell::Cell::get)
         .expect("the view was built")
-        .update(|asks| *asks += 1);
+        .notify();
     harness.settle();
     assert_eq!(
         harness.compositor().windows().focused(),

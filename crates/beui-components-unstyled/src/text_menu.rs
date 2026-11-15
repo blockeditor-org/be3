@@ -57,7 +57,7 @@ pub fn TextContextMenu(
             .map(|(rect, _)| rect)
     });
     let actions = create_memo(move || {
-        cursors.get();
+        cursors.track();
         let selected = state
             .selection_ranges()
             .iter()

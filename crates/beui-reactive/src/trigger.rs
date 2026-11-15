@@ -18,6 +18,47 @@ pub fn create_trigger() -> Trigger {
     }
 }
 
+/// A trigger freed when this value drops rather than with a scope, as `OwnedSignal` is a
+/// signal: for a trigger per entry of a map that outlives its readers, or a struct field made
+/// where no scope is current. Derefs to its `Trigger`.
+pub struct OwnedTrigger {
+    handle: Trigger,
+}
+
+impl OwnedTrigger {
+    pub fn new() -> Self {
+        Self {
+            handle: Trigger {
+                key: arena::insert_tracked(Rc::new(Source::default())),
+            },
+        }
+    }
+
+    pub fn handle(&self) -> Trigger {
+        self.handle
+    }
+}
+
+impl Default for OwnedTrigger {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::ops::Deref for OwnedTrigger {
+    type Target = Trigger;
+
+    fn deref(&self) -> &Trigger {
+        &self.handle
+    }
+}
+
+impl Drop for OwnedTrigger {
+    fn drop(&mut self) {
+        arena::remove(self.handle.key);
+    }
+}
+
 impl Clone for Trigger {
     fn clone(&self) -> Self {
         *self

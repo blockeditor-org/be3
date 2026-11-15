@@ -122,7 +122,7 @@ fn last_rect(node: NodeId) -> ReadSignal<Rect> {
 
 pub(super) fn tracked_scale(held: Stored<Held>) -> f32 {
     held.with(|held| {
-        held.rows_measured.get();
+        held.rows_measured.track();
         let texts: Vec<TextGeometrySignal> = held.texts.borrow().values().copied().collect();
         texts
             .into_iter()
@@ -247,7 +247,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     };
     let content = cx.state.content();
     let margin = create_memo(move || {
-        content.get();
+        content.track();
         let document = cx.state.with_snapshot(|snapshot| {
             matches!(
                 snapshot.language,
@@ -389,7 +389,7 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>) -> Memo<RowCursors> {
         (row.start, row.end)
     });
     create_memo(move || {
-        cx.state.cursors().get();
+        cx.state.cursors().track();
         let (start, end) = span.get();
         let contains = |byte: &usize| *byte >= start && *byte <= end;
         let carets = cx.state.caret_indices();
@@ -505,7 +505,7 @@ fn bytes_hash(bytes: &[u8]) -> u64 {
 fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
     let content = cx.state.content();
     create_memo(move || {
-        content.get();
+        content.track();
         let line = line();
         let starts = cx.starts.get();
         let widgets = cx.widgets.get();
@@ -982,7 +982,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let height = create_memo(move || Extent::px(shape.get().height));
     let radius = create_memo(move || shape.get().radius);
     let selected = create_memo(move || {
-        cx.state.cursors().get();
+        cx.state.cursors().track();
         let index = index.get()?;
         let widget = cx.widgets.get().get(index).cloned()?;
         let ranges = cx.state.selection_ranges();
@@ -1056,7 +1056,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     });
     let arrow_size = create_memo(move || geometry.get().gutter_arrow);
     let arrow = create_memo(move || {
-        cx.state.content().get();
+        cx.state.content().track();
         let start = model.get().start;
         cx.state
             .sections()

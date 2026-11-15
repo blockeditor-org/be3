@@ -43,7 +43,7 @@ pub use scope::{
 pub use selector::{Selector, create_selector};
 pub use signal::{Get, OwnedSignal, ReadSignal, Set, Signal, create_signal};
 pub use stored::{OwnedStored, Stored, StoredCell, store};
-pub use trigger::{Trigger, create_trigger};
+pub use trigger::{OwnedTrigger, Trigger, create_trigger};
 
 #[cfg(test)]
 mod tests;

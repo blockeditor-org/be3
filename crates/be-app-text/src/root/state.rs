@@ -145,7 +145,7 @@ impl State {
         };
         let edited = state.text.content();
         create_effect(move || {
-            edited.get();
+            edited.track();
             let Some(inner) = state.inner.try_value() else {
                 return;
             };

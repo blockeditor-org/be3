@@ -7,7 +7,7 @@ use crate::reactive::{
 };
 use crate::types::{Color, Color32, ColorDefinitions, ColorScheme};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct Registry {
     defined: Signal<Vec<(u64, ColorDefinitions)>>,
     merged: Memo<ColorDefinitions>,
@@ -16,9 +16,8 @@ struct Registry {
 
 thread_local! {
     static NEXT: Cell<u64> = const { Cell::new(0) };
-    static CURRENT: Cell<Option<Registry>> = const { Cell::new(None) };
-    static CHOSEN: Signal<u64> = {
-        let owned = ::beui_reactive::OwnedSignal::new(0);
+    static CURRENT: Signal<Option<Registry>> = {
+        let owned = ::beui_reactive::OwnedSignal::new(None);
         let handle = owned.handle();
         std::mem::forget(owned);
         handle
@@ -45,21 +44,13 @@ fn registry() -> Registry {
             scheme,
         }
     });
-    let changed = CURRENT.with(|current| {
-        current
-            .replace(Some(registry))
-            .is_none_or(|held| held.defined != registry.defined)
-    });
-    if changed {
-        CHOSEN.with(|chosen| chosen.update(|chosen| *chosen += 1));
-    }
+    CURRENT.with(|current| current.set(Some(registry)));
     registry
 }
 
 fn current() -> Option<Registry> {
-    CHOSEN.with(|chosen| chosen.get());
     CURRENT
-        .with(Cell::get)
+        .with(|current| current.get())
         .filter(|registry| registry.defined.is_alive() && registry.scheme.is_alive())
 }
 

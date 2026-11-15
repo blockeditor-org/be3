@@ -37,30 +37,30 @@ pub(crate) struct AnchorOwner {
     pub(crate) window: Memo<WindowId>,
     pub(crate) host: Memo<Option<AnchorHost>>,
     pub(crate) state: Memo<PlacedView>,
-    pub(crate) revision: ReadSignal<u64>,
+    pub(crate) revision: Trigger,
     pub(crate) children: ChildNodes,
     pub(crate) catcher: NodeRef,
 }
 
 thread_local! {
     static OWNERS: RefCell<Vec<AnchorOwner>> = const { RefCell::new(Vec::new()) };
-    static CHANGED: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
+    static CHANGED: RefCell<Option<Trigger>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn install() {
-    let changed = create_signal(0u64);
+    let changed = create_trigger();
     CHANGED.with(|held| *held.borrow_mut() = Some(changed));
 }
 
 fn changed() {
     if let Some(changed) = CHANGED.with(|held| *held.borrow()) {
-        changed.update(|revision| *revision += 1);
+        changed.notify();
     }
 }
 
 fn watch_owners() {
     if let Some(changed) = CHANGED.with(|held| *held.borrow()) {
-        changed.get();
+        changed.track();
     }
 }
 
@@ -411,7 +411,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
     let held: Rc<RefCell<Option<beui::native::Drawing>>> = Rc::new(RefCell::new(None));
     let pixels = create_memo(move || {
         let owner = owner(mount)?;
-        owner.revision.get();
+        owner.revision.track();
         let drawn = layer.get().map_or_else(Vec::new, |layer| {
             be_host_runtime::anchored_blits(&owner.app, &layer)
         });

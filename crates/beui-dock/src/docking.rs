@@ -74,7 +74,7 @@ struct ForeignDialog {
 struct LayoutInner<K: 'static> {
     _scope: Scope,
     keys: RefCell<KeyMap<K>>,
-    keyed: Signal<u64>,
+    keyed: Trigger,
     registry: Rc<Registry>,
     host: RefCell<Option<Rc<dyn DockHostLink>>>,
     hosted: Signal<Option<DockHosted>>,
@@ -89,7 +89,7 @@ struct LayoutInner<K: 'static> {
 pub struct DockingLayout<K: 'static> {
     state: Signal<DockState>,
     mode: Signal<DockMode>,
-    restores: Signal<u64>,
+    restores: Trigger,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -151,10 +151,10 @@ impl<K: DockKey> DockingLayout<K> {
         let owner = RootScope::new();
         let state = create_signal(DockState::default());
         let mode = create_signal(DockMode::Tiled);
-        let restores = create_signal(0);
+        let restores = create_trigger();
         let hosted = create_signal(None);
         let registry = Rc::new(Registry {
-            version: create_signal(0),
+            changed: create_trigger(),
             joins: RefCell::default(),
             foreign: RefCell::default(),
             state,
@@ -164,7 +164,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
-            keyed: create_signal(0),
+            keyed: create_trigger(),
             registry,
             host: RefCell::default(),
             hosted,
@@ -228,7 +228,7 @@ impl<K: DockKey> DockingLayout<K> {
             Some(host) => host.request(DockRequest::Restore(state)),
             None => self.state.set(state),
         }
-        self.restores.update(|restores| *restores += 1);
+        self.restores.notify();
     }
 
     pub fn reset(&self) {
@@ -237,7 +237,7 @@ impl<K: DockKey> DockingLayout<K> {
             Some(host) => host.request(DockRequest::Restore(DockState::default())),
             None => self.state.set(DockState::default()),
         }
-        self.restores.update(|restores| *restores += 1);
+        self.restores.notify();
     }
 
     /// Has no serialized form: save be-sdk-beui's `SavedDockLayout::of(snapshot)`. Fullscreen, snaps,
@@ -300,13 +300,13 @@ impl<K: DockKey> DockingLayout<K> {
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
         let inner = self.inner();
-        inner.keyed.get();
+        inner.keyed.track();
         inner.keys.borrow().tabs.get(key).copied()
     }
 
     pub fn key_of(&self, tab: TabId) -> Option<K> {
         let inner = self.inner();
-        inner.keyed.get();
+        inner.keyed.track();
         inner.keys.borrow().keys.get(&tab).cloned()
     }
 
@@ -314,7 +314,7 @@ impl<K: DockKey> DockingLayout<K> {
         let inner = self.inner();
         let changed = std::mem::take(&mut inner.keys.borrow_mut().changed);
         if changed {
-            inner.keyed.update(|keyed| *keyed += 1);
+            inner.keyed.notify();
         }
     }
 
@@ -1268,11 +1268,11 @@ where
         untrack(|| layout.mirror(hosted));
     });
     let spec = create_signal(None::<DockSpec>);
-    let version = registry.version;
+    let changed = registry.changed;
     create_effect(move || {
-        layout.restores.get();
+        layout.restores.track();
         if nests {
-            version.get();
+            changed.track();
         }
         let items = nodes.items();
         let mut held = Found::default();

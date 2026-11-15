@@ -310,7 +310,7 @@ impl Foreign {
 }
 
 pub(crate) struct Registry {
-    pub(crate) version: Signal<u64>,
+    pub(crate) changed: Trigger,
     pub(crate) joins: RefCell<HashMap<TabId, Rc<Joined>>>,
     pub(crate) foreign: RefCell<Foreign>,
     pub(crate) state: Signal<DockState>,
@@ -320,9 +320,7 @@ pub(crate) struct Registry {
 
 impl Registry {
     pub(crate) fn bump(&self) {
-        if self.version.is_alive() {
-            self.version.update(|version| *version += 1);
-        }
+        self.changed.notify();
     }
 
     pub(crate) fn joined(&self, host: TabId) -> Option<Rc<Joined>> {
@@ -586,12 +584,12 @@ impl DockHostLink for JoinedLink {
     fn hosted(&self) -> Memo<Option<DockHosted>> {
         let registry = Rc::clone(&self.registry);
         let host = self.host;
-        let version = registry.version;
+        let changed = registry.changed;
         create_memo(move || {
-            if !version.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
+            if !changed.is_alive() || !registry.state.is_alive() || !registry.above.is_alive() {
                 return None;
             }
-            version.get();
+            changed.track();
             registry.hosted(host)
         })
     }

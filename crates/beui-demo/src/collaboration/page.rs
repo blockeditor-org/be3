@@ -183,21 +183,21 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
     });
     timer.set(Some(pumping));
     create_effect(move || {
-        left.content().get();
-        right.content().get();
-        left.cursors().get();
-        right.cursors().get();
+        left.content().track();
+        right.content().track();
+        left.cursors().track();
+        right.cursors().track();
         paused.track();
         latency.track();
         pump.call(None);
     });
 
     let left_remote = create_memo(move || {
-        left.content().get();
+        left.content().track();
         remote(&left, seen.get()[Side::Left.index()], RIGHT_COLOR)
     });
     let right_remote = create_memo(move || {
-        right.content().get();
+        right.content().track();
         remote(&right, seen.get()[Side::Right.index()], LEFT_COLOR)
     });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));

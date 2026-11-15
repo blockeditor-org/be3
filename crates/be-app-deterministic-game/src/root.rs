@@ -265,14 +265,14 @@ struct GameCreation {
     listing_error: RefCell<Option<String>>,
     chosen: Cell<Option<Chosen>>,
     module: RefCell<Option<BlockList>>,
-    changed: Signal<u64>,
+    changed: Trigger,
 }
 
 impl GameCreation {
     fn new(creation: Creation) -> Self {
         Self {
             this: Cell::new(None),
-            changed: create_signal(0),
+            changed: create_trigger(),
             listing: Cell::new(true),
             staged: RefCell::new(Vec::new()),
             listing_error: RefCell::new(None),
@@ -294,7 +294,7 @@ impl GameCreation {
     }
 
     fn changed(&self) {
-        self.changed.update(|changed| *changed += 1);
+        self.changed.notify();
     }
 
     fn listed(&self, listing: Result<Vec<String>, Failure>) {
@@ -345,7 +345,7 @@ impl GameCreation {
     }
 
     fn snapshot(&self) -> CreationSnapshot {
-        self.changed.get();
+        self.changed.track();
         let chosen = self.chosen.get();
         let module = match chosen {
             Some(Chosen::Module(module)) => {

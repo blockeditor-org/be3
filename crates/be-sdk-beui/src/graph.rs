@@ -14,7 +14,7 @@ use crate::content::ready;
 
 #[derive(Default)]
 struct Known {
-    changes: RefCell<HashMap<Uuid, (Subscription, OwnedSignal<u64>)>>,
+    changes: RefCell<HashMap<Uuid, (Subscription, OwnedTrigger)>>,
 }
 
 #[derive(Clone)]
@@ -104,13 +104,13 @@ impl Blocks {
 
     pub fn watch(&self, query: BlockQuery) -> BlockList {
         let watch = Rc::new(self.graph.watch(query));
-        let changed = OwnedSignal::new(0_u64);
-        let bumped = changed.handle();
-        let changes = watch.on_change(move || bumped.update(|count| *count += 1));
+        let changed = OwnedTrigger::new();
+        let change = changed.handle();
+        let changes = watch.on_change(move || change.notify());
         let held = Rc::downgrade(&watch);
         wait_while(Rc::downgrade(&watch), move || match held.upgrade() {
             Some(watch) => {
-                bumped.get();
+                change.track();
                 ready(watch.read()).map(drop)
             }
             None => Ok(()),
@@ -138,28 +138,26 @@ impl Blocks {
             .borrow_mut()
             .entry(id)
             .or_insert_with(|| {
-                let changed = OwnedSignal::new(0_u64);
-                let bumped = changed.handle();
-                let changes = self
-                    .graph
-                    .on_info(id, move || bumped.update(|count| *count += 1));
+                let changed = OwnedTrigger::new();
+                let change = changed.handle();
+                let changes = self.graph.on_info(id, move || change.notify());
                 (changes, changed)
             })
             .1
             .handle();
-        changed.get();
+        changed.track();
     }
 }
 
 pub struct BlockList {
     _changes: Subscription,
-    changed: OwnedSignal<u64>,
+    changed: OwnedTrigger,
     watch: Rc<BlockWatch>,
 }
 
 impl BlockList {
     pub fn read(&self) -> Ready<Vec<BlockInfo>> {
-        self.changed.get();
+        self.changed.track();
         ready(self.watch.read())
     }
 

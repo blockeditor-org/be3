@@ -29,6 +29,8 @@ pub(crate) struct VideoState {
     editor: Editor,
     fit_requested: Signal<bool>,
     pub(crate) clips: ReadSignal<Vec<VideoClip>>,
+    /// The whole edit, for what is worked out from every clip at once (lanes, what shows).
+    pub(crate) edit: ReadSignal<Video>,
     pub(crate) duration: ReadSignal<u64>,
     pub(crate) frame_rate: ReadSignal<VideoFrameRate>,
     pub(crate) selected: Signal<Option<Uuid>>,
@@ -49,6 +51,7 @@ impl VideoState {
     pub(crate) fn new(editor: Editor) -> Self {
         let block = editor.block_content::<VideoContent>();
         let clips = block.project(|video| video.root().video().clips().to_vec());
+        let edit = block.project(|video| video.root().video());
         let duration = block.project(|video| video.root().video().duration());
         let frame_rate = block.project(|video| video.root().frame_rate);
         let selected = create_signal(None);
@@ -72,6 +75,7 @@ impl VideoState {
             editor,
             fit_requested,
             clips,
+            edit,
             duration,
             frame_rate,
             selected,
