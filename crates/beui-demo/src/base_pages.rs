@@ -606,18 +606,37 @@ fn PlanetList() -> NodeId {
 #[sample]
 #[component]
 fn DynamicShape() -> NodeId {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Shape {
+        Caption,
+        Square,
+        Circle,
+    }
     let theme = use_theme();
-    let round = create_signal(false);
+    let shape = create_signal(Shape::Caption);
     view! {
         <List spacing={SECTION_SPACING.px()}>
-            <LabelledSwitch label="Round" on={round} />
-            <Dynamic value={round}>|round: bool| {
-                match round {
-                    true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
-                    },
-                    false => view! {
+            <Button
+                label="Next shape"
+                variant=ButtonVariant::Secondary
+                on_click={move || shape.update(|shape| {
+                    *shape = match shape {
+                        Shape::Caption => Shape::Square,
+                        Shape::Square => Shape::Circle,
+                        Shape::Circle => Shape::Caption,
+                    }
+                })}
+            />
+            <Dynamic value={shape}>|shape: Shape| {
+                match shape {
+                    Shape::Caption => view! {
                         <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
+                    },
+                    Shape::Square => view! {
+                        <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+                    },
+                    Shape::Circle => view! {
+                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                 }
             }</Dynamic>

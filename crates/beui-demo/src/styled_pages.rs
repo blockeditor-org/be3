@@ -320,7 +320,7 @@ fn ContentDrag() -> NodeId {
     let on = create_memo(move || {
         modifier
             .as_ref()
-            .is_some_and(|modifier| modifier.held.get().is_some())
+            .is_some_and(|modifier| modifier.held.with(Option::is_some))
     });
     view! {
         <List spacing=SECTION_SPACING>
@@ -1991,7 +1991,6 @@ fn ActionMenu() -> NodeId {
 fn CardMenu() -> NodeId {
     let menu_text = create_signal("Nothing chosen yet".to_owned());
     let copied = create_signal(false);
-    let nothing_copied = create_memo(move || !copied.get());
     view! {
         <List spacing=SECTION_SPACING>
             <ContextMenu
@@ -2009,7 +2008,7 @@ fn CardMenu() -> NodeId {
                         label="Paste"
                         glyph=ICON_CLIPBOARD
                         detail="Ctrl+V"
-                        disabled={nothing_copied}
+                        disabled={move || !copied.get()}
                         on_click={move || menu_text.set("Chose: Paste".to_owned())}
                     />
                     <MenuItem label="Share" glyph=ICON_SHARE_2>
@@ -2140,7 +2139,7 @@ fn SortMenus() -> NodeId {
     });
     let priority = create_signal(None::<&'static str>);
     let priority_label = create_memo(move || priority.get().unwrap_or("Set priority").to_owned());
-    let unset = create_memo(move || priority.get().is_none());
+    let unset = create_memo(move || priority.with(Option::is_none));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md wrap=true>

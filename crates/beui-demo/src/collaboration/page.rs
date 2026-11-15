@@ -382,9 +382,9 @@ fn EditorPane(
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
-            <Show condition={rich}>
+            {rich.then(|| view! {
                 <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
-            </Show>
+            })}
             <ListItem length=EDITOR_HEIGHT>
                 <TextArea
                     @test_id=id
