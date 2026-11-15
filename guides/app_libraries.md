@@ -3,8 +3,8 @@
 An app is either **standalone**, one plain wasm module with everything in it
 (written against the raw app interface below, in any language), or
 **linked**: a position-independent module naming the libraries it needs,
-which the host links it to at load time, on wasmtime and in the browser, from
-the same files. A library holds what apps share (std, beui, wgpu, FreeType,
+which the host links it to at load time, natively on V8 and in the browser,
+from the same files. A library holds what apps share (std, beui, wgpu, FreeType,
 HarfBuzz, ...), so a linked app's module holds only its own code and the
 generics instantiated for its types, and every app shares one file and one
 compiled module per library.
@@ -68,10 +68,8 @@ everything in it. `app_tests(libraries = [])` links a standalone test module.
   `Host::run_tests` links them as it links an app (`src/dylink.rs`), then
   calls `__main_void`, whose result is the exit code; a panic still ends the
   instance, and the rerun one at a time is unchanged.
-- **Compile.** The libraries' `.cwasm`s are be-host's `:precompiled` ones
-  (its `libraries` names the test library), so every test and the host share
-  one compile of each; the test module itself is precompiled `--quick` in an
-  action of its own.
+- **Compile.** V8 compiles each library once in the runner's process and the
+  test module as it loads; nothing is compiled ahead of the run.
 
 A standalone module that links C libraries with the same symbols, such as
 PDFium's FreeType and beui's, gets one definition of each name from whichever
@@ -83,10 +81,9 @@ of two FreeType builds and painted text a little differently from the app.
 Rust has no stable ABI, so a module works only with the exact libraries it was
 linked against. A library's identity is the SHA-256 of its module. A linked
 module names its whole closure, in dependency order, as exported globals
-`__be3_lib_<position>_<identity>`, which survive precompiling. Libraries are
-staged as `lib-<identity>.wasm` (and `.cwasm`); both hosts hash a `.wasm`
-before use and refuse one whose hash is not its name. A `.cwasm` cannot be
-checked and is trusted as found.
+`__be3_lib_<position>_<identity>`. Libraries are staged as
+`lib-<identity>.wasm`; both hosts hash it before use and refuse one whose
+hash is not its name.
 
 Every linked module carries a `be3.lib` custom section listing its name, the
 libraries it needs, the Rust archives and C libraries it holds, and its
@@ -145,24 +142,25 @@ worker may start or end a thread.
 
 `crates/be-tool-tls-diamond-{base,left,right,app}` test it: an app reaching a
 thread-local in each of three libraries, on the main thread and a spawned one,
-run on wasmtime (`the_thread_local_diamond_runs_on_every_thread`) and in
+run natively on V8 (`the_thread_local_diamond_runs_on_every_thread`) and in
 Chromium (`//crates/be-tool-tls-diamond-app:web-test`).
 
 ## Loading
 
 `crates/be-wasm-dylink` plans the link as plain data (`plan`): where each
 module's data goes, its table slots, what answers each import, and its TLS
-block. `crates/be-wasm-host/src/dylink.rs` (wasmtime) and
-`crates/be-host/web/dylink.js` (the browser, through be-wasm-gpu-shim) only
-carry it out: instantiate the root against the shared memory and run
+block. `crates/be-wasm-host/src/dylink.rs` (natively, on V8 through the JavaScript
+WebAssembly API called from Rust) and `crates/be-host/web/dylink.js` (the
+browser, through be-wasm-gpu-shim) only carry it out the same way: instantiate the root against the shared memory and run
 `_initialize`, grow the memory for the other modules' data, then instantiate
 and relocate each module in order and run its constructors before anything
 above it is instantiated. Each spawned thread links the whole list again from
 the same plan. Everything is linked at start, since a table cannot be shared
 between threads: nothing loads later.
 
-Natively the host keeps one compiled module per library per engine (`Host` in
-be-wasm-host), so later apps compile only themselves. In a browser each worker
+Natively each library is compiled once per process and shared between the
+isolates of every app as a `v8::CompiledWasmModule` (`Host` in be-wasm-host),
+so later apps compile only themselves; nothing is cached on disk. In a browser each worker
 compiles with `WebAssembly.compileStreaming`, which lets the browser cache it;
 the server must serve `.wasm` as `application/wasm` for that.
 

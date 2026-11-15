@@ -13,3 +13,10 @@ Measured locally in October 2026:
   which can run on the app's own thread while the host sets up.
 - Mapping the `.cwasm` files (about 400 MB for the host's apps, libraries and type modules)
   took about a third of a second off the time to the Files pane.
+
+## Since
+
+November 2026: every guest now runs on V8 and precompilation was removed (plans/wasm_on_v8.md),
+so there are no `.cwasm` files to map: V8 compiles each module as it loads, and each library once
+per process. Mapping compiled code is superseded; warming the apps before the window and GPU
+still stands.
