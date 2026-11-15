@@ -59,7 +59,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   merged. An idle-time pass (the device idle, on power) could lift the cap. Done: a stack test
   where an index whose tier is over the cap is merged by an idle pass and answers the same.
 
-## 10. Commit times
+## 11. Commit times
 
 - **A refused far-future commit is stuck.** A device stamps commits by the
   server's clock it measured, kept in its refs across restarts
@@ -73,7 +73,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   whose first commits are made offline with a clock two hours fast sends them
   once it connects.
 
-## 11. Large folders
+## 12. Large folders
 
 - **Republishing a large folder's summary.** A folder's summary lists every
   entry (up to `MAX_REFERENCES`), and every change to it is announced to each
@@ -91,7 +91,7 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   answer, and a server test shows its memory per connection does not grow with
   a folder's references.
 
-## 12. Settings
+## 13. Settings
 
 - **Typed organization policies.** Each row of the organization's and the
   offline policies (be-app-settings `src/root/organization.rs`) is a `Policy`

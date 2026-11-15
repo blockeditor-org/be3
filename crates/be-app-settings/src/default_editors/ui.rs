@@ -137,7 +137,7 @@ fn DefaultEditor(
                             }
                         }</ForEach>
                         <ForEach keys={custom}>|id: Uuid|
-                            <ChoiceOption value={Some(id)} label={format!("Custom ({id})")} />
+                            <ChoiceOption value={Some(id)} label="Unknown editor" />
                         </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<Option<Uuid>>| {

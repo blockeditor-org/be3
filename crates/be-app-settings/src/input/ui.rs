@@ -475,7 +475,7 @@ fn DisplayChoice(
                             <ChoiceOption value={Some(display.0)} label={display.1} />
                         </ForEach>
                         <ForEach keys={custom}>|id: String|
-                            <ChoiceOption value={Some(id.clone())} label={format!("Custom ({id})")} />
+                            <ChoiceOption value={Some(id.clone())} label="Disconnected display" />
                         </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<Option<String>>| {
