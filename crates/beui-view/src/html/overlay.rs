@@ -12,7 +12,6 @@ use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_effect;
 use crate::reactive::owner_scope;
-use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::types::Color;
@@ -29,7 +28,8 @@ use beui_core_html::overlay::Parts;
 use super::bind;
 
 struct Mounted {
-    scope: Scope,
+    /// Owns the content while it is shown; dropping it disposes the content.
+    _scope: Scope,
 }
 
 pub(crate) fn overlay(
@@ -46,7 +46,6 @@ pub(crate) fn overlay(
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    keep_alive: bool,
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
@@ -101,42 +100,22 @@ pub(crate) fn overlay(
             let held = mounted.value();
             let mut held = held.borrow_mut();
             if shown {
-                match held.as_ref() {
-                    Some(held) => {
-                        if keep_alive {
-                            held.scope.resume();
-                        }
-                    }
-                    None => {
-                        let scope = owner.run(|| match keep_alive {
-                            true => Scope::detached().pausable(),
-                            false => Scope::detached(),
-                        });
-                        let built = scope.context().run(|| {
-                            provide_context(presence);
-                            provide_context(presence.modality());
-                            content.call(())
-                        });
-                        layered.fill(slot, vec![built]);
-                        *held = Some(Mounted { scope });
-                    }
+                if held.is_none() {
+                    let scope = owner.run(Scope::detached);
+                    let built = scope.context().run(|| {
+                        presence.provide();
+                        content.call(())
+                    });
+                    layered.fill(slot, vec![built]);
+                    *held = Some(Mounted { _scope: scope });
                 }
                 layer.show(true);
                 return;
             }
             layer.show(false);
-            match keep_alive {
-                true => {
-                    if let Some(held) = held.as_ref() {
-                        held.scope.pause();
-                    }
-                }
-                false => {
-                    presence.lingering().update(Vec::clear);
-                    layered.fill(slot, Vec::new());
-                    drop(held.take());
-                }
-            }
+            presence.lingering().update(Vec::clear);
+            layered.fill(slot, Vec::new());
+            drop(held.take());
         });
     });
     host

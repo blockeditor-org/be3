@@ -1108,6 +1108,44 @@ pub trait IntoSegments<T: SlotChild> {
 
 pub struct SingleChild<H>(pub H);
 
+/// What a component that wraps its children without placing them (to provide context around
+/// them, say) returns: its one child as it is, so a node stays a node, or its run of children.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be handed back as it was built",
+    label = "write the children as tags, or as a block that returns a child"
+)]
+pub trait Unwrapped {
+    type Output: ChildValue;
+
+    fn unwrapped(self) -> Self::Output;
+}
+
+impl<H: ChildValue> Unwrapped for SingleChild<H> {
+    type Output = H;
+
+    fn unwrapped(self) -> H {
+        self.0
+    }
+}
+
+impl<T: SlotChild, const N: usize> Unwrapped for [ChildSegment<T>; N] {
+    type Output = Children<T>;
+
+    fn unwrapped(self) -> Children<T> {
+        let mut segments = Vec::with_capacity(N);
+        self.into_segments(&mut segments);
+        Children(segments)
+    }
+}
+
+impl<H: ChildValue> Unwrapped for H {
+    type Output = H;
+
+    fn unwrapped(self) -> H {
+        self
+    }
+}
+
 impl<T, H: IntoChild<T>> IntoChild<T> for SingleChild<H> {
     fn into_child(self) -> T {
         self.0.into_child()

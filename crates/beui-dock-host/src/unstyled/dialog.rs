@@ -2,7 +2,7 @@ use beui_view::types::icons::Glyph;
 use std::time::Duration;
 
 use beui_macros::{component, view};
-use beui_view::components::overlay::{Modality, Overlay};
+use beui_view::components::overlay::{Modality, Overlay, use_overlay_presence};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -424,6 +424,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         },
     );
     let view = view! {
+        <KeepAlive>
         <Overlay
             @node_ref=&overlay
             anchor={at}
@@ -436,18 +437,33 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             shown_in={shown_in}
             traps_focus=false
             open={shown}
-            keep_alive=true
             on_dismiss={move |reason: Dismiss| match reason {
                 Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
                 Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
                 Dismiss::Escape | Dismiss::Back => close.call(()),
                 Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
-        >
-            <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
-                {face.call(())}
-            </Interactive>
-        </Overlay>
+        >|| {
+            // The face is built the first time the dialog shows and kept, paused, while it is
+            // hidden; it carries the overlay's presence, which it reads.
+            let presence = use_overlay_presence();
+            view! {
+                <Kept>|| {
+                    if let Some(presence) = presence {
+                        presence.provide();
+                    }
+                    view! {
+                        <Interactive
+                            @node_ref=&frame
+                            on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                        >
+                            {face.call(())}
+                        </Interactive>
+                    }
+                }</Kept>
+            }
+        }</Overlay>
+        </KeepAlive>
     };
     on_cleanup(move || {
         if let Some(overlay) = overlay.try_get() {

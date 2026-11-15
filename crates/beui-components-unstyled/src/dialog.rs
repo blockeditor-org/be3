@@ -625,7 +625,6 @@ pub fn Dialog(
                 pointer={pointer}
                 beak={reach}
                 open={as_layer}
-                keep_alive=true
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             >
                 <Portal node={layer_card} />

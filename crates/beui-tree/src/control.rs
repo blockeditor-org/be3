@@ -34,16 +34,6 @@ fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>
     scope
 }
 
-/// Children built now, as the form their count calls for: what a component that only wraps
-/// its children (providing context around them, say) returns, so it fills whatever slot
-/// they would.
-pub fn as_form<C: SlotChild, B: Branch<C>>(built: B) -> <<B as Counted>::Count as Count>::Form<C> {
-    let children = built.into_children();
-    <<B as Counted>::Count as Count>::form(DynamicSegment::new(move |slot: ChildSlot<C>| {
-        children.mount_in(slot);
-    }))
-}
-
 type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 
 /// What a `Show` shows on: a `bool`, or an `Option`, whose value it hands its children as a

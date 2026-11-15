@@ -226,35 +226,38 @@ pub fn NumberInput(
         editing: editing.read_only(),
     }));
     view! {
-        <List spacing=0.0>
-            <Show
-                keep_alive=true
-                value={editing}
-                fallback={move || view! {
-                    <Interactive
-                        focusable=true
-                        tab_stop
-                        focused={refocus}
-                        on_focus_change={button_focus}
-                        on_activate={open}
-                        cursor={move || match drag != NumberDrag::Off && !off.get() {
-                            true => CursorIcon::ResizeHorizontal,
-                            false => CursorIcon::Default,
-                        }}
-                        capture_presses=true
-                        on_press={pressed}
-                        on_drag={dragged}
-                        on_click={clicked}
-                        on_cancel={cancelled}
-                        on_hover_change={hovered}
-                        on_active_change={active}
-                        children={Some(face)}
-                    />
-                }}
-            >
-                {field}
-            </Show>
-        </List>
+        <KeepAlive>
+            <List spacing=0.0>
+                <Show
+                    value={editing}
+                    fallback={move || view! {
+                        <Kept key=false>
+                            <Interactive
+                                focusable=true
+                                tab_stop
+                                focused={refocus}
+                                on_focus_change={button_focus}
+                                on_activate={open}
+                                cursor={move || match drag != NumberDrag::Off && !off.get() {
+                                    true => CursorIcon::ResizeHorizontal,
+                                    false => CursorIcon::Default,
+                                }}
+                                capture_presses=true
+                                on_press={pressed}
+                                on_drag={dragged}
+                                on_click={clicked}
+                                on_cancel={cancelled}
+                                on_hover_change={hovered}
+                                on_active_change={active}
+                                children={Some(face)}
+                            />
+                        </Kept>
+                    }}
+                >
+                    <Kept key=true>{field}</Kept>
+                </Show>
+            </List>
+        </KeepAlive>
     }
 }
 
