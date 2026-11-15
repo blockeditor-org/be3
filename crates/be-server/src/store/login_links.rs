@@ -14,7 +14,7 @@ use std::time::Instant;
 use rusqlite::{OptionalExtension, params};
 use uuid::Uuid;
 
-use super::codes::{account_of, make_account, open_browser_session};
+use super::codes::{account_of, make_account, open_browser_session, unregistered};
 use super::{ServerStore, hash_token, invite_codes, normalize_email, parse_uuid, portal::now};
 use crate::ServerError;
 
@@ -65,7 +65,12 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
         }
         LinkFor::Email(email) => {
             let email = normalize_email(email)?;
-            (account_of(&database, &email)?.unwrap_or_default(), email)
+            let account = account_of(&database, &email)?;
+            if account.is_none() {
+                // An agent's or a local profile's address, which nobody signs in with.
+                unregistered(&database, &email)?;
+            }
+            (account.unwrap_or_default(), email)
         }
     };
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
@@ -111,6 +116,7 @@ impl ServerStore {
                     true => match account_of(&transaction, &email)? {
                         Some(account) => account,
                         None => {
+                            unregistered(&transaction, &email)?;
                             let name = email.split('@').next().unwrap_or_default().to_owned();
                             make_account(&transaction, &email, &name)?.to_string()
                         }

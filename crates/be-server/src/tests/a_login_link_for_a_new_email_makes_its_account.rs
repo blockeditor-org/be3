@@ -31,4 +31,14 @@ async fn a_login_link_for_a_new_email_makes_its_account() {
         [("email", "first@example.com")]
     );
     assert!(harness.mail.0.lock().unwrap().is_empty());
+    // An agent's address has an account but no identity: no link makes another account for it.
+    metadata_database(&harness.directory)
+        .execute(
+            "INSERT INTO accounts (id, email, display_name) VALUES (?1, 'agent@agents.invalid', 'Agent')",
+            [Uuid::new_v4().to_string()],
+        )
+        .unwrap();
+    assert!(
+        login_links::create(&harness.directory, LinkFor::Email("agent@agents.invalid")).is_err()
+    );
 }

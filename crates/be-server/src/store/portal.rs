@@ -70,7 +70,7 @@ impl ServerStore {
 
     /// A browser session for the account with no sign-in and no proof, for tests and benches
     /// that start signed in, as `register` makes an account with no code. The portal never
-    /// calls it: a browser signs in by a code.
+    /// calls it: a browser signs in by a code or an operator's login link.
     pub async fn browser_session(&self, account: Uuid) -> Result<String, ServerError> {
         self.with_database(move |_, database| {
             let token = issue_token(&database, account)?;
