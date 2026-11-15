@@ -2564,6 +2564,13 @@ fn has_stop(
     stop: CursorLeftRightStop,
     stops: CursorStops,
 ) -> Option<BetweenCharsStop> {
+    // The end of text only ends its last line, unless a line break leaves an empty one there.
+    if stop == CursorLeftRightStop::Line
+        && index >= bytes.len()
+        && bytes.last().is_some_and(|byte| *byte != b'\n')
+    {
+        return Some(BetweenCharsStop::RightOnly);
+    }
     if index == 0 || index >= bytes.len() {
         return Some(BetweenCharsStop::Both);
     }

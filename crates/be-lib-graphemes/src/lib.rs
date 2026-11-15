@@ -269,13 +269,41 @@ fn cluster_after(bytes: &[u8], index: usize) -> Option<(char, usize)> {
     Some((c, end))
 }
 
+/// The cluster before `index`: its first character, its class and where it starts.
+fn before(bytes: &[u8], index: usize) -> Option<(char, WordClass, usize)> {
+    let (c, start) = cluster_before(bytes, index)?;
+    Some((c, class_of(bytes, c, start, index), start))
+}
+
+/// The cluster after `index`: its first character, its class and where it ends.
+fn after(bytes: &[u8], index: usize) -> Option<(char, WordClass, usize)> {
+    let (c, end) = cluster_after(bytes, index)?;
+    Some((c, class_of(bytes, c, index, end), end))
+}
+
+/// The class of the cluster from `start` to `end`, whose first character is `c`. An apostrophe
+/// between two word clusters joins them into one word, as UAX #29's WB6, WB7, WB11 and WB12 do,
+/// so "don't" and "rock’n’roll" are each one word but "'quoted'" is not.
+fn class_of(bytes: &[u8], c: char, start: usize, end: usize) -> WordClass {
+    let word = |found: Option<(char, usize)>| {
+        found.is_some_and(|(c, _)| word_class(c) == WordClass::Word)
+    };
+    if matches!(c, '\'' | '\u{2019}')
+        && word(cluster_before(bytes, start))
+        && word(cluster_after(bytes, end))
+    {
+        return WordClass::Word;
+    }
+    word_class(c)
+}
+
 pub fn word_classes(bytes: &[u8], index: usize) -> Option<(WordClass, WordClass)> {
     if !is_grapheme_boundary(bytes, index) {
         return None;
     }
-    let (before, _) = cluster_before(bytes, index)?;
-    let (after, _) = cluster_after(bytes, index)?;
-    Some((word_class(before), word_class(after)))
+    let (_, before, _) = before(bytes, index)?;
+    let (_, after, _) = after(bytes, index)?;
+    Some((before, after))
 }
 
 pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -> (usize, usize) {
@@ -284,29 +312,31 @@ pub fn word_around(bytes: &[u8], index: usize, joined: impl Fn(usize) -> bool) -
         index -= 1;
     }
     let in_line = |c: char| !matches!(c, '\n' | '\r');
-    let after = cluster_after(bytes, index)
-        .map(|(c, _)| c)
-        .filter(|c| in_line(*c));
-    let before = cluster_before(bytes, index)
-        .map(|(c, _)| c)
-        .filter(|c| in_line(*c));
-    let class = match (after.map(word_class), before.map(word_class)) {
+    let class_in_line = |found: Option<(char, WordClass, usize)>| {
+        found
+            .filter(|(c, _, _)| in_line(*c))
+            .map(|(_, class, _)| class)
+    };
+    let class = match (
+        class_in_line(after(bytes, index)),
+        class_in_line(before(bytes, index)),
+    ) {
         (Some(class), _) | (_, Some(class)) if class != WordClass::Space => class,
         (None, None) => return (index, index),
         _ => WordClass::Space,
     };
-    let same = |c: char| in_line(c) && word_class(c) == class;
+    let same = |(c, found, _): (char, WordClass, usize)| in_line(c) && found == class;
     let mut start = index;
-    while let Some((c, previous)) = cluster_before(bytes, start)
-        && (same(c) || joined(start))
+    while let Some(cluster) = before(bytes, start)
+        && (same(cluster) || joined(start))
     {
-        start = previous;
+        start = cluster.2;
     }
     let mut end = index;
-    while let Some((c, next)) = cluster_after(bytes, end)
-        && (same(c) || joined(end))
+    while let Some(cluster) = after(bytes, end)
+        && (same(cluster) || joined(end))
     {
-        end = next;
+        end = cluster.2;
     }
     (start, end)
 }
@@ -317,15 +347,13 @@ pub fn words(bytes: &[u8]) -> impl Iterator<Item = std::ops::Range<usize>> + '_ 
     let mut index = 0;
     std::iter::from_fn(move || {
         loop {
-            let (c, end) = cluster_after(bytes, index)?;
+            let (_, class, end) = after(bytes, index)?;
             let start = index;
             index = end;
-            if word_class(c) != WordClass::Word {
+            if class != WordClass::Word {
                 continue;
             }
-            while let Some((c, end)) = cluster_after(bytes, index)
-                && word_class(c) == WordClass::Word
-            {
+            while let Some((_, WordClass::Word, end)) = after(bytes, index) {
                 index = end;
             }
             return Some(start..index);
