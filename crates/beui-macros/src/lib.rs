@@ -32,6 +32,7 @@ struct Prop {
     is_optional_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
+    required_binding: bool,
 }
 
 struct Render {
@@ -508,7 +509,7 @@ fn prop_is_required(prop: &Prop) -> bool {
     if prop.inner_ty.is_some() || prop.is_children {
         return false;
     }
-    if prop.is_child {
+    if prop.is_child || prop.required_binding {
         return true;
     }
     prop.default.is_none()
@@ -546,12 +547,14 @@ fn camel_case(ident: &Ident) -> String {
 struct PropAttr {
     default: Option<Expr>,
     children: bool,
+    required: bool,
 }
 
 fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
     let mut parsed = PropAttr {
         default: None,
         children: false,
+        required: false,
     };
     let Some(position) = attrs.iter().position(|attr| attr.path().is_ident("prop")) else {
         return Ok(parsed);
@@ -566,7 +569,11 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
             parsed.default = Some(meta.value()?.parse::<Expr>()?);
             return Ok(());
         }
-        Err(meta.error("expected `children` or `default = <expr>`"))
+        if meta.path.is_ident("required") {
+            parsed.required = true;
+            return Ok(());
+        }
+        Err(meta.error("expected `children`, `required` or `default = <expr>`"))
     })?;
     Ok(parsed)
 }
@@ -661,7 +668,8 @@ fn is_named_type(ty: &Type, name: &str) -> bool {
 /// back to nothing while alive is `Prop<Option<T>>` with `#[prop(default = None)]` (its
 /// attribute takes a plain `T` or a signal of one and lifts it into `Some`). `Callback`,
 /// `Children` and `Binding<T>` props are never required; an unset binding is a signal in
-/// the component's scope holding the default. An `Option<T>` prop also takes a plain `T`,
+/// the component's scope holding the default, or `Default::default()`, unless the binding
+/// is marked `#[prop(required)]` (a control whose value has no sensible default). An `Option<T>` prop also takes a plain `T`,
 /// except for primitives (so a literal keeps its type) and `String`. A missing or
 /// repeated prop is a compile error at the tag.
 ///
@@ -794,7 +802,18 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 ));
             };
             let ident = pat_ident.ident.clone();
-            let PropAttr { default, children } = take_prop_attr(attrs)?;
+            let PropAttr {
+                default,
+                children,
+                required,
+            } = take_prop_attr(attrs)?;
+            let binding_inner_ty = generic_inner(ty, "Binding");
+            if required && (binding_inner_ty.is_none() || default.is_some()) {
+                return Err(syn::Error::new_spanned(
+                    ty,
+                    "`#[prop(required)]` is for a `Binding<T>` with no default; other props are required unless they have one",
+                ));
+            }
             let callback_signature = is_named_type(ty, "Callback")
                 .then(|| callback_signature(ty))
                 .transpose()?;
@@ -809,7 +828,6 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 .as_ref()
                 .and_then(|inner| generic_inner(inner, "Prop"));
             let reactive_inner_ty = generic_inner(ty, "Prop");
-            let binding_inner_ty = generic_inner(ty, "Binding");
             let optional_render = inner_ty.as_ref().and_then(render_kind);
             let optional_func_args = inner_ty.as_ref().and_then(func_args);
             let is_children = is_named_type(ty, "Children");
@@ -837,6 +855,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 is_optional_click_callback,
                 default,
                 is_children_slot: children,
+                required_binding: required,
             })
         })
         .collect::<syn::Result<_>>()?;
@@ -1181,7 +1200,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
 
     let owned_bindings = props
         .iter()
-        .filter(|prop| prop.binding_inner_ty.is_some())
+        .filter(|prop| prop.binding_inner_ty.is_some() && !prop.required_binding)
         .map(|prop| {
             let ident = &prop.ident;
             let initial = match &prop.default {

@@ -10,12 +10,12 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let (select, other) = (NodeRef::new(), NodeRef::new());
     let document = build_node(move || {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
         };
         view! {
             <List direction=Direction::Horizontal spacing=20.0>
-                <Select @node_ref=&select options selected=Some(0) />
+                <Select @node_ref=&select options selected=Some("Apple") />
                 <unstyled::Button
                     @node_ref=&other
                     on_click={move || other_clicks.update(|other_clicks| *other_clicks += 1)}
@@ -31,22 +31,32 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
 
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    assert!(harness.document().api::<styled::SelectApi>(select).open());
+    assert!(
+        harness
+            .document()
+            .api::<styled::SelectApi<&str>>(select)
+            .open()
+    );
 
     harness.click(harness.center(other));
     harness.frame(Vec::new());
 
-    assert!(!harness.document().api::<styled::SelectApi>(select).open());
+    assert!(
+        !harness
+            .document()
+            .api::<styled::SelectApi<&str>>(select)
+            .open()
+    );
     assert_eq!(
         harness
             .document()
-            .api::<styled::SelectApi>(select)
+            .api::<styled::SelectApi<&str>>(select)
             .selected(),
-        Some(0)
+        Some("Apple")
     );
     assert_eq!(other_clicks.get_untracked(), 0);
 }

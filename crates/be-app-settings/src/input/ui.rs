@@ -229,12 +229,7 @@ fn Pointers(
             .filter(|key| keys.with(|keys| keys.contains(key)))
     });
     let scopes = create_memo(move || vec![scope.get()]);
-    let selected = create_memo(move || {
-        let index = scope
-            .get()
-            .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
-        Some(index.map_or(0, |index| index + 1))
-    });
+    let selected = create_memo(move || Some(scope.get()));
     let description = create_memo(move || match none.get() {
         true => "No pointer is connected to this session.".to_owned(),
         false => String::new(),
@@ -245,17 +240,16 @@ fn Pointers(
                 <ListItem grow=1.0>
                     <Select
                         options={view! {
-                            <ChoiceOption label="All pointers" />
+                            <ChoiceOption value=None label="All pointers" />
                             <ForEach keys={keys}>|key: DeviceKey|
-                                <ChoiceOption label={key.0} />
+                                <ChoiceOption value={Some(key.clone())} label={key.0} />
                             </ForEach>
                         }}
                         width={Extent::fraction(1.0)}
-                        selected={Binding::new(selected, move |index: Option<usize>| {
-                            let key = index
-                                .and_then(|index| index.checked_sub(1))
-                                .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
-                            chosen.set(key);
+                        selected={Binding::new(selected, move |picked: Option<Option<DeviceKey>>| {
+                            if let Some(key) = picked {
+                                chosen.set(key);
+                            }
                         })}
                         label="Pointer"
                         @test_id={"input.pointer"}
@@ -458,10 +452,7 @@ fn DisplayChoice(
         format!("Automatic ({place})")
     });
     let selected = create_memo(move || {
-        let chosen = effective.with(|effective| effective.display(&device).map(str::to_owned));
-        let index = chosen
-            .and_then(|id| shown.with(|shown| shown.iter().position(|(known, _)| *known == id)));
-        Some(index.map_or(0, |index| index + 1))
+        Some(effective.with(|effective| effective.display(&device).map(str::to_owned)))
     });
     view! {
         <LayeredSettingsRow
@@ -476,19 +467,15 @@ fn DisplayChoice(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ChoiceOption label={automatic} />
+                        <ChoiceOption value=None label={automatic} />
                         <ForEach keys={shown}>|display: (String, String)|
-                            <ChoiceOption label={display.1} />
+                            <ChoiceOption value={Some(display.0)} label={display.1} />
                         </ForEach>
                     }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let Some(index) = index else {
-                            return;
-                        };
-                        let chosen = index
-                            .checked_sub(1)
-                            .and_then(|index| shown.with_untracked(|shown| shown.get(index).map(|(id, _)| id.clone())));
-                        set.call(chosen);
+                    selected={Binding::new(selected, move |chosen: Option<Option<String>>| {
+                        if let Some(chosen) = chosen {
+                            set.call(chosen);
+                        }
                     })}
                     label="Display"
                     disabled={read_only}

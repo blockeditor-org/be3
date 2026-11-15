@@ -5,7 +5,7 @@
 # Menu key or Shift+F10 beneath its card, around the focused button, and only
 # there: the browser's own contextmenu for the key adds no second opening.
 clock stop
-wait 'value="Chose nothing fruit Some(0)"'
+wait 'value="Chose nothing fruit Apple"'
 click 'Button "Actions"'
 wait 'MenuItem "Copy"'
 click 'MenuItem "Share"'
@@ -15,17 +15,17 @@ wait not 'MenuItem "Email"'
 move 'MenuItem "Share"'
 wait 'MenuItem "Email"'
 click 'MenuItem "Email"'
-wait 'value="Chose Email fruit Some(0)"'
+wait 'value="Chose Email fruit Apple"'
 wait not 'MenuItem "Copy"'
 key Enter
 wait 'MenuItem "Copy" focused'
 key Enter
-wait 'value="Chose Copy fruit Some(0)"'
+wait 'value="Chose Copy fruit Apple"'
 wait not 'MenuItem "Copy"'
 click '#menus.fruit'
 wait 'ListBoxOption "Cherry"'
 click 'ListBoxOption "Cherry"'
-wait 'value="Chose Copy fruit Some(2)"'
+wait 'value="Chose Copy fruit Cherry"'
 wait not 'ListBoxOption "Cherry"'
 click '#menus.card' right
 wait 'MenuItem "Share"'
@@ -34,7 +34,7 @@ wait 'MenuItem "Share" focused'
 key right
 wait 'MenuItem "Email" focused'
 key Enter
-wait 'value="Chose Email fruit Some(2)"'
+wait 'value="Chose Email fruit Cherry"'
 wait not 'MenuItem "Share"'
 click '#menus.card.focus'
 key ContextMenu

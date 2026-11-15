@@ -13,7 +13,7 @@ fn the_simulate_tab_filters_the_document_without_the_screen_reader() {
 
     harness.drag_simulation_slider("blur", 1.0);
     harness.drag_simulation_slider("contrast", 0.5);
-    harness.choose_in_simulation("color_vision", 1);
+    harness.choose_in_simulation("color_vision", ColorVision::Protanopia);
     let output = harness.frame(Vec::new());
 
     let filters = output.main().filters();

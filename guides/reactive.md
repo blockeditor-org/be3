@@ -226,7 +226,9 @@ bind it with `create_binding`, so a plain value costs nothing after it is set.
 Pass a memo to a prop as it is. Every prop is required unless it has
 `#[prop(default = ...)]`, or is `Option<Prop<T>>` (absence fixed at build) or
 `Prop<Option<T>>` (can return to "unset" while alive, such as a `Frame` width).
-`Callback`, `Children` and `Binding` props default to empty.
+`Callback`, `Children` and `Binding` props default to empty, except a
+`Binding` marked `#[prop(required)]`, for a value with no sensible default (the
+tab `Tabs` shows).
 
 State a control both shows and changes is one `Binding<T>`, not a prop plus an
 `on_change`. Left out, the component owns a signal seeded from its default;

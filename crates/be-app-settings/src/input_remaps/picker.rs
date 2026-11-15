@@ -97,13 +97,9 @@ pub(super) fn KeyPicker(
         true => vec![Tab::Press, Tab::Mouse, Tab::AllKeys],
         false => vec![Tab::Mouse, Tab::AllKeys],
     });
-    let first = move || {
-        tabs.with_untracked(|tabs| {
-            tabs.iter()
-                .position(|tab| *tab == Tab::Press)
-                .or_else(|| tabs.iter().position(|tab| *tab == Tab::AllKeys))
-        })
-        .unwrap_or(0)
+    let first = move || match pressable.get_untracked() {
+        true => Tab::Press,
+        false => Tab::AllKeys,
     };
     let tab = create_signal(first());
     let query = create_signal(String::new());
@@ -124,7 +120,7 @@ pub(super) fn KeyPicker(
         }
     });
     let shown = move |which: Tab| {
-        create_memo(move || tabs.with(|tabs| tabs.get(tab.get()) == Some(&which)))
+        create_memo(move || tab.get() == which)
     };
     let pressing = shown(Tab::Press);
     let capture = editor.watch_while::<InputCaptureWatch>(move || {
@@ -159,7 +155,7 @@ pub(super) fn KeyPicker(
                 <Tabs
                     options={view! {
                         <ForEach keys={tabs}>|which: Tab|
-                            <ChoiceOption label={which.label()} />
+                            <ChoiceOption value=which label={which.label()} />
                         </ForEach>
                     }}
                     selected={tab}
