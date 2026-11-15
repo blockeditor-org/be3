@@ -3,7 +3,9 @@
 //!
 //! A persistent map or set sends the entries added, changed and removed, by key. Its diff walks
 //! the two versions' shared trees (`imbl::OrdMap::diff`), skipping every subtree they still
-//! share, so it costs what changed rather than the size of the map, and needs no record of
+//! share, so it costs what changed, amortized, rather than the size of the map (a change that
+//! split or merged a node near the root has that one subtree compared entry by entry), and
+//! needs no record of
 //! which keys a write touched that a forgotten mark could leave out. A `Part` the worker did not
 //! write since is the same `Arc` in both and sends nothing. Anything else is sent whole when it
 //! is not equal to what was sent.
