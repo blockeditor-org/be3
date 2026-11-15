@@ -1,5 +1,6 @@
 use crate::reactive::Callback;
 use crate::reactive::Child;
+use crate::reactive::Func;
 use crate::reactive::ImeCursor;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
@@ -65,6 +66,7 @@ pub fn Interactive(
     on_secondary_press: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
+    #[prop(default = None)] drag: Option<Func<PointerPress, Option<crate::drag::Carry>>>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
@@ -77,6 +79,10 @@ pub fn Interactive(
     on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
+    let (on_press, on_drag) = match drag {
+        Some(drag) => lifting(drag, on_press, on_drag),
+        None => (on_press, on_drag),
+    };
     crate::core::interactive(
         focusable,
         tab_stop,
@@ -132,4 +138,43 @@ pub fn Interactive(
         on_press_outside,
         children,
     )
+}
+
+/// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
+/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer.
+fn lifting(
+    drag: Func<PointerPress, Option<crate::drag::Carry>>,
+    on_press: Callback<PointerPress>,
+    on_drag: Callback<PointerPress>,
+) -> (Callback<PointerPress>, Callback<PointerPress>) {
+    let asked = std::rc::Rc::new(std::cell::Cell::new(false));
+    let origin = std::rc::Rc::new(std::cell::Cell::new(None::<PointerPress>));
+    let pressed = {
+        let (asked, origin) = (std::rc::Rc::clone(&asked), std::rc::Rc::clone(&origin));
+        Callback::new(move |press: PointerPress| {
+            asked.set(false);
+            origin.set(Some(press));
+            on_press.call(press);
+        })
+    };
+    let dragged = Callback::new(move |press: PointerPress| {
+        if !asked.replace(true)
+            && let Some(driver) = crate::drag::driver()
+            && !driver.carrying()
+            && let Some(mut carry) = drag.call(press)
+        {
+            // Unless the carry says otherwise, the item is this node, held where it was pressed.
+            if carry.item == crate::types::Rect::ZERO {
+                let at = origin.get().unwrap_or(press);
+                carry.item = crate::types::Rect::from_min_size(
+                    crate::types::Pos2::ZERO - at.local.to_vec2(),
+                    at.size,
+                );
+            }
+            driver.lift(carry, crate::drag::DragPoint::of(press));
+            return;
+        }
+        on_drag.call(press);
+    });
+    (pressed, dragged)
 }

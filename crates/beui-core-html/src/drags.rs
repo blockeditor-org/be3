@@ -2,10 +2,24 @@ use std::rc::Rc;
 
 use beui_types::drag::Driver;
 
+#[derive(Clone, Default)]
+struct Driving(Rc<std::cell::RefCell<Option<Rc<dyn Driver>>>>);
+
+/// The driver `drive` was given, if any.
+pub fn driver() -> Option<Rc<dyn Driver>> {
+    crate::document::extension_or_insert_with(Driving::default)
+        .0
+        .borrow()
+        .clone()
+}
+
 /// Drives the drag board from the browser. While a drag is carried, pointer moves,
 /// releases and cancels are caught on the window, so the drag goes on after the element
 /// that began it is gone or the pointer leaves it; Escape cancels the drag.
 pub fn drive(driver: Rc<dyn Driver>) {
+    crate::document::extension_or_insert_with(Driving::default)
+        .0
+        .replace(Some(Rc::clone(&driver)));
     let escape = Rc::clone(&driver);
     crate::keys::listen(
         crate::keys::KeyAt::Window,

@@ -7,6 +7,10 @@ pub(crate) fn space() -> Rc<dyn Space> {
     with_document(|document| Rc::clone(&document.rects) as Rc<dyn Space>)
 }
 
+pub(crate) fn driver() -> Option<Rc<dyn Driver>> {
+    with_document(|document| document.drags.clone())
+}
+
 pub(crate) fn drive(driver: Rc<dyn Driver>) {
     with_document(|document| document.drags = Some(driver));
 }
