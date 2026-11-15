@@ -11,11 +11,7 @@ fn a_calendar_the_desktop_no_longer_holds_is_replaced() {
     let mut desktop = EditorView::document(None);
     let remember = desktop
         .root()
-        .set_view_state(
-            Some(&KeptCalendar(ViewRef::new(gone))),
-            1,
-            fixture.client,
-        )
+        .set_view_state(Some(&KeptCalendar(ViewRef::new(gone))), 1, fixture.client)
         .expect("a change");
     desktop.apply(&remember);
     fixture.test.hold(None, desktop);

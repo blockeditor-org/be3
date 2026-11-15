@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -254,6 +254,8 @@ impl Tree {
             None
         });
 
+        // Shown only once what was open is back.
+        editor.wait_for_view_state();
         editor.view_state::<Opened>().keep(
             move |opened| {
                 if let Some(opened) = opened {
