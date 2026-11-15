@@ -36,11 +36,12 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     // `parked` is set while the worker sleeps between rounds, so the round that saw the new edit
     // has ended and published what it offers.
     let due = crate::wait_until(|shared| {
-        (shared.owing > 0 && shared.parked.is_some()).then_some(shared.modules_due)
+        (shared.undurable > 0 && shared.parked.is_some()).then_some(shared.modules_due)
     });
     assert_eq!(
         due, None,
-        "with a publish in flight, the server's answer can make progress, so no timer is offered"
+        "with a publish and a submission in flight, the server's answer can make progress, so no \
+         timer is offered"
     );
 
     // Sealing what was owed then settles nothing later: once the server answers, the edit made

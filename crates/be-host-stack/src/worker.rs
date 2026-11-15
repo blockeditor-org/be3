@@ -1366,7 +1366,9 @@ impl Session<'_> {
                                 ran.done(false);
                             }
                             command @ Command::Version { .. }
-                                if !after_order.is_empty() || ran.replicas.ordering() =>
+                                if !after_order.is_empty()
+                                    || ran.replicas.ordering()
+                                    || !ran.replicas.modules.settled() =>
                             {
                                 after_order.push(command);
                             }
@@ -1498,7 +1500,10 @@ impl Session<'_> {
             )
             .await;
             spawn_listings(peer, shared, &self.tasks.0);
-            if !after_order.is_empty() && !self.replicas.ordering() {
+            if !after_order.is_empty()
+                && !self.replicas.ordering()
+                && self.replicas.modules.settled()
+            {
                 let mut ran = Ran {
                     peer,
                     replicas: &mut *self.replicas,

@@ -1459,6 +1459,7 @@ async fn documents_of(
         .await
     {
         Ok(searched) => {
+            eprintln!("DEBUG search commit len={} read={} docs={}", commit.manifest.length(), searched.read.len(), searched.documents.len());
             shared
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
