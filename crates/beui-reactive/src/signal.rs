@@ -180,9 +180,11 @@ pub trait Get<T> {
 /// Writing a reactive value. A write is visible to reads at once; the effects it wakes
 /// are queued, not run.
 pub trait Set<T> {
-    /// Mutates in place and always notifies, with no `PartialEq` needed. Holds a mutable
-    /// borrow, so reading the same signal inside the closure is a borrow conflict. A panic
-    /// inside it still notifies, since the value may already have changed.
+    /// Mutates in place. A `Signal` always notifies, with no `PartialEq` needed, holds a
+    /// mutable borrow (so reading the same signal inside the closure is a borrow conflict),
+    /// and still notifies when the closure panics, since the value may already have changed.
+    /// A `#[derive(Store)]` store edits a copy and writes each field back with `set`, so it
+    /// notifies only the fields that differ, and nothing if the closure panics.
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
 
     /// Notifies only when the value differs. Does nothing on a freed signal, since nothing
