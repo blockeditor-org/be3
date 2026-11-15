@@ -9,6 +9,7 @@ mod debug;
 mod display;
 mod editors;
 mod frame;
+mod host_files;
 mod input;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod instance;
@@ -33,11 +34,12 @@ mod web_push;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
-    io,
     path::PathBuf,
     rc::Rc,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::io;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::Path;
 
@@ -205,8 +207,19 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     be_wasm_threads::initialize_page();
     panic_guard::install();
     be_host_stack::discovery::load().await;
-    let mut core =
-        HostCore::new().map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    // The page makes no file call: the host's worker reads its files and answers, while the
+    // page's start-up look stays up (`#status`), then the host shows its first screen.
+    let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR))
+        .await
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error))?;
+    let mut core = HostCore::new(host_state, workspaces)
+        .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
+    if let Some(status) = web_sys::window()
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id("status"))
+    {
+        status.set_attribute("hidden", "")?;
+    }
     let options = run_options();
     web_push::install();
     let location = web_sys::window()
@@ -574,6 +587,8 @@ impl beui::native::Program for Shell {
 
 struct HostCore {
     host_state: HostStateStore,
+    /// The organizations each saved account last listed (`host_files`).
+    workspaces: host_files::WorkspaceCache,
 
     client_id: Uuid,
     local_server_url: String,
@@ -806,7 +821,9 @@ enum OrganizationOperation {
 }
 
 enum OrganizationResult {
-    Loaded(Vec<Organization>, accounts::Keys),
+    /// The organizations listed, the account's keys, and the server and account they were
+    /// listed for, under which they are cached (`host_files::WorkspaceCache`).
+    Loaded(Vec<Organization>, accounts::Keys, (String, Uuid)),
     Cached(Vec<Organization>),
     Created(Organization),
     Invitation(accounts::Invited),
@@ -898,19 +915,23 @@ impl HostCore {
         let url = embedded_server.url.clone();
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut core = Self::with_state(host_state, url)?;
+        core.workspaces =
+            host_files::WorkspaceCache::open(&data_dir, &core.accounts, &core.local_server_url);
         core.programs.keep_files_in(data_dir.join("files"));
         core.data_dir = data_dir;
         core.embedded_server = Some(embedded_server);
         Ok(core)
     }
 
+    /// With what the host's worker read of its files (`host_files::open`).
     #[cfg(target_arch = "wasm32")]
-    fn new() -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let data_dir = PathBuf::from(WEB_DATA_DIR);
-        std::fs::create_dir_all(&data_dir)?;
-        let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
+    fn new(
+        host_state: HostStateStore,
+        workspaces: host_files::WorkspaceCache,
+    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut core = Self::with_state(host_state, String::new())?;
-        core.data_dir = data_dir;
+        core.workspaces = workspaces;
+        core.data_dir = PathBuf::from(WEB_DATA_DIR);
         Ok(core)
     }
 
@@ -951,6 +972,7 @@ impl HostCore {
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         let mut core = Self {
             host_state,
+            workspaces: host_files::WorkspaceCache::default(),
             client_id,
             local_server_url: url,
             accounts,
@@ -1635,8 +1657,8 @@ impl HostCore {
         let url = self.server_url.clone();
         let token = self.account.token.clone();
         let me = self.me();
-        let cache = self.workspace_cache();
         let account = self.account.id;
+        let cached = self.workspaces.workspaces(&url, account);
         let work = async move {
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
@@ -1648,16 +1670,14 @@ impl HostCore {
                 OrganizationOperation::Load => {
                     match accounts::organizations(url.clone(), token.clone()).await {
                         Ok(organizations) => {
-                            if let Some(cache) = &cache {
-                                let _ = cache.set_workspaces(&url, account, &organizations);
-                            }
-                            let keys = accounts::keys(url, token).await?;
-                            Ok(OrganizationResult::Loaded(organizations, keys))
+                            let keys = accounts::keys(url.clone(), token).await?;
+                            Ok(OrganizationResult::Loaded(
+                                organizations,
+                                keys,
+                                (url, account),
+                            ))
                         }
                         Err(error) if !error.invalid_token => {
-                            let cached = cache
-                                .and_then(|cache| cache.workspaces(&url, account).ok())
-                                .unwrap_or_default();
                             match cached.is_empty() {
                                 true => Err(error),
                                 false => Ok(OrganizationResult::Cached(cached)),
@@ -1737,7 +1757,8 @@ impl HostCore {
                 }
                 self.open_any_organization();
             }
-            Ok(OrganizationResult::Loaded(organizations, keys)) => {
+            Ok(OrganizationResult::Loaded(organizations, keys, (url, account))) => {
+                self.workspaces.set(&url, account, organizations.clone());
                 self.organizations = organizations;
                 self.organizations_loaded = true;
                 self.organizations_load_failed = false;
@@ -2071,10 +2092,6 @@ impl HostCore {
 
     fn locked(&self) -> bool {
         self.identity.is_none() || self.keys.needs_unlock(self.identity)
-    }
-
-    fn workspace_cache(&self) -> Option<be_block_client::RefsDb> {
-        be_host_stack::refs_in(&self.data_dir).ok()
     }
 
     fn retry_organizations(&mut self) {
@@ -4020,18 +4037,16 @@ impl HostCore {
             _ => ui::SyncState::Saved,
         };
         let listed = matches!(screen, ui::Screen::Accounts | ui::Screen::Organizations);
-        let cache = listed.then(|| self.workspace_cache()).flatten();
         let companies = |account: &SavedAccount| -> Vec<String> {
-            let Some(cache) = &cache else {
+            if !listed {
                 return Vec::new();
-            };
+            }
             let url = match &account.server {
                 ServerLocation::Local => self.local_server_url.clone(),
                 ServerLocation::Remote(url) => url.clone(),
             };
-            cache
+            self.workspaces
                 .workspaces(&url, account.id)
-                .unwrap_or_default()
                 .into_iter()
                 .filter(|organization| {
                     organization.kind == be_block_protocol::OrganizationKind::Company
@@ -4231,16 +4246,32 @@ impl HostCore {
         }
     }
 
+    /// Starts again from the host state the page holds, which is what its worker keeps.
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
         be_host_stack::flush();
         be_host_stack::stop();
-        match Self::new() {
+        let host_state = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
+        let workspaces = std::mem::take(&mut self.workspaces);
+        match Self::new(host_state, workspaces) {
             Ok(fresh) => *self = fresh,
             Err(error) => self.error = Some(error.to_string()),
         }
     }
 
+    /// Has the host's worker delete the host state, and starts again without it.
+    #[cfg(target_arch = "wasm32")]
+    fn delete_client_database(&mut self) {
+        match self.workspaces.forget_host_state() {
+            Some(fresh) => {
+                self.host_state = fresh;
+                self.restart();
+            }
+            None => self.error = Some("the host's worker is gone".to_owned()),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     fn delete_client_database(&mut self) {
         let path = self.data_dir.join("host.sqlite3");
         let _ = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());

@@ -18,18 +18,11 @@ remain on the page (guides/running/web.md, "Files and offline"):
   them: the page reads the `Seen` the worker hands over through an atomic slot, and what it
   changes goes as commands (guides/blocks/host.md, "What the page reads").
 - The page's file calls (`web/wasi.js`, `forward`) spin until `web/files.js` answers. The page
-  opens files itself, most of them before any stack runs, so no stack's worker can answer
-  them (step 1):
-  - `HostStateStore` (be-host-base `host_state`, `host.sqlite3`), opened as be-host starts
-    (`main.rs`) and read synchronously from then on: the saved accounts and the active one,
-    which pick the first screen, each account's identity, the client id, warm apps, input,
-    remapper and display settings; written as the person signs in, switches and leaves.
-  - The refs database, which be-host reads for the cached organization list
-    (`workspace_cache`, through `be_host_stack::refs_in`) on the Accounts and Organizations
-    screens, when no stack runs, and writes after loading the list.
-  - be-host-stack's `device_push::from_refs`, which opens a push with no stack running from
-    the refs database (the web's `push_open`, and Android's `android_push`).
-  - The data directory's build stamp and caches (`main.rs`, at start).
+  makes none as it starts and runs any more: the host's worker keeps the host state and the
+  refs database's organization list from start-up, and the page reads the copy it hands over
+  (decisions/web_host_state_in_a_worker.md); the stack's worker reads everything else. What
+  is left is to make a file call on the page fail loudly rather than spin (step 1), so none
+  comes back unnoticed.
 
 Other locks the page shares are std's own and would trap rather than spin if the page ever
 found one held past std's short spin:
@@ -62,17 +55,11 @@ a thread that runs beside it.
 
 ## Steps
 
-1. Move the page's file reads and writes (above) into a worker of the host's own that runs
-   from start-up, before and beside any stack: the host state, the refs database and the
-   build stamp, behind commands, with what the page reads at start handed over as the stack's
-   `Seen` is. This needs a product decision first: be-host picks its first screen from the
-   saved accounts as it starts, so on the web it would start on a screen that waits for the
-   host state, or keep a copy the page may read without a file (local storage). The stack's
-   own reads are done: `out_of_reach` is worked out by the worker into `Seen::out_of_reach`,
-   and the page holds neither its `Peer` nor its connection, which the worker closes as the
-   stack stops.
-2. Give the stack's worker its own memory, serialize `Seen` and commands (the protocol crates'
-   own encodings), and stop binding the page's files channel. The handed-over `Seen` then
+1. Give the host's worker (`web/be-worker.js`, which runs the stacks and keeps the host's
+   files, be-host's `host_files`) its own memory, serialize `Seen` and commands (the protocol
+   crates' own encodings), and stop binding the page's files channel: a file call on the page
+   then fails loudly. The host state's first answer and its `Write`s, and the organization
+   lists, become messages too. The handed-over `Seen` then
    becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker
    wrote since the last), and the page's `Edit`s and replies travel as they do now. A
    worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
@@ -81,5 +68,5 @@ a thread that runs beside it.
    then applies the messages once, at the start of a frame (be-host's frame and each app
    runtime's), rather than taking the newest `Seen` on every read as it does now, so every
    read in a frame reads one snapshot.
-3. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
+2. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.
