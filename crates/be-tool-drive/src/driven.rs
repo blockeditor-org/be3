@@ -88,8 +88,13 @@ impl Driven {
     }
 
     pub fn request(&self, words: &[&str]) -> Result<Reply, String> {
+        self.request_within(words, self.timeout)
+    }
+
+    /// `request` with a timeout of its own, rather than the one `set_timeout` set.
+    pub fn request_within(&self, words: &[&str], timeout: Duration) -> Result<Reply, String> {
         let words: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
-        request(&self.socket, &words, self.timeout).map_err(|error| error.to_string())
+        request(&self.socket, &words, timeout).map_err(|error| error.to_string())
     }
 
     /// Asks the program to close and fails unless it exits cleanly within [`CLOSING`].
