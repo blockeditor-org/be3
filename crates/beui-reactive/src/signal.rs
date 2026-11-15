@@ -411,7 +411,7 @@ impl<T: 'static> ReadSignal<T> {
     }
 }
 
-fn assert_writable() {
+pub(crate) fn assert_writable() {
     assert!(
         RUNTIME.with(|runtime| runtime.memo_depth.get() == 0),
         "memo computations must not write signals"
