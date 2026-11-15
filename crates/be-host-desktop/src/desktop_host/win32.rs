@@ -540,7 +540,7 @@ impl DesktopHost for Win32 {
                             on_forward={move |input: ForwardedInput| forwarded(id, &pressed, &press, input)}
                         >
                             <Layers>
-                                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                                <Drawing draw={move || draw_gpu(drawing.get())} />
                                 <EntryOverlay secure off_screen />
                             </Layers>
                         </Interactive>
@@ -558,7 +558,7 @@ impl DesktopHost for Win32 {
                     });
                     let at = create_memo(move || placed.get().map_or(Pos2::ZERO, |at| at.min));
                     let size = create_memo(move || placed.get().map_or(Vec2::ZERO, |at| at.size()));
-                    let open = create_memo(move || placed.get().is_some());
+                    let open = create_memo(move || placed.with(Option::is_some));
                     let placement = WindowPlacement::Over {
                         window: parent,
                         at: at.get_untracked(),
@@ -981,7 +981,7 @@ fn PopupSurface(entry: EntryId, handle: Handle) -> NodeId {
             @test_id={format!("win32.popup.{}", handle.0)}
             on_forward={move |input: ForwardedInput| popup_forwarded(entry, handle, &press, input)}
         >
-            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+            <Drawing draw={move || draw_gpu(drawing.get())} />
         </Interactive>
     }
 }

@@ -46,7 +46,6 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 .collect::<Vec<u64>>()
         })
     });
-    let reading = create_memo(move || !listing.get());
     let back = move || model.deselect();
     let sidebar = view! {
         <Sidebar model={model} />
@@ -56,49 +55,51 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let shade = theme.scrim_soft;
     view! {
         <List spacing=Space::None>
-            <Show condition={listing}>
+            <Show
+                condition={listing}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <BackSlide
+                            on_back={back}
+                            shade={shade}
+                            behind={move || view! {
+                                <Portal node={Some(sidebar)} />
+                            }}
+                        >
+                            <Frame fill={ColorRole::custom(page)}>
+                                <List spacing=Space::None>
+                                    <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
+                                        <Button
+                                            icon_only=true
+                                            glyph=ICON_ARROW_LEFT
+                                            label="Back to the pull requests"
+                                            on_click={back}
+                                        />
+                                    </Frame>
+                                    <ForEach keys={opened}>|number: u64| {
+                                        let pull_request = create_memo(move || {
+                                            model.opened.with(|opened| {
+                                                opened
+                                                    .iter()
+                                                    .find(|pull_request| pull_request.number == number)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| placeholder(number))
+                                            })
+                                        });
+                                        view! {
+                                            <ListItem grow=1.0>
+                                                <Detail model={model} pull_request />
+                                            </ListItem>
+                                        }
+                                    }</ForEach>
+                                </List>
+                            </Frame>
+                        </BackSlide>
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <Portal node={Some(sidebar)} />
-                </ListItem>
-            </Show>
-            <Show condition={reading}>
-                <ListItem grow=1.0>
-                    <BackSlide
-                        on_back={back}
-                        shade={shade}
-                        behind={move || view! {
-                            <Portal node={Some(sidebar)} />
-                        }}
-                    >
-                        <Frame fill={ColorRole::custom(page)}>
-                            <List spacing=Space::None>
-                                <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
-                                    <Button
-                                        icon_only=true
-                                        glyph=ICON_ARROW_LEFT
-                                        label="Back to the pull requests"
-                                        on_click={back}
-                                    />
-                                </Frame>
-                                <ForEach keys={opened}>|number: u64| {
-                                    let pull_request = create_memo(move || {
-                                        model.opened.with(|opened| {
-                                            opened
-                                                .iter()
-                                                .find(|pull_request| pull_request.number == number)
-                                                .cloned()
-                                                .unwrap_or_else(|| placeholder(number))
-                                        })
-                                    });
-                                    view! {
-                                        <ListItem grow=1.0>
-                                            <Detail model={model} pull_request />
-                                        </ListItem>
-                                    }
-                                }</ForEach>
-                            </List>
-                        </Frame>
-                    </BackSlide>
                 </ListItem>
             </Show>
             <ImageViewer model={model} />
@@ -143,7 +144,7 @@ fn Sidebar(model: Model) -> NodeId {
         Loaded::Failed(error) => error,
         _ => String::new(),
     });
-    let failed = create_memo(move || !error.get().is_empty());
+    let failed = create_memo(move || !error.with(String::is_empty));
     let visible = create_memo(move || {
         let query = model.query.get().to_lowercase();
         let pull_requests = model.pull_requests;
@@ -159,10 +160,10 @@ fn Sidebar(model: Model) -> NodeId {
             })
             .collect::<Vec<u64>>()
     });
-    let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
+    let empty = create_memo(move || visible.with(Vec::is_empty) && !loading.get() && !failed.get());
     let empty_text =
         create_memo(
-            move || match (model.filter.get(), model.query.get().is_empty()) {
+            move || match (model.filter.get(), model.query.with(String::is_empty)) {
                 (_, false) => "Nothing matches the filter".to_owned(),
                 (Filter::Open, true) => "No open pull requests".to_owned(),
                 (Filter::Closed, true) => "No closed pull requests".to_owned(),
@@ -284,7 +285,6 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let state = create_memo(move || pull_request.get().state);
     let labels = create_memo(move || pull_request.get().labels);
     let checked_out = create_memo(move || model.current(&pull_request.get()));
-    let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let modifiers = held_modifiers();
     let open = move || {
         let held = modifiers.get_untracked();
@@ -298,7 +298,9 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     <List spacing=ROW_SPACING>
                         <Text>{title}</Text>
                         <Text style=TextStyle::CAPTION>{details}</Text>
-                        <Show condition={has_tags}>
+                        <Show
+                            condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
+                        >
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                     </List>
@@ -310,16 +312,17 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
-    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
-    let color = create_memo(move || match state.get() {
-        State::Open => TextColor::Success,
-        State::Draft => TextColor::Muted,
-        State::Merged => TextColor::Custom(MERGED.into()),
-        State::Closed => TextColor::Danger,
-    });
     view! {
-        <Text color align=TextAlign::Center>
-            <Icon glyph={glyph} />
+        <Text
+            color={move || match state.get() {
+                State::Open => TextColor::Success,
+                State::Draft => TextColor::Muted,
+                State::Merged => TextColor::Custom(MERGED.into()),
+                State::Closed => TextColor::Danger,
+            }}
+            align=TextAlign::Center
+        >
+            <Icon glyph={move || state_glyph(state.get()).to_owned()} />
         </Text>
     }
 }
@@ -340,14 +343,15 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={create_memo(move || resolve_color(theme.accent.get()))} />
+                <Chip text=CURRENT color={move || resolve_color(theme.accent.get())} />
             </Show>
             <ForEach keys>|index: usize| {
                 let label = create_memo(move || labels.get().get(index).cloned());
-                let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
-                let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
                 view! {
-                    <Chip text color />
+                    <Chip
+                        text={move || label.get().map(|label| label.name).unwrap_or_default()}
+                        color={move || label.get().map_or(Color32::from_gray(128), |label| label.color)}
+                    />
                 }
             }</ForEach>
             <Spacer />

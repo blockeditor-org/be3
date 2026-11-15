@@ -9,13 +9,12 @@ fn Asked(windows: Windows) -> NodeId {
     let asks = create_signal(0u64);
     ASKS.with(|held| held.set(Some(asks)));
     let ids = create_memo(clone_list(&windows));
-    let focus = create_memo(move || asks.get());
     view! {
         <List spacing=Space::None>
             <TextInput @test_id={"test.input"} value="" />
             <ForEach keys={ids}>|id: WindowId|
                 <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
-                    <WindowView windows id focus />
+                    <WindowView windows id focus={asks} />
                 </Frame>
             </ForEach>
         </List>

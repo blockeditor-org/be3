@@ -197,8 +197,6 @@ fn LockCard(
         node.set_label("Locked");
         node
     }));
-    let failed = create_memo(move || error.get().is_some());
-    let checking = create_memo(move || busy.get() && error.get().is_none());
     let reason = create_memo(move || error.get().unwrap_or_default());
     let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
@@ -224,10 +222,10 @@ fn LockCard(
                         on_submit={on_submit}
                     />
                 </Frame>
-                <Show condition={checking}>
+                <Show condition={move || busy.get() && error.with(Option::is_none)}>
                     <Text style=TextStyle::CAPTION>"Checking…"</Text>
                 </Show>
-                <Show condition={failed}>
+                <Show condition={move || error.with(Option::is_some)}>
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger

@@ -885,13 +885,12 @@ fn DockBarBody(
             .filter(|size| size.x > 0.0 && size.y > 0.0)
             .unwrap_or(EMPTY_BAR)
     });
-    let width =
-        create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x)));
-    let height =
-        create_memo(move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().y)));
     let shown = Some(shown);
     view! {
-        <beui::styled::Frame width=width height=height>
+        <beui::styled::Frame
+            width={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x))}
+            height={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().y))}
+        >
             <DockTabBody editor shown />
         </beui::styled::Frame>
     }

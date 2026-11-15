@@ -16,11 +16,10 @@ impl BeuiRoot for RebuiltRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presenting = editor.presenting();
-        let docked = create_memo(move || !presenting.get());
         view! {
             <Root>
                 <Layers>
-                    <Show condition={docked}>
+                    <Show condition={move || !presenting.get()}>
                         <Deck />
                     </Show>
                 </Layers>
