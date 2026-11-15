@@ -380,8 +380,9 @@ struct Kept {
     back: Option<Back>,
 }
 
-/// How many hidden views of one app keep their last frame at once: past it, the one hidden longest lets its
-/// frame go, and if it is shown again it may show empty for a frame while its app draws it.
+/// How many hidden views of one app keep their last frame at once: past it, the one hidden
+/// longest lets its frame go, and if it is shown again it may show empty for a frame while its
+/// app draws it.
 const MOST_KEPT: usize = 8;
 
 /// A kept frame goes once the present that follows the layout bringing its view back has been
@@ -3015,9 +3016,6 @@ pub fn unmount_view(app_id: &str, instance: EditorInstanceId, region: ViewId, mo
         }
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
-        if !runtime.kept.is_empty() {
-            runtime.release_kept();
-        }
     });
     mark(app_id);
     host::request_repaint();
