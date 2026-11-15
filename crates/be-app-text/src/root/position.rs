@@ -172,7 +172,7 @@ pub(crate) fn keep_position(state: State) {
     // edits, so typing alone saves only as it moves the caret.
     let position = create_memo(move || {
         scrolled.track();
-        cursors.get();
+        cursors.track();
         if !restored.get() {
             return None;
         }

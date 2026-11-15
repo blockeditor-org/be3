@@ -60,7 +60,7 @@ pub use hooks::{
 };
 pub use look::{BlockGeometry, ChipGeometry, TextAreaGeometry, TextAreaLook, WidgetGeometry};
 pub use rows::{Prose, RowTable, TextWidget};
-pub use state::{ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
+pub use state::{Cursors, ProseLine, ScrollAnchor, TextAreaLayout, TextAreaState};
 
 const TOUCH_HANDLE_HIT_RADIUS: f32 = 24.0;
 const CARET_HANDLE_TAP_SLACK: f32 = 4.0;
