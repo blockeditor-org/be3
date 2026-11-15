@@ -78,7 +78,7 @@ pub fn DateTimeField(
             literal={|text: String| view! {
                 <LiteralFace text />
             }}
-            segments={|field: Child| view! {
+            segments={|field: NodeId| view! {
                 <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>
                     {field}
                 </Frame>

@@ -4,6 +4,7 @@ use crate::reactive::Get;
 use crate::reactive::ImeCursor;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
+use crate::reactive::Single;
 use crate::reactive::create_binding;
 use crate::types::CursorIcon;
 
@@ -87,8 +88,14 @@ pub(crate) fn interactive(
         clipboard_keys,
         forwards_wheel,
     );
-    let node = match children {
-        Some(child) => wrap("Interactive", child),
+    let node = match children.map(Single::into_built) {
+        Some(Ok(child)) => wrap("Interactive", child),
+        Some(Err(swapped)) => {
+            let node = create("Interactive", "div");
+            set_style(node, "display", Some("grid".to_owned()));
+            swapped.mount_in(beui_core_html::tree::node_host(node));
+            node
+        }
         None => create("Interactive", "div"),
     };
     set_style(node, "pointer-events", Some("auto".to_owned()));

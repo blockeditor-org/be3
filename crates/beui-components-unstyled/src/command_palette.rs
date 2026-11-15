@@ -120,7 +120,7 @@ pub fn CommandPalette(
     search_style: TextInputStyle,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     row: RenderFn<CommandRowHandle>,
-    #[prop(children)] panel: Option<RenderFn<Child>>,
+    #[prop(children)] panel: Option<RenderFn<NodeId>>,
 ) -> NodeId {
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let lists_actions = matches!(items, PaletteItems::Actions);

@@ -13,16 +13,16 @@ use beui_view::types::Rect;
 pub struct MenuStyle {
     spacing: f32,
     row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
     sheet: Option<(RenderFn<MenuRowHandle>, RenderFn<AnchoredSheetHandle>)>,
-    toolbar: Option<(RenderFn<ButtonHandle>, RenderFn<Child>)>,
+    toolbar: Option<(RenderFn<ButtonHandle>, RenderFn<NodeId>)>,
 }
 
 impl MenuStyle {
     pub fn new(
         spacing: f32,
         row: impl Fn(MenuRowHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
+        panel: impl Fn(NodeId) -> NodeId + 'static,
     ) -> Self {
         Self {
             spacing,
@@ -47,7 +47,7 @@ impl MenuStyle {
     pub fn with_toolbar(
         self,
         button: impl Fn(ButtonHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
+        panel: impl Fn(NodeId) -> NodeId + 'static,
     ) -> Self {
         Self {
             toolbar: Some((RenderFn::new(button), RenderFn::new(panel))),
@@ -55,7 +55,7 @@ impl MenuStyle {
         }
     }
 
-    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<Child>)> {
+    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<NodeId>)> {
         self.toolbar
     }
 
@@ -63,7 +63,7 @@ impl MenuStyle {
         self.spacing
     }
 
-    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<Child>) {
+    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<NodeId>) {
         (self.row, self.panel)
     }
 

@@ -37,7 +37,7 @@ pub(crate) fn copy_selection(state: State) {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selectable(
     api: ComponentRef<SelectableState>,
-    children: Child,
+    children: NodeId,
     state: SelectableState,
     color: Prop<Color>,
     handle_color: Prop<Color>,

@@ -456,3 +456,7 @@ impl beui_tree::reactive::IntoProp<Phrase> for &'static str {
         beui_tree::reactive::Prop::Static(Phrase::from(self))
     }
 }
+
+impl beui_tree::reactive::Counted for Phrase {
+    type Count = beui_tree::reactive::One;
+}

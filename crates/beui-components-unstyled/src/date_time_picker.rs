@@ -15,8 +15,8 @@ use beui_view::reactive::*;
 use beui_view::types::{CursorIcon, PointerPress};
 
 pub struct DateTimeBoxHandle {
-    pub field: Child,
-    pub trigger: Option<Child>,
+    pub field: NodeId,
+    pub trigger: Option<NodeId>,
     pub focused: ReadSignal<bool>,
     pub hovered: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -55,7 +55,7 @@ pub struct DateTimeTimesHandle {
 }
 
 pub struct DateTimePanelHandle {
-    pub field: Child,
+    pub field: NodeId,
     pub field_width: Memo<f32>,
     pub layout: Memo<DateTimePanelLayout>,
     pub calendar: DateTimeCalendarHandle,
@@ -76,7 +76,7 @@ struct Field {
     disabled: Memo<bool>,
     segment: RenderFn<DateSegmentHandle>,
     literal: RenderFn<String>,
-    segments: RenderFn<Child>,
+    segments: RenderFn<NodeId>,
     frame: RenderFn<DateTimeBoxHandle>,
 }
 
@@ -94,7 +94,7 @@ pub fn DateTimePicker(
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
     segment: RenderFn<DateSegmentHandle>,
     literal: RenderFn<String>,
-    segments: RenderFn<Child>,
+    segments: RenderFn<NodeId>,
     field: RenderFn<DateTimeBoxHandle>,
     trigger: Render<DateTimeTriggerHandle>,
     surface: AnchoredStyle,
@@ -231,7 +231,7 @@ pub fn DateTimePicker(
 fn FieldBox(
     field: Field,
     focus: Prop<Option<DateSegment>>,
-    #[prop(default = None)] trigger: Option<Child>,
+    #[prop(default = None)] trigger: Option<NodeId>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_open: Callback<DateSegment>,
     on_draft: Callback<DateDraft>,

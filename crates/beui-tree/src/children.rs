@@ -7,7 +7,7 @@ use beui_reactive::{
 };
 
 use crate::child_list::{ChildList, SlotId};
-use crate::component::{ChildValue, ComponentContext};
+use crate::component::{ChildValue, ComponentContext, MissingProp, RenderFn};
 use crate::prop::{IntoProp, Prop};
 
 #[diagnostic::on_unimplemented(
@@ -83,17 +83,272 @@ impl<T: SlotChild> ChildSegment<T> {
     }
 }
 
-pub struct DynamicSegment<T: SlotChild> {
+/// How many children a built value fills a place with, as a type, so a slot can tell at
+/// compile time whether a `Show` or `Dynamic` fits it: `One`, `ZeroOrOne` (a `Show` without a
+/// `fallback`), `Many` (a run), or `Zero` (a `fallback` that was not given).
+pub trait Count: 'static {}
+
+pub struct One;
+pub struct ZeroOrOne;
+pub struct Many;
+pub struct Zero;
+
+impl Count for One {}
+impl Count for ZeroOrOne {}
+impl Count for Many {}
+impl Count for Zero {}
+
+/// The count of a place that holds either of two branches.
+pub trait Or<Other: Count>: Count {
+    type Count: Count;
+}
+
+macro_rules! or_counts {
+    ($($a:ident | $b:ident = $c:ident;)*) => {
+        $(impl Or<$b> for $a {
+            type Count = $c;
+        })*
+    };
+}
+
+or_counts! {
+    One | One = One;
+    One | ZeroOrOne = ZeroOrOne;
+    One | Zero = ZeroOrOne;
+    One | Many = Many;
+    ZeroOrOne | One = ZeroOrOne;
+    ZeroOrOne | ZeroOrOne = ZeroOrOne;
+    ZeroOrOne | Zero = ZeroOrOne;
+    ZeroOrOne | Many = Many;
+    Zero | One = ZeroOrOne;
+    Zero | ZeroOrOne = ZeroOrOne;
+    Zero | Zero = Zero;
+    Zero | Many = Many;
+    Many | One = Many;
+    Many | ZeroOrOne = Many;
+    Many | Zero = Many;
+    Many | Many = Many;
+}
+
+#[diagnostic::on_unimplemented(
+    message = "this slot takes one child, and what is written here can build `{Self}` children",
+    label = "a `Show` fits only when each branch builds one child, and a slot that needs one only with a `fallback`",
+    note = "a run of children needs a parent that keeps a run, such as a `List`; an optional slot (`Option<Child>`) also takes a `Show` without a `fallback`"
+)]
+pub trait ExactlyOne: Count {}
+
+impl ExactlyOne for One {}
+
+#[diagnostic::on_unimplemented(
+    message = "this slot takes a child built once, and a `Show`, `Dynamic`, `Keyed` or `Loading` swaps its child",
+    label = "type the slot `Child`, whose parent can swap its child, or put the `Show` inside a node built here"
+)]
+pub trait BuiltOnce: Count {}
+
+/// Says that a slot of `$ty`s takes a child built once, so a `Show` there fails with
+/// `BuiltOnce`'s message.
+#[macro_export]
+macro_rules! built_once {
+    (<$($generic:ident),*> $ty:ty) => {
+        impl<$($generic: 'static,)* N: $crate::reactive::BuiltOnce> $crate::reactive::IntoChild<$ty>
+            for $crate::reactive::DynamicSegment<$ty, N>
+        {
+            fn into_child(self) -> $ty {
+                unreachable!("no count is `BuiltOnce`")
+            }
+        }
+    };
+    ($ty:ty) => {
+        $crate::built_once!(<> $ty);
+    };
+}
+
+/// How many children a built value fills its place with (`Count`).
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is not something a branch of a `Show`, `Dynamic` or `Keyed` can build",
+    label = "build children here: tags, a `view!`, or a component's value"
+)]
+pub trait Counted {
+    type Count: Count;
+}
+
+impl<T: SlotChild> Counted for Children<T> {
+    type Count = Many;
+}
+
+impl<T: SlotChild, N: Count> Counted for DynamicSegment<T, N> {
+    type Count = N;
+}
+
+impl<H: Counted> Counted for SingleChild<H> {
+    type Count = H::Count;
+}
+
+impl<T: SlotChild, const N: usize> Counted for [ChildSegment<T>; N] {
+    type Count = Many;
+}
+
+/// Text and reactive values build one child where a tree takes them (a text run).
+macro_rules! counted_one {
+    ($(<$($generic:ident),*> $ty:ty),* $(,)?) => {
+        $(impl<$($generic: 'static),*> Counted for $ty {
+            type Count = One;
+        })*
+    };
+}
+
+counted_one!(
+    <> &'static str,
+    <> String,
+    <T> Prop<T>,
+    <T> beui_reactive::Memo<T>,
+    <T> beui_reactive::ReadSignal<T>,
+    <T> Signal<T>,
+);
+
+impl<H: Counted<Count = One>> Counted for Option<H> {
+    type Count = ZeroOrOne;
+}
+
+impl<T: SlotChild> Counted for Single<T> {
+    type Count = One;
+}
+
+/// What a branch of `Show`, `Dynamic`, `Keyed` or `Loading` builds: one child or a run of
+/// them, for a parent whose children are `C`s. Its count decides which slots the control fits.
+pub trait Branch<C: SlotChild>: Counted + 'static {
+    fn into_children(self) -> Children<C>;
+}
+
+impl<C: SlotChild, B: IntoSegment<C> + Counted + 'static> Branch<C> for B {
+    fn into_children(self) -> Children<C> {
+        Children::from(self.into_segment())
+    }
+}
+
+/// The `fallback` of a `Show`: a closure building what shows while its condition is false,
+/// or nothing when none is given.
+#[diagnostic::on_unimplemented(
+    message = "a `fallback` is a closure that builds children: `fallback={{|| view! {{ ... }}}}`",
+    label = "write a closure here"
+)]
+pub trait Fallback<C: SlotChild> {
+    type Count: Count;
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>>;
+}
+
+impl<C: SlotChild> Fallback<C> for MissingProp {
+    type Count = Zero;
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+        None
+    }
+}
+
+impl<C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>> Fallback<C> for F {
+    type Count = B::Count;
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+        Some(RenderFn::new(move |()| self().into_children()))
+    }
+}
+
+/// The `fallback` of a `Dynamic` or `Keyed`: given one, the value is an `Option` and the
+/// fallback builds while it is `None`; without one, the render takes the value as it is.
+#[diagnostic::on_unimplemented(
+    message = "a `fallback` is a closure that builds children, and with one the value is an `Option`",
+    label = "write a closure here, and give `value` an `Option<_>`"
+)]
+pub trait ValueFallback<V, C: SlotChild> {
+    type Handed: Clone + 'static;
+    type Count: Count;
+
+    fn split(value: V) -> Option<Self::Handed>;
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>>;
+}
+
+impl<V: Clone + 'static, C: SlotChild> ValueFallback<V, C> for MissingProp {
+    type Handed = V;
+    type Count = Zero;
+
+    fn split(value: V) -> Option<V> {
+        Some(value)
+    }
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+        None
+    }
+}
+
+impl<T: Clone + 'static, C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>>
+    ValueFallback<Option<T>, C> for F
+{
+    type Handed = T;
+    type Count = B::Count;
+
+    fn split(value: Option<T>) -> Option<T> {
+        value
+    }
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+        Some(RenderFn::new(move |()| self().into_children()))
+    }
+}
+
+/// Children that a `Show`, `Dynamic`, `Keyed` or `ForEach` fills in later, and changes. `N`
+/// says how many it fills with (`Count`): any number fits a parent that keeps a run, and one
+/// that always builds exactly one (`One`) also fits a slot that takes one `Child`.
+pub struct DynamicSegment<T: SlotChild, N: Count = Many> {
     scope: Option<ScopeContext>,
     install: Box<dyn FnOnce(ChildSlot<T>)>,
-    child: PhantomData<T>,
+    child: PhantomData<(T, N)>,
 }
 
 impl<T: SlotChild> DynamicSegment<T> {
     pub fn new(install: impl FnOnce(ChildSlot<T>) + 'static) -> Self {
+        Self::counted(install)
+    }
+}
+
+impl<T: SlotChild, N: Count> DynamicSegment<T, N> {
+    /// Children that fill their place with `N` of them, as `Show` and `Dynamic` do. The
+    /// count is a promise: a slot that takes one child trusts it.
+    pub(crate) fn counted(install: impl FnOnce(ChildSlot<T>) + 'static) -> Self {
         Self {
             scope: None,
             install: Box::new(install),
+            child: PhantomData,
+        }
+    }
+
+    /// The same children, seen as a run: what a component declared `-> DynamicSegment<C>`
+    /// returns, whatever its `Show` builds.
+    pub fn into_run(self) -> DynamicSegment<T> {
+        let DynamicSegment { scope, install, .. } = self;
+        DynamicSegment {
+            scope,
+            install,
+            child: PhantomData,
+        }
+    }
+
+    /// The same children as children of another kind: each one is converted as it is placed,
+    /// so `convert` must not need a scope of its own (a list child with fixed sizing).
+    pub fn convert<U: SlotChild>(self, convert: impl Fn(T::Stored) -> U + 'static) -> DynamicSegment<U, N> {
+        let DynamicSegment { scope, install, .. } = self;
+        DynamicSegment {
+            scope,
+            install: Box::new(move |target: ChildSlot<U>| {
+                install(ChildSlot {
+                    place: Place::Sink(Rc::new(Converted {
+                        target,
+                        convert: Box::new(convert),
+                    })),
+                    change: None,
+                })
+            }),
             child: PhantomData,
         }
     }
@@ -116,38 +371,151 @@ impl<T: SlotChild> DynamicSegment<T> {
     }
 }
 
-impl<T: SlotChild> ChildValue for DynamicSegment<T> {
+impl<T: SlotChild, N: Count> ChildValue for DynamicSegment<T, N> {
     fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         assert!(
             !component.has_extensions(),
-            "component `{}` returns a run of children, so the bindings its body made \
-             (such as `component_placed` or `component_state`) have no node to attach to",
+            "component `{}` returns children a `Show` or `Dynamic` fills in, so the bindings its \
+             body made (such as `component_placed` or `component_state`) have no node to attach to",
             component.name(),
         );
         self.scope = Some(scope.clone());
     }
 }
 
-#[diagnostic::on_unimplemented(
-    message = "a `Show`, `Dynamic`, `Keyed` or `ForEach` builds a run of children, and this slot takes exactly one child",
-    label = "put it in a parent that keeps a run of children, or return it from a component typed `-> DynamicSegment<_>` and write that component where a run of children fits"
-)]
-pub trait FixedChild<T> {
-    fn into_fixed_child(self) -> T;
-}
-
-impl<T: SlotChild> IntoChild<T> for DynamicSegment<T>
-where
-    Self: FixedChild<T>,
-{
-    fn into_child(self) -> T {
-        self.into_fixed_child()
+impl<T: SlotChild, N: ExactlyOne> IntoChild<Single<T>> for DynamicSegment<T, N> {
+    fn into_child(self) -> Single<T> {
+        Single(SingleKind::Dynamic(self.into_run()))
     }
 }
 
-impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
+impl<T: SlotChild, N: Count> IntoSegment<T> for DynamicSegment<T, N> {
     fn into_segment(self) -> ChildSegment<T> {
-        ChildSegment::Dynamic(self)
+        ChildSegment::Dynamic(self.into_run())
+    }
+}
+
+/// What a slot that takes one child holds: a child built once, or one a `Show` (with a
+/// `fallback`), `Dynamic` or `Keyed` swaps. The parent puts it in place with `mount`, and
+/// must be able to replace its child, or drop it, at any time.
+pub struct Single<T: SlotChild>(SingleKind<T>);
+
+enum SingleKind<T: SlotChild> {
+    Built(T),
+    Dynamic(DynamicSegment<T>),
+}
+
+impl<T: SlotChild> Single<T> {
+    pub fn built(child: T) -> Self {
+        Self(SingleKind::Built(child))
+    }
+
+    /// The child, when it was built once rather than swapped.
+    pub fn into_built(self) -> Result<T, Self> {
+        match self.0 {
+            SingleKind::Built(child) => Ok(child),
+            dynamic => Err(Self(dynamic)),
+        }
+    }
+
+    /// Puts the child in place now, and again whenever it is swapped: `set` is called with
+    /// the stored child, or `None` while there is none (only in an optional slot).
+    pub fn mount(self, set: impl Fn(Option<T::Stored>) + 'static) {
+        match self.0 {
+            SingleKind::Built(child) => set(Some(child.store())),
+            SingleKind::Dynamic(segment) => {
+                let host: Rc<dyn SlotHost<T>> = Rc::new(SingleHost { set: Box::new(set) });
+                segment.mount(ChildSlot::in_host(host));
+            }
+        }
+    }
+
+    /// Mounts the child into a host that keeps a run, as its only child.
+    pub fn mount_in(self, host: impl IntoSlotHost<T>) {
+        Children::from(self.into_segment()).mount(host);
+    }
+
+    /// The child as a child of another kind, as `DynamicSegment::convert` converts.
+    pub fn convert<U: SlotChild>(self, convert: impl Fn(T::Stored) -> U + 'static) -> ChildSegment<U> {
+        match self.0 {
+            SingleKind::Built(child) => ChildSegment::One(convert(child.store())),
+            SingleKind::Dynamic(segment) => ChildSegment::Dynamic(segment.convert(convert)),
+        }
+    }
+
+    pub fn map(self, change: impl Fn(T) -> T + 'static) -> Self {
+        match self.0 {
+            SingleKind::Built(child) => Self(SingleKind::Built(change(child))),
+            SingleKind::Dynamic(segment) => Self(SingleKind::Dynamic(segment.map(Rc::new(change)))),
+        }
+    }
+}
+
+impl<T: SlotChild> ChildValue for Single<T> {}
+
+impl<T: SlotChild> IntoChild<Single<T>> for Single<T> {
+    fn into_child(self) -> Single<T> {
+        self
+    }
+}
+
+impl<T: SlotChild> IntoSegment<T> for Single<T> {
+    fn into_segment(self) -> ChildSegment<T> {
+        match self.0 {
+            SingleKind::Built(child) => ChildSegment::One(child),
+            SingleKind::Dynamic(segment) => ChildSegment::Dynamic(segment),
+        }
+    }
+}
+
+struct SingleHost<T: SlotChild> {
+    set: Box<dyn Fn(Option<T::Stored>)>,
+}
+
+impl<T: SlotChild> SlotHost<T> for SingleHost<T> {
+    fn append(&self, stored: T::Stored) {
+        (self.set)(Some(stored));
+    }
+
+    fn open(&self) -> SlotId {
+        SlotId::FIRST
+    }
+
+    fn fill(&self, _slot: SlotId, items: Vec<T::Stored>) {
+        debug_assert!(
+            items.len() <= 1,
+            "a slot that takes one child was filled with {}",
+            items.len()
+        );
+        (self.set)(items.into_iter().next());
+    }
+}
+
+/// Passing a value as an optional child by name (`leading={...}`): a child, an `Option` of
+/// one, or a `Show` without a `fallback`.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be this optional child",
+    label = "this prop takes at most one `{T}`"
+)]
+pub trait IntoOptionalChild<T> {
+    fn into_optional_child(self) -> Option<T>;
+}
+
+impl<T: SlotChild, H: IntoChild<Single<T>>> IntoOptionalChild<Single<T>> for H {
+    fn into_optional_child(self) -> Option<Single<T>> {
+        Some(self.into_child())
+    }
+}
+
+impl<T: SlotChild, H: IntoChild<Single<T>>> IntoOptionalChild<Single<T>> for Option<H> {
+    fn into_optional_child(self) -> Option<Single<T>> {
+        self.map(IntoChild::into_child)
+    }
+}
+
+impl<T: SlotChild> IntoOptionalChild<Single<T>> for DynamicSegment<T, ZeroOrOne> {
+    fn into_optional_child(self) -> Option<Single<T>> {
+        Some(Single(SingleKind::Dynamic(self.into_run())))
     }
 }
 
@@ -322,7 +690,27 @@ impl<C: SlotChild> IntoProp<Vec<C::Stored>> for Run<C> {
     }
 }
 
+trait Sink<C: SlotChild> {
+    fn fill(&self, items: Vec<C::Stored>);
+}
+
+struct Converted<A: SlotChild, B: SlotChild> {
+    target: ChildSlot<B>,
+    convert: Box<dyn Fn(A::Stored) -> B>,
+}
+
+impl<A: SlotChild, B: SlotChild> Sink<A> for Converted<A, B> {
+    fn fill(&self, items: Vec<A::Stored>) {
+        let items = items
+            .into_iter()
+            .map(|item| self.target.store((self.convert)(item)))
+            .collect();
+        self.target.fill(items);
+    }
+}
+
 enum Place<C: SlotChild> {
+    Sink(Rc<dyn Sink<C>>),
     Host {
         host: Rc<dyn SlotHost<C>>,
         slot: SlotId,
@@ -336,6 +724,7 @@ enum Place<C: SlotChild> {
 impl<C: SlotChild> Clone for Place<C> {
     fn clone(&self) -> Self {
         match self {
+            Place::Sink(sink) => Place::Sink(sink.clone()),
             Place::Host { host, slot } => Place::Host {
                 host: host.clone(),
                 slot: *slot,
@@ -401,12 +790,13 @@ impl<C: SlotChild> ChildSlot<C> {
         };
         match &self.place {
             Place::Host { host, .. } => host.store(child),
-            Place::Run { .. } => child.store(),
+            Place::Run { .. } | Place::Sink(_) => child.store(),
         }
     }
 
     pub fn fill(&self, items: Vec<C::Stored>) {
         match &self.place {
+            Place::Sink(sink) => sink.fill(items),
             Place::Host { host, slot } => host.fill(*slot, items),
             Place::Run { run, slot } => {
                 run.items.borrow_mut().fill(*slot, items);
@@ -489,6 +879,10 @@ macro_rules! child_type {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::One(self)
             }
+        }
+
+        impl<$($generic: 'static),*> $crate::reactive::Counted for $ty {
+            type Count = $crate::reactive::One;
         }
 
         impl<$($generic: 'static),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
@@ -703,6 +1097,24 @@ pub trait IntoSegments<T: SlotChild> {
 
 pub struct SingleChild<H>(pub H);
 
+impl<T, H: IntoChild<T>> IntoChild<T> for SingleChild<H> {
+    fn into_child(self) -> T {
+        self.0.into_child()
+    }
+}
+
+impl<T: SlotChild, H: IntoSegment<T>> IntoSegment<T> for SingleChild<H> {
+    fn into_segment(self) -> ChildSegment<T> {
+        self.0.into_segment()
+    }
+}
+
+impl<T: SlotChild, const N: usize> IntoSegment<T> for [ChildSegment<T>; N] {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(Vec::from(self))
+    }
+}
+
 impl<T: SlotChild, H: IntoSegment<T>> IntoSegments<T> for SingleChild<H> {
     fn into_segments(self, segments: &mut Vec<ChildSegment<T>>) {
         segments.push(self.0.into_segment());
@@ -743,8 +1155,20 @@ impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 0] {
     }
 }
 
+impl<T: SlotChild> AtMostOneChild<Single<T>> for [ChildSegment<T>; 0] {
+    fn at_most_one_child(self) -> Option<Single<T>> {
+        None
+    }
+}
+
 impl<T, H: IntoChild<T>> AtMostOneChild<T> for SingleChild<H> {
     fn at_most_one_child(self) -> Option<T> {
         Some(self.0.into_child())
+    }
+}
+
+impl<T: SlotChild> AtMostOneChild<Single<T>> for SingleChild<DynamicSegment<T, ZeroOrOne>> {
+    fn at_most_one_child(self) -> Option<Single<T>> {
+        self.0.into_optional_child()
     }
 }

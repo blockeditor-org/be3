@@ -7,17 +7,31 @@ and measurement, base components, the HTML core and `beui-html`, and testing.
 
 **Slots and child types.** A children slot names the child it takes:
 `Children<ListItem>` (`List`, `Stack`), `Children<NodeId>` (`Scroll`),
-`Children<CanvasItem>`, or `Child` / `Option<Child>` for one node. The child
-types are all `Placed<P>`: a node plus the data its parent `P` keeps beside it
-(a `Sizing`, a span), so a child built for one parent does not fit another and
-the wrong kind is a compile error. A plain node converts into whatever a slot
-asks for. A new parent implements `ParentKind` (and `BareChild` if a bare
-`NodeId` should fit). A slot holds runs, not a flat list, which is how a
-fragment, `Show` or `ForEach` fills places among siblings it does not own. So
-control flow has no spacing, takes no `@test_id` or `@node_ref`, and does not
-compile in a single-child slot until a `List` goes around it. A `Vec` of nodes
-does not fill a slot; write a `ForEach` over the keys inside the same `view!`.
-A component whose whole view is a `Show` returns `DynamicSegment<ListItem>`.
+`Children<CanvasItem>`, `Child` / `Option<Child>` for one node its parent can
+swap (`Frame`, `Interactive`, a `CanvasItem`), or `NodeId` for one node built
+once, which a slot needing the node itself takes (`ListItem`, `Offset`, `Root`,
+a component that measures or portals its child). The run child types are all
+`Placed<P>`: a node plus the data its parent `P` keeps beside it (a `Sizing`, a
+span), so a child built for one parent does not fit another and the wrong kind
+is a compile error. A plain node converts into whatever a slot asks for. A new
+parent implements `ParentKind` (and `BareChild` if a bare `NodeId` should fit).
+A slot holds runs, not a flat list, which is how a fragment, `Show` or
+`ForEach` fills places among siblings it does not own. So control flow has no
+spacing and takes no `@test_id` or `@node_ref`. A `Vec` of nodes does not fill
+a slot; write a `ForEach` over the keys inside the same `view!`.
+
+**Control flow in a single-child slot.** `Show`, `Dynamic`, `Keyed` and
+`Loading` return a `DynamicSegment<C, N>`, where `N` counts what their branches
+build (`One`, `ZeroOrOne`, `Many`), read from the branches' own types. Any
+count fills a run. A `Child` slot takes `One`: a `Show` with a `fallback`
+whose branches each build one child, or a `Dynamic` building one. An
+`Option<Child>` slot also takes `ZeroOrOne`, a `Show` without a `fallback`. A
+`NodeId` slot takes none of them. Each mismatch is a compile error saying so,
+and none adds a node: the parent replaces its one child in place
+(`Single::mount`). An either/or is one `Show` with a `fallback`, never two
+`Show`s on a condition and its negation. A component whose whole view is a
+`Show` returns `DynamicSegment<ListItem>` (any count, for a run) or
+`DynamicSegment<NodeId, One>` (for a slot that takes one).
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
@@ -49,8 +63,12 @@ them, as they do outside any component.
 `#[component]` as well as each method; props go on the trait's declaration.
 Use them as `<A::View editor />`. A component method takes no `self`.
 
-**Props.** Pass a memo to a prop as it is, not as `move || memo.get()`, which
-boxes a closure. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
+**Props.** A `Prop<T>` prop takes a `T`, a signal or memo of one, or a closure
+returning one, which it reads as a getter: `condition={move || !hex.get()}`.
+Pass a derived value as a closure. Make a memo instead when its output changes
+less often than its inputs (a boolean from a scroll offset or a long list), so
+what reads it is not woken for nothing, or when it is costly and read in
+several places. Pass a signal or memo as it is, not as `move || memo.get()`. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
 clone a non-`Copy` prop in a block head:
 `<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.

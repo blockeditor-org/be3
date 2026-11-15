@@ -1,4 +1,4 @@
-use crate::reactive::{Child, IntoProp, NodeId};
+use crate::reactive::{IntoProp, NodeId};
 use crate::types::{Color, FontId};
 
 pub use beui_html;
@@ -6,7 +6,7 @@ pub use beui_html;
 pub struct Escape(pub(crate) crate::core::escape::Inner);
 
 impl Escape {
-    pub fn embed(&self, child: Child) -> beui_html::Node {
+    pub fn embed(&self, child: NodeId) -> beui_html::Node {
         crate::core::escape::embed(&self.0, child)
     }
 

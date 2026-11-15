@@ -487,9 +487,9 @@ impl Document {
         frame
     }
 
-    pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: NodeId) {
-        if self.arena.get_as::<FrameNode>(frame).child != Some(child) {
-            self.arena.get_mut_as::<FrameNode>(frame).child = Some(child);
+    pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: Option<NodeId>) {
+        if self.contains(frame) && self.arena.get_as::<FrameNode>(frame).child != child {
+            self.arena.get_mut_as::<FrameNode>(frame).child = child;
         }
     }
 

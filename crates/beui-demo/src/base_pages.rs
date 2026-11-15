@@ -510,6 +510,9 @@ pub(crate) fn ControlFlowPage() -> NodeId {
             <Sample title="Show" code={vec![ShowToggle::SOURCE, Tile::SOURCE]}>
                 <ShowToggle />
             </Sample>
+            <Sample title="Show with a fallback" code={vec![ShowFallback::SOURCE, Tile::SOURCE]}>
+                <ShowFallback />
+            </Sample>
             <Sample title="ForEach" code={vec![PlanetList::SOURCE, Tile::SOURCE]}>
                 <PlanetList />
             </Sample>
@@ -530,6 +533,36 @@ fn ShowToggle() -> NodeId {
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ShowFallback() -> NodeId {
+    let editing = create_signal(false);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <LabelledSwitch label="Editing" on={editing} />
+            <Frame padding={Sides::all(8.0)}>
+                <Show condition={editing} fallback={|| view! { <Tile label="Reading" /> }}>||
+                    <Tile label="Editing: one child either way, so a frame can hold it" />
+                </Show>
+            </Frame>
+            <List spacing=8.0>
+                <Show condition={editing} fallback={|| view! {
+                    <Tile label="A run of three" />
+                    <Tile label="while reading" />
+                    <Tile label="in a list" />
+                }}>||
+                    <Tile label="A run of two" />
+                    <Tile label="while editing" />
+                </Show>
+            </List>
+            <Tile label={move || match editing.get() {
+                true => "A closure is a prop: editing".to_owned(),
+                false => "A closure is a prop: reading".to_owned(),
+            }} />
         </List>
     }
 }

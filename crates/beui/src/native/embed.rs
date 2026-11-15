@@ -13,13 +13,10 @@ pub fn Embed(
     children: Option<Child>,
 ) -> NodeId {
     let state = slot.0.value();
-    let embed = with_document(move |document| {
-        let embed = document.create_embed(state);
-        if let Some(child) = children {
-            document.set_embed_child(embed, child);
-        }
-        embed
-    });
+    let embed = with_document(move |document| document.create_embed(state));
+    if let Some(child) = children {
+        child.mount(move |child| with_document(|document| document.set_embed_child(embed, child)));
+    }
     slot.0.with(|held| held.node.set(Some(embed.id())));
     create_effect(move || {
         let punch = punch.get();

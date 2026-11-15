@@ -24,7 +24,7 @@ pub fn Disclosure(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
-    children: Child,
+    children: NodeId,
     open: Binding<bool>,
 ) -> NodeId {
     api.fill(DisclosureApi(State { open }));

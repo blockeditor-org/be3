@@ -12,6 +12,7 @@ use crate::types::tree::CanvasItem;
 use beui_core_html::canvas::scale_property;
 use beui_core_html::css;
 use beui_core_html::document::{append, create, set_style};
+use beui_core_html::tree::node_host;
 use beui_core_html::tree::{CanvasKind, host};
 
 use super::bind;
@@ -83,7 +84,7 @@ pub(crate) fn canvas_item(
     beui_core_html::canvas::item(item);
     beui_core_html::canvas::set_item_arranged(item, arranged);
     if let Some(child) = children {
-        append(item, child);
+        child.mount_in(node_host(item));
     }
     if arranged.is_none() {
         place_item(item, x, y, width, height, scales);

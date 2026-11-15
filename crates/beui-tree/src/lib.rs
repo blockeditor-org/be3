@@ -13,9 +13,10 @@ pub mod reactive {
     pub use crate::callback::{Callback, IntoCallback, IntoUnitCallback};
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{
-        AtMostOneChild, ChildSegment, ChildSlot, Children, ChildrenSlot, DynamicSegment,
-        FixedChild, IntoChild, IntoSegment, IntoSegments, IntoSlotHost, OneChild, Run, SingleChild,
-        SlotChild, SlotHost, into_child, into_segment,
+        AtMostOneChild, Branch, BuiltOnce, ChildSegment, ChildSlot, Children, ChildrenSlot, Count,
+        Counted, DynamicSegment, ExactlyOne, Fallback, IntoChild, IntoOptionalChild, IntoSegment,
+        IntoSegments, IntoSlotHost, Many, One, OneChild, Or, Run, Single, SingleChild, SlotChild,
+        SlotHost, ValueFallback, Zero, ZeroOrOne, into_child, into_segment,
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
@@ -24,7 +25,9 @@ pub mod reactive {
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Loading, Show};
     pub use crate::into_prop_via;
-    pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};
+    pub use crate::prop::{
+        ByClosure, ByClosureLifted, ByValue, Func, Getter, IntoFunc, IntoProp, IntoPropWith, Prop,
+    };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
         Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,

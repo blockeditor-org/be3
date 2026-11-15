@@ -133,6 +133,39 @@ pub trait IntoProp<T> {
     fn into_prop(self) -> Prop<T>;
 }
 
+/// How a `#[component]` prop of type `Prop<T>` takes what a tag passes it: anything
+/// `IntoProp<T>` (a value, a signal or memo of one), or a closure computing one, which the
+/// prop reads as a getter: `condition={move || !hex.get()}`. `M` only tells the two apart.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be passed as a `{T}` prop",
+    label = "pass a `{T}`, a signal or memo of one, or a closure returning one"
+)]
+pub trait IntoPropWith<T, M> {
+    fn into_prop_with(self) -> Prop<T>;
+}
+
+pub struct ByValue;
+pub struct ByClosure;
+pub struct ByClosureLifted;
+
+impl<T, V: IntoProp<T>> IntoPropWith<T, ByValue> for V {
+    fn into_prop_with(self) -> Prop<T> {
+        self.into_prop()
+    }
+}
+
+impl<T: 'static, F: Fn() -> T + 'static> IntoPropWith<T, ByClosure> for F {
+    fn into_prop_with(self) -> Prop<T> {
+        Prop::dynamic(self)
+    }
+}
+
+impl<T: 'static, F: Fn() -> T + 'static> IntoPropWith<Option<T>, ByClosureLifted> for F {
+    fn into_prop_with(self) -> Prop<Option<T>> {
+        Prop::dynamic(move || Some(self()))
+    }
+}
+
 impl<T: 'static> IntoProp<T> for T {
     fn into_prop(self) -> Prop<T> {
         Prop::Static(self)

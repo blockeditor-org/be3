@@ -109,7 +109,7 @@ has effects parked at its end.
 A pausable scope (`Scope::detached().pausable()`) holds back the effects under
 it while paused and runs each woken one once on `resume()`. An effect already
 woken when it pauses still runs, so the write that hides a subtree reaches it
-(an overlay inside closes). A `Show` with `keep_alive` pauses its hidden child this way;
+(an overlay inside closes). A `Show` with `keep_alive` pauses its hidden branch this way;
 `Scope::pausable_effects()` pauses effects but not bindings, for `Loading`.
 
 ## Loading
@@ -192,14 +192,15 @@ there would never update. In debug builds it panics, naming the type, even on a
 the read into a memo, binding or effect; pass the signal or memo on as the prop
 itself; or use `get_untracked`/`untrack` for a deliberate snapshot. A helper
 called from a body trips the same way. `Prop::map` runs at once on a plain
-value, so a mapping that reads other signals is
-`Prop::dynamic(move || tab_stop.get() && !disabled.get())`.
+value, so a mapping that reads other signals is a closure in the tag
+(`tab_stop={move || tab_stop.get() && !disabled.get()}`), or
+`Prop::dynamic(..)` outside one.
 
 ### Props, bindings and controlled state
 
-A `Prop<T>` takes a plain `T` or a signal or memo of one; the base components
-bind it with `create_binding`, so a plain value costs nothing after it is set.
-Pass a memo to a prop as it is. Every prop is required unless it has
+A `Prop<T>` takes a plain `T`, a signal or memo of one, or (as a tag's prop) a
+closure computing one; the base components bind it with `create_binding`, so a
+plain value costs nothing after it is set. Pass a memo to a prop as it is. Every prop is required unless it has
 `#[prop(default = ...)]`, or is `Option<Prop<T>>` (absence fixed at build) or
 `Prop<Option<T>>` (can return to "unset" while alive, such as a `Frame` width).
 `Callback`, `Children` and `Binding` props default to empty.
@@ -231,10 +232,13 @@ accessibility belong to the outer component. A slot that hands a value names
 it like a closure argument, `<Container>|size| <Card size /></Container>`; a
 `RenderFn` slot may run more than once, so its body clones what it moves.
 
-`Show`, `Dynamic` (rebuild on every value change), `Keyed` (rebuild when its
-`key` changes, update the rest through a `ReadSignal`) and `ForEach` build no
-node: each fills a run in its parent's slot and builds each child in a scope of
-its own, disposed with the child. Key a `ForEach` by identity, never by
+`Show` (with a `fallback` for when its condition is false), `Dynamic` (rebuild
+on every value change), `Keyed` (rebuild when its `key` changes, update the
+rest through a `ReadSignal`) and `ForEach` build no node: each fills its place
+in its parent's slot (a run, or one child where it builds exactly one;
+[beui/core.md](beui/core.md#writing-views)) and builds each child in a scope of
+its own, disposed with the child. Given a `fallback`, `Dynamic` and `Keyed` take
+an `Option` and show the fallback while it is `None`. Key a `ForEach` by identity, never by
 content: a key that changes with an edit destroys the row's nodes and scope and
 loses its focus, caret and measured text. Give the row the key and let it read
 its own item from a `KeyedStore`.
