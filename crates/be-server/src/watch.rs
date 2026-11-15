@@ -32,6 +32,9 @@ pub const REFUSED_LISTINGS: usize = 256;
 pub enum Push {
     BlockChanged {
         block: BlockSummary,
+        /// What the change did to its references, when the server knows (`Moves`): told in
+        /// their place to a connection already told them (`WatchHub::tell`).
+        moved: Option<be_block_protocol::MovedReferences>,
         /// The connection whose call changed it.
         from: ClientId,
     },
@@ -77,6 +80,9 @@ pub(crate) struct Facts {
     parent: Option<BlockParent>,
     held: bool,
     entry: bool,
+    /// Told with its references, as a summary the connection may view: so a change may be told
+    /// as what it did to them (`moved-references`).
+    viewed: bool,
     /// A set, since a referrer's may run to `MAX_REFERENCES` and is asked of every change.
     references: HashSet<Uuid>,
     opens_inside: bool,
@@ -89,6 +95,7 @@ impl Facts {
         parent: Option<BlockParent>,
         held: bool,
         entry: bool,
+        viewed: bool,
         references: HashSet<Uuid>,
         opens_inside: bool,
     ) -> Self {
@@ -96,6 +103,7 @@ impl Facts {
             parent,
             held,
             entry,
+            viewed,
             references,
             opens_inside,
         }
@@ -106,6 +114,7 @@ impl Facts {
             parent: summary.parent,
             held: summary.held,
             entry,
+            viewed: summary.access.can_view(),
             references: summary.references.iter().copied().collect(),
             opens_inside: summary.opens_inside,
         }
@@ -344,13 +353,25 @@ impl WatchHub {
             .collect();
     }
 
-    pub async fn tell(&self, client: u64, message: Push, entry: bool) {
+    /// Tells `client` of a change if one of its listings holds the block, or it was told of the
+    /// block before. A change of a block it was told with its references tells what the change
+    /// did to them in their place, so a large folder's change costs what changed.
+    pub async fn tell(&self, client: u64, mut message: Push, entry: bool) {
         let told = {
             let mut joined = self.joined.lock().await;
             let interest = joined.interests.entry(client).or_default();
-            match &message {
-                Push::BlockChanged { block, .. } => {
-                    interest.told(block.id, Facts::of(block, entry))
+            match &mut message {
+                Push::BlockChanged { block, moved, .. } => {
+                    let holds = interest
+                        .known
+                        .get(&block.id)
+                        .is_some_and(|facts| facts.viewed);
+                    let facts = Facts::of(block, entry);
+                    match holds && block.access.can_view() && moved.is_some() {
+                        true => block.references = Vec::new(),
+                        false => *moved = None,
+                    }
+                    interest.told(block.id, facts)
                 }
                 Push::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
                 _ => true,

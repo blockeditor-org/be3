@@ -533,6 +533,22 @@ pub(crate) struct Refs {
     state: Mutex<State>,
 }
 
+/// Announced changes of references resolve against the summaries the server last gave
+/// (`Connection::hold_with`).
+impl crate::connection::Held for Refs {
+    fn references(&self, block: Uuid) -> Option<Vec<Uuid>> {
+        let state = self.state.lock().unwrap();
+        state
+            .summaries
+            .get(&block)
+            .map(|summary| summary.references.clone())
+    }
+
+    fn keep(&self, summary: &BlockSummary) {
+        let _ = self.set_listing(Listing::Block(summary.id), std::slice::from_ref(summary));
+    }
+}
+
 impl Refs {
     fn write(&self, rows: Vec<Row>) -> Result<(), StoreError> {
         if rows.is_empty() {
