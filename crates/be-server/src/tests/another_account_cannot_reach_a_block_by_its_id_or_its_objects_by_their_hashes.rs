@@ -183,6 +183,7 @@ async fn another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_
             Notice::BlockChanged {
                 block: changed,
                 from,
+                ..
             } => changed.id == block && Some(*from) != owner.client,
             Notice::BlockRemoved { block: gone, .. } => *gone == block,
             Notice::Relayed { .. } => true,

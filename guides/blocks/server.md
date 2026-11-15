@@ -433,7 +433,16 @@ audience before or after (and every administrator), as the `BlockChanged` that
 member's access allows or a `BlockRemoved`, when a listing matches the block
 now or the connection heard of it before (so a block moving out of a listed
 folder is still announced, then forgotten). The blocks a change starts or stops
-referencing are announced with it. Every publish is announced, so a block's
+referencing are announced with it; only a move or a grant (`graph_views`'
+`subtree`) also announces everything its blocks reference, whose `KnowExists`
+it may change. A summary lists every reference, so a change of a block the
+connection was told with its references (`Facts::viewed`) is announced without
+them, as what it did to them (`block-changed.moved`, a `ReferenceChange` and
+the `references_digest` of the result; empty when the change kept them): adding
+entries to a large folder one at a time costs each watcher what was added, not
+the whole folder each time. A store call names what it did to references
+(`Moves`: `change_edges` answers the change it wrote); a block it made is told
+whole. Every publish is announced, so a block's
 own listing hears each head; one that moves only the head changes no listing's
 match, so it is told only to the connections that already know the block, or
 are still reading a listing, which may hold it (`WatchHub::knowing`), rather

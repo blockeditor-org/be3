@@ -31,6 +31,38 @@ use crate::{
 
 const EVENT_CAPACITY: usize = 4096;
 
+/// A changed block's summary with every reference: `block` as told, or, when the server told
+/// what the change did to its references in their place (`moved`), those `held` has with the
+/// change applied. When they do not come out as the server's (a change heard out of order, or
+/// references never held), the block is read again. `None` when that read fails: the
+/// connection is closing, or the block is no longer the caller's to read, which a later change
+/// tells.
+async fn whole(
+    peer: &Peer,
+    held: Option<&dyn Held>,
+    mut block: be_block_protocol::BlockSummary,
+    moved: Option<be_block_protocol::MovedReferences>,
+) -> Option<be_block_protocol::BlockSummary> {
+    if let Some(moved) = moved {
+        let applied = held
+            .and_then(|held| held.references(block.id))
+            .and_then(|references| moved.change.apply(&references))
+            .filter(|references| be_block_protocol::references_digest(references) == moved.digest);
+        match applied {
+            Some(references) => block.references = references,
+            None => {
+                let listing = be_block_protocol::Listing::Block(block.id);
+                let listed = client::blocks::list_blocks(peer, listing, None).await;
+                block = listed.ok()?.ok()?.blocks.into_iter().next()?;
+            }
+        }
+    }
+    if let Some(held) = held {
+        held.keep(&block);
+    }
+    Some(block)
+}
+
 const PING_FRAME_BYTES: usize = 32;
 
 /// The socket plus the greeting. Once connected no request has a deadline of its own: each is
@@ -99,9 +131,20 @@ pub enum Event {
     KeyWork(be_block_protocol::KeyWork),
 }
 
+/// Where a connection finds what a change announced in place of a block's references
+/// (`moved-references`) applies to: the references this device holds of the block, as the
+/// server last told them. It keeps there each summary it hears, so the next change resolves
+/// against it before anyone else has taken this one. `Peer` gives its refs.
+pub trait Held: Send + Sync {
+    fn references(&self, block: Uuid) -> Option<Vec<Uuid>>;
+    fn keep(&self, summary: &be_block_protocol::BlockSummary);
+}
+
 #[derive(Default)]
 struct Registry {
     subscribed: bool,
+    /// What announced changes of references resolve against (`Connection::hold_with`).
+    held: Option<Arc<dyn Held>>,
     /// This connection as the server names it, once it opened an organization
     /// (`organization-opened.client`).
     client: Option<ClientId>,
@@ -239,14 +282,20 @@ impl Connection {
         }
         let events = self.events.clone();
         let connection = Arc::downgrade(self);
+        let peer = self.peer.clone();
         let mut changes = client::blocks::changes(&self.peer);
         self.pump(async move {
             while let Some(change) = changes.recv().await {
                 let _ = events.send(match change {
-                    be_block_protocol::BlockChange::Changed { block, from } => {
-                        let own = connection
-                            .upgrade()
-                            .is_some_and(|connection| connection.registry().client == Some(from));
+                    be_block_protocol::BlockChange::Changed { block, moved, from } => {
+                        let (own, held) =
+                            connection.upgrade().map_or((false, None), |connection| {
+                                let registry = connection.registry();
+                                (registry.client == Some(from), registry.held.clone())
+                            });
+                        let Some(block) = whole(&peer, held.as_deref(), block, moved).await else {
+                            continue;
+                        };
                         Event::BlockChanged { block, own }
                     }
                     be_block_protocol::BlockChange::Removed { block, revision } => {
@@ -291,6 +340,12 @@ impl Connection {
             }
         });
         receiver
+    }
+
+    /// Resolves announced changes of references against `held` from now on (`Held`); until
+    /// then each is read again from the server.
+    pub fn hold_with(&self, held: Arc<dyn Held>) {
+        self.registry().held = Some(held);
     }
 
     /// Takes this connection's id as the organization it opened names it, which tells its own
