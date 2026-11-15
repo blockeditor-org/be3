@@ -1765,18 +1765,23 @@ pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) 
 /// Invitation codes earlier stacks made or listed (`Seen::own_invitations`), kept by the page
 /// as each stack stops: only the page reads and writes it. Opening one of these links as the
 /// account whose own it is reads nothing from the server, so the inviter checking their own link
-/// never marks it opened; another account on the device opens it as anyone would.
+/// never marks it opened; another account on the device opens it as anyone would. An invitation
+/// made or listed after `stop` took the stack's last `Seen` is lost with it, so a later stack
+/// opens that link as someone else's would; that needs a link made as the stack stops.
 static OWN_INVITATIONS: std::sync::Mutex<Vec<seen::OwnInvitation>> =
     std::sync::Mutex::new(Vec::new());
 
-/// On the worker thread, notes an invitation code its account made or listed.
-fn own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteCode) {
-    let own = (server_url.to_owned(), account, code.clone());
-    seen::here_mut(|shared| {
-        if !shared.own_invitations.contains(&own) {
-            shared.own_invitations.push(own);
+/// On the worker thread, notes invitation codes its account made or listed.
+fn own_invitations(server_url: &str, account: Uuid, codes: Vec<be_block_keys::InviteCode>) {
+    let noted = seen::here_mut(|shared| {
+        for code in codes {
+            let own = (server_url.to_owned(), account, code);
+            if !shared.own_invitations.contains(&own) {
+                shared.own_invitations.push(own);
+            }
         }
     });
+    debug_assert!(noted, "only the worker notes its own invitations");
 }
 
 /// Whether `code` is an invitation `account` on `server_url` made or listed as its own here.
