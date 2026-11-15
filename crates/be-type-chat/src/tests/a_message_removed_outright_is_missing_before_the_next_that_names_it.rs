@@ -1,4 +1,5 @@
 use super::*;
+use crate::{Gap, Segment};
 
 fn removed(chat: &ChatContent, message: ObjectId) -> ChatContent {
     edited(chat, [[be_block_model::Change::remove(message)].into_iter().collect()])
@@ -11,14 +12,14 @@ fn removed(chat: &ChatContent, message: ObjectId) -> ChatContent {
 fn a_message_removed_outright_is_missing_before_the_next_that_names_it() {
     let chat = sent(&ChatContent::default(), ADA, &["one", "two", "three"]);
     let [two, three] = [chat.messages()[1], chat.messages()[2]];
-    assert_eq!(chat.missing_before(), [], "nothing is missing");
+    assert_eq!(chat.gaps(), [], "nothing is missing");
     assert_eq!(
-        removed(&chat, two).missing_before(),
-        [(three, two)],
+        removed(&chat, two).gaps(),
+        [gap(three, two, &[])],
         "the next message names it"
     );
     assert_eq!(
-        edited(&chat, [chat.delete(two, ADA, 9)]).missing_before(),
+        edited(&chat, [chat.delete(two, ADA, 9)]).gaps(),
         [],
         "a deletion is no gap"
     );
@@ -38,5 +39,33 @@ fn a_message_removed_outright_is_missing_before_the_next_that_names_it() {
     let sent_again = next.message(again).expect("the message was sent");
     assert_eq!(sent_again.seen.map(|seen| seen.id), Some(his));
     assert_eq!(sent_again.own_previous.map(|own| own.id), Some(mine));
-    assert_eq!(removed(&next, mine).missing_before(), [(again, mine)]);
+    assert_eq!(removed(&next, mine).gaps(), [gap(again, mine, &[])]);
+
+    // The newest recent message names the last one that closed: the segment's filter says it
+    // may be there, and only a read of the segment tells.
+    let closed = closed(&long(120));
+    let first_recent = closed.messages()[0];
+    let last_closed = closed
+        .message(first_recent)
+        .and_then(|message| message.seen)
+        .expect("the first recent message saw the one before it")
+        .id;
+    assert_eq!(closed.gaps(), [gap(first_recent, last_closed, &[0])]);
+
+    // A filter too full to tell excuses nothing: one made by `Segment::of` sets about half.
+    let segment = closed.segments()[0].clone();
+    assert!(!segment.over_full());
+    let full = Segment {
+        members: vec![0xff; segment.members.len()],
+        ..segment
+    };
+    assert!(full.over_full() && full.may_hold(ObjectId::new()));
+}
+
+fn gap(naming: ObjectId, gone: ObjectId, closed_in: &[usize]) -> Gap {
+    Gap {
+        naming,
+        gone,
+        closed_in: closed_in.to_vec(),
+    }
 }
