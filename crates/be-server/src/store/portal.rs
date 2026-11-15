@@ -276,8 +276,10 @@ fn may_send(database: &Connection, email: &str, address: &str) -> Result<(), Ser
     let count = |query: &str, value: &str| -> Result<i64, ServerError> {
         Ok(database.query_row(query, [value], |row| row.get(0))?)
     };
-    if count("SELECT count(*) FROM account_mail WHERE address = ?1", address)?
-        >= MAX_MAIL_LINKS_PER_ADDRESS
+    if count(
+        "SELECT count(*) FROM account_mail WHERE address = ?1",
+        address,
+    )? >= MAX_MAIL_LINKS_PER_ADDRESS
         || count("SELECT count(*) FROM account_mail WHERE email = ?1", email)?
             >= MAX_MAIL_LINKS_PER_EMAIL
         || database.query_row("SELECT count(*) FROM account_mail", [], |row| {

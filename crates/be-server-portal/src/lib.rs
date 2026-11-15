@@ -72,7 +72,12 @@ pub enum Field {
 }
 
 impl Field {
-    pub const ALL: [Field; 4] = [Field::Email, Field::DisplayName, Field::Invite, Field::EmailCode];
+    pub const ALL: [Field; 4] = [
+        Field::Email,
+        Field::DisplayName,
+        Field::Invite,
+        Field::EmailCode,
+    ];
 
     pub fn name(&self) -> &'static str {
         match self {

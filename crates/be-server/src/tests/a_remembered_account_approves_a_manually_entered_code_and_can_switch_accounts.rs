@@ -7,9 +7,7 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
     harness.member("second@example.com").await;
     let (code, secret) = begin_session(&harness).await;
     let mut browser = Browser::default();
-    browser
-        .sign_in_by_code(&harness, "first@example.com")
-        .await;
+    browser.sign_in_by_code(&harness, "first@example.com").await;
     let (status, _) = browser
         .submit(
             &harness,

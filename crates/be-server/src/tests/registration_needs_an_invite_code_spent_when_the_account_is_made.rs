@@ -55,7 +55,10 @@ async fn registration_needs_an_invite_code_spent_when_the_account_is_made() {
             .0,
         303
     );
-    assert_eq!(enter(&harness, &mut first, "first@example.com").await.0, 303);
+    assert_eq!(
+        enter(&harness, &mut first, "first@example.com").await.0,
+        303
+    );
     let (status, page) = enter(&harness, &mut second, "second@example.com").await;
     assert_eq!(status, 400);
     assert!(page.contains("\"field\":\"Invite\""), "{page}");

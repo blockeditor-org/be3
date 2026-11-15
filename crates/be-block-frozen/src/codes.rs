@@ -5,7 +5,7 @@ use be_server::store::codes::{self, CodePurpose, CodeRequest, EnteredCode};
 
 /// Asks for a code for `email` and enters it, as a browser at `address` would. Registering
 /// takes the display name and the invite code; the other purposes ignore them.
-pub async fn enter(
+pub(crate) async fn enter(
     store: &ServerStore,
     config: be_server::ServerConfig,
     purpose: CodePurpose,

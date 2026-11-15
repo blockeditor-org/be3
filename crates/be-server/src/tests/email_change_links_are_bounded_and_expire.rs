@@ -19,13 +19,9 @@ async fn email_change_links_are_bounded_and_expire() {
                 .await
         }
     };
-    let first = change("new@example.com".into(), "192.0.2.1")
-        .await
-        .unwrap();
+    let first = change("new@example.com".into(), "192.0.2.1").await.unwrap();
     for _ in 1..MAX_MAIL_LINKS_PER_EMAIL {
-        change("new@example.com".into(), "192.0.2.1")
-            .await
-            .unwrap();
+        change("new@example.com".into(), "192.0.2.1").await.unwrap();
     }
     // One new email takes no more than its share.
     assert!(

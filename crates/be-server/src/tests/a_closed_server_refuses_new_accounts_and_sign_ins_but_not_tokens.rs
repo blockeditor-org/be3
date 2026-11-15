@@ -3,14 +3,10 @@ use super::*;
 #[tokio::test]
 async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
-    let (account, organization) = fixture_account(
-        &directory,
-        "owner@example.com",
-        "Owner",
-        "notes",
-    )
-    .await
-    .unwrap();
+    let (account, organization) =
+        fixture_account(&directory, "owner@example.com", "Owner", "notes")
+            .await
+            .unwrap();
     let token = ServerStore::open(&directory)
         .unwrap()
         .issue_session(account)

@@ -4,10 +4,7 @@ use super::*;
 async fn revoking_a_session_announces_only_a_change() {
     let harness = Harness::start().await;
     let store = ServerStore::open(&harness.directory).unwrap();
-    let (profile, _) = store
-        .register("owner@example.com", "Owner")
-        .await
-        .unwrap();
+    let (profile, _) = store.register("owner@example.com", "Owner").await.unwrap();
     let browser = store.browser_session(profile.account).await.unwrap();
     // Ending the other sessions needs a fresh proof.
     assert!(

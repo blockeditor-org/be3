@@ -637,7 +637,7 @@ impl TestClient {
     async fn register(&mut self, email: &str) -> Uuid {
         let (_, token) = ServerStore::open(self.directory.as_ref().unwrap())
             .unwrap()
-            .register(email, email, "correct horse battery")
+            .register(email, email)
             .await
             .unwrap();
         let response = self
@@ -1466,6 +1466,13 @@ impl Harness {
     }
 
     /// How many messages went to `email`.
+    /// Lets every browser's proof go stale, as `codes::FRESH_PROOF` passing would.
+    fn stale_proofs(&self) {
+        metadata_database(&self.directory)
+            .execute("UPDATE sessions SET proved = 0", [])
+            .unwrap();
+    }
+
     fn mails_to(&self, email: &str) -> usize {
         self.mail
             .0

@@ -150,8 +150,7 @@ async fn check(snapshot: &Snapshot) {
     let organization = id(snapshot.organization);
     let personal = id(snapshot.personal);
 
-    let (by_code, owner_token) =
-        sign_in(&server, scene::OWNER_EMAIL).await;
+    let (by_code, owner_token) = sign_in(&server, scene::OWNER_EMAIL).await;
     let store = be_server::ServerStore::open(&server.directory).unwrap();
     assert!(
         store.resolve_token(snapshot.owner_token).await.is_ok(),
@@ -177,8 +176,7 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the owner's phrase no longer matches its recovery key"
     );
-    let Ok(organizations) = ask(client::organizations::list_organizations(&by_code)).await
-    else {
+    let Ok(organizations) = ask(client::organizations::list_organizations(&by_code)).await else {
         panic!("{name}: the owner's organizations were not listed");
     };
     let kinds: Vec<_> = organizations

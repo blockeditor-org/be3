@@ -70,11 +70,7 @@ impl Server {
         let (profile, _) = self
             .inner
             .runtime
-            .block_on(
-                self.inner
-                    .store
-                    .register(&email, name),
-            )
+            .block_on(self.inner.store.register(&email, name))
             .unwrap_or_else(|error| {
                 panic!("the test server could not make the account {name}: {error}")
             });
