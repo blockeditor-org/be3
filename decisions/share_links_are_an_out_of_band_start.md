@@ -2,12 +2,18 @@
 
 A share link (plans/share_links.md) passed outside the app is an out-of-band
 start, as a contact link is, so "no in-app reach to strangers" holds for it.
-That holds whoever the link admits: members of the block's organization, any
-account on the server, or anyone at all.
+That holds whoever the link admits: members of the block's organization or
+any account on the server (anyone at all, with no account, is deferred:
+plans/deferred/anonymous_share_links.md).
 
 - Opening a link makes nobody a contact. It grants access to one block and
   nothing else; becoming contacts still takes a contact link or an
   invitation.
+- A grant checked in the block's access log stands in for a contact check
+  when a device seals a key (plans/signed_access.md, "Sealing to someone who
+  is not a contact"): the grant names the grantee's keys as a member with the
+  right level verified them, so a sealer needs no contact row of its own, and
+  the grantee accepts a key from a sender a checked record names.
 - A Join member (plans/hosted_blocks.md) may message the block's host over the
   channel the server relays, and the app may show which account hosts. The link
   that admitted them started the relationship, and the channel reaches only

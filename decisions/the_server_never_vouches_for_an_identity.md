@@ -8,6 +8,29 @@ may withhold, delay or destroy it, never read or write it, alone or with
 anyone the block's managers did not choose. Given View, it may also write,
 since Edit is enforced by the server alone.
 
+## Standing exceptions
+
+What the server still decides, and devices or other servers' checks take on
+its word:
+
+- **The organization settings key.** The settings block is shared with the
+  server's own account so it can enforce policies
+  (decisions/server_enforced_settings_are_shared_with_the_server.md); devices
+  seal it to the key the server names as its own (`ServerKey`).
+- **Membership.** Who is a member or guest of an organization, and so who may
+  be granted there or see it listed. Administrators are signed; membership is
+  not.
+- **Link policy.** Who may open a share link (plans/share_links.md) is a
+  setting the server enforces: a dishonest server can let anyone with the
+  secret open it.
+- **Edit over View.** They hold the same keys, so a server granted View can
+  write.
+- **The host lease.** Which editor hosts a hosted block
+  (plans/hosted_blocks.md): devices check that the host has Edit, but not
+  which editor the server picked.
+- **Freshness.** Which log head and key epoch are newest, short of a fork
+  (plans/signed_access.md, "Accepted limits").
+
 ## Why
 
 The server stores and relays everything. If it could introduce a person or a

@@ -19,7 +19,7 @@ A new level between `KnowExists` and `View`:
 
 | Level | The stored block | The host |
 |---|---|---|
-| KnowExists | id and type (the name is sealed metadata) | whether one is online |
+| KnowExists | id and type (the name is sealed metadata) | nothing |
 | **Join** | nothing: no keys, no objects | a private channel to it |
 | View | all of it | a private channel too, and the whole live session |
 | Edit | change it directly | may be it |
@@ -55,16 +55,17 @@ a role inside the app, since the share dialog grants no roles. A game:
 
 ## The channel
 
-- **Host key.** An X25519 key pair derived from the block's current data key
-  (HKDF, its own domain), so it changes with every rotation and anyone who can
-  read the block could compute it; the server lets only Edit take the lease.
-  When a data key is made, a member with Edit signs a **host key record**
-  (block, key epoch, public key) into the block's access log
-  (plans/signed_access.md), and a Join member checks it back to the block's
-  root, so the server cannot stand in a host of its own.
-- **Handshake.** Noise IK: the joiner knows the host key from the record,
-  sends a fresh ephemeral key and its account's static key, and signs the
-  handshake hash with its signing key. A joiner through a link mixes in the
+- **The host is an account.** The server says which account holds the lease,
+  and the joiner is served that account's proof path (plans/signed_access.md,
+  "Who is served what"): its grant, its authorship or an owner record, at Edit
+  or above. The host's static key is the X25519 identity key that record names,
+  so only that account's devices can complete the handshake, and the server
+  cannot stand in a host of its own or pass the lease to one without Edit. No
+  key is derived from the block's data key: anyone who could read the block
+  could compute that one, a View member included.
+- **Handshake.** Noise IK: the joiner knows the host's static key from its
+  checked record, sends a fresh ephemeral key and its account's static key,
+  and signs the handshake hash with its signing key. A joiner through a link mixes in the
   link secret as a pre-shared key. The host admits it when its grant checks
   (Join or above, plans/signed_access.md) and it is not banned. Every later
   message is sealed under the session's keys with its own nonce, so the server
@@ -73,7 +74,7 @@ a role inside the app, since the share dialog grants no roles. A game:
 - **The server routes.** A Join member joins the block's session as a member
   of a new kind: it receives only what the host addresses to it, its messages
   go only to the lease holder, its presence is shown only to the host, and it
-  learns only whether a host is online. View members join as today, and their
+  learns whether a host is online and which account it is. View members join as today, and their
   messages to the host use the same channel, so one View member cannot read
   another member's messages to the host. Relays already name a `relay-kind` the server checks
   against the sender's access (`peer` needs View, `edit` needs Edit;
@@ -95,13 +96,18 @@ a role inside the app, since the share dialog grants no roles. A game:
 - When the host leaves, another editor takes the lease and the joiners
   reconnect to it. The world continues from what is stored, so a host writes
   its state to the block as it goes; only what it held in memory is lost.
-- Banning: a signed **ban record** in the access log (account, block, signer
-  with Edit), which the host refuses at the handshake and the server refuses
-  at joining. Any Edit holder may ban: an editor can write anything to the
-  block and host with its own logic, so a ban never binds editors, only who
-  joins through an honest host or server.
-- The host signs the handshake with its account key too, so the app knows
-  which account is hosting and may show it.
+- Banning: a signed **ban record** in the access log (account, signer with
+  Edit), which the host refuses at the handshake and the server refuses at
+  joining. Any Edit holder may ban: an editor can write anything to the block
+  and host with its own logic, so a ban never binds editors, only who joins
+  through an honest host or server. A ban and a grant to the same account are
+  ordered by their place in the log: a grant signed after a ban (by Manage, as
+  every grant is) lifts it, and a ban after a grant bars the account while the
+  grant stands. The host and each joiner are served the bans that name that
+  joiner, on its proof path.
+- Since the host is checked as an account, the app knows which account is
+  hosting and may show it
+  (decisions/share_links_are_an_out_of_band_start.md).
 - **The host component.** The type module stays as simple as text's: storage
   and basic operations on the world, nothing game-specific, since every
   editor runs it as the replica. The rules (what each player sees, which
@@ -134,10 +140,11 @@ a role inside the app, since the share dialog grants no roles. A game:
    rate limits. Done: a test where a Join member's message reaches only the
    lease holder, and another Join member hears nothing of it, not even that it
    was sent.
-3. **Host keys and the handshake.** Host key records, Noise IK in
+3. **The handshake.** Checking the host's account, Noise IK in
    `be-block-keys`, the client sides in `be-block-client`. Done: a test with a
-   forging server that offers its own host key to a Join member, which refuses
-   it; and one where a joiner whose grant was revoked is refused.
+   forging server that names an account without Edit as the host, or offers a
+   key of its own, and the Join member refuses it; and one where a joiner
+   whose grant was revoked is refused.
 4. **Hosting.** The host component, starting and stopping it with the editor,
    Keep hosting and the shell's list, lease handoff and reconnecting, ban
    records; then `be BLOCK host`. Done: a test with two editors and two

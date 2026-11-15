@@ -18,8 +18,10 @@ graphics. One runtime, not a second one for `be`.
   that need a person or a screen (pickers, dialogs) refused.
 - An app that asks for the gpu there gets an error it can handle; a host
   component never needs one.
-- The app modules travel the way type modules already do: carried in `be`'s
-  executable (`apps.rs`), so a `be` hosts with the build it was made with.
+- `be` carries app wasm in its executable, so a `be` hosts with the build it
+  was made with. This is new: today it carries only each app's manifest and
+  type module (`apps.rs`, the `type_bundle` in its BUCK). It carries only the
+  apps that declare a host component, not every app.
 - Whatever be-host's headless `:dev` needs that this provides, it shares
   rather than keeping its own.
 - plans/host_as_platform_adapter.md moves be-host-runtime's orchestration into
@@ -28,7 +30,8 @@ graphics. One runtime, not a second one for `be`.
 
 ## Order of work
 
-1. **The runtime in `be`.** Done: `be` runs a test app's host component
+1. **The runtime in `be`**, and bundling the apps that declare a host
+   component. Done: `be` runs a test app's host component
    against a block and the test reads what it wrote, with no display.
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
