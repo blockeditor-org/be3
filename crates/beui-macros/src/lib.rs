@@ -809,7 +809,7 @@ fn own_param_ident(ty: &Type) -> Option<Ident> {
 }
 
 /// Whether `ty` names `param` as a type of its own, not only through a projection such as
-/// `V::Handed`.
+/// `V::Handed` or `<V as Trait>::Item`.
 fn mentions_bare(ty: &Type, param: &Ident) -> bool {
     let tokens: Vec<proc_macro2::TokenTree> = quote! { #ty }.into_iter().collect();
     fn walk(tokens: &[proc_macro2::TokenTree], param: &Ident) -> bool {
@@ -817,6 +817,9 @@ fn mentions_bare(ty: &Type, param: &Ident) -> bool {
             proc_macro2::TokenTree::Ident(ident) if ident == param => !matches!(
                 tokens.get(index + 1),
                 Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
+            ) && !matches!(
+                tokens.get(index + 1),
+                Some(proc_macro2::TokenTree::Ident(next)) if next == "as"
             ),
             proc_macro2::TokenTree::Group(group) => {
                 let inner: Vec<_> = group.stream().into_iter().collect();

@@ -618,6 +618,33 @@ impl<V, W: Fn(&V) -> bool + 'static> CaseWhen<V> for W {
     }
 }
 
+/// What a `Match` matches: its value, named through this so that the value's type comes
+/// from `value` alone (a signal, memo or closure), never from what a `Case` compares with.
+pub trait Matched {
+    type Value;
+}
+
+impl<V> Matched for V {
+    type Value = V;
+}
+
+/// What a `Case` compares the value of its `Match` with: the value itself, or nothing.
+pub trait CaseIs<V>: 'static {
+    fn holds(&self, value: &V) -> bool;
+}
+
+impl<V> CaseIs<V> for MissingProp {
+    fn holds(&self, _value: &V) -> bool {
+        true
+    }
+}
+
+impl<V: PartialEq + 'static> CaseIs<V> for V {
+    fn holds(&self, value: &V) -> bool {
+        self == value
+    }
+}
+
 /// One case of a `Match`, made by `Case`.
 pub struct CaseOf<V: 'static, C: SlotChild> {
     test: Box<dyn Fn(&V) -> bool>,
@@ -629,19 +656,20 @@ crate::value_child_type!(<V, C: SlotChild> CaseOf<V, C>);
 /// A case of a `Match`: it holds when the value equals `is` and `when` holds of it (either
 /// may be left out), and its children are built from the value.
 #[component]
-pub fn Case<V, C, B, W>(
-    #[prop(default = None)] is: Option<V>,
+pub fn Case<V, C, B, I, W>(
+    is: I,
     when: W,
     #[prop(children)] view: RenderFn<V, B>,
 ) -> CaseOf<V, C>
 where
-    V: PartialEq + 'static,
+    V: 'static,
     C: SlotChild,
     B: Branch<C>,
+    I: CaseIs<V>,
     W: CaseWhen<V>,
 {
     CaseOf {
-        test: Box::new(move |value| is.as_ref().is_none_or(|is| is == value) && when.holds(value)),
+        test: Box::new(move |value| is.holds(value) && when.holds(value)),
         view: built(view),
     }
 }
@@ -654,10 +682,10 @@ where
 pub fn Match<V, C, F>(
     value: Prop<V>,
     fallback: F,
-    #[prop(children)] cases: Children<CaseOf<V, C>>,
+    #[prop(children)] cases: Children<CaseOf<<V as Matched>::Value, C>>,
 ) -> DynamicSegment<C>
 where
-    V: Clone + PartialEq + 'static,
+    V: Matched<Value = V> + Clone + PartialEq + 'static,
     C: SlotChild,
     F: Fallback<C>,
 {
