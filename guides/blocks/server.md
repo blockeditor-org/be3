@@ -654,7 +654,26 @@ needs code of its own for any method.
   each mail the account's email, the old one for a move. Removing the email
   identity also clears `accounts.email`, and an account with no email never
   gains one from a provider it already has, since its owner may have removed
-  it.
+  it. While mail goes only to the server's log, every account is also told of
+  an identity added or removed, or its email changing, on its devices
+  (`store/account_notices.rs`; `account-notices`, `dismiss-account-notice` and
+  `account-notices-changed`, which every connection of the account hears).
+  be-host reads them at sign-in, so they show with no organization open, and
+  one made while no device is signed in arrives at the next; while an
+  organization is open its stack follows them as they come. The portal's
+  settings page lists the last thirty days of changes, which nothing hides.
+- **Holding notices.** Whoever a notice warns about may hold a session too, so
+  in its first `NOTICE_HOLD` (a week) a dismissal hides it only on the device
+  that dismissed it; after, one dismisses it for all. An account keeps
+  `MAX_ACCOUNT_NOTICES`, letting go only of those dismissed or past their
+  hold, and adds a way to sign in at most `IDENTITY_CHANGES_PER_DAY` (20)
+  times a day, counted in the transaction that adds it (`claim_identity_add`),
+  so nobody pushes a fresh notice out by adding more. Removals are never
+  capped, so the owner can always remove what an intruder added.
+- **Cookies.** Over HTTPS the portal's are `__Host-be3-account` and
+  `__Host-be3-attempt` (Secure, `Path=/`, so no sibling subdomain can set or
+  shadow them); over plain HTTP, which only a server on this machine serves,
+  the bare names scoped to `/auth` (`http::PortalCookies`).
 - **Operator login links** (`store/login_links.rs`, `be-server login-link`)
   sign in once within `LOGIN_LINK_LIFETIME` as recovering does, and for an
   email with no account make it, with no invite code; `/auth/link` shows the
