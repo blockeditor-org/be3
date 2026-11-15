@@ -716,6 +716,15 @@ fn Section(title: String, lead: String, children: Children<ListItem>) -> NodeId 
 #[component]
 fn Settings(page: Shown) -> NodeId {
     let (email, name) = values(page);
+    let email_lead = match page.read(|page| {
+        page.account
+            .as_ref()
+            .is_some_and(|account| !account.email.is_empty())
+    }) {
+        true => "Your address changes once you open the link we send to the new one.",
+        false => "Your address is added once you open the link we send to it.",
+    }
+    .to_owned();
     let (identities, fresh, adding) =
         page.read(|page| (page.identities.clone(), page.fresh, page.providers.clone()));
     let csrf = page.csrf();
@@ -770,7 +779,7 @@ fn Settings(page: Shown) -> NodeId {
             </Section>
             <Section
                 title="Email address"
-                lead="Your address changes once you open the link we send to the new one."
+                lead={email_lead}
             >
                 <PortalForm action="/auth/settings/email" csrf={page.csrf()}>
                     <Field
