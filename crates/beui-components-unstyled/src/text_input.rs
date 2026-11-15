@@ -34,7 +34,7 @@ use beui_view::types::Sides;
 use beui_view::{CORE, Core};
 
 pub struct TextInputHandle {
-    pub field: Child,
+    pub field: NodeId,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -152,7 +152,7 @@ pub fn TextInput(
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
     let browser = CORE == Core::Html
         && !multiline
-        && untrack(|| prose.get().is_none() && !select_on_focus.get());
+        && untrack(|| prose.with(Option::is_none) && !select_on_focus.get());
     let element = store(RefCell::new(None));
     api.fill(TextInputApi(Input {
         state,
@@ -188,19 +188,6 @@ pub fn TextInput(
         value.set(text_of(state));
     });
 
-    let colors = create_memo(move || TextAreaColors {
-        selection: selection_color.get(),
-        caret: caret_color.get(),
-        placeholder: placeholder_color.get(),
-        syntax: SyntaxColors::uniform(color.get()),
-        gutter_border: Color::TRANSPARENT,
-        gutter_text: Color::TRANSPARENT,
-        gutter_arrow: Color::TRANSPARENT,
-        code_background: Color::TRANSPARENT,
-        widget: Color::TRANSPARENT,
-        broken_widget: Color::TRANSPARENT,
-        remote_selection_alpha: 0,
-    });
     let role = match multiline {
         true => Role::MultilineTextInput,
         false => Role::TextInput,
@@ -268,11 +255,11 @@ pub fn TextInput(
             open.call(at);
         }
     };
-    let surround = move |field: Child, padded: bool| {
+    let surround = move |field: NodeId, padded: bool| {
         let field = match padded {
             true => view! {
                 <Frame
-                    padding={create_memo(move || Sides::symmetric(padding_horizontal.get(), padding_vertical.get()))}
+                    padding={move || Sides::symmetric(padding_horizontal.get(), padding_vertical.get())}
                 >
                     {field}
                 </Frame>
@@ -308,7 +295,7 @@ pub fn TextInput(
         }
     };
     let surround = store(RefCell::new(Some(surround)));
-    let surround = move |field: Child, padded: bool| {
+    let surround = move |field: NodeId, padded: bool| {
         let wrap = surround
             .with(|surround| surround.borrow_mut().take())
             .expect("a text input wraps its field once");
@@ -324,7 +311,19 @@ pub fn TextInput(
             state={state}
             single_line={!multiline}
             line_numbers=false
-            colors
+            colors={move || TextAreaColors {
+                selection: selection_color.get(),
+                caret: caret_color.get(),
+                placeholder: placeholder_color.get(),
+                syntax: SyntaxColors::uniform(color.get()),
+                gutter_border: Color::TRANSPARENT,
+                gutter_text: Color::TRANSPARENT,
+                gutter_arrow: Color::TRANSPARENT,
+                code_background: Color::TRANSPARENT,
+                widget: Color::TRANSPARENT,
+                broken_widget: Color::TRANSPARENT,
+                remote_selection_alpha: 0,
+            }}
             look={TextAreaLook::plain(geometry)}
             placeholder
             password={masked}
@@ -349,7 +348,7 @@ pub fn TextInput(
                 hovered.set(is_hovered);
                 on_hover_change.call(is_hovered);
             }}
-            frame={move |field: Child| surround(field, true)}
+            frame={move |field: NodeId| surround(field, true)}
         />
     };
     let field = match multiline {
@@ -453,11 +452,11 @@ fn BrowserField(
         let pressed = create_signal(false);
         let input = view! {
             <html::Input
-                r#type={Prop::dynamic(move || Some(kind.get().html_type().to_owned()))}
-                value={Prop::dynamic(move || Some(value.get()))}
-                name={Prop::dynamic(move || present(name.get()))}
-                autocomplete={Prop::dynamic(move || present(autocomplete.get()))}
-                placeholder={Prop::dynamic(move || present(placeholder.get()))}
+                r#type={move || Some(kind.get().html_type().to_owned())}
+                value={move || Some(value.get())}
+                name={move || present(name.get())}
+                autocomplete={move || present(autocomplete.get())}
+                placeholder={move || present(placeholder.get())}
                 disabled={disabled}
                 @attr={("spellcheck", "false".to_owned())}
                 @attr={(
@@ -497,7 +496,7 @@ fn BrowserField(
             focused
             on_focus_change={on_focus_change}
             on_hover_change={on_hover_change}
-            cursor={create_memo(move || (!disabled.get()).then_some(CursorIcon::Text))}
+            cursor={move || (!disabled.get()).then_some(CursorIcon::Text)}
         >
             {field}
         </Interactive>

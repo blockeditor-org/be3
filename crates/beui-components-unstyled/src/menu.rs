@@ -308,7 +308,7 @@ pub(crate) fn MenuList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,
     items: Run<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<Child>>,
+    panel: Option<RenderFn<NodeId>>,
     spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
@@ -340,7 +340,8 @@ pub(crate) fn MenuList(
                 title.is_some()
                     || items.items().iter().any(|item| {
                         item.is_row()
-                            && (item.glyph.get().is_some() || item.checked.get().is_some())
+                            && (item.glyph.with(Option::is_some)
+                                || item.checked.with(Option::is_some))
                     })
             })
         },
@@ -363,10 +364,9 @@ pub(crate) fn MenuList(
     let focused = create_selector(move || focus.get());
     let root_tab_stop = create_memo(move || {
         !matches!(focus.get(), Focus::Row(_) | Focus::Tile(..) | Focus::Back)
-            && page.get().is_none()
+            && page.with(Option::is_none)
     });
-    let showing_own = create_memo(move || page.get().is_none());
-    let paged = create_memo(move || page.get().is_some());
+    let paged = create_memo(move || page.with(Option::is_some));
 
     let lines = move || {
         items.build_each(
@@ -417,25 +417,27 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
-            <Show condition={showing_own}>|| {
-                let title_test_id = title_test_id.clone();
-                let lines = lines();
-                view! {
-                    <List spacing={state.spacing}>
-                        <Show condition={state.titled}>
-                            <MenuBackRow
-                                state={state}
-                                title
-                                test_id={title_test_id.clone()}
-                                focused={focused}
-                                row={row}
-                            />
-                        </Show>
-                        {lines}
-                    </List>
-                }
-            }</Show>
-            <Show condition={paged}>
+            <Show
+                condition={paged}
+                fallback={move || {
+                    let title_test_id = title_test_id.clone();
+                    let lines = lines();
+                    view! {
+                        <List spacing={state.spacing}>
+                            <Show condition={state.titled}>
+                                <MenuBackRow
+                                    state={state}
+                                    title
+                                    test_id={title_test_id.clone()}
+                                    focused={focused}
+                                    row={row}
+                                />
+                            </Show>
+                            {lines}
+                        </List>
+                    }
+                }}
+            >
                 <MenuPage state={state} row={row} panel={panel} />
             </Show>
         </List>
@@ -443,7 +445,7 @@ pub(crate) fn MenuList(
 }
 
 #[component]
-fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) -> NodeId {
+fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<NodeId>) -> NodeId {
     let index = state.page.get_untracked().unwrap_or_default();
     let item = state.rows.value().borrow()[index].item.clone();
     let leave = MenuParent(Some(Callback::new(move |()| {
@@ -694,7 +696,7 @@ fn MenuRow(
     index: usize,
     focused: Selector<Focus>,
     row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
 ) -> NodeId {
     let (item, button, open, content_ref) = {
         let rows = state.rows.value();
@@ -716,7 +718,6 @@ fn MenuRow(
         let children = children.clone();
         move || !children.is_empty()
     });
-    let cascade = create_memo(move || cascades && has_children.get());
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
         watch_hover(state, at, handle.pointed);
@@ -750,7 +751,7 @@ fn MenuRow(
                 }}
                 on_key={move |press: KeyPress| key(state, at, press)}
             />
-            <Show condition={cascade}>|| {
+            <Show condition={move || cascades && has_children.get()}>|| {
                 let children = children.clone();
                 let leave = MenuParent(Some(Callback::new(move |()| {
                     open.set(false);

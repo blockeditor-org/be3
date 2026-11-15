@@ -252,7 +252,6 @@ where
         focused,
         hovered,
     };
-    let shown = create_memo(move || !editing.get());
     let renaming = edit_id(&named);
     let RowLeading(leading) = leading;
     let area = match leading {
@@ -288,9 +287,11 @@ where
             }
         }
     };
+    // A pair of Shows, not one kept alive with a fallback: the editor reads the name once and
+    // finishes once, so each rename builds a fresh one.
     let named_field = view! {
         <List align=Align::Stretch spacing=Space::None>
-            <Show keep_alive=true condition={shown}>
+            <Show keep_alive=true condition={move || !editing.get()}>
                 <ListItem grow=1.0>
                     <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
                 </ListItem>
@@ -473,7 +474,7 @@ fn ChevronFace(
                     width={width}
                     height={height}
                     fill={fill}
-                    border={create_memo(move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    border={move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
                     focus={focused}
                     radius=CHEVRON_RADIUS
                 >

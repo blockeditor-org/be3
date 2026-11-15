@@ -22,13 +22,13 @@ pub struct AnchoredHandle {
 
 #[derive(Clone, Copy)]
 pub struct AnchoredStyle {
-    pub(crate) dropdown: RenderFn<Child>,
+    pub(crate) dropdown: RenderFn<NodeId>,
     pub(crate) sheet: RenderFn<AnchoredSheetHandle>,
 }
 
 impl AnchoredStyle {
     pub fn new(
-        dropdown: impl Fn(Child) -> NodeId + 'static,
+        dropdown: impl Fn(NodeId) -> NodeId + 'static,
         sheet: impl Fn(AnchoredSheetHandle) -> NodeId + 'static,
     ) -> Self {
         Self {

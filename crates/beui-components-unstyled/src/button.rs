@@ -91,7 +91,7 @@ pub fn Button(
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
+        if node.label().is_none() && !label.with(String::is_empty) {
             node.set_label(label.get());
         }
         if node.description().is_none() {
@@ -154,7 +154,7 @@ pub fn Button(
         focused: focused.read_only(),
     }));
 
-    let linked = untrack(|| href.get().is_some());
+    let linked = untrack(|| href.with(Option::is_some));
     let platform = match (CORE, linked, submit) {
         (Core::Html, true, _) => Some(true),
         (Core::Html, false, true) => Some(false),
@@ -170,9 +170,7 @@ pub fn Button(
                 .collect();
             match link {
                 true => view! {
-                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
-                        {inner}
-                    </html::A>
+                    <html::A href={move || href.get().filter(|_| !disabled.get())}>{inner}</html::A>
                 },
                 false => view! {
                     <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>

@@ -57,8 +57,8 @@ pub fn Popover(
     }
 }
 
-pub fn popover_surface(max_width: impl IntoProp<Option<Size>>) -> AnchoredStyle {
-    let max_width = max_width.into_prop();
+pub fn popover_surface<M1>(max_width: impl IntoPropWith<Option<Size>, M1>) -> AnchoredStyle {
+    let max_width = max_width.into_prop_with();
     AnchoredStyle::new(
         move |content| {
             view! {

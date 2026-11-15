@@ -38,7 +38,7 @@ struct State {
 #[component]
 pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
-    children: Child,
+    children: NodeId,
     items: Children<MenuItem>,
     menu: MenuStyle,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
@@ -110,20 +110,19 @@ pub fn ContextMenu(
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
-    let shown = create_memo(move || open.get());
     let sheet = match selection {
         true => SheetWhen::Never,
         false => SheetWhen::Touched,
     };
     let mut ever_open = false;
     let built = create_memo(move || {
-        ever_open |= shown.get();
+        ever_open |= open.get();
         ever_open
     });
     let toolbar_style = menu.toolbar();
     let has_toolbar = toolbar_style.is_some();
     let toolbar_open = create_memo(move || {
-        has_toolbar && toolbar_at.get().is_some() && !open.get() && !disabled.get()
+        has_toolbar && toolbar_at.with(Option::is_some) && !open.get() && !disabled.get()
     });
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
@@ -179,7 +178,7 @@ pub fn ContextMenu(
                         anchor
                         placement
                         bounds
-                        open={shown}
+                        open={open}
                         sheet
                         focusing
                         on_dismiss={move || {
@@ -214,7 +213,7 @@ pub fn ContextMenu(
 fn Toolbar(
     items: Run<MenuItem>,
     button: RenderFn<ButtonHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
     anchor: Memo<OverlayAnchor>,
     bar: NodeRef,
     more: NodeRef,

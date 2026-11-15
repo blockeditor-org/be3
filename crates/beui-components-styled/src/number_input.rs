@@ -92,7 +92,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
             false => text,
         }
     });
-    let color = create_memo(move || match text.get().is_empty() {
+    let color = create_memo(move || match text.with(String::is_empty) {
         true => TextColor::Muted,
         false => ButtonVariant::Secondary.label(disabled.get()),
     });

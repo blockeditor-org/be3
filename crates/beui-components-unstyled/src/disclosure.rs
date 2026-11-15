@@ -24,21 +24,19 @@ pub fn Disclosure(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DisclosureApi>,
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
-    children: Child,
+    children: NodeId,
     open: Binding<bool>,
 ) -> NodeId {
     api.fill(DisclosureApi(State { open }));
 
-    let accessibility = create_memo(move || {
-        let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(open.get());
-        node
-    });
-
     view! {
         <List spacing=0.0>
             <unstyled::Button
-                accessibility
+                accessibility={move || {
+                    let mut node = Node::new(Role::DisclosureTriangle);
+                    node.set_expanded(open.get());
+                    node
+                }}
                 on_click={move || {
                     open.update(|open| *open = !*open);
                 }}

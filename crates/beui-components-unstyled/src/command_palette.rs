@@ -61,8 +61,8 @@ pub enum PaletteItems {
 }
 
 impl PaletteItems {
-    pub fn list(items: impl IntoProp<Vec<PaletteItem>>) -> Self {
-        Self::List(items.into_prop())
+    pub fn list<M1>(items: impl IntoPropWith<Vec<PaletteItem>, M1>) -> Self {
+        Self::List(items.into_prop_with())
     }
 }
 
@@ -120,7 +120,7 @@ pub fn CommandPalette(
     search_style: TextInputStyle,
     #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
     row: RenderFn<CommandRowHandle>,
-    #[prop(children)] panel: Option<RenderFn<Child>>,
+    #[prop(children)] panel: Option<RenderFn<NodeId>>,
 ) -> NodeId {
     let panel = panel.unwrap_or_else(|| RenderFn::new(|content| content));
     let lists_actions = matches!(items, PaletteItems::Actions);
@@ -218,7 +218,7 @@ pub fn CommandPalette(
     };
     view! {
         <Modal
-            open={create_memo(move || open.get())}
+            open={move || open.get()}
             scrim
             motion=ModalMotion::Still
             shown_in

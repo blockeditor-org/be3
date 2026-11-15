@@ -90,9 +90,13 @@ impl ScrollStyle {
     /// The thumb and track colours of the browser's own bar, which every scroll
     /// on the HTML core shows in place of `bar`; thin, as `scrollbar-color`.
     /// Natively they do nothing.
-    pub fn browser_colors(self, thumb: impl IntoProp<Color>, track: impl IntoProp<Color>) -> Self {
+    pub fn browser_colors<M1, M2>(
+        self,
+        thumb: impl IntoPropWith<Color, M1>,
+        track: impl IntoPropWith<Color, M2>,
+    ) -> Self {
         Self {
-            browser: Some((thumb.into_prop(), track.into_prop())),
+            browser: Some((thumb.into_prop_with(), track.into_prop_with())),
             ..self
         }
     }
@@ -803,7 +807,7 @@ fn Scrolling(
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
     let origin = create_signal(None::<Pos2>);
-    let marked = create_memo(move || origin.get().is_some());
+    let marked = create_memo(move || origin.with(Option::is_some));
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let marker = match style.marker {
@@ -877,10 +881,9 @@ fn Scrolling(
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
-    let outset = create_memo(move || -bleed.get());
     let (grow, shrink) = content_grow_and_shrink(fit);
     view! {
-        <Frame padding={outset}>
+        <Frame padding={move || -bleed.get()}>
             <Layers>
                 <Interactive
                     focusable=true
@@ -989,7 +992,6 @@ pub fn Scroll(
     }
     let fade = style.fade();
     let faded = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let scroll = view! {
         <Scrolling
             api
@@ -1000,7 +1002,7 @@ pub fn Scroll(
             style
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
-            <Frame fade_edges={edges}>
+            <Frame fade_edges={move || fade_edges(direction.get(), faded.get(), fade)}>
                 <Offset
                     offset
                     direction={direction}

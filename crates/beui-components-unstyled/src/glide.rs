@@ -136,7 +136,7 @@ pub fn Glide(
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
     #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let stored = store(Motion::default());
     let shown = create_signal(Vec2::ZERO);

@@ -67,9 +67,9 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
     view! {
         <Frame height=HEIGHT focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <Layers>
-                <Show condition={mark.is_some()}>
+                {mark.map(|mark| view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                        <Spacer grow={mark.unwrap_or_default()} />
+                        <Spacer grow={mark} />
                         <Frame width=KNOB_SIZE height=KNOB_SIZE align=Align2::CENTER>
                             <Frame
                                 width=MARK_WIDTH
@@ -78,9 +78,9 @@ fn SliderTrack(handle: SliderHandle, mark: Prop<Option<f32>>) -> NodeId {
                                 radius=Radius::Full
                             />
                         </Frame>
-                        <Spacer grow={1.0 - mark.unwrap_or_default()} />
+                        <Spacer grow={1.0 - mark} />
                     </List>
-                </Show>
+                })}
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     <ListItem grow={fraction}>
                         <Frame height=TRACK_HEIGHT fill={filled_color} radius=Radius::Full />

@@ -78,7 +78,7 @@ pub fn DateTimeField(
             literal={|text: String| view! {
                 <LiteralFace text />
             }}
-            segments={|field: Child| view! {
+            segments={|field: NodeId| view! {
                 <Frame height=HEIGHT padding={Padding::horizontal(PADDING_HORIZONTAL)}>
                     {field}
                 </Frame>
@@ -117,9 +117,8 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         false => ColorRole::Control,
     });
     let outer = trigger.is_some();
-    let ring = create_memo(move || outer && focused.get());
     view! {
-        <FocusRing focused={ring} offset=Stroke::Focus>
+        <FocusRing focused={move || outer && focused.get()} offset=Stroke::Focus>
             <Frame
                 height=HEIGHT
                 fill={fill}
@@ -248,10 +247,10 @@ fn PickerPanel(
         least.max(field_width.get())
     });
     view! {
-        <Frame width={create_memo(move || Size::Custom(panel_width.get()))}>
+        <Frame width={move || Length::Size(Size::Custom(panel_width.get()))}>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <Frame width={create_memo(move || Size::Custom(field_width.get()))}>
+                    <Frame width={move || Length::Size(Size::Custom(field_width.get()))}>
                         {field}
                     </Frame>
                 </List>
@@ -274,9 +273,9 @@ fn PickerPanel(
                     spacing=Space::Md
                 >
                     <Button label=now_label variant=ButtonVariant::Secondary on_click={now} />
-                    <Show condition=clearable>
+                    {clearable.then(|| view! {
                         <Button label="Clear" variant=ButtonVariant::Ghost on_click={clear} />
-                    </Show>
+                    })}
                 </List>
             </List>
         </Frame>
@@ -298,61 +297,57 @@ fn PanelBody(
     let beside =
         create_memo(move || (width.get() - spacing - TIME_LIST_WIDTH).min(CALENDAR_MAX_WIDTH));
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
-    let dates = create_memo(move || page.get() == 0);
-    let times_shown = create_memo(move || page.get() == 1);
-    view! {
-        <List spacing=PANEL_SPACING>
-            <Show condition={shape == DateTimePanelLayout::Beside}>
-                <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                    <CalendarPane handle={calendar} width={beside} first_weekday />
-                    <ListItem grow=1.0>
-                        <TimePane
-                            handle={times}
-                            step_minutes
-                            max_columns=1
-                            height=TIME_LIST_HEIGHT
-                        />
-                    </ListItem>
-                </List>
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Date}>
-                <Centred>
-                    <CalendarPane handle={calendar} width={alone} first_weekday />
-                </Centred>
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Time}>
-                <TimePane
-                    handle={times}
-                    step_minutes
-                    max_columns=MAX_GRID_COLUMNS
-                    height=TIME_GRID_HEIGHT
+    let body = match shape {
+        DateTimePanelLayout::Beside => view! {
+            <List direction=Direction::Horizontal spacing=PANEL_SPACING>
+                <CalendarPane handle={calendar} width={beside} first_weekday />
+                <ListItem grow=1.0>
+                    <TimePane handle={times} step_minutes max_columns=1 height=TIME_LIST_HEIGHT />
+                </ListItem>
+            </List>
+        },
+        DateTimePanelLayout::Date => view! {
+            <Centred>
+                <CalendarPane handle={calendar} width={alone} first_weekday />
+            </Centred>
+        },
+        DateTimePanelLayout::Time => view! {
+            <TimePane
+                handle={times}
+                step_minutes
+                max_columns=MAX_GRID_COLUMNS
+                height=TIME_GRID_HEIGHT
+            />
+        },
+        DateTimePanelLayout::Paged => view! {
+            <List spacing=PANEL_SPACING>
+                <Tabs
+                    options={view! {
+                        <ChoiceOption label="Date" />
+                        <ChoiceOption label="Time" />
+                    }}
+                    selected={Binding::new(page, show_page)}
                 />
-            </Show>
-            <Show condition={shape == DateTimePanelLayout::Paged}>
-                <List spacing=PANEL_SPACING>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="Date" />
-                            <ChoiceOption label="Time" />
-                        }}
-                        selected={Binding::new(page, show_page)}
-                    />
-                    <Show condition={dates}>
-                        <Centred>
-                            <CalendarPane handle={calendar} width={alone} first_weekday />
-                        </Centred>
-                    </Show>
-                    <Show condition={times_shown}>
+                <Show
+                    condition={move || page.get() == 0}
+                    fallback={move || view! {
                         <TimePane
                             handle={times}
                             step_minutes
                             max_columns=MAX_GRID_COLUMNS
                             height=TIME_GRID_HEIGHT
                         />
-                    </Show>
-                </List>
-            </Show>
-        </List>
+                    }}
+                >
+                    <Centred>
+                        <CalendarPane handle={calendar} width={alone} first_weekday />
+                    </Centred>
+                </Show>
+            </List>
+        },
+    };
+    view! {
+        <List spacing=PANEL_SPACING>{body}</List>
     }
 }
 
@@ -393,7 +388,7 @@ fn CalendarPane(
             first_weekday
             focused
             show={shown}
-            width={create_memo(move || Length::Size(Size::Custom(width.get())))}
+            width={move || Length::Size(Size::Custom(width.get()))}
         />
     }
 }
