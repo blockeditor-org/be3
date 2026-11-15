@@ -1,6 +1,6 @@
 use super::*;
 use crate::DockSpecBar;
-use beui_types::Pos2;
+use be_lib_geometry::Pos2;
 
 fn key(bar: TabId) -> String {
     match bar.value() {

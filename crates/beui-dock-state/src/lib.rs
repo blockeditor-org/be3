@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
 
-use beui_types::Direction;
-use beui_types::{Pos2, Rect, Vec2};
+use be_lib_geometry::Direction;
+use be_lib_geometry::{Pos2, Rect, Vec2};
 
 mod bars;
 mod compact;

@@ -3219,8 +3219,8 @@ dependencies = [
 name = "beui-dock-state"
 version = "0.1.0"
 dependencies = [
+ "be-lib-geometry",
  "be-lib-stable-hash",
- "beui-types",
 ]
 
 [[package]]

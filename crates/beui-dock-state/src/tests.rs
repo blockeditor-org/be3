@@ -1,6 +1,6 @@
 use super::*;
 use crate::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
-use beui_types::Direction;
+use be_lib_geometry::Direction;
 
 mod a_bar_keeps_its_placement_wherever_its_tab_goes;
 mod a_bare_pane_shows_its_one_tab_and_takes_no_other;

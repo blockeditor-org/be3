@@ -1,7 +1,7 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 
-use beui_types::Direction;
-use beui_types::{Pos2, Rect};
+use be_lib_geometry::Direction;
+use be_lib_geometry::{Pos2, Rect};
 
 use super::{
     Bar, DockBarPlacement, DockCompact, DockEdge, DockHome, DockOutside, DockState, Entry,
