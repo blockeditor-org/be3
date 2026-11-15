@@ -100,8 +100,6 @@ impl TestClient {
                         sealed(),
                         be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                             organization,
-                            email: "invited@example.com".into(),
-                            role: OrganizationRole::Administrator,
                             escrow: sealed(),
                         }),
                     )
@@ -158,6 +156,14 @@ impl TestClient {
             (
                 "get-link",
                 answered(client::contacts::get_link(peer, other).await),
+            ),
+            (
+                "read-invitation",
+                answered(client::contacts::read_invitation(peer, other).await),
+            ),
+            (
+                "list-invitations",
+                answered(client::contacts::list_invitations(peer, organization).await),
             ),
             (
                 "accept-link",

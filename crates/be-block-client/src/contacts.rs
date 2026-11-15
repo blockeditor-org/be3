@@ -435,14 +435,14 @@ pub async fn remove_contact(
     Ok(())
 }
 
-/// Invites `email` into `organization` with `role`: a link only that account accepts.
+/// Invites whoever opens the link into `organization`, as an editor: a link any account on
+/// the server accepts, once, before it expires. Its code is sealed to the inviter too, so the
+/// organization's invite list can show the link again (`invitation_link_code`).
 pub async fn invite(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
     me: &ContactCard,
     organization: Uuid,
-    email: String,
-    role: OrganizationRole,
     escrow: Option<&EscrowKey>,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
@@ -456,11 +456,31 @@ pub async fn invite(
         identity.seal_own(&code.to_bytes()),
         LinkKind::Invitation(Invitation {
             organization,
-            email,
-            role,
             escrow,
         }),
     )
     .await??;
     Ok(code)
+}
+
+/// An invitation as the holder of its code reads it, signed in or not (a one-shot call): where
+/// it stands, its organization's name, and its inviter's card opened with the code.
+pub async fn preview_invitation(
+    server_url: &str,
+    code: &InviteCode,
+) -> Result<(be_block_protocol::InvitationPreview, ContactCard), ClientError> {
+    let id = link_id(code);
+    let preview =
+        crate::call_once(server_url, move |peer| client::contacts::read_invitation(peer, id))
+            .await?;
+    let card = ContactCard::open(code, CardRole::Owner, &preview.card).map_err(|_| tampered())?;
+    Ok((preview, card))
+}
+
+/// The code of an invitation in the invite list, which only its inviter's identity opens.
+pub fn invitation_link_code(identity: &RecoverySecret, sealed: &[u8]) -> Option<InviteCode> {
+    identity
+        .open_own(sealed)
+        .ok()
+        .and_then(|code| InviteCode::from_bytes(&code).ok())
 }

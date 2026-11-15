@@ -13,7 +13,7 @@ async fn member(
     let mut member = harness.client().await;
     let account = member.register(email).await;
     let link = owner
-        .invite(organization, email)
+        .invite(organization)
         .await
         .expect("inviting failed");
     let accepted = member.accept(link, &[]).await;

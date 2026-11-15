@@ -9,7 +9,7 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
     let mut invited = harness.member("invited@example.com").await;
 
     let link = admin
-        .invite(organization, "Invited@Example.com")
+        .invite(organization)
         .await
         .expect("an administrator invites");
     let links = admin.links().await;
@@ -17,8 +17,7 @@ async fn an_administrator_creates_lists_and_revokes_an_invitation() {
         links.iter().any(|own| own.id == link
             && own.accepter.is_none()
             && matches!(&own.kind, be_block_protocol::LinkKind::Invitation(invitation)
-                if invitation.organization == organization
-                    && invitation.email == "invited@example.com")),
+                if invitation.organization == organization)),
         "an outstanding invitation is listed: {links:?}"
     );
     let found = invited

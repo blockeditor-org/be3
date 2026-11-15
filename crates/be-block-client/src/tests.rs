@@ -204,8 +204,6 @@ impl Harness {
             admin.keys().identity(),
             &card,
             admin.organization(),
-            email.into(),
-            be_block_protocol::OrganizationRole::Editor,
             escrow,
         )
         .await

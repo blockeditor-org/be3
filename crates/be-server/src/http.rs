@@ -751,9 +751,10 @@ async fn answer(
     })
 }
 
-/// Answers one call that needs no sign-in (`begin-browser-login`, `poll-browser-login`, and
-/// `create-local-profile` where local profiles are on) posted after a greeting, then closes:
-/// signing in through the browser holds no connection while the person approves it.
+/// Answers one call that needs no sign-in (`begin-browser-login`, `poll-browser-login`,
+/// `read-invitation`, and `create-local-profile` where local profiles are on) posted after a
+/// greeting, then closes: signing in through the browser holds no connection while the person
+/// approves it, and an invitation is read before its holder has an account.
 async fn one_shot(
     mut stream: TcpStream,
     mut buffer: Vec<u8>,
@@ -798,13 +799,14 @@ async fn one_shot(
     };
     let allowed = method == be_block_protocol::__args::ACCOUNT_BEGIN_BROWSER_LOGIN
         || method == be_block_protocol::__args::ACCOUNT_POLL_BROWSER_LOGIN
+        || method == be_block_protocol::__args::CONTACTS_READ_INVITATION
         || (method == be_block_protocol::__args::ACCOUNT_CREATE_LOCAL_PROFILE
             && services.config.local_profiles);
     if !allowed {
         return refuse(
             &mut stream,
             403,
-            "only signing in is a one-shot call; connect and authenticate for the rest",
+            "only signing in and reading an invitation are one-shot calls; connect and authenticate for the rest",
         )
         .await;
     }

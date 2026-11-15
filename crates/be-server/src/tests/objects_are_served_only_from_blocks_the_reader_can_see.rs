@@ -8,7 +8,7 @@ async fn read(client: &mut TestClient, hash: Hash) -> Option<Vec<u8>> {
     bytes
 }
 
-async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid, email: &str) {
+async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid) {
     let response = owner
         .call(|peer| {
             client::contacts::create_link(
@@ -18,8 +18,6 @@ async fn join(owner: &mut TestClient, guest: &mut TestClient, organization: Uuid
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: email.into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
             )
@@ -74,7 +72,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     assert!(read(&mut outsider, chunks[0]).await.is_none());
 
     let mut guest = harness.member("guest@example.com").await;
-    join(&mut owner, &mut guest, organization, "guest@example.com").await;
+    join(&mut owner, &mut guest, organization).await;
     assert!(read(&mut guest, commit.hash()).await.is_none());
 
     let token = guest.token.clone();

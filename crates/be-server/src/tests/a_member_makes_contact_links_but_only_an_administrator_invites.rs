@@ -8,7 +8,7 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     let organization = admin.organization("team").await;
     let mut editor = harness.member("editor@example.com").await;
     let invitation = admin
-        .invite(organization, "editor@example.com")
+        .invite(organization)
         .await
         .expect("an administrator invites");
     let joined = editor
@@ -19,7 +19,7 @@ async fn a_member_makes_contact_links_but_only_an_administrator_invites() {
     assert!(matches!(joined, Ok(())), "{joined:?}");
     editor.open(organization).await;
 
-    let refused = editor.invite(organization, "friend@example.com").await;
+    let refused = editor.invite(organization).await;
     assert!(
         refused_as(&refused, ErrorCode::PermissionDenied),
         "an editor invited someone: {refused:?}"

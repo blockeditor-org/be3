@@ -108,6 +108,11 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
                 kind: LinkKind::Invitation(invitation),
                 ..
             } => Rule::AdministratorOf(invitation.organization),
+            contacts::Call::ListInvitations { organization, .. } => {
+                Rule::AdministratorOf(*organization)
+            }
+            // A bearer read of an invitation, before its holder signs in (a one-shot call).
+            contacts::Call::ReadInvitation { .. } => Rule::Anyone,
             contacts::Call::CreateLink {
                 kind: LinkKind::Contact(_),
                 ..
@@ -236,6 +241,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             contacts::Call::ListContacts { .. } | contacts::Call::ContactsChanged { .. } => true,
             contacts::Call::CreateLink { .. }
             | contacts::Call::GetLink { .. }
+            | contacts::Call::ReadInvitation { .. }
+            | contacts::Call::ListInvitations { .. }
             | contacts::Call::AcceptLink { .. }
             | contacts::Call::ListLinks { .. }
             | contacts::Call::DeleteLink { .. }
@@ -1318,6 +1325,28 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, found);
+            }
+            Call::ReadInvitation { reply, link } => {
+                let read = async {
+                    prelude?;
+                    connection.store.read_invitation(link).await
+                }
+                .await;
+                self.reply(reply, read);
+            }
+            Call::ListInvitations {
+                reply,
+                organization,
+            } => {
+                let listed = async {
+                    prelude?;
+                    connection
+                        .store
+                        .list_invitations(connection.account()?, organization)
+                        .await
+                }
+                .await;
+                self.reply(reply, listed);
             }
             Call::AcceptLink {
                 reply,

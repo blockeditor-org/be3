@@ -19,8 +19,6 @@ pub(super) async fn join(
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: email.into(),
-                    role: role,
                     escrow: Vec::new(),
                 }),
             )
@@ -38,6 +36,22 @@ pub(super) async fn join(
             )
         })
         .await;
+    // An invitation joins as an editor; an administrator is made one after.
+    if role == OrganizationRole::Administrator {
+        let members = owner
+            .call(|peer| client::members::list_members(peer))
+            .await
+            .expect("the members are listed");
+        let account = members
+            .iter()
+            .find(|row| row.email == email)
+            .expect("the member joined")
+            .account;
+        let response = owner
+            .call(|peer| client::members::set_role(peer, account, role))
+            .await;
+        assert!(matches!(response, Ok(())), "{response:?}");
+    }
     member.open(organization).await;
 }
 

@@ -2,8 +2,8 @@ use std::collections::BTreeSet;
 
 use be_block_graph::Access;
 use be_block_protocol::{
-    ContactRow, ErrorCode, Invitation, KeyKind, Link, LinkKind, OrganizationRole, OwnKind, OwnLink,
-    OwnSealed, PendingGrant, WrappedBy,
+    ContactRow, ErrorCode, Invitation, InvitationPreview, InvitationRow, InvitationState, KeyKind,
+    Link, LinkKind, OrganizationRole, OwnKind, OwnLink, OwnSealed, PendingGrant, WrappedBy,
 };
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -14,7 +14,7 @@ use crate::{
     keys::{encode_wrapped_by, key_row},
     store::{
         Identity, ServerStore, decode_access, decode_role, encode_access, encode_role,
-        is_member_of, normalize_email, parse_uuid,
+        is_member_of, parse_uuid, portal::now,
     },
 };
 
@@ -221,67 +221,107 @@ struct StoredLink {
     kind: LinkKind,
     accepter: Option<Uuid>,
     accepter_card: Vec<u8>,
+    /// For an invitation, where it stands.
+    invited: Option<Invited>,
 }
 
-fn stored_link(connection: &Connection, link: Uuid) -> Result<Option<StoredLink>, ServerError> {
-    let row = connection
-        .query_row(
-            "SELECT owner_id, card, code, grant_organization, grant_block, grant_access,
-                    grant_key, grant_sealed, invite_organization, invite_email, invite_role,
-                    invite_escrow, accepter_id, accepter_card
-             FROM links WHERE id = ?1",
-            [link.to_string()],
-            |row| {
-                Ok((
-                    (
-                        row.get::<_, String>(0)?,
-                        row.get::<_, Vec<u8>>(1)?,
-                        row.get::<_, Vec<u8>>(2)?,
-                    ),
-                    (
-                        row.get::<_, String>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, String>(5)?,
-                        row.get::<_, String>(6)?,
-                        row.get::<_, Vec<u8>>(7)?,
-                    ),
-                    (
-                        row.get::<_, String>(8)?,
-                        row.get::<_, String>(9)?,
-                        row.get::<_, String>(10)?,
-                        row.get::<_, Vec<u8>>(11)?,
-                    ),
-                    (row.get::<_, String>(12)?, row.get::<_, Vec<u8>>(13)?),
-                ))
-            },
-        )
-        .optional()?;
-    let Some((
+/// An invitation's times and marks, in seconds since the epoch (0 for not yet).
+#[derive(Clone, Copy)]
+struct Invited {
+    created: i64,
+    expires: i64,
+    opened: i64,
+    ended: i64,
+    revoked: bool,
+}
+
+impl Invited {
+    fn state(self, accepted: bool) -> InvitationState {
+        if accepted {
+            InvitationState::Accepted
+        } else if self.revoked {
+            InvitationState::Revoked
+        } else if self.expires <= now() {
+            InvitationState::Expired
+        } else if self.opened > 0 {
+            InvitationState::Opened
+        } else {
+            InvitationState::Waiting
+        }
+    }
+}
+
+/// Why an invitation no longer open can't be read or accepted.
+fn invitation_ended(state: InvitationState) -> ServerError {
+    ServerError::Refused(
+        ErrorCode::LinkNotFound,
+        match state {
+            InvitationState::Expired => {
+                "This invitation expired. Ask whoever invited you for a new link."
+            }
+            InvitationState::Revoked => {
+                "This invitation was revoked. Ask whoever invited you for a new link."
+            }
+            _ => "This invitation was already used. Ask whoever invited you for a new link.",
+        }
+        .into(),
+    )
+}
+
+const LINK_COLUMNS: &str = "owner_id, card, code, grant_organization, grant_block, grant_access,
+    grant_key, grant_sealed, invite_organization, invite_escrow, accepter_id, accepter_card,
+    invite_created, invite_expires, invite_opened, invite_ended, invite_revoked";
+
+type LinkRow = (
+    (String, Vec<u8>, Vec<u8>),
+    (String, String, String, String, Vec<u8>),
+    (String, Vec<u8>, String, Vec<u8>),
+    Invited,
+);
+
+fn link_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<LinkRow> {
+    Ok((
+        (row.get(0)?, row.get(1)?, row.get(2)?),
+        (row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?),
+        (row.get(8)?, row.get(9)?, row.get(10)?, row.get(11)?),
+        Invited {
+            created: row.get(12)?,
+            expires: row.get(13)?,
+            opened: row.get(14)?,
+            ended: row.get(15)?,
+            revoked: row.get(16)?,
+        },
+    ))
+}
+
+fn parse_link(row: LinkRow) -> Result<StoredLink, ServerError> {
+    let (
         (owner, card, code),
         (organization, block, access, key, sealed),
-        (invited_to, email, role, escrow),
-        (accepter, accepter_card),
-    )) = row
-    else {
-        return Ok(None);
+        (invited_to, escrow, accepter, accepter_card),
+        invited,
+    ) = row;
+    let (kind, invited) = match (invited_to.is_empty(), organization.is_empty()) {
+        (false, _) => (
+            LinkKind::Invitation(Invitation {
+                organization: parse_uuid(&invited_to)?,
+                escrow,
+            }),
+            Some(invited),
+        ),
+        (true, true) => (LinkKind::Contact(None), None),
+        (true, false) => (
+            LinkKind::Contact(Some(PendingGrant {
+                organization: parse_uuid(&organization)?,
+                block: parse_uuid(&block)?,
+                access: decode_access(&access)?,
+                key: parse_uuid(&key)?,
+                sealed,
+            })),
+            None,
+        ),
     };
-    let kind = match (invited_to.is_empty(), organization.is_empty()) {
-        (false, _) => LinkKind::Invitation(Invitation {
-            organization: parse_uuid(&invited_to)?,
-            email,
-            role: decode_role(&role)?,
-            escrow,
-        }),
-        (true, true) => LinkKind::Contact(None),
-        (true, false) => LinkKind::Contact(Some(PendingGrant {
-            organization: parse_uuid(&organization)?,
-            block: parse_uuid(&block)?,
-            access: decode_access(&access)?,
-            key: parse_uuid(&key)?,
-            sealed,
-        })),
-    };
-    Ok(Some(StoredLink {
+    Ok(StoredLink {
         owner: parse_uuid(&owner)?,
         card,
         code,
@@ -291,7 +331,41 @@ fn stored_link(connection: &Connection, link: Uuid) -> Result<Option<StoredLink>
             false => Some(parse_uuid(&accepter)?),
         },
         accepter_card,
-    }))
+        invited,
+    })
+}
+
+fn stored_link(connection: &Connection, link: Uuid) -> Result<Option<StoredLink>, ServerError> {
+    connection
+        .query_row(
+            &format!("SELECT {LINK_COLUMNS} FROM links WHERE id = ?1"),
+            [link.to_string()],
+            link_row,
+        )
+        .optional()?
+        .map(parse_link)
+        .transpose()
+}
+
+/// Marks an invitation opened, the first time its link is read while it waits.
+fn mark_opened(connection: &Connection, link: Uuid) -> Result<(), ServerError> {
+    connection.execute(
+        "UPDATE links SET invite_opened = ?2
+         WHERE id = ?1 AND invite_opened = 0 AND accepter_id = '' AND invite_revoked = 0",
+        params![link.to_string(), now()],
+    )?;
+    Ok(())
+}
+
+/// The organization's name, if it still exists.
+fn organization_name(connection: &Connection, organization: Uuid) -> Result<Option<String>, ServerError> {
+    Ok(connection
+        .query_row(
+            "SELECT name FROM organizations WHERE id = ?1",
+            [organization.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 fn mark_accepted(
@@ -300,10 +374,13 @@ fn mark_accepted(
     accepter: Uuid,
     card: &[u8],
 ) -> Result<(), ServerError> {
+    // An invitation is taken once, only while it is neither revoked nor expired.
     let marked = connection.execute(
-        "UPDATE links SET accepter_id = ?2, accepter_card = ?3
-         WHERE id = ?1 AND accepter_id = ''",
-        params![link.to_string(), accepter.to_string(), card],
+        "UPDATE links SET accepter_id = ?2, accepter_card = ?3,
+             invite_ended = CASE WHEN invite_organization = '' THEN 0 ELSE ?4 END
+         WHERE id = ?1 AND accepter_id = ''
+            AND (invite_organization = '' OR (invite_revoked = 0 AND invite_expires > ?4))",
+        params![link.to_string(), accepter.to_string(), card, now()],
     )?;
     match marked {
         1 => Ok(()),
@@ -314,7 +391,7 @@ fn mark_accepted(
 /// What a link's kind stores in its row's grant and invitation columns.
 struct KindColumns {
     grant: (String, String, String, String, Vec<u8>),
-    invitation: (String, String, String, Vec<u8>),
+    invitation: (String, Vec<u8>),
 }
 
 fn kind_columns(kind: &LinkKind) -> KindColumns {
@@ -337,8 +414,6 @@ fn kind_columns(kind: &LinkKind) -> KindColumns {
             grant: Default::default(),
             invitation: (
                 invitation.organization.to_string(),
-                invitation.email.clone(),
-                encode_role(invitation.role).to_owned(),
                 invitation.escrow.clone(),
             ),
         },
@@ -379,7 +454,6 @@ impl ServerStore {
                     invitation.escrow.len(),
                     crate::limits::MAX_SEALED_BYTES,
                 )?;
-                invitation.email = normalize_email(&invitation.email)?;
                 if self.membership(owner, invitation.organization).await?
                     != OrganizationRole::Administrator
                 {
@@ -408,35 +482,55 @@ impl ServerStore {
             }
             if let LinkKind::Invitation(invitation) = &kind {
                 let organization = invitation.organization.to_string();
+                let now = now();
+                // Ended ones past their retention go.
+                transaction.execute(
+                    "DELETE FROM links WHERE invite_organization = ?1
+                        AND ((invite_ended > 0 AND invite_ended <= ?2)
+                             OR (invite_ended = 0 AND invite_expires <= ?2))",
+                    params![organization, now - crate::limits::INVITATION_RETENTION],
+                )?;
                 let outstanding: i64 = transaction
                     .prepare_cached(
                         "SELECT COUNT(*) FROM links
-                         WHERE invite_organization = ?1 AND invite_email != ?2
-                            AND accepter_id = ''",
+                         WHERE invite_organization = ?1 AND accepter_id = ''
+                            AND invite_revoked = 0 AND invite_expires > ?2",
                     )?
-                    .query_row(params![organization, invitation.email], |row| row.get(0))?;
+                    .query_row(params![organization, now], |row| row.get(0))?;
                 if outstanding >= crate::limits::MAX_INVITATIONS_PER_ORGANIZATION {
                     return Err(crate::limits::too_many(
                         "invitations an organization has outstanding",
                         crate::limits::MAX_INVITATIONS_PER_ORGANIZATION,
                     ));
                 }
-                // One invitation per email: a new one replaces what is outstanding.
+                // Past the bound on what the list keeps, the oldest ended go.
                 transaction.execute(
-                    "DELETE FROM links
-                     WHERE invite_organization = ?1 AND invite_email = ?2 AND accepter_id = ''",
-                    params![organization, invitation.email],
+                    "DELETE FROM links WHERE id IN (
+                        SELECT id FROM links
+                        WHERE invite_organization = ?1
+                            AND (accepter_id != '' OR invite_revoked = 1 OR invite_expires <= ?2)
+                        ORDER BY invite_created
+                        LIMIT max(0, (SELECT COUNT(*) FROM links WHERE invite_organization = ?1) - ?3 + 1))",
+                    params![
+                        organization,
+                        now,
+                        crate::limits::MAX_INVITATIONS_KEPT_PER_ORGANIZATION
+                    ],
                 )?;
             }
+            let (created, expires) = match &kind {
+                LinkKind::Invitation(_) => (now(), now() + crate::limits::INVITATION_LIFETIME),
+                LinkKind::Contact(_) => (0, 0),
+            };
             let KindColumns {
                 grant: (organization, block, access, key, sealed),
-                invitation: (invited_to, email, role, escrow),
+                invitation: (invited_to, escrow),
             } = columns;
             let inserted = transaction.execute(
                 "INSERT OR IGNORE INTO links
                     (id, owner_id, card, code, grant_organization, grant_block, grant_access,
-                     grant_key, grant_sealed, invite_organization, invite_email, invite_role,
-                     invite_escrow)
+                     grant_key, grant_sealed, invite_organization, invite_escrow, invite_created,
+                     invite_expires)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
                 params![
                     link.to_string(),
@@ -449,9 +543,9 @@ impl ServerStore {
                     key,
                     sealed,
                     invited_to,
-                    email,
-                    role,
-                    escrow
+                    escrow,
+                    created,
+                    expires
                 ],
             )?;
             if inserted == 0 {
@@ -515,14 +609,20 @@ impl ServerStore {
         .await
     }
 
-    /// A link not yet accepted, as `caller` reads it: not its own, and an invitation only when
-    /// it is for `caller`'s email and `caller` is not yet a member.
+    /// A link not yet accepted, as `caller` reads it: not its own, and an invitation only while
+    /// it is open and `caller` is not yet a member. Reading an invitation marks it opened.
     pub async fn link(&self, caller: Uuid, link: Uuid) -> Result<Link, ServerError> {
-        let email = self.profile(caller).await?.email;
         self.with_database(move |_, database| {
-            let stored = stored_link(&database, link)?
-                .filter(|stored| stored.accepter.is_none())
-                .ok_or_else(link_not_found)?;
+            let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
+            if let Some(invited) = stored.invited {
+                let state = invited.state(stored.accepter.is_some());
+                if !matches!(state, InvitationState::Waiting | InvitationState::Opened) {
+                    return Err(invitation_ended(state));
+                }
+            }
+            if stored.accepter.is_some() {
+                return Err(link_not_found());
+            }
             if stored.owner == caller {
                 return Err(ServerError::Refused(
                     ErrorCode::InvalidRequest,
@@ -532,25 +632,17 @@ impl ServerStore {
             let organization_name = match &stored.kind {
                 LinkKind::Contact(_) => String::new(),
                 LinkKind::Invitation(invitation) => {
-                    // Read by anyone else, an invitation is not there at all.
-                    if invitation.email != email {
-                        return Err(link_not_found());
-                    }
+                    // An invitation into an organization gone since is no link at all.
+                    let name = organization_name(&database, invitation.organization)?
+                        .ok_or_else(link_not_found)?;
+                    mark_opened(&database, link)?;
                     if is_member_of(&database, caller, invitation.organization)? {
                         return Err(ServerError::Refused(
                             ErrorCode::InvalidRequest,
                             "you are already a member of that organization".into(),
                         ));
                     }
-                    // An invitation into an organization gone since is no link at all.
-                    database
-                        .query_row(
-                            "SELECT name FROM organizations WHERE id = ?1",
-                            [invitation.organization.to_string()],
-                            |row| row.get(0),
-                        )
-                        .optional()?
-                        .ok_or_else(link_not_found)?
+                    name
                 }
             };
             Ok(Link {
@@ -560,6 +652,94 @@ impl ServerStore {
                 kind: stored.kind,
                 organization_name,
             })
+        })
+        .await
+    }
+
+    /// An invitation as anyone holding its link reads it, before signing in: its organization's
+    /// name, its inviter's sealed card and where it stands. Marks it opened while it waits. Any
+    /// other link, or an invitation into an organization gone since, reads as no link.
+    pub async fn read_invitation(&self, link: Uuid) -> Result<InvitationPreview, ServerError> {
+        self.with_database(move |_, database| {
+            let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
+            let (LinkKind::Invitation(invitation), Some(invited)) = (&stored.kind, stored.invited)
+            else {
+                return Err(link_not_found());
+            };
+            let organization_name = organization_name(&database, invitation.organization)?
+                .ok_or_else(link_not_found)?;
+            let mut state = invited.state(stored.accepter.is_some());
+            if state == InvitationState::Waiting {
+                mark_opened(&database, link)?;
+                state = InvitationState::Opened;
+            }
+            Ok(InvitationPreview {
+                organization_name,
+                card: stored.card,
+                state,
+            })
+        })
+        .await
+    }
+
+    /// The organization's invitations, newest first, for one of its administrators, who gets
+    /// back the codes of its own; ended ones past their retention go first.
+    pub async fn list_invitations(
+        &self,
+        caller: Uuid,
+        organization: Uuid,
+    ) -> Result<Vec<InvitationRow>, ServerError> {
+        self.with_database(move |_, database| {
+            database.execute(
+                "DELETE FROM links WHERE invite_organization = ?1
+                    AND ((invite_ended > 0 AND invite_ended <= ?2)
+                         OR (invite_ended = 0 AND invite_expires <= ?2))",
+                params![
+                    organization.to_string(),
+                    now() - crate::limits::INVITATION_RETENTION
+                ],
+            )?;
+            let mut statement = database.prepare(&format!(
+                "SELECT {LINK_COLUMNS}, links.id,
+                        COALESCE((SELECT display_name FROM accounts WHERE id = owner_id), ''),
+                        COALESCE((SELECT display_name FROM accounts WHERE id = accepter_id), '')
+                 FROM links WHERE invite_organization = ?1
+                 ORDER BY invite_created DESC, links.id"
+            ))?;
+            let rows = statement.query_map([organization.to_string()], |row| {
+                Ok((
+                    link_row(row)?,
+                    row.get::<_, String>(17)?,
+                    row.get::<_, String>(18)?,
+                    row.get::<_, String>(19)?,
+                ))
+            })?;
+            let mut invitations = Vec::new();
+            for row in rows {
+                let (row, id, inviter_name, accepter_name) = row?;
+                let stored = parse_link(row)?;
+                let Some(invited) = stored.invited else {
+                    continue;
+                };
+                let seconds = |at: i64| at * 1000;
+                invitations.push(InvitationRow {
+                    id: parse_uuid(&id)?,
+                    inviter: stored.owner,
+                    inviter_name,
+                    code: match stored.owner == caller {
+                        true => stored.code,
+                        false => Vec::new(),
+                    },
+                    state: invited.state(stored.accepter.is_some()),
+                    accepter: stored.accepter,
+                    accepter_name,
+                    created: seconds(invited.created),
+                    expires: seconds(invited.expires),
+                    opened: seconds(invited.opened),
+                    ended: seconds(invited.ended),
+                });
+            }
+            Ok(invitations)
         })
         .await
     }
@@ -609,13 +789,14 @@ impl ServerStore {
                             invitation.organization,
                             &key,
                         )?;
+                        // An invitation joins as an editor, never as an administrator.
                         transaction.execute(
                             "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
                              VALUES (?1, ?2, ?3)",
                             params![
                                 invitation.organization.to_string(),
                                 caller.to_string(),
-                                encode_role(invitation.role)
+                                encode_role(OrganizationRole::Editor)
                             ],
                         )?;
                         transaction.commit()?;
@@ -686,24 +867,25 @@ impl ServerStore {
         Ok(Accepted { owner, granted })
     }
 
+    /// The caller's links still to act on: outstanding, or accepted and not yet finished. An
+    /// invitation expired, revoked or finished is none.
     pub async fn links(&self, caller: Uuid) -> Result<Vec<OwnLink>, ServerError> {
         self.with_database(move |_, database| {
-            let mut ids = Vec::new();
-            {
-                let mut statement = database.prepare("SELECT id FROM links WHERE owner_id = ?1")?;
-                let rows =
-                    statement.query_map([caller.to_string()], |row| row.get::<_, String>(0))?;
-                for row in rows {
-                    ids.push(parse_uuid(&row?)?);
-                }
-            }
+            let mut statement = database.prepare(&format!(
+                "SELECT {LINK_COLUMNS}, id FROM links WHERE owner_id = ?1
+                    AND (invite_organization = ''
+                         OR (invite_finished = 0 AND invite_revoked = 0
+                             AND (accepter_id != '' OR invite_expires > ?2)))"
+            ))?;
+            let rows = statement.query_map(params![caller.to_string(), now()], |row| {
+                Ok((link_row(row)?, row.get::<_, String>(17)?))
+            })?;
             let mut links = Vec::new();
-            for id in ids {
-                let Some(stored) = stored_link(&database, id)? else {
-                    continue;
-                };
+            for row in rows {
+                let (row, id) = row?;
+                let stored = parse_link(row)?;
                 links.push(OwnLink {
-                    id,
+                    id: parse_uuid(&id)?,
                     code: stored.code,
                     kind: stored.kind,
                     accepter: stored.accepter,
@@ -715,12 +897,48 @@ impl ServerStore {
         .await
     }
 
+    /// Ends a link: a contact link of the caller's goes; an invitation, the caller's own or one
+    /// into an organization it administers, is revoked while outstanding, or finished by its
+    /// inviter once accepted, and its row stays for the organization's list.
     pub async fn delete_link(&self, caller: Uuid, link: Uuid) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
-            database.execute(
-                "DELETE FROM links WHERE id = ?1 AND owner_id = ?2",
-                params![link.to_string(), caller.to_string()],
-            )?;
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let Some(stored) = stored_link(&transaction, link)? else {
+                return Ok(());
+            };
+            match (&stored.kind, stored.invited) {
+                (LinkKind::Invitation(invitation), Some(invited)) => {
+                    let inviter = stored.owner == caller;
+                    let administrator = role_in(&transaction, caller, invitation.organization)?
+                        == Some(OrganizationRole::Administrator);
+                    if !inviter && !administrator {
+                        return Ok(());
+                    }
+                    match invited.state(stored.accepter.is_some()) {
+                        InvitationState::Waiting | InvitationState::Opened => {
+                            transaction.execute(
+                                "UPDATE links SET invite_revoked = 1, invite_ended = ?2
+                                 WHERE id = ?1 AND accepter_id = ''",
+                                params![link.to_string(), now()],
+                            )?;
+                        }
+                        InvitationState::Accepted if inviter => {
+                            transaction.execute(
+                                "UPDATE links SET invite_finished = 1 WHERE id = ?1",
+                                [link.to_string()],
+                            )?;
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {
+                    transaction.execute(
+                        "DELETE FROM links WHERE id = ?1 AND owner_id = ?2",
+                        params![link.to_string(), caller.to_string()],
+                    )?;
+                }
+            }
+            transaction.commit()?;
             Ok(())
         })
         .await

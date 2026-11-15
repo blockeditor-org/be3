@@ -23,32 +23,12 @@ async fn an_invited_account_joins_the_organization_and_a_logout_ends_the_session
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: "guest@example.com".into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
             )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
-
-    let mut outsider = harness.member("outsider@example.com").await;
-    for refused in [
-        outsider
-            .call(|peer| client::contacts::get_link(peer, invitation))
-            .await
-            .map(|_| ()),
-        outsider
-            .call(|peer| {
-                client::contacts::accept_link(peer, invitation, Vec::new(), Vec::new(), Vec::new())
-            })
-            .await,
-    ] {
-        assert!(
-            matches!(refused, Err(_)),
-            "an account with another email used the invitation: {refused:?}"
-        );
-    }
 
     let fetched = guest
         .call(|peer| client::contacts::get_link(peer, invitation))
