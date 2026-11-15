@@ -33,9 +33,16 @@ mod letters_web;
 #[cfg(target_arch = "wasm32")]
 use letters_web as letters;
 
+/// A letter in bytes (`Across`), which the mailbox it is for decodes as it delivers it.
+struct Encoded(Vec<u8>);
+
+type Decode = fn(&[u8]) -> Box<dyn Any + Send>;
+
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
     static MAILBOXES: RefCell<HashMap<u64, (u64, Receive)>> = RefCell::new(HashMap::new());
+    /// How each mailbox a thread's letters arrive at in bytes decodes them (`Post::across`).
+    static DECODERS: RefCell<HashMap<u64, Decode>> = RefCell::new(HashMap::new());
     static NEXT_MAILBOX: Cell<u64> = const { Cell::new(1) };
 }
 
@@ -64,6 +71,7 @@ pub struct Mailbox(u64);
 impl Drop for Mailbox {
     fn drop(&mut self) {
         let _ = MAILBOXES.try_with(|mailboxes| mailboxes.borrow_mut().remove(&self.0));
+        let _ = DECODERS.try_with(|decoders| decoders.borrow_mut().remove(&self.0));
     }
 }
 
@@ -95,6 +103,67 @@ impl<T: Send + 'static> Post<T> {
 
     pub fn send(&self, value: T) {
         letters::post(self.thread, (self.mailbox, Box::new(value)));
+    }
+}
+
+impl<T: Send + serde::Serialize + serde::de::DeserializeOwned + 'static> Post<T> {
+    /// The post for another thread to send to this mailbox: its letters travel as bytes, as
+    /// they must to a page whose memory the thread does not share
+    /// (plans/web_page_never_waits.md). Made on the mailbox's own thread.
+    pub fn across(&self) -> Across<T> {
+        assert_eq!(
+            self.thread,
+            thread::current().id(),
+            "a mailbox's post across threads is made on the mailbox's thread"
+        );
+        DECODERS.with_borrow_mut(|decoders| {
+            decoders.insert(self.mailbox, |bytes| {
+                // Encoded from a `T` by `Across::send`: bytes that do not decode are a bug.
+                Box::new(postcard::from_bytes::<T>(bytes).expect("a letter decodes"))
+            })
+        });
+        Across {
+            mailbox: self.mailbox,
+            thread: self.thread,
+            kind: PhantomData,
+        }
+    }
+}
+
+/// A post another thread sends to a mailbox with (`Post::across`): each letter goes as its
+/// bytes, and the mailbox decodes it as it delivers it. On the web this is the only way a
+/// worker's letter reaches the page.
+pub struct Across<T> {
+    mailbox: u64,
+    thread: ThreadId,
+    kind: PhantomData<fn(T)>,
+}
+
+impl<T> Clone for Across<T> {
+    fn clone(&self) -> Self {
+        Self {
+            mailbox: self.mailbox,
+            thread: self.thread,
+            kind: PhantomData,
+        }
+    }
+}
+
+impl<T: serde::Serialize> Across<T> {
+    pub fn send(&self, value: T) {
+        let bytes = postcard::to_stdvec(&value).expect("a letter encodes");
+        letters::post_bytes(self.thread, self.mailbox, bytes);
+    }
+}
+
+/// A letter as its mailbox takes it: one that came in bytes decoded (`Across`).
+fn decoded((mailbox, letter): Letter) -> Letter {
+    match letter.downcast::<Encoded>() {
+        Ok(encoded) => match DECODERS.with_borrow(|decoders| decoders.get(&mailbox).copied()) {
+            Some(decode) => (mailbox, decode(&encoded.0)),
+            None => (mailbox, encoded),
+        },
+        Err(letter) => (mailbox, letter),
     }
 }
 
@@ -162,7 +231,8 @@ impl<C: 'static> Desk<C> {
                 .with_borrow(|mailboxes| mailboxes.get(&mailbox).map(|(desk, _)| *desk == self.id))
         };
         let letters = letters::take(here, at_this_desk);
-        for (mailbox, letter) in letters {
+        for letter in letters {
+            let (mailbox, letter) = decoded(letter);
             let receive = MAILBOXES.with_borrow(|mailboxes| {
                 mailboxes
                     .get(&mailbox)

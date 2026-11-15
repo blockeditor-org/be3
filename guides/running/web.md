@@ -120,11 +120,12 @@ survives a reload. Traps that shape this code:
   third: a page that needs something another thread holds asks for it with a message. The
   stack's state is not one of those locks: the page reads the `Seen` the worker hands over
   in bytes through a lock-free stack (guides/blocks/host.md, "What the page reads").
-- A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Post::send`,
-  guides/desktop.md) takes no lock the page takes: the worker posts its address on a
-  `BroadcastChannel` whose name only the page's workers are given (`web/threads.js`,
-  "be-letter-post"), and the page's handler hands it to `be_letter_arrived`, which puts it on
-  the page's own list and wakes the host. One thread's letters arrive in the order it posted
+- A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Across::send`,
+  guides/desktop.md) takes no lock the page takes and is bytes, not a value in the shared heap:
+  the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the
+  page's workers are given (`web/threads.js`, "be-letter-post"), and the page's handler hands
+  them to `be_letter_arrived`, which puts the letter on the page's own list and wakes the
+  host; the mailbox decodes it as it delivers it. One thread's letters arrive in the order it posted
   them. Only the page makes mailboxes on the web.
 - A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
   the page and the worker (`be_host_stack::link` keeps them per thread on wasm).

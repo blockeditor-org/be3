@@ -62,6 +62,7 @@ be-block-type-host = { path = "../be-block-type-host" }
 be-lib-build-id = { path = "../be-lib-build-id" }
 futures-util = { version = "0.3", features = ["io"] }
 beui-reactive = { path = "../beui-reactive" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # Only the synchronisation primitives are shared with the browser build; the
 # new block stack's worker gets its executor and its timer from be/ instead.

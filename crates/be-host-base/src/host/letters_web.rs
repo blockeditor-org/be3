@@ -1,10 +1,11 @@
 //! On the web the page takes no lock another thread takes (plans/web_page_never_waits.md), so
 //! a letter waits in a list of the page's own. One the page posts to itself goes straight onto
-//! it. One a worker posts is handed to the page by `postMessage` (`web/threads.js`,
-//! "be-letter-post"), and the page's handler puts it on the list (`be_letter_arrived`) and
-//! wakes the host. A worker's letters reach the page in the order it posted them (each thread
-//! posts on one channel); letters from different threads arrive in no set order between them,
-//! and a worker's letter arrives a task after it was posted, not at once.
+//! it. A worker posts its letters in bytes (`Across`): they are copied out of its memory and
+//! handed to the page by `postMessage` (`web/threads.js`, "be-letter-post"), and the page's
+//! handler copies them in and puts them on the list (`be_letter_arrived`) and wakes the host.
+//! A worker's letters reach the page in the order it posted them (each thread posts on one
+//! channel); letters from different threads arrive in no set order between them, and a
+//! worker's letter arrives a task after it was posted, not at once.
 //!
 //! Only the page makes mailboxes: it is the one thread whose frames deliver them.
 
@@ -12,7 +13,7 @@ use std::{cell::RefCell, thread, thread::ThreadId};
 
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use super::{Letter, wake};
+use super::{Encoded, Letter, wake};
 
 thread_local! {
     static ARRIVED: RefCell<Vec<Letter>> = const { RefCell::new(Vec::new()) };
@@ -22,7 +23,7 @@ thread_local! {
 #[link(wasm_import_module = "wasi")]
 unsafe extern "C" {
     #[link_name = "be-letter-post"]
-    fn be_letter_post(letter: usize);
+    fn be_letter_post(mailbox: f64, bytes: *const u8, length: usize);
 }
 
 pub(super) fn post(to: ThreadId, letter: Letter) {
@@ -30,12 +31,19 @@ pub(super) fn post(to: ThreadId, letter: Letter) {
         arrived(letter);
         return;
     }
-    // The page frees it (`be_letter_arrived`): until plans/web_page_never_waits.md gives the
-    // stack's worker a memory of its own, the page and the worker run in one. It carries the
-    // thread it is for, which the page checks: the channel reaches only the page.
-    let letter = Box::into_raw(Box::new((to, letter))) as usize;
+    // A worker's letter is bytes the page copies (`Post::across`): a value in this memory would
+    // not reach a page whose memory the worker does not share.
+    eprintln!("be-host: a worker posted a letter as a value; it posts across threads in bytes");
+}
+
+pub(super) fn post_bytes(to: ThreadId, mailbox: u64, bytes: Vec<u8>) {
+    if to == thread::current().id() {
+        arrived((mailbox, Box::new(Encoded(bytes))));
+        return;
+    }
+    // `threads.js` copies the bytes out before it returns, so they are let go of here.
     // unsafe(ffi)
-    unsafe { be_letter_post(letter) };
+    unsafe { be_letter_post(mailbox as f64, bytes.as_ptr(), bytes.len()) };
 }
 
 fn arrived(letter: Letter) {
@@ -43,19 +51,11 @@ fn arrived(letter: Letter) {
     wake();
 }
 
-/// A letter a worker posted (`post`), handed over by the page's handler for its message.
+/// A letter a worker posted in bytes (`post_bytes`), handed over by the page's handler for its
+/// message.
 #[wasm_bindgen]
-pub fn be_letter_arrived(letter: usize) {
-    // unsafe(memory)
-    let letter = unsafe { Box::from_raw(letter as *mut (ThreadId, Letter)) };
-    let (to, letter) = *letter;
-    // Only the page makes mailboxes (`Desk::mailbox`), so this is a bug elsewhere: the page
-    // says so and drops it rather than trap.
-    if to != thread::current().id() {
-        eprintln!("be-host: a letter for a mailbox another thread made reached the page");
-        return;
-    }
-    arrived(letter);
+pub fn be_letter_arrived(mailbox: f64, bytes: Vec<u8>) {
+    arrived((mailbox as u64, Box::new(Encoded(bytes))));
 }
 
 /// Takes, in the order they arrived, the letters whose mailbox `at_this_desk` answers true for,
