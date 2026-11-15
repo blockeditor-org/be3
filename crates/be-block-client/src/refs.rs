@@ -298,6 +298,9 @@ pub struct UnsentBlock {
     /// The code the server refused it with, when it was refused rather than this account
     /// losing access (`Unsent::refused`): what lost access does to it does not apply.
     pub refused: Option<ErrorCode>,
+    /// How many local edits a replica of it made that this device keeps and that never became
+    /// a commit (`OpenEdits`): discarding drops them too.
+    pub kept_edits: usize,
     /// Its name as this device has it.
     pub name: Option<String>,
 }
@@ -1210,8 +1213,18 @@ impl Refs {
 
     /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
     /// later replica of the block on this device goes on with.
+    /// Keeps nothing for a block this account may not edit (lost access, `lose_access`, or
+    /// was made a viewer): its edits can never reach it, and kept they would keep it from being
+    /// forgotten.
     pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<(), StoreError> {
         let mut state = self.state.lock().unwrap();
+        if state
+            .summaries
+            .get(&block)
+            .is_some_and(|summary| !summary.access.can_edit())
+        {
+            return Ok(());
+        }
         if state.open_edits.get(&block) == Some(&edits) {
             return Ok(());
         }

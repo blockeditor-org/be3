@@ -94,12 +94,14 @@ fn unsent_view() -> HostUi {
                     name: "Trip notes".to_owned(),
                     offerable: true,
                     refused: None,
+                    kept_edits: 0,
                 },
                 UnsentRow {
                     block: uuid::Uuid::from_u128(2),
                     name: "Budget".to_owned(),
                     offerable: false,
                     refused: None,
+                    kept_edits: 3,
                 },
                 UnsentRow {
                     block: uuid::Uuid::from_u128(3),
@@ -108,6 +110,7 @@ fn unsent_view() -> HostUi {
                     refused: Some(be_host_stack::refusal(
                         be_block_protocol::ErrorCode::OverQuota,
                     )),
+                    kept_edits: 0,
                 },
             ],
             discarding: None,
