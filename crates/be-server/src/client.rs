@@ -2740,24 +2740,43 @@ impl Connection {
         if members.is_empty() {
             return;
         }
-        let identities = members.iter().map(|(_, member)| *member).collect();
+        self.tell_views(
+            organization,
+            members,
+            vec![block],
+            false,
+            crate::blocks::Moves::new(),
+        )
+        .await;
+    }
+
+    /// Tells each of `members` what it may see of a change to `blocks` (`graph_views`), each
+    /// block matched against its listings by the graph as the change left it.
+    async fn tell_views(
+        &self,
+        organization: Uuid,
+        members: Vec<(u64, Identity)>,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        moves: crate::blocks::Moves,
+    ) {
+        let clients: Vec<u64> = members.iter().map(|(client, _)| *client).collect();
+        let links = self.hub.links(&clients).await;
+        let asked = members
+            .iter()
+            .map(|(_, member)| *member)
+            .zip(links.iter().cloned())
+            .collect();
         let Ok(views) = self
             .store
-            .graph_views(
-                organization,
-                identities,
-                vec![block],
-                false,
-                crate::blocks::Moves::new(),
-                self.client,
-            )
+            .graph_views(organization, asked, blocks, subtree, moves, self.client)
             .await
         else {
             return;
         };
-        for ((client, _), messages) in members.into_iter().zip(views) {
-            for (message, entry) in messages {
-                self.hub.tell(client, message, entry).await;
+        for ((client, links), messages) in clients.into_iter().zip(links).zip(views) {
+            for (message, seen) in messages {
+                self.hub.tell(client, message, seen, &links).await;
             }
         }
     }
@@ -2775,26 +2794,8 @@ impl Connection {
         };
         accounts.extend(before);
         let members = self.hub.audience(organization, &accounts).await;
-        let identities = members.iter().map(|(_, member)| *member).collect();
-        let Ok(views) = self
-            .store
-            .graph_views(
-                organization,
-                identities,
-                blocks,
-                subtree,
-                moves,
-                self.client,
-            )
-            .await
-        else {
-            return;
-        };
-        for ((client, _), messages) in members.into_iter().zip(views) {
-            for (message, entry) in messages {
-                self.hub.tell(client, message, entry).await;
-            }
-        }
+        self.tell_views(organization, members, blocks, subtree, moves)
+            .await;
     }
 
     async fn list(
@@ -2805,8 +2806,11 @@ impl Connection {
         let identity = self.identity()?;
         let new = self.hub.list(self.client, listing).await?;
         let listed = match listing {
+            // Whether a listing holds it through references was told as that listing was read,
+            // which stays (`WatchHub::listed`).
             Listing::Block(block) => self.store.read_block(identity, block).await.map(|summary| {
-                let told = vec![(block, crate::watch::Facts::of(&summary, false))];
+                let seen = crate::watch::Seen::default();
+                let told = vec![(block, crate::watch::Facts::of(&summary, seen))];
                 let listed = be_block_protocol::Listed {
                     revision: summary.revision,
                     blocks: vec![summary],
@@ -2815,7 +2819,10 @@ impl Connection {
                 };
                 (listed, told)
             }),
-            _ => self.store.list_page(identity, listing, after).await,
+            _ => {
+                let links = self.hub.links(&[self.client]).await.remove(0);
+                self.store.list_page(identity, listing, after, links).await
+            }
         };
         let (listed, told) = match listed {
             Ok(listed) => listed,

@@ -19,7 +19,10 @@ async fn a_connection_reads_more_blocks_than_it_may_hold_listings() {
         hub.listed(
             client,
             read,
-            vec![(block, crate::watch::Facts::of(&summary, false))],
+            vec![(
+                block,
+                crate::watch::Facts::of(&summary, crate::watch::Seen::default()),
+            )],
         )
         .await;
     }
