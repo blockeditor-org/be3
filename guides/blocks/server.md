@@ -608,7 +608,11 @@ changes an app session calls it.
 ### Accounts
 
 An account signs in with any of its **identities** (`identities`: an `email`
-now; passkeys and providers in plans/accounts.md), never its last removed.
+or a provider, `oidc`; passkeys in plans/accounts.md), never its last removed.
+`accounts.email` is the account's verified email, if it has one; an account
+made through a provider may have none, and then the protocol's `email` is the
+empty string, as it is for a local profile
+(decisions/an_account_with_no_email_has_an_empty_one.md).
 The portal signs in, registers and recovers ("I can't sign in", which ends
 every other session) by a code mailed to the email (`store/codes.rs`): eight
 letters with no look-alikes, good for ten minutes and five wrong tries, and
@@ -629,8 +633,9 @@ an email that has an account, which tells a stranger it is registered: behind
 an invite code that leak is small, and mailing "you already have an account"
 is the alternative if registration opens. Changing the email, removing an
 identity and ending any session but the browser's own need a **fresh proof**
-(`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
-(`sessions.proved`), which signing in by code or recovering also gives.
+(`codes::FRESH_PROOF`): a code to the account's email, or a sign-in with one of
+its providers, in the last few minutes (`sessions.proved`), which signing in by
+code or provider, or recovering, also gives.
 Removing an identity mails a notice. An operator's login link
 (`store/login_links.rs`, `be-server login-link`) signs in once within
 `LOGIN_LINK_LIFETIME` as recovering does, and for an email with no account
@@ -640,6 +645,31 @@ any identity, and with it `--allow-registration` lets anyone make an account,
 by any identity, with an invite code. The flag gates signing in, not using a
 session: without it a browser already signed in still changes its settings,
 confirms an email change (`/auth/verify`) and signs out.
+
+**Providers** are OpenID Connect issuers the operator lists (`--oidc-providers`,
+`oidc::parse_providers`): one tenant's issuer each, and only those marked
+`authoritative_email` (Google's preset) have their verified emails trusted.
+`oidc.rs` does the network half with the `openidconnect` crate: discovery,
+read when first needed and kept an hour; `/auth/oidc/{id}/start`, a GET link
+since the portal's CSP has `form-action 'self'`, which keeps the request's
+PKCE verifier, `state` and nonce in `oidc_states` bound to the browser's
+`be3-attempt` and redirects; and `/auth/oidc/{id}/callback`, which takes that
+row back once, in that browser only, exchanges the code and checks the ID token
+in full (signature against the provider's keys, read again once when a token
+fails, `iss`, `aud`, `azp`, expiry, nonce). `store/providers.rs` does the rest.
+An identity's subject is `"{issuer} {sub}"`, never an email. A sign-in with a
+linked identity signs in, and its provider's verified email follows a change
+when no other account holds the new one. One with none whose verified email an
+account holds mails that email a code (`CodePurpose::Link`), and entering it in
+the same browser signs that account in and links the provider: nothing links
+or makes a second account on its own. Otherwise it waits in `oidc_pending`
+for the operator's invite code (`/auth/oidc/register`) and makes an account,
+whose email is the provider's verified one if it has one. A signed-in browser
+adds a provider (`?intent=link`, with a fresh proof checked at both ends) or
+proves with one it has (`?intent=proof`). Begun sign-ins are capped per address
+and overall. At start the server warns how many accounts sign in only with
+providers it no longer has (`stranded_by_providers`); `login-link --account`
+lets one in.
 
 The protocol has the browser sign-in's one-shot `begin-browser-login` and
 `poll-browser-login` ("Signing in" above), token `Authenticate`, header

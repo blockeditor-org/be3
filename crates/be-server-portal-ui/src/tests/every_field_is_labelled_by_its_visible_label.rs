@@ -17,6 +17,7 @@ fn every_field_is_labelled_by_its_visible_label() {
         Screen::SignIn,
         Screen::Register,
         Screen::Settings,
+        Screen::ProviderRegister,
         Screen::EnterCode,
         Screen::Recover,
     ] {
