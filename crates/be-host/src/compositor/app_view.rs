@@ -728,6 +728,7 @@ pub(crate) fn AppView(
     });
     let shown_view: GiftView = (app_id.value().to_string(), instance, region.id);
     let gift_placer = asked.map(|asked| (asked.placer.app, asked.placer.instance));
+    let key_placers = store(key_placers(gift_placer, instance, &region));
     let rebuilt = shown_view.clone();
     create_effect(move || {
         if let Some(node) = catcher.try_get() {
@@ -740,21 +741,42 @@ pub(crate) fn AppView(
             });
         }
     });
+    if region.placement == ViewPlacement::Dock {
+        keyboard_follows_content(shown_view.clone(), key_placers, revision, &catcher);
+    }
     let gone = shown_view.clone();
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
-            if !placed {
-                be_host_runtime::forget_keys(&gone, gift_placer);
+            // A main view that goes while its instance's content shows in one of its dock tab
+            // views (a joined editor's, its main view staying placed but shown nowhere) hands that
+            // view the keyboard, as the runtime hands it the keys held for it (`forget_keys`).
+            let moved = be_host_runtime::content_moved(&gone.0, gone.1, gone.2)
+                .map(|to| (gone.0.clone(), gone.1, to));
+            if !placed || moved.is_some() {
+                be_host_runtime::forget_keys(&gone, &key_placers.value());
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
-                if document.focused_node() == Some(node) {
-                    if placed {
-                        keep_focus_for_rebuild(&gone);
+                if document.focused_node() != Some(node) {
+                    return;
+                }
+                let taker = moved.as_ref().and_then(|(app, instance, view)| {
+                    super::desktop::catcher_of_view(app, *instance, *view)
+                });
+                match (&moved, taker) {
+                    (Some(_), Some(taker)) => document.focus_focusable(taker),
+                    (Some(moved), None) => {
+                        keep_focus_for_rebuild(moved);
+                        document.blur();
                     }
-                    document.blur();
+                    (None, _) => {
+                        if placed {
+                            keep_focus_for_rebuild(&gone);
+                        }
+                        document.blur();
+                    }
                 }
             });
         }
@@ -815,7 +837,7 @@ pub(crate) fn AppView(
         pointed.set((input.hovered, input.pointer));
         let app = app_id.value();
         let progress = key_progress(&app, instance, state);
-        be_host_runtime::route_keys(&routed_view, gift_placer, progress, &mut input);
+        be_host_runtime::route_keys(&routed_view, &key_placers.value(), progress, &mut input);
         let mut handed = handing.get();
         let input = handed.route(input);
         handing.set(handed);
@@ -871,8 +893,8 @@ pub(crate) fn AppView(
         revision.track();
         typing.track();
         gifts::track(&app_id.value(), instance);
-        if let Some((app, instance)) = gift_placer {
-            gifts::track(app, instance);
+        for (app, instance) in key_placers.value().iter() {
+            gifts::track(app, *instance);
         }
         let Some(node) = catcher.try_get() else {
             return;
@@ -883,7 +905,12 @@ pub(crate) fn AppView(
                 try_with_document(|document| document.focus_is_within(node)).unwrap_or(false);
             let progress = key_progress(&app, instance, state);
             let owed =
-                be_host_runtime::settle_keys(&settled_view.value(), gift_placer, progress, focused);
+                be_host_runtime::settle_keys(
+                    &settled_view.value(),
+                    &key_placers.value(),
+                    progress,
+                    focused,
+                );
             if let Some(modifiers) = owed {
                 let (hovered, pointer) = pointed.get();
                 forward.call(ForwardedInput {
@@ -1784,6 +1811,63 @@ thread_local! {
     /// the catcher built for the view in its place takes the keyboard back, so moving a view (a
     /// child placed in a new pane) does not drop it.
     static REBUILT: RefCell<HashSet<GiftView>> = RefCell::new(HashSet::new());
+}
+
+/// The editors whose gifts may owe a view keys: the one that placed it, and, for a docked
+/// instance's dock tab view, the one that placed the instance, whose gift to it moves there from
+/// its main view with its content (`keyboard_follows_content`).
+fn key_placers(
+    placer: Option<(&'static str, EditorInstanceId)>,
+    instance: EditorInstanceId,
+    region: &View,
+) -> Vec<(&'static str, EditorInstanceId)> {
+    let mut placers: Vec<_> = placer.into_iter().collect();
+    if region.placement == ViewPlacement::Dock
+        && let Some((app, placing, _)) = be_host_runtime::docked_placer(instance)
+    {
+        let docked = (app_name(&app), placing);
+        if !placers.contains(&docked) {
+            placers.push(docked);
+        }
+    }
+    placers
+}
+
+/// A joined editor's content shows in its main view until its dock is hosted, then in one of its
+/// dock's tab views, built after the main view goes (the main view stays placed, shown nowhere).
+/// A main view that went with the keyboard left it to be taken back (`keep_focus_for_rebuild`):
+/// the dock tab view its content moved to takes it instead, and the keys held for the main view
+/// with it (`forget_keys` finds where the content moved).
+fn keyboard_follows_content(
+    view: GiftView,
+    placers: Stored<Vec<(&'static str, EditorInstanceId)>>,
+    revision: beui::reactive::Trigger,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    let view = store(view);
+    create_effect(move || {
+        revision.track();
+        let Some(node) = catcher.try_get() else {
+            return;
+        };
+        untrack(|| {
+            let (app, instance, region) = (*view.value()).clone();
+            if be_host_runtime::content_view(&app, instance) != region {
+                return;
+            }
+            let main = (app, instance, ViewId::MAIN);
+            if !REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&main)) {
+                return;
+            }
+            be_host_runtime::forget_keys(&main, &placers.value());
+            try_with_document(|document| {
+                if document.focused_node().is_none() {
+                    document.focus_focusable(node);
+                }
+            });
+        });
+    });
 }
 
 fn keep_focus_for_rebuild(view: &GiftView) {

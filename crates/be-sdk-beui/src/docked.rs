@@ -890,10 +890,17 @@ fn DockBarBody(
             .unwrap_or(EMPTY_BAR)
     });
     let shown = Some(shown);
+    // The bar's length along its run is at most what it measured, so a band shorter than the bar
+    // (a phone's) squeezes it and its surface scrolls, rather than cutting it off; across, it is as
+    // thick as it measured.
+    let length = move |along: f32, across: f32| match along >= across {
+        true => beui::styled::Length::Extent(beui::Extent::at_most(along)),
+        false => beui::styled::Length::Size(beui::styled::Size::Custom(along)),
+    };
     view! {
         <beui::styled::Frame
-            width={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x))}
-            height={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().y))}
+            width={move || length(size.get().x, size.get().y)}
+            height={move || length(size.get().y, size.get().x)}
         >
             <DockTabBody editor shown />
         </beui::styled::Frame>

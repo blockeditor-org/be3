@@ -32,6 +32,11 @@
 //! carries its keys, owed to a child or not, to the new one; keys carried from the first child
 //! go back to the placer's view, like any it held, if the new gift ends with `Keys::Return`. A
 //! gift whose instance or app goes ends with it.
+//!
+//! A view that goes while its instance's content shows in another of its views (a joined
+//! editor's content moving from its main view into its dock tab view, `content_moved`) hands that
+//! view what it held and was given: the gift is given to it anew, and the host moves the keyboard
+//! there (be-host's `AppView`).
 
 use std::time::Duration;
 
@@ -547,13 +552,29 @@ impl Instances {
         gift.ready(app).then_some(gift.modifiers)
     }
 
-    /// The view `view` is gone: what it held and was owed goes with it.
-    pub(crate) fn forget_keys(&mut self, view: &GiftView) {
+    /// The view `view` is gone: what it held and was owed goes with it, or, when its instance's
+    /// content moved to the view `moved`, goes on to that view, which is given the keyboard anew
+    /// in host pass `pass`.
+    pub(crate) fn forget_keys(&mut self, view: &GiftView, moved: Option<&GiftView>, pass: u64) {
         let mut ended = Vec::new();
         for (instance, entry) in &mut self.entries {
             let Some(gift) = &mut entry.gift else {
                 continue;
             };
+            if let Some(moved) = moved {
+                if gift.to == GiftTo::View(view.clone()) {
+                    gift.to = GiftTo::View(moved.clone());
+                    gift.stage = Stage::Given {
+                        pass,
+                        focused: None,
+                        after: None,
+                    };
+                }
+                if gift.holder.as_ref() == Some(view) {
+                    gift.holder = Some(moved.clone());
+                }
+                continue;
+            }
             if gift.to == GiftTo::View(view.clone()) {
                 ended.push(*instance);
             } else if gift.holder.as_ref() == Some(view) {

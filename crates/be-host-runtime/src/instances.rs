@@ -2767,20 +2767,30 @@ impl Instances {
     }
 
     pub(super) fn content_view(&self, instance: EditorInstanceId) -> ViewId {
-        let Some(entry) = self.entries.get(&instance) else {
-            return ViewId::MAIN;
-        };
+        self.content_view_besides(instance, None)
+            .unwrap_or(ViewId::MAIN)
+    }
+
+    /// The view holding the instance's content other than `besides`: its main view, or the dock
+    /// tab view its content moved to once its dock joined its placer's.
+    pub(super) fn content_view_besides(
+        &self,
+        instance: EditorInstanceId,
+        besides: Option<ViewId>,
+    ) -> Option<ViewId> {
+        let entry = self.entries.get(&instance)?;
         let holds = |view: &ViewId| {
-            entry.screens.get(view).is_some_and(|screen| {
-                screen.mounted > 0
-                    && screen
-                        .report
-                        .as_ref()
-                        .is_some_and(|report| report.content.is_some())
-            })
+            Some(*view) != besides
+                && entry.screens.get(view).is_some_and(|screen| {
+                    screen.mounted > 0
+                        && screen
+                            .report
+                            .as_ref()
+                            .is_some_and(|report| report.content.is_some())
+                })
         };
         if holds(&ViewId::MAIN) {
-            return ViewId::MAIN;
+            return Some(ViewId::MAIN);
         }
         entry
             .screens
@@ -2788,7 +2798,6 @@ impl Instances {
             .filter(|(_, screen)| screen.request.placement == ViewPlacement::Dock)
             .map(|(view, _)| *view)
             .find(holds)
-            .unwrap_or(ViewId::MAIN)
     }
 
     pub(super) fn frame_child(

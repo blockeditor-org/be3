@@ -168,12 +168,23 @@ notes" asks as it is clicked), and go to the view if it asked for nothing.
 Owed keys and the keyboard are kept by view, not by the node that catches its
 input: when the host builds a view's catcher again (a late child placed in a
 new pane), the new one takes over both, unless the keyboard went elsewhere
-meanwhile. A view that is no longer placed leaves nothing behind. A child
+meanwhile. A view that is no longer placed leaves nothing behind. A joined
+editor's content moves from its main view, which stays placed but is shown
+nowhere, into its dock tab view, built after the main view goes: that view
+takes over the keyboard and the keys the main view had
+(`keyboard_follows_content` in be-host's `app_view.rs`; the runtime's
+`forget_keys` finds where the content moved, `content_moved`). So the dock
+tab view is owed keys by two editors: the one that hosts its tab (it is that
+editor's child, given the keyboard with the tab) and the one that placed the
+instance (`key_placers`). A child
 never reads what its placer's view stores (`Placer` names the app with a
 plain string), as a child's effects can outlive the placer's view.
 Held keys skip the child's input method, so a composition (CJK) started before
 the child shows arrives as its committed text. An empty text block given the
-keyboard puts its caret in its text.
+keyboard puts its caret in its text. It reads its own views' keyboard
+(`Editor::has_keyboard`), not the document's (`use_keyboard`): an app's
+instances share one document, and an instance reading the document's would act
+on a keyboard given to another.
 
 ## Docks across apps
 
@@ -194,6 +205,9 @@ nothing but its `Docking`.
 - The tab body holding the editor's content is where the host keeps its
   camera, chrome and frame takeovers, so a joined canvas pans and hands its
   frame to a card as it does alone.
+- A joined editor's tool bar (`DockBar`) shows in the root's band at the size
+  it measured, squeezed along its run where the band is shorter (a phone's),
+  so its surface scrolls instead of being cut off.
 - A joined frame shows no main view of its own, so its dock tab views carry
   `FrameSpec::phone` too: on a phone it lays out, and opens Rename as a sheet,
   as an editor on its own does.

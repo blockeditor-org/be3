@@ -16,7 +16,10 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     editor.hold(None, TextBlock::of("word"));
     editor.run();
 
-    assert!(!editor.shown("text.format.bold"));
+    assert!(
+        editor.shown("text.format.bold"),
+        "the bar is there before the text has the keyboard"
+    );
 
     let surface = editor.point_of("text.surface");
     editor.fingers(TouchPhase::Start, &[(1, surface)]);
@@ -33,7 +36,10 @@ fn a_phone_formats_from_a_bar_above_the_keyboard() {
     );
 
     editor.click("text.format.done");
-    assert!(!editor.shown("text.format.bold"));
+    assert!(
+        editor.shown("text.format.bold"),
+        "putting the keyboard away leaves the bar where it is"
+    );
 
     assert_eq!(
         editor.menu_entry("text.replace").label,
