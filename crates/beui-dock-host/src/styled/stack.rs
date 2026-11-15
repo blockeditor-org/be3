@@ -133,7 +133,6 @@ fn DockTitleButton(
                 true => ColorRole::Hover,
                 false => ColorRole::None,
             });
-            let opens = create_memo(move || !disabled.get());
             view! {
                 <Frame
                     fill={fill}
@@ -143,7 +142,7 @@ fn DockTitleButton(
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
-                    <DockTitle title icon noticed opens />
+                    <DockTitle title icon noticed opens={move || !disabled.get()} />
                 </Frame>
             }
         }</unstyled::Button>
@@ -157,14 +156,13 @@ fn DockTitle(
     noticed: Memo<bool>,
     opens: Prop<bool>,
 ) -> NodeId {
-    let pictured = create_memo(move || icon.get().is_some());
     let label = create_memo(move || match noticed.get() {
         true => TextColor::Accent,
         false => TextColor::Default,
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
-            <Show condition={pictured}>
+            <Show condition={move || icon.with(Option::is_some)}>
                 <Text color=TextColor::Accent align=TextAlign::Center>
                     <Icon glyph={icon} />
                 </Text>

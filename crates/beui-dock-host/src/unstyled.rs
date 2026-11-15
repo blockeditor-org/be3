@@ -2940,21 +2940,21 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
         create_memo(move || state.with(|state| state.active_entry(leaf).and_then(Entry::group)));
     view! {
         <List spacing=0.0>
-            <Dynamic value={group}>|group: Option<GroupId>| {
+            <Dynamic
+                value={group}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <DockTabBody dock leaf />
+                    </ListItem>
+                }}
+            >|group: GroupId| {
                 let inset = dock.group_inset;
-                match group {
-                    Some(group) => view! {
-                        <ListItem grow=1.0>
-                            <Frame padding=inset>
-                                <DockTreeView dock tree={Tree::Group(group)} />
-                            </Frame>
-                        </ListItem>
-                    },
-                    None => view! {
-                        <ListItem grow=1.0>
-                            <DockTabBody dock leaf />
-                        </ListItem>
-                    },
+                view! {
+                    <ListItem grow=1.0>
+                        <Frame padding=inset>
+                            <DockTreeView dock tree={Tree::Group(group)} />
+                        </Frame>
+                    </ListItem>
                 }
             }</Dynamic>
         </List>
@@ -2965,16 +2965,17 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
 fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let state = dock.state;
     let shown = create_memo(move || state.with(|state| state.active_tab(leaf)));
-    let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
     view! {
         <List spacing=0.0>
-            <Show condition={vacant}>
-                <ListItem grow=1.0>
-                    <EmptyPane dock leaf />
-                </ListItem>
-            </Show>
-            <Show condition={occupied}>
+            <Show
+                condition={occupied}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <EmptyPane dock leaf />
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <DockShownBody dock leaf={Some(leaf)} shown />
                 </ListItem>
