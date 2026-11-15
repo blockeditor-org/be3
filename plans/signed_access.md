@@ -188,7 +188,21 @@ signed").
 - **Retirement races.** A thief holding the old phrase can sign records until
   the retirement lands, and those stay valid after it. If the thief takes a
   new phrase first, the thief's retirement is the one in the logs and the
-  owner is locked out, as with a stolen phrase today.
+  owner is locked out, as with a stolen phrase today. A retirement's
+  endorsement is bound to no time or epoch, so whoever holds an old phrase can
+  retire it, at any later moment, in any log where it is still current.
+- **A new phrase grows with the account.** `set-recovery-key` carries one
+  retirement (about 300 to 400 bytes) per log the account signed in, which is
+  every block it ever made, beside the resealed keys that already grow the same
+  way, and `get-recovery-key` decodes each of those logs to serve its head.
+  Past roughly 20,000 blocks a new phrase no longer fits in one frame
+  (`MAX_FRAME_BYTES`), which would lock a heavy user out of the one answer to
+  a stolen phrase. Not fixed yet: either send the change in parts committed by
+  a last call that keeps the all-or-nothing check, or keep one account-level
+  keys log holding the retirement once, which a block's check looks the
+  signer's current key up in, so a change costs one entry whatever the number
+  of blocks. The test that shows it: an account with more blocks than one
+  frame's worth of retirements takes a new phrase, and every log is retired.
 
 ## Audit
 
@@ -213,12 +227,12 @@ instead.
 ## Order of work
 
 1. **Audit.** Done: the table above.
-2. **Roots and retirement.** Block roots, pinned from the creating device and
-   from every key (`CarriedKey`), and organization roots, pinned from making
-   the organization, the invitation and an agent's maker, are built
-   (guides/blocks/keys.md, "Access logs"). Left: retirement entries on a new
-   phrase. Done: a test where an account takes a new phrase and a record
-   signed with the old key after it is refused. A root carried only by a key opened through escrow is not pinned
+2. **Roots and retirement.** Built (guides/blocks/keys.md, "Access logs" and
+   "Identity, new phrases and devices"): block roots, pinned from the creating
+   device and from every key (`CarriedKey`); organization roots, pinned from
+   making the organization, the invitation and an agent's maker; and
+   retirement entries on a new phrase, endorsed by the old key and signed by
+   the new, in every log the account signed in. A root carried only by a key opened through escrow is not pinned
    (anyone can seal to the escrow key); step 3 decides how an administrator
    checks a log it reaches only through escrow. Agents' blocks and records are
    rooted at the agent's own keys, which its maker makes and holds no copy of,

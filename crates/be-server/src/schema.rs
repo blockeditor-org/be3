@@ -144,8 +144,11 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         position        INTEGER NOT NULL,
         entry           BLOB NOT NULL,
+        signer          TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, position)
     );
+
+    CREATE INDEX organization_log_signer ON organization_log (signer);
 
     CREATE TABLE memberships (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -228,10 +231,13 @@ const SCHEMA: &str = "
         block_id        TEXT NOT NULL,
         position        INTEGER NOT NULL,
         entry           BLOB NOT NULL,
+        signer          TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, block_id, position),
         FOREIGN KEY (organization_id, block_id)
             REFERENCES blocks(organization_id, id) ON DELETE CASCADE
     );
+
+    CREATE INDEX access_log_signer ON access_log (signer);
 
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);

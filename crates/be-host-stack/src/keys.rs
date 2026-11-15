@@ -166,16 +166,24 @@ impl KeyState {
         }
         let fresh = setup.phrase.secret();
         let public = fresh.identity();
-        let (account, held, own) = self
+        let (account, held, own, logs) = self
             .keys
             .as_ref()
-            .map(|keys| (keys.account, keys.sealed.clone(), keys.own.clone()))
+            .map(|keys| {
+                (
+                    keys.account,
+                    keys.sealed.clone(),
+                    keys.own.clone(),
+                    keys.logs.clone(),
+                )
+            })
             .unwrap_or_default();
-        let resealed = match (held.is_empty() && own.is_empty(), identity) {
+        let resealed = match (held.is_empty() && own.is_empty() && logs.is_empty(), identity) {
             (true, _) => Some(be_block_client::contacts::NewIdentity {
                 sealed: Vec::new(),
                 own: Vec::new(),
                 changes: Vec::new(),
+                retirements: Vec::new(),
             }),
             (false, None) => None,
             (false, Some(identity)) => be_block_client::contacts::new_identity(
@@ -184,6 +192,7 @@ impl KeyState {
                 &fresh,
                 held,
                 own,
+                logs,
             ),
         };
         let Some(resealed) = resealed else {

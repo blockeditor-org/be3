@@ -414,6 +414,7 @@ pub struct Keys {
     pub recovery: Option<be_block_keys::RecoveryPublic>,
     pub sealed: Vec<be_block_protocol::SealedKey>,
     pub own: Vec<be_block_protocol::OwnSealed>,
+    pub logs: Vec<be_block_protocol::SignedLog>,
 }
 
 pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
@@ -426,12 +427,14 @@ pub async fn keys(server_url: String, token: String) -> Result<Keys, AccountErro
         public,
         sealed,
         own,
+        logs,
     } = ask(client::keys::get_recovery_key(&connection)).await?;
     Ok(Keys {
         account,
         recovery: public.map(be_block_keys::RecoveryPublic),
         sealed,
         own,
+        logs,
     })
 }
 
@@ -449,6 +452,7 @@ pub async fn set_recovery_key(
         resealed.sealed,
         resealed.own,
         resealed.changes,
+        resealed.retirements,
     ))
     .await?;
     Ok(())
