@@ -2085,16 +2085,21 @@ fn follow_window(
     let fullscreen = create_memo(move || {
         child.with(|child| child.as_ref().is_some_and(|child| child.fullscreen))
     });
-    let shown = StoredCell::new(false);
-    create_effect(move || {
-        let fullscreen = fullscreen.get();
-        let Some(window) = window.get() else {
-            return;
-        };
-        if shown.replace(fullscreen) != fullscreen {
-            untrack(|| Host::fullscreen(window, fullscreen));
-        }
+    // What the window was last told, kept while there is no window to tell.
+    let applied = create_memo(move |previous: Option<&bool>| match window.with(Option::is_some) {
+        true => fullscreen.get(),
+        false => previous.copied().unwrap_or(false),
     });
+    create_effect_on(
+        move || applied.get(),
+        move |&fullscreen, previous| {
+            if fullscreen != previous.copied().unwrap_or(false)
+                && let Some(window) = window.get_untracked()
+            {
+                Host::fullscreen(window, fullscreen);
+            }
+        },
+    );
     asks
 }
 

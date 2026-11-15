@@ -958,22 +958,22 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     let panel = NodeRef::new();
     let menu_at = create_signal(None::<Pos2>);
     let asked = create_memo(move || heard.with(|heard| heard.menu));
-    let seen = StoredCell::new(asked.get_untracked().map(|menu| menu.asked));
-    create_effect(move || {
-        let Some(asked) = asked.get() else {
-            return;
-        };
-        if seen.replace(Some(asked.asked)) == Some(asked.asked) {
-            return;
-        }
-        let shown = untrack(|| {
-            let node = panel.try_get()?;
-            measure(node).get_untracked()
-        });
-        if let Some(shown) = shown {
-            menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
-        }
+    // The last ask heard, kept while the report says nothing, so only a new one opens it.
+    let last_asked = create_memo(move |previous: Option<&Option<_>>| {
+        asked.get().map(|menu| menu.asked).or(previous.copied().flatten())
     });
+    create_effect_on_change(
+        move || last_asked.get(),
+        move |_, _| {
+            let Some(asked) = asked.get_untracked() else {
+                return;
+            };
+            let shown = panel.try_get().and_then(|node| measure(node).get_untracked());
+            if let Some(shown) = shown {
+                menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
+            }
+        },
+    );
     let fullscreen_label = move || match fullscreen.get() {
         true => "Leave full screen".to_owned(),
         false => "Full screen".to_owned(),
@@ -1047,23 +1047,23 @@ fn UnshownWindow(workspace: Workspace, window: HostWindowId, tab: TabId) -> Node
     let heard = workspace.heard_of(tab);
     on_cleanup(move || workspace.forget_child(tab));
     let raised = create_memo(move || heard.with(|heard| heard.reported.then_some(heard.raised)));
-    let seen = StoredCell::new(raised.get_untracked());
-    create_effect(move || {
-        let Some(now) = raised.get() else {
-            return;
-        };
-        let before = seen.replace(Some(now));
-        if before.is_none_or(|before| now <= before) {
-            return;
-        }
-        untrack(|| {
+    // The last raise reported, kept while the child reports nothing.
+    let last_raised = create_memo(move |previous: Option<&Option<_>>| {
+        raised.get().or(previous.copied().flatten())
+    });
+    create_effect_on_change(
+        move || last_raised.get(),
+        move |now, before| {
+            if now.is_none_or(|now| before.is_none_or(|before| now <= before)) {
+                return;
+            }
             let root = workspace.root_tab(tab);
             layout.show(&root);
             if root != tab {
                 layout.show(&tab);
             }
-        });
-    });
+        },
+    );
     view! {
         <Subregion
             editor={editor}
