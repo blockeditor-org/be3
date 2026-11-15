@@ -4,13 +4,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use be_block_commit::{CommitId, now_milliseconds};
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{BlockSummary, ErrorCode, Listing, PublishOutcome, client};
-use be_block_store::ObjectStore;
+use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
 use super::{Drained, Peer, Reconciled};
 use crate::{
     ClientError,
-    refs::{Creation, Defining, Moving, Op, Pending, PendingCounts, UnsentBlock},
+    refs::{Creation, Defining, Holding, Moving, Op, Pending, PendingCounts, UnsentBlock},
 };
 
 impl<S: ObjectStore> Peer<S> {
@@ -30,6 +30,7 @@ impl<S: ObjectStore> Peer<S> {
                     Op::Publish(_) => "publish",
                     Op::Move(_) => "move",
                     Op::Define(_) => "define",
+                    Op::Hold(_) => "hold",
                 };
                 (kind, op.block())
             })
@@ -125,6 +126,23 @@ impl<S: ObjectStore> Peer<S> {
         }))?;
         summary.parent = Some(parent);
         self.refs.revise(summary)?;
+        Ok(())
+    }
+
+    /// Keeps a hold of `objects` for `block` in the outbox, which uploads and holds them once it
+    /// is sent (`drain_hold`): kept on this device meanwhile.
+    pub(super) fn hold_later(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
+        self.commits.vault().store().sync()?;
+        self.refs.push(Op::Hold(Holding {
+            block,
+            objects: objects.to_vec(),
+            lasting: matches!(hold, be_block_protocol::Hold::Lasting),
+        }))?;
         Ok(())
     }
 
@@ -371,6 +389,7 @@ impl<S: ObjectStore> Peer<S> {
                 Op::Publish(pending) => self.drain_publish(sequence, pending).await,
                 Op::Move(moving) => self.drain_move(sequence, moving).await,
                 Op::Define(defining) => self.drain_define(sequence, defining).await,
+                Op::Hold(holding) => self.drain_hold(sequence, holding).await,
             };
             let outcome = match sent {
                 Ok(outcome) => outcome,
@@ -407,6 +426,7 @@ impl<S: ObjectStore> Peer<S> {
                 Drained::Created { .. }
                 | Drained::Moved { .. }
                 | Drained::Defined { .. }
+                | Drained::Held { .. }
                 | Drained::Refused { .. }
                 | Drained::SetAside { .. }
                 | Drained::Failed { .. } => {}
@@ -599,6 +619,32 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    async fn drain_hold(&self, sequence: u64, holding: Holding) -> Result<Drained, ClientError> {
+        let block = holding.block;
+        let hold = match holding.lasting {
+            true => be_block_protocol::Hold::Lasting,
+            false => be_block_protocol::Hold::UntilCommitted,
+        };
+        match self.send_hold(block, &holding.objects, hold).await {
+            Ok(()) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Held { block })
+            }
+            Err(ClientError::Refused(code, _)) if lost_access(code) => {
+                self.refused(sequence, block, code).await
+            }
+            Err(ClientError::Refused(code, _)) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: false,
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+
     async fn drain_define(
         &self,
         sequence: u64,
@@ -714,6 +760,14 @@ impl<S: ObjectStore> Peer<S> {
             Some((_, Op::Create(_))) => {
                 self.refs.remove(&[sequence])?;
                 Ok(Drained::Created { block })
+            }
+            Some((_, Op::Hold(_))) => {
+                self.refs.remove(&[sequence])?;
+                Ok(Drained::Refused {
+                    block,
+                    code,
+                    restored: false,
+                })
             }
             Some((_, Op::Move(_) | Op::Define(_))) => {
                 self.refs.remove(&[sequence])?;

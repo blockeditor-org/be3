@@ -20,7 +20,7 @@ async fn a_workspace_made_offline_reaches_the_server_with_its_keys() {
         .unwrap();
     assert!(matches!(
         offline.save(note, &TextBlock::of("written offline"), None).await,
-        Err(ClientError::Disconnected(_))
+        Ok(Saved::Kept(_))
     ));
     let roots = offline.children(BlockParent::Root).await.unwrap();
     assert!(roots.iter().any(|root| root.id == team));

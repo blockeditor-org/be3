@@ -77,6 +77,17 @@ only the commits it reaches, a level of both sides in one round of requests), or
 as when a side reaches a commit retention thinned away, which is not taken for a
 root.
 
+Offline, every operation runs against the device's store. A command reads and
+writes each block over this device's newest head rather than the server's
+(`head_here`, and `scan` for the tree), its writes wait in the outbox
+(`Saved::Kept`), as do the blocks it makes (listed through `Graph::made` until
+the drain sends them) and the holds on its snapshots' commits and trees
+(`Op::Hold`). A branch another device moved meanwhile reaches the drain as the
+repository's divergence, which merges through `Repository::merge_in`: their
+commit stays at the branch's name and this device's is kept beside it
+(`kept_beside`: `main-2`, `main-3`), so a checkout still on the branch is told
+to bring in the newer changes, as when the server refuses the move online.
+
 A checkout replaces content someone has open through the replica's reconcile
 on `head-moved` (a head another connection published, which `changes` tells as
 `Event::BlockChanged` with `own` unset); the worker calls

@@ -373,7 +373,11 @@ impl Graph {
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
         };
-        listed.fetch = Fetch::Failed(error);
+        // Asked for again while it was under way: the change that asked may answer it now.
+        listed.fetch = match std::mem::take(&mut listed.again) {
+            true => Fetch::Wanted,
+            false => Fetch::Failed(error),
+        };
         self.moved();
     }
 
@@ -510,6 +514,16 @@ impl Graph {
     }
 
     pub fn put(&mut self, node: Node, revision: u64) {
+        // A block whose own listing failed, or may (asked for offline before this device made
+        // it, or heard of it), answers it now.
+        let listing = Listing::Block(node.id);
+        if self
+            .listings
+            .get(&listing)
+            .is_some_and(|listed| matches!(listed.fetch, Fetch::Failed(_) | Fetch::Fetching))
+        {
+            self.relist(listing);
+        }
         if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
             self.insert(node);
         }

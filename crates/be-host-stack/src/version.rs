@@ -659,7 +659,16 @@ impl Versions {
         state: &Checkout,
     ) -> Result<(Tree, Working), Failure> {
         let saved = self.tree(context.peer, state.working).await?;
-        let scanned = with_graph(context.shared, |graph| scan(graph, checkout, state, &saved));
+        // Offline, a block's newest head is this device's, which the graph, holding the
+        // server's, does not know until the drain sends it.
+        let peer = context.peer;
+        let here = |real: Uuid, listed: Option<CommitId>| match peer.is_attached() {
+            true => listed,
+            false => peer.local_head(real).or(listed),
+        };
+        let scanned = with_graph(context.shared, |graph| {
+            scan(graph, checkout, state, &saved, here)
+        });
         let root = state.root.map(|root| {
             with_graph(context.shared, |graph| {
                 graph.to_local(scope(checkout), root)
@@ -2004,7 +2013,15 @@ fn with_graph<T>(shared: &Arc<Mutex<Shared>>, read: impl FnOnce(&Graph) -> T) ->
     read(&shared.lock().unwrap_or_else(PoisonError::into_inner).graph)
 }
 
-fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Scanned> {
+/// The blocks of the checkout's tree as they are now, each at the head `here` answers for its
+/// real id and the head the graph lists.
+fn scan(
+    graph: &Graph,
+    checkout: Uuid,
+    state: &Checkout,
+    saved: &Tree,
+    here: impl Fn(Uuid, Option<CommitId>) -> Option<CommitId>,
+) -> Vec<Scanned> {
     let Some(root) = state.root else {
         return Vec::new();
     };
@@ -2022,7 +2039,8 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Sc
                     .and_then(BlockParent::block)
                     .map(|parent| graph.to_local(scope, parent)),
             };
-            let clean = match node.head {
+            let head = here(real, node.head);
+            let clean = match head {
                 Some(head) => state.clean.get(&real) == Some(&head),
                 None => saved
                     .entries
@@ -2035,7 +2053,7 @@ fn scan(graph: &Graph, checkout: Uuid, state: &Checkout, saved: &Tree) -> Vec<Sc
                 parent,
                 content_type: node.content_type,
                 metadata: stripped(&node.metadata),
-                head: node.head,
+                head,
                 clean,
             })
         })
@@ -2175,11 +2193,22 @@ async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
     Ok(())
 }
 
+/// The head a command reads and writes over: the server's while attached, where this device's
+/// edits are sent before the command writes over them, or offline the newest this device holds,
+/// whose write waits in the outbox behind them.
+async fn head_here(peer: &Peer<Store>, block: Uuid) -> Result<Option<CommitId>, String> {
+    match peer.is_attached() {
+        true => peer.remote_head(block).await,
+        false => peer.newest_head(block).await,
+    }
+    .map_err(failed)
+}
+
 async fn read<R: Root + Model + Default>(
     peer: &Peer<Store>,
     block: Uuid,
 ) -> Result<(R, Option<CommitId>), String> {
-    let head = peer.remote_head(block).await.map_err(failed)?;
+    let head = head_here(peer, block).await?;
     let content = match head {
         Some(head) => peer
             .open_commit::<Document<R>>(head)
@@ -2244,7 +2273,7 @@ async fn relist(
     let change = be_sdk_type_api::Change::Child(super::api_child(change));
     let ctx = (context.peer, context.shared);
     for _ in 0..8 {
-        let head = context.peer.remote_head(parent).await.map_err(failed)?;
+        let head = head_here(context.peer, parent).await?;
         let current = match head {
             Some(head) => {
                 let commit = context.peer.load_commit(head).await.map_err(failed)?;
@@ -2345,14 +2374,24 @@ async fn create(
         }
         Err(error) => return Err(failed(error)),
     };
+    // Made offline, its creation waits in the outbox: read as of the newest revision this
+    // device knows, as offline answers are, and the listings it belongs in hold it until the
+    // drain sends it, as one the host made does.
+    let uncreated = context.peer.uncreated(block);
+    let summary = match uncreated {
+        true => context.peer.summary(block).await.map_err(failed)?,
+        false => summary,
+    };
     let node = node_of(context.peer, &summary);
     let existing = found.then(|| (summary.head, node.metadata.defined.clone()));
-    context
+    let mut held = context
         .shared
         .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .graph
-        .put(node, summary.revision);
+        .unwrap_or_else(PoisonError::into_inner);
+    held.graph.put(node, summary.revision);
+    if uncreated {
+        held.graph.made(block);
+    }
     Ok(existing)
 }
 
@@ -2448,7 +2487,7 @@ async fn publish(
         let _ = reached.send(block);
         let _ = go.await;
     }
-    let mut expected = context.peer.remote_head(block).await.map_err(failed)?;
+    let mut expected = head_here(context.peer, block).await?;
     let mut made_from = read.as_ref().map_or(expected, |read| read.head);
     let mut read_content = read.as_ref().and_then(|read| read.content.clone());
     let (mut manifest, mut references, mut derived) = (
@@ -2490,7 +2529,7 @@ async fn publish(
                     waited += 1;
                     let ctx = (context.peer, context.shared);
                     context.replicas.content_sent(ctx, block).await;
-                    expected = context.peer.remote_head(block).await.map_err(failed)?;
+                    expected = head_here(context.peer, block).await?;
                     continue;
                 }
             }

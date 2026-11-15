@@ -187,6 +187,47 @@ impl Root for Repository {
     fn references(&self) -> Vec<Uuid> {
         self.upstream.into_iter().collect()
     }
+
+    /// A branch both sides moved, each to its own commit, keeps both: their commit at the
+    /// branch's name, which the others already see, and ours at a new branch beside it
+    /// (`kept_beside`), so no snapshot falls off every branch. A moved branch is otherwise one
+    /// side's change, merged as the model merges any other.
+    fn merge_in(
+        base: &Document<Self>,
+        ours: &Document<Self>,
+        theirs: &Document<Self>,
+    ) -> (Document<Self>, usize) {
+        let (merged, mut conflicts) = Document::merge(base, ours, theirs);
+        let (base, ours, theirs) = (base.root(), ours.root(), theirs.root());
+        let mut root = merged.root();
+        let mut forked = false;
+        for (name, mine) in ours.branches.iter() {
+            let (before, other) = (base.branch(name), theirs.branch(name));
+            let Some(other) = other else {
+                continue;
+            };
+            if before == Some(*mine) || before == Some(other) || *mine == other {
+                continue;
+            }
+            root = root.with_branch(name, Some(other));
+            let beside = kept_beside(&root, name);
+            root = root.with_branch(&beside, Some(*mine));
+            conflicts = conflicts.saturating_sub(1);
+            forked = true;
+        }
+        match forked {
+            true => (Document::new(&root), conflicts),
+            false => (merged, conflicts),
+        }
+    }
+}
+
+/// The first free name for a branch kept beside `name` by a merge: `name-2`, `name-3` and so on.
+pub fn kept_beside(repository: &Repository, name: &str) -> String {
+    (2..)
+        .map(|count| format!("{name}-{count}"))
+        .find(|beside| repository.branch(beside).is_none())
+        .expect("a free name")
 }
 
 pub type RepositoryContent = Document<Repository>;

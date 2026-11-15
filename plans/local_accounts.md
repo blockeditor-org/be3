@@ -49,13 +49,10 @@ Each says whether a server account offline has the same gap.
 1. **The local head is final.** With no server, a local commit is the head, and nothing waits to
    be confirmed. The made-up offline session already behaves this way; a local account stays in
    it. Local accounts only.
-2. **Version control.** Snapshots, branches, combining, bringing in, undo and the rest
-   (`be-host-stack/src/version.rs`) run in the served lane, which waits for the outbox to be sent
-   and reads and writes the server between steps. A branch moves by compare-and-swap on the
-   server. A server account offline can do none of this either. Fill it by running the
-   operations against the device's store, moving the branch locally and sending the move later
-   through the outbox. A branch someone else moved meanwhile becomes a divergence to merge, as a
-   block's head does.
+2. **Version control.** Filled for server accounts offline: every operation runs against the
+   device's store and waits in the outbox, and a branch someone else moved meanwhile merges as
+   the repository's divergence, keeping both commits (guides/blocks/version_control.md,
+   Operations). Fork, pull and push are not tested offline yet.
 3. **Making the account, its organization and its roots.** The server makes a local profile
    (`create-local-profile`), puts it in the personal organization and answers the roots and
    settings a host looks for at sign-in. A local account makes its ids, roots and settings on the
@@ -82,8 +79,8 @@ Each says whether a server account offline has the same gap.
 
 ## Steps
 
-1. Fill the gaps server accounts share (2, and 6 where it applies), moving logic from the server
-   into the client.
+1. Fill the gaps server accounts share (6 where it applies, and fork, pull and push offline from
+   2), moving logic from the server into the client.
 2. A peer with no server: its local head is final, and its account, roots and settings are made
    on the device.
 3. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
