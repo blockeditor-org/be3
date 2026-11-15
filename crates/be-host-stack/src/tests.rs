@@ -1183,7 +1183,7 @@ impl Device {
             self.runtime
                 .block_on(offline.save(block, &be_type_text::TextBlock::of(text), base));
         assert!(
-            matches!(saved, Err(be_block_client::ClientError::Disconnected(_))),
+            matches!(saved, Ok(be_block_client::Saved::Kept(_))),
             "the other device saved while it was meant to be offline: {saved:?}"
         );
         assert_ne!(offline.local_head(block), base, "the edit was not kept");
