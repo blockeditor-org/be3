@@ -156,11 +156,14 @@ pub fn submit(
     }
     let mut order = match head(&transaction, organization, block)? {
         None => {
+            // A journal starts on the block's head: the content its first entry was made on.
             transaction.execute(
                 "INSERT INTO block_journals
                      (organization_id, block_id, tag, base_commit, base_sequence, base_state,
                       sequence, barrier)
-                 VALUES (?1, ?2, ?3, NULL, 0, x'', 0, 0)",
+                 VALUES (?1, ?2, ?3,
+                         (SELECT head FROM blocks WHERE organization_id = ?1 AND id = ?2),
+                         0, x'', 0, 0)",
                 params![org, id, tag.as_bytes().as_slice()],
             )?;
             Sequencer::starting(0)

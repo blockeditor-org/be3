@@ -1,7 +1,7 @@
 use super::*;
 
-/// An edit too large to relay is journaled by its part. An owner that crashed before its
-/// commit landed leaves that entry, and the next replica to open reads the part before it
+/// An edit too large to submit inline is journaled by its part. A holder that crashed before
+/// its commit landed leaves that entry, and the next replica to open reads the part before it
 /// replays the journal.
 #[test]
 fn a_new_owner_replays_a_journaled_edit_by_its_part() {
@@ -10,10 +10,10 @@ fn a_new_owner_replays_a_journaled_edit_by_its_part() {
     sim.open(0);
     sim.attach(0, 1, true);
     sim.type_at(0, 1, 6, "typed\n");
+    // Its seals fail, as offline with its key gone, so it stops with the paste unsealed.
+    sim.fail_publishes = usize::MAX;
     let pasted = "a line of pasted text\n".repeat(60_000);
     sim.type_at(0, 1, 12, &pasted);
-    sim.settle();
-    sim.stalled = true;
     sim.settle();
     let journal = sim.journal.as_ref().expect("the owner journaled its edits");
     assert!(
@@ -23,14 +23,12 @@ fn a_new_owner_replays_a_journaled_edit_by_its_part() {
             .all(|entry| entry.payload.len() < 1024 * 1024),
         "the journal holds the paste by its part"
     );
-    assert_eq!(
-        sim.held.len(),
-        1,
-        "the owner is committing what it journaled"
+    assert!(
+        sim.failed_publishes > 0,
+        "the holder was committing what the order holds"
     );
     sim.crash(0);
-    sim.held.clear();
-    sim.stalled = false;
+    sim.fail_publishes = 0;
 
     let reads = sim.part_reads;
     sim.open(1);

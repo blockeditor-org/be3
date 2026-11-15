@@ -336,7 +336,11 @@ pub(crate) enum Replayed {
     },
     Lease {
         session: SessionState,
-        resynchronize: bool,
+    },
+    /// Entries of the order, opened. Given only to the replica that heard them: one opened
+    /// again reads them in the journal.
+    Sequenced {
+        entries: Vec<be_sdk_type_api::JournalEntry>,
     },
     Change {
         change: Change,
@@ -371,11 +375,11 @@ impl Replayed {
             Replayed::Moved { head } => {
                 replica.head_moved(connection, head);
             }
-            Replayed::Lease {
-                session,
-                resynchronize,
-            } => {
-                replica.lease(connection, session, resynchronize);
+            Replayed::Lease { session } => {
+                replica.lease(connection, session);
+            }
+            Replayed::Sequenced { entries } => {
+                replica.sequenced(connection, entries);
             }
         }
         None
@@ -1491,7 +1495,9 @@ impl<H: Host> Replicas<H> {
         if let Replayed::Moved { .. } = replayed {
             self.heads_told += 1;
         }
-        open.replay.push(replayed.clone());
+        if !matches!(replayed, Replayed::Sequenced { .. }) {
+            open.replay.push(replayed.clone());
+        }
         let (module, handle) = (open.module, open.handle);
         let sent = self
             .modules
@@ -2293,7 +2299,6 @@ impl<H: Host> Replicas<H> {
                 };
                 let replayed = Replayed::Lease {
                     session: state.clone(),
-                    resynchronize: false,
                 };
                 if open.joining {
                     return open.early.push(replayed);
@@ -2447,7 +2452,6 @@ impl<H: Host> Replicas<H> {
         };
         let replayed = Replayed::Lease {
             session: state.clone(),
-            resynchronize: false,
         };
         if open.joining {
             return open.early.push(replayed);

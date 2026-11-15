@@ -34,7 +34,7 @@ mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending;
 mod a_file_maps_to_a_block_and_back;
-mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
+mod a_peer_edit_numbered_first_goes_beneath_an_unconfirmed_edit;
 mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
 mod a_follower_reads_a_part_again_when_a_read_fails;
 mod a_follower_replaces_the_content_and_the_owner_takes_it;
@@ -47,7 +47,6 @@ mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
 mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
 mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
-mod a_followers_edits_stay_lacking_through_a_takeover_until_its_seal;
 mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
 mod a_followers_put_that_failed_is_tried_again;
 mod a_forged_arrival_is_replaced_by_the_orders;
@@ -60,7 +59,7 @@ mod a_merge_by_parts_waits_for_the_parts_it_reads_and_never_resolves_without_the
 mod a_merge_that_cannot_read_its_parts_is_reported_once_and_tried_again_on_a_timer;
 mod a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_session;
 mod a_merge_that_waits_for_something_other_than_a_part_is_reported_not_waited_for;
-mod a_message_no_build_can_read_stops_a_follower_saving;
+mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod a_module_answers_stateless_requests;
 mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
 mod a_new_owner_replays_a_journaled_edit_by_its_part;
@@ -448,6 +447,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     offline_submits: bool,
     /// The server's order.
     order: Sequencer,
+    /// The order a device keeps offline (`offline_submits`), from where the server's stood.
+    offline_order: Option<Sequencer>,
     /// How many submissions it numbered.
     numbered: usize,
     /// Commits are published to the device's outbox alone, not to the server.
@@ -521,6 +522,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             stalled_submits: false,
             offline_submits: false,
             order: Sequencer::starting(0),
+            offline_order: None,
             numbered: 0,
             kept_publishes: false,
             held: Vec::new(),
@@ -615,7 +617,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     Some(be_sdk_type_api::SealedHead { commit, through }),
                 )
             }
-            _ => (None, head, None),
+            // The journal is on an earlier commit: the replica opens on it, as the order goes
+            // on from there, and hears of the head after.
+            (Some(journal), _) => {
+                let base = journal.base.commit;
+                (Some(journal), base, None)
+            }
+            (None, _) => (None, head, None),
         }
     }
 
@@ -1223,7 +1231,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     return self.to(device, |host| reply.send(host, &refused));
                 }
                 if self.offline_submits {
-                    let op = self.order.number(
+                    let order = self.order;
+                    let op = self.offline_order.get_or_insert(order).number(
                         be_block_session::Submission {
                             id: be_block_session::OpId {
                                 origin: submission.origin,
@@ -1343,10 +1352,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         };
         self.numbered += 1;
         self.journal_tag = self.devices[device].tag;
+        // A journal starts on the block's head as the server has it.
+        let head = self.head;
         self.journal
             .get_or_insert_with(|| Journal {
                 base: JournalBase {
-                    commit: None,
+                    commit: head,
                     sequence: 0,
                     state: Vec::new(),
                 },
@@ -1404,11 +1415,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             self.act(device, call);
         }
         self.settle();
-    }
-
-    /// Hands `to` a message as relayed from `from` by a server that checked it as an editor's.
-    fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
-        self.relay_as(to, from, RelayKind::Edit, bytes);
     }
 
     /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.

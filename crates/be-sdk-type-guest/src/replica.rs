@@ -325,6 +325,8 @@ struct Sent<C: LiveEdit> {
 struct Logged<Op> {
     sequence: u64,
     operation: Op,
+    /// This replica made it.
+    mine: bool,
 }
 
 enum Then {
@@ -550,6 +552,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     now: u64,
     owes_since: Option<u64>,
     last_edit: Option<u64>,
+    /// When this replica made the first edit no seal holds yet: a holder's pause is timed from
+    /// it, not from when the order brought the edit back.
+    edited_since: Option<u64>,
     opened_journal: Option<Journal>,
     /// The seal made on the head it opened at, which the server took before the journal was
     /// trimmed (`opening.sealed-head`): taken once the journal is replayed.
@@ -631,7 +636,7 @@ where
             // What the commits kept add over the server's head is read with them.
             (Some(head), Some(server)) => self.read(vec![Some(head), server], Then::Load),
             (Some(head), None) => self.read(vec![Some(head)], Then::Load),
-            (None, _) => self.loaded(C::default()),
+            (None, _) => self.load(C::default()),
         }
         self.run(out);
     }
@@ -803,6 +808,7 @@ where
             now: opened.now,
             owes_since: None,
             last_edit: None,
+            edited_since: None,
             opened_journal: opened.journal,
             sealed_head: opened.sealed_head,
             put_retry_at: None,
@@ -848,6 +854,15 @@ where
 
     fn run(&mut self, out: &mut Vec<Effect>) {
         loop {
+            // A seal that came due as the order brought work back starts now: the host ticks
+            // only when its clock moves.
+            if !self.sealing && self.commit_at().is_some_and(|at| self.now >= at) {
+                self.sealing = true;
+                self.jobs.push_back(Job::Seal {
+                    sealing: Sealing::Due,
+                    reply: None,
+                });
+            }
             self.flush_editors();
             if self.released {
                 break;
@@ -1966,6 +1981,11 @@ where
                 self.settle_at(head, through);
                 self.sealed_state = state;
                 self.lacking.sealed(through, held, head);
+                // What came after the seal still owes one, timed from now.
+                self.owes_since = (self.applied > through).then_some(self.now);
+                if self.unsent.is_empty() && self.pending.is_empty() {
+                    self.edited_since = None;
+                }
                 self.rebase_journal();
                 self.broadcast(&SessionMessage::Sealed {
                     head,
@@ -2159,7 +2179,7 @@ where
     fn replay_entry(&mut self, op: SessionOp) {
         let sequence = op.sequence;
         let mine = op.id.origin == self.origin;
-        self.ordered_bytes += op.payload.len();
+        self.ordered_bytes += ordered_bytes(&op);
         match Submitted::decode(&op.payload) {
             Some(Submitted { through, entry }) => {
                 if mine {
@@ -2180,7 +2200,7 @@ where
                                 }
                             }
                             self.confirmed.apply(&operation);
-                            self.log_operation(sequence, operation);
+                            self.log_operation(sequence, operation, mine);
                         }
                     }
                     Entry::Operation(_) => {}
@@ -2207,13 +2227,14 @@ where
         Some(operation)
     }
 
-    fn log_operation(&mut self, sequence: u64, operation: C::Op) {
+    fn log_operation(&mut self, sequence: u64, operation: C::Op, mine: bool) {
         if self.log.len() >= LOG_LIMIT {
             self.log.pop_front();
         }
         self.log.push_back(Logged {
             sequence,
             operation,
+            mine,
         });
     }
 
@@ -2248,8 +2269,11 @@ where
 
     fn apply_entry(&mut self, op: SessionOp) {
         let mine = op.id.origin == self.origin;
-        self.ordered_bytes += op.payload.len();
-        self.last_edit = Some(self.now);
+        self.ordered_bytes += ordered_bytes(&op);
+        // Another's edit counts from when it arrived; this replica's own from when it was made.
+        if !mine {
+            self.last_edit = Some(self.now);
+        }
         let Some(Submitted { through, entry }) = Submitted::decode(&op.payload) else {
             self.incompatible = true;
             return self.passed(&op, mine);
@@ -2293,6 +2317,7 @@ where
                 }
                 self.applied = op.sequence;
                 self.take_heard_seal();
+                self.seal_if_owed();
             }
         }
     }
@@ -2339,7 +2364,7 @@ where
             return self.passed(&op, mine);
         };
         self.applied = sequence;
-        self.log_operation(sequence, operation.clone());
+        self.log_operation(sequence, operation.clone(), mine);
         if mine && let Some(sent) = self.forget_sent(id) {
             let unchanged = sent.operation.as_ref().is_some_and(|submitted| {
                 C::encode_operation(submitted) == C::encode_operation(&operation)
@@ -2434,9 +2459,15 @@ where
         if replace {
             self.replaced_at = op.sequence;
             self.history.clear();
-            // What this replica had not had numbered is dropped with what the replacement
-            // replaced: kept in history as a stash, unless it is the replacement's own.
-            let unsaved = !mine && (!self.pending.is_empty() || !self.unsent.is_empty());
+            // What this replica had not had numbered, or had numbered after the replacement's
+            // base, is dropped with what the replacement replaced: kept in history as a stash,
+            // unless it is the replacement's own.
+            let after_base = self
+                .log
+                .iter()
+                .any(|logged| logged.mine && logged.sequence > op.base);
+            let unsaved =
+                !mine && (!self.pending.is_empty() || !self.unsent.is_empty() || after_base);
             let lost = unsaved.then(|| self.visible.clone());
             self.drop_unconfirmed();
             self.lacking.replaced();
@@ -2461,6 +2492,10 @@ where
                     self.sealed_state = self.confirmed.session_state();
                     self.own_numbered.retain(|(at, _)| *at > op.sequence);
                     self.log.clear();
+                    // The head holds the order through here: the journal starts from it.
+                    if self.is_holder() {
+                        self.rebase_journal();
+                    }
                 }
             }
             false => {
@@ -2469,6 +2504,7 @@ where
                 }
             }
         }
+        self.seal_if_owed();
         if let Some(id) = sent.and_then(|sent| sent.reply) {
             self.reply(id, Answer::Changed(true));
         }
@@ -2477,6 +2513,19 @@ where
         self.take_heard_seal();
         if self.waiting.is_none() {
             self.flush();
+        }
+    }
+
+    /// A stash the order keeps, or a reload, is sealed at once: what it changed reaches the
+    /// head without waiting for a pause.
+    fn seal_if_owed(&mut self) {
+        let queued = self.jobs.iter().any(|job| matches!(job, Job::Seal { .. }));
+        if self.is_holder() && self.owes() && !queued && !self.sealing {
+            self.sealing = true;
+            self.jobs.push_back(Job::Seal {
+                sealing: Sealing::Due,
+                reply: None,
+            });
         }
     }
 
@@ -2584,6 +2633,8 @@ where
 
     fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
         self.active = true;
+        self.edited_since.get_or_insert(self.now);
+        self.last_edit = Some(self.now);
         if self.diverged {
             self.error(DIVERGED);
             return false;
@@ -3286,7 +3337,9 @@ where
         // Since when there is work to seal, whether or not a seal now would settle it: a seal
         // that waits on a merge or a retry is still timed from then.
         self.owes_since = match self.owes() {
-            true => self.owes_since.or(Some(self.now)),
+            true => self
+                .owes_since
+                .or(Some(self.edited_since.unwrap_or(self.now).min(self.now))),
             false => None,
         };
         if self.reported.status.as_ref() != Some(&status) {
@@ -3572,6 +3625,19 @@ fn restart_limit() -> usize {
     RESTART_LIMIT.with(std::cell::Cell::get)
 }
 
+
+/// The bytes an entry adds to what the order holds since the last seal: its own, and those of
+/// the part it names, which no commit holds either.
+fn ordered_bytes(op: &SessionOp) -> usize {
+    let parted = match Submitted::decode(&op.payload) {
+        Some(Submitted {
+            entry: Entry::Operation(Payload::Part(part)),
+            ..
+        }) => usize::try_from(part.length()).unwrap_or(usize::MAX),
+        _ => 0,
+    };
+    op.payload.len().saturating_add(parted)
+}
 
 /// The content of `bytes` (the type's default for none) with `journal` replayed on top, for a
 /// reader outside the session.
