@@ -163,15 +163,6 @@ pub fn Interactive(
 
 type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 
-/// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
-/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
-/// press hears no more drags. While the carry floats, the children are drawn where the item
-/// floats, raised above their siblings (a scroll around them still clips them), unless the
-/// carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
-/// corner and in this node's window (a carry crossing windows waits for the frame to name
-/// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
-/// (`carry_keys`). If this node goes
-/// while its carry is held, the carry is put down, dropping nothing.
 /// What `CarriedFace` draws from.
 #[derive(Clone)]
 struct Face {
@@ -192,6 +183,15 @@ struct Carrying {
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
 
+/// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
+/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
+/// press hears no more drags. While the carry floats, the children are drawn where the item
+/// floats, raised above their siblings (a scroll around them still clips them), unless the
+/// carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
+/// corner and in this node's window (a carry crossing windows waits for the frame to name
+/// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
+/// (`carry_keys`). If this node goes while its carry is held, the carry is put down,
+/// dropping nothing.
 fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
     (focusable, activates, source): (bool, bool, crate::reactive::NodeRef),
