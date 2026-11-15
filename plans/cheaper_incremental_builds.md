@@ -79,37 +79,14 @@ depend on it. be-host-stack keeps be-server and be-host-server as test dependenc
   18 edit none of the three. Measured on the build server, an edit to be-server no longer runs the check and
   diagnostics of be-host-stack (7.6 s), be-host-runtime (5.3 s) and be-host-desktop (5.2 s).
 
-### 2. be-host-runtime depends on the engine crates, not the facade
+### 2. be-host-runtime depends on the engine crates, not the facade (done)
 
-be-host-runtime depends on `beui` and `beui-host`, but uses no component, dock or keyboard:
-only types (`Forwarded`, `Pos`, `KeyPress`, ...), `beui::native` (re-exports of beui-core),
-beui-draw's `Draw`, `painted_drawing` and `texture_quad`, accesskit, and from beui-host
-`GpuSetup`, `SystemFonts`, `FontSources` and `drive`, which live in beui-renderer-wgpu,
-beui-font-freetype and beui-layer-drive. Depend on those and on beui-core, beui-types,
-beui-draw, beui-runner and accesskit directly.
+The user chose one spelling for every item. be-host-runtime depends on `beui-engine`, the
+facade's surface below the components, under the name `beui`, and on beui-renderer-wgpu,
+beui-font-freetype and beui-layer-drive; the facade re-exports `beui-engine` at the same paths
+(decisions/beui_facade_excludes_the_engine.md, guides/beui.md).
 
-- Waiting for the user's OK: it cuts be-host-runtime's rebuilds on component and engine-layer
-  edits, at the cost of the runtime spelling beui's types through the engine crates
-  (`beui_types::Pos`) where every other crate outside beui writes `beui::Pos`, an allowlisted
-  second spelling. The plan lands with this step marked; nobody starts it until the user
-  says yes.
-- Saves: be-host-runtime's library (17k lines) and its test binary (26k lines, its tests
-  rerun) are no longer rebuilt by an edit to beui-components-unstyled or -styled, beui-dock,
-  beui-dock-host, beui-keyboard, beui-inspector, beui-layer-space, beui-layer-xr or a platform
-  (80 of 300 commits touched one). 1.7% of recompiled library lines and 2.0k test lines per
-  edit; 0.6% and 2.2k per commit.
-- The step amends decisions/beui_facade_excludes_the_engine.md as it lands: the app runtime is
-  engine code, like beui-runner and the platforms, and depends on the engine crates beneath
-  the components (beui-core, beui-types, beui-draw, beui-runner, beui-renderer-wgpu,
-  beui-font-freetype, beui-layer-drive, and accesskit), spelling their items through those
-  crates; it does not depend on `beui` or `beui-host`. Programs, demos and test harnesses
-  keep using beui-host. One spelling per crate: a crate that depends on the engine crates
-  does not also depend on the facade. The check that holds it (buck/cargo/layers.bzl or
-  be-tool-fix-rust-source) names the crates outside beui allowed to depend on the engine
-  crates.
-- Done: be-host-runtime's `PACKAGE` has neither `beui` nor `beui-host`; the decision says the
-  above and the check enforces it; the landing commit gives the CPU an edit to
-  beui-components-styled runs, before and after.
+- Saved: 1.92% of recompiled library lines per edit, 0.75% per commit (re-measured on Nov 15).
 
 ### 3. beui-dock-state depends on be-lib-geometry, not beui-types (done)
 

@@ -1691,8 +1691,10 @@ dependencies = [
  "be-type-text",
  "be-wasm-guest-host",
  "be-wasm-host",
- "beui",
- "beui-host",
+ "beui-engine",
+ "beui-font-freetype",
+ "beui-layer-drive",
+ "beui-renderer-wgpu",
  "image",
  "js-sys",
  "pollster",
@@ -3096,18 +3098,14 @@ version = "0.1.0"
 name = "beui"
 version = "0.1.0"
 dependencies = [
- "accesskit",
  "beui-components-styled",
  "beui-components-unstyled",
- "beui-core",
  "beui-dock",
  "beui-dock-host",
- "beui-draw",
+ "beui-engine",
  "beui-keyboard",
  "beui-macros",
  "beui-paint-snapshot",
- "beui-reactive",
- "beui-view",
 ]
 
 [[package]]
@@ -3260,6 +3258,17 @@ dependencies = [
  "beui-core",
  "beui-types",
  "wgpu",
+]
+
+[[package]]
+name = "beui-engine"
+version = "0.1.0"
+dependencies = [
+ "accesskit",
+ "beui-core",
+ "beui-draw",
+ "beui-macros",
+ "beui-view",
 ]
 
 [[package]]

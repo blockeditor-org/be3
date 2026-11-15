@@ -84,10 +84,27 @@ def _family(name):
 def _workspace_deps(crate):
     deps = {}
     for entry in crate["platforms"].values():
-        for dep in entry["deps"] + [dep for bin in entry["binaries"].values() for dep in bin]:
+        named = entry.get("named_deps", {}).values()
+        for dep in entry["deps"] + list(named) + [dep for bin in entry["binaries"].values() for dep in bin]:
             if dep.startswith("//crates/"):
                 deps[dep.removeprefix("//crates/").split(":")[0]] = True
     return deps.keys()
+
+# One spelling for each of beui's items: a crate outside beui that needs only its engine surface
+# depends on beui-engine under the name `beui`, so it writes `beui::Pos` as every other crate
+# does, and never on the facade as well (decisions/beui_facade_excludes_the_engine.md).
+def _check_one_spelling(crate):
+    name = crate["name"]
+    for entry in crate["platforms"].values():
+        plain = [dep.removeprefix("//crates/").split(":")[0] for dep in entry["deps"] if dep.startswith("//crates/")]
+        named = entry.get("named_deps", {})
+        engine_named = [alias for alias, dep in named.items() if dep == "//crates/beui-engine:beui-engine"]
+        if "beui-engine" in plain and not _matches(name, "beui"):
+            fail("{} depends on beui-engine by its own name; depend on it as `beui = {{ path = \"../beui-engine\", package = \"beui-engine\" }}`, so its items are spelled as everywhere else (decisions/beui_facade_excludes_the_engine.md)".format(name))
+        if any([alias != "beui" for alias in engine_named]):
+            fail("{} names beui-engine something other than `beui` (decisions/beui_facade_excludes_the_engine.md)".format(name))
+        if engine_named and "beui" in plain:
+            fail("{} depends on both the beui facade and beui-engine; depend on one (decisions/beui_facade_excludes_the_engine.md)".format(name))
 
 def check_layers(crate):
     name = crate["name"]
@@ -98,6 +115,7 @@ def check_layers(crate):
                 name, ", ".join(FAMILIES)
             )
         )
+    _check_one_spelling(crate)
     if family not in LAYERS or any([name.endswith(suffix) for suffix in LAYER_EXEMPT_SUFFIXES]):
         return
     allowed = LAYERS[family] + LAYER_EXTRAS.get(name, [])

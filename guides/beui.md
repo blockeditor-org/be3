@@ -70,6 +70,14 @@ beui plus the engine, for whatever runs documents: `beui_host::native` adds
 browser's runner. The native windowed runner (winit, Android, and the space and
 XR layers) is `beui-host-window`'s (`run`, `run_with`, `native_platform`).
 
+The facade is `beui-engine`, its surface without the components (types,
+`beui::reactive`, views, windows, `beui::native`), plus the components, the dock
+and the keyboard: `beui` re-exports `beui-engine` at the same paths. A crate
+outside beui that runs documents but builds no components, the app runtime,
+depends on `beui-engine` under the name `beui`, so it spells every item as other
+crates do and an edit to a component does not rebuild it; `buck/cargo/layers.bzl`
+holds that spelling.
+
 Inside the family crates name each other directly, and the component crates
 declare `extern crate beui_view as beui;` so the `::beui::reactive` paths the
 macros expand to resolve. From the bottom up:
@@ -83,6 +91,7 @@ macros expand to resolve. From the bottom up:
 | `beui-core` | the native core: `Document`, `Context`, retained nodes, layout, input dispatch, accessibility, paint and damage, fonts and images interfaces, the `Program` contract |
 | `beui-core-html` | the HTML core, built on `beui-html` |
 | `beui-view` | the API both cores share: `beui::reactive`, `beui::primitives`, with a body per core |
+| `beui-engine` | the facade's engine-level surface, which `beui` re-exports; the app runtime's `beui` |
 | `beui-html` | HTML elements as components, serialized to strings or mounted as live DOM |
 | `beui-components-unstyled`, `beui-components-styled` | `beui::unstyled` (and `beui::datetime`), `beui::styled` |
 | `beui-dock`, `beui-dock-host`, `beui-dock-state` | docking: what an editor declares, what lays it out and draws it, the layout model |
