@@ -98,8 +98,8 @@ fn a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret() {
     // still where the person left it.
     let size = first.size();
     first.presence_visible(false);
-    first.resize(Vec2::new(size.x / 4.0, 40.0));
-    first.resize(Vec2::new(size.x, 1.0));
+    first.resize_embed(Vec2::new(size.x / 4.0, 40.0));
+    first.resize_embed(Vec2::new(size.x, 1.0));
     let (kept, squeezed) = saved(&first, view);
     assert_eq!(
         squeezed.as_ref().map(|kept| &kept.line_start),
