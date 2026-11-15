@@ -609,12 +609,14 @@ it, so it lasts as long as its latest code. Registering by code refuses
 an email that has an account, which tells a stranger it is registered: behind
 an invite code that leak is small, and mailing "you already have an account"
 is the alternative if registration opens. Changing the email, removing an
-identity and ending other sessions need a **fresh proof**
+identity and ending any session but the browser's own need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
 (`sessions.proved`), which signing in by code or recovering also gives.
 Removing an identity mails a notice. `--allow-login` lets anyone sign in, by
-any identity, and `--allow-registration` lets anyone make an account, by any
-identity, with an invite code.
+any identity, and with it `--allow-registration` lets anyone make an account,
+by any identity, with an invite code. The flag gates signing in, not using a
+session: without it a browser already signed in still changes its settings,
+confirms an email change (`/auth/verify`) and signs out.
 
 The protocol has the browser sign-in's one-shot `begin-browser-login` and
 `poll-browser-login` ("Signing in" above), token `Authenticate`, header

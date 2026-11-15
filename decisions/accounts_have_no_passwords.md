@@ -2,7 +2,7 @@
 
 A remote account signs in, registers and recovers by a code mailed to its email
 (guides/blocks/server.md, "Accounts"); passkeys and OIDC providers come beside
-it (plans/accounts.md). be-server keeps no password, hashes nothing and has no
+it (plans/accounts.md). be-server keeps and hashes no password, and has no
 lockouts or reset flow.
 
 ## Why

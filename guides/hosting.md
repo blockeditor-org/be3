@@ -123,7 +123,8 @@ phrase kept for decryption).
 
 Remote accounts are made only through the server's `/auth` portal, which signs in by a code
 mailed to the account's email: signing in needs `--allow-login`, registration also
-`--allow-registration` and an invite code. Codes are made on
+`--allow-registration` and an invite code. A browser already signed in keeps using its session,
+settings included, without `--allow-login`. Codes are made on
 the server against the data directory (`sudo -u be-server /srv/be-server/be-server invite-code
 ... --data-dir /mnt/data/be-server`), which works while the server runs:
 

@@ -1,5 +1,3 @@
-#[cfg(test)]
-mod codes;
 pub mod scene;
 
 #[cfg(test)]

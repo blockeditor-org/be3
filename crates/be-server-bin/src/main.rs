@@ -21,7 +21,7 @@ Usage:
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
   --allow-login             Accept sign-ins, by a code mailed to the account; without it,
                             only devices already signed in can connect, with their tokens
-  --allow-registration      Let anyone with an invite code make an account
+  --allow-registration      With --allow-login, let anyone with an invite code make an account
   --build-info-file FILE    JSON build metadata; clients must match its id. By
                             default the build-info.json file beside the executable, and with
                             neither it does not start

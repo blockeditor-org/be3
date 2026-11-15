@@ -6,11 +6,11 @@ Set aside until the user picks it up.
 
 be-server sends mail through `mail::Delivery`, whose only implementation,
 `LogDelivery`, writes each message to the server log, the hosted server's
-included. With plans/accounts.md, that log holds every live sign-in code and
-link, and the operator reads it (or runs `be-server login-link`) whenever
-someone signs in a device. The user judged that only a little worse than
-today, where the log already holds every verification and reset link, so real
-delivery waits.
+included. Since accounts sign in by emailed code (plans/accounts.md), that log
+holds every live sign-in code and link, and the operator reads it (or runs
+`be-server login-link`) whenever someone signs in a device. The user judged
+that only a little worse than before, when the log already held every
+verification and reset link, so real delivery waits.
 
 ## Steps
 

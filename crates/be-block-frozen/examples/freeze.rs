@@ -18,7 +18,7 @@ use be_block_graph::{Access, BlockParent};
 use be_block_keys::{InviteCode, RecoveryPhrase};
 use be_block_protocol::{OrganizationKind, OrganizationRole, client};
 use be_block_store::{ChunkerConfig, MemoryStore};
-use be_server::store::codes::{self, CodePurpose, CodeRequest};
+use be_server::store::codes::{CodePurpose, CodeRequest};
 use be_server::{
     ServerConfig,
     backup::{self, BackupKey, Directory},
@@ -805,29 +805,18 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let (unused_invite, _) =
         be_server::store::invite_codes::create(data, Some(1), None).map_err(text)?;
     let store = be_server::ServerStore::open(data).map_err(text)?;
-    // Registers with the used invite code, as the portal does: ask for a code, then enter it.
-    let attempt = codes::new_attempt();
-    let mailed = store
-        .request_code(CodeRequest {
-            purpose: CodePurpose::Register,
-            email: scene::REGISTERED_EMAIL,
-            account: None,
-            display_name: scene::REGISTERED_NAME,
-            invite: &used_invite,
-            device_code: "",
-            attempt: &attempt,
-            address: "127.0.0.1",
-        })
-        .await
-        .map_err(text)?
-        .ok_or("no registration code was sent")?;
     store
-        .enter_code(
-            &attempt,
-            &mailed.code,
-            "",
-            "127.0.0.1",
-            |_, _| true,
+        .ask_and_enter_code(
+            CodeRequest {
+                purpose: CodePurpose::Register,
+                email: scene::REGISTERED_EMAIL,
+                account: None,
+                display_name: scene::REGISTERED_NAME,
+                invite: &used_invite,
+                device_code: "",
+                attempt: "",
+                address: "127.0.0.1",
+            },
             ServerConfig::OPEN,
         )
         .await

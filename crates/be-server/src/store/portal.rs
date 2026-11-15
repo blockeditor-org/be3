@@ -68,6 +68,9 @@ impl ServerStore {
         .await
     }
 
+    /// A browser session for the account with no sign-in and no proof, for tests and benches
+    /// that start signed in, as `register` makes an account with no code. The portal never
+    /// calls it: a browser signs in by a code.
     pub async fn browser_session(&self, account: Uuid) -> Result<String, ServerError> {
         self.with_database(move |_, database| {
             let token = issue_token(&database, account)?;
@@ -227,7 +230,7 @@ impl ServerStore {
             let (account, email) = row.ok_or_else(|| {
                 refused("This link is invalid, expired, or already used. Request a new link.")
             })?;
-            unregistered(&transaction, &email)?;
+            super::codes::unregistered(&transaction, &email)?;
             let old_email: String = transaction.query_row(
                 "SELECT email FROM accounts WHERE id = ?1",
                 [&account],
@@ -276,18 +279,6 @@ fn may_send(database: &Connection, email: &str, address: &str) -> Result<(), Ser
     Ok(())
 }
 
-fn unregistered(database: &Connection, email: &str) -> Result<(), ServerError> {
-    let used: bool = database.query_row(
-        "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'email' AND subject = ?1)",
-        [email],
-        |row| row.get(0),
-    )?;
-    if used {
-        return Err(refused("Email: that address is already registered."));
-    }
-    Ok(())
-}
-
 fn mail_link(
     database: &Connection,
     account: &str,
@@ -295,7 +286,7 @@ fn mail_link(
     address: &str,
 ) -> Result<MailLink, ServerError> {
     may_send(database, email, address)?;
-    unregistered(database, email)?;
+    super::codes::unregistered(database, email)?;
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     database.execute(
         "INSERT INTO account_mail (token_hash, account_id, email, expires, address) VALUES (?1, ?2, ?3, ?4, ?5)",

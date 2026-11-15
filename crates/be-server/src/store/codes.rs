@@ -202,6 +202,21 @@ fn account_of(database: &Connection, email: &str) -> Result<Option<String>, Serv
         .optional()?)
 }
 
+/// Refuses an email an account already has: as an identity, or as the address an agent or a
+/// local profile was made with, which no one signs in with.
+pub(crate) fn unregistered(database: &Connection, email: &str) -> Result<(), ServerError> {
+    let used: bool = database.query_row(
+        "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'email' AND subject = ?1)
+             OR EXISTS(SELECT 1 FROM accounts WHERE email = ?1)",
+        [email],
+        |row| row.get(0),
+    )?;
+    if used {
+        return Err(refused("Email: that address is already registered."));
+    }
+    Ok(())
+}
+
 /// Adds an email identity to an account, as registering or verifying an email does.
 pub(crate) fn add_email_identity(
     database: &Connection,
@@ -257,9 +272,7 @@ impl ServerStore {
                 CodePurpose::Proof => asking.map(|account| account.to_string()),
                 CodePurpose::Register => {
                     invite_codes::check(&transaction, &invite)?;
-                    if account_of(&transaction, &email)?.is_some() {
-                        return Err(refused("Email: that address is already registered."));
-                    }
+                    unregistered(&transaction, &email)?;
                     let waiting: i64 = transaction.query_row(
                         "SELECT count(*) FROM sign_in_codes WHERE purpose = 'register' AND invite_hash = ?1 AND expires > ?2",
                         params![invite, now],
@@ -411,9 +424,7 @@ impl ServerStore {
                 )?;
                 let account = match purpose {
                     CodePurpose::Register => {
-                        if account_of(&transaction, &email)?.is_some() {
-                            return Err(refused("Email: that address is already registered."));
-                        }
+                        unregistered(&transaction, &email)?;
                         invite_codes::spend(&transaction, &invite)?;
                         let account = Uuid::new_v4();
                         transaction.execute(
@@ -464,6 +475,28 @@ impl ServerStore {
         let (entered, email) = entered_code?;
         self.remembered.remember(&email, address, Instant::now());
         Ok(entered)
+    }
+
+    /// Asks for a code and enters it at once, as a browser at `request.address` would, for the
+    /// tools and tests that hold the store rather than a mailbox; the portal never calls it.
+    /// `request.attempt` is ignored: each call is an attempt of its own. Answers what entering
+    /// it did, or why it was refused, a code for an email with no account included.
+    pub async fn ask_and_enter_code(
+        &self,
+        request: CodeRequest<'_>,
+        config: crate::ServerConfig,
+    ) -> Result<EnteredCode, ServerError> {
+        let attempt = new_attempt();
+        let address = request.address;
+        let mailed = self
+            .request_code(CodeRequest {
+                attempt: &attempt,
+                ..request
+            })
+            .await?
+            .ok_or_else(|| refused("Email: no account has that address."))?;
+        self.enter_code(&attempt, &mailed.code, "", address, |_, _| true, config)
+            .await
     }
 
     /// Whether the browser session proved it is the account's owner in the last

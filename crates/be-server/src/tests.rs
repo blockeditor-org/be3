@@ -171,6 +171,7 @@ mod recovering_by_code_signs_out_every_other_session;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_by_code_makes_the_account_once_the_code_is_entered;
 mod registering_joins_the_one_personal_organization_as_an_editor;
+mod registration_codes_are_capped_per_invite_and_overall;
 mod registration_needs_an_invite_code_spent_when_the_account_is_made;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
@@ -1447,7 +1448,6 @@ impl Harness {
         (code, attempt)
     }
 
-    /// How many messages went to `email`.
     /// Lets every browser's proof go stale, as `codes::FRESH_PROOF` passing would.
     fn stale_proofs(&self) {
         metadata_database(&self.directory)
@@ -1455,6 +1455,7 @@ impl Harness {
             .unwrap();
     }
 
+    /// How many messages went to `email`.
     fn mails_to(&self, email: &str) -> usize {
         self.mail
             .0
