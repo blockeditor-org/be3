@@ -7,8 +7,8 @@ fn on_a_phone_a_new_text_opens_from_its_row_with_one_tap_after_back() {
     let mut host = HostTest::start(Options::default());
     host.run(&["resize", "390x844"]);
     open_add_to_my_files(&mut host);
-    // On a phone the picker is a sheet, which slides up on the clock before its rows are where
-    // a tap finds them, and away again after.
+    // On a phone the picker is a sheet, which slides up on the clock: a tap aimed at a row while
+    // it slides lands where the row was (guides/running/drive.md, Targets). It slides away after.
     host.wait("#picker.more");
     host.pause(600);
     host.run(&["tap", "MenuItem \"Text\""]);

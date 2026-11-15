@@ -127,7 +127,11 @@ from `drive windows` (each display's window in a login session, say).
 
 A command that presses, points or types at a target first scrolls it into view when a scroll
 hides or cuts it (the accessibility `ScrollIntoView`), then aims at the middle of the part that
-shows. `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
+shows. It aims at where the target is when the command reads the tree, and the press lands frames
+later: a target still moving (a sheet sliding up as it opens) has moved by then, and the press
+can land beside it, or outside the sheet and close it. Wait for it to settle first (`settle`, or
+`pause` with the clock stopped). beui itself takes a press where things are drawn as it takes it
+(beui-host's `a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it`). `shot` and `paint` reveal and crop the same way. `BeuiTest::click` does the same.
 
 ## Acting
 
