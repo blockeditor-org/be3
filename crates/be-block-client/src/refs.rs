@@ -536,12 +536,12 @@ pub(crate) struct Refs {
 /// Announced changes of references resolve against the summaries the server last gave
 /// (`Connection::hold_with`).
 impl crate::connection::Held for Refs {
-    fn references(&self, block: Uuid) -> Option<Vec<Uuid>> {
+    fn references(&self, block: Uuid) -> Option<(u64, Vec<Uuid>)> {
         let state = self.state.lock().unwrap();
         state
             .summaries
             .get(&block)
-            .map(|summary| summary.references.clone())
+            .map(|summary| (summary.revision, summary.references.clone()))
     }
 
     fn keep(&self, summary: &BlockSummary) {

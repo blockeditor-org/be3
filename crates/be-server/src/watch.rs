@@ -33,7 +33,9 @@ pub enum Push {
     BlockChanged {
         block: BlockSummary,
         /// What the change did to its references, when the server knows (`Moves`): told in
-        /// their place to a connection already told them (`WatchHub::tell`).
+        /// their place to a connection already told them (`WatchHub::tell`), which then
+        /// empties `block.references`. Without it, `block.references` go whole
+        /// (`changed-references`).
         moved: Option<be_block_protocol::MovedReferences>,
         /// The connection whose call changed it.
         from: ClientId,
