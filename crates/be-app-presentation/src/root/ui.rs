@@ -383,12 +383,6 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         Notes::Block(target) => Some(target),
         Notes::None | Notes::Loading | Notes::Missing => None,
     });
-    let status = create_memo(move || match notes.get() {
-        Notes::Loading => Some("Loading the notes…"),
-        Notes::Missing => Some("This slide's notes could not be found."),
-        Notes::None | Notes::Block(_) => None,
-    });
-    let message = create_memo(move || status.get().unwrap_or_default().to_owned());
     let add = move || {
         if let Some(id) = selected.get_untracked() {
             slides.add_notes(id);
@@ -398,7 +392,8 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         <Frame fill=ColorRole::Surface>
             <Layers>
                 <List spacing=Space::None>
-                    <Show value={move || notes.get() == Notes::None}>
+                    <Match value={notes}>
+                        <Case is={Notes::None}>
                         <Frame padding=NOTES_PADDING>
                             <List
                                 direction=Direction::Horizontal
@@ -417,14 +412,18 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                                 />
                             </List>
                         </Frame>
-                    </Show>
-                    <Show value={move || status.with(Option::is_some)}>
+                        </Case>
+                        <Case when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}>|notes: Notes|
                         <Frame padding=NOTES_PADDING>
                             <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
-                                {message}
+                                {match notes {
+                                    Notes::Loading => "Loading the notes…",
+                                    _ => "This slide's notes could not be found.",
+                                }}
                             </Text>
                         </Frame>
-                    </Show>
+                        </Case>
+                    </Match>
                 </List>
                 <Show value={move || target.with(Option::is_some)}>
                     <ChildBlock

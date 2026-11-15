@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::rename::Renaming;
 use super::rows::{RowKey, Tree as FileTree};
 use super::ui::{Picker, add_to_section, row_test_id};
-use super::zoom::Zoom;
+use super::zoom::{Focus, Zoom};
 use beui::{Align, Direction};
 
 const SPACING: Space = Space::Sm;
@@ -54,8 +54,8 @@ pub(crate) fn FilesToolbar(adding: Adding, shown: Prop<bool>) -> DynamicSegment<
                             on_click={move || editor.show_host_menu(account)}
                         />
                     </List>
-                    <Show value={move || focus.with(Option::is_some)}>
-                        <Location zoom />
+                    <Show value={focus}>|focus: ReadSignal<Focus>|
+                        <Location zoom focus />
                     </Show>
                 </List>
             </ListItem>
@@ -139,16 +139,14 @@ fn NewButton(adding: Adding) -> NodeId {
         editor.cancel_pick();
         add_to_section(editor, picker, id, menu_button);
     };
-    let add_here = move || {
+    let add_here = move |id: Uuid| {
         query.set(String::new());
-        if let Some(id) = addable.get_untracked() {
-            picker.open(
-                editor,
-                id,
-                [id].into_iter().collect::<HashSet<Uuid>>(),
-                here,
-            );
-        }
+        picker.open(
+            editor,
+            id,
+            [id].into_iter().collect::<HashSet<Uuid>>(),
+            here,
+        );
     };
     let menu_open = create_signal(false);
     let opening = Binding::new(menu_open, move |open: bool| {
@@ -207,14 +205,14 @@ fn NewButton(adding: Adding) -> NodeId {
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show value={move || addable.with(Option::is_some)} fallback={menu}>
+            <Show value={addable} fallback={menu}>|id: ReadSignal<Uuid>|
                 <Button
                     @node_ref={&here}
                     glyph=ICON_PLUS
                     label="New"
                     variant=ButtonVariant::Primary
                     @test_id={"file-tree.new"}
-                    on_click={add_here}
+                    on_click={move || add_here(id.get_untracked())}
                 />
             </Show>
         </List>
@@ -222,16 +220,8 @@ fn NewButton(adding: Adding) -> NodeId {
 }
 
 #[component]
-fn Location(zoom: Zoom) -> NodeId {
-    let focus = zoom.focus();
-    let trail = create_memo(move || {
-        focus.with(|focus| {
-            focus.as_ref().map_or_else(Vec::new, |focus| {
-                focus.trail.iter().map(|(key, _)| key.clone()).collect()
-            })
-        })
-    });
-    let name = create_memo(move || focus.get().map(|focus| focus.row.label).unwrap_or_default());
+fn Location(zoom: Zoom, focus: ReadSignal<Focus>) -> NodeId {
+    let name = create_memo(move || focus.with(|focus| focus.row.label.clone()));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Button
@@ -242,27 +232,20 @@ fn Location(zoom: Zoom) -> NodeId {
                 label="Up one level"
                 on_click={move || zoom.up()}
             />
-            <ForEach value={trail}>|key: RowKey| {
-                let shown = key.clone();
-                let label = create_memo(move || {
-                    focus.with(|focus| {
-                        focus
-                            .as_ref()
-                            .and_then(|focus| focus.trail.iter().find(|(held, _)| *held == shown))
-                            .map(|(_, label)| label.clone())
-                            .unwrap_or_default()
-                    })
-                });
+            <ForEach
+                value={move || focus.with(|focus| focus.trail.clone())}
+                key={|(key, _): &(RowKey, String)| key.clone()}
+            >|crumb: ReadSignal<(RowKey, String)>| {
+                let key = crumb.with_untracked(|(key, _)| key.clone());
+                let label = create_memo(move || crumb.with(|(_, label)| label.clone()));
                 let named = format!("{}.crumb", row_test_id(&key));
                 view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Crumb
-                            label={label}
-                            named={named}
-                            on_click={move || zoom.out_to(key.clone())}
-                        />
-                        <Text color=TextColor::Muted>"/"</Text>
-                    </List>
+                    <Crumb
+                        label={label}
+                        named={named}
+                        on_click={move || zoom.out_to(key.clone())}
+                    />
+                    <Text color=TextColor::Muted>"/"</Text>
                 }
             }</ForEach>
             <ListItem shrink=1.0>

@@ -124,10 +124,8 @@ fn MetricsPanel(session: Session) -> NodeId {
     });
     view! {
         <List spacing=SPACING>
-            <Show value={move || error.with(Option::is_some)}>
-                <Problem
-                    content={move || format!("Cannot compile: {}", error.get().unwrap_or_default())}
-                />
+            <Show value={error}>|error: ReadSignal<String>|
+                <Problem content={move || format!("Cannot compile: {}", error.get())} />
             </Show>
             <Rows rows={rows} />
         </List>
@@ -151,7 +149,7 @@ struct SimulationView {
     storage: Vec<(String, String)>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum SimulationFrame {
     Root,
     Caller(usize),
@@ -342,19 +340,16 @@ impl LogicGridEditor {
 #[component]
 fn SimulationPanel(session: Session) -> NodeId {
     let shown = create_memo(move || session.read(LogicGridEditor::simulation_view));
-    let failed = create_memo(move || shown.get().error.is_some());
-    let problem =
-        create_memo(move || format!("Cannot run: {}", shown.get().error.unwrap_or_default()));
     let idle = create_memo(move || {
         let shown = shown.get();
         shown.error.is_none() && !shown.compiled
     });
     let compiled = create_memo(move || shown.get().compiled);
     let summary = create_memo(move || shown.get().summary);
-    let frames = create_memo(move || (0..shown.get().frames.len()).collect::<Vec<_>>());
-    let instructions = create_memo(move || (0..shown.get().instructions.len()).collect::<Vec<_>>());
-    let no_instructions = create_memo(move || instructions.get().is_empty());
-    let inputs = create_memo(move || (0..shown.get().inputs.len()).collect::<Vec<_>>());
+    let frames = create_memo(move || shown.get().frames);
+    let instructions = create_memo(move || shown.get().instructions);
+    let no_instructions = create_memo(move || instructions.with(Vec::is_empty));
+    let inputs = create_memo(move || shown.get().inputs);
     let no_inputs = create_memo(move || inputs.with(Vec::is_empty));
     let outputs = create_memo(move || shown.get().outputs);
     let wires = create_memo(move || shown.get().wires);
@@ -378,8 +373,8 @@ fn SimulationPanel(session: Session) -> NodeId {
                 />
                 <Spacer />
             </List>
-            <Show value={failed}>
-                <Problem content={problem} />
+            <Show value={move || shown.get().error}>|error: ReadSignal<String>|
+                <Problem content={move || format!("Cannot run: {}", error.get())} />
             </Show>
             <Show value={idle}>
                 <Text style=TextStyle::CAPTION>
@@ -392,20 +387,15 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <Separator />
                     <Text>"Call stack"</Text>
                     <List spacing=Space::Xs2>
-                        <ForEach value={frames}>|index: usize| {
-                            let row = create_memo(move || {
-                                shown.get().frames.get(index).cloned()
-                            });
-                            let label = create_memo(move || {
-                                row.get().map(|row| row.0).unwrap_or_default()
-                            });
-                            let selected = create_memo(move || {
-                                row.get().is_some_and(|row| row.1)
-                            });
+                        <ForEach
+                            value={frames}
+                            key={|row: &(String, bool, SimulationFrame)| row.2}
+                        >|row: ReadSignal<(String, bool, SimulationFrame)>| {
+                            let label = create_memo(move || row.with(|row| row.0.clone()));
+                            let selected = create_memo(move || row.with(|row| row.1));
                             let chose = move || {
-                                if let Some((_, _, frame)) = row.get_untracked() {
-                                    session.update(|model| model.select_simulation_frame(frame));
-                                }
+                                let frame = row.with_untracked(|row| row.2);
+                                session.update(|model| model.select_simulation_frame(frame));
                             };
                             view! {
                                 <ListRow selected={selected} on_click={chose}>
@@ -420,14 +410,12 @@ fn SimulationPanel(session: Session) -> NodeId {
                         <Text style=TextStyle::CAPTION>"No instructions"</Text>
                     </Show>
                     <List spacing=Space::Xs2>
-                        <ForEach value={instructions}>|index: usize| {
-                            let row = create_memo(move || {
-                                shown.get().instructions.get(index).cloned()
-                            });
-                            view! {
-                                <InstructionRow session={session} row={row} index={index} />
-                            }
-                        }</ForEach>
+                        <ForEach
+                            value={instructions}
+                            key={|row: &(String, bool, Option<bool>)| row.0.clone()}
+                        >|row: ReadSignal<(String, bool, Option<bool>)>, index: ReadSignal<usize>|
+                            <InstructionRow session={session} row={row} index={index} />
+                        </ForEach>
                     </List>
                     <Separator />
                     <Text>"Inputs"</Text>
@@ -435,14 +423,12 @@ fn SimulationPanel(session: Session) -> NodeId {
                         <Text style=TextStyle::CAPTION>"None"</Text>
                     </Show>
                     <List spacing=Space::Xs>
-                        <ForEach value={inputs}>|index: usize| {
-                            let row = create_memo(move || {
-                                shown.get().inputs.get(index).cloned()
-                            });
-                            view! {
-                                <InputRow session={session} row={row} index={index} />
-                            }
-                        }</ForEach>
+                        <ForEach
+                            value={inputs}
+                            key={|row: &InputView| row.0.clone()}
+                        >|row: ReadSignal<InputView>, index: ReadSignal<usize>|
+                            <InputRow session={session} row={row} index={index} />
+                        </ForEach>
                     </List>
                     <Separator />
                     <Text>"Outputs"</Text>
@@ -462,17 +448,20 @@ fn SimulationPanel(session: Session) -> NodeId {
 #[component]
 fn InstructionRow(
     session: Session,
-    row: Memo<Option<(String, bool, Option<bool>)>>,
-    index: usize,
+    row: ReadSignal<(String, bool, Option<bool>)>,
+    index: ReadSignal<usize>,
 ) -> NodeId {
-    let text = create_memo(move || row.get().map(|row| row.0).unwrap_or_default());
-    let fill = create_memo(move || match row.get().is_some_and(|row| row.1) {
+    let text = create_memo(move || row.with(|row| row.0.clone()));
+    let fill = create_memo(move || match row.with(|row| row.1) {
         true => ColorRole::AccentSoft,
         false => ColorRole::None,
     });
-    let calls = create_memo(move || row.get().is_some_and(|row| row.2.is_some()));
-    let unresolved = create_memo(move || row.get().is_none_or(|row| row.2 != Some(true)));
-    let target = move || session.update(|model| model.select_instruction_target(index));
+    let calls = create_memo(move || row.with(|row| row.2.is_some()));
+    let unresolved = create_memo(move || row.with(|row| row.2 != Some(true)));
+    let target = move || {
+        let index = index.get_untracked();
+        session.update(|model| model.select_instruction_target(index));
+    };
     view! {
         <Frame fill={fill} radius=Radius::Xs padding={Padding::horizontal(Space::Xs)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -493,30 +482,23 @@ fn InstructionRow(
 }
 
 #[component]
-fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> NodeId {
-    let label = create_memo(move || row.get().map(|row| row.0).unwrap_or_default());
-    let deleted = create_memo(move || row.get().is_none_or(|row| row.1.is_none()));
-    let bits = create_memo(move || {
-        row.get()
-            .and_then(|row| row.1)
-            .map(|bits| bits.into_iter().map(|(bit, _)| bit).collect::<Vec<_>>())
-            .unwrap_or_default()
-    });
+fn InputRow(session: Session, row: ReadSignal<InputView>, index: ReadSignal<usize>) -> NodeId {
+    let label = create_memo(move || row.with(|row| row.0.clone()));
+    let deleted = create_memo(move || row.with(|row| row.1.is_none()));
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=Space::Xs>
             <Text style=TextStyle::CAPTION>{label}</Text>
             <Show value={deleted}>
                 <Text style=TextStyle::CAPTION>"deleted"</Text>
             </Show>
-            <ForEach value={bits}>|bit: u32| {
-                let state = create_memo(move || {
-                    row.get()
-                        .and_then(|row| row.1)
-                        .and_then(|bits| bits.into_iter().find(|(held, _)| *held == bit))
-                        .map_or(0, |(_, state)| state)
-                });
-                let text = create_memo(move || format!("{bit}:{}", state.get()));
+            <ForEach
+                value={move || row.with(|row| row.1.clone().unwrap_or_default())}
+                key={|(bit, _): &(u32, u64)| *bit}
+            >|held: ReadSignal<(u32, u64)>| {
+                let bit = held.with_untracked(|(bit, _)| *bit);
+                let text = create_memo(move || held.with(|(bit, state)| format!("{bit}:{state}")));
                 let toggle = move || {
+                    let index = index.get_untracked();
                     session.update(|model| model.toggle_simulation_input_bit(index, bit));
                 };
                 view! {

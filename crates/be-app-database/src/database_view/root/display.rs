@@ -233,17 +233,6 @@ fn OrderPicker(data: Data) -> NodeId {
             }
         })));
     };
-    let glyph = move || match data.sort.get().map(|sort| sort.direction) {
-        Some(SortDirection::Descending) => ICON_ARROW_DOWN,
-        _ => ICON_ARROW_UP,
-    };
-    let direction_label = move || {
-        match data.sort.get().map(|sort| sort.direction) {
-            Some(SortDirection::Descending) => "Descending",
-            _ => "Ascending",
-        }
-        .to_owned()
-    };
     let flip = move || {
         if let Some(sort) = data.sort.get_untracked() {
             let direction = match sort.direction {
@@ -269,11 +258,17 @@ fn OrderPicker(data: Data) -> NodeId {
                         on_change={picked}
                     />
                 </ListItem>
-                <Show value={move || data.sort.get().is_some()}>
+                <Show value={move || data.sort.get().map(|sort| sort.direction)}>|direction: ReadSignal<SortDirection>|
                     <Button
                         icon_only=true
-                        glyph={glyph}
-                        label={direction_label}
+                        glyph={move || match direction.get() {
+                            SortDirection::Ascending => ICON_ARROW_UP,
+                            SortDirection::Descending => ICON_ARROW_DOWN,
+                        }}
+                        label={move || match direction.get() {
+                            SortDirection::Ascending => "Ascending".to_owned(),
+                            SortDirection::Descending => "Descending".to_owned(),
+                        }}
                         @test_id={"database-view.order-direction"}
                         on_click={flip}
                     />
