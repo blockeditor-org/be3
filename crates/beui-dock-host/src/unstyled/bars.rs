@@ -136,6 +136,7 @@ impl State {
     /// Builds `bar`'s panel, in the scope of the `Kept` that keeps it (`Held::Bar`).
     pub(super) fn build_bar_panel(&self, bar: TabId) -> NodeId {
         let dock = *self;
+        provide_kept_shown(self.shown);
         let panel = {
             let state = dock.state;
             let placement = create_memo(move || state.with(|state| state.bar_placement(bar)));
