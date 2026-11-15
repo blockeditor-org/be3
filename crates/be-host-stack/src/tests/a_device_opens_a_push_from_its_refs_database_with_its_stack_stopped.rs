@@ -7,8 +7,9 @@ use crate::device_push::{self, Shown};
 /// takes pushes at a Web Push endpoint with keys of its own (Android's UnifiedPush receiver),
 /// is told of a message while signed out and with no stack running: the body the server pushed
 /// opens from the directory alone, named from the phone's own contacts and graph. A push shown
-/// once, or sent again under another encryption, is dropped; one the phone cannot open shows
-/// "New message" naming nothing.
+/// once, sent again under another encryption, or not decrypting is dropped; one the phone
+/// cannot open shows "New message" naming nothing. Turning pushes off leaves nothing to
+/// register.
 #[test]
 fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
     let harness = Harness::pushing();
@@ -63,13 +64,24 @@ fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
         .expect("the identity is saved");
     let keys = device_push::keys(&state).expect("the phone makes its push keys");
     assert_eq!(device_push::keys(&state).expect("kept"), keys);
+    let address = format!("{}/phone", pushes.url);
+    state
+        .set_push_endpoint(Some(&address))
+        .expect("the distributor's endpoint is kept");
+    let registration = device_push::registration(&state)
+        .expect("the registration reads")
+        .expect("pushes are on");
+    assert_eq!(
+        (
+            &registration.address,
+            &registration.p256dh,
+            &registration.auth
+        ),
+        (&address, &keys.public(), &keys.auth().to_vec())
+    );
     phone
         .runtime
-        .block_on(
-            phone
-                .peer
-                .register_endpoint(device_push::endpoint(&keys, format!("{}/phone", pushes.url))),
-        )
+        .block_on(phone.peer.register_endpoint(registration))
         .expect("the phone registers its endpoint");
     phone.signs_out();
 
@@ -104,13 +116,14 @@ fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
         .expect("the push encrypts again");
     assert_eq!(device_push::receive(&state, &phone_dir, &resent, now), None);
 
-    // What does not decrypt names nothing, and so does a push this device holds no account
-    // for: another device's state, with keys of its own and no account saved.
+    // What does not decrypt is dropped, as a browser drops it; a push this device holds no
+    // account for names nothing: another device's state, with keys of its own and no account
+    // saved.
     let mut garbled = pushed.body.clone();
     *garbled.last_mut().expect("a push has a body") ^= 1;
     assert_eq!(
         device_push::receive(&state, &phone_dir, &garbled, now),
-        Some(Shown::generic())
+        None
     );
     let stranger_dir = harness.directory.join("stranger");
     std::fs::create_dir_all(&stranger_dir).expect("the stranger's directory is made");
@@ -123,4 +136,12 @@ fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
         device_push::receive(&stranger, &stranger_dir, &elsewhere, now),
         Some(Shown::generic())
     );
+
+    // Turned off, the endpoint is forgotten and handed back for the server to forget: no
+    // organization registers it again.
+    assert_eq!(
+        device_push::turn_off(&state).expect("pushes turn off"),
+        Some(address)
+    );
+    assert_eq!(device_push::registration(&state).expect("it reads"), None);
 }
