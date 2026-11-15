@@ -65,12 +65,16 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
     let count = create_memo(move || nodes.get().len());
     let stage = create_signal(Stage::Probe(0));
     let naturals = create_signal(Vec::<Option<f32>>::new());
+    // Every new set of children is probed from the first again, even one as long as the last:
+    // a linked signal would keep the probe, since its seed would be the same.
+    create_effect_on(
+        move || nodes.with(Vec::len),
+        move |&count, _| {
+            naturals.set(vec![None; count]);
+            stage.set(Stage::Probe(0).settle(count));
+        },
+    );
     let width = create_signal(None::<f32>);
-    create_effect(move || {
-        let count = nodes.get().len();
-        naturals.set(vec![None; count]);
-        stage.set(Stage::Probe(0).settle(count));
-    });
     let claim = create_memo(move || {
         let first = naturals.with(|naturals| naturals.first().copied().flatten());
         Extent::at_most(first.unwrap_or(0.0))

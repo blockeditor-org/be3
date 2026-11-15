@@ -112,7 +112,7 @@ pub fn component_node() -> NodeRef {
     crate::core::tree::component_node()
 }
 
-pub fn component_placed() -> ReadSignal<bool> {
+pub fn component_placed() -> Reader<bool> {
     crate::core::tree::component_placed()
 }
 
