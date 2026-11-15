@@ -67,7 +67,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Seals `base`'s state and starts this device's journal, and when `online` the server's,
-    /// from it, keeping what came after it (`Sequencer::sealed`). What the journal's entries
+    /// from it, keeping what came after it. What the journal's entries
     /// up to the base announce goes with `base`'s commit when this device sealed it (`own`),
     /// sent once the server holds it; the rest is dropped.
     #[allow(clippy::too_many_arguments)]

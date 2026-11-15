@@ -4,7 +4,6 @@ use uuid::Uuid;
 
 use super::*;
 
-mod a_seal_trims_the_order_but_keeps_what_later_operations_rebase_onto;
 mod an_expired_lease_can_be_claimed_but_a_held_one_cannot;
 mod only_a_participant_that_may_edit_is_granted_the_lease;
 mod ownership_moves_on_when_the_owner_leaves;

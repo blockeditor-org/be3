@@ -216,7 +216,7 @@ interface types {
 
     /// One submission the session's order numbered: its place (`sequence`),
     /// the replica that made it (`origin`, `counter`), the last number that
-    /// replica had applied (`base`), the lowest base still applied (`floor`),
+    /// replica had applied (`base`), the last barrier (`floor`): one based below it is passed over,
     /// when the server took it by its clock (none for an order a device kept
     /// offline), and its payload, sealed with the block's key.
     record journal-entry {
@@ -239,9 +239,7 @@ interface types {
     }
 
     /// A block's session's order since its base, which no commit holds yet,
-    /// written by the build of the block's type that `tag` names. Entries at or
-    /// below the base's sequence are kept only because later ones were based
-    /// on them: a replica opening on the base rebases those later ones over them.
+    /// written by the build of the block's type that `tag` names.
     record journal {
         tag: hash,
         base: journal-base,

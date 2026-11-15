@@ -50,7 +50,8 @@ pub struct Submission {
 }
 
 /// A submission as the order numbered it: `sequence` is its place, `floor` the lowest `base`
-/// still applied (an operation based below it is passed over by every replica alike), and
+/// still applied (the last barrier: an operation based below it is passed over by every replica
+/// alike), and
 /// `received` when the server took it, by its clock (none for an order kept offline).
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SessionOp {
@@ -81,17 +82,14 @@ pub enum SessionMessage {
 }
 
 /// Where a session's order stands: the server's half of a live session, kept beside the block's
-/// journal (and on a device offline beside its own journal). It numbers each submission, keeps
-/// the floor, and trims at each seal.
+/// journal (and on a device offline beside its own journal). It numbers each submission and
+/// keeps the floor.
 ///
 /// - `sequence`: the last number given.
-/// - `cut`: entries at or below it are gone from the journal, so nothing based below it can be
-///   rebased any more.
 /// - `barrier`: the last barrier's number; nothing based before it applies.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Sequencer {
     pub sequence: u64,
-    pub cut: u64,
     pub barrier: u64,
 }
 
@@ -100,14 +98,13 @@ impl Sequencer {
     pub fn starting(sequence: u64) -> Self {
         Self {
             sequence,
-            cut: sequence,
             barrier: 0,
         }
     }
 
     /// The floor an operation numbered now carries.
     pub fn floor(&self) -> u64 {
-        self.cut.max(self.barrier)
+        self.barrier
     }
 
     /// Numbers `submission`, taken at `received`.
@@ -124,17 +121,6 @@ impl Sequencer {
             received,
             payload: submission.payload,
         }
-    }
-
-    /// A seal holds the order through `through`; `bases` are the bases of the entries numbered
-    /// after it. Answers the new cut: entries at or below it can go, those after it stay, and so
-    /// do the ones later entries were based on, which a replica that opens on the seal needs to
-    /// rebase them.
-    pub fn sealed(&mut self, through: u64, bases: impl IntoIterator<Item = u64>) -> u64 {
-        let through = through.min(self.sequence);
-        let cut = bases.into_iter().fold(through, u64::min);
-        self.cut = self.cut.max(cut);
-        self.cut
     }
 }
 

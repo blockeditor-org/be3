@@ -33,7 +33,7 @@ fn head(
 ) -> Result<Option<Head>, ServerError> {
     database
         .query_row(
-            "SELECT tag, base_commit, base_sequence, base_state, sequence, cut, barrier, lost
+            "SELECT tag, base_commit, base_sequence, base_state, sequence, barrier, lost
              FROM block_journals WHERE organization_id = ?1 AND block_id = ?2",
             params![organization.to_string(), block.to_string()],
             |row| {
@@ -44,14 +44,13 @@ fn head(
                     row.get::<_, Vec<u8>>(3)?,
                     row.get::<_, i64>(4)?,
                     row.get::<_, i64>(5)?,
-                    row.get::<_, i64>(6)?,
-                    row.get::<_, bool>(7)?,
+                    row.get::<_, bool>(6)?,
                 ))
             },
         )
         .optional()?
         .map(
-            |(tag, commit, base_sequence, state, sequence, cut, barrier, lost)| {
+            |(tag, commit, base_sequence, state, sequence, barrier, lost)| {
                 Ok(Head {
                     tag: Hash::from_bytes(tag.try_into().map_err(|_| ServerError::Corrupt)?),
                     base: JournalBase {
@@ -61,7 +60,6 @@ fn head(
                     },
                     order: Sequencer {
                         sequence: sequence as u64,
-                        cut: cut as u64,
                         barrier: barrier as u64,
                     },
                     lost,
@@ -161,8 +159,8 @@ pub fn submit(
             transaction.execute(
                 "INSERT INTO block_journals
                      (organization_id, block_id, tag, base_commit, base_sequence, base_state,
-                      sequence, cut, barrier)
-                 VALUES (?1, ?2, ?3, NULL, 0, x'', 0, 0, 0)",
+                      sequence, barrier)
+                 VALUES (?1, ?2, ?3, NULL, 0, x'', 0, 0)",
                 params![org, id, tag.as_bytes().as_slice()],
             )?;
             Sequencer::starting(0)
@@ -229,11 +227,10 @@ pub fn submit(
 }
 
 /// The lease holder sealed the order through `base`, as the build `tag`: the journal starts from
-/// it, keeping the entries after it and those they were based on (`Sequencer::sealed`). A base
-/// that goes back while everything numbered is sealed (the last one out) starts the order
-/// afresh from it. Entries of another build
-/// are dropped, since the holder could not have applied them, and every device opening the
-/// block is told so until the journal moves to another commit.
+/// it, keeping the entries after it. A base that goes back while nothing after the journal's own
+/// base was numbered (the last one out) starts the order afresh from it. Entries of another
+/// build are dropped, since the holder could not have applied them, and every device opening
+/// the block is told so until the journal moves to another commit.
 pub fn rebase(
     database: &Connection,
     organization: Uuid,
@@ -245,35 +242,31 @@ pub fn rebase(
     let transaction = be_block_sqlite_schema::write_transaction(database)?;
     let (org, id) = (organization.to_string(), block.to_string());
     let before = head(&transaction, organization, block)?;
-    let held = entries(&transaction, organization, block)?;
     let other = before.as_ref().is_some_and(|head| head.tag != tag);
-    let mut order = before
-        .as_ref()
-        .map_or(Sequencer::starting(base.sequence), |head| head.order);
-    let after: Vec<&JournalEntry> = held
-        .iter()
-        .filter(|entry| entry.sequence > base.sequence)
-        .collect();
-    // Everything numbered is sealed already and the base goes back: the last one out starts
-    // the order afresh, so whoever opens next numbers from it.
-    let sealed = before
-        .as_ref()
-        .map_or(0, |head| head.base.sequence.max(head.order.cut));
-    let restart = base.sequence < sealed
-        && order.sequence <= sealed
-        && held.iter().all(|entry| entry.sequence <= sealed)
-        && !other;
-    let cut = match (other, restart) {
-        (true, _) | (_, true) => {
-            order = Sequencer::starting(base.sequence);
-            u64::MAX
+    let order = match &before {
+        Some(head) if !other && head.order.sequence > base.sequence.max(head.base.sequence) => {
+            head.order
         }
-        (false, false) => order.sealed(base.sequence, after.iter().map(|entry| entry.base)),
+        // Nothing past the base: the order goes on from it, wherever that is.
+        Some(head) if !other && base.sequence >= head.base.sequence => head.order,
+        _ => Sequencer::starting(base.sequence),
     };
-    let dropped = other
-        && held
-            .iter()
-            .any(|entry| entry.sequence > before.as_ref().map_or(0, |head| head.base.sequence));
+    let cut = match other {
+        true => i64::MAX,
+        false => base.sequence as i64,
+    };
+    let dropped: bool = other
+        && transaction
+            .query_row(
+                "SELECT EXISTS (SELECT 1 FROM journal_entries
+                 WHERE organization_id = ?1 AND block_id = ?2 AND sequence > ?3)",
+                params![
+                    org,
+                    id,
+                    before.as_ref().map_or(0, |head| head.base.sequence) as i64
+                ],
+                |row| row.get(0),
+            )?;
     let lost = dropped
         || before
             .as_ref()
@@ -281,13 +274,13 @@ pub fn rebase(
     transaction.execute(
         "DELETE FROM journal_entries
          WHERE organization_id = ?1 AND block_id = ?2 AND sequence <= ?3",
-        params![org, id, i64::try_from(cut).unwrap_or(i64::MAX)],
+        params![org, id, cut],
     )?;
     transaction.execute(
         "INSERT OR REPLACE INTO block_journals
              (organization_id, block_id, tag, base_commit, base_sequence, base_state, sequence,
-              cut, barrier, lost)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+              barrier, lost)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             org,
             id,
@@ -296,7 +289,6 @@ pub fn rebase(
             base.sequence as i64,
             base.state,
             order.sequence as i64,
-            order.cut as i64,
             order.barrier as i64,
             lost
         ],
@@ -335,7 +327,7 @@ impl crate::store::ServerStore {
             .await
     }
 
-    /// The journals of `blocks` that have entries past their base, in order, while they fit in
+    /// The journals of `blocks` that have entries, in order, while they fit in
     /// `budget` bytes; a reader asks again for one left out.
     pub async fn read_journals(
         &self,
@@ -348,13 +340,8 @@ impl crate::store::ServerStore {
             blocks
                 .into_iter()
                 .map(|block| {
-                    let journal = read(database, organization, block)?.filter(|journal| {
-                        journal
-                            .entries
-                            .iter()
-                            .any(|entry| entry.sequence > journal.base.sequence)
-                            || journal.lost
-                    });
+                    let journal = read(database, organization, block)?
+                        .filter(|journal| !journal.entries.is_empty() || journal.lost);
                     let size = be_block_protocol::encoded_len(&journal);
                     Ok(match size <= left {
                         true => {

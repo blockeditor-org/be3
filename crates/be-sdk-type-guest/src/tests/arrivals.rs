@@ -7,7 +7,7 @@ use be_block_commit::MergeResult;
 use be_block_content::{ContentError, Merge};
 use serde::{Deserialize, Serialize};
 
-/// A note: the stamp the owner gives it, and bytes to make it as large as a test needs.
+/// A note: the stamp the order gives it, and bytes to make it as large as a test needs.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub(super) struct Note {
     pub(super) stamp: Option<i64>,
@@ -76,18 +76,4 @@ pub(super) fn entries(sim: &mut Sim<Arrivals>, device: usize) -> Vec<Option<i64>
         .expect("content is answered")
         .expect("the replica is readable");
     Arrivals::decode(&bytes).unwrap().entries
-}
-
-/// A `Submit` from `client` of `payload`, as a forger would send it.
-pub(super) fn submit(
-    client: ClientId,
-    counter: u64,
-    payload: be_block_session::Payload,
-) -> Vec<u8> {
-    crate::wire::Wire::Session(be_block_session::SessionMessage::Submit {
-        id: be_block_session::OpId { client, counter },
-        base: 0,
-        payload,
-    })
-    .encode()
 }

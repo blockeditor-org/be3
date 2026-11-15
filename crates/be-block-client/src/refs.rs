@@ -1233,10 +1233,9 @@ impl Refs {
         Ok(entry)
     }
 
-    /// Starts the journal from `base` (sealed), as the server does: keeps the entries after it
-    /// and those they were based on (`Sequencer::sealed`), drops the rest, and for another
-    /// `tag` drops every entry. A base that goes back while everything is sealed starts the
-    /// order afresh from it.
+    /// Starts the journal from `base` (sealed), as the server does: keeps the entries after it,
+    /// and for another `tag` drops every entry. A base that goes back while nothing after the
+    /// journal's own base was numbered starts the order afresh from it.
     pub fn rebase_journal(
         &self,
         block: Uuid,
@@ -1248,24 +1247,16 @@ impl Refs {
             let mut state = self.state.lock().unwrap();
             let journal = Self::journaled(&mut state, block, tag);
             let other = journal.head.tag != tag;
-            let sealed = journal.head.base.sequence.max(journal.head.order.cut);
-            let fresh = other
-                || (base.sequence < sealed
-                    && journal.head.order.sequence <= sealed
-                    && journal.entries.keys().all(|sequence| *sequence <= sealed));
-            let cut = match fresh {
-                true => {
-                    journal.head.order = be_block_session::Sequencer::starting(base.sequence);
-                    u64::MAX
-                }
-                false => {
-                    let bases: Vec<u64> = journal
-                        .entries
-                        .range(base.sequence + 1..)
-                        .map(|(_, entry)| entry.base)
-                        .collect();
-                    journal.head.order.sealed(base.sequence, bases)
-                }
+            let order = journal.head.order;
+            let goes_on = !other
+                && (order.sequence > base.sequence.max(journal.head.base.sequence)
+                    || base.sequence >= journal.head.base.sequence);
+            if !goes_on {
+                journal.head.order = be_block_session::Sequencer::starting(base.sequence);
+            }
+            let cut = match other {
+                true => u64::MAX,
+                false => base.sequence,
             };
             let dropped: Vec<u64> = journal.entries.range(..=cut).map(|(at, _)| *at).collect();
             for sequence in dropped {
