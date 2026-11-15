@@ -1,5 +1,5 @@
-//! What an account is told on its devices when its ways to sign in change (plans/accounts.md,
-//! "Rules every method follows"), beside the mail an account with an email also gets, and the
+//! What an account is told on its devices when its ways to sign in change (guides/blocks/server.md,
+//! "Accounts"), beside the mail an account with an email also gets, and the
 //! history of those changes the portal's settings page lists.
 //!
 //! A notice can't be dismissed for everyone in its first `NOTICE_HOLD`: whoever it warns about
