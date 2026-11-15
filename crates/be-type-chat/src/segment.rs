@@ -162,6 +162,13 @@ impl Segment {
             })
     }
 
+    /// Whether more than three quarters of the filter's bits are set: one made by `of` sets
+    /// about half, so a fuller one was written to say it may hold anything.
+    pub fn over_full(&self) -> bool {
+        let set: u32 = self.members.iter().map(|byte| byte.count_ones()).sum();
+        u64::from(set) * 4 > self.members.len() as u64 * 8 * 3
+    }
+
     /// The messages in `bytes` if they are this segment's part (its length and hash match).
     pub fn read(&self, bytes: &[u8]) -> Option<Vec<(ObjectId, Message)>> {
         if bytes.len() as u64 != self.length || hash(bytes) != self.hash {
