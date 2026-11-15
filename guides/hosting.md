@@ -174,10 +174,11 @@ accounts that sign in only with it with no way in but a login link; the server l
 start. Registering through a provider still needs an invite code.
 
 Once signed in, people can add passkeys from the portal's settings and then sign in with one
-before typing an email. Their RP ID is the `--auth-origin` host, so they work only at that origin
-and over HTTPS (or `localhost`); a server reached by IP address offers none. Changing
-`--auth-origin` orphans every passkey, as it does every provider's redirect URI: the accounts
-that had only passkeys need a login link.
+before typing an email. Their RP ID is the `--auth-origin` host, so they work only at that host
+and over HTTPS (or `localhost`); a server reached by IP address offers none. Changing the
+`--auth-origin` host orphans every passkey, as changing `--auth-origin` does every provider's
+redirect URI; the server logs at start how many accounts that strands, and each needs a login
+link.
 
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
 `/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code

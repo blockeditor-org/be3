@@ -226,7 +226,7 @@ pub(crate) async fn handle(
             },
             "/auth/settings/identity/remove" => {
                 let account = account()?;
-                let removed = services.store.remove_identity(account, token, value("identity"), passkeys::rp_id(origin).as_deref()).await?;
+                let removed = services.store.remove_identity(account, token, value("identity"), issuers(&services.config), passkeys::rp_id(origin)).await?;
                 if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_notice(services, &profile.email, &identity_label(&services.config, &removed)); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
@@ -535,13 +535,10 @@ pub(crate) async fn handle(
         mail_token: value("token").into(),
         sessions: sessions.into_iter().map(session).collect(),
         identities: {
-            // As `remove_identity` judges it: a passkey for another RP ID is no way in.
-            let passkeys = rp_id.as_ref().map(|rp_id| format!("{rp_id} "));
+            // As `remove_identity` judges it.
+            let issuers = issuers(config);
             let works = |identity: &codes::Identity| {
-                identity.kind != "passkey"
-                    || passkeys
-                        .as_ref()
-                        .is_some_and(|prefix| identity.subject.starts_with(prefix.as_str()))
+                providers::signs_in(&identity.kind, &identity.subject, &issuers, rp_id.as_deref())
             };
             identities
                 .iter()
@@ -613,6 +610,15 @@ pub(crate) async fn handle(
     };
     response.body = show(services, page);
     Ok(response)
+}
+
+/// The issuers of the providers the server has.
+fn issuers(config: &crate::ServerConfig) -> Vec<String> {
+    config
+        .providers
+        .iter()
+        .map(|provider| provider.issuer.clone())
+        .collect()
 }
 
 /// The configured provider whose id is `id`, by its name; nothing if there is none.

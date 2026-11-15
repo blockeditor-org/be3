@@ -27,6 +27,18 @@ pub const PROVIDER_SIGN_INS_PER_ADDRESS: i64 = 16;
 /// Begun sign-ins and pending registrations the server keeps at once.
 pub const MAX_PROVIDER_SIGN_INS: i64 = 4096;
 
+/// Whether an identity still signs in: a provider's only while the server has it (one of
+/// `issuers`), and a passkey only at the RP ID it was made for (`rp_id`, the portal's now).
+pub(crate) fn signs_in(kind: &str, subject: &str, issuers: &[String], rp_id: Option<&str>) -> bool {
+    match kind {
+        "oidc" => issuers
+            .iter()
+            .any(|issuer| subject.starts_with(&format!("{issuer} "))),
+        "passkey" => rp_id.is_some_and(|rp_id| subject.starts_with(&format!("{rp_id} "))),
+        _ => true,
+    }
+}
+
 fn refused(message: &str) -> ServerError {
     ServerError::Refused(be_block_protocol::ErrorCode::InvalidRequest, message.into())
 }
@@ -559,15 +571,7 @@ impl ServerStore {
                 ))
             })? {
                 let (account, kind, subject) = row?;
-                let works = match kind.as_str() {
-                    "oidc" => issuers
-                        .iter()
-                        .any(|issuer| subject.starts_with(&format!("{issuer} "))),
-                    "passkey" => rp_id
-                        .as_ref()
-                        .is_some_and(|rp_id| subject.starts_with(&format!("{rp_id} "))),
-                    _ => true,
-                };
+                let works = signs_in(&kind, &subject, &issuers, rp_id.as_deref());
                 *usable.entry(account).or_default() |= works;
             }
             Ok(usable.values().filter(|works| !**works).count())

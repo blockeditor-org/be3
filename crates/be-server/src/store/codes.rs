@@ -614,20 +614,19 @@ impl ServerStore {
         .await
     }
 
-    /// Removes one of an account's identities, never its last that still signs in, after a
-    /// fresh proof: a passkey made for another RP ID than `rp_id`, the portal's now, is no way
-    /// in. Answers the identity removed, for the notice.
+    /// Removes one of an account's identities, never its last that still signs in
+    /// (`providers::signs_in` with the server's `issuers` and the portal's `rp_id`), after a
+    /// fresh proof. Answers the identity removed, for the notice.
     pub async fn remove_identity(
         &self,
         account: Uuid,
         browser: &str,
         id: &str,
-        rp_id: Option<&str>,
+        issuers: Vec<String>,
+        rp_id: Option<String>,
     ) -> Result<Identity, ServerError> {
         self.require_fresh(browser).await?;
         let id = id.to_owned();
-        // A prefix no subject has when there is no RP ID.
-        let passkeys = rp_id.map_or_else(|| "\n".to_owned(), |rp_id| format!("{rp_id} "));
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let identity: Option<Identity> = transaction
@@ -647,12 +646,18 @@ impl ServerStore {
                 .optional()?;
             let identity =
                 identity.ok_or_else(|| refused("That way to sign in is not on your account."))?;
-            let others: i64 = transaction.query_row(
-                "SELECT count(*) FROM identities WHERE account_id = ?1 AND id != ?2 AND (kind != 'passkey' OR substr(subject, 1, length(?3)) = ?3)",
-                params![account.to_string(), id, passkeys],
-                |row| row.get(0),
+            let mut others = transaction.prepare(
+                "SELECT kind, subject FROM identities WHERE account_id = ?1 AND id != ?2",
             )?;
-            if others == 0 {
+            let mut usable = false;
+            for row in others.query_map(params![account.to_string(), id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })? {
+                let (kind, subject) = row?;
+                usable |= super::providers::signs_in(&kind, &subject, &issuers, rp_id.as_deref());
+            }
+            drop(others);
+            if !usable {
                 return Err(refused(
                     "This is your only way to sign in, so it can't be removed. Add another first.",
                 ));

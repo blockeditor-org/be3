@@ -704,8 +704,9 @@ ID's hash and user verification. Adding checks the fresh proof again when it
 lands, and an account holds at most `MAX_PASSKEYS`, each stored in at most
 `MAX_CREDENTIAL_BYTES`. A use is kept only if its counter is past the stored
 one, compared in the transaction that keeps it, so two at once don't both
-count. A passkey for another RP ID neither signs in nor counts as an account's
-remaining way in when another identity is removed. Every failed passkey
+count. A passkey for another RP ID, like a provider the server no longer has,
+neither signs in nor counts as an account's remaining way in when another
+identity is removed (`providers::signs_in`). Every failed passkey
 sign-in gives one answer, so it tells no one which credentials exist. Tests
 use a software authenticator (`fake_authenticator.rs`).
 
