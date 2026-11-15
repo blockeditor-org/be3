@@ -470,7 +470,6 @@ struct RegistryData {
     changed: OwnedTrigger,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
     described: RefCell<Option<Rc<dyn Any>>>,
-    menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
 #[derive(Clone)]
@@ -488,7 +487,6 @@ impl Registry {
             changed: OwnedTrigger::new(),
             listeners: RefCell::new(Vec::new()),
             described: RefCell::new(None),
-            menus: RefCell::new(Vec::new()),
         }))
     }
 
@@ -800,33 +798,50 @@ pub fn active_actions_from(focus_path: &[NodeId]) -> Vec<Action> {
     registry().actions(focus_path)
 }
 
+/// Adds `items` to the menu of the enclosing [`menu_scope`] for as long as the calling scope
+/// lasts. Outside any menu scope it adds to nothing.
 pub fn add_to_menu(items: Vec<MenuNode>) {
-    let registry = registry();
-    let key = registry.0.next.get();
-    registry.0.next.set(key + 1);
-    registry.0.menus.borrow_mut().push((key, items));
-    registry.touch();
+    let Some(MenuScope(scope)) = use_context::<MenuScope>() else {
+        return;
+    };
+    let key = scope.next.get();
+    scope.next.set(key + 1);
+    scope.menus.borrow_mut().push((key, items));
+    scope.changed.notify();
     on_cleanup(move || {
-        registry
-            .0
-            .menus
-            .borrow_mut()
-            .retain(|(held, _)| *held != key);
-        registry.touch();
+        scope.menus.borrow_mut().retain(|(held, _)| *held != key);
+        scope.changed.notify();
     });
 }
 
-pub fn document_menu() -> Memo<Vec<MenuNode>> {
-    let registry = registry();
+/// Gathers what [`add_to_menu`] adds beneath the calling scope into one menu, each part after a
+/// separator, apart from any other menu scope: an editor frame keeps its own editor's commands,
+/// though one document holds every editor an app shows.
+pub fn menu_scope() -> Memo<Vec<MenuNode>> {
+    let scope = Rc::new(MenuScopeData {
+        next: Cell::new(1),
+        changed: OwnedTrigger::new(),
+        menus: RefCell::new(Vec::new()),
+    });
+    provide_context(MenuScope(Rc::clone(&scope)));
     create_memo(move || {
-        registry.0.changed.track();
+        scope.changed.track();
         let mut nodes = Vec::new();
-        for (_, items) in registry.0.menus.borrow().iter() {
+        for (_, items) in scope.menus.borrow().iter() {
             nodes.push(MenuNode::Separator);
             nodes.extend(items.iter().cloned());
         }
         tidy_menu(nodes)
     })
+}
+
+#[derive(Clone)]
+struct MenuScope(Rc<MenuScopeData>);
+
+struct MenuScopeData {
+    next: Cell<u64>,
+    changed: OwnedTrigger,
+    menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
 }
 
 #[derive(Clone, PartialEq)]

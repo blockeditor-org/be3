@@ -11,7 +11,7 @@ use crate::types::{
 pub use crate::actions::{
     Action, ActionBuilder, ActionScope, Chord, MenuNode, Pin, Submenu, action_checked,
     action_disabled, action_glyph, action_label, action_scope, action_tooltip, active_actions,
-    active_actions_from, add_to_menu, document_menu, menu_action, tidy_menu,
+    active_actions_from, add_to_menu, menu_action, menu_scope, tidy_menu,
 };
 pub use crate::animation::{
     Animation, AnimationFrame, Easing, Fling, Motion, Spring, Velocity, create_animation, motion,
