@@ -3,7 +3,8 @@ use be_server_portal::{
 };
 use beui::icons::{
     Glyph, ICON_BLOCKS, ICON_CIRCLE_ALERT, ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_GLOBE,
-    ICON_KEY_ROUND, ICON_LAPTOP, ICON_LOG_IN, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X, ICON_SHIELD_CHECK,
+    ICON_KEY_ROUND, ICON_LAPTOP, ICON_LOG_IN, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X,
+    ICON_SHIELD_CHECK,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -464,7 +465,10 @@ fn Providers(page: Shown) -> Option<NodeId> {
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>"Or continue with"</Text>
                 <ForEach value={providers}>|provider: ProviderLink|
-                    <PageLink label={format!("Continue with {}", provider.name)} href={provider.href.clone()} />
+                    <PageLink
+                        label={format!("Continue with {}", provider.name)}
+                        href={provider.href.clone()}
+                    />
                 </ForEach>
             </List>
         }
@@ -743,7 +747,10 @@ fn Settings(page: Shown) -> NodeId {
                 {(fresh && !adding.is_empty()).then(|| view! {
                     <List spacing=Space::Md>
                         <ForEach value={adding.clone()}>|provider: ProviderLink|
-                            <PageLink label={format!("Add {}", provider.name)} href={provider.href.clone()} />
+                            <PageLink
+                                label={format!("Add {}", provider.name)}
+                                href={provider.href.clone()}
+                            />
                         </ForEach>
                     </List>
                 })}
@@ -884,7 +891,10 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
                 {(!fresh && !providers.is_empty()).then(|| view! {
                     <List spacing=Space::Md>
                         <ForEach value={providers.clone()}>|provider: ProviderLink|
-                            <PageLink label={format!("Confirm with {}", provider.name)} href={provider.href.clone()} />
+                            <PageLink
+                                label={format!("Confirm with {}", provider.name)}
+                                href={provider.href.clone()}
+                            />
                         </ForEach>
                     </List>
                 })}

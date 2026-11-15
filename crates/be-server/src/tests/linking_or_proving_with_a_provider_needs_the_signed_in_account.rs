@@ -12,13 +12,24 @@ async fn linking_or_proving_with_a_provider_needs_the_signed_in_account() {
     // Signed out, neither a link nor a proof begins.
     for intent in ["link", "proof"] {
         let (status, _) = Browser::default()
-            .request(&harness, "GET", &format!("/auth/oidc/test/start?intent={intent}"), "")
+            .request(
+                &harness,
+                "GET",
+                &format!("/auth/oidc/test/start?intent={intent}"),
+                "",
+            )
             .await;
         assert_eq!(status, 400, "{intent}");
     }
     // With a fresh proof, ada adds the provider.
     let (status, response) = ada
-        .provider_sign_in(&harness, &provider, "test", "?intent=link", Grant::new("ada"))
+        .provider_sign_in(
+            &harness,
+            &provider,
+            "test",
+            "?intent=link",
+            Grant::new("ada"),
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     assert_eq!(location(&response), "/auth/settings?saved=1");
@@ -31,12 +42,24 @@ async fn linking_or_proving_with_a_provider_needs_the_signed_in_account() {
     assert_eq!(store.identities(account).await.unwrap().len(), 2);
     // Proving with a provider account that isn't ada's proves nothing; with ada's it does.
     let (status, _) = ada
-        .provider_sign_in(&harness, &provider, "test", "?intent=proof", Grant::new("mallory"))
+        .provider_sign_in(
+            &harness,
+            &provider,
+            "test",
+            "?intent=proof",
+            Grant::new("mallory"),
+        )
         .await;
     assert_eq!(status, 400);
     assert!(!store.is_fresh(&ada.cookie).await.unwrap());
     let (status, response) = ada
-        .provider_sign_in(&harness, &provider, "test", "?intent=proof", Grant::new("ada"))
+        .provider_sign_in(
+            &harness,
+            &provider,
+            "test",
+            "?intent=proof",
+            Grant::new("ada"),
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     assert!(store.is_fresh(&ada.cookie).await.unwrap());
@@ -45,7 +68,13 @@ async fn linking_or_proving_with_a_provider_needs_the_signed_in_account() {
     let mut eve = Browser::default();
     eve.sign_in_by_code(&harness, "eve@example.com").await;
     let (status, _) = eve
-        .provider_sign_in(&harness, &provider, "test", "?intent=link", Grant::new("ada"))
+        .provider_sign_in(
+            &harness,
+            &provider,
+            "test",
+            "?intent=link",
+            Grant::new("ada"),
+        )
         .await;
     assert_eq!(status, 400);
     // A link ada began, answered once the browser is signed in as someone else, links nothing.

@@ -1,8 +1,8 @@
 pub mod codes;
 pub mod invite_codes;
 pub mod login_links;
-pub mod providers;
 pub(crate) mod portal;
+pub mod providers;
 pub(crate) mod remembered;
 
 /// A test's way to keep a store job running for as long as it likes.

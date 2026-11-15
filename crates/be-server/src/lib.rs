@@ -38,6 +38,8 @@ use tokio_tungstenite::{
 pub mod backup;
 pub mod blocks;
 pub mod contacts;
+#[cfg(test)]
+mod fake_provider;
 mod http;
 pub mod journal;
 pub mod keys;
@@ -45,8 +47,6 @@ pub mod limits;
 mod notifications;
 pub mod objects;
 pub mod oidc;
-#[cfg(test)]
-mod fake_provider;
 mod organization;
 pub mod push;
 pub mod retention;

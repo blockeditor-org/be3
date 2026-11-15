@@ -43,7 +43,11 @@ async fn a_provider_email_matching_an_account_links_only_after_the_emailed_code(
     let (status, response) = browser.enter_code(&harness, &code).await;
     assert_eq!(status, 303, "{response}");
     assert_eq!(
-        store.browser_profile(&browser.cookie).await.unwrap().account,
+        store
+            .browser_profile(&browser.cookie)
+            .await
+            .unwrap()
+            .account,
         account
     );
     let identities = store.identities(account).await.unwrap();

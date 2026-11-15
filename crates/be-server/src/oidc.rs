@@ -91,7 +91,9 @@ pub fn parse_providers(json: &str) -> Result<Vec<Provider>, String> {
             Some(other) => return Err(format!("provider {id}: no preset is called {other}")),
             None => Provider {
                 name: entry.name.ok_or(format!("provider {id} needs a name"))?,
-                issuer: entry.issuer.ok_or(format!("provider {id} needs an issuer"))?,
+                issuer: entry
+                    .issuer
+                    .ok_or(format!("provider {id} needs an issuer"))?,
                 authoritative_email: entry.authoritative_email.unwrap_or(false),
                 id,
                 client_id: entry.client_id,
@@ -143,13 +145,14 @@ fn validate(provider: &Provider) -> Result<(), String> {
     // Microsoft's multi-tenant issuers answer for every tenant: each signs its own `sub`s, so
     // one tenant's administrator could sign in as another's people.
     let multi_tenant = issuer.host_str() == Some("login.microsoftonline.com")
-        && issuer.path_segments().and_then(|mut segments| segments.next()).is_some_and(
-            |tenant| {
+        && issuer
+            .path_segments()
+            .and_then(|mut segments| segments.next())
+            .is_some_and(|tenant| {
                 ["common", "organizations", "consumers"]
                     .iter()
                     .any(|shared| tenant.eq_ignore_ascii_case(shared))
-            },
-        );
+            });
     if multi_tenant
         || issuer.query().is_some()
         || issuer.fragment().is_some()
@@ -203,7 +206,10 @@ fn failed(provider: &Provider, what: &str, error: impl std::fmt::Display) -> Ser
     tracing::warn!(provider = provider.id, "{what}: {error}");
     ServerError::Refused(
         be_block_protocol::ErrorCode::InvalidRequest,
-        format!("{} could not sign you in. Try again, or sign in another way.", provider.name),
+        format!(
+            "{} could not sign you in. Try again, or sign in another way.",
+            provider.name
+        ),
     )
 }
 
@@ -248,7 +254,8 @@ impl Discovery {
             Some(ClientSecret::new(provider.client_secret.clone())),
         )
         .set_redirect_uri(
-            RedirectUrl::new(redirect.into()).map_err(|error| failed(provider, "redirect", error))?,
+            RedirectUrl::new(redirect.into())
+                .map_err(|error| failed(provider, "redirect", error))?,
         );
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
         let (url, state, nonce) = client

@@ -9,8 +9,7 @@ use crate::{
 };
 use base64::Engine;
 use be_server_portal::{
-    Account, Asset, IdentityRow, Page, Portal, Problem, ProviderLink, Screen, Session,
-    SessionKind,
+    Account, Asset, IdentityRow, Page, Portal, Problem, ProviderLink, Screen, Session, SessionKind,
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -39,7 +38,10 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
         CodePurpose::Recover => ("Your be3 recovery code", "get back into your account"),
         CodePurpose::Register => ("Your be3 registration code", "finish creating your account"),
         CodePurpose::Proof => ("Your be3 confirmation code", "confirm it is you"),
-        CodePurpose::Link => ("Your be3 code to add a way to sign in", "sign in and add the provider you just used"),
+        CodePurpose::Link => (
+            "Your be3 code to add a way to sign in",
+            "sign in and add the provider you just used",
+        ),
     };
     services.mail.send(Email {
         recipient: mail.email,
@@ -489,7 +491,10 @@ fn provider_name(config: &crate::ServerConfig, id: &str) -> String {
 /// Whether one of the account's identities is the provider's.
 fn linked(identities: &[codes::Identity], provider: &crate::oidc::Provider) -> bool {
     identities.iter().any(|identity| {
-        identity.kind == "oidc" && identity.subject.starts_with(&format!("{} ", provider.issuer))
+        identity.kind == "oidc"
+            && identity
+                .subject
+                .starts_with(&format!("{} ", provider.issuer))
     })
 }
 
@@ -502,7 +507,11 @@ fn identity_label(config: &crate::ServerConfig, identity: &codes::Identity) -> S
     let provider = config
         .providers
         .iter()
-        .find(|provider| identity.subject.starts_with(&format!("{} ", provider.issuer)))
+        .find(|provider| {
+            identity
+                .subject
+                .starts_with(&format!("{} ", provider.issuer))
+        })
         .map_or_else(
             || {
                 let issuer = identity.subject.split(' ').next().unwrap_or_default();
@@ -550,7 +559,11 @@ async fn provider_step(
                     return Err(invalid("This server is not accepting sign-ins."));
                 }
                 Intent::SignIn => None,
-                _ => Some(profile.ok_or_else(|| invalid("Sign in to continue."))?.account),
+                _ => Some(
+                    profile
+                        .ok_or_else(|| invalid("Sign in to continue."))?
+                        .account,
+                ),
             };
             if intent == Intent::Link {
                 services.store.require_fresh(token).await?;

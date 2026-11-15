@@ -29,5 +29,8 @@ async fn an_unverified_provider_email_links_nothing() {
         .await;
     let profile = store.browser_profile(&browser.cookie).await.unwrap();
     assert_eq!(profile.email, "");
-    assert_eq!(store.identities(profile.account).await.unwrap()[0].email, "");
+    assert_eq!(
+        store.identities(profile.account).await.unwrap()[0].email,
+        ""
+    );
 }

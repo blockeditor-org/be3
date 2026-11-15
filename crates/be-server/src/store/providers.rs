@@ -28,10 +28,7 @@ pub const PROVIDER_SIGN_INS_PER_ADDRESS: i64 = 16;
 pub const MAX_PROVIDER_SIGN_INS: i64 = 4096;
 
 fn refused(message: &str) -> ServerError {
-    ServerError::Refused(
-        be_block_protocol::ErrorCode::InvalidRequest,
-        message.into(),
-    )
+    ServerError::Refused(be_block_protocol::ErrorCode::InvalidRequest, message.into())
 }
 
 /// What a sign-in with a provider is for.
@@ -319,7 +316,9 @@ impl ServerStore {
         let email = verified.email.clone().unwrap_or_default();
         match begun.intent {
             Intent::Link => {
-                let account = begun.account.ok_or_else(|| refused("Sign in to continue."))?;
+                let account = begun
+                    .account
+                    .ok_or_else(|| refused("Sign in to continue."))?;
                 let browser = hash_token(browser);
                 self.with_database(move |store, database| {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -343,7 +342,9 @@ impl ServerStore {
                 .await
             }
             Intent::Proof => {
-                let account = begun.account.ok_or_else(|| refused("Sign in to continue."))?;
+                let account = begun
+                    .account
+                    .ok_or_else(|| refused("Sign in to continue."))?;
                 let browser = hash_token(browser);
                 self.with_database(move |_, database| {
                     let linked: bool = database.query_row(

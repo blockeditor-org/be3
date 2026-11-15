@@ -12,11 +12,16 @@ fn the_providers_file_is_checked_and_keeps_its_secrets() {
     .unwrap();
     assert_eq!(providers[0].issuer, GOOGLE_ISSUER);
     assert!(providers[0].authoritative_email);
-    assert!(!providers[1].authoritative_email, "nobody is trusted for email unless marked");
+    assert!(
+        !providers[1].authoritative_email,
+        "nobody is trusted for email unless marked"
+    );
     assert!(!format!("{providers:?}").contains("hidden"));
     let refused = |json: &str| parse_providers(json).unwrap_err();
     let entry = |id: &str, issuer: &str| {
-        format!(r#"{{"id": "{id}", "name": "N", "issuer": "{issuer}", "client_id": "c", "client_secret": "s"}}"#)
+        format!(
+            r#"{{"id": "{id}", "name": "N", "issuer": "{issuer}", "client_id": "c", "client_secret": "s"}}"#
+        )
     };
     for json in [
         format!("[{}, {}]", entry("a", "https://one.example"), entry("a", "https://two.example")),

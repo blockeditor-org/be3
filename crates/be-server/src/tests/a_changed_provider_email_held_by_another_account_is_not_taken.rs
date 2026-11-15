@@ -32,7 +32,13 @@ async fn a_changed_provider_email_held_by_another_account_is_not_taken() {
         async move {
             let mut browser = Browser::default();
             let (status, response) = browser
-                .provider_sign_in(harness, provider, "test", "", Grant::new("ada").verified(email))
+                .provider_sign_in(
+                    harness,
+                    provider,
+                    "test",
+                    "",
+                    Grant::new("ada").verified(email),
+                )
                 .await;
             assert_eq!(status, 303, "{response}");
             browser
