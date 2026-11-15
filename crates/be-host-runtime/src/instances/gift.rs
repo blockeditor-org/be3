@@ -41,7 +41,7 @@
 use std::time::Duration;
 
 use be_host_base::host;
-use be_sdk_api::{ChildId, ChildMode, EditorInstanceId, ViewId};
+use be_sdk_api::{ChildContent, ChildId, ChildMode, EditorInstanceId, ViewId};
 use beui::{Event, Forwarded, ForwardedInput, Modifiers, PointerPhase};
 use uuid::Uuid;
 
@@ -107,6 +107,9 @@ pub(crate) struct Gift {
     /// When its child was up, on the frame clock, and the count started: a press waiting for its
     /// answer counts from the press.
     since: Option<Duration>,
+    /// What the child it is given to showed when it was asked, for a child placed in its stead
+    /// (`settle_gifts`).
+    shows: Option<ChildContent>,
 }
 
 impl Gift {
@@ -119,6 +122,7 @@ impl Gift {
             modifiers: Modifiers::NONE,
             commits: 0,
             since,
+            shows: None,
         }
     }
 
@@ -205,8 +209,8 @@ fn has_views(entry: &Instance) -> bool {
     !(entry.screens.is_empty() && entry.anchored.is_empty())
 }
 
-/// The children the instance places in a mode that runs an editor, with the block each shows.
-fn placed(entry: &Instance) -> Vec<(ChildId, Option<Uuid>)> {
+/// The children the instance places in a mode that runs an editor, with what each shows.
+fn placed(entry: &Instance) -> Vec<(ChildId, ChildContent)> {
     let anchored = entry.anchored.iter().map(|held| &held.screen);
     entry
         .screens
@@ -214,8 +218,17 @@ fn placed(entry: &Instance) -> Vec<(ChildId, Option<Uuid>)> {
         .chain(anchored)
         .flat_map(|screen| &screen.children.children)
         .filter(|placed| placed.mode != ChildMode::Preview)
-        .map(|placed| (placed.child, shown_block(&placed.content)))
+        .map(|placed| (placed.child, placed.content.clone()))
         .collect()
+}
+
+/// The one child placed that shows `showed`, which stands in for a child that showed it.
+fn instead_of(placed: &[(ChildId, ChildContent)], showed: &ChildContent) -> Option<ChildId> {
+    let mut instead = placed.iter().filter(|(_, shows)| shows == showed);
+    match (instead.next(), instead.next()) {
+        (Some((child, _)), None) => Some(*child),
+        _ => None,
+    }
 }
 
 impl Instances {
@@ -266,6 +279,30 @@ impl Instances {
                 held
             }
             None => Gift::new(to.clone(), None, None),
+        };
+        // A child the last change of children took away has one placed in its stead when another
+        // shows what it showed; the gift goes there.
+        let placed = placed(entry);
+        let to = match to {
+            GiftTo::Child(child) if !placed.iter().any(|(placed, _)| *placed == child) => entry
+                .departed
+                .iter()
+                .find(|(gone, _)| *gone == child)
+                .and_then(|(_, showed)| instead_of(&placed, showed))
+                .map_or(to, GiftTo::Child),
+            to => to,
+        };
+        let shows = match to {
+            GiftTo::Child(child) => placed
+                .into_iter()
+                .find(|(placed, _)| *placed == child)
+                .map(|(_, content)| content),
+            _ => None,
+        };
+        let gift = Gift {
+            to: to.clone(),
+            shows,
+            ..gift
         };
         entry.gift = Some(gift);
         if let GiftTo::Child(child) = to {
@@ -612,15 +649,23 @@ impl Instances {
             let gift = entry.gift.as_mut().expect("checked above");
             match gift.to {
                 GiftTo::Block(block) => {
-                    if let Some((child, _)) = placed.iter().find(|(_, shows)| *shows == Some(block))
+                    if let Some((child, _)) = placed
+                        .iter()
+                        .find(|(_, shows)| shown_block(shows) == Some(block))
                     {
                         given.push((*instance, *child));
                         continue;
                     }
                 }
+                // A child placed in the stead of the one it was given to, showing what that one
+                // showed (a joined editor's tab body built again as its group is shown), is given
+                // it in turn; with none, the gift ends.
                 GiftTo::Child(child) => {
                     if !placed.iter().any(|(placed, _)| *placed == child) {
-                        ended.push(*instance);
+                        match gift.shows.as_ref().and_then(|shows| instead_of(&placed, shows)) {
+                            Some(replacing) => given.push((*instance, replacing)),
+                            None => ended.push(*instance),
+                        }
                         continue;
                     }
                 }

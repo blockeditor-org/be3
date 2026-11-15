@@ -19,7 +19,10 @@ use be_sdk_api::{
 use be_sdk_type_guest::editor::{FromEditor, Gesture};
 use beui::native::accessibility::Embedded;
 use beui::{ImeArea, Pos2, Rect, Vec2, pos2, vec2};
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    sync::Arc,
+};
 use uuid::Uuid;
 
 use super::{
@@ -120,12 +123,20 @@ struct Connection {
     client_id: Uuid,
 }
 
+/// How many children an instance's changes took away it remembers, for gifts asked late
+/// (`Instance::departed`).
+const DEPARTED_KEPT: usize = 64;
+
 struct Instance {
     role: InstanceRole,
     artifact: ArtifactState,
     dialog: DialogStatus,
     /// The keyboard it gives to a child, and the keys held for it (`gift`).
     gift: Option<gift::Gift>,
+    /// The latest children its changes of children took away (at most `DEPARTED_KEPT`), with
+    /// what each showed: a gift the app asks for one (it learns of the child placed in its stead
+    /// only after the commit that placed it) goes to that child (`gift::Instances::ask_gift`).
+    departed: VecDeque<(ChildId, ChildContent)>,
     /// Blocks the host refused to make for the editor, so a gift asked for one (the ask comes
     /// after the failed call) ends at once.
     block_refused: Vec<Uuid>,
@@ -277,6 +288,7 @@ impl Instance {
             artifact: ArtifactState::default(),
             dialog: DialogStatus::default(),
             gift: None,
+            departed: VecDeque::new(),
             block_refused: Vec::new(),
             screens: HashMap::default(),
             anchored: Vec::new(),
@@ -2488,7 +2500,21 @@ impl Instances {
             occluders,
         };
         let changed = screen.children != table;
+        let departed: Vec<(ChildId, ChildContent)> = screen
+            .children
+            .children
+            .iter()
+            .filter(|old| !table.children.iter().any(|new| new.child == old.child))
+            .map(|old| (old.child, old.content.clone()))
+            .collect();
         screen.children = table;
+        if !departed.is_empty()
+            && let Some(entry) = self.entries.get_mut(&instance)
+        {
+            entry.departed.extend(departed);
+            let over = entry.departed.len().saturating_sub(DEPARTED_KEPT);
+            entry.departed.drain(..over);
+        }
         changed
     }
 

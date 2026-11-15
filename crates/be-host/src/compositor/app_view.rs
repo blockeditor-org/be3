@@ -772,12 +772,19 @@ pub(crate) fn AppView(
                         keep_focus_for_rebuild(moved);
                         document.blur();
                     }
-                    (None, _) => {
-                        if placed {
-                            keep_focus_for_rebuild(&gone);
+                    // A view built again whose new catcher is up before this one goes takes
+                    // the keyboard now; one not up yet takes it back when it is.
+                    (None, _) => match super::desktop::catcher_of_view(&gone.0, gone.1, gone.2)
+                        .filter(|_| placed)
+                    {
+                        Some(rebuilt) => document.focus_focusable(rebuilt),
+                        None => {
+                            if placed {
+                                keep_focus_for_rebuild(&gone);
+                            }
+                            document.blur();
                         }
-                        document.blur();
-                    }
+                    },
                 }
             });
         }
