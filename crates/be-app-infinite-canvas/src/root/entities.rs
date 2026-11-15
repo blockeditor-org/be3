@@ -387,7 +387,7 @@ impl Entities {
     }
 
     pub(crate) fn track_edits(&self) {
-        let _ = self.slots.value().content.revision();
+        self.slots.value().content.track();
     }
 
     pub(crate) fn watch(&self, id: Uuid) -> EntitySignals {

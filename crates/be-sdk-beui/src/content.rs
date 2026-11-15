@@ -207,6 +207,14 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().arrived.get()
     }
 
+    /// Subscribes the running computation to every change of the content, and to its arrival,
+    /// without reading it: for one that recomputes from the content some other way.
+    pub fn track(&self) {
+        let projection = self.inner();
+        projection.announced.track();
+        projection.arrived.track();
+    }
+
     pub fn revision(&self) -> Ready<u64> {
         let projection = self.inner();
         projection.announced.track();
