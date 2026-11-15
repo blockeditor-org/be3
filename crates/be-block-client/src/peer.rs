@@ -249,6 +249,10 @@ pub enum Drained {
     Defined {
         block: Uuid,
     },
+    /// Objects held for the block offline were uploaded and held.
+    Held {
+        block: Uuid,
+    },
     /// The server refused a change. With `restored`, it was a move or a definition, and the
     /// block's summary is the server's again (`unchanged`); otherwise a publish.
     Refused {
@@ -1682,7 +1686,7 @@ impl<S: ObjectStore> Peer<S> {
     /// what is in force at its parent.
     fn listed_here(&self, listing: Listing, block: Uuid) -> Vec<BlockSummary> {
         if let Some(cached) = self.refs.cached_listing(listing) {
-            return self.with_outbox(listing, self.refs.current(cached));
+            return self.refs.current(self.with_outbox(listing, cached));
         }
         let parent = self
             .refs
@@ -1698,7 +1702,9 @@ impl<S: ObjectStore> Peer<S> {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        self.with_outbox(listing, blocks)
+        // As of the newest revision this device knows, as every offline answer is: a block
+        // made here has none of its own yet.
+        self.refs.current(self.with_outbox(listing, blocks))
     }
 
     /// A summary the server answered, as this device has it: where a move waiting in the
@@ -1719,7 +1725,7 @@ impl<S: ObjectStore> Peer<S> {
             let (block, parent) = match op {
                 Op::Create(creation) => (creation.block, creation.parent),
                 Op::Move(moving) => (moving.block, moving.parent),
-                Op::Publish(_) | Op::Define(_) => continue,
+                Op::Publish(_) | Op::Define(_) | Op::Hold(_) => continue,
             };
             let here = match listing {
                 Listing::Children(under) => under == parent,
@@ -1967,13 +1973,20 @@ impl<S: ObjectStore> Peer<S> {
     /// `seal` then `publish_sealed`: `Kept` when the commit waits in the outbox behind what
     /// goes first. On `Rejected` it drops the commit from the outbox, since the caller retries
     /// or merges.
+    /// Seals the write and publishes it, or offline keeps it in the outbox (`Saved::Kept`).
     pub async fn write(&self, block: Uuid, write: Write<'_>) -> Result<Saved, ClientError> {
         let before = self.local_head(block);
         let commit = match self.seal(block, write).await? {
             Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
             Sealed::Sealed(commit) => commit,
         };
-        let saved = self.publish_sealed(block, commit).await?;
+        if !self.is_attached() {
+            return Ok(Saved::Kept(commit));
+        }
+        let saved = match self.publish_sealed(block, commit).await {
+            Err(error) if offline::unreachable(&error) => return Ok(Saved::Kept(commit)),
+            saved => saved?,
+        };
         if let Saved::Rejected { .. } = saved {
             self.withdraw(block, commit, before)?;
         }
@@ -2264,6 +2277,21 @@ impl<S: ObjectStore> Peer<S> {
         if objects.is_empty() {
             return Ok(());
         }
+        if self.is_attached() {
+            match self.send_hold(block, objects, hold).await {
+                Err(error) if offline::unreachable(&error) => {}
+                sent => return sent,
+            }
+        }
+        self.hold_later(block, objects, hold)
+    }
+
+    async fn send_hold(
+        &self,
+        block: Uuid,
+        objects: &[Hash],
+        hold: be_block_protocol::Hold,
+    ) -> Result<(), ClientError> {
         self.push(objects).await?;
         client::objects::hold_objects(&self.connection(), block, objects.to_vec(), hold).await??;
         Ok(())

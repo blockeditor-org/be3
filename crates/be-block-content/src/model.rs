@@ -48,6 +48,19 @@ pub trait Root: Model + Send + Sync + 'static {
         let _ = metadata;
     }
 
+    /// Merges two documents from their common base: the model's merge, and the number of
+    /// conflicts it left (`Document::merge`), unless the type knows better.
+    fn merge_in(
+        base: &Document<Self>,
+        ours: &Document<Self>,
+        theirs: &Document<Self>,
+    ) -> (Document<Self>, usize)
+    where
+        Self: Sized,
+    {
+        Document::merge(base, ours, theirs)
+    }
+
     fn name_in(document: &Document<Self>) -> Option<String>
     where
         Self: Sized,
@@ -233,7 +246,7 @@ impl<R: Root> LiveEdit for Document<R> {
 
 impl<R: Root> Merge for Document<R> {
     fn merge3(base: &Self, ours: &Self, theirs: &Self) -> MergeResult<Self> {
-        match Document::merge(base, ours, theirs) {
+        match R::merge_in(base, ours, theirs) {
             (value, 0) => MergeResult::Clean(value),
             (value, conflicts) => MergeResult::Conflicted { value, conflicts },
         }

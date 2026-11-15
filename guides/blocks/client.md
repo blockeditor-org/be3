@@ -263,9 +263,11 @@ A save is a `be_block_client::Write` in two steps: `Peer::seal` writes the
 commit, records it in the outbox and moves the local head; `publish_sealed`
 sends it. `Peer::write` does both.
 
-- **Offline**, a failed publish stays in the outbox, as do creates
-  (`refs::Op::Create`), moves (`Op::Move`) and defines on a block with no
-  content (`Op::Define`); these rewrite the cached summary so listings show
+- **Offline**, a failed publish stays in the outbox (`Peer::write` answers
+  `Saved::Kept`), as do creates (`refs::Op::Create`), moves (`Op::Move`),
+  defines on a block with no content (`Op::Define`) and holds of objects for a
+  block (`Op::Hold`, from `Peer::hold`, which version control puts on its
+  snapshots); these rewrite the cached summary so listings show
   them, and later ones for a block queue behind earlier ones. `keep_creation`,
   `keep_definition` and `keep_move` put them there online too (the host's
   path); a publish waits behind a creation, move or define of its block, and
