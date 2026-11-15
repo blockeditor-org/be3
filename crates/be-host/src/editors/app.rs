@@ -447,11 +447,20 @@ impl AppEditor {
         self.change_child(be_block_content::ChildChange::Delete(child))
     }
 
+    /// Whether the block's type takes `ChildChange::Replace` (its manifest's `children.replace`),
+    /// or none while the type is not known yet.
+    pub(crate) fn takes_replace(&self) -> Option<bool> {
+        Some(
+            be_host_stack::discovery::block_type(self.block_type)?
+                .children
+                .replace,
+        )
+    }
+
+    /// Puts `new` in place of the child `old`: none while the type is not known yet, false when
+    /// the type or the block refuses it.
     pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
-        if !be_host_stack::discovery::block_type(self.block_type)?
-            .children
-            .replace
-        {
+        if !self.takes_replace()? {
             return Some(false);
         }
         self.change_child(be_block_content::ChildChange::Replace { old, new })

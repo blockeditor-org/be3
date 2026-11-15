@@ -2389,9 +2389,25 @@ impl HostCore {
         let pending = std::mem::take(&mut self.pending_copies);
         for mut copy in pending {
             if let CopyStage::Duplicate = copy.stage {
-                if !self.ensure_editor(copy.source) {
+                if !self.ensure_editor(copy.source) || !self.ensure_editor(copy.container) {
                     self.pending_copies.push(copy);
                     continue;
+                }
+                // Asked before duplicating, so a container that cannot take the copy leaves no
+                // orphaned copy behind.
+                match self
+                    .with_editor(copy.container, |editor| editor.takes_replace())
+                    .flatten()
+                {
+                    None => {
+                        self.pending_copies.push(copy);
+                        continue;
+                    }
+                    Some(false) => {
+                        refuse_copy(copy.container);
+                        continue;
+                    }
+                    Some(true) => {}
                 }
                 let Some((copy_id, block_type)) = be_host_stack::duplicate(copy.source) else {
                     self.pending_copies.push(copy);
@@ -2419,9 +2435,16 @@ impl HostCore {
                     editor.replace_child(copy.source, copy_id)
                 })
                 .flatten();
-            if replaced != Some(true) {
-                self.pending_copies.push(copy);
-                continue;
+            match replaced {
+                None => {
+                    self.pending_copies.push(copy);
+                    continue;
+                }
+                Some(false) => {
+                    refuse_copy(copy.container);
+                    continue;
+                }
+                Some(true) => {}
             }
 
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
@@ -4251,6 +4274,17 @@ fn is_unfiled(block: Uuid) -> bool {
 /// Offline, a block goes into, out of or along a container by changing the container's content,
 /// which this device must hold: refuses, saying why, when it holds none
 /// (`be_host_stack::out_of_reach`).
+/// Says that `container` keeps linking to the block an unlink would have copied: its type
+/// cannot put a copy in the block's place, or the container can't be changed right now.
+fn refuse_copy(container: Uuid) {
+    let name = be_host_stack::node(container)
+        .and_then(|node| node.metadata.name())
+        .unwrap_or_else(|| "That block".to_owned());
+    notices::refuse(format!(
+        "{name} can't take its own copy of that block, so it still links to the original."
+    ));
+}
+
 fn refused_offline(container: Uuid) -> bool {
     if is_unfiled(container) || !be_host_stack::out_of_reach(container) {
         return false;

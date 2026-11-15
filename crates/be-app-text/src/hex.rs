@@ -155,6 +155,12 @@ fn commit_byte(state: State, byte_index: usize, byte: u8) {
     }
 }
 
+/// Whether the block takes edits: a read-only block's bytes can be selected and
+/// copied, as in the text view, but typing, pasting, deleting and undo do nothing.
+fn editable(state: State) -> bool {
+    state.editor.editable().get_untracked()
+}
+
 fn type_nibble(state: State, digit: u8) {
     let byte_index = cursor_range(state).start;
     match state.inner().hex_pending_nibble.take() {
@@ -166,6 +172,9 @@ fn type_nibble(state: State, digit: u8) {
 /// A paste: a text fragment's bytes go in as they are, replacing the
 /// selection; plain text is read as hex digits, as typing is.
 fn paste(state: State, pasted: ClipItem) {
+    if !editable(state) {
+        return;
+    }
     match pasted.decode::<TextFragment>() {
         Some(fragment) => {
             state.inner().hex_pending_nibble.set(None);
@@ -179,6 +188,9 @@ fn paste(state: State, pasted: ClipItem) {
 }
 
 pub(crate) fn type_text(state: State, text: &str) {
+    if !editable(state) {
+        return;
+    }
     for character in text.chars() {
         if let Some(digit) = character.to_digit(16) {
             type_nibble(state, digit as u8);
@@ -187,6 +199,9 @@ pub(crate) fn type_text(state: State, text: &str) {
 }
 
 fn delete(state: State, direction: LRDirection) {
+    if !editable(state) {
+        return;
+    }
     state.inner().hex_pending_nibble.set(None);
     state.text.execute(EditorCommand::Delete {
         direction,
@@ -292,6 +307,7 @@ fn key(state: State, press: KeyPress) -> bool {
             state.inner().hex_pending_nibble.set(None);
             state.text.execute(EditorCommand::SelectAll);
         }
+        Key::Z | Key::Y if modifiers.ctrl && !editable(state) => {}
         Key::Z if modifiers.ctrl => {
             state.inner().hex_pending_nibble.set(None);
             state.text.execute(match modifiers.shift {
@@ -497,6 +513,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
         <Frame fill=ColorRole::Surface>
             <Scroll>
                 <Interactive
+                    @test_id={"text.hex_bytes"}
                     focusable=true
                     on_key={move |press: KeyPress| key(state, press)}
                     on_text={move |typed: String| type_text(state, &typed)}
