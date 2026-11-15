@@ -1,7 +1,8 @@
 # Declarative dragging: drags as the places they can lead to
 
 Depends on: plans/glide_on_a_signal.md and plans/for_each_handle.md, before step 2;
-plans/tentative_gestures.md, before a site previews by holding a tentative gesture.
+plans/tentative_gestures.md, before a site previews by holding a tentative gesture;
+plans/host_as_platform_adapter.md, step 3, before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
 *Declarative Dragging* (Horowitz, Blinn, Heer, UIST 2026; https://declarative-dragging.github.io/).
@@ -125,8 +126,9 @@ pub struct DragFrame { pub item: Rect, pub chosen: Option<CandidateId>, pub floa
 
 Evaluating a spec is pure, `(spec, DragPoint, last frame) -> DragFrame`, so it is tested without a
 core. Stickiness and `Thrown`'s velocity are the only state carried between frames. The unstyled
-engine takes reaches, radii and throw speeds as values; styled code writes builders
-(`closest(..).when_far(floating())`) that take them from tokens (plans/motion_tokens.md). `Free`
+engine takes reaches, radii and throw speeds as values, with defaults: they are behaviour, like
+the drag threshold (plans/motion_tokens.md), and the builders (`closest(..).when_far(floating())`)
+use those defaults unless given others. `Free`
 replaces Dragology's `vary`: every continuous drag in the repo is the pointer minus the grab offset,
 clamped or quantised, so there is no optimiser until a drag needs one.
 
@@ -158,8 +160,8 @@ What stays below unstyled, and what changes there:
   registered `Driver`. The core gains no logic.
 - **Leaves `beui-types`:** `Take`, `Target`, `DragSource` and their callback aliases are deleted;
   `EdgeScroller` and `EDGE_BAND`, edge-scroll policy used only by the board and `Scroll` (and
-  re-exported by `beui_view::drag`), move to unstyled, with the band from a token
-  (plans/motion_tokens.md).
+  re-exported by `beui_view::drag`), move to unstyled, the band staying a behaviour
+  default (plans/motion_tokens.md).
 
 ### A reorderable list, written directly
 
@@ -256,21 +258,27 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
    - **between blocks:** an item dragged into another block of a type that takes it (canvas to
      canvas, list to list) moves on a plain drop and copies with a modifier, through the
      clipboard's typed formats, so a drop is a paste. Without write access to the source it copies.
-     The source holds a tentative removal; on drop it commits and the target writes the insert.
+     The source holds a tentative removal. On drop the target writes the insert first and the
+     source then commits its removal, so a crash between the two leaves a copy, never nothing.
    - **settings' display arrangement:** every touching position is a candidate, `when_far(free)`.
    - **bottom sheet:** detents are `closest(detents).thrown()`.
-6. **Across apps.** Each app region is an `Into` candidate on the host's board. While the drag is
-   over it, the host sends the region the pointer and payload; the app runs the same engine over
-   its own candidates, draws its own preview, and reports what it accepts and the rect it chose,
-   so the host glides the item there on release. The app protocol carries only points, rects and
-   opaque ids (guides/apps/host_services.md). `Editor::drag` and `accept_drag` become this handoff.
-   The dock has no app boundary, so it stays one level.
+6. **Across apps.** plans/host_as_platform_adapter.md owns the cross-app session (Input, "Drag
+   and drop"): the source starts it with its payload, and the host routes drag-over events to the
+   surface under the pointer and the drop to the one under the release, by its forwarding router.
+   This step owns what those events carry and what the surface does with them. Each app region is
+   an `Into` candidate on the host's board. A drag-over carries the pointer and the payload; the
+   app runs the same engine over its own candidates, draws its own preview, and answers what it
+   accepts and the rect it chose, so the host glides the item there on release. The events carry
+   only points, rects and opaque ids (guides/apps/host_services.md). `Editor::drag` and
+   `accept_drag` become this handoff. The dock has no app boundary, so it stays one level.
 7. **Several carries at once.** Allow more than one carry, one per pointer, when the VR layer's two
    controllers (or touch) need it; steps 1 to 6 key carries by pointer but carry one at a time.
 8. **Continuous drags.** Sliders, scrollbars, splitters and the colour area as `free` along an axis,
    quantised. Move each only if it is as good as today.
 9. **Remove the rest.** Delete the old API. Rewrite components.md's Drag and drop, docking.md's
-   Dragging, Dialogs and tool bars sections, and host_services.md. Record
+   Dragging, Dialogs and tool bars sections, and host_services.md, and replace `Draggable` and
+   `DropTarget` in the list of behaviour-only pieces styled re-exports
+   (decisions/beui_outside_crates_use_only_the_styled_layer.md) with what replaces them. Record
    decisions/beui_drags_are_reachable_places.md with what was rejected (building speculative
    states, blending view trees, a numeric optimiser, a drag mode that writes before release,
    implicit context arming glides).

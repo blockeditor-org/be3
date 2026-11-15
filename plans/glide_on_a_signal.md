@@ -1,6 +1,7 @@
 # Glide armed by a signal, with its spring from the theme
 
-Depends on: plans/motion_tokens.md, step 1, for the styled `Glide`.
+Depends on: plans/motion_tokens.md, step 1, for the styled `Glide`; plans/for_each_handle.md,
+step 1, for the row-index test.
 
 `unstyled::Glide` (`beui-components-unstyled` `glide.rs`) is already one component on both cores,
 built from `Frame`'s `translate` and `raised`, `measure`, `measure::scrolled_by` and
@@ -33,7 +34,9 @@ token prop is added only when a second look is needed.
   plans/for_each_handle.md). When it changes, the next move glides rather than jumps, exactly as
   bumping `arm` does today. An explicit prop, never a context: a layer that provided one by
   accident would arm glides nobody asked to move.
-- **`spring`:** `GLIDE_SPRING` goes; its value becomes the theme's `Movement::Settle`.
+- **`spring`:** required on the unstyled `Glide`, as a curve is appearance
+  (decisions/beui_unstyled_layer_has_no_appearance_defaults.md). `GLIDE_SPRING` goes; its value
+  becomes the theme's `Movement::Settle`. This plan owns that move.
 
 ## beui-reactive's `Trigger`
 

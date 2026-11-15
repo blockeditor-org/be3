@@ -33,4 +33,5 @@ plan, step 1 here moves into it and this plan depends on it.
 2. `ForEachRef` on both, on both cores.
 3. Move `Reorder`'s `glides` onto the handle.
 4. Tests: indices and `nodes_of` follow a key across a reorder, an insert and a removal
-   (`nodes_of` is empty after it); a row of several children reports all of them.
+   (`nodes_of` is empty after it). A row of several children is tested by the control-flow plan
+   that makes rows runs; this plan builds none of it.

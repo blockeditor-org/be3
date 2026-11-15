@@ -97,9 +97,10 @@ another block.
 ### Gestures
 
 An editor writes every change to its block as it happens (a stroke as it grows,
-text as it is typed) so peers see it at once; the client batches saving. Edits
-confirmed by letting go, such as a drag, are decided to be tentative, held
-locally until they commit (decisions/tentative_edits_wait_for_release.md), but
+text as it is typed) so peers see it at once; the client batches saving. A
+gesture that chooses one result on release, such as dragging a layer, which
+nobody would expect kept half done, is decided to be tentative, held locally
+until it commits (decisions/tentative_edits_wait_for_release.md), but
 that is not built yet (plans/tentative_gestures.md): today a drag is written
 each frame too. That decision is about block content; view state is written on
 every change whatever the gesture. Bracket a gesture with
