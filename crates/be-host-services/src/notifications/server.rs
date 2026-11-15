@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use be_host_wayland::programs::{DesktopEntry, Environment, IconThemes, load_icon};
+use be_host_programs::{DesktopEntry, Environment, IconThemes, load_icon};
 use be_sdk_api::{
     HostImage, HostNotificationAction, IncomingNotification, NotificationRequest,
     NotificationSignal,

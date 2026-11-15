@@ -14,8 +14,8 @@ under `:dev`; `runtime_dir.rs`). Programs started by the compositor get `Composi
 them). In a login session all of these also go to D-Bus's activation environment and systemd's
 user manager (be-host's `src/login_session/environment.rs`).
 
-The Apps panel lists the `.desktop` programs of the XDG data dirs (be-host-wayland's `programs.rs`
-reads them and their icons; `programs::load_icon` reads PNG, SVG and XPM) and runs one, or a typed
+The Apps panel lists the `.desktop` programs of the XDG data dirs (be-host-programs
+reads them and their icons; `be_host_programs::load_icon` reads PNG, SVG and XPM) and runs one, or a typed
 command, through `programs::request(ProgramAction)`. Against a driven be-host:
 
     drive exec foot            # runs foot inside it
