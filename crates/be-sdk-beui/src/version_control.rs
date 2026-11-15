@@ -23,14 +23,13 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show value={empty}>
-                <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
-            </beui::reactive::Show>
             <ForEach
                 value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
+                }}
             >|(id, change, message, conflicted): ([u8; 32], [u8; 16], String, bool)| {
                 let commit_test_id = format!("version.commit.{}", short_id(&id));
                 let message = match message.is_empty() {
@@ -75,13 +74,14 @@ pub fn VersionSteps(
                 .collect::<Vec<_>>()
         })
     });
-    let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show value={empty}>
-                <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
-            </beui::reactive::Show>
-            <ForEach value={rows}>|(id, description, undone): ([u8; 16], String, bool)| {
+            <ForEach
+                value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
+                }}
+            >|(id, description, undone): ([u8; 16], String, bool)| {
                 let short = short_id(&id);
                 let (step_test_id, undo_test_id) =
                     (format!("version.step.{short}"), format!("version.undo.{short}"));
