@@ -53,7 +53,7 @@ impl Listing {
         }
     }
 
-    fn blocks(self) -> ReadSignal<Vec<Uuid>> {
+    fn blocks(self) -> Memo<Vec<Uuid>> {
         match self {
             Self::Folder(index) => index.project(|index| index.root().blocks()),
             Self::Workspace(index) => index.project(|index| index.root().blocks()),
