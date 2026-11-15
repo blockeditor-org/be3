@@ -15,21 +15,19 @@ fn an_awake_kept_subtree_keeps_running_and_reads_as_shown_while_hidden() {
         view! {
             <KeepAlive awake={awake}>
                 <List spacing=0.0>
-                    <Show value={visible}>|| {
-                        view! {
-                            <Kept key=1u8>|| {
-                                let shown = kept_shown();
-                                create_effect(move || {
-                                    ticks.get();
-                                    seen.update(|seen| *seen += 1);
-                                    shown_inside.set(shown.map(|shown| shown.get()));
-                                });
-                                view! {
-                                    <Text>"held"</Text>
-                                }
-                            }</Kept>
-                        }
-                    }</Show>
+                    <Show value={visible}>||
+                        <Kept key=1u8>|| {
+                            let shown = kept_shown();
+                            create_effect(move || {
+                                ticks.get();
+                                seen.update(|seen| *seen += 1);
+                                shown_inside.set(shown.map(|shown| shown.get()));
+                            });
+                            view! {
+                                <Text>"held"</Text>
+                            }
+                        }</Kept>
+                    </Show>
                 </List>
             </KeepAlive>
         }
@@ -41,8 +39,16 @@ fn an_awake_kept_subtree_keeps_running_and_reads_as_shown_while_hidden() {
     let ran = seen.get_untracked();
     ticks.set(1);
     harness.frame(Vec::new());
-    assert_eq!(seen.get_untracked(), ran + 1, "an awake subtree runs while hidden");
-    assert_eq!(shown_inside.get_untracked(), Some(true), "and reads as shown");
+    assert_eq!(
+        seen.get_untracked(),
+        ran + 1,
+        "an awake subtree runs while hidden"
+    );
+    assert_eq!(
+        shown_inside.get_untracked(),
+        Some(true),
+        "and reads as shown"
+    );
 
     awake.set(Vec::new());
     harness.frame(Vec::new());

@@ -30,9 +30,8 @@ use beui_dock::{
 
 use super::reveal::DockBarHidden;
 use super::{
-    Held,
-    DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, FLOAT_INSET, LeafId,
-    State, TabId,
+    DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, FLOAT_INSET, Held,
+    LeafId, State, TabId,
 };
 
 const BAND_SHARE: f32 = 0.12;
@@ -1988,9 +1987,7 @@ fn SharedBar(
         >
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
-                    <Frame align=Align2::START>
-                        {held}
-                    </Frame>
+                    <Frame align=Align2::START>{held}</Frame>
                 </CanvasItem>
             </Canvas>
         </CanvasItem>
@@ -2059,7 +2056,12 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
         });
     });
     view! {
-        <Show value={lifted} fallback={move || view! { <DockBarPanel dock bar={Some(bar)} /> }}>
+        <Show
+            value={lifted}
+            fallback={move || view! {
+                <DockBarPanel dock bar={Some(bar)} />
+            }}
+        >
             <Portal node={Some(gap)} />
         </Show>
     }

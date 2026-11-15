@@ -283,6 +283,10 @@ struct State {
     showing: Stored<RefCell<HashMap<TabId, usize>>>,
     /// The tabs whose own dock joined this one, shown as that dock's tabs.
     hosts: Memo<Vec<TabId>>,
+    /// Whether the dock is shown, which its panels read as their `kept_shown()`: what a tab's
+    /// content holds outside itself is a dock joined into this one, which a pane showing another
+    /// tab, or building its view again, must not make it let go.
+    shown: Memo<bool>,
     handles: Signal<HashMap<TabId, (NodeRef, bool)>>,
     owner: Stored<Option<ScopeContext>>,
     tab: RenderFn<DockTabHandle>,
@@ -434,8 +438,16 @@ impl DockTabDriver for State {
         // A view of a tab's content that takes the keyboard while no view shows its built panel
         // (an app putting it back on a popup's trigger as a press on another tab closes the
         // popup) does not show the tab again; a tab whose own dock joined shows as its tabs.
-        let built = self.panels.with_untracked(|panels| panels.contains_key(&tab));
-        let showing = self.showing.value().borrow().get(&tab).copied().unwrap_or(0);
+        let built = self
+            .panels
+            .with_untracked(|panels| panels.contains_key(&tab));
+        let showing = self
+            .showing
+            .value()
+            .borrow()
+            .get(&tab)
+            .copied()
+            .unwrap_or(0);
         if built && showing == 0 && !self.hosts.with_untracked(|hosts| hosts.contains(&tab)) {
             return;
         }
@@ -681,11 +693,14 @@ impl State {
             menu: self.menus,
         });
         provide_context(control);
+        provide_kept_shown(self.shown);
         beui_components_unstyled::provide_frame_anchor(create_memo(move || control.anchor()));
         let panel = self.content.call(tab);
-        untrack(|| self.panels.update(|panels| {
-            panels.insert(tab, panel);
-        }));
+        untrack(|| {
+            self.panels.update(|panels| {
+                panels.insert(tab, panel);
+            })
+        });
         let (panels, remembered) = (self.panels, self.remembered);
         on_cleanup(move || {
             if panels.is_alive() {
@@ -1891,6 +1906,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         panels: create_signal(HashMap::default()),
         showing: store(RefCell::default()),
         hosts,
+        shown: kept_shown().unwrap_or_else(|| create_memo(|| true)),
         handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
@@ -2044,35 +2060,45 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         held.extend(state.with(DockState::bars).into_iter().map(Held::Bar));
         held
     });
-    // A tab whose dock joined this one shows as that dock's tabs, so its panel keeps running.
-    let awake = create_memo(move || hosts.get().into_iter().map(Held::Panel).collect::<Vec<_>>());
+    // A tab whose dock joined this one shows as that dock's tabs, so its panel keeps running (read
+    // from the state too, which drops the tab from the layout in the same change that joins its
+    // group, before `hosts` may hear of it); so does every bar's, whose content may answer keys
+    // while its band is hidden (Super bringing out an auto-hidden apps bar).
+    let awake = create_memo(move || {
+        let mut awake: Vec<Held> = hosts.get().into_iter().map(Held::Panel).collect();
+        state.with(|state| {
+            awake.extend(state.joined_groups().into_iter().map(|(_, host)| Held::Panel(host)));
+        });
+        awake.extend(state.with(DockState::bars).into_iter().map(Held::Bar));
+        awake
+    });
     let built = view! {
         <KeepAlive keep={held} awake={awake}>
-        <List @node_ref=&area spacing=0.0>
-            <ListItem grow=1.0>
-                <DockBarred dock leaf={None} holder={BarHolder::Dock}>
-                    <Frame padding=inset>
-                        <List spacing=0.0>
-                            <Show
-                                value={stacks}
-                                fallback={move || view! {
+            <List @node_ref=&area spacing=0.0>
+                <ListItem grow=1.0>
+                    <DockBarred dock leaf={None} holder={BarHolder::Dock}>
+                        <Frame padding=inset>
+                            <List spacing=0.0>
+                                <Show
+                                    value={stacks}
+                                    fallback={move || view! {
+                                        <ListItem grow=1.0>
+                                            <DockTiles dock />
+                                        </ListItem>
+                                    }}
+                                >
                                     <ListItem grow=1.0>
-                                        <DockTiles dock />
+                                        <DockStack dock />
                                     </ListItem>
-                                }}
-                            >
-                                <ListItem grow=1.0>
-                                    <DockStack dock />
-                                </ListItem>
-                            </Show>
-                        </List>
-                    </Frame>
-                </DockBarred>
-            </ListItem>
-            <DockFullscreenView dock={dock} />
-            <DockDialogs dock={dock} />
-            <DockSwitchView dock={dock} />
-        </List>
+                                </Show>
+                            </List>
+                        </Frame>
+                    </DockBarred>
+                </ListItem>
+                <DockFullscreenView dock={dock} />
+                <DockDialogs dock={dock} />
+                <DockSwitchView dock={dock} />
+            </List>
         </KeepAlive>
     };
     let outer_measured = measure(built);
@@ -3077,7 +3103,11 @@ fn DockPanel(dock: State, tab: Prop<Option<TabId>>) -> NodeId {
 
 /// Gives the keyboard to the panel `given` names once `shown`'s `DockPanel` shows it: an effect
 /// made after that view, so it runs after the view's control flow has put the panel in.
-fn give_keyboard_once_shown(dock: State, shown: Signal<Option<TabId>>, given: StoredCell<Option<TabId>>) {
+fn give_keyboard_once_shown(
+    dock: State,
+    shown: Signal<Option<TabId>>,
+    given: StoredCell<Option<TabId>>,
+) {
     create_effect(move || {
         shown.with(|_| ());
         let Some(tab) = given.try_get().flatten() else {

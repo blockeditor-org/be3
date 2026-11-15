@@ -26,7 +26,11 @@ fn a_dock_tab_hidden_behind_another_is_paused_and_kept() {
                                         seen.update(|seen| seen[at] = now);
                                     });
                                     view! {
-                                        <Frame @test_id={format!("content.{id}")} width=40.0 height=30.0 />
+                                        <Frame
+                                            @test_id={format!("content.{id}")}
+                                            width=40.0
+                                            height=30.0
+                                        />
                                     }
                                 }}
                             />
@@ -38,12 +42,19 @@ fn a_dock_tab_hidden_behind_another_is_paused_and_kept() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    assert_eq!(builds.get_untracked(), [1, 0], "only the tab shown is built");
+    assert_eq!(
+        builds.get_untracked(),
+        [1, 0],
+        "only the tab shown is built"
+    );
 
     harness.click(harness.center(harness.find("dock.tab.2")));
     harness.frame(Vec::new());
     assert_eq!(builds.get_untracked(), [1, 1]);
-    assert!(harness.document().find_test_id("content.1").is_none(), "the first tab is hidden");
+    assert!(
+        harness.document().find_test_id("content.1").is_none(),
+        "the first tab is hidden"
+    );
 
     source.set(1);
     harness.frame(Vec::new());
@@ -55,7 +66,11 @@ fn a_dock_tab_hidden_behind_another_is_paused_and_kept() {
 
     harness.click(harness.center(harness.find("dock.tab.1")));
     harness.frame(Vec::new());
-    assert_eq!(builds.get_untracked(), [1, 1], "showing a tab again builds nothing");
+    assert_eq!(
+        builds.get_untracked(),
+        [1, 1],
+        "showing a tab again builds nothing"
+    );
     assert_eq!(
         seen.get_untracked(),
         [1, 1],

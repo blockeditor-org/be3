@@ -14,13 +14,19 @@ own dock joined it (`DockConfig::hosts`). Every other hidden panel pauses.
   holder shows again, joins again, and the two docks loop.
 - One extra key set on `KeepAlive` says exactly that: shown elsewhere, so running and shown.
 
+## The dock's panels read the dock's own `kept_shown()`
+
+A panel's `kept_shown()` is the dock's own, not its `Kept`'s. What a tab's content holds outside
+itself is a dock joined into this one, whose group lives in this dock's layout, so a pane showing
+another tab, or building its view again, must not make it let go: be-sdk-beui's
+`a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it` saw a holder's
+`Kept` released one change before the new one took it (the pane's view built again), and the join
+let go in between. `awake` still keeps a holder running; this keeps its join.
+
 ## Rejected
 
 - **The inner dock shows the holder's panel through a `Kept` of its own.** Every place to show it
   is either laid out, which places the app frame there and resizes the app to that rect (even a
   zero-size or offscreen one), or not laid out, which is "hidden but running" by another name.
-- **A dock-local `kept_shown()` for every panel** (each panel reading the dock's own shown-ness).
-  A panel hidden behind another tab would then read as shown, and what it holds outside itself
-  would not let go; only the holders need it, which `awake` says.
 - **Leaving the holders out of the `KeepAlive`** (a hand-written cache for them alone): two ways to
   keep a panel in one dock.

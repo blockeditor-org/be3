@@ -71,5 +71,9 @@ fn a_hidden_tabs_content_taking_the_keyboard_late_leaves_the_tab_shown_in_its_pl
     harness.settle();
     control(1).content_focused();
     harness.settle();
-    assert_eq!(active(&harness), Some(TabId::new(1)), "shown again, its content counts again");
+    assert_eq!(
+        active(&harness),
+        Some(TabId::new(1)),
+        "shown again, its content counts again"
+    );
 }

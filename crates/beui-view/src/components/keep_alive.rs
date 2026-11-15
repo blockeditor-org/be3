@@ -30,6 +30,11 @@ struct Cache {
     keeps: Option<Memo<HashSet<AnyKey>>>,
     /// The keys whose subtree keeps running, and counts as shown, while nothing shows it.
     awake: Option<Memo<HashSet<AnyKey>>>,
+    /// What `Kept`s let go of (key and `Kept`), handed back once the change that let go has
+    /// settled: the same change may show it again elsewhere (a view rebuilt) or make its key awake.
+    pending: RefCell<Vec<(AnyKey, u64)>>,
+    /// Counts the releases, so `settle` runs once the change settles.
+    released: Signal<u64>,
 }
 
 impl Cache {
@@ -56,6 +61,33 @@ impl Cache {
             match awake {
                 true => scope.resume(),
                 false => scope.pause(),
+            }
+        }
+    }
+
+    /// Hands back what `Kept`s let go of that no other `Kept` took meanwhile: hidden, then paused
+    /// (or left running while its key is awake), or disposed once its key is no longer kept.
+    fn settle(&self) {
+        let pending: Vec<(AnyKey, u64)> = self.pending.borrow_mut().drain(..).collect();
+        for (key, me) in pending {
+            let entries = self.entries.borrow();
+            let Some(entry) = entries.get(&key) else {
+                continue;
+            };
+            if entry.borrower.get_untracked() != Some(me) {
+                continue;
+            }
+            // Told before it pauses, so an effect it wakes inside still runs.
+            entry.borrower.set(None);
+            entry.around.set(None);
+            let scope = entry.scope.clone();
+            drop(entries);
+            if !self.kept(&key) {
+                if let Some(entry) = self.entries.borrow_mut().remove(&key) {
+                    entry.scope.dispose();
+                }
+            } else if !self.awake(&key) {
+                scope.pause();
             }
         }
     }
@@ -106,12 +138,22 @@ where
         owner: current_scope(),
         entries: RefCell::default(),
         next: Cell::new(0),
+        pending: RefCell::default(),
+        released: create_signal(0),
         keeps: untrack(|| keep.keys().is_some())
             .then(|| create_memo(move || keep.keys().unwrap_or_default().into_iter().collect())),
         // Left out, `awake` lists nothing.
         awake: untrack(|| awake.keys().is_some())
             .then(|| create_memo(move || awake.keys().unwrap_or_default().into_iter().collect())),
     });
+    {
+        let watched = cache.clone();
+        let released = cache.released;
+        create_effect(move || {
+            released.get();
+            untrack(|| watched.settle());
+        });
+    }
     if let Some(awake) = cache.awake {
         let watched = cache.clone();
         create_effect(move || {
@@ -188,7 +230,8 @@ where
                 let awake = cache.awake;
                 let named = key.clone();
                 let shown = create_memo(move || {
-                    let woken = awake.is_some_and(|awake| awake.with(|awake| awake.contains(&named)));
+                    let woken =
+                        awake.is_some_and(|awake| awake.with(|awake| awake.contains(&named)));
                     (borrower.get().is_some() || woken)
                         && held_around.get().is_none_or(|around| around.get())
                 });
@@ -230,26 +273,14 @@ where
     }
     let released = cache.clone();
     on_cleanup(move || {
-        let entries = released.entries.borrow();
-        let Some(entry) = entries.get(&key) else {
-            return;
-        };
-        if entry.borrower.get_untracked() != Some(me) {
-            return;
-        }
-        entry.borrower.set(None);
-        entry.around.set(None);
-        let keep = released.kept(&key);
-        let scope = entry.scope.clone();
-        drop(entries);
-        match keep {
-            true if released.awake(&key) => {}
-            true => scope.pause(),
-            false => {
-                if let Some(entry) = released.entries.borrow_mut().remove(&key) {
-                    entry.scope.dispose();
-                }
-            }
+        let borrowed = released
+            .entries
+            .borrow()
+            .get(&key)
+            .is_some_and(|entry| entry.borrower.get_untracked() == Some(me));
+        if borrowed && released.released.is_alive() {
+            released.pending.borrow_mut().push((key.clone(), me));
+            released.released.update(|count| *count += 1);
         }
     });
     let shown: ReadSignal<Option<u64>> = borrower.read_only();
