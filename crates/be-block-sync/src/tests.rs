@@ -105,7 +105,7 @@ async fn relist_in<C: BlockContent + LiveEdit + Default>(
 ) {
     let mut content = peer.open::<C>(parent).await.unwrap().unwrap_or_default();
     let head = peer.local_head(parent);
-    for operation in content.child_operations(change).unwrap() {
+    for operation in content.child_operations(change, 0).unwrap() {
         content.apply(&operation);
     }
     peer.save(parent, &content, head).await.unwrap();

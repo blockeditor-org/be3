@@ -25,6 +25,11 @@ it: a block URL names its organization, and a URL pasted from another
 organization is a link, not a reference. The URL format (`be_block_content::block_url`,
 `<base>#block/<organization>/<block>`) is stored in text and so is read
 forever: a reference is found by its fragment alone, whatever host precedes it.
+A type whose references live in its content (block URLs in text, entities on a
+canvas) takes `ChildChange::Replace` and rewrites them, so unlinking a reference
+works whether an editor has the block open or not; no editor answers it
+(guides/adding_a_block.md, 6). `block_url::block_id_ranges` finds the ids to
+rewrite.
 
 ### Parts
 

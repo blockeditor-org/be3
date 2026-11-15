@@ -76,7 +76,6 @@ type ShownWebView = (EditorInstanceId, WebViewId, Watch<Vec<WebViewEvent>>);
 enum Answering {
     Created(Ticket<Result<[u8; 16], Failure>>),
     Regenerated(Ticket<Result<(), Failure>>),
-    Replaced(u64, Ticket<bool>),
     Rendered(u64, Ticket<Option<be_sdk_api::clipboard::ClipBody>>),
 }
 
@@ -92,10 +91,6 @@ impl Answering {
             Self::Regenerated(ticket) => {
                 EditorAnswer::Regenerated(ticket.decode(outcome).unwrap_or_else(failed))
             }
-            Self::Replaced(request_id, ticket) => EditorAnswer::Replaced {
-                request_id,
-                replaced: ticket.decode(outcome).unwrap_or(false),
-            },
             Self::Rendered(request_id, ticket) => EditorAnswer::Rendered {
                 request_id,
                 body: ticket.decode(outcome).unwrap_or(None),
@@ -298,17 +293,6 @@ impl Wire {
                 let ticket = editor.regenerate_artifact(connection, data);
                 self.answering
                     .insert(ticket.op(), (instance, Answering::Regenerated(ticket)));
-            }
-            EditorCall::ReplaceChild {
-                request_id,
-                old,
-                new,
-            } => {
-                let ticket = editor.replace_child(connection, old, new);
-                self.answering.insert(
-                    ticket.op(),
-                    (instance, Answering::Replaced(request_id, ticket)),
-                );
             }
             EditorCall::RenderClip {
                 request_id,

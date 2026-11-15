@@ -1385,9 +1385,9 @@ impl LiveEdit for ChatContent {
         }
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<ChatOp>> {
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<ChatOp>> {
         self.header
-            .child_operations(change)
+            .child_operations(change, client)
             .map(|edits| edits.into_iter().map(ChatOp::Edit).collect())
     }
 

@@ -161,8 +161,6 @@ struct Instance {
     published: Watched,
     unshown_web_views: Vec<WebViewId>,
     presence_visible: Option<bool>,
-    replacements: HashMap<(Uuid, Uuid), Replacement>,
-    next_replacement: u64,
     /// Renders of copied representations asked of the instance, by request:
     /// `None` until it answers.
     renders: HashSet<u64>,
@@ -261,11 +259,6 @@ pub struct EditorView {
     pub scale: f32,
 }
 
-enum Replacement {
-    Pending(u64),
-    Answered(bool),
-}
-
 #[derive(Default)]
 struct ArtifactState {
     data: Vec<u8>,
@@ -312,8 +305,6 @@ impl Instance {
             published: Watched::default(),
             unshown_web_views: Vec::new(),
             presence_visible: None,
-            replacements: HashMap::default(),
-            next_replacement: 0,
             renders: HashSet::default(),
             next_render: 0,
             watched: HashMap::default(),
@@ -3333,45 +3324,6 @@ impl Instances {
         )
     }
 
-    pub(super) fn replace_child(
-        &mut self,
-        instance: EditorInstanceId,
-        old: Uuid,
-        new: Uuid,
-    ) -> (Vec<Outbound>, Option<bool>) {
-        let Some(entry) = self.entries.get_mut(&instance) else {
-            return (Vec::new(), None);
-        };
-        match entry.replacements.get(&(old, new)) {
-            Some(Replacement::Pending(_)) => (Vec::new(), None),
-            Some(Replacement::Answered(_)) => {
-                let Some(Replacement::Answered(replaced)) = entry.replacements.remove(&(old, new))
-                else {
-                    unreachable!("the replacement was just answered")
-                };
-                (Vec::new(), Some(replaced))
-            }
-            None => {
-                entry.next_replacement += 1;
-                let request_id = entry.next_replacement;
-                entry
-                    .replacements
-                    .insert((old, new), Replacement::Pending(request_id));
-                (
-                    vec![Outbound::Editor(
-                        instance,
-                        EditorCall::ReplaceChild {
-                            request_id,
-                            old: old.into_bytes(),
-                            new: new.into_bytes(),
-                        },
-                    )],
-                    None,
-                )
-            }
-        }
-    }
-
     pub(super) fn grabbing(&self) -> bool {
         self.entries
             .values()
@@ -3845,24 +3797,6 @@ impl Instances {
                         },
                     );
                 }
-            }
-            EditorAnswer::Replaced {
-                request_id,
-                replaced,
-            } => {
-                let Some(key) = entry
-                    .replacements
-                    .iter()
-                    .find(
-                        |(_, state)| matches!(state, Replacement::Pending(id) if *id == request_id),
-                    )
-                    .map(|(key, _)| *key)
-                else {
-                    return false;
-                };
-                entry
-                    .replacements
-                    .insert(key, Replacement::Answered(replaced));
             }
         }
         true

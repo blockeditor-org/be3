@@ -651,13 +651,6 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         }
     }
 
-    fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let Some(editor) = self.editor() else {
-            return false;
-        };
-        editor.replace_child(old, new)
-    }
-
     fn open_view(&mut self, _view: ShownView) {
         if self.shown.is_some() {
             return;

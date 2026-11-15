@@ -15,7 +15,7 @@ use beui::{Rect, Vec2};
 use beui_text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
-use crate::document::{BlockDocument, TextBody, inside_block_url, reference_ranges};
+use crate::document::{BlockDocument, TextBody, inside_block_url};
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
@@ -243,18 +243,5 @@ impl State {
             .text
             .with_core(|core| core.position_index(cursor.caret.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let inner = self.inner();
-        let ranges = inner
-            .document
-            .with_bytes(|bytes| reference_ranges(bytes, old));
-        self.text.execute(EditorCommand::ReplaceRanges {
-            ranges: &ranges,
-            replacement: new.to_string().as_bytes(),
-        });
-        self.pump();
-        true
     }
 }
