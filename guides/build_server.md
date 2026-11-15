@@ -128,7 +128,11 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   running action (`broke off ..., making it again` in its log), and buck2 sees nothing.
 - **`action input missing from CAS`** (`not found in either fast or slow store`): the server lost a blob this client
   remembers it holding (above): `./scripts/buck kill` and run it again. When it survives
-  `./scripts/buck clean`, run `./scripts/buck kill; rm -rf ~/.buck/buckd buck-out`.
+  `./scripts/buck clean`, run `./scripts/buck kill; rm -rf ~/.buck/buckd buck-out`. The relay
+  remembers too, and outlives `./scripts/buck kill`: each checkout (a worktree included) runs its own
+  pair, `target/tools/re-relay-*/re-relay serve` under that checkout. When the error survives the
+  steps above, `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next
+  `./scripts/buck` starts them again.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
 - **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
