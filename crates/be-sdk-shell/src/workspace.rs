@@ -48,7 +48,8 @@ pub struct Focus {
 struct State {
     layout: DockingLayout<TabId>,
     host: DockHostLayout,
-    restored: Cell<bool>,
+    /// The saved layout was put back, or there was none: what `save` waits for.
+    restored: Signal<bool>,
     handles: RefCell<HashMap<Uuid, BlockList>>,
     block_types: RefCell<HashMap<Uuid, Uuid>>,
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
@@ -151,7 +152,7 @@ impl Workspace {
             state: store(State {
                 layout: DockingLayout::new(),
                 host: DockHostLayout::new(),
-                restored: Cell::new(false),
+                restored: create_signal(false),
                 handles: RefCell::new(HashMap::new()),
                 block_types: RefCell::new(HashMap::new()),
                 opened_via: RefCell::new(HashMap::new()),
@@ -724,7 +725,7 @@ impl Workspace {
 
     fn restore(&self) {
         let inner = self.state.value();
-        if inner.restored.get() {
+        if inner.restored.get_untracked() {
             return;
         }
         if self.editor.view_block().is_none() {
