@@ -17,7 +17,12 @@ made the change, and a refusal puts the block back and says why (be-host's `refu
    offline replica (`FromFile`, `carry_over`) fail on sequences. Give an offline replica an id
    of its own that is not `LOADED` and that another device's offline edits do not share, and
    test an unlink in a text that has not reached the server. #686 rewrites what joining does
-   with an offline replica's edits, so this follows it.
+   with an offline replica's edits, so this follows it. After #686, `OFFLINE_CLIENT` is used by
+   `Replicas::open` (`offline_session`, and its offline branch) and by `start`'s
+   `before_join = joining || session.owner == Some(OFFLINE_CLIENT)`: with an id made per
+   offline open, that check reads `Open::made_up` instead. A replica's own submissions are told
+   apart by `opening.origin` (`refs::OpenEdits`), not the client id, so a new id leaves their
+   deduplication alone.
 2. The copy a refused Unlink made stays detached, as it was made, and the server lists a
    detached block under Recently Deleted, so it shows there beside the person's own deletions,
    named as the original. Nothing deletes a block for good today, so it can neither be deleted
