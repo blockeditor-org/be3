@@ -190,7 +190,9 @@ instance closes.
 ## Copying and cutting blocks
 
 A copy of blocks is a reference: `editor.copy_blocks` writes `be3/blocks` and,
-as plain text, each title and its link; the host adds the blocks' exported
+as plain text, each title and its link (with no link base, as on a local
+server, the link's `#block/…` fragment alone, which a text reads as naming the
+block too); the host adds the blocks' exported
 files, read through their types only when a paste asks. Its blocks are the
 item's `refs`, which the host translates like any id crossing the protocol.
 
