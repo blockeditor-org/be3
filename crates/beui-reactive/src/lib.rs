@@ -15,17 +15,23 @@ mod computation;
 mod keyed;
 mod loading;
 mod memo;
+mod reader;
 mod runtime;
 mod scope;
 mod selector;
 mod signal;
 mod stored;
+mod trigger;
 
 pub use beui_reactive_macros::Store;
-pub use computation::{Effect, create_binding, create_effect};
+pub use computation::{
+    Effect, create_binding, create_effect, create_effect_on, create_effect_on_change,
+    create_linked_signal,
+};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
-pub use memo::{Memo, create_memo};
+pub use memo::{Compute, Fresh, FromPrevious, Memo, create_memo};
+pub use reader::Reader;
 pub use runtime::{
     ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, untrack,
     wake_with, wake_zone_with, zone_pending,
@@ -37,6 +43,7 @@ pub use scope::{
 pub use selector::{Selector, create_selector};
 pub use signal::{Get, OwnedSignal, ReadSignal, Set, Signal, create_signal};
 pub use stored::{OwnedStored, Stored, StoredCell, store};
+pub use trigger::{OwnedTrigger, Trigger, create_trigger};
 
 #[cfg(test)]
 mod tests;

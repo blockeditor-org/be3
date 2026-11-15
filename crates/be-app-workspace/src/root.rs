@@ -1,5 +1,4 @@
 use be_sdk_beui::be_block_content::EditorViewContent;
-use std::cell::Cell;
 
 use be_sdk_beui::be_block::{FILES_EDITOR, SettingsContent};
 use be_sdk_beui::be_block_content::{BlockContent, ViewRef, ViewStateKind};
@@ -154,13 +153,14 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     let history = shell.history;
     let layout = workspace.layout();
     let mode = layout.mode();
-    let was_stacked = Cell::new(false);
-    create_effect(move || {
-        let now = mode.get() == DockMode::Stacked;
-        if was_stacked.replace(now) != now {
-            untrack(|| shell.set_phone(now));
-        }
-    });
+    create_effect_on(
+        move || mode.get() == DockMode::Stacked,
+        move |&stacked, was| {
+            if was.copied().unwrap_or(false) != stacked {
+                shell.set_phone(stacked);
+            }
+        },
+    );
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     workspace_actions(workspace);

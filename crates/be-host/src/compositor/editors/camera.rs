@@ -77,7 +77,7 @@ impl HeldChanges {
 thread_local! {
     static HELD: RefCell<HeldChanges> = RefCell::new(HeldChanges::default());
     /// The cameras showing each instance, woken when it asks for a change.
-    static CAMERAS: RefCell<HashMap<Key, Vec<(u64, Signal<u64>)>>> = RefCell::new(HashMap::new());
+    static CAMERAS: RefCell<HashMap<Key, Vec<(u64, Trigger)>>> = RefCell::new(HashMap::new());
     static NEXT_CAMERA: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
@@ -91,7 +91,7 @@ pub(crate) fn heard_view_change(app_id: String, instance: EditorInstanceId, chan
     }
     HELD.with_borrow_mut(|held| held.hold(key, change));
     for (_, changed) in cameras {
-        changed.update(|changed| *changed += 1);
+        changed.notify();
     }
 }
 
@@ -100,9 +100,9 @@ pub(crate) fn closed(app_id: String, instance: EditorInstanceId) {
     HELD.with_borrow_mut(|held| held.forget(&(app_id, instance)));
 }
 
-/// A signal that moves when the instance asks for a change, while the calling scope lives.
-fn view_changed(app_id: &str, instance: EditorInstanceId) -> ReadSignal<u64> {
-    let changed = create_signal(0u64);
+/// Notified when the instance asks for a change, while the calling scope lives.
+fn view_changed(app_id: &str, instance: EditorInstanceId) -> Trigger {
+    let changed = create_trigger();
     let id = NEXT_CAMERA.with(|next| {
         next.set(next.get() + 1);
         next.get()
@@ -119,7 +119,7 @@ fn view_changed(app_id: &str, instance: EditorInstanceId) -> ReadSignal<u64> {
             }
         });
     });
-    changed.read_only()
+    changed
 }
 
 fn take_view_changes(app_id: &str, instance: EditorInstanceId) -> Vec<ViewChange> {
@@ -220,7 +220,7 @@ pub(super) struct CameraSpec {
     pub(super) pan: PanMode,
     pub(super) placed: bool,
     pub(super) read_only: bool,
-    pub(super) revision: ReadSignal<u64>,
+    pub(super) revision: Trigger,
 }
 
 pub(super) struct CameraView {
@@ -246,10 +246,9 @@ pub(super) fn Camera(
         revision,
         ..
     } = spec;
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let holds = create_memo(move || {
-        revision.get();
+        revision.track();
         match be_host_runtime::frame_rects(&app_id.value(), instance, shown_view) {
             Some(frame) => frame.holds_content(),
             None => shown_view == ViewId::MAIN,
@@ -268,7 +267,7 @@ pub(super) fn Camera(
         VIEWPORTS.with(|viewports| viewports.borrow_mut().insert(block, state));
     });
     let viewport_rect = create_memo(move || {
-        revision.get();
+        revision.track();
         let rect = rect.get();
         be_host_runtime::frame_rects(&app_id.value(), instance, shown_view)
             .map(|frame| frame.content(rect))
@@ -276,7 +275,7 @@ pub(super) fn Camera(
             .unwrap_or(rect)
     });
     let content_size = create_memo(move || {
-        revision.get();
+        revision.track();
         let size = viewport_rect.get().size().max(Vec2::splat(1.0));
         let intrinsic = be_host_runtime::intrinsic_size(&app_id.value(), instance)
             .unwrap_or(vec2(420.0, 240.0));
@@ -299,7 +298,7 @@ pub(super) fn Camera(
                 scale: state.zoom,
             });
         }
-        revision.get();
+        revision.track();
         let shown = content.get().unwrap_or(rect.get());
         let scale = be_host_runtime::intrinsic_size(&app_id.value(), instance)
             .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
@@ -325,9 +324,7 @@ pub(super) fn Camera(
             content_size.get_untracked(),
             max_zoom,
         );
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     };
     let owner = use_context::<CameraOwner>();
     let command = move |command: Command| {
@@ -339,9 +336,7 @@ pub(super) fn Camera(
         }
         let mut state = viewport.get_untracked();
         settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     };
     if zoomable {
         provide_context(CameraOwner(Callback::new(command)));
@@ -355,14 +350,12 @@ pub(super) fn Camera(
         let area = fitted.get().filter(|_| fits.get());
         let mut state = viewport.get_untracked();
         follow(&mut state, area, rect, content, max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     });
-    let pan_drags = create_signal(0u64);
+    let pan_drags = create_trigger();
     let changed = view_changed(&app_id.value(), instance);
     create_effect(move || {
-        changed.get();
+        changed.track();
         if !holds.get() {
             return;
         }
@@ -383,7 +376,7 @@ pub(super) fn Camera(
                     continue;
                 }
                 ViewChange::PanDrag => {
-                    pan_drags.update(|asked| *asked += 1);
+                    pan_drags.notify();
                     continue;
                 }
             });
@@ -391,7 +384,7 @@ pub(super) fn Camera(
     });
     let gestures = spec.pan != PanMode::None && (zoomable || owner.is_some() && spec.pan_and_zoom);
     let pan_drag = (gestures && spec.pan == PanMode::OneFinger).then(|| PanDrag {
-        asked: pan_drags.read_only(),
+        asked: pan_drags,
         pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
     });
     let steered =
@@ -429,7 +422,7 @@ pub(super) fn Camera(
         if !gestures || !holds.get() {
             return beui::Area::Nowhere;
         }
-        revision.get();
+        revision.track();
         let origin = rect.get().min.to_vec2();
         let mut area = beui::HitRegion::rect(viewport_rect.get().translate(-origin));
         if let Some(steered) = steered.get() {
@@ -446,7 +439,7 @@ pub(super) fn Camera(
     let shown = region.call(CameraView {
         view: shown,
         pan_drag,
-        rect,
+        rect: rect.read_only(),
     });
     let built = view! {
         <Interactive
@@ -463,7 +456,7 @@ pub(super) fn Camera(
     let measured = measure(built);
     create_effect(move || {
         if let Some(measured) = measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

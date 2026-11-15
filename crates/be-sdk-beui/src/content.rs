@@ -21,7 +21,7 @@ pub(crate) fn keep(subscription: Subscription) {
 
 struct Projection<C: LiveEdit> {
     _announcing: Subscription,
-    announced: OwnedSignal<u64>,
+    announced: OwnedTrigger,
     live: LiveContent<C>,
     payload: std::cell::RefCell<Option<(OwnedSignal<Ready<Payload>>, Subscription)>>,
 }
@@ -81,10 +81,10 @@ impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
 
 impl<C: LiveEdit + Clone + Default + 'static> From<LiveContent<C>> for OwnedContentProjection<C> {
     fn from(live: LiveContent<C>) -> Self {
-        let announced = OwnedSignal::new(0);
-        let bumped = announced.handle();
+        let announced = OwnedTrigger::new();
+        let announce = announced.handle();
         let state = OwnedStored::new(Projection {
-            _announcing: live.on_revision(move |_| bumped.update(|count| *count += 1)),
+            _announcing: live.on_revision(move |_| announce.notify()),
             announced,
             live,
             payload: std::cell::RefCell::new(None),
@@ -149,19 +149,19 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn ready(&self) -> Ready<()> {
         let projection = self.inner();
-        projection.announced.get();
+        projection.announced.track();
         ready(projection.live.ready())
     }
 
     pub fn revision(&self) -> Ready<u64> {
         let projection = self.inner();
-        projection.announced.get();
+        projection.announced.track();
         ready(projection.live.revision())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
         let projection = self.inner();
-        projection.announced.get();
+        projection.announced.track();
         ready(projection.live.read(read))
     }
 

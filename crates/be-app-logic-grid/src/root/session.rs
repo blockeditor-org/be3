@@ -9,7 +9,7 @@ use super::*;
 pub(super) struct Session {
     editor: Editor,
     model: Stored<RefCell<LogicGridEditor>>,
-    version: Signal<u64>,
+    changed: Trigger,
     pub(super) pointer: Signal<Option<[f32; 2]>>,
     pub(super) debug_hover: Signal<Option<DebugEntity>>,
     pub(super) graph_hover: Signal<GraphHover>,
@@ -18,21 +18,21 @@ pub(super) struct Session {
 
 impl Session {
     pub(super) fn new(editor: Editor) -> Self {
-        let version = create_signal(0_u64);
+        let changed = create_trigger();
         let pointer = create_signal(None);
         let debug_hover = create_signal(None);
         let graph_hover = create_signal(GraphHover::default());
         let session = Self {
             editor,
             model: store(RefCell::new(LogicGridEditor::live(editor))),
-            version,
+            changed,
             pointer,
             debug_hover,
             graph_hover,
             configured_at: NodeRef::new(),
         };
         create_effect(move || {
-            session.version.get();
+            session.changed.track();
             session.sync();
         });
         session
@@ -51,7 +51,7 @@ impl Session {
     }
 
     pub(super) fn read<T>(&self, read: impl FnOnce(&LogicGridEditor) -> T) -> T {
-        self.version.with(|_| ());
+        self.changed.track();
         self.model.with(|model| read(&model.borrow()))
     }
 
@@ -66,7 +66,7 @@ impl Session {
             model.settle();
             result
         });
-        self.version.update(|version| *version += 1);
+        self.changed.notify();
         result
     }
 
@@ -89,7 +89,7 @@ impl Session {
             changed || passed
         });
         if changed {
-            self.version.update(|version| *version += 1);
+            self.changed.notify();
         }
     }
 }

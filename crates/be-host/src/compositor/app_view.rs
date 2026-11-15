@@ -143,7 +143,7 @@ pub(crate) struct Rounded(pub(crate) Memo<f32>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
-    pub(crate) asked: ReadSignal<u64>,
+    pub(crate) asked: Trigger,
     pub(crate) pan: Callback<Vec2>,
 }
 
@@ -312,7 +312,7 @@ pub(crate) fn AppView(
     });
     let any = super::any();
     let presenting = create_memo(move || {
-        any.get();
+        any.track();
         block.is_some() && {
             let app_id = app_id.value();
             super::editors::editors().with(|open| {
@@ -452,13 +452,13 @@ pub(crate) fn AppView(
         placer.call(Some(placement));
     }
     create_effect(move || {
-        let _ = frame.get();
-        let _ = view.get();
-        let _ = zoom.get();
-        let _ = floated_rect.map(|rect| rect.get());
-        let _ = floated_placement.map(|placement| placement.get());
-        let _ = origin.get();
-        let _ = anchor_bounds.get();
+        frame.track();
+        view.track();
+        zoom.track();
+        floated_rect.map(|rect| rect.track());
+        floated_placement.map(|placement| placement.track());
+        origin.track();
+        anchor_bounds.track();
         placer.call(placed.get());
     });
     if shows_desktop {
@@ -470,7 +470,7 @@ pub(crate) fn AppView(
     }
     let behind = use_context::<Behind>();
     let state = create_memo(move || {
-        revision.get();
+        revision.track();
         let mut state = be_host_runtime::placed_view(
             &editor.app,
             instance,
@@ -518,10 +518,9 @@ pub(crate) fn AppView(
             placer: Placer::new(&app_id.value(), instance, region.id),
         },
     );
-    let (reports, tick) = super::editors::reports();
+    let reports = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
-        tick.get();
         let statuses = super::desktop::merged_statuses(
             (app_id.value().to_string(), instance, region.id),
             mount,
@@ -546,11 +545,11 @@ pub(crate) fn AppView(
         };
     }
     let frames = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::frames(&app_id.value())
     });
     let placed = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::view_placed(&app_id.value(), instance, region.id)
     });
     let drawing = |part: Part| {
@@ -703,7 +702,7 @@ pub(crate) fn AppView(
     );
     let catcher_zoom = zoom;
     create_effect(move || {
-        revision.get();
+        revision.track();
         let zoom = catcher_zoom.get();
         let rect = state.with(|view| view.rect);
         if let Some(node) = catcher.try_get() {
@@ -869,8 +868,8 @@ pub(crate) fn AppView(
     let typing = create_memo(move || state.with(|view| view.ime.is_some()));
     let settled_view = store(shown_view.clone());
     create_effect(move || {
-        revision.get();
-        typing.get();
+        revision.track();
+        typing.track();
         gifts::track(&app_id.value(), instance);
         if let Some((app, instance)) = gift_placer {
             gifts::track(app, instance);
@@ -901,8 +900,8 @@ pub(crate) fn AppView(
     if let Some(block) = block.filter(|_| region.is_main()) {
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
-            revision.get();
-            rect.get();
+            revision.track();
+            rect.track();
             let parent = enclosing
                 .and_then(|Enclosing(parent)| parent.get())
                 .and_then(|parent| parent.try_get());
@@ -920,7 +919,7 @@ pub(crate) fn AppView(
             }
         });
         create_effect(move || {
-            used.get();
+            used.track();
             if let Some(node) = catcher.try_get() {
                 untrack(|| handoff::laid_out(node, now()));
             }
@@ -943,7 +942,6 @@ pub(crate) fn AppView(
                 .collect::<Vec<_>>()
         })
     });
-    let was_promoted = store(RefCell::new(Vec::<Uuid>::new()));
     let hand_to = move |to: NodeId, (within, lands_in): (Rect, Option<Rect>)| {
         let mut handed = handing.get();
         let cancel = handed.hand_to(to, within, lands_in, now());
@@ -959,18 +957,18 @@ pub(crate) fn AppView(
             );
         }
     };
-    create_effect(move || {
-        let promoted = promoted.get();
-        untrack(|| {
-            let blocks: Vec<Uuid> = promoted.iter().map(|(block, _)| *block).collect();
-            let before = was_promoted.value().replace(blocks.clone());
-            for gone in before.iter().filter(|block| !blocks.contains(block)) {
+    create_effect_on(
+        move || promoted.get(),
+        move |promoted, before| {
+            let before = before.map_or(&[][..], Vec::as_slice);
+            let holds = |list: &[(Uuid, _)], block: &Uuid| list.iter().any(|(held, _)| held == block);
+            for (gone, _) in before.iter().filter(|(block, _)| !holds(promoted, block)) {
                 handoff::stop_awaiting(*gone);
             }
             let Some(own) = catcher.try_get() else {
                 return;
             };
-            for (block, within) in promoted.iter().filter(|(block, _)| !before.contains(block)) {
+            for (block, within) in promoted.iter().filter(|(block, _)| !holds(before, block)) {
                 let within = *within;
                 match handoff::receiver_of(own, *block) {
                     Some(to) => hand_to(to, within),
@@ -980,14 +978,12 @@ pub(crate) fn AppView(
                     ),
                 }
             }
-        });
-    });
+        },
+    );
     if let Some(pan_drag) = pan_drag {
-        create_effect(move || {
-            if pan_drag.asked.get() == 0 {
-                return;
-            }
-            untrack(|| {
+        create_effect_on_change(
+            move || pan_drag.asked.track(),
+            move |_, _| {
                 let mut steered = steering.get();
                 let cancel = steered.take_over(pan_drag.pan);
                 steering.set(steered);
@@ -1001,8 +997,8 @@ pub(crate) fn AppView(
                         &|_| None,
                     );
                 }
-            });
-        });
+            },
+        );
     }
     let back = move |gesture: beui::BackGesture| {
         be_host_runtime::back_view(&app_id.value(), instance, region.id, gesture);
@@ -1070,7 +1066,7 @@ pub(crate) fn AppView(
         if passive.get() {
             return beui::Area::Nowhere;
         }
-        revision.get();
+        revision.track();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region.is_main(), content) {
             (true, Some(placed)) => be_host_runtime::frame_rects(
@@ -1547,20 +1543,17 @@ fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle:
                 })
         })
     });
-    let seen = StoredCell::new(asked.get_untracked());
-    create_effect(move || {
-        let (moves, resizes, edge) = asked.get();
-        let (moved, resized, _) = seen.get();
-        seen.set((moves, resizes, edge));
-        untrack(|| {
+    create_effect_on_change(
+        move || asked.get(),
+        move |&(moves, resizes, edge), &(moved, resized, _)| {
             if moves != moved {
                 handle.begin_move();
             }
             if resizes != resized {
                 handle.begin_resize(edge);
             }
-        });
-    });
+        },
+    );
 }
 
 fn gesture_of(carry: Carry) -> be_sdk_window_stack::Gesture {
@@ -1638,7 +1631,7 @@ fn focus_when_given(
     asked: Option<AskedFocus>,
     (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
     state: Memo<PlacedView>,
-    revision: beui::reactive::ReadSignal<u64>,
+    revision: Trigger,
     catcher: &NodeRef,
     primary: Memo<bool>,
 ) {
@@ -1677,7 +1670,7 @@ fn focus_when_given(
         });
     });
     create_effect(move || {
-        revision.get();
+        revision.track();
         if !asked.asked.get() || !primary.get() {
             return;
         }
@@ -2059,9 +2052,7 @@ impl ChildNodes {
                 .map(|built| (built.node, built.holder))
         });
         if let Some((node, holder)) = held {
-            if holder.is_alive() && holder.get_untracked() != self.mount {
-                holder.set(self.mount);
-            }
+            holder.set(self.mount);
             return node;
         }
         let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));

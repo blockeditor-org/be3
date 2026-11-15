@@ -244,9 +244,7 @@ pub fn ColorWheel(
         if disabled.get_untracked() {
             return;
         }
-        if next != point.get_untracked() {
-            point.set(next);
-        }
+        point.set(next);
     };
     let geometry =
         move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
@@ -303,7 +301,7 @@ pub fn ColorWheel(
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
-        let _ = point.get();
+        point.track();
         let over = hovered.get()
             && pointer
                 .get()

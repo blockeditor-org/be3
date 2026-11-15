@@ -34,12 +34,11 @@ fn InviteDialog(view: HostUiStore) -> NodeId {
     let open = create_memo(move || invite.with(Option::is_some));
     let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
     let sent = create_memo(move || invite.get().map(|invite| invite.sent));
-    let email = create_signal(String::new());
-    let administrator = create_signal(false);
-    create_effect(move || {
-        sent.get();
-        untrack(|| email.set(String::new()));
+    let email = create_linked_signal(move || {
+        sent.track();
+        String::new()
     });
+    let administrator = create_signal(false);
     let role = create_memo(move || match administrator.get() {
         true => OrganizationRole::Administrator,
         false => OrganizationRole::Editor,

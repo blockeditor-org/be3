@@ -68,7 +68,7 @@ pub(crate) use text::text_item;
 pub(crate) use virtual_list::virtual_list;
 pub(crate) use window::{placed_windows, request_window};
 
-use crate::reactive::{Prop, create_binding};
+use crate::reactive::{Get, Prop, create_binding};
 
 fn bind<T: Clone + 'static>(prop: Prop<T>, apply: impl Fn(T) + 'static) {
     match prop {

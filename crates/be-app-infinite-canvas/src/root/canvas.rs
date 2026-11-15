@@ -30,8 +30,7 @@ const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let parent = state.editor().placed_content();
     let shown = create_memo(move || match parent.get() {
         Some(parent) => parent.intersect(placed.get()),
@@ -119,7 +118,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built
@@ -287,9 +286,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
                 pos2(reach.max.x + margin, reach.max.y + margin),
             )
         });
-        if bounds.get_untracked() != reach {
-            bounds.set(reach);
-        }
+        bounds.set(reach);
         overlay.camera =
             CanvasView::from_corner(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
         if shown.borrow().as_ref() == Some(&overlay) {

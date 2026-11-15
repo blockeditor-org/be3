@@ -351,10 +351,8 @@ fn Filters(state: State) -> NodeId {
     let read_only = state.editor.read_only();
     let prefix = create_memo(move || state.filters.with(|filters| filters.name_prefix.clone()));
     let label = create_memo(move || state.filters.with(|filters| filters.label.clone()));
-    let prefix_draft = create_signal(prefix.get_untracked());
-    let label_draft = create_signal(label.get_untracked());
-    create_effect(move || prefix_draft.set(prefix.get()));
-    create_effect(move || label_draft.set(label.get()));
+    let prefix_draft = create_linked_signal(move || prefix.get());
+    let label_draft = create_linked_signal(move || label.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <ListItem grow=1.0>

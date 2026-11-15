@@ -12,7 +12,7 @@ pub(crate) use beui_core_html::frame::{
 };
 pub(crate) use beui_core_html::keys::held_modifiers;
 pub(crate) use beui_core_html::page::{
-    pixels_per_point, use_font_revision, use_preference_layers, use_preferences, use_viewport_size,
+    pixels_per_point, use_font_changes, use_preference_layers, use_preferences, use_viewport_size,
 };
 
 pub(crate) fn use_preference_layer(

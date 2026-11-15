@@ -134,9 +134,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                 true => measured.get().map_or(Vec2::ZERO, |measured| measured.size),
                 false => Vec2::ZERO,
             };
-            if size.get_untracked() != shown {
-                size.set(shown);
-            }
+            size.set(shown);
         });
         pill
     })

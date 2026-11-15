@@ -571,7 +571,7 @@ fn SlideTile(
     let area = be_sdk_beui::beui::unstyled::container_size();
     create_effect(move || {
         if let Some(area) = area {
-            area.get();
+            area.track();
         }
         if selected.get()
             && let Some(node) = tile.try_get()

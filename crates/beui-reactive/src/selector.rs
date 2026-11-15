@@ -32,19 +32,18 @@ pub fn create_selector<K: Clone + Eq + Hash + 'static>(
     let keys: Keys<K> = Rc::new(RefCell::new(HashMap::default()));
     let value = {
         let keys = keys.clone();
-        let mut previous: Option<K> = None;
-        create_memo(move || {
+        create_memo(move |previous: Option<&K>| {
             let next = source();
-            if let Some(previous) = previous.replace(next.clone())
-                && previous != next
+            if let Some(previous) = previous
+                && *previous != next
             {
-                notify(&keys, &previous);
+                notify(&keys, previous);
                 notify(&keys, &next);
             }
             next
         })
     };
-    create_effect(move || value.with(|_| ()));
+    create_effect(move || value.track());
     Selector {
         value,
         keys: arena::insert_owned(keys),

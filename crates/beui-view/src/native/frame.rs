@@ -23,10 +23,12 @@ fn bind<T: Clone + 'static>(
 ) {
     match prop {
         Prop::Static(value) => with_document(|document| set(document, frame, value)),
-        Prop::Dynamic(read) => create_binding(move || {
-            let value = read.get();
-            with_document(|document| set(document, frame, value));
-        }),
+        Prop::Dynamic(read) => {
+            create_binding(move || {
+                let value = read.get();
+                with_document(|document| set(document, frame, value));
+            });
+        }
     }
 }
 

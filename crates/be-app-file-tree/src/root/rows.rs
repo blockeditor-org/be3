@@ -228,7 +228,7 @@ pub(crate) struct Tree {
     folded: Signal<Folded>,
     expanded: Signal<HashSet<Uuid>>,
     collapsed: Signal<HashSet<Uuid>>,
-    remembered: Signal<u64>,
+    remembered: Trigger,
     entered: Signal<Option<RowKey>>,
 }
 
@@ -246,11 +246,11 @@ impl Tree {
         let collapsed = create_signal(HashSet::<Uuid>::new());
         let folded = create_signal(Folded::default());
         let rows = create_signal(Vec::<Row>::new());
-        let remembered = create_signal(0_u64);
+        let remembered = create_trigger();
         let entered = create_signal(None::<RowKey>);
-        let tick = create_signal(0_u64);
+        let tick = create_trigger();
         let timer = create_timer(move || {
-            tick.update(|count| *count += 1);
+            tick.notify();
             None
         });
 
@@ -293,8 +293,8 @@ impl Tree {
         let host = editor.host();
         let building = client.clone();
         create_binding(move || {
-            remembered.get();
-            tick.get();
+            remembered.track();
+            tick.track();
             let mut watched = build.borrow_mut();
             let open = expanded.get();
             let collapsed = collapsed.get();
@@ -458,7 +458,7 @@ impl Tree {
                 .block_types
                 .insert(id, block_type)
         });
-        self.remembered.update(|count| *count += 1);
+        self.remembered.notify();
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {

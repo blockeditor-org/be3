@@ -1251,9 +1251,7 @@ impl CanvasState {
     }
 
     pub(crate) fn focus_editor(&self, entity: Option<Uuid>) {
-        if self.focused_editor.get_untracked() != entity {
-            self.focused_editor.set(entity);
-        }
+        self.focused_editor.set(entity);
         if entity.is_none() {
             self.cells.value().confirmed_editor.set(None);
         }
@@ -1382,9 +1380,7 @@ impl CanvasState {
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
-        if self.pointer.get_untracked() != at {
-            self.pointer.set(at);
-        }
+        self.pointer.set(at);
     }
 
     pub(crate) fn hold_pointer(&self, down: bool) {
@@ -1561,9 +1557,7 @@ impl CanvasState {
             .entities
             .get_untracked(member)
             .and_then(|entity| entity.group_id);
-        if self.entered_group.get_untracked() != group {
-            self.entered_group.set(group);
-        }
+        self.entered_group.set(group);
         self.selection.set(HashSet::from([member]));
     }
 
@@ -2974,27 +2968,33 @@ impl CanvasState {
             }
         });
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.child_states.with(|_| ());
-            untrack(|| state.autosize_direct_editors());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.child_states.track();
+            },
+            move |_, _| state.autosize_direct_editors(),
+        );
         let state = self;
         let visible = self.editor.presence_visible();
-        create_effect(move || {
-            visible.with(|_| ());
-            state.pointer.with(|_| ());
-            state.caret.with(|_| ());
-            state.selection.with(|_| ());
-            state.own_stroke.with(|_| ());
-            untrack(|| state.publish_presence());
-        });
+        create_effect_on(
+            move || {
+                visible.track();
+                state.pointer.track();
+                state.caret.track();
+                state.selection.track();
+                state.own_stroke.track();
+            },
+            move |_, _| state.publish_presence(),
+        );
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.peers.with(|_| ());
-            untrack(|| state.read_presence());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.peers.track();
+            },
+            move |_, _| state.read_presence(),
+        );
         let state = self;
         let resized = self.editor.resized();
         create_effect(move || {
@@ -3164,9 +3164,7 @@ impl CanvasState {
                 });
             }
         }
-        if self.presence.get_untracked() != presence {
-            self.presence.set(presence);
-        }
+        self.presence.set(presence);
     }
 
     fn resize_first_frame(&self, size: Vec2) {

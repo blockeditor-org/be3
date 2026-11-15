@@ -17,7 +17,7 @@ fn a_context_reaches_the_effects_a_nested_scope_creates() {
             provide_context(Width(320.0));
             assert_eq!(use_context::<Width>(), Some(Width(320.0)));
             create_effect(move || {
-                count.get();
+                count.track();
                 seen.borrow_mut().push(use_context::<Width>());
             });
         }

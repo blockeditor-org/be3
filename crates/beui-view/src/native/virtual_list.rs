@@ -73,9 +73,7 @@ where
         document.create_virtual_list(move |key: K| {
             let slot = match reusable(&building, &key) {
                 Some(slot) => {
-                    if slot.key.with_untracked(|shown| *shown != key) {
-                        slot.key.set(key);
-                    }
+                    slot.key.set(key);
                     slot.scope.resume();
                     slot.scope.flush_owned();
                     slot

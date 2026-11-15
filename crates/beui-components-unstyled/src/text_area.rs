@@ -116,7 +116,7 @@ struct Held {
     rows: RefCell<BTreeMap<usize, RowEntry>>,
     measured: RefCell<HashMap<NodeId, ReadSignal<Option<Measured>>>>,
     texts: RefCell<HashMap<NodeId, TextGeometrySignal>>,
-    rows_measured: Signal<u64>,
+    rows_measured: Trigger,
     registered: Cell<u64>,
     reveal_attempts: Cell<u8>,
     row_cache: RefCell<lines::RowCache>,
@@ -150,7 +150,7 @@ impl Held {
     fn track_text(&self, node: NodeId) {
         self.track(node);
         self.texts.borrow_mut().insert(node, measure_text(node));
-        self.rows_measured.update(|count| *count += 1);
+        self.rows_measured.notify();
     }
 
     fn forget(&self, node: NodeId) {
@@ -1368,7 +1368,7 @@ pub fn TextArea(
         rows: RefCell::new(BTreeMap::new()),
         measured: RefCell::default(),
         texts: RefCell::default(),
-        rows_measured: create_signal(0),
+        rows_measured: create_trigger(),
         registered: Cell::new(0),
         reveal_attempts: Cell::new(0),
         row_cache: RefCell::default(),
@@ -1380,7 +1380,7 @@ pub fn TextArea(
         false => area.get(),
     });
     let scale = pixels_per_point();
-    let fonts = use_font_revision();
+    let fonts = use_font_changes();
     let scrolled = create_signal(ScrollPosition::ZERO);
     let offset = create_signal(0.0_f32);
     let shift = create_signal(0.0_f32);
@@ -1425,10 +1425,10 @@ pub fn TextArea(
     let accessible = state.content();
     let moved = state.cursors();
     let described = create_memo(move || {
-        accessible.get();
+        accessible.track();
         let bytes = state.bytes();
         if bytes.len() > ACCESSIBLE_TEXT_LIMIT {
-            moved.get();
+            moved.track();
         }
         let caret = state.caret_indices().first().copied().unwrap_or(0);
         let mut node = accessibility.get();
@@ -1454,14 +1454,14 @@ pub fn TextArea(
 
     let content = state.content();
     let starts = create_memo(move || {
-        content.get();
+        content.track();
         state.with_snapshot(|snapshot| match snapshot.starts.is_empty() {
             true => Rc::new(vec![0]),
             false => Rc::clone(&snapshot.starts),
         })
     });
     let visible = create_memo(move || {
-        content.get();
+        content.track();
         let starts = starts.get();
         state.with_snapshot(|snapshot| {
             starts
@@ -1474,9 +1474,9 @@ pub fn TextArea(
     });
     let line_numbers = create_memo(move || line_numbers.get());
     let gutter = create_memo(move || {
-        scale.get();
-        fonts.get();
-        content.get();
+        scale.track();
+        fonts.track();
+        content.track();
         let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
         match single_line || !line_numbers.get() || rich {
             true => 0.0,
@@ -1484,16 +1484,16 @@ pub fn TextArea(
         }
     });
     let composition = create_memo(move || {
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         Some(Composition {
             range: state.composition()?,
         })
     });
     let completion = create_memo(move || {
         let trigger = trigger?;
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         if !focused.get() || locked.get() || state.composition().is_some() {
             return None;
         }
@@ -1535,7 +1535,12 @@ pub fn TextArea(
         placeholder,
         font_size,
         prose,
-        metrics: create_memo(move || (scale.get(), fonts.get())),
+        // The scale, and a count of the times it or the fonts changed: rows cached under other
+        // metrics were laid out in other fonts.
+        metrics: create_memo(move |previous: Option<&(f32, u64)>| {
+            fonts.track();
+            (scale.get(), previous.map_or(0, |(_, changes)| changes + 1))
+        }),
         gutter,
         padding,
         scroll: scrolled.read_only(),
@@ -1578,8 +1583,8 @@ pub fn TextArea(
         let content = state.content();
         create_effect(move || {
             let width = text_extent.get().x;
-            view_width.get();
-            content.get();
+            view_width.track();
+            content.track();
             let empty = state.with_snapshot(|snapshot| snapshot.bytes.is_empty());
             let room = untrack(|| cx.room());
             let most = match empty {
@@ -1593,7 +1598,7 @@ pub fn TextArea(
     }
 
     let ime_cursor = create_memo(move || {
-        state.cursors().get();
+        state.cursors().track();
         if !focused.get() {
             return None;
         }
@@ -1603,8 +1608,8 @@ pub fn TextArea(
         })
     });
     let ime_text = create_memo(move || {
-        state.cursors().get();
-        state.content().get();
+        state.cursors().track();
+        state.content().track();
         if !focused.get() {
             return None;
         }
@@ -1631,7 +1636,7 @@ pub fn TextArea(
     });
     let content = state.content();
     let shown = create_memo(move || {
-        content.get();
+        content.track();
         let value = String::from_utf8_lossy(&state.bytes()).into_owned();
         match (value.is_empty(), masked.get()) {
             (true, _) => placeholder.get(),
@@ -1646,7 +1651,7 @@ pub fn TextArea(
     });
     let reveals = state.reveals();
     create_effect(move || {
-        reveals.get();
+        reveals.track();
         revealing.start(Duration::ZERO);
     });
     // `rights` changes as rows are laid out (each reports its right edge), so it stands for
@@ -1656,7 +1661,7 @@ pub fn TextArea(
     let rights = cx.rights;
     create_effect(move || {
         let position = scrolled.get();
-        rights.with(|_| ());
+        rights.track();
         if single_line || position.viewport <= 0.0 {
             return;
         }
@@ -1669,12 +1674,12 @@ pub fn TextArea(
             }
         });
     });
-    let viewport_was = StoredCell::new(0.0_f32);
-    create_effect(move || {
-        let position = scrolled.get();
-        let was = viewport_was.replace(position.viewport);
-        untrack(|| cx.keep_caret_in_sight(position, was));
-    });
+    create_effect_on(
+        move || scrolled.get(),
+        move |&position, was| {
+            cx.keep_caret_in_sight(position, was.map_or(0.0, |was| was.viewport));
+        },
+    );
     let hover_cursor = create_signal(CursorIcon::Text);
     let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,
@@ -1878,16 +1883,15 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 
 #[component]
 fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
-    report.set_unconditionally(Some(placed));
+    let placed = create_signal(Rect::ZERO);
+    report.set_unconditionally(Some(placed.read_only()));
     let built = view! {
         <Frame>{children}</Frame>
     };
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

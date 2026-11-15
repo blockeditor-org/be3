@@ -169,6 +169,14 @@ pub trait Get<T> {
         self.with(T::clone)
     }
 
+    /// Subscribes the running computation without reading the value: for the dependencies
+    /// of `create_effect_on`, or a memo that recomputes from something else when this
+    /// changes.
+    #[track_caller]
+    fn track(&self) {
+        self.with(|_| ());
+    }
+
     fn get_untracked(&self) -> T
     where
         T: Clone,
@@ -180,20 +188,25 @@ pub trait Get<T> {
 /// Writing a reactive value. A write is visible to reads at once; the effects it wakes
 /// are queued, not run.
 pub trait Set<T> {
-    /// Mutates in place and always notifies, with no `PartialEq` needed. Holds a mutable
-    /// borrow, so reading the same signal inside the closure is a borrow conflict. A panic
-    /// inside it still notifies, since the value may already have changed.
+    /// Mutates in place. A `Signal` always notifies, with no `PartialEq` needed, holds a
+    /// mutable borrow (so reading the same signal inside the closure is a borrow conflict),
+    /// and still notifies when the closure panics, since the value may already have changed.
+    /// A `#[derive(Store)]` store edits a copy and writes each field back with `set`, so it
+    /// notifies only the fields that differ, and nothing if the closure panics.
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
 
-    /// Notifies only when the value differs. Does nothing on a freed signal, since nothing
-    /// can read the value.
+    /// Notifies only when the value differs, so a caller never compares first: an equal
+    /// value wakes nothing. Does nothing on a freed signal, since nothing can read the
+    /// value.
     fn set(&self, value: T)
     where
         T: PartialEq;
 }
 
 /// A readable and writable source, owned by the scope it was created in. `Copy` whatever
-/// `T` is. Reading it after that scope is disposed panics; writing it does nothing.
+/// `T` is, and equal to another handle when both name the same signal. Reading it after
+/// that scope is disposed panics; writing it does nothing. `set` skips a value equal to the
+/// one it holds; `set_unconditionally` and `update` always notify.
 pub struct Signal<T> {
     key: Key,
     ty: PhantomData<*const T>,
@@ -287,6 +300,35 @@ impl<T> Clone for ReadSignal<T> {
 
 impl<T> Copy for ReadSignal<T> {}
 
+/// Two handles are equal when they name the same signal.
+impl<T> PartialEq for Signal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for Signal<T> {}
+
+impl<T> PartialEq for ReadSignal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for ReadSignal<T> {}
+
+impl<T> std::fmt::Debug for Signal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Signal").field(&self.key).finish()
+    }
+}
+
+impl<T> std::fmt::Debug for ReadSignal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ReadSignal").field(&self.key).finish()
+    }
+}
+
 impl<T: 'static> Get<T> for Signal<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();
@@ -365,10 +407,6 @@ impl<T: 'static> Signal<T> {
         is_alive::<T>(self.key)
     }
 
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-
     #[cfg(test)]
     pub(crate) fn subscribers(&self) -> usize {
         stored::<T>(self.key).source.subscribers.borrow().len()
@@ -379,13 +417,9 @@ impl<T: 'static> ReadSignal<T> {
     pub fn is_alive(&self) -> bool {
         is_alive::<T>(self.key)
     }
-
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
 }
 
-fn assert_writable() {
+pub(crate) fn assert_writable() {
     assert!(
         RUNTIME.with(|runtime| runtime.memo_depth.get() == 0),
         "memo computations must not write signals"

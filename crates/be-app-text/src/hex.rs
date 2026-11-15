@@ -467,12 +467,11 @@ impl PartialEq for Page {
 
 #[component]
 pub(crate) fn HexView(state: State) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let scale = pixels_per_point();
     let theme = use_theme();
     let geometry = create_memo(move || {
-        scale.get();
+        scale.track();
         let char_width = lay_out_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
             .map_or(TEXT_SIZE * 0.6, |block| block.size().x)
             .max(1.0);
@@ -480,7 +479,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     });
     let content = state.text.content();
     let rows = create_memo(move || {
-        content.get();
+        content.track();
         state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
     });
     let content_size = create_memo(move || {
@@ -493,7 +492,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let width = create_memo(move || Size::Custom(content_size.get().x));
     let height = create_memo(move || Size::Custom(content_size.get().y));
     let drawn = create_memo(move || {
-        content.get();
+        content.track();
         state.text.cursors().get();
         page(
             state,
@@ -538,7 +537,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

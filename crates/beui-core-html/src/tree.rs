@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, LazyChild, Prop, ReadSignal, ScopeContext, Set,
+    ComponentContext, Get, IntoProp, IntoSlotHost, LazyChild, Prop, Reader, ScopeContext, Set,
     Signal, SlotHost, SlotId, create_effect, create_signal, current_component,
 };
 pub use beui_types::node::BuildsNode;
@@ -45,17 +45,17 @@ pub fn component_node() -> NodeRef {
     node
 }
 
-pub fn component_placed() -> ReadSignal<bool> {
+pub fn component_placed() -> Reader<bool> {
     let bindings = bindings();
     if let Some(target) = bindings.target.get() {
-        return crate::frame::watch_placed(target);
+        return crate::frame::watch_placed(target).into();
     }
     if let Some(placed) = bindings.placed.borrow().as_ref() {
-        return placed.read_only();
+        return placed.read_only().into();
     }
     let placed = create_signal(false);
     bindings.placed.replace(Some(placed));
-    placed.read_only()
+    placed.read_only().into()
 }
 
 pub fn set_component_state<T: 'static>(state: T) {

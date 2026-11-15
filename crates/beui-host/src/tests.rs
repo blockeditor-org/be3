@@ -3151,7 +3151,7 @@ pub(crate) const GLIDE_ROW: f32 = 20.0;
 
 pub(crate) fn gliding_rows(
     order: crate::reactive::Signal<Vec<u64>>,
-    arm: crate::reactive::Signal<u64>,
+    arm: crate::reactive::Trigger,
 ) -> Document {
     use crate::primitives::*;
     use crate::reactive::*;
@@ -3159,7 +3159,7 @@ pub(crate) fn gliding_rows(
         view! {
             <List spacing=0.0>
                 <ForEach keys={order}>|key: u64|
-                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
+                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={Some(arm)}>
                         <Frame
                             @test_id={format!("row.{key}")}
                             height=GLIDE_ROW
@@ -3174,7 +3174,7 @@ pub(crate) fn gliding_rows(
 
 pub(crate) fn scrolled_gliding_rows(
     order: crate::reactive::Signal<Vec<u64>>,
-    arm: crate::reactive::Signal<u64>,
+    arm: crate::reactive::Trigger,
     scrolled: crate::reactive::Signal<f32>,
 ) -> Document {
     use crate::primitives::*;
@@ -3185,7 +3185,7 @@ pub(crate) fn scrolled_gliding_rows(
                 <Offset offset={scrolled}>
                     <List spacing=0.0>
                         <ForEach keys={order}>|key: u64|
-                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
+                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={Some(arm)}>
                                 <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
                             </unstyled::Glide>
                         </ForEach>

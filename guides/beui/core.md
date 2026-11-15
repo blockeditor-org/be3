@@ -138,7 +138,8 @@ on HTML the first time; anchor an overlay to the node instead.
 
 A component that builds from its own size measures its root after building it
 and writes a signal its content reads. Keep the last answer when it turns
-`None` (a hidden panel then does not rebuild at zero), and build content
+`None` (a hidden panel then does not rebuild at zero; a memo given its
+previous value does this), and build content
 placed by the size only once the first answer is in. It may query the space it
 was given, but if it also decides that space on the same axis it never
 settles: give it its room from the parent on that axis. Children whose rects

@@ -222,12 +222,11 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
             .map(|request| request.refused)
             .unwrap_or_default()
     });
-    let code = create_signal(String::new());
     // A new request starts with no code; a refusal of this one keeps what was typed.
     let from = create_memo(move || request.get().map(|request| request.from));
-    create_effect(move || {
-        from.get();
-        untrack(|| code.set(String::new()));
+    let code = create_linked_signal(move || {
+        from.track();
+        String::new()
     });
     let cannot = create_memo(move || code.get().trim().is_empty());
     let approve = move || {

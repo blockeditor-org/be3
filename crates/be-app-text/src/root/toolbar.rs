@@ -153,7 +153,7 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
     let content = state.text.content();
     let hex = state.hex_view;
     let markdown = create_memo(move || {
-        content.get();
+        content.track();
         !hex.get() && state.text.language() == TextLanguage::Markdown
     });
     FORMATS
@@ -184,7 +184,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<Li
     let keyboard = state.text.touch_mode();
     let content = state.text.content();
     let markdown = create_memo(move || {
-        content.get();
+        content.track();
         state.text.language() == TextLanguage::Markdown
     });
     let controls = move || {
@@ -274,11 +274,11 @@ fn HexSettings(state: State) -> NodeId {
 fn TextSettings(state: State) -> NodeId {
     let content = state.text.content();
     let language = create_memo(move || {
-        content.get();
+        content.track();
         state.text.language()
     });
     let indentation = create_memo(move || {
-        content.get();
+        content.track();
         state.text.indentation()
     });
     let language_index = create_memo(move || {

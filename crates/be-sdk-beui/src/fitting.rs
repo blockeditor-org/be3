@@ -20,7 +20,7 @@ impl Editor {
         let world = self.world();
         let core = self.core();
         let area = create_memo(move || {
-            let _ = world.get();
+            world.track();
             fit.get().map(|fit| core.fit_area(fit))
         });
         create_effect(move || {

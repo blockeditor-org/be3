@@ -128,7 +128,7 @@ struct HeldDialog {
 struct HostInner {
     _scope: Scope,
     bodies: RefCell<Option<DockBodies>>,
-    placed: Signal<u64>,
+    placed: Trigger,
     events: RefCell<Option<Callback<DockHostEvent>>>,
     dialogs: RefCell<HashMap<TabId, HeldDialog>>,
     dock: Cell<Option<ComponentRef<DockApi>>>,
@@ -191,7 +191,7 @@ impl DockHostLayout {
         let inner = HostInner {
             _scope: owner.into_scope(),
             bodies: RefCell::default(),
-            placed: create_signal(0),
+            placed: create_trigger(),
             events: RefCell::default(),
             dialogs: RefCell::default(),
             dock: Cell::new(None),
@@ -235,9 +235,7 @@ impl DockHostLayout {
     /// Says something outside covers the dock, so its floating dock bars drop from `LayerLevel::Raised`
     /// to `Normal` under it, as they do under a fullscreen tab.
     pub fn set_covered(&self, covered: bool) {
-        if self.covered.get_untracked() != covered {
-            self.covered.set(covered);
-        }
+        self.covered.set(covered);
     }
 
     /// Lets the band of the dock's own bars along each edge hide until revealed (`reveal`): the
@@ -415,9 +413,7 @@ impl DockHostLayout {
         next.adopt_bar_placements(&current, &bar_key);
         let hosts: Vec<TabId> = structure.hosts.iter().map(|(host, _, _)| *host).collect();
         let held = self.inner().hosts;
-        if held.with_untracked(|held| *held != hosts) {
-            held.set(hosts);
-        }
+        held.set(hosts);
         if next != current {
             self.state.set(next);
         }
@@ -613,7 +609,7 @@ impl DockHostLink for LocalLink {
     fn place(&self, bodies: DockBodies) {
         let inner = self.layout.inner();
         *inner.bodies.borrow_mut() = Some(bodies);
-        inner.placed.update(|placed| *placed += 1);
+        inner.placed.notify();
         let joined = inner.bars_link.borrow().is_some();
         if let Some(bars) = self.bars.clone().filter(|_| !joined) {
             join_bars(self.layout, bars);
@@ -738,7 +734,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
     };
     let content = RenderFn::new(move |tab: TabId| {
         let known = move || {
-            placed.get();
+            placed.track();
             layout.inner().bodies.borrow().is_some()
                 && declared.with(|declared| {
                     declared

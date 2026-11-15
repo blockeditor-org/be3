@@ -782,9 +782,7 @@ impl State {
         if let Some(goal) = self.lift_goal(lift, &flight) {
             flight.pos = goal;
             flight.speed = Vec2::ZERO;
-            if lifting.at.get_untracked() != goal {
-                lifting.at.set(goal);
-            }
+            lifting.at.set(goal);
         }
     }
 
@@ -982,9 +980,7 @@ impl State {
             self.curves.ease.sample(flight.grow),
             1.0 - self.curves.ease.sample(1.0 - flight.shrink),
         );
-        if lifting.growth.get_untracked() != growth {
-            lifting.growth.set(growth);
-        }
+        lifting.growth.set(growth);
         let goal = self.lift_goal(lift, &flight);
         if let Some(goal) = goal {
             match lift.settling {
@@ -1005,9 +1001,7 @@ impl State {
                     flight.speed = Vec2::ZERO;
                 }
             }
-            if lifting.at.get_untracked() != flight.pos {
-                lifting.at.set(flight.pos);
-            }
+            lifting.at.set(flight.pos);
         }
         let resting = goal == Some(flight.pos) && flight.speed == Vec2::ZERO;
         let growing = flight.grow < 1.0 || flight.shrink > 0.0;
@@ -1552,9 +1546,7 @@ fn DockBarLine(
                 (Direction::Vertical, false, true) => sides.top += shift,
                 (Direction::Vertical, false, false) => sides.bottom -= shift,
             }
-            if padding.get_untracked() != sides {
-                padding.set(sides);
-            }
+            padding.set(sides);
         }),
         DockAlign::Start | DockAlign::End => create_effect(move || {
             let length = covered.get().map_or(0.0, |own| along(own.rect.size()));

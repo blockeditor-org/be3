@@ -3,7 +3,7 @@ use std::rc::{Rc, Weak};
 
 use crate::runtime::in_memo;
 use crate::{
-    Get, Memo, Set, Signal, Stored, create_memo, create_signal, on_cleanup, provide_context, store,
+    Get, Memo, Stored, Trigger, create_memo, create_trigger, on_cleanup, provide_context, store,
     use_context,
 };
 
@@ -32,17 +32,17 @@ struct Waits {
 /// An inner boundary keeps its content's waits from the outer one.
 #[derive(Clone, Copy)]
 pub struct Boundary {
-    changed: Signal<u64>,
+    changed: Trigger,
     waits: Stored<Waits>,
     state: Memo<Ready<()>>,
 }
 
 impl Boundary {
     pub fn provide() -> Self {
-        let changed = create_signal(0u64);
+        let changed = create_trigger();
         let waits = store(Waits::default());
         let state = create_memo(move || {
-            changed.get();
+            changed.track();
             let probes: Vec<Probe> = waits.with(|waits| {
                 waits
                     .probes
@@ -80,7 +80,7 @@ impl Boundary {
             waits.probes.borrow_mut().clear();
         });
         if revealed.is_some() {
-            self.changed.update(|changed| *changed += 1);
+            self.changed.notify();
         }
     }
 
@@ -95,7 +95,7 @@ impl Boundary {
             waits.probes.borrow_mut().push((id, probe));
             id
         });
-        self.changed.update(|changed| *changed += 1);
+        self.changed.notify();
         id
     }
 
@@ -106,7 +106,7 @@ impl Boundary {
                 waits.probes.borrow_mut().retain(|(held, _)| *held != id);
             });
             if removed.is_some() {
-                self.changed.update(|changed| *changed += 1);
+                self.changed.notify();
             }
         });
     }

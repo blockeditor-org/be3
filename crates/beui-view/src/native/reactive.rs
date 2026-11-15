@@ -225,7 +225,7 @@ pub(crate) fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 }
 
 pub(crate) use crate::core::nodes::{
-    focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_revision,
+    focus_ancestry, focused_node, opener_of, set_focus, stacked_at, tree_local, use_font_changes,
     use_preference_layer, use_preferences, window_of,
 };
 

@@ -119,8 +119,7 @@ pub fn TerminalView(
     });
     let spill = Rc::new(Cell::new(0.0_f32));
     let padding = PADDING.px();
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let measured = create_memo(move || cell().unwrap_or(Vec2::new(7.0, 15.0)));
     create_effect(move || {
         let size = size.get();
@@ -217,7 +216,7 @@ pub fn TerminalView(
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

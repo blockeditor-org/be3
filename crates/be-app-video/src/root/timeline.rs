@@ -22,28 +22,23 @@ const CLIP_RADIUS: Radius = Radius::Sm;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     create_effect(move || state.fit_timeline(placed.get().width().max(1.0)));
 
-    let clips = state.clips;
+    let edit = state.edit;
     let rows = create_memo(move || {
-        let _ = clips.get();
-        state
-            .video()
-            .map(|video| {
-                timeline::lane_rows(&video)
-                    .into_iter()
-                    .map(|row| Lane {
-                        id: row.timing.id,
-                        lane: row.lane,
-                        start: row.timing.start,
-                        length: row.timing.length,
-                        depth: row.timing.depth,
-                    })
-                    .collect::<Vec<Lane>>()
-            })
-            .unwrap_or_default()
+        edit.with(|video| {
+            timeline::lane_rows(video)
+                .into_iter()
+                .map(|row| Lane {
+                    id: row.timing.id,
+                    lane: row.lane,
+                    start: row.timing.start,
+                    length: row.timing.length,
+                    depth: row.timing.depth,
+                })
+                .collect::<Vec<Lane>>()
+        })
     });
     let lanes =
         create_memo(move || rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1);
@@ -195,7 +190,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

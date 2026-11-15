@@ -128,9 +128,7 @@ impl super::State {
             seen.push(child);
             current = Some(child);
         }
-        if current != self.dialog_focus.get_untracked() {
-            self.dialog_focus.set(current);
-        }
+        self.dialog_focus.set(current);
     }
 
     pub(super) fn release_dialog_focus(&self) {
@@ -202,10 +200,10 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
     let state = dock.state;
     let described = dock.dialog;
     create_effect(move || {
-        let _ = state.with(DockState::focused_tab);
+        state.track();
         for (dialog, _) in keys.get() {
             if let Some(parts) = described.call(dialog) {
-                parts.modal.get();
+                parts.modal.track();
             }
         }
         untrack(|| dock.settle_dialog_focus());

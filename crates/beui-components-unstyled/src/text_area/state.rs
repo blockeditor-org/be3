@@ -175,11 +175,10 @@ struct Inner {
     reveal: Cell<Option<Rect>>,
     scroll_to: Cell<Option<ScrollAnchor>>,
     scrolled: Signal<Option<ScrollAnchor>>,
-    reveals: Signal<u64>,
+    reveals: Trigger,
     focus_requests: Signal<u64>,
     focus_handled: Cell<u64>,
-    content: Signal<u64>,
-    content_counter: Cell<u64>,
+    content: Trigger,
     cursors: Signal<u64>,
     cursor_counter: Cell<u64>,
     selected: Signal<Option<Selected>>,
@@ -210,10 +209,10 @@ impl TextAreaState {
             anchor: start,
             focus: start,
         });
-        let content = create_signal(0);
+        let content = create_trigger();
         let cursors = create_signal(0);
         let layout = create_signal(TextAreaLayout::default());
-        let reveals = create_signal(0);
+        let reveals = create_trigger();
         let scrolled = create_signal(None);
         let focus_requests = create_signal(0);
         let touch_mode = create_signal(false);
@@ -240,7 +239,6 @@ impl TextAreaState {
             focus_requests,
             focus_handled: Cell::new(0),
             content,
-            content_counter: Cell::new(0),
             cursors,
             cursor_counter: Cell::new(0),
             selected,
@@ -349,9 +347,7 @@ impl TextAreaState {
     fn sync_selected(&self) {
         let inner = self.0.value();
         let selected = inner.core.borrow().selected();
-        if inner.selected.get_untracked() != selected {
-            inner.selected.set(selected);
-        }
+        inner.selected.set(selected);
     }
 
     pub fn set_show_runs(&self, shown: bool) {
@@ -360,9 +356,9 @@ impl TextAreaState {
         self.sync_document();
     }
 
-    pub fn content(&self) -> ReadSignal<u64> {
-        let inner = self.0.value();
-        inner.content.read_only()
+    /// Notified whenever the document's snapshot (its bytes, lines and formats) changes.
+    pub fn content(&self) -> Trigger {
+        self.0.value().content
     }
 
     pub fn rows_built(&self) -> u64 {
@@ -503,7 +499,7 @@ impl TextAreaState {
 
     fn request_reveal(&self) {
         let inner = self.0.value();
-        inner.reveals.update(|reveals| *reveals += 1);
+        inner.reveals.notify();
     }
 
     pub fn focus(&self) {
@@ -526,9 +522,8 @@ impl TextAreaState {
         inner.focus_handled.replace(asked) != asked
     }
 
-    pub fn reveals(&self) -> ReadSignal<u64> {
-        let inner = self.0.value();
-        inner.reveals.read_only()
+    pub fn reveals(&self) -> Trigger {
+        self.0.value().reveals
     }
 
     pub fn canvas(&self) -> NodeRef {
@@ -695,8 +690,8 @@ impl TextAreaState {
 
     pub fn find_status(&self) -> FindStatus {
         let inner = self.0.value();
-        inner.content.get();
-        inner.cursors.get();
+        inner.content.track();
+        inner.cursors.track();
         let query = inner.find.query.get();
         let case_sensitive = inner.find.case_sensitive.get();
         inner.core.borrow().find_status(&query, case_sensitive)
@@ -919,8 +914,7 @@ impl TextAreaState {
             runs,
             formats,
         };
-        inner.content_counter.set(inner.content_counter.get() + 1);
-        inner.content.set(inner.content_counter.get());
+        inner.content.notify();
     }
 
     fn sync_cursors(&self) {

@@ -45,7 +45,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Editor pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(
@@ -348,7 +348,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
     create_effect(move || {
-        rendered.get();
+        rendered.track();
         let _measure = performance.measure("Preview pump");
         let size = pages.shown().get_untracked().size();
         pages.pump(

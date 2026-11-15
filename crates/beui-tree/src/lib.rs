@@ -27,15 +27,14 @@ pub mod reactive {
     pub use crate::control::{Dynamic, ForEach, Keyed, Loading, Show};
     pub use crate::into_prop_via;
     pub use crate::prop::{
-        ByClosure, ByClosureLifted, ByLift, ByValue, Exact, Func, Getter, IntoFunc, IntoLiftedProp,
-        IntoProp, IntoPropWith, Prop,
+        ByClosure, ByClosureLifted, ByLift, ByValue, Exact, Func, IntoFunc, IntoLiftedProp, IntoProp, IntoPropWith, Prop,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
         Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,
-        OwnedStored, Pending, ReadSignal, Ready, RootScope, Scope, ScopeContext, Selector, Set,
-        Signal, Store, Stored, StoredCell, child_scope, create_binding, create_effect, create_memo,
-        create_selector, create_signal, flush, hold, on_cleanup, owner_scope, provide_context,
+        OwnedStored, OwnedTrigger, Pending, ReadSignal, Reader, Ready, RootScope, Scope, ScopeContext, Selector, Set,
+        Signal, Store, Stored, StoredCell, Trigger, child_scope, create_binding, create_effect, create_effect_on, create_effect_on_change, create_memo,
+        create_linked_signal, create_selector, create_signal, create_trigger, flush, hold, on_cleanup, owner_scope, provide_context,
         store, untrack, use_context, wait_for, wait_while, zone_pending,
     };
 }

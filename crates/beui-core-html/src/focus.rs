@@ -142,12 +142,8 @@ pub(crate) fn watch_document(document: &web_sys::Document) -> Vec<crate::dom::Li
             .is_some_and(|element| element.matches(":focus-visible").unwrap_or(false));
         let node = crate::dom::node_at_or_above(element.map(Into::into));
         let signals = signals();
-        if signals.focused.get_untracked() != node {
-            signals.focused.set(node);
-        }
-        if signals.visible.get_untracked() != visible {
-            signals.visible.set(visible);
-        }
+        signals.focused.set(node);
+        signals.visible.set(visible);
         beui_reactive::flush();
     };
     vec![

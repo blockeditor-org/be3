@@ -19,15 +19,9 @@ pub(crate) struct DialogControl {
 impl DialogControl {
     pub(crate) fn frame(&self, frame: Option<DialogFrame>) {
         let frame = frame.unwrap_or_default();
-        if self.narrow.get_untracked() != frame.narrow {
-            self.narrow.set(frame.narrow);
-        }
-        if self.inset.get_untracked() != frame.bottom_inset {
-            self.inset.set(frame.bottom_inset);
-        }
-        if self.modal.get_untracked() != frame.modal {
-            self.modal.set(frame.modal);
-        }
+        self.narrow.set(frame.narrow);
+        self.inset.set(frame.bottom_inset);
+        self.modal.set(frame.modal);
     }
 
     pub(crate) fn dismiss(&self) {

@@ -252,7 +252,7 @@ fn found_blocks(typed: Memo<String>, opened: Memo<u64>) -> Memo<Vec<OpenableBloc
     });
     on_cleanup(|| be_host_stack::want_searches(be_host_stack::Owner::Host, Vec::new()));
     create_memo(move || {
-        searched.get();
+        searched.track();
         let mut blocks = named.get();
         let Some(found) = asked.with(|asked| asked.as_ref().and_then(be_host_stack::searched))
         else {

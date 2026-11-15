@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use beui_reactive::{
-    Get, ReadSignal, Scope, ScopeContext, Set, Signal, Stored, create_binding, create_signal, store,
+    ReadSignal, Scope, ScopeContext, Set, Signal, Stored, Trigger, create_binding, create_signal,
+    create_trigger, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
@@ -520,19 +521,19 @@ impl<T: SlotChild> ComponentOutput<DynamicSegment<T>> for ZeroOrOne<T> {
 
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
-    filled: Signal<u64>,
+    filled: Trigger,
 }
 
 impl<S> RunState<S> {
     fn new() -> Self {
         Self {
             items: RefCell::new(ChildList::default()),
-            filled: create_signal(0),
+            filled: create_trigger(),
         }
     }
 
     fn changed(&self) {
-        self.filled.update(|filled| *filled += 1);
+        self.filled.notify();
     }
 }
 
@@ -563,7 +564,7 @@ impl<C: SlotChild> Default for Run<C> {
 impl<C: SlotChild> Run<C> {
     #[track_caller]
     pub fn items(&self) -> Vec<C::Stored> {
-        self.state.filled.get();
+        self.state.filled.track();
         self.get_untracked()
     }
 
@@ -573,7 +574,7 @@ impl<C: SlotChild> Run<C> {
 
     #[track_caller]
     pub fn len(&self) -> usize {
-        self.state.filled.get();
+        self.state.filled.track();
         self.state.items.borrow().len()
     }
 
@@ -659,9 +660,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                         .find_map(|row| row.take_if(|(built, ..)| Rc::ptr_eq(built, &item)));
                     match kept {
                         Some(row) => {
-                            if row.3.get_untracked() != index {
-                                row.3.set(index);
-                            }
+                            row.3.set(index);
                             next.push(row);
                         }
                         None => {

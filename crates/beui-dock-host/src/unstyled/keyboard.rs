@@ -33,22 +33,20 @@ impl State {
             dock.state
                 .with(|state| (state.shows(), state.focused_tab()))
         });
-        let seen = StoredCell::new(shown.get_untracked());
-        create_effect(move || {
-            let shown = shown.get();
-            if seen.replace(shown) == shown {
-                return;
-            }
-            let (_, Some(tab)) = shown else {
-                return;
-            };
-            if untrack(|| dock.state.with(|state| state.in_window(tab))) {
-                dock.forward.update(|(count, target)| {
-                    *count += 1;
-                    *target = Some(tab);
-                });
-            }
-        });
+        create_effect_on_change(
+            move || shown.get(),
+            move |&(_, tab), _| {
+                let Some(tab) = tab else {
+                    return;
+                };
+                if dock.state.with(|state| state.in_window(tab)) {
+                    dock.forward.update(|(count, target)| {
+                        *count += 1;
+                        *target = Some(tab);
+                    });
+                }
+            },
+        );
     }
 
     /// A tab's content holds the keyboard only until something else takes it: this document, or

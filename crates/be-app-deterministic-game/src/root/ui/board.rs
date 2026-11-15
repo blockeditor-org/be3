@@ -70,12 +70,13 @@ pub(crate) fn Stage(
 ) -> NodeId {
     let canvas = editor.canvas();
     let world_size = editor.world();
-    let annotations = create_signal(Vec::<Annotation>::new());
-    let pending = create_signal(None::<Annotation>);
-    create_effect(move || {
-        layout.with(|_| {});
-        annotations.set(Vec::new());
-        pending.set(None);
+    let annotations = create_linked_signal(move || {
+        layout.track();
+        Vec::<Annotation>::new()
+    });
+    let pending = create_linked_signal(move || {
+        layout.track();
+        None::<Annotation>
     });
     let bar = create_signal(Rect::ZERO);
 
@@ -95,38 +96,35 @@ pub(crate) fn Stage(
 
     let motion = Motion::new();
     let dropped = StoredCell::new(None::<(ItemId, Rect, Spot)>);
-    let previous = store(RefCell::new(None::<(Layout, Vec<HandCard>)>));
-    create_effect(move || {
-        let now_drawn = drawn.get();
-        let now_hand = hand.get();
-        let earlier = previous
-            .value()
-            .replace(Some((now_drawn.clone(), now_hand.clone())));
-        let dropped = dropped.take().filter(|(id, _, onto)| {
-            now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
-        });
-        let Some((was_drawn, was_hand)) = earlier else {
-            return;
-        };
-        let world = world_size.get_untracked();
-        let (view, bar) = (view_now(), bar.get_untracked());
-        let clock = motion.clock.get_untracked();
-        let mut before = sightings(&was_drawn.centered_in(world), view, &was_hand, bar);
-        motion.flights.with_untracked(|flying| {
-            for seen in &mut before {
-                if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
-                    seen.rect = flight.rect(clock);
+    create_effect_on(
+        move || (drawn.get(), hand.get()),
+        move |(now_drawn, now_hand), previous| {
+            let dropped = dropped.take().filter(|(id, _, onto)| {
+                now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
+            });
+            let Some((was_drawn, was_hand)) = previous else {
+                return;
+            };
+            let world = world_size.get_untracked();
+            let (view, bar) = (view_now(), bar.get_untracked());
+            let clock = motion.clock.get_untracked();
+            let mut before = sightings(&was_drawn.centered_in(world), view, was_hand, bar);
+            motion.flights.with_untracked(|flying| {
+                for seen in &mut before {
+                    if let Some(flight) = flying.iter().find(|flight| flight.id == seen.id) {
+                        seen.rect = flight.rect(clock);
+                    }
                 }
-            }
-        });
-        let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, &now_hand, bar)
-            .into_iter()
-            .filter(|seen| movable(&seen.sprite))
-            .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
-            .collect();
-        let dropped = dropped.map(|(id, rect, _)| (id, rect));
-        motion.launch(flights(&before, &after, dropped, now()));
-    });
+            });
+            let after: Vec<_> = sightings(&now_drawn.centered_in(world), view, now_hand, bar)
+                .into_iter()
+                .filter(|seen| movable(&seen.sprite))
+                .filter(|seen| bar.height() > 0.0 || now_hand.iter().all(|held| held.id != seen.id))
+                .collect();
+            let dropped = dropped.map(|(id, rect, _)| (id, rect));
+            motion.launch(flights(&before, &after, dropped, now()));
+        },
+    );
 
     let lifted = create_memo(move || {
         let dragging = play.dragging.get()?;

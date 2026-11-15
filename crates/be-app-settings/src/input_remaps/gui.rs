@@ -132,18 +132,16 @@ fn everywhere(group: &GroupOutline) -> bool {
 #[component]
 pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     let stored = shared.stored;
-    let draft = create_signal(stored.get_untracked());
+    // What was last stored, or read from the store: the draft follows the store while it
+    // still holds that, and keeps what was edited otherwise.
     let followed = store(std::cell::RefCell::new(stored.get_untracked()));
-    create_effect(move || {
+    let draft = create_linked_signal(move |draft: Option<&String>| {
         let text = stored.get();
-        untrack(|| {
-            let current = draft.get();
-            let following = followed.with(|followed| *followed.borrow() == current);
-            if following && current != text {
-                draft.set(text.clone());
-            }
-            followed.with(|followed| *followed.borrow_mut() = text);
-        });
+        let last = followed.with(|followed| followed.replace(text.clone()));
+        match draft {
+            Some(draft) if *draft != last => draft.clone(),
+            _ => text,
+        }
     });
     let parsed = create_memo(move || Editing::parse(&draft.get()).map(|editing| editing.outline()));
     let outline = create_memo(move || parsed.get().unwrap_or_default());

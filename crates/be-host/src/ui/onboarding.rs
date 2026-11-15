@@ -139,18 +139,21 @@ pub(super) fn AddAccountDialog(
     let has_default = default.get_untracked().is_some();
     let default_name =
         create_memo(move || default.get().map(|server| server.name).unwrap_or_default());
-    let selection = create_signal(None::<u8>);
-    let remote_url = create_signal(String::new());
-    let authorization = create_signal(String::new());
-    let display_name = create_signal(String::new());
-    create_effect(move || {
-        generation.get();
-        untrack(|| {
-            selection.set(None);
-            remote_url.set(String::new());
-            authorization.set(String::new());
-            display_name.set(String::new());
-        });
+    let selection = create_linked_signal(move || {
+        generation.track();
+        None::<u8>
+    });
+    let remote_url = create_linked_signal(move || {
+        generation.track();
+        String::new()
+    });
+    let authorization = create_linked_signal(move || {
+        generation.track();
+        String::new()
+    });
+    let display_name = create_linked_signal(move || {
+        generation.track();
+        String::new()
     });
     let editing = create_memo(move || selection.with(Option::is_some) && !pending.get());
     let local = create_memo(move || selection.get() == Some(1));
@@ -800,10 +803,9 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
 
 #[component]
 fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
-    let name = create_signal(String::new());
-    create_effect(move || {
-        created.get();
-        untrack(|| name.set(String::new()));
+    let name = create_linked_signal(move || {
+        created.track();
+        String::new()
     });
     let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
     let create = move || {

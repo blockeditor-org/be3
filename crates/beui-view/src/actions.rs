@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use std::any::Any;
 
 use crate::reactive::{
-    Get, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal, Prop, Set,
+    Get, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedTrigger, Prop,
     create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
 };
 use crate::types::icons::Glyph;
@@ -467,7 +467,7 @@ struct RegistryData {
     global: Rc<ScopeData>,
     scopes: RefCell<Vec<Weak<ScopeData>>>,
     next: Cell<u64>,
-    version: OwnedSignal<u64>,
+    changed: OwnedTrigger,
     listeners: RefCell<Vec<Rc<KeyHandler>>>,
     described: RefCell<Option<Rc<dyn Any>>>,
     menus: RefCell<Vec<(u64, Vec<MenuNode>)>>,
@@ -485,7 +485,7 @@ impl Registry {
             }),
             scopes: RefCell::new(Vec::new()),
             next: Cell::new(1),
-            version: OwnedSignal::new(0),
+            changed: OwnedTrigger::new(),
             listeners: RefCell::new(Vec::new()),
             described: RefCell::new(None),
             menus: RefCell::new(Vec::new()),
@@ -493,10 +493,7 @@ impl Registry {
     }
 
     fn touch(&self) {
-        self.0
-            .version
-            .handle()
-            .update(|version| *version = version.wrapping_add(1));
+        self.0.changed.notify();
     }
 
     fn scopes(&self) -> Vec<Rc<ScopeData>> {
@@ -765,7 +762,7 @@ fn install(registry: &Registry) {
                 return;
             };
             let registry = Registry(registry);
-            registry.0.version.get();
+            registry.0.changed.track();
             let chords = registry.intercepted();
             if *reported.borrow() != chords {
                 reported.replace(chords.clone());
@@ -777,8 +774,8 @@ fn install(registry: &Registry) {
                 return;
             };
             let registry = Registry(registry);
-            registry.0.version.get();
-            focused.get();
+            registry.0.changed.track();
+            focused.track();
             let path = untrack(crate::core::actions::focus_ancestry);
             let hosts = match hosting {
                 Some(hosting) => hosting.get(),
@@ -822,7 +819,7 @@ pub fn add_to_menu(items: Vec<MenuNode>) {
 pub fn document_menu() -> Memo<Vec<MenuNode>> {
     let registry = registry();
     create_memo(move || {
-        registry.0.version.get();
+        registry.0.changed.track();
         let mut nodes = Vec::new();
         for (_, items) in registry.0.menus.borrow().iter() {
             nodes.push(MenuNode::Separator);

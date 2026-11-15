@@ -76,7 +76,7 @@ pub struct Workspace {
     /// Modes this workspace set, shown until the host publishes them: each with whether the
     /// host has answered, after which the next published modes take its place.
     setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
-    routes: Signal<u64>,
+    routes: Trigger,
     pub(crate) phone: Signal<bool>,
     focus: Signal<Focus>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
@@ -103,7 +103,7 @@ impl Workspace {
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
         let simulated = create_signal(HashMap::new());
-        let routes = create_signal(0);
+        let routes = create_trigger();
         let phone = create_signal(false);
         let dialog = create_signal(None);
         let share = create_signal(None);
@@ -175,14 +175,14 @@ impl Workspace {
             workspace.place_windows();
         });
         // Modes the host answered for give way to the next modes it publishes, which hold them.
-        create_effect(move || {
-            workspace.notify_modes.with(|_| ());
-            untrack(|| {
+        create_effect_on(
+            move || workspace.notify_modes.track(),
+            move |_, _| {
                 workspace
                     .setting_modes
                     .update(|modes| modes.retain(|_, (_, answered)| !*answered));
-            });
-        });
+            },
+        );
         workspace.list_programs_for_placeholders();
         create_effect(move || {
             workspace.open_landing();
@@ -205,10 +205,7 @@ impl Workspace {
             workspace.report_focus();
         });
         let contacts = workspace.editor.watch::<ContactsWatch>();
-        create_effect(move || {
-            contacts.with(|_| ());
-            untrack(|| workspace.relist_share());
-        });
+        create_effect_on(move || contacts.track(), move |_, _| workspace.relist_share());
         create_effect(move || {
             workspace.watch_artifacts();
         });
@@ -853,9 +850,7 @@ impl Workspace {
                 titles.insert(tab, title);
             }
         }
-        if self.titles.with_untracked(|held| *held != titles) {
-            self.titles.set(titles);
-        }
+        self.titles.set(titles);
     }
 
     fn report_focus(&self) {
@@ -867,7 +862,7 @@ impl Workspace {
         let current = shown
             .and_then(|tab| self.tabs.with(|tabs| tabs.get(&tab).copied()))
             .map(|item| item.id);
-        self.routes.get();
+        self.routes.track();
         let active = current.or_else(|| inner.active.get());
         inner.active.set(active);
         let focus = Focus {
@@ -956,7 +951,7 @@ impl Workspace {
     }
 
     fn rerouted(&self) {
-        self.routes.update(|routes| *routes += 1);
+        self.routes.notify();
     }
 
     pub(crate) fn container_of(&self, id: Uuid) -> Option<Uuid> {

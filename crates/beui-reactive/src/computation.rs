@@ -2,11 +2,14 @@ use std::cell::{Cell, RefCell};
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
+use crate::arena::{self, Key};
 use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
+    untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::signal::Tracked;
+use crate::memo::Compute;
+use crate::signal::{Get, Set, Signal, Tracked, create_signal};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -371,10 +374,61 @@ impl Computation {
     }
 }
 
-/// A handle to an effect. Dropping it does not stop the effect; its scope owns it.
-#[derive(Clone)]
+/// A handle to an effect or binding: a `Copy` key, like every reactive handle. The scope
+/// that made the effect owns it; the handle only stops it early.
 pub struct Effect {
-    computation: Rc<Computation>,
+    key: Option<Key>,
+}
+
+impl Clone for Effect {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl Copy for Effect {}
+
+impl PartialEq for Effect {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl Eq for Effect {}
+
+impl std::fmt::Debug for Effect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Effect").field(&self.key).finish()
+    }
+}
+
+impl Effect {
+    fn of(computation: &Rc<Computation>) -> Self {
+        Self {
+            key: Some(arena::insert_owned(Rc::new(Rc::downgrade(computation)))),
+        }
+    }
+
+    /// A handle to nothing: a binding that read nothing made no computation.
+    fn none() -> Self {
+        Self { key: None }
+    }
+
+    fn computation(&self) -> Option<Rc<Computation>> {
+        arena::get::<Weak<Computation>>(self.key?)?.upgrade()
+    }
+
+    /// Stops it now, as disposing its scope would. Does nothing once it has stopped.
+    pub fn dispose(&self) {
+        if let Some(computation) = self.computation() {
+            defer(|| computation.dispose());
+        }
+    }
+
+    pub fn is_disposed(&self) -> bool {
+        self.computation()
+            .is_none_or(|computation| computation.is_disposed())
+    }
 }
 
 /// Queues a first run, then reruns after any tracked input changes, with writes coalesced
@@ -392,22 +446,23 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    Effect { computation }
+    Effect::of(&computation)
 }
 
 /// An effect whose first run happens now, as a memo's does, instead of being queued. A
-/// first run that reads nothing costs only the closure: no computation is made.
+/// first run that reads nothing costs only the closure: no computation is made, and the
+/// handle it returns is already disposed.
 ///
 /// Each binding still costs a probe, so props applied together share one binding. Unlike
 /// an effect, a binding runs while its scope's effects are paused by
 /// `Scope::pausable_effects`, so a hidden `Loading` content still builds its tree.
-pub fn create_binding(mut binding: impl FnMut() + 'static) {
+pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
     let probed = probe(false, &mut binding);
     if probed.constant() {
         if let Some(owner) = probed.owner {
             owner.dispose();
         }
-        return;
+        return Effect::none();
     }
     let computation = Computation::new(None, move || {
         binding();
@@ -415,14 +470,79 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
     });
     computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
+    Effect::of(&computation)
 }
 
-impl Effect {
-    pub fn dispose(&self) {
-        defer(|| self.computation.dispose());
-    }
+/// An effect over explicit dependencies, like SolidJS's `on`: `deps` is read tracked, and
+/// `run` gets its value and the one before it (`None` on the first run) with nothing
+/// tracked, so what `run` reads does not wake it. Queued like `create_effect`.
+///
+/// `deps` returns the values `run` needs, or `()` after `track`ing what should wake it:
+/// `create_effect_on(move || (pointer.get(), caret.get()), move |_, _| publish())`.
+pub fn create_effect_on<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, Option<&D>) + 'static,
+) -> Effect {
+    let mut previous = None;
+    create_effect(move || {
+        let value = deps();
+        untrack(|| run(&value, previous.as_ref()));
+        previous = Some(value);
+    })
+}
 
-    pub fn is_disposed(&self) -> bool {
-        self.computation.is_disposed()
+/// `create_effect_on` without its first run (SolidJS's `defer`): `deps` is read now, and
+/// `run` runs only after what it read changes, with the value before. For acting on a
+/// change rather than on the state: begin a move each time the count of asked moves goes
+/// up.
+pub fn create_effect_on_change<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, &D) + 'static,
+) -> Effect {
+    let probed = probe(false, &mut deps);
+    if probed.constant() {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return Effect::none();
     }
+    let mut previous = probed.value;
+    let computation = Computation::new(None, move || {
+        let value = deps();
+        untrack(|| run(&value, &previous));
+        previous = value;
+        false
+    });
+    computation.watch(probed.read, probed.owner);
+    Effect::of(&computation)
+}
+
+/// A signal that holds what was last written to it, but resets to `source` whenever what
+/// `source` reads changes, like Angular's `linkedSignal`: a draft seeded from a saved value
+/// and reset when the saved value changes. `source` runs now, and the reset is a binding,
+/// so a change to its inputs reaches the signal when effects next run.
+///
+/// Like `create_memo`'s, the closure may take an annotated `previous: Option<&T>`: what the
+/// signal holds when the reset comes (`None` the first time), so a reset can keep part of
+/// what was written, such as text typed that still means the new value.
+pub fn create_linked_signal<T: PartialEq + 'static, M>(
+    mut source: impl Compute<T, M> + 'static,
+) -> Signal<T> {
+    let probed = probe(false, || source.compute(None));
+    let constant = probed.constant();
+    let signal = create_signal(probed.value);
+    if constant {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return signal;
+    }
+    let computation = Computation::new(None, move || {
+        let value = signal.with_untracked(|held| source.compute(Some(held)));
+        signal.set(value);
+        false
+    });
+    computation.binding.set(true);
+    computation.watch(probed.read, probed.owner);
+    signal
 }

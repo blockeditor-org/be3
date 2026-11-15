@@ -171,7 +171,7 @@ pub(crate) fn keep_position(state: State) {
     // The text around each place is read untracked: it is what finds the place again after
     // edits, so typing alone saves only as it moves the caret.
     let position = create_memo(move || {
-        scrolled.get();
+        scrolled.track();
         cursors.get();
         if !restored.get() {
             return None;

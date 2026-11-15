@@ -19,8 +19,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
     let read_only = editor.read_only();
     let organization =
         create_memo(move || state.filters.with(|filters| filters.organization.clone()));
-    let organization_draft = create_signal(organization.get_untracked());
-    create_effect(move || organization_draft.set(organization.get()));
+    let organization_draft = create_linked_signal(move || organization.get());
     let secret = create_signal(String::new());
     let today = Date::today();
     let expiry = create_signal(Some(DateTime::new(

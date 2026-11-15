@@ -174,7 +174,7 @@ pub(crate) fn install() {
     let spring = beui::native::try_with_document(|_| ()).map(|()| Spring::new());
     SPRING.set(spring);
     create_effect(move || {
-        areas.with(|_| ());
+        areas.track();
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
         let moving = moving.or_else(|| spring.and_then(|spring| spring.settling.get()));
         let displays = desktop_displays();
@@ -620,9 +620,7 @@ pub(crate) fn apply() {
         });
     let displays = untrack(desktop_displays);
     keep_in_work_areas(&mut windows, &displays, moving.as_ref());
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -675,9 +673,7 @@ pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
         return false;
     };
     let gesture = begin_on(window, kind);
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -872,13 +868,12 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let was_moving = Cell::new(false);
-    create_effect(move || {
-        let now_moving = moving.get();
-        if now_moving == was_moving.replace(now_moving) {
-            return;
-        }
-        untrack(|| {
+    create_effect_on(
+        move || moving.get(),
+        move |&now_moving, was_moving| {
+            if now_moving == was_moving.copied().unwrap_or(false) {
+                return;
+            }
             let viewport = viewport.get_untracked();
             match now_moving {
                 true => {
@@ -899,8 +894,8 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
                     bounce.start();
                 }
             }
-        });
-    });
+        },
+    );
     create_effect(move || {
         if !moving.get() {
             return;
@@ -1196,9 +1191,7 @@ fn raise(key: &FloatedKey) {
     if let Some(index) = windows.iter().position(|window| window.key == *key) {
         be_sdk_window_stack::raise(&mut windows, index);
     }
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
 }
 
 pub(crate) fn merged_statuses(

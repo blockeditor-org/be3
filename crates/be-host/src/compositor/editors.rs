@@ -733,8 +733,7 @@ struct FocusedWithin(Callback<()>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct ChildReports {
-    statuses: Stored<RefCell<BTreeMap<u64, HostChildStatus>>>,
-    tick: Signal<u64>,
+    statuses: Signal<BTreeMap<u64, HostChildStatus>>,
 }
 
 #[component]
@@ -772,7 +771,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
     let editors = editors();
     let any = super::any();
     let presenting = create_memo(move || {
-        any.get();
+        any.track();
         editors.with(|open| {
             open.iter()
                 .find(|(_, editor)| editor.presenting_now())
@@ -833,7 +832,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
 pub(crate) fn ConflictSurface() -> NodeId {
     let any = super::any();
     let comparison = create_memo(move || {
-        any.get();
+        any.track();
         be_host_stack::conflicts::comparing()
     });
     view! {
@@ -1016,7 +1015,7 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
     let keys = create_memo(move || {
-        any.get();
+        any.track();
         view_key(&editors, block, false)
             .into_iter()
             .collect::<Vec<_>>()
@@ -1080,7 +1079,7 @@ fn FrameStack(
     let editors = editors();
     let any = super::any();
     let stack = create_memo(move || {
-        any.get();
+        any.track();
         let mut stack = Vec::new();
         if !holds.get() {
             return stack;
@@ -1214,7 +1213,7 @@ fn BlockFrame(
     };
     count();
     create_effect(move || {
-        any.get();
+        any.track();
         count();
     });
     on_cleanup(move || {
@@ -1227,7 +1226,7 @@ fn BlockFrame(
         }
     });
     let shown = create_memo(move || {
-        any.get();
+        any.track();
         presented
             || editors()
                 .with(|open| open.get(&block).map(|editor| !editor.presenting_now()))
@@ -1280,10 +1279,10 @@ enum Resolution {
 }
 
 #[component]
-fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
+fn ProgramSurface(block: Uuid, focus: Trigger) -> NodeId {
     let any = super::any();
     let shown = create_memo(move || {
-        any.get();
+        any.track();
         be_host_desktop::programs::shown(block)
     });
     view! {
@@ -1371,7 +1370,7 @@ fn BlockFrameBody(
     let key = block;
     let block = editors.block(key);
     let resolution = create_memo(move || {
-        any.get();
+        any.track();
         let access = editors.access(block, nesting.access);
         if !access.can_view() {
             return Resolution::NoAccess;
@@ -1394,7 +1393,7 @@ fn BlockFrameBody(
         }
     });
     let conflicted = create_memo(move || {
-        any.get();
+        any.track();
         match resolution.get() {
             Resolution::Ready { .. } => be_host_stack::conflicts::conflicted(block)
                 .map(|conflicted| conflicted.count)
@@ -1511,7 +1510,7 @@ fn BlockFrameView(
     let instance = view_editor.instance;
     let framed = create_memo(move || content.with(Option::is_some));
     create_effect(move || {
-        let _ = framed.get();
+        framed.track();
         be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&app_id.value());
@@ -1550,7 +1549,7 @@ fn BlockFrameView(
                 if zoomable || !embedded || content.with(Option::is_some) {
                     return 1.0;
                 }
-                revision.get();
+                revision.track();
                 let shown = rect.get();
                 be_host_runtime::assigned_size(&app_id.value(), instance)
                     .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
@@ -1693,7 +1692,7 @@ fn HostedChild(
     let place: PlaceKey = (parent, region.id, key);
     on_cleanup(move || editors.unplace(place));
     let placed = create_memo(move || {
-        any.get();
+        any.track();
         let mut frame = None;
         let kind = (|| {
             let (id, block_type, view_block, editor) = match content.get() {
@@ -1794,7 +1793,7 @@ fn HostedChild(
     let frame = create_memo(move || placed.get().1);
     let placed_window = create_memo(move || match kind.get() {
         Kind::Program(block) => {
-            any.get();
+            any.track();
             match be_host_desktop::programs::shown(block) {
                 Some(be_host_desktop::programs::Shown::Window(window)) => Some(window),
                 _ => None,
@@ -1819,7 +1818,7 @@ fn HostedChild(
     });
     if let Some(reports) = use_context::<ChildReports>() {
         let status = create_memo(move || {
-            any.get();
+            any.track();
             let child = child.get()?;
             let available = !matches!(
                 kind.get(),
@@ -1866,20 +1865,17 @@ fn HostedChild(
         });
         create_effect(move || {
             let status = status.get();
-            reports.statuses.with(|statuses| {
-                let mut statuses = statuses.borrow_mut();
+            reports.statuses.update(|statuses| {
                 match status {
                     Some(status) => statuses.insert(key.0, status),
                     None => statuses.remove(&key.0),
                 };
             });
-            reports.tick.update(|tick| *tick += 1);
         });
         on_cleanup(move || {
-            reports
-                .statuses
-                .with(|statuses| statuses.borrow_mut().remove(&key.0));
-            reports.tick.update(|tick| *tick += 1);
+            reports.statuses.update(|statuses| {
+                statuses.remove(&key.0);
+            });
         });
     }
     let local = create_memo(move || {
@@ -2057,18 +2053,19 @@ fn follow_window(
     key: ChildId,
     child: Memo<Option<HostChild>>,
     window: Memo<Option<HostWindowId>>,
-) -> Memo<u64> {
+) -> Trigger {
     let editors = editors();
-    let asks = create_signal(0u64);
+    let asks = create_trigger();
     let given =
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
-    let held = StoredCell::new(false);
-    create_effect(move || {
-        let given = given.get() && window.with(Option::is_some);
-        if !held.replace(given) && given {
-            untrack(|| asks.update(|asks| *asks += 1));
-        }
-    });
+    create_effect_on(
+        move || given.get() && window.with(Option::is_some),
+        move |&given, held| {
+            if given && held != Some(&true) {
+                asks.notify();
+            }
+        },
+    );
     let placer = move || {
         editors
             .handle(parent)
@@ -2090,7 +2087,7 @@ fn follow_window(
             // dropped, as the editor no longer has it.
             super::app_view::gifts::taken(&app_id, instance);
             be_host_runtime::end_gift(&app_id, instance);
-            asks.update(|asks| *asks += 1);
+            asks.notify();
         });
     });
     let fullscreen = create_memo(move || {
@@ -2106,7 +2103,7 @@ fn follow_window(
             untrack(|| Host::fullscreen(window, fullscreen));
         }
     });
-    create_memo(move || asks.get())
+    asks
 }
 
 #[derive(Clone, Copy)]
@@ -2139,7 +2136,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
     let instance = view_editor.instance;
     let revision = super::listen(&app_id.value());
     let holds = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::content_view(&app_id.value(), instance) == region.id
     });
     let spec = CameraSpec {
@@ -2338,7 +2335,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
     let editors = editors();
     let any = super::any();
     let keys = create_memo(move || {
-        any.get();
+        any.track();
         view_key(&editors, block, true)
             .into_iter()
             .collect::<Vec<_>>()
@@ -2371,15 +2368,10 @@ fn preview_of(editors: &Editors, block: Uuid) -> ChildPreview {
         .map_or(ChildPreview::Waiting, ChildPreview::Image)
 }
 
-pub(super) fn reports() -> (ChildReports, ReadSignal<u64>) {
-    let tick = create_signal(0u64);
-    (
-        ChildReports {
-            statuses: store(RefCell::new(BTreeMap::new())),
-            tick,
-        },
-        tick.read_only(),
-    )
+pub(super) fn reports() -> ChildReports {
+    ChildReports {
+        statuses: create_signal(BTreeMap::new()),
+    }
 }
 
 pub(super) fn provide_reports(reports: ChildReports) {
@@ -2389,7 +2381,7 @@ pub(super) fn provide_reports(reports: ChildReports) {
 pub(super) fn statuses(reports: &ChildReports) -> Vec<HostChildStatus> {
     reports
         .statuses
-        .with(|statuses| statuses.borrow().values().cloned().collect())
+        .with(|statuses| statuses.values().cloned().collect())
 }
 
 #[cfg(test)]

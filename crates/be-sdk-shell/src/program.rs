@@ -379,9 +379,7 @@ impl Workspace {
             if stale || !gone.is_empty() || !rebound.is_empty() {
                 self.heard.update(|heard| heard.retain(|tab, _| kept(tab)));
             }
-            if programs != self.programs.get_untracked() {
-                self.programs.set(programs);
-            }
+            self.programs.set(programs);
         });
     }
 
@@ -633,9 +631,7 @@ impl Workspace {
     /// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
     /// that is published, so every window that closes during the ending is kept as a placeholder.
     pub fn keep_through_ending(&self, ending: bool) {
-        if self.ending.get_untracked() != ending {
-            self.ending.set(ending);
-        }
+        self.ending.set(ending);
     }
 
     pub fn placeholder_openable(&self, tab: TabId) -> Memo<bool> {
@@ -920,33 +916,35 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     }
     on_cleanup(move || workspace.forget_child(tab));
     let minimized = create_memo(move || heard.with(|heard| heard.minimized));
-    let seen_minimize = StoredCell::new(minimized.get_untracked());
-    create_effect(move || {
-        let now = minimized.get();
-        if now > seen_minimize.replace(now) {
-            untrack(|| workspace.hide(workspace.root_tab(tab)));
-        }
-    });
+    create_effect_on_change(
+        move || minimized.get(),
+        move |now, before| {
+            if now > before {
+                workspace.hide(workspace.root_tab(tab));
+            }
+        },
+    );
     let raised = create_memo(move || heard.with(|heard| heard.raised));
-    let seen_raise = StoredCell::new(raised.get_untracked());
-    create_effect(move || {
-        let now = raised.get();
-        if now <= seen_raise.replace(now) {
-            return;
-        }
-        // A raise asks for the window to be shown, not proof that its keyboard went there, so
-        // `show` rather than `content_focused`: the window's focus reaches the dock through its
-        // child view, whose `ChildBlock` reports it.
-        untrack(|| match control {
-            Some(control) => control.show(),
-            None => {
-                layout.show(&tab);
-                if let Some(child) = heard.with(|heard| heard.child) {
-                    workspace.host().focus_child(child);
+    create_effect_on_change(
+        move || raised.get(),
+        move |now, before| {
+            if now <= before {
+                return;
+            }
+            // A raise asks for the window to be shown, not proof that its keyboard went there,
+            // so `show` rather than `content_focused`: the window's focus reaches the dock
+            // through its child view, whose `ChildBlock` reports it.
+            match control {
+                Some(control) => control.show(),
+                None => {
+                    layout.show(&tab);
+                    if let Some(child) = heard.with(|heard| heard.child) {
+                        workspace.host().focus_child(child);
+                    }
                 }
             }
-        });
-    });
+        },
+    );
     if let Some(control) = control {
         let called = create_memo(move || control.attention());
         create_effect(move || {

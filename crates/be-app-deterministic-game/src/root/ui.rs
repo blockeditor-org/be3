@@ -11,7 +11,7 @@ use be_sdk_beui::beui::icons::{ICON_CHECK, ICON_FLAG, ICON_X};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{Editor, LoadingPane};
-use tabletop_api::{Board, Control, GameActionOption, GameScreen, Gesture};
+use tabletop_api::{Board, Control, GameActionOption, GameScreen, Gesture, Spot};
 
 mod annotations;
 mod board;
@@ -287,15 +287,16 @@ fn GamePlay(
             .filter(|action| matches!(action.gesture, None | Some(Gesture::Control(_))))
             .collect::<Vec<_>>()
     });
-    let selected = create_signal(None);
-    let choices = create_signal(Vec::new());
+    let selected = create_linked_signal(move || {
+        actions.track();
+        None::<Spot>
+    });
+    let choices = create_linked_signal(move || {
+        actions.track();
+        Vec::<Action>::new()
+    });
     let dragging = create_signal(None);
     let over = create_signal(None);
-    create_effect(move || {
-        actions.with(|_| {});
-        selected.set(None);
-        choices.set(Vec::new());
-    });
     let play = Play {
         game,
         actions,

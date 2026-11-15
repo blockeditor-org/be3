@@ -73,9 +73,7 @@ impl GlideApi {
         else {
             return;
         };
-        if self.shown.get_untracked() != displacement {
-            self.shown.set(displacement);
-        }
+        self.shown.set(displacement);
     }
 
     fn start(self) {
@@ -120,7 +118,7 @@ impl GlideApi {
     }
 }
 
-/// Animates its child from where it was to where layout puts it. Bumping `arm`
+/// Animates its child from where it was to where layout puts it. Notifying `arm`
 /// before a change (a reorder) makes the next move glide rather than jump; `from`
 /// starts a glide from a window point (an item dropped from elsewhere), at once if it is
 /// already placed. The glide is
@@ -132,7 +130,7 @@ impl GlideApi {
 #[component]
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
-    #[prop(default = 0)] arm: Prop<u64>,
+    #[prop(default = None)] arm: Option<Trigger>,
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
     #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
@@ -230,14 +228,9 @@ pub fn Glide(
         disarm.stop();
         disarm.start();
     };
-    let first = Cell::new(true);
-    create_effect(move || {
-        arm.get();
-        if first.replace(false) {
-            return;
-        }
-        arm_now();
-    });
+    if let Some(arm) = arm {
+        create_effect_on_change(move || arm.track(), move |_, _| arm_now());
+    }
     create_effect(move || {
         let Some(from) = from.get() else {
             return;

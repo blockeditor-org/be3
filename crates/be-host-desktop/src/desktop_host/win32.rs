@@ -302,9 +302,7 @@ impl DesktopHost for Win32 {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
-            if signals.notes.get_untracked() != NOTED.get() {
-                signals.notes.set(NOTED.get());
-            }
+            signals.notes.set(NOTED.get());
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }
@@ -430,7 +428,7 @@ impl DesktopHost for Win32 {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let id = entry_id(window);
         let Some(signals) = signals() else {
             return view! {
@@ -472,8 +470,7 @@ impl DesktopHost for Win32 {
         });
         let pressed = Rc::new(Cell::new(false));
         let press = Rc::new(RefCell::new(ContentPress::default()));
-        let rect_held = create_signal(Rect::ZERO);
-        let rect = rect_held.read_only();
+        let rect = create_signal(Rect::ZERO);
         let drawn = create_memo(move || {
             snapshot.with(|snapshot| {
                 snapshot
@@ -482,16 +479,10 @@ impl DesktopHost for Win32 {
             })
         });
         create_effect(move || {
-            drawn.get();
+            drawn.track();
             resize(id, rect.get().size());
         });
-        let asked_focus = StoredCell::new(focus.get_untracked());
-        create_effect(move || {
-            let asked = focus.get();
-            if asked_focus.replace(asked) != asked {
-                untrack(|| focus_entry(id, None));
-            }
-        });
+        create_effect_on_change(move || focus.track(), move |_, _| focus_entry(id, None));
         let drawn_width = create_memo(move || drawn.get().x);
         let drawn_height = create_memo(move || drawn.get().y);
         let popups = create_memo(move || {
@@ -582,7 +573,7 @@ impl DesktopHost for Win32 {
         let rect_measured = measure(built);
         create_effect(move || {
             if let Some(measured) = rect_measured.get() {
-                rect_held.set(measured.rect);
+                rect.set(measured.rect);
             }
         });
         built

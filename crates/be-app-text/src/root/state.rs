@@ -145,7 +145,7 @@ impl State {
         };
         let edited = state.text.content();
         create_effect(move || {
-            edited.get();
+            edited.track();
             let Some(inner) = state.inner.try_value() else {
                 return;
             };
@@ -190,9 +190,7 @@ impl State {
 
     pub fn refresh_embeds(&self) {
         let resolved = resolve_embeds(self);
-        if self.embeds.get_untracked() != resolved {
-            self.embeds.set(resolved);
-        }
+        self.embeds.set(resolved);
     }
 
     pub fn toggle_hex_view(&self) {

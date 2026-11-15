@@ -45,8 +45,8 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             }
             // Room for all but a line of the view below the last line, so it scrolls up to the
             // top.
-            cx.font_size.get();
-            cx.metrics.get();
+            cx.font_size.track();
+            cx.metrics.track();
             let line = untrack(|| cx.row_estimate());
             Some(room.max(cx.view_height.get() - line))
         }
@@ -118,7 +118,7 @@ fn last_rect(node: NodeId) -> ReadSignal<Rect> {
 
 pub(super) fn tracked_scale(held: Stored<Held>) -> f32 {
     held.with(|held| {
-        held.rows_measured.get();
+        held.rows_measured.track();
         let texts: Vec<TextGeometrySignal> = held.texts.borrow().values().copied().collect();
         texts
             .into_iter()
@@ -148,7 +148,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text = create_memo(move || {
         let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
-        cx.metrics.get();
+        cx.metrics.track();
         let body = lay_out_text(
             "",
             FontId::proportional(cx.font_size.get()),
@@ -244,7 +244,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     };
     let content = cx.state.content();
     let margin = create_memo(move || {
-        content.get();
+        content.track();
         let document = cx.state.with_snapshot(|snapshot| {
             matches!(
                 snapshot.language,
@@ -386,15 +386,15 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>) -> Memo<RowCursors> {
         (row.start, row.end)
     });
     create_memo(move || {
-        cx.state.cursors().get();
+        cx.state.cursors().track();
         let (start, end) = span.get();
         let contains = |byte: &usize| *byte >= start && *byte <= end;
         let carets = cx.state.caret_indices();
         let touch = cx.state.touch_mode().get();
         let handles = match touch {
             true => {
-                cx.state.caret_handle().get();
-                cx.shift.get();
+                cx.state.caret_handle().track();
+                cx.shift.track();
                 untrack(|| cx.handles())
                     .into_iter()
                     .filter(|(_, byte)| contains(byte))
@@ -502,7 +502,7 @@ fn bytes_hash(bytes: &[u8]) -> u64 {
 fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
     let content = cx.state.content();
     create_memo(move || {
-        content.get();
+        content.track();
         let line = line();
         let starts = cx.starts.get();
         let widgets = cx.widgets.get();
@@ -672,7 +672,7 @@ fn RowText(
     });
     let anchor_at = create_memo(move || {
         let row = model.get();
-        cx.focused.get();
+        cx.focused.track();
         cursors.get().anchor.map(|byte| row.to_display(byte))
     });
     let anchored = create_memo(move || anchor_at.with(Option::is_some));
@@ -985,7 +985,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let height = create_memo(move || Extent::px(shape.get().height));
     let radius = create_memo(move || shape.get().radius);
     let selected = create_memo(move || {
-        cx.state.cursors().get();
+        cx.state.cursors().track();
         let Some(index) = index.get() else {
             return false;
         };
@@ -1063,7 +1063,7 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
     });
     let arrow_size = create_memo(move || geometry.get().gutter_arrow);
     let arrow = create_memo(move || {
-        cx.state.content().get();
+        cx.state.content().track();
         let start = model.get().start;
         cx.state
             .sections()
