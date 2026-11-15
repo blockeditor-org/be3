@@ -187,7 +187,6 @@ fn FieldRow(
         kind.get()
             .and_then(|kind| FIELD_TYPES.iter().position(|(value, _, _)| *value == kind))
     });
-    let is = |wanted: DatabaseFieldType| create_memo(move || kind.get() == Some(wanted));
     let renamed = move |name: String| {
         schema.operate(DatabaseSchema::rename_field(id, name));
     };
@@ -209,12 +208,6 @@ fn FieldRow(
         reorder.step(id, by);
     };
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
-    let (number_kind, enum_kind, block_kind, relation_kind) = (
-        is(DatabaseFieldType::Number),
-        is(DatabaseFieldType::Enum),
-        is(DatabaseFieldType::Block),
-        is(DatabaseFieldType::Relation),
-    );
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -275,17 +268,19 @@ fn FieldRow(
                     on_click={remove}
                 />
             </List>
-            <Show value={number_kind}>
+            <Show value={kind}>|kind: ReadSignal<DatabaseFieldType>|
+            <Match value={kind}>
+            <Case is={DatabaseFieldType::Number}>
                 <Interactive capture_presses=true>
                     <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
                 </Interactive>
-            </Show>
-            <Show value={enum_kind}>
+            </Case>
+            <Case is={DatabaseFieldType::Enum}>
                 <Interactive capture_presses=true>
                     <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
                 </Interactive>
-            </Show>
-            <Show value={block_kind}>
+            </Case>
+            <Case is={DatabaseFieldType::Block}>
                 <Interactive capture_presses=true>
                     <BlockOptions
                         editor={editor}
@@ -295,8 +290,8 @@ fn FieldRow(
                         read_only={read_only}
                     />
                 </Interactive>
-            </Show>
-            <Show value={relation_kind}>
+            </Case>
+            <Case is={DatabaseFieldType::Relation}>
                 <Interactive capture_presses=true>
                     <RelationOptions
                         editor={editor}
@@ -306,6 +301,8 @@ fn FieldRow(
                         read_only={read_only}
                     />
                 </Interactive>
+            </Case>
+            </Match>
             </Show>
             <Separator />
         </List>

@@ -283,7 +283,6 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
     let stale = create_memo(move || {
         history.busy.get() || history.listed.get() != history.target.get().map(|item| item.id)
     });
-    let error = create_memo(move || history.error.get().unwrap_or_default());
     let name = create_memo(move || {
         history
             .target
@@ -327,7 +326,7 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                     >
                         <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
-                    <Show value={move || history.error.with(Option::is_some)}>
+                    <Show value={history.error}>|error: ReadSignal<String>|
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{error}</Text>
                             <Button
