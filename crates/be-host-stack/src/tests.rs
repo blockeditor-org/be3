@@ -120,6 +120,7 @@ mod an_edit_typed_here_while_a_switch_writes_its_block_is_merged_in;
 mod an_empty_search_request_is_not_a_change;
 mod an_error_that_is_not_about_sending_outlasts_a_device_in_step;
 mod an_idle_peer_never_wakes_its_worker;
+mod an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same;
 mod an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded;
 mod an_invitation_code_opened_as_a_contact_link_is_refused;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
@@ -1106,7 +1107,13 @@ impl Device {
             loop {
                 let before = peer.local_head(index);
                 assert_eq!(
-                    crate::search::write(peer.as_ref(), index, batch.clone()).await,
+                    crate::search::write(
+                        peer.as_ref(),
+                        index,
+                        batch.clone(),
+                        be_block::search_index::MERGE_BYTES,
+                    )
+                    .await,
                     Ok(Some(Vec::new())),
                     "the other device indexes its note"
                 );

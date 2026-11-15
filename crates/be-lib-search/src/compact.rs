@@ -87,37 +87,11 @@ impl Index {
             if n as usize >= most {
                 break;
             }
-            // A segment more than half masked first, then a tier of `FACTOR`; the first whose
-            // inputs fit under `bytes`.
-            let mut candidates: Vec<Vec<usize>> = self
-                .segments
-                .iter()
-                .enumerate()
-                .filter(|(_, meta)| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
-                .map(|(index, _)| vec![index])
-                .collect();
-            let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
-            for (index, meta) in self.segments.iter().enumerate() {
-                tiers.entry(tier(meta.live())).or_default().push(index);
-            }
-            candidates.extend(
-                tiers
-                    .into_values()
-                    .filter(|group| group.len() >= FACTOR)
-                    .map(|mut group| {
-                        group.sort_by_key(|&index| self.segments[index].live());
-                        group.truncate(FACTOR);
-                        group
-                    }),
-            );
-            let size = |group: &Vec<usize>| -> u64 {
-                group
-                    .iter()
-                    .flat_map(|&index| self.segments[index].parts())
-                    .map(|part| length(&part))
-                    .fold(0u64, u64::saturating_add)
-            };
-            let Some(group) = candidates.into_iter().find(|group| size(group) <= bytes) else {
+            let Some(group) = self
+                .merges()
+                .into_iter()
+                .find(|group| self.merge_bytes(group, &length) <= bytes)
+            else {
                 break;
             };
             n += 1;
@@ -148,6 +122,52 @@ impl Index {
         self.table = table.finish(origin, &mut written);
         written.tidy();
         Ok(written)
+    }
+}
+
+impl Index {
+    /// Whether a merge compaction would make reads more than `bytes` of parts (as `length`
+    /// gives a part's): what a capped compaction leaves, for a pass without the cap.
+    pub fn merges_over(&self, bytes: u64, length: impl Fn(&crate::PartName) -> u64) -> bool {
+        self.merges()
+            .iter()
+            .any(|group| self.merge_bytes(group, &length) > bytes)
+    }
+
+    /// The merges compaction would make, by the segments' places, in the order it tries them:
+    /// a segment more than half masked first, then a tier of `FACTOR`.
+    fn merges(&self) -> Vec<Vec<usize>> {
+        let mut merges: Vec<Vec<usize>> = self
+            .segments
+            .iter()
+            .enumerate()
+            .filter(|(_, meta)| u64::from(meta.deleted) * 2 > u64::from(meta.docs))
+            .map(|(index, _)| vec![index])
+            .collect();
+        let mut tiers: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
+        for (index, meta) in self.segments.iter().enumerate() {
+            tiers.entry(tier(meta.live())).or_default().push(index);
+        }
+        merges.extend(
+            tiers
+                .into_values()
+                .filter(|group| group.len() >= FACTOR)
+                .map(|mut group| {
+                    group.sort_by_key(|&index| self.segments[index].live());
+                    group.truncate(FACTOR);
+                    group
+                }),
+        );
+        merges
+    }
+
+    /// The bytes of parts a merge of `group` reads.
+    fn merge_bytes(&self, group: &[usize], length: impl Fn(&crate::PartName) -> u64) -> u64 {
+        group
+            .iter()
+            .flat_map(|&index| self.segments[index].parts())
+            .map(|part| length(&part))
+            .fold(0u64, u64::saturating_add)
     }
 }
 
