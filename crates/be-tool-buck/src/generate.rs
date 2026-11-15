@@ -356,18 +356,35 @@ pub fn generate(inputs: &Inputs) -> Result<BTreeMap<String, String>, String> {
                 })
                 .as_object_mut()
                 .expect("a platform's facts are an object");
-            let deps: BTreeSet<String> = dependencies(unit, false)
-                .into_iter()
-                .map(|dependency| dependency.label)
-                .collect();
+            // A dependency renamed in Cargo.toml (`beui = { package = "beui-documents" }`) is
+            // passed under its name rather than its crate's.
+            let mut deps = BTreeSet::new();
+            let mut named = BTreeMap::new();
+            for dependency in dependencies(unit, false) {
+                match dependency.extern_name == dependency.crate_name {
+                    true => deps.insert(dependency.label),
+                    false => named.insert(dependency.extern_name, dependency.label).is_none(),
+                };
+            }
             let features = strings(&unit["features"]);
             let name = text(&unit["target"], "name").to_owned();
+            if !named.is_empty() && !is_library(&kinds) {
+                return Err(format!(
+                    "{id}'s {name} renames a dependency, which only a library and its tests may"
+                ));
+            }
             if is_library(&kinds) && mode == "build" {
                 facts.insert("deps".into(), json!(deps));
                 facts.insert("features".into(), json!(features));
+                if !named.is_empty() {
+                    facts.insert("named_deps".into(), json!(named));
+                }
             } else if is_library(&kinds) && mode == "test" {
                 facts.insert("test_deps".into(), json!(deps));
                 facts.insert("test_features".into(), json!(features));
+                if !named.is_empty() {
+                    facts.insert("test_named_deps".into(), json!(named));
+                }
             } else if kinds.contains("example") {
                 facts["examples"][&name] = json!({"deps": deps, "features": features});
             } else if kinds.contains("bin") {
@@ -388,6 +405,22 @@ pub fn generate(inputs: &Inputs) -> Result<BTreeMap<String, String>, String> {
                 .cloned()
                 .collect();
             facts["test_deps"] = json!(dev_only);
+            if let Some(test_named) = facts.get("test_named_deps").cloned() {
+                let named = facts.get("named_deps").cloned().unwrap_or_default();
+                let dev_only: Map<String, Value> = test_named
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .filter(|(name, label)| named.get(name.as_str()) != Some(*label))
+                    .map(|(name, label)| (name.clone(), label.clone()))
+                    .collect();
+                if let Some(facts) = facts.as_object_mut() {
+                    match dev_only.is_empty() {
+                        true => facts.remove("test_named_deps"),
+                        false => facts.insert("test_named_deps".into(), Value::Object(dev_only)),
+                    };
+                }
+            }
             let binaries = facts["binaries"]
                 .as_object_mut()
                 .expect("binaries is an object");

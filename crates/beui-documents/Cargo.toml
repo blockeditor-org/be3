@@ -1,0 +1,17 @@
+[package]
+name = "beui-documents"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+accesskit = "0.24.1"
+beui-macros = { path = "../beui-macros" }
+beui-view = { path = "../beui-view" }
+
+[target.'cfg(not(beui_html))'.dependencies]
+beui-core = { path = "../beui-core" }
+beui-draw = { path = "../beui-draw" }
+
+[lints]
+workspace = true
