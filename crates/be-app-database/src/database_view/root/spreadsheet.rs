@@ -81,7 +81,7 @@ fn Grid(
                             <List spacing=Space::None>
                                 <HeaderRow data={header} />
                                 <VirtualList
-                                    keys={keys}
+                                    value={keys}
                                     item_size=ROW_HEIGHT
                                     overscan={ROW_HEIGHT * 2.0}
                                 >|index: ReadSignal<usize>|

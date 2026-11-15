@@ -13,7 +13,7 @@ fn a_virtual_list_reorders_its_rows_by_key() {
                 <ListItem grow=1.0>
                     <Offset>
                         <Reorder
-                            keys={keys}
+                            value={keys}
                             payload={Func::new(|key: u32| Some(key))}
                             preview={|_: u32| view! {
                                 <Frame height=REORDER_ROW />
@@ -24,7 +24,7 @@ fn a_virtual_list_reorders_its_rows_by_key() {
                             })}
                         >|reorder: ReorderHandle<u32, u32>|
                             <VirtualList
-                                keys={reorder.order}
+                                value={reorder.order}
                                 item_size=REORDER_ROW
                             >|key: ReadSignal<u32>|
                                 <ReorderItem reorder item={key}>|_: ReorderItemHandle|

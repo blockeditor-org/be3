@@ -3251,7 +3251,7 @@ fn SelectableServerLog() -> NodeId {
                     >
                         <SelectableText child_grow=1.0 @test_id="rows.server.selection">
                             <VirtualList
-                                keys={(0..SERVER_LINES).collect::<Vec<usize>>()}
+                                value={(0..SERVER_LINES).collect::<Vec<usize>>()}
                                 item_size=SERVER_LINE_HEIGHT
                                 text={server_line}
                             >|index: ReadSignal<usize>|
@@ -3287,7 +3287,7 @@ fn CardStrip() -> NodeId {
                 <Scroll direction=Direction::Horizontal>
                     <VirtualList
                         direction=Direction::Horizontal
-                        keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
+                        value={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                         item_size=STRIP_ITEM_WIDTH
                     >|index: ReadSignal<usize>|
                         <StripCard index />
@@ -3383,7 +3383,7 @@ fn FollowingLog() -> NodeId {
                         padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                     >
                         <VirtualList
-                            keys={lines}
+                            value={lines}
                             item_size=LOG_LINE_ESTIMATE
                         >|line: ReadSignal<usize>| {
                             let text = create_memo(move || log_line(line.get()));
@@ -3451,7 +3451,7 @@ fn ThousandsOfRows() -> NodeId {
             <ListItem length=ROWS_HEIGHT>
                 <Scroll>
                     <VirtualList
-                        keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                        value={(0..ROW_COUNT).collect::<Vec<usize>>()}
                         item_size={row_height}
                     >|index: ReadSignal<usize>|
                         <ScrollRow
@@ -4796,7 +4796,7 @@ fn ReorderTabs() -> NodeId {
                 "Drag a tab along the strip, or focus one and press Alt with an arrow key."
             </Text>
             <Reorder
-                keys={tabs}
+                value={tabs}
                 direction=Direction::Horizontal
                 payload={Func::new(|tab: ReorderTab| Some(tab))}
                 text={|tab: ReorderTab| REORDER_TABS[tab.0].to_owned()}
@@ -4835,7 +4835,7 @@ fn ReorderTasks() -> NodeId {
     view! {
         <Frame width=REORDER_LIST_WIDTH>
             <Reorder
-                keys={tasks}
+                value={tasks}
                 payload={Func::new(|task: ReorderTask| Some(task))}
                 text={|task: ReorderTask| REORDER_TASKS[task.0].to_owned()}
                 preview={|task: ReorderTask| view! {
@@ -4890,7 +4890,7 @@ fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeI
             padding=Space::Sm
         >
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|card: ReorderCard| Some(card))}
                 accepts={Func::new(|_: ReorderCard| true)}
                 text={|card: ReorderCard| REORDER_TASKS[card.0].to_owned()}

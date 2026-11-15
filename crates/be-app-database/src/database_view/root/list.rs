@@ -97,7 +97,7 @@ pub fn ListView(data: Data) -> NodeId {
         <Frame fill=ColorRole::Background>
             <Container>|viewport: ReadSignal<Vec2>|
                 <Reorder
-                    keys={lines}
+                    value={lines}
                     payload={Func::new(|line: Line| match line {
                         Line::Row(row) => Some(row),
                         Line::Header(_) => None,
@@ -117,7 +117,7 @@ pub fn ListView(data: Data) -> NodeId {
                                     </Frame>
                                 </Show>
                                 <VirtualList
-                                    keys={reorder.order}
+                                    value={reorder.order}
                                     item_size=LINE_HEIGHT
                                 >|line: ReadSignal<Line>|
                                     <ReorderItem

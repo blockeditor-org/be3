@@ -211,7 +211,7 @@ pub fn ReorderFixture() -> NodeId {
         <List spacing=Space::Xl>
             <Frame width=Size::Custom(240.0)>
                 <Reorder
-                    keys={fruits}
+                    value={fruits}
                     payload={Func::new(|fruit: &'static str| Some(fruit))}
                     text={|fruit: &'static str| fruit.to_owned()}
                     preview={|fruit: &'static str| view! {
@@ -267,7 +267,7 @@ fn LongList() -> NodeId {
             <Frame width=Size::Custom(120.0) height=Size::Custom(160.0) @test_id="long.view">
                 <Scroll on_change={move |at: ScrollPosition| reached.set(reach(at))}>
                     <Reorder
-                        keys={rows}
+                        value={rows}
                         payload={Func::new(|row: u32| Some(row))}
                         text={|row: u32| format!("Row {row}")}
                         preview={|row: u32| view! {
@@ -332,7 +332,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
     view! {
         <Frame width=Size::Custom(120.0) @test_id={format!("shelf.{shelf}")}>
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|vegetable: Vegetable| Some(vegetable))}
                 accepts={Func::new(|_: Vegetable| true)}
                 preview={|vegetable: Vegetable| view! {

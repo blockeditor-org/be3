@@ -330,7 +330,7 @@ where
     let group = state.group;
     view! {
         <Reorder
-            keys={group}
+            value={group}
             payload={Func::new(|_: K| None::<()>)}
             preview={|_: ()| view! {
                 <Frame />

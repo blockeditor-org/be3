@@ -16,7 +16,7 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
     let document = build_node(move || {
         view! {
             <Reorder
-                keys={keys}
+                value={keys}
                 payload={Func::new(|key: u32| Some(key))}
                 preview={|_: u32| view! {
                     <Frame height=REORDER_ROW />

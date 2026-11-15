@@ -24,14 +24,14 @@ use std::hash::Hash;
 ///   shown from that signal; wrap content in `<Dynamic value={key}>` for fresh state per
 ///   key. A row holding the focus is never handed another key and stays laid out off
 ///   screen until the focus leaves it.
-/// - Changing `keys` keeps every row whose key remains; a key inserted or removed above
+/// - Changing `value` keeps every row whose key remains; a key inserted or removed above
 ///   the view moves the offset by the change. A list scrolled to its very top shows a
 ///   row inserted above instead.
 /// - Tab order runs over every key, built or not (`Element::focus_children`). A list the
 ///   layout stops reaching releases its rows in `Element::unplaced`.
 #[component]
 pub fn VirtualList<K>(
-    keys: Prop<Vec<K>>,
+    value: Prop<Vec<K>>,
     item_size: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = 0.0)] overscan: Prop<f32>,
@@ -41,5 +41,5 @@ pub fn VirtualList<K>(
 where
     K: Clone + Hash + Eq + 'static,
 {
-    crate::core::virtual_list(keys, item_size, direction, overscan, text, item)
+    crate::core::virtual_list(value, item_size, direction, overscan, text, item)
 }

@@ -113,7 +113,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                     <Scroll>
                         <List spacing=SECTION_SPACING>
                             <Reorder
-                                keys={keys}
+                                value={keys}
                                 payload={Func::new(|id: Uuid| Some(id))}
                                 disabled={read_only}
                                 long_press=true
