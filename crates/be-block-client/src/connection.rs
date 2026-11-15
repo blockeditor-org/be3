@@ -133,6 +133,8 @@ pub enum Event {
     KeysChanged,
     /// The account's notification modes changed on another of its devices.
     NotifyModesChanged,
+    /// The account's notices changed (`account-notices-changed`).
+    AccountNoticesChanged,
     /// The organization's key work for this account, as it opens and as it changes
     /// (`key-work-changed`).
     KeyWork(be_block_protocol::KeyWork),
@@ -363,6 +365,13 @@ impl Connection {
         self.pump(async move {
             while modes.recv().await.is_some() {
                 let _ = events.send(Event::NotifyModesChanged);
+            }
+        });
+        let events = self.events.clone();
+        let mut notices = client::account::account_notices_changed(&self.peer);
+        self.pump(async move {
+            while notices.recv().await.is_some() {
+                let _ = events.send(Event::AccountNoticesChanged);
             }
         });
         let events = self.events.clone();

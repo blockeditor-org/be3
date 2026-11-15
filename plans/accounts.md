@@ -134,17 +134,6 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
 ## Steps
 
-1. **What is left of identities and emailed codes.** Codes sign in, register,
-   recover and prove, and providers sign in (guides/blocks/server.md,
-   Accounts). An account with no email has the empty string as its `email`
-   everywhere, as a local profile does, and every client already shows only
-   the name for it (decisions/an_account_with_no_email_has_an_empty_one.md).
-   The portal's two cookies (`be3-account`, `be3-attempt`) are scoped to
-   `/auth` without a prefix, so a sibling subdomain could set or shadow them;
-   move both to `__Host-` names with `Path=/` once development serves HTTPS or
-   the plain-HTTP setup uses a cookie name of its own. An account with no
-   email is told nothing when an identity is added or removed: give it the
-   notice in the app, on its other sessions, as the rules above say.
 Registration admission (operator invite codes) stays a separate policy from the
 credential kind and from member invitations. It is temporary, for while the
 server is not safe enough to let anyone make an account, and for self-hosters

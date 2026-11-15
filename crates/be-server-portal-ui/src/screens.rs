@@ -1,5 +1,5 @@
 use be_server_portal::{
-    Field as Named, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink, Screen, Session,
+    Field as Named, IdentityChange, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink, Screen, Session,
     SessionKind, with_code,
 };
 use beui::icons::{
@@ -785,6 +785,7 @@ fn Settings(page: Shown) -> NodeId {
                     </List>
                 })}
             </Section>
+            <RecentChanges page />
             <Section title="Display name" lead="How other people see you in be3.">
                 <PortalForm action="/auth/settings/name" csrf={page.csrf()}>
                     <Field
@@ -813,6 +814,27 @@ fn Settings(page: Shown) -> NodeId {
             </Section>
         </List>
     }
+}
+
+/// Ways to sign in added or removed in the last thirty days, which nobody signed in can hide.
+#[component]
+fn RecentChanges(page: Shown) -> Option<NodeId> {
+    let changes = page.read(|page| page.identity_changes.clone());
+    (!changes.is_empty()).then(|| {
+        view! {
+            <Section
+                title="Recent changes"
+                lead="Ways to sign in added or removed in the last thirty days. If one wasn’t you, remove it and contact your server operator."
+            >
+                <ForEach value={changes}>|change: IdentityChange|
+                    <List spacing=Space::Xs2>
+                        <Text>{change.text.clone()}</Text>
+                        <Text style=TextStyle::CAPTION>{change.when.clone()}</Text>
+                    </List>
+                </ForEach>
+            </Section>
+        }
+    })
 }
 
 #[component]

@@ -193,6 +193,10 @@ and over HTTPS (or `localhost`); a server reached by IP address offers none. Cha
 redirect URI; the server logs at start how many accounts that strands, and each needs a login
 link.
 
+While mail goes only to the log, an account hears of a way to sign in added or removed, or of
+its email changing, through notices on its devices (shown at its next sign-in when none is
+signed in) and the portal's settings page, which lists the last thirty days of changes.
+
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
 `/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code
 (verifying email alone approves nothing). be-host holds a private secret apart from the shown

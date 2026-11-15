@@ -1651,7 +1651,17 @@ impl HostCore {
                             if let Some(cache) = &cache {
                                 let _ = cache.set_workspaces(&url, account, &organizations);
                             }
-                            let keys = accounts::keys(url, token).await?;
+                            let keys = accounts::keys(url.clone(), token.clone()).await?;
+                            // Shown with or without an organization open, so a new account
+                            // sees them too; while one is open, its stack follows changes.
+                            if let Ok(listed) = accounts::account_notices(url, token).await {
+                                notices::account_notices(
+                                    listed
+                                        .into_iter()
+                                        .map(|notice| (notice.id, notice.text))
+                                        .collect(),
+                                );
+                            }
                             Ok(OrganizationResult::Loaded(organizations, keys))
                         }
                         Err(error) if !error.invalid_token => {
@@ -3869,7 +3879,18 @@ impl HostCore {
                 }
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
-            UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::DismissToast(id) => {
+                if let Some(account) = notices::dismiss(id) {
+                    let dismissing = accounts::dismiss_account_notice(
+                        self.server_url.clone(),
+                        self.account.token.clone(),
+                        account,
+                    );
+                    platform::spawn_request(async move {
+                        let _ = dismissing.await;
+                    });
+                }
+            }
             UiCommand::CycleTheme => self.cycle_theme(),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),

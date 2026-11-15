@@ -100,6 +100,15 @@ pub struct PasskeyOffer {
     pub options: String,
 }
 
+/// A way to sign in added to or removed from the account, as the settings page lists it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct IdentityChange {
+    /// What changed: "Added Google (ada@example.com)", say.
+    pub text: String,
+    /// When, to the minute in UTC.
+    pub when: String,
+}
+
 /// A way to sign in to the account, as the settings page lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct IdentityRow {
@@ -195,6 +204,9 @@ pub struct Page {
     pub sessions: Vec<Session>,
     /// The account's ways to sign in, on the settings page.
     pub identities: Vec<IdentityRow>,
+    /// Ways to sign in added or removed in the last thirty days, newest first, on the settings
+    /// page.
+    pub identity_changes: Vec<IdentityChange>,
     /// Whether this browser proved it is the owner recently enough for account changes.
     pub fresh: bool,
     /// Where the browser's pending code went.

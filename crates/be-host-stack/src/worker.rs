@@ -1775,6 +1775,7 @@ impl Session<'_> {
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
         self.tasks.0.notify_modes(peer, shared);
+        self.tasks.0.account_notices(peer);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.in_arrive = true;
@@ -3843,6 +3844,7 @@ async fn heard(
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
+        Some(Event::AccountNoticesChanged) => tasks.account_notices(peer),
         Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
@@ -4219,6 +4221,26 @@ impl Tasks {
                 held.progressed += 1;
                 drop(held);
                 be_host_base::host::wake();
+            }
+        });
+    }
+
+    /// Reads the account's notices and shows them (`be_host_base::notices::account_notices`):
+    /// for an account with no email, what it would otherwise be mailed.
+    fn account_notices(&self, peer: &Arc<Peer<Store>>) {
+        let peer = Arc::clone(peer);
+        self.spawn(async move {
+            if let Ok(listed) = be_block_client::ask(
+                be_block_protocol::client::account::account_notices(&peer.connection()),
+            )
+            .await
+            {
+                be_host_base::notices::account_notices(
+                    listed
+                        .into_iter()
+                        .map(|notice| (notice.id, notice.text))
+                        .collect(),
+                );
             }
         });
     }

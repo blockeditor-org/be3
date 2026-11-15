@@ -17,6 +17,7 @@ mod the_portal_captures_passkeys;
 mod the_portal_captures_signing_in_by_code;
 mod the_portal_captures_signing_in_with_providers;
 mod the_portal_forms_are_captured_on_desktop_and_phone;
+mod the_settings_page_lists_the_last_months_changes;
 
 fn page(screen: Screen) -> Page {
     Page {
