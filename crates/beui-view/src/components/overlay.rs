@@ -75,13 +75,19 @@ pub fn Overlay(
 
 /// Hears whether any overlay opened beneath where it is provided is open, other than an
 /// `Inert` one (a tooltip): whatever provides it can then stay put while a menu or popover opened
-/// from inside it is up, as a dock's hidden band stays out while a bar in it has one open.
+/// from inside it is up, as a dock's hidden band stays out while a bar in it has one open. One
+/// made inside another's reach counts as one open overlay in it while any of its own is open, so
+/// the outer one hears everything beneath it however they nest.
 #[derive(Clone, Copy)]
 pub struct OverlaysWithin(Signal<usize>);
 
 impl OverlaysWithin {
     pub fn new() -> Self {
-        Self(create_signal(0))
+        let within = Self(create_signal(0));
+        if let Some(outer) = use_context::<Self>() {
+            outer.follow(create_memo(move || within.any()));
+        }
+        within
     }
 
     /// Whether one is open, tracked.

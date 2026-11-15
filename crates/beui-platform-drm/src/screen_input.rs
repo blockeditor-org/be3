@@ -77,7 +77,9 @@ pub(crate) struct Input {
     walls: Vec<(Wall, WallState)>,
     regions: Vec<(Region, RegionState)>,
     touch_downs: u32,
-    /// Fingers a region captured, with the region's id.
+    /// Fingers a region captured, with the region's id. A finger stays captured until it lifts
+    /// even if its region goes meanwhile, so a window never hears the rest of a touch whose start
+    /// it never saw.
     touches: Vec<(i32, u32)>,
     pointer: Option<Pos2>,
 }
@@ -123,12 +125,6 @@ impl Input {
                 ..RegionState::default()
             },
         );
-        let regions = &self.regions;
-        self.touches.retain(|(_, id)| {
-            regions
-                .iter()
-                .any(|(region, _)| region.id == *id && region.captures_touch)
-        });
         if let Some(pointer) = self.pointer {
             self.placed(pointer);
         }
@@ -214,7 +210,9 @@ impl Input {
         let Some(state) = self.capturing(finger) else {
             return false;
         };
-        state.touch = Some(at);
+        if let Some(state) = state {
+            state.touch = Some(at);
+        }
         true
     }
 
@@ -223,23 +221,28 @@ impl Input {
         let Some(state) = self.capturing(finger) else {
             return false;
         };
-        let at = state.touch.take();
-        state.lifts += 1;
-        state.lifted = at.filter(|_| !cancelled);
+        if let Some(state) = state {
+            let at = state.touch.take();
+            state.lifts += 1;
+            state.lifted = at.filter(|_| !cancelled);
+        }
         self.touches.retain(|(held, _)| *held != finger);
         true
     }
 
-    fn capturing(&mut self, finger: i32) -> Option<&mut RegionState> {
+    /// Whether a region captured `finger`, and that region's state while it is still set.
+    fn capturing(&mut self, finger: i32) -> Option<Option<&mut RegionState>> {
         let id = self
             .touches
             .iter()
             .find(|(held, _)| *held == finger)
             .map(|(_, id)| *id)?;
-        self.regions
-            .iter_mut()
-            .find(|(region, _)| region.id == id)
-            .map(|(_, state)| state)
+        Some(
+            self.regions
+                .iter_mut()
+                .find(|(region, _)| region.id == id)
+                .map(|(_, state)| state),
+        )
     }
 }
 
