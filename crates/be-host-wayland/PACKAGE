@@ -17,13 +17,12 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -42,13 +41,12 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -67,13 +65,12 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -92,13 +89,12 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -117,13 +113,12 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -142,13 +137,12 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",
@@ -167,13 +161,12 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-lib-dmabuf:be-lib-dmabuf",
-                "//crates/beui-fonts:beui-fonts",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
                 "//third-party/rust:gvdb-0.10.1",
                 "//third-party/rust:image-0.25.10",
-                "//third-party/rust:resvg-0.48.1",
                 "//third-party/rust:rustix-1.1.4",
                 "//third-party/rust:smithay-0.7.0",
                 "//third-party/rust:wgpu-29.0.3",

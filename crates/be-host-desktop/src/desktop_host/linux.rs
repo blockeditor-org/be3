@@ -7,9 +7,7 @@ use super::{DesktopHost, DesktopSettings};
 use crate::known_window::KnownWindow;
 use crate::programs::{Opener, ProgramSource};
 use crate::window_body::WindowStatus;
-use be_host_wayland::programs::{
-    DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon,
-};
+use be_host_programs::{DesktopEntry, Environment, IconThemes, MimeGlobs, NamedIcons, load_icon};
 use be_host_wayland::{Compositor, Launch, Server, WindowId, WindowView, Windows};
 use be_sdk_api::{
     HostImage, HostProgram, HostWindow, HostWindowId, MenuAsk, Picture, WindowKind, WindowOrigin,

@@ -22,6 +22,7 @@ wgpu = { version = "29", default-features = false }
 # displays and input devices themselves rather than in a window.
 [target.'cfg(target_os = "linux")'.dependencies]
 be-host-remap-host = { path = "../be-host-remap-host" }
+be-host-programs = { path = "../be-host-programs" }
 be-host-wayland = { path = "../be-host-wayland" }
 beui-platform-drm = { path = "../beui-platform-drm" }
 # Files a block is written to for a program to open are watched, so what the
