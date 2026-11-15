@@ -1,21 +1,22 @@
 //! What the page reads (`Seen`), and how the worker hands it over without the page ever
 //! taking a lock the worker holds (plans/web_page_never_waits.md).
 //!
-//! The worker keeps `Seen` inside its `Shared` and publishes a copy of it as a whole value: into
-//! a one-value slot (`Handover`), an atomic pointer the worker swaps a new `Arc<Seen>` into and
-//! the page swaps out. Neither side ever waits on the other. The copy is cheap: the large parts
-//! are `Part`s, shared between the worker's `Seen` and every copy until the worker next changes
-//! one, which then copies that part alone.
+//! The worker keeps `Seen` inside its `Shared` and hands it over in bytes, as it will to a page
+//! whose memory it does not share: the whole `Seen` first, then each time what changed since the
+//! last (`Update`, `diff`), onto a lock-free stack (`Handover`) the page takes every update from
+//! at once. Neither side ever waits on the other. The large parts are `Part`s and persistent
+//! maps, which the worker's last handed-over copy shares until the worker changes them, so
+//! working out what changed walks only what the worker wrote.
 //!
 //! The worker publishes at the end of each pass of its loop, and before the page hears of
 //! anything from the worker thread: a change notice (`changes::post`), a wake, or a reply to a
-//! page call (`after_publish`) is held until the `Seen` that has it is in the slot. So a read
-//! changes when the new `Seen` lands, as a signal does, and the page never hears of a change
-//! it cannot read yet.
+//! page call (`after_publish`) is held until the update that has it is handed over. So a read
+//! changes when the update lands, as a signal does, and the page never hears of a change it
+//! cannot read yet.
 //!
-//! The page keeps the last `Seen` it took, and what it changed itself since (`Edit`s), each
-//! sent to the worker as a command too: its own view is the `Seen` it took with the edits the
-//! worker had not applied when it published that `Seen` laid over it again.
+//! The page keeps the worker's `Seen` as its updates made it, and what it changed itself since
+//! (`Edit`s), each sent to the worker as a command too: its own view is that `Seen` with the
+//! edits the worker had not applied by then laid over it again.
 
 use std::{
     cell::RefCell,
@@ -87,6 +88,29 @@ impl<T: serde::Serialize> serde::Serialize for Part<T> {
 impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Part<T> {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         T::deserialize(deserializer).map(Self::new)
+    }
+}
+
+impl<T: PartialEq> PartialEq for Part<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0) || self.0 == other.0
+    }
+}
+
+/// A part the worker did not write since the last `Seen` it handed over is the same `Arc` in
+/// both, and sends nothing.
+impl<T: crate::diff::Diff + Clone> crate::diff::Diff for Part<T> {
+    type Delta = T::Delta;
+
+    fn diff(old: &Self, new: &Self) -> Option<T::Delta> {
+        if Arc::ptr_eq(&old.0, &new.0) {
+            return None;
+        }
+        T::diff(&old.0, &new.0)
+    }
+
+    fn apply(&mut self, delta: T::Delta) {
+        T::apply(Arc::make_mut(&mut self.0), delta);
     }
 }
 
@@ -228,7 +252,7 @@ pub(crate) mod bytes {
 }
 
 /// What an import staged for a block, shown until its replica has it (`Edit::ShowStaged`).
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Staged {
     pub content_type: Uuid,
     #[serde(with = "bytes")]
@@ -237,7 +261,7 @@ pub struct Staged {
 
 /// An editor's frame the worker queued, numbered so the page can say which it took
 /// (`Edit::TookFrames`).
-#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Frame {
     pub number: u64,
     pub block: Uuid,
@@ -248,20 +272,59 @@ pub struct Frame {
 /// An invitation code made or listed here, with the server and account whose own it is.
 pub type OwnInvitation = (String, Uuid, be_block_keys::InviteCode);
 
+crate::diff::whole!(
+    Vec<Owed>,
+    Vec<Unsent>,
+    Vec<PairingRequest>,
+    Vec<be_block_client::Contact>,
+    Vec<OwnInvitation>,
+    Vec<(Words, Uuid)>,
+    Vec<Frame>,
+    Vec<Conflict>,
+    Option<be_block_protocol::AccountStorage>,
+    Option<Comparison>,
+    Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
+    HashSet<Uuid>,
+    HashMap<SearchAsk, Searched>,
+    Preview,
+    Content,
+    Description,
+    History,
+    VersionState,
+    Staged,
+);
+
+/// A moment sent whole when it changed, as an offset from now (`moment`).
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct Due(#[serde(with = "moment::option")] Option<std::time::Instant>);
+
+impl crate::diff::Diff for Option<std::time::Instant> {
+    type Delta = Due;
+
+    fn diff(old: &Self, new: &Self) -> Option<Due> {
+        (old != new).then_some(Due(*new))
+    }
+
+    fn apply(&mut self, Due(due): Due) {
+        *self = due;
+    }
+}
+
+crate::diff::diffed! {
 /// What the page's synchronous API reads: the part of the worker's `Shared` it hands over.
-#[derive(Clone, Default, serde::Deserialize, serde::Serialize)]
-pub struct Seen {
-    pub revision_previews: Part<imbl::HashMap<Uuid, Preview>>,
-    pub preview_aliases: Part<imbl::HashMap<(Uuid, Uuid), Uuid>>,
+#[derive(Clone, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Seen, delta SeenDelta {
+    pub revision_previews: Part<imbl::OrdMap<Uuid, Preview>>,
+    pub preview_aliases: Part<imbl::OrdMap<(Uuid, Uuid), Uuid>>,
     pub released_previews: Vec<Uuid>,
     pub graph: Part<Graph>,
-    pub blocks: Part<imbl::HashMap<Uuid, Content>>,
-    pub described: Part<imbl::HashMap<Uuid, Description>>,
+    pub blocks: Part<imbl::OrdMap<Uuid, Content>>,
+    pub described: Part<imbl::OrdMap<Uuid, Description>>,
     /// What the worker has for each editor that the page has not taken yet.
-    pub editor_frames: Part<imbl::HashMap<EditorId, Vec<Frame>>>,
+    pub editor_frames: Part<imbl::OrdMap<EditorId, Vec<Frame>>>,
     /// The number the next frame queued gets.
     pub frames_queued: u64,
-    pub histories: Part<imbl::HashMap<Uuid, History>>,
+    pub histories: Part<imbl::OrdMap<Uuid, History>>,
     pub wakes: u64,
     pub unsealed: usize,
     pub saves: u64,
@@ -280,7 +343,7 @@ pub struct Seen {
     pub connected: bool,
     /// Offline, the blocks this device holds no version of whole, so it can neither open nor
     /// change them (`BlockInfo::out_of_reach`); empty while connected.
-    pub out_of_reach: imbl::HashSet<Uuid>,
+    pub out_of_reach: imbl::OrdSet<Uuid>,
     pub reached: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
@@ -295,7 +358,7 @@ pub struct Seen {
     /// a session's journal. Unlike `error`, it is about being in step with the server, so it
     /// clears once the device is connected and nothing waits to be sent (`report`).
     pub sync_error: Option<String>,
-    pub conflicts: Part<imbl::HashMap<Uuid, Vec<Conflict>>>,
+    pub conflicts: Part<imbl::OrdMap<Uuid, Vec<Conflict>>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Part<Vec<be_block_client::Contact>>,
     /// Invitation codes this stack's account made or listed (`crate::is_own_invitation`).
@@ -308,7 +371,7 @@ pub struct Seen {
     pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
     /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
     pub locked: Part<HashSet<Uuid>>,
-    pub versions: Part<imbl::HashMap<Uuid, VersionState>>,
+    pub versions: Part<imbl::OrdMap<Uuid, VersionState>>,
     /// How many commands the worker has finished: those the page sent and it has not finished
     /// are pending (`Shared::pending`).
     pub done: usize,
@@ -328,8 +391,8 @@ pub struct Seen {
     /// busy reason that names what queued commands wait behind.
     pub step: Option<Words>,
     pub previewed: Part<HashSet<Uuid>>,
-    pub staged: Part<imbl::HashMap<Uuid, Staged>>,
-    pub unreadable: Part<imbl::HashMap<Uuid, String>>,
+    pub staged: Part<imbl::OrdMap<Uuid, Staged>>,
+    pub unreadable: Part<imbl::OrdMap<Uuid, String>>,
     pub waiting: usize,
     /// What the outbox held when `waiting` was counted, for `unsynced` to name.
     pub outbox: Vec<(Words, Uuid)>,
@@ -345,6 +408,7 @@ pub struct Seen {
     pub search_busy: Option<Words>,
     /// The last of the page's edits the worker applied (`Edit`).
     pub edits_applied: u64,
+}
 }
 
 impl Seen {
@@ -757,37 +821,77 @@ fn stop_comparing(seen: &mut Seen) {
     }
 }
 
-/// A one-value slot the worker puts each `Seen` it publishes into and the page takes it from:
-/// an atomic pointer to an `Arc<Seen>`, so neither ever waits on the other. A `Seen` the page
-/// has not taken when the worker puts a newer one is dropped.
-#[derive(Default)]
-pub(crate) struct Handover(AtomicPtr<Seen>);
+/// What the worker hands over: its whole `Seen` first, then what changed since the one before.
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(crate) enum Update {
+    Whole(Seen),
+    Changed(SeenDelta),
+}
 
-// The slot hands a `Seen` from the worker's thread to the page's, which `AtomicPtr` would let
-// through whatever `Seen` holds: it must be safe to send and share.
-const _: () = {
-    const fn send_and_sync<T: Send + Sync>() {}
-    send_and_sync::<Seen>();
-};
+/// An update as it is handed over.
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(crate) struct Handed {
+    pub(crate) update: Update,
+    /// In a debug build, now and then (every time in this crate's tests) the worker's whole
+    /// `Seen` as well, which the page checks what it made of the updates against: a field the
+    /// diff left out cannot drift apart unnoticed.
+    #[cfg(debug_assertions)]
+    pub(crate) check: Option<Seen>,
+}
+
+/// How often a debug build's update carries the whole `Seen` to check against (`Handed::check`).
+#[cfg(all(debug_assertions, test))]
+const CHECK_EVERY: u64 = 1;
+#[cfg(all(debug_assertions, not(test)))]
+const CHECK_EVERY: u64 = 64;
+
+/// The updates the worker handed over and the page has not taken, in bytes, as they will travel
+/// to a page whose memory the worker does not share: a lock-free stack the worker pushes each
+/// onto and the page takes all of at once, so neither ever waits on the other.
+#[derive(Default)]
+pub(crate) struct Handover(AtomicPtr<Link>);
+
+struct Link {
+    bytes: Vec<u8>,
+    next: *mut Link,
+}
 
 impl Handover {
-    pub(crate) fn put(&self, seen: Arc<Seen>) {
-        let old = self
-            .0
-            .swap(Arc::into_raw(seen).cast_mut(), Ordering::AcqRel);
-        if !old.is_null() {
-            // `old` came from `Arc::into_raw` in an earlier `put`, and the swap took it out of
-            // the slot, so nothing else reaches it.
+    pub(crate) fn put(&self, bytes: Vec<u8>) {
+        let link = Box::into_raw(Box::new(Link {
+            bytes,
+            next: std::ptr::null_mut(),
+        }));
+        let mut head = self.0.load(Ordering::Acquire);
+        loop {
+            // `link` came from `Box::into_raw` above and is not in the stack yet, so only this
+            // thread reaches it.
             // unsafe(memory)
-            drop(unsafe { Arc::from_raw(old) });
+            unsafe { (*link).next = head };
+            match self
+                .0
+                .compare_exchange_weak(head, link, Ordering::AcqRel, Ordering::Acquire)
+            {
+                Ok(_) => return,
+                Err(now) => head = now,
+            }
         }
     }
 
-    pub(crate) fn take(&self) -> Option<Arc<Seen>> {
-        let taken = self.0.swap(std::ptr::null_mut(), Ordering::AcqRel);
-        // As in `put`, the pointer came from `Arc::into_raw` and the swap took it out of the slot.
-        // unsafe(memory)
-        (!taken.is_null()).then(|| unsafe { Arc::from_raw(taken) })
+    /// The updates handed over since the last take, oldest first.
+    pub(crate) fn take(&self) -> Vec<Vec<u8>> {
+        let mut link = self.0.swap(std::ptr::null_mut(), Ordering::AcqRel);
+        let mut taken = Vec::new();
+        while !link.is_null() {
+            // Each link came from `Box::into_raw` in `put`, and the swap took the whole stack out,
+            // so nothing else reaches it.
+            // unsafe(memory)
+            let held = unsafe { Box::from_raw(link) };
+            link = held.next;
+            taken.push(held.bytes);
+        }
+        taken.reverse();
+        taken
     }
 }
 
@@ -797,11 +901,31 @@ impl Drop for Handover {
     }
 }
 
-/// Builds the `Seen` to hand over from the worker's `Shared` and puts it in the slot. Called
-/// with the lock on `Shared` held, so two puts land in the order the state they copy changed.
+/// Hands over what changed in the worker's `Seen` since the last one it handed over: the whole
+/// `Seen` the first time, nothing when nothing changed. Called with the lock on `Shared` held,
+/// so updates land in the order the state they copy changed.
 pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
     shared.refresh_seen();
-    handover.put(Arc::new(shared.seen.clone()));
+    let update = match &shared.handed {
+        None => Update::Whole(shared.seen.clone()),
+        Some(last) => match crate::diff::Diff::diff(last, &shared.seen) {
+            Some(delta) => Update::Changed(delta),
+            None => return,
+        },
+    };
+    #[cfg(debug_assertions)]
+    let check = shared
+        .updates
+        .is_multiple_of(CHECK_EVERY)
+        .then(|| shared.seen.clone());
+    shared.updates += 1;
+    let handed = Handed {
+        update,
+        #[cfg(debug_assertions)]
+        check,
+    };
+    handover.put(postcard::to_stdvec(&handed).expect("an update encodes"));
+    shared.handed = Some(shared.seen.clone());
 }
 
 /// The worker thread's way to its stack, and what it holds back from the page until the next
