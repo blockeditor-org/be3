@@ -61,6 +61,8 @@ pub struct Board {
     shown: OwnedSignal<Option<DragFrame>>,
     /// The carry held now, by the id its lift returned.
     current: OwnedSignal<Option<CarryId>>,
+    /// What the last carry said for a screen reader, and which carry said it.
+    said: OwnedSignal<Option<(CarryId, String)>>,
 }
 
 impl Board {
@@ -80,6 +82,7 @@ impl Board {
             lifted: OwnedSignal::new(None),
             shown: OwnedSignal::new(None),
             current: OwnedSignal::new(None),
+            said: OwnedSignal::new(None),
         }
     }
 
@@ -625,6 +628,14 @@ impl Driver for Board {
 
     fn frame(&self) -> Option<DragFrame> {
         Board::frame(self)
+    }
+
+    fn step(&self, toward: beui_view::types::Vec2) -> bool {
+        Board::step(self, toward)
+    }
+
+    fn said(&self) -> Option<(CarryId, String)> {
+        self.said.get()
     }
 }
 

@@ -64,6 +64,8 @@ pub enum PointerId {
     Mouse,
     Touch(TouchId),
     Pen,
+    /// The keyboard carrying a dragged item: never a pointer the cores report.
+    Keyboard,
 }
 
 pub const CONTROLLER_TOUCH_DEVICE: u64 = 0x1a5e_0000;
