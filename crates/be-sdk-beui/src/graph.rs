@@ -102,22 +102,23 @@ impl Blocks {
         self.graph.define(id, definition);
     }
 
+    /// The blocks `query` finds, loading until the graph answers it.
     pub fn watch(&self, query: BlockQuery) -> BlockList {
         let watch = Rc::new(self.graph.watch(query));
         let changed = OwnedTrigger::new();
-        let change = changed.handle();
-        let changes = watch.on_change(move || change.notify());
+        let answered = OwnedSource::from(ready(watch.read()).map(drop));
+        let (change, answer) = (changed.handle(), answered.handle());
         let held = Rc::downgrade(&watch);
-        wait_while(Rc::downgrade(&watch), move || match held.upgrade() {
-            Some(watch) => {
-                change.track();
-                ready(watch.read()).map(drop)
+        let changes = watch.on_change(move || {
+            if let Some(watch) = held.upgrade() {
+                answer.set(ready(watch.read()).map(drop));
             }
-            None => Ok(()),
+            change.notify();
         });
         BlockList {
             _changes: changes,
             changed,
+            answered,
             watch,
         }
     }
@@ -152,12 +153,17 @@ impl Blocks {
 pub struct BlockList {
     _changes: Subscription,
     changed: OwnedTrigger,
+    /// Whether the graph answered: what a read waits on.
+    answered: OwnedSource<()>,
     watch: Rc<BlockWatch>,
 }
 
 impl BlockList {
+    /// The blocks found, waiting until the graph answers (at the nearest `Loading`, when read
+    /// outside a memo; a memo that reads it is pending until then).
     pub fn read(&self) -> Ready<Vec<BlockInfo>> {
         self.changed.track();
+        self.answered.get()?;
         ready(self.watch.read())
     }
 

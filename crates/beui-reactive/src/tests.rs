@@ -13,11 +13,12 @@ mod a_binding_reading_a_memo_whose_scope_went_waits_for_the_flush_that_disposes_
 mod a_binding_reads_the_context_of_the_scope_it_runs_in;
 mod a_binding_runs_at_once_and_again_only_for_what_it_read;
 mod a_binding_that_reads_nothing_leaves_nothing_to_run;
-mod a_boundary_reports_a_failure_and_forgets_holds_that_are_gone;
-mod a_boundary_waits_for_what_its_scope_holds;
+mod a_boundary_reports_a_failure_and_forgets_reads_whose_scope_went;
+mod a_boundary_waits_for_the_pending_values_read_under_it;
 mod a_child_scope_lives_as_long_as_the_scope_it_was_opened_in;
 mod a_context_reaches_the_effects_a_nested_scope_creates;
 mod a_detached_scope_reads_context_without_its_parent_disposing_it;
+mod a_failure_read_under_an_error_boundary_is_caught_and_reset_asks_again;
 mod a_held_value_keeps_what_it_showed_while_its_source_reloads;
 mod a_keyed_mapping_builds_a_row_for_each_repeat_of_a_key;
 mod a_keyed_mapping_builds_reuses_and_disposes_its_items;
@@ -38,6 +39,7 @@ mod a_linked_signal_can_keep_part_of_what_was_written_when_it_resets;
 mod a_linked_signal_holds_writes_until_its_source_changes;
 mod a_linked_signal_keeps_a_draft_while_its_source_returns_the_same;
 mod a_memo_can_compute_from_the_value_it_computed_last;
+mod a_memo_over_a_pending_value_is_pending_until_it_settles;
 mod a_memo_that_panics_on_its_first_run_cleans_up_what_it_made;
 mod a_memo_that_reads_nothing_keeps_what_it_made_until_its_scope_goes;
 mod a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused;
@@ -58,6 +60,7 @@ mod a_trigger_wakes_what_tracked_it_each_time_it_fires;
 mod a_write_outside_an_entry_wakes_the_host_once;
 mod a_zone_is_woken_once_when_its_first_effect_waits;
 mod all_cleanups_run_even_when_one_panics;
+mod an_answer_landing_after_its_async_memo_is_due_again_is_dropped;
 mod an_async_memo_reads_loading_then_its_answer;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
 mod an_effect_made_outside_every_zone_waits_until_the_zone_entered_is_left;
@@ -69,7 +72,7 @@ mod an_effect_waits_for_its_zone_while_another_zone_is_entered;
 mod an_effect_waits_for_its_zone_while_no_zone_is_entered;
 mod an_effect_with_cleanup_is_kept_without_dependencies;
 mod an_effect_woken_in_an_inner_zone_runs_when_its_own_zone_is_returned_to;
-mod an_inner_boundary_keeps_its_holds_from_the_outer_one;
+mod an_inner_boundary_keeps_its_reads_from_the_outer_one;
 mod cleanup_precedes_next_execution;
 mod cleanup_reads_do_not_become_dependencies;
 mod conditional_dependencies_are_replaced;
@@ -140,8 +143,19 @@ mod executor {
     }
 
     /// A future that waits until its test answers it.
-    #[derive(Clone, Default)]
     pub(super) struct Answer<T>(Rc<RefCell<Option<T>>>);
+
+    impl<T> Clone for Answer<T> {
+        fn clone(&self) -> Self {
+            Self(Rc::clone(&self.0))
+        }
+    }
+
+    impl<T> Default for Answer<T> {
+        fn default() -> Self {
+            Self(Rc::default())
+        }
+    }
 
     impl<T> Answer<T> {
         pub(super) fn give(&self, value: T) {

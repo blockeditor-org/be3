@@ -17,7 +17,7 @@ const SECTION_SPACING: Space = Space::Xl2;
 pub fn RepositoryView(editor: Editor) -> NodeId {
     let content = editor.block_content::<RepositoryContent>();
     let upstream = content.project(|content| content.root().upstream);
-    let status = editor.version_status();
+    let status = hold(editor.version_status());
     let editable = editor.editable();
     let branches = create_memo(move || {
         status.with(|status| {

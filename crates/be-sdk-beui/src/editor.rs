@@ -2,7 +2,6 @@ use beui::dock::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use be_block_content::EditorViewContent;
 use be_block_content::presence::{ChannelKind, PresenceKind};
 use be_sdk_api::{
     BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
@@ -93,6 +92,20 @@ struct ChildRecord {
     dock_tab: Option<u64>,
     docks: bool,
     tab: Option<DockTabControl>,
+}
+
+/// What `read` answers, read again each time `changed` fires. Its readiness is the graph's,
+/// so whatever reads it waits until `read` answers.
+fn answered<T: Clone + PartialEq + 'static>(
+    changed: Trigger,
+    read: impl Fn() -> Ready<T> + 'static,
+) -> Memo<Ready<T>> {
+    let answer = create_source();
+    create_binding(move || {
+        changed.track();
+        answer.set(read());
+    });
+    create_memo(move || answer.get())
 }
 
 fn then<T: 'static>(
@@ -410,13 +423,17 @@ impl Editor {
         create_memo(move || !editable.get())
     }
 
+    /// The editor's own content, which reads as loading until it arrives.
     pub fn block_content<C>(&self) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
-        self.projection(None)
+        self.projection_of(None)
     }
 
+    /// The content of `block`, which reads as loading until it arrives. A block this viewer
+    /// cannot view (deleted elsewhere, or no longer shared) never arrives: its projection
+    /// settles with the empty content once the graph says so.
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
@@ -424,65 +441,16 @@ impl Editor {
         if block == self.block_id() {
             return self.block_content();
         }
-        let projection = self.projection_of(Some(block));
-        self.wait_while_viewable(projection, block);
-        projection
-    }
-
-    /// Makes the nearest boundary wait until `projection` of `block` is read, while `block` is
-    /// one this viewer can see: a projection of a block deleted elsewhere, or no longer shared,
-    /// stays loading rather than failing, and must not hold the boundary for ever.
-    fn wait_while_viewable<C>(&self, projection: ContentProjection<C>, block: Uuid)
-    where
-        C: be_block_content::LiveEdit + Clone + Default,
-    {
-        if Boundary::current().is_none() {
-            return;
-        }
-        // The editor's own block is one its viewer sees: it waits as `block_content` does.
-        if block == self.block_id() {
-            wait_for(move || match projection.is_alive() {
-                true => projection.ready(),
-                false => Ok(()),
-            });
-            return;
-        }
-        let found = self.blocks().watch(BlockQuery::Block(block));
-        wait_for(move || {
-            // Read, or failed to: what failed is reported by whoever reads it, not waited on.
-            if !projection.is_alive() || !matches!(projection.ready(), Err(Pending::Loading)) {
-                return Ok(());
-            }
-            let viewable = found
-                .read()?
-                .first()
-                .is_some_and(|info| info.access.can_view());
-            if viewable {
-                Err(Pending::Loading)
-            } else {
-                Ok(())
-            }
-        });
+        self.projection_of(Some(block))
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
         self.state().core.host().view_block()
     }
 
-    /// Makes the nearest boundary wait until the view block is read, so what the editor puts
-    /// back from its view state is there before it first shows.
-    fn wait_for_view_state(&self) {
-        let Some(block) = self.view_block() else {
-            return;
-        };
-        let projection = self.projection_of::<EditorViewContent>(Some(block));
-        self.wait_while_viewable(projection, block);
-    }
-
     /// The `K` kept in the editor's view block, which outlives the editor: where it was
     /// scrolled, what was open. Read it with `get` and write it on every change with `set`.
     pub fn view_state<K: be_block_content::ViewStateKind>(&self) -> ViewStateHandle<K> {
-        self.wait_for_view_state();
         ViewStateHandle::new(*self)
     }
 
@@ -505,19 +473,13 @@ impl Editor {
         self.state().core.create_child(content)
     }
 
-    pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
+    /// The head stored for `block`, loading until the host answers.
+    pub fn stored_head(&self, block: Uuid) -> Memo<Ready<crate::HeadRead>> {
         let host = self.host();
         host.watch_head(block);
-        let changed = self.pushed(Pushed::Heads);
-        let read = create_memo(move || {
-            changed.track();
-            host.head(block)
-        });
-        wait_for(move || match read.with(Option::is_some) {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
-        create_memo(move || read.get().unwrap_or(Ok(None)))
+        answered(self.pushed(Pushed::Heads), move || {
+            host.head(block).ok_or(Pending::Loading)
+        })
     }
 
     /// The results of the full-text search `search` holds (guides/blocks/host.md, "Search"): none
@@ -544,21 +506,6 @@ impl Editor {
         })
     }
 
-    fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
-    where
-        C: be_block_content::LiveEdit + Clone + Default,
-    {
-        let projection = self.projection_of(block);
-        wait_for(move || {
-            if projection.is_alive() {
-                projection.ready()
-            } else {
-                Ok(())
-            }
-        });
-        projection
-    }
-
     pub(crate) fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
@@ -574,11 +521,13 @@ impl Editor {
         if let Some(source) = cached {
             return source;
         }
-        let live = match block {
-            Some(block) => state.core.content_of::<C>(block),
-            None => state.core.content::<C>(None),
+        let owned = match block {
+            Some(block) => OwnedContentProjection::unless_unviewable(
+                state.core.content_of::<C>(block),
+                state.core.host().graph().watch(BlockQuery::Block(block)),
+            ),
+            None => OwnedContentProjection::from(state.core.content::<C>(None)),
         };
-        let owned = OwnedContentProjection::from(live);
         let source = owned.handle();
         state
             .contents
@@ -630,25 +579,12 @@ impl Editor {
         })
     }
 
-    pub fn version_status(&self) -> Memo<be_sdk::VersionStatus> {
-        let host = self.host();
-        host.watch_version();
-        let changed = self.pushed(Pushed::Version);
-        let known = create_memo({
-            let host = host.clone();
-            move || {
-                changed.track();
-                host.version_known()
-            }
-        });
-        wait_for(move || match known.get() {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
+    /// Where the block stands against its repository, loading until the host knows.
+    pub fn version_status(&self) -> Memo<Ready<be_sdk::VersionStatus>> {
+        self.host().watch_version();
         let core = self.core();
-        create_memo(move || {
-            changed.track();
-            core.version_status().unwrap_or_default()
+        answered(self.pushed(Pushed::Version), move || {
+            crate::content::ready(core.version_status())
         })
     }
 
@@ -830,18 +766,16 @@ impl Editor {
         self.state().core.host().block_types()
     }
 
-    pub fn block_types_known(&self) -> Memo<bool> {
+    /// Whether the host has told the block types yet: loading until it has. Read it beside
+    /// `block_types` where an empty catalog must not show first.
+    pub fn block_types_known(&self) -> Memo<Ready<()>> {
         let host = self.host();
-        let changed = self.pushed(Pushed::Catalog);
-        let known = create_memo(move || {
-            changed.track();
-            host.block_types_known()
-        });
-        wait_for(move || match known.get() {
-            true => Ok(()),
-            false => Err(Pending::Loading),
-        });
-        known
+        answered(self.pushed(Pushed::Catalog), move || {
+            match host.block_types_known() {
+                true => Ok(()),
+                false => Err(Pending::Loading),
+            }
+        })
     }
 
     pub fn fit_to(&self, node: Option<NodeRef>) {

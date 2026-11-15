@@ -1223,7 +1223,7 @@ fn LoadSliders() -> NodeId {
 #[sample]
 #[component]
 fn SlowGreeting() -> NodeId {
-    let answer = create_signal::<Ready<String>>(Err(Pending::Loading));
+    let answer = create_source::<String>();
     let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
     let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
     let fallback = |pending: Pending| match pending {

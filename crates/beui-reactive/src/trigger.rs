@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::runtime::check_tracked_read;
-use crate::signal::{Source, assert_writable, track};
+use crate::signal::{Node, assert_writable, track};
 
 /// An event with no value: `notify` wakes whatever `track`ed it, as a write would. For
 /// something the graph cannot see changing (a request to focus, a buffer filled in
@@ -14,7 +14,7 @@ pub struct Trigger {
 
 pub fn create_trigger() -> Trigger {
     Trigger {
-        key: arena::insert_owned_tracked(Rc::new(Source::default())),
+        key: arena::insert_owned_tracked(Rc::new(Node::default())),
     }
 }
 
@@ -29,7 +29,7 @@ impl OwnedTrigger {
     pub fn new() -> Self {
         Self {
             handle: Trigger {
-                key: arena::insert_tracked(Rc::new(Source::default())),
+                key: arena::insert_tracked(Rc::new(Node::default())),
             },
         }
     }
@@ -93,16 +93,16 @@ impl Trigger {
     /// Wakes everything that tracked it. Does nothing once its scope is disposed.
     pub fn notify(&self) {
         assert_writable();
-        if let Some(source) = arena::get::<Source>(self.key) {
+        if let Some(source) = arena::get::<Node>(self.key) {
             source.changed();
         }
     }
 
     pub fn is_alive(&self) -> bool {
-        arena::get::<Source>(self.key).is_some()
+        arena::get::<Node>(self.key).is_some()
     }
 
-    fn source(&self) -> Rc<Source> {
+    fn source(&self) -> Rc<Node> {
         arena::get(self.key).expect("trigger used after the scope that owns it was disposed")
     }
 }

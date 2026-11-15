@@ -14,13 +14,13 @@ use be_type_terminal::{
 pub(crate) struct Session {
     editor: Editor,
     pub(crate) host: Memo<Option<(u64, TerminalHost)>>,
-    pub(crate) shell: ReadSignal<Option<TerminalShell>>,
+    pub(crate) shell: Memo<Option<TerminalShell>>,
     pub(crate) history: Memo<Lines>,
     pub(crate) screen: Memo<Lines>,
     pub(crate) alternate: Memo<Lines>,
-    pub(crate) alternate_active: ReadSignal<bool>,
-    pub(crate) cursor: ReadSignal<TerminalCursor>,
-    pub(crate) colors: ReadSignal<TerminalColors>,
+    pub(crate) alternate_active: Memo<bool>,
+    pub(crate) cursor: Memo<TerminalCursor>,
+    pub(crate) colors: Memo<TerminalColors>,
     wanted: Signal<Option<TerminalSize>>,
 }
 

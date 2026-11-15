@@ -4,7 +4,7 @@ use std::rc::Rc;
 use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
 use be_block_content::{LiveEdit, ObjectId, Root, Touched};
 use be_sdk::LackingEdit;
-use be_sdk::{EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
+use be_sdk::{BlockWatch, EditorHost, LiveContent, Objects, Projected, Subscription, Unready};
 use beui::reactive::*;
 
 pub(crate) fn ready<T>(read: Result<T, Unready>) -> Ready<T> {
@@ -19,8 +19,14 @@ pub(crate) fn keep(subscription: Subscription) {
 }
 
 struct Projection<C: LiveEdit> {
-    _announcing: Subscription,
+    announcing: std::cell::RefCell<Vec<Subscription>>,
     announced: OwnedTrigger,
+    /// Whether the content arrived: what every read waits on, so an editor never shows the
+    /// empty content first.
+    arrived: OwnedSource<()>,
+    /// The graph's watch of the block, for a projection of a block that may be one this
+    /// viewer cannot view (`unless_unviewable`).
+    found: Option<BlockWatch>,
     live: LiveContent<C>,
     payload: std::cell::RefCell<Option<(Scope, AsyncMemo<Payload>)>>,
 }
@@ -80,18 +86,67 @@ impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
 
 impl<C: LiveEdit + Clone + Default + 'static> From<LiveContent<C>> for OwnedContentProjection<C> {
     fn from(live: LiveContent<C>) -> Self {
-        let announced = OwnedTrigger::new();
-        let announce = announced.handle();
+        Self::following(live, None)
+    }
+}
+
+impl<C: LiveEdit + Clone + Default + 'static> OwnedContentProjection<C> {
+    /// A projection of a block that may be one this viewer cannot view, which `found` (the
+    /// graph's watch of it) tells: deleted elsewhere, or no longer shared, its content never
+    /// arrives, so the projection settles with the empty content rather than hold a `Loading`
+    /// for ever.
+    pub(crate) fn unless_unviewable(live: LiveContent<C>, found: BlockWatch) -> Self {
+        Self::following(live, Some(found))
+    }
+
+    fn following(live: LiveContent<C>, found: Option<BlockWatch>) -> Self {
         let state = OwnedStored::new(Projection {
-            _announcing: live.on_revision(move |_| announce.notify()),
-            announced,
+            announcing: std::cell::RefCell::new(Vec::new()),
+            announced: OwnedTrigger::new(),
+            arrived: OwnedSource::from(arrival(&live, found.as_ref())),
+            found,
             live,
             payload: std::cell::RefCell::new(None),
         });
+        let held = state.handle();
+        let settle = move || {
+            if let Some(projection) = held.try_value() {
+                projection
+                    .arrived
+                    .set(arrival(&projection.live, projection.found.as_ref()));
+            }
+        };
+        let projection = state.value();
+        let mut announcing = vec![projection.live.on_revision(move |_| {
+            settle();
+            if let Some(projection) = held.try_value() {
+                projection.announced.notify();
+            }
+        })];
+        if let Some(found) = &projection.found {
+            announcing.push(found.on_change(settle));
+        }
+        projection.announcing.replace(announcing);
         Self {
             handle: ContentProjection(state.handle()),
             _state: state,
         }
+    }
+}
+
+/// Whether `live` arrived; while it is still loading, settled when `found` says the block is
+/// not one this viewer can view.
+fn arrival<C: LiveEdit + Clone + Default + 'static>(
+    live: &LiveContent<C>,
+    found: Option<&BlockWatch>,
+) -> Ready<()> {
+    let viewable = || match found.map(BlockWatch::read) {
+        Some(Ok(list)) => list.first().is_some_and(|info| info.access.can_view()),
+        _ => true,
+    };
+    match ready(live.ready()) {
+        Err(Pending::Loading) if !viewable() => Ok(()),
+        arrived => arrived,
     }
 }
 
@@ -146,25 +201,37 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().live.block()
     }
 
+    /// Whether the content arrived, waiting until it does (at the nearest `Loading`, when
+    /// read outside a memo; a memo that reads it is pending until then).
     pub fn ready(&self) -> Ready<()> {
-        let projection = self.inner();
-        projection.announced.track();
-        ready(projection.live.ready())
+        self.inner().arrived.get()
     }
 
     pub fn revision(&self) -> Ready<u64> {
         let projection = self.inner();
         projection.announced.track();
+        projection.arrived.get()?;
         ready(projection.live.revision())
     }
 
     pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
         let projection = self.inner();
         projection.announced.track();
+        projection.arrived.get()?;
         ready(projection.live.read(read))
     }
 
-    fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    /// `signal`, pending until the content arrived: an editor never shows the empty content
+    /// first.
+    fn once_arrived<T: Clone + PartialEq + 'static>(&self, signal: Signal<T>) -> Memo<T> {
+        let arrived = self.inner().arrived.handle();
+        create_memo(move || {
+            arrived.track();
+            signal.get()
+        })
+    }
+
+    fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
@@ -175,17 +242,17 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
             Some(key) => live.on_touched(key, run),
             None => live.on_change(run),
         });
-        read.read_only()
+        self.once_arrived(read)
     }
 
-    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    pub fn project<T>(&self, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
         self.watch(None, project)
     }
 
-    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
+    pub fn project_on<T>(&self, key: Touched, project: impl Fn(&C) -> T + 'static) -> Memo<T>
     where
         T: Clone + PartialEq + 'static,
     {
@@ -331,7 +398,7 @@ impl<R: Root + 'static> ContentProjection<Document<R>>
 where
     Document<R>: LiveEdit + Clone + Default,
 {
-    pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> ReadSignal<F>
+    pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> Memo<F>
     where
         F: Field + Clone + PartialEq + 'static,
     {
@@ -344,7 +411,7 @@ where
         &self,
         owner: ObjectId,
         field: FieldRef<M, List<T>>,
-    ) -> ReadSignal<Vec<ObjectId>> {
+    ) -> Memo<Vec<ObjectId>> {
         self.project_on(Touched::Field(owner, field.index()), move |content| {
             content.ids(owner, field)
         })
@@ -354,7 +421,7 @@ where
         &self,
         owner: ObjectId,
         field: FieldRef<M, List<T>>,
-    ) -> ReadSignal<Objects<T>>
+    ) -> Memo<Objects<T>>
     where
         T: Model + 'static,
     {
@@ -364,10 +431,10 @@ where
                 .with_untracked(|held| Objects::reread(content, owner, field, touched, held));
             objects.set(next);
         });
-        objects.read_only()
+        self.once_arrived(objects)
     }
 
-    pub fn object<T>(&self, id: ObjectId) -> ReadSignal<Option<T>>
+    pub fn object<T>(&self, id: ObjectId) -> Memo<Option<T>>
     where
         T: Model + Clone + PartialEq + 'static,
     {
@@ -383,6 +450,6 @@ where
                 read.set(next);
             },
         ));
-        read.read_only()
+        self.once_arrived(read)
     }
 }
