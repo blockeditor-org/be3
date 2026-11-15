@@ -398,34 +398,25 @@ fn Organization(editor: Editor, shown: Memo<Option<Uuid>>) -> NodeId {
     let settings = create_memo(move || editor.organization_settings());
     view! {
         <List spacing=Space::None>
-            <Show value={move || settings.with(Option::is_some)}>
+            <Show value={settings}>|settings: ReadSignal<Uuid>|
                 <Section title="Organization" caption="">
                     <SettingRow
                         label="Policies"
                         detail={move || {
-                            match settings
-                                .get()
-                                .is_some_and(|settings| editor.blocks().access(settings).can_manage())
-                            {
+                            match editor.blocks().access(settings.get()).can_manage() {
                                 true => "You administer them".to_owned(),
                                 false => "Set by its administrators".to_owned(),
                             }
                         }}
                         glyph=ICON_BUILDING
-                        selected={move || {
-                            settings
-                                .get()
-                                .is_some_and(|settings| shown.get() == Some(settings))
-                        }}
+                        selected={move || shown.get() == Some(settings.get())}
                         @test_id={"settings.organization"}
                         on_click={move || {
-                            if let Some(settings) = settings.get_untracked() {
-                                editor.host().open_block_with(
-                                    settings,
-                                    SettingsContent::CONTENT_TYPE,
-                                    ORGANIZATION_EDITOR,
-                                );
-                            }
+                            editor.host().open_block_with(
+                                settings.get_untracked(),
+                                SettingsContent::CONTENT_TYPE,
+                                ORGANIZATION_EDITOR,
+                            );
                         }}
                     />
                 </Section>

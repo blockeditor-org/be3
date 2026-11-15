@@ -38,12 +38,11 @@ impl be_sdk_beui::BeuiRoot for SettingsRoot {
     fn View(editor: Editor) -> Root {
         let block = editor.block_id();
         let _listed = store(editor.blocks().watch(BlockQuery::Block(block)));
-        let shown = create_memo(move || is_block_settings(editor, block));
         view! {
             <Root>
                 <Loaded>
                     <Dynamic
-                        value={shown}
+                        value={move || is_block_settings(editor, block)}
                         fallback={|| view! {
                             <Frame />
                         }}

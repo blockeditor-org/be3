@@ -163,8 +163,9 @@ pub(super) fn KeyPicker(
                     label="Find the key by"
                     @test_id={"input-remaps.picker.tabs"}
                 />
+                <Show value={current}>|current: ReadSignal<Tab>|
                 <Match value={current}>
-                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::Press)}>
+                    <Case is={Tab::Press}>
                         <PressTab
                             target={target}
                             listening={listening}
@@ -173,13 +174,14 @@ pub(super) fn KeyPicker(
                             pick={pick}
                         />
                     </Case>
-                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::Mouse)}>
+                    <Case is={Tab::Mouse}>
                         <MouseTab wheel={wheel} pick={pick} />
                     </Case>
-                    <Case when={|tab: &Option<Tab>| *tab == Some(Tab::AllKeys)}>
+                    <Case is={Tab::AllKeys}>
                         <AllKeysTab query={query} wheel={wheel} pick={pick} />
                     </Case>
                 </Match>
+                </Show>
                 <Separator />
                 <Show value={move || target.get() == Some(Target::Key)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
