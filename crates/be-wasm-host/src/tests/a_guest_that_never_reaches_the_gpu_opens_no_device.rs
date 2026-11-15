@@ -10,7 +10,6 @@ fn a_guest_that_never_reaches_the_gpu_opens_no_device() {
             OPENED.store(true, Ordering::SeqCst);
             Err("the test has no device".to_owned())
         },
-        None,
     )
     .unwrap();
     let source = guest("(call $host_send (i32.const 0) (i32.const 1))");
