@@ -3551,8 +3551,8 @@ async fn apply(
             }
             // The type's answer is awaited beside the loop, which goes on with other commands.
             match replicas.change_answered(block, Change::Child(change)) {
-                Some(made) => tasks.spawn(async move { reply.answer(made.await) }),
-                None => reply.answer(false),
+                Some(made) => tasks.spawn(async move { reply.send(made.await) }),
+                None => reply.send(false),
             }
             false
         }

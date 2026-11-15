@@ -537,18 +537,22 @@ impl ChildChanged {
     }
 }
 
-/// The worker's end of a `ChildChanged`. One dropped unanswered (the stack stopped before the
-/// type answered, or the command was never run) answers refused, so nothing waits on it for good.
-pub(crate) struct ChildReply(Arc<OnceLock<bool>>);
+/// The worker's end of a `ChildChanged`: a reply answered with whether the type made the change.
+pub(crate) type ChildReply = replies::Reply<bool>;
 
-impl ChildReply {
-    pub(crate) fn answer(self, made: bool) {
+/// Sets a `ChildChanged`'s answer on the page. One dropped unanswered (the stack stopped before
+/// the type answered, or the command was never run) answers refused, so nothing waits on it for
+/// good.
+struct ChildAnswer(Arc<OnceLock<bool>>);
+
+impl ChildAnswer {
+    fn answer(self, made: bool) {
         let _ = self.0.set(made);
         be_host_base::host::wake();
     }
 }
 
-impl Drop for ChildReply {
+impl Drop for ChildAnswer {
     fn drop(&mut self) {
         if self.0.set(false).is_ok() {
             be_host_base::host::wake();
@@ -575,7 +579,10 @@ pub fn change_child(
         block,
         content_type,
         change: api_child(change),
-        reply: ChildReply(Arc::clone(&answer)),
+        reply: {
+            let answer = ChildAnswer(Arc::clone(&answer));
+            replies::expect(move |made: bool| answer.answer(made))
+        },
     });
     Some(ChildChanged(answer))
 }
