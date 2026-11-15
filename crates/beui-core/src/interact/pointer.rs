@@ -27,7 +27,10 @@ pub struct Pointers {
     hovered_at: Option<(WindowId, Pos2)>,
     wheel_latch: Option<(NodeId, Instant, WindowId, Pos2)>,
     wheel_held: bool,
-    fingers: Fingers,
+    /// Each window's fingers, as a gesture is only ever the fingers of one window.
+    fingers: Vec<(WindowId, Fingers)>,
+    /// How many fingers tapped this frame, if a window's did.
+    finger_tap: Option<usize>,
     kept_off: Vec<TouchId>,
     pub(crate) grabber: Option<NodeId>,
     pub(crate) grabbed: Option<NodeId>,
@@ -63,9 +66,10 @@ impl Pointers {
         }
     }
 
-    fn touches(&self) -> impl Iterator<Item = (TouchId, Pos2, Pos2)> + '_ {
+    fn touches(&self, window: WindowId) -> impl Iterator<Item = (TouchId, Pos2, Pos2)> + '_ {
         self.sessions
             .iter()
+            .filter(move |session| session.origin_window == window)
             .filter_map(|session| match session.pointer {
                 PointerId::Touch(id) => Some((
                     id,
@@ -74,6 +78,25 @@ impl Pointers {
                 )),
                 PointerId::Mouse | PointerId::Pen => None,
             })
+    }
+
+    fn fingers(&mut self, window: WindowId) -> &mut Fingers {
+        let index = match self.fingers.iter().position(|(held, _)| *held == window) {
+            Some(index) => index,
+            None => {
+                self.fingers.push((window, Fingers::default()));
+                self.fingers.len() - 1
+            }
+        };
+        &mut self.fingers[index].1
+    }
+
+    /// The window a pointer's session began in, if it is held.
+    fn window_of(&self, pointer: PointerId) -> Option<WindowId> {
+        self.sessions
+            .iter()
+            .find(|session| session.pointer == pointer)
+            .map(|session| session.origin_window)
     }
 }
 
@@ -285,7 +308,6 @@ struct Fingers {
     moved: bool,
     since: Option<Instant>,
     hold: Option<Hold>,
-    tap: Option<usize>,
 }
 
 struct Hold {
@@ -331,7 +353,7 @@ pub(crate) fn begin(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
     let count = frame.ctx.input(|input| input.pointer_events.len());
     doc.pointers.routed = vec![Routed::default(); count];
     doc.pointers.hits.clear();
-    doc.pointers.fingers.tap = None;
+    doc.pointers.finger_tap = None;
     for session in &mut doc.pointers.sessions {
         session.dragged_this_frame = false;
     }
@@ -394,7 +416,7 @@ pub(crate) fn end_frame(doc: &mut Document, frame: &Frame) {
         .ctx
         .input(|input| input.pointer.mouse().map(|pos| (input.pointer.window, pos)));
     hover(doc, frame, mouse);
-    if let Some(fingers) = doc.pointers.fingers.tap
+    if let Some(fingers) = doc.pointers.finger_tap
         && doc.layers().blocking() == 0
     {
         doc.finger_tap(fingers);
@@ -569,7 +591,7 @@ fn down(
     doc.finger_pressed = event.pointer.is_touch();
     let kind = Kind::of(event.pointer);
     let role = match button {
-        _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
+        _ if kind.finger && primary_touch(doc, event.window).is_some() => Role::Finger,
         PointerButton::Primary => Role::Press,
         PointerButton::Secondary if kind.buttons => Role::Secondary,
         PointerButton::Middle if kind.buttons => Role::Middle,
@@ -707,7 +729,7 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
     }
     doc.pointers.sessions.push(session);
     if let PointerId::Touch(id) = event.pointer {
-        finger_down(doc, frame, id, event.pos);
+        finger_down(doc, frame, id, event.window, event.pos);
     }
 }
 
@@ -1021,6 +1043,7 @@ fn cancel_owner(doc: &mut Document, owner: NodeId) {
 
 fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerButton) {
     let primary = is_primary(doc, event.pointer);
+    let window = doc.pointers.window_of(event.pointer);
     let kind = Kind::of(event.pointer);
     let Some(index) = find(doc, event.pointer, Some(button)) else {
         let sink = kind.held_sink(doc, event.pointer);
@@ -1036,8 +1059,8 @@ fn up(doc: &mut Document, frame: &Frame, event: PointerEvent, button: PointerBut
     session.time = event.time;
     follow(doc, frame, &mut session, pos, PointerStage::Up);
     end(doc, frame, session, false);
-    if let PointerId::Touch(id) = event.pointer {
-        finger_lifted(doc, frame, id, Some(event.pos), false, primary);
+    if let (PointerId::Touch(id), Some(window)) = (event.pointer, window) {
+        finger_lifted(doc, frame, id, window, Some(event.pos), false, primary);
     }
 }
 
@@ -1134,21 +1157,25 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
 
 fn cancel(doc: &mut Document, frame: &Frame, pointer: PointerId) {
     let primary = is_primary(doc, pointer);
+    let window = doc.pointers.window_of(pointer);
     let mut held = false;
     while let Some(index) = find(doc, pointer, None) {
         let session = doc.pointers.sessions.remove(index);
         end(doc, frame, session, true);
         held = true;
     }
-    if let PointerId::Touch(id) = pointer
+    if let (PointerId::Touch(id), Some(window)) = (pointer, window)
         && held
     {
-        finger_lifted(doc, frame, id, None, true, primary);
+        finger_lifted(doc, frame, id, window, None, true, primary);
     }
 }
 
 fn is_primary(doc: &Document, pointer: PointerId) -> bool {
-    primary_touch(doc).is_some_and(|index| doc.pointers.sessions[index].pointer == pointer)
+    doc.pointers.window_of(pointer).is_some_and(|window| {
+        primary_touch(doc, window)
+            .is_some_and(|index| doc.pointers.sessions[index].pointer == pointer)
+    })
 }
 
 fn long_presses(doc: &mut Document, frame: &Frame) -> Vec<LongPressed> {
@@ -1249,23 +1276,23 @@ pub(crate) fn long_pressed(doc: &mut Document, frame: &Frame, pressed: Vec<LongP
     }
 }
 
-fn primary_touch(doc: &Document) -> Option<usize> {
-    doc.pointers
-        .sessions
-        .iter()
-        .position(|session| session.kind.finger && session.role == Role::Press)
+/// The finger pressing in `window`, which a second finger there turns into a gesture.
+fn primary_touch(doc: &Document, window: WindowId) -> Option<usize> {
+    doc.pointers.sessions.iter().position(|session| {
+        session.kind.finger && session.role == Role::Press && session.origin_window == window
+    })
 }
 
-fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
-    let count = doc.pointers.touches().count();
-    let fingers = &mut doc.pointers.fingers;
+fn finger_down(doc: &mut Document, frame: &Frame, id: TouchId, window: WindowId, pos: Pos2) {
+    let count = doc.pointers.touches(window).count();
+    let fingers = doc.pointers.fingers(window);
     if count == 1 {
         fingers.most = 0;
         fingers.moved = false;
         fingers.since = Some(frame.now);
     }
     fingers.most = fingers.most.max(count);
-    let Some(primary) = primary_touch(doc)
+    let Some(primary) = primary_touch(doc, window)
         .filter(|index| doc.pointers.sessions[*index].pointer != PointerId::Touch(id))
     else {
         return;
@@ -1283,7 +1310,8 @@ fn cancel_primary(
     pos: Pos2,
     second: bool,
 ) {
-    let holds = !session.dragged && doc.pointers.fingers.hold.is_none() && second;
+    let window = session.origin_window;
+    let holds = !session.dragged && doc.pointers.fingers(window).hold.is_none() && second;
     if holds {
         let hit = hit(doc, frame.rects, session.window, pos, false);
         let hold = Hold {
@@ -1293,7 +1321,7 @@ fn cancel_primary(
             pos,
         };
         tell_hold(doc, frame.rects, &hold, PointerStage::Down, pos, frame.now);
-        doc.pointers.fingers.hold = Some(hold);
+        doc.pointers.fingers(window).hold = Some(hold);
     }
     let owners = std::mem::take(&mut session.owners);
     for owner in owners.into_iter().rev() {
@@ -1340,10 +1368,17 @@ fn tell_hold(
 
 fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
     let primary = is_primary(doc, PointerId::Touch(id));
-    let Some((_, _, origin)) = doc.pointers.touches().find(|(finger, _, _)| *finger == id) else {
+    let Some(window) = doc.pointers.window_of(PointerId::Touch(id)) else {
         return;
     };
-    let fingers = &mut doc.pointers.fingers;
+    let Some((_, _, origin)) = doc
+        .pointers
+        .touches(window)
+        .find(|(finger, _, _)| *finger == id)
+    else {
+        return;
+    };
+    let fingers = doc.pointers.fingers(window);
     if origin.distance(pos) >= TOUCH_DRAG_THRESHOLD {
         fingers.moved = true;
     }
@@ -1359,7 +1394,8 @@ fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
             dropped = fingers.hold.take();
         }
     }
-    if moved && let Some(hold) = &doc.pointers.fingers.hold {
+    let held = doc.pointers.fingers.iter().find(|(held, _)| *held == window);
+    if moved && let Some(hold) = held.and_then(|(_, fingers)| fingers.hold.as_ref()) {
         tell_hold(doc, frame.rects, hold, PointerStage::Move, pos, frame.now);
     }
     if let Some(hold) = dropped {
@@ -1378,27 +1414,34 @@ fn finger_lifted(
     doc: &mut Document,
     frame: &Frame,
     id: TouchId,
+    window: WindowId,
     pos: Option<Pos2>,
     cancelled: bool,
     primary: bool,
 ) {
     let now = doc.now();
-    let held = doc.pointers.touches().count();
-    let fingers = &mut doc.pointers.fingers;
+    let held = doc.pointers.touches(window).count();
+    let fingers = doc.pointers.fingers(window);
+    let mut tapped = None;
     if held == 0 {
         let quick = fingers
             .since
             .take()
             .is_some_and(|since| now.saturating_duration_since(since) <= FINGER_TAP_TIME);
         if !cancelled && quick && !fingers.moved && fingers.most >= 2 {
-            fingers.tap = Some(fingers.most);
+            tapped = Some(fingers.most);
         }
     }
-    let lifted = fingers.hold.as_ref().is_some_and(|hold| hold.finger == id);
-    if !lifted && !primary {
-        return;
+    if tapped.is_some() {
+        doc.pointers.finger_tap = tapped;
     }
-    let Some(hold) = fingers.hold.take() else {
+    let fingers = doc.pointers.fingers(window);
+    let lifted = fingers.hold.as_ref().is_some_and(|hold| hold.finger == id);
+    let hold = (lifted || primary).then(|| fingers.hold.take()).flatten();
+    if held == 0 {
+        doc.pointers.fingers.retain(|(held, _)| *held != window);
+    }
+    let Some(hold) = hold else {
         return;
     };
     match lifted && !cancelled {
