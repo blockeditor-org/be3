@@ -1673,6 +1673,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
         })
     }
 
+    /// The failures the editor reported for the host to show (`EditorHost::report_failure`),
+    /// in the order it reported them.
+    pub fn take_reported_failures(&mut self) -> Vec<String> {
+        self.take_shell_messages(|call| match call {
+            ShellMessage::ReportFailure(message) => Some(message.clone()),
+            _ => None,
+        })
+    }
+
     /// The plain text of each copy that offered it.
     pub fn take_copied_text(&mut self) -> Vec<String> {
         self.take_copied(be_sdk_api::clipboard::formats::TEXT)

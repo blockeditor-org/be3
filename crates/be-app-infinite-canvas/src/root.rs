@@ -43,7 +43,7 @@ use mode::{MODE, ModeBar};
 use raster::RasterDialogs;
 use sidebar::CanvasInspector;
 use state::CanvasState;
-use toolbar::{ImportError, STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
+use toolbar::{STAGE, SelectionDock, TOOLS, ToolBar, ZOOM, ZoomBar, tools_open};
 use touch::TouchSetting;
 
 use crate::geometry::MIN_SIZE;
@@ -123,7 +123,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     <DockTab id=STAGE title="Canvas">
                         <List @node_ref=&scope spacing=Space::None>
                             <TouchSetting editor choice={touch} />
-                            <ImportError state={state} />
                             <ExportDialog exporter />
                             <RasterDialogs state />
                             <ListItem grow=1.0>

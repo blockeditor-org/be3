@@ -42,7 +42,6 @@ pub(crate) struct State {
     pub hex_view: Signal<bool>,
     pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
-    pub import_error: Signal<Option<String>>,
     /// Set once the text has first been read from its block, with the caret at its start.
     pub loaded: Signal<bool>,
     /// Set once the position saved for the text was put back (or there was none), after which a
@@ -81,7 +80,6 @@ impl State {
         let hex_view = create_signal(false);
         let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
-        let import_error = create_signal(None);
         let peers = editor.peers::<TextCursor>();
         let visible = editor.presence_visible();
         let remote_cursors = create_memo(move || {
@@ -108,7 +106,6 @@ impl State {
             hex_view,
             typing,
             hex_insert_mode,
-            import_error,
             loaded: create_signal(false),
             position_restored: create_signal(false),
             inner: store(Inner {

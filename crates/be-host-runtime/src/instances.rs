@@ -3668,6 +3668,10 @@ impl Instances {
             ShellMessage::LeaveFrame => {
                 super::events::emit(&self.app_id, instance, InstanceEvent::Leaving);
             }
+            ShellMessage::ReportFailure(message) => {
+                be_host_base::notices::report(message);
+                return false;
+            }
             ShellMessage::ViewStopped(ViewEnd { view, stopped }) => {
                 let Some(screen) = entry.screens.get_mut(&view) else {
                     return false;
@@ -4044,6 +4048,7 @@ fn preview_may_tell(message: &ShellMessage) -> bool {
             | ShellMessage::ChangeView(_)
             | ShellMessage::ViewStopped(_)
             | ShellMessage::Copy(_)
+            | ShellMessage::ReportFailure(_)
     )
 }
 

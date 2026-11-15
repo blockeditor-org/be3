@@ -641,7 +641,6 @@ impl State {
         let Some(account) = untrack(|| self.account()) else {
             return;
         };
-        self.notice.set(None);
         let block = self.editor.blocks().create_named(
             &TerminalContent::default(),
             BlockParent::Unfiled,
@@ -670,8 +669,9 @@ impl State {
                 Err(failure) => {
                     state.unmake(block);
                     state
-                        .notice
-                        .set(Some(format!("The terminal could not be made: {failure}")));
+                        .editor
+                        .host()
+                        .report_failure(format!("The terminal could not be made. {failure}"));
                     return;
                 }
             };
@@ -687,9 +687,9 @@ impl State {
                 let removed = state.editor.host().remove_agent(agent);
                 state.editor.then(removed, |_| {});
                 state.unmake(block);
-                state.notice.set(Some(
-                    "The terminal could not be made: your settings have not loaded yet".to_owned(),
-                ));
+                state.editor.host().report_failure(
+                    "The terminal could not be made. Your settings have not loaded yet.",
+                );
                 return;
             }
             state.install_terminal(block, terminal, account);
@@ -882,7 +882,6 @@ impl State {
             }
             Err(failure) => {
                 let message = format!("The terminal's agent could not be removed: {failure}");
-                state.notice.set(Some(message.clone()));
                 state.set_status(block, Some(TerminalStatus::NotRemoved(message)));
             }
         });

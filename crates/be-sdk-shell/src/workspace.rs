@@ -77,7 +77,6 @@ pub struct Workspace {
     /// Modes this workspace set, shown until the host publishes them: each with whether the
     /// host has answered, after which the next published modes take its place.
     setting_modes: Signal<HashMap<Uuid, (NotifyMode, bool)>>,
-    error: Signal<Option<String>>,
     routes: Signal<u64>,
     pub(crate) phone: Signal<bool>,
     focus: Signal<Focus>,
@@ -105,7 +104,6 @@ impl Workspace {
         let views = create_signal(HashMap::new());
         let titles = create_signal(HashMap::new());
         let simulated = create_signal(HashMap::new());
-        let error = create_signal(None);
         let routes = create_signal(0);
         let phone = create_signal(false);
         let dialog = create_signal(None);
@@ -155,7 +153,6 @@ impl Workspace {
                 })
             },
             setting_modes: create_signal(HashMap::new()),
-            error,
             routes,
             phone,
             focus: create_signal(Focus::default()),
@@ -285,10 +282,6 @@ impl Workspace {
 
     pub fn phone(&self) -> ReadSignal<bool> {
         self.phone.read_only()
-    }
-
-    pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error.read_only()
     }
 
     pub fn ready(&self) -> ReadSignal<bool> {
@@ -1171,9 +1164,9 @@ impl Workspace {
                 workspace.setting_modes.update(|modes| {
                     modes.remove(&block);
                 });
-                workspace.error.set(Some(format!(
-                    "The notifications setting was not changed: {failure}"
-                )));
+                workspace.host().report_failure(format!(
+                    "The notifications setting could not be changed. {failure}"
+                ));
             }
         });
         self.state
@@ -1219,14 +1212,13 @@ impl Workspace {
     }
 
     pub(crate) fn create_in(&self, parent: BlockParent) {
-        self.error.set(None);
         let container = parent.block();
         // An editor cannot see Unfiled, which the host makes with My files once the
         // organization's blocks have loaded; the host fails a creation committed there
         // before it exists, so this only spares asking first.
         if container.is_none() && self.my_files().is_none() {
-            self.error
-                .set(Some("Your files are still loading".to_owned()));
+            self.host()
+                .report_failure("The file could not be made. Your files are still loading.");
             return;
         }
         let parent = container.map_or(BlockParent::Unfiled, BlockParent::Block);
@@ -1241,17 +1233,10 @@ impl Workspace {
                 place: Some(parent.encode()),
             },
             PickAnchor::Centre,
-            move |picked: Result<PickedBlock, Failure>| {
+            move |picked: PickedBlock| {
                 if !workspace.state.is_alive() {
                     return;
                 }
-                let picked = match picked {
-                    Ok(picked) => picked,
-                    Err(error) => {
-                        workspace.error.set(Some(error.to_string()));
-                        return;
-                    }
-                };
                 let block_type = Uuid::from_bytes(picked.block_type);
                 if !picked.placed
                     && let Some(container) = container
@@ -1269,7 +1254,6 @@ impl Workspace {
     }
 
     pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<Rect>) {
-        self.error.set(None);
         let workspace = *self;
         self.editor.pick_block(
             BlockFilter {
@@ -1280,18 +1264,14 @@ impl Workspace {
                 place: None,
             },
             anchor,
-            move |picked: Result<PickedBlock, Failure>| {
-                if !workspace.state.is_alive() {
-                    return;
-                }
-                match picked {
-                    Ok(picked) => workspace.host().place_block(
+            move |picked: PickedBlock| {
+                if workspace.state.is_alive() {
+                    workspace.host().place_block(
                         picked.id(),
                         Uuid::from_bytes(picked.block_type),
                         parent,
                         picked.linked,
-                    ),
-                    Err(error) => workspace.error.set(Some(error.to_string())),
+                    );
                 }
             },
         );
@@ -1343,15 +1323,6 @@ pub fn PanelWindow(workspace: Workspace, panel: HostPanel) -> DockNode<TabId> {
                 </DockTab>
             </DockPane>
         </DockWindow>
-    }
-}
-
-#[component]
-pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListItem> {
-    view! {
-        <Show condition={failed}>
-            <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-        </Show>
     }
 }
 

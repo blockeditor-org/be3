@@ -219,7 +219,6 @@ fn paste_image(state: State, file: PickedFile) {
     let source_name = image.header().source_name.clone();
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);
-    state.import_error.set(None);
 }
 
 /// Opened at a search hit's place (`editor-event.reveal`), the text selects the first place its

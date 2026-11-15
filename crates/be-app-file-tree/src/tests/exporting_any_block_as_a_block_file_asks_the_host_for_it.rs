@@ -53,8 +53,13 @@ fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
         .test
         .answer(request, FileSave::Failed("The disk is full".to_owned()));
     fixture.settle();
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The block could not be exported. The disk is full"],
+        "an export that failed has the host say why"
+    );
     assert!(
-        fixture.says("The disk is full"),
-        "an export that failed says why"
+        !fixture.says("The disk is full"),
+        "the file tree draws no error of its own"
     );
 }

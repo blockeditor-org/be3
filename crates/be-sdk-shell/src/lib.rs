@@ -21,4 +21,4 @@ pub use program::{
 };
 pub use saved::{SavedProgram, saved_programs};
 pub use tab::TabItem;
-pub use workspace::{BlockTab, Failure, Focus, PanelStatus, PanelWindow, SHELL_BARS, Workspace};
+pub use workspace::{BlockTab, Focus, PanelStatus, PanelWindow, SHELL_BARS, Workspace};

@@ -1910,24 +1910,31 @@ impl EditorHost {
         self.ask(|| host_services::cut_blocks(blocks, holder.into_bytes()).detach());
     }
 
-    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view,
-    /// none when the host refused. The first paste after a cut moves a block
-    /// cut from its parent here (`moved`), or names where a reference to it
-    /// was cut from (`cut_from`); otherwise the editor adds a reference.
+    /// Pastes `be3/blocks` into `parent`: the blocks the editor may view, or
+    /// none when the paste failed, which is reported to the host
+    /// (`report_failure`). The first paste after a cut moves a block cut from
+    /// its parent here (`moved`), or names where a reference to it was cut
+    /// from (`cut_from`); otherwise the editor adds a reference.
     pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
-        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(|pasted| {
-            pasted
-                .unwrap_or_default()
-                .into_iter()
-                .map(|pasted| Pasted {
-                    block: Uuid::from_bytes(pasted.block_id),
-                    block_type: Uuid::from_bytes(pasted.block_type),
-                    moved: pasted.moved,
-                    cut_from: pasted.cut_from.map(Uuid::from_bytes),
-                })
-                .collect()
-        })
+        let host = self.clone();
+        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(
+            move |pasted| {
+                pasted
+                    .unwrap_or_else(|failure| {
+                        host.report_failure(format!("The blocks could not be pasted. {failure}"));
+                        Vec::new()
+                    })
+                    .into_iter()
+                    .map(|pasted| Pasted {
+                        block: Uuid::from_bytes(pasted.block_id),
+                        block_type: Uuid::from_bytes(pasted.block_type),
+                        moved: pasted.moved,
+                        cut_from: pasted.cut_from.map(Uuid::from_bytes),
+                    })
+                    .collect()
+            },
+        )
     }
 
     pub fn copy_blocks(
@@ -2277,6 +2284,14 @@ impl EditorHost {
 
     pub fn leave_frame(&self) {
         self.tell(ShellMessage::LeaveFrame);
+    }
+
+    /// Tells the person that something they asked for failed: `message` says what and why,
+    /// for them to read. The host shows it as it shows its own failures, so the editor draws
+    /// nothing and keeps no error of its own.
+    pub fn report_failure(&self, message: impl Into<String>) {
+        self.tell(ShellMessage::ReportFailure(message.into()));
+        self.changed();
     }
 
     /// Asks the host to show the details of what the editor shows.

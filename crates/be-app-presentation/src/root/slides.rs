@@ -150,9 +150,6 @@ impl Slides {
             },
             anchor,
             move |picked| {
-                let Ok(picked) = picked else {
-                    return;
-                };
                 let slide = Uuid::new_v4();
                 if let Ok(edit) = block.read(|presentation| {
                     presentation
@@ -189,8 +186,15 @@ impl Slides {
         let deck = BlockParent::Block(self.editor.block_id());
         let asked = self.editor.host().copy_blocks(source, deck);
         self.editor.then(asked, move |copied| {
-            let (Ok(Some((copy, _))), true) = (copied, slides.selected.is_alive()) else {
-                return;
+            let copy = match copied {
+                Ok(Some((copy, _))) if slides.selected.is_alive() => copy,
+                Err(failure) => {
+                    return slides
+                        .editor
+                        .host()
+                        .report_failure(format!("The slide could not be duplicated. {failure}"));
+                }
+                Ok(_) => return,
             };
             let index = slides
                 .index_of_untracked(id)
@@ -219,8 +223,14 @@ impl Slides {
         let deck = BlockParent::Block(self.editor.block_id());
         let asked = self.editor.host().copy_blocks(notes, deck);
         self.editor.then(asked, move |copied| {
-            let (Ok(Some((copy, _))), true) = (copied, slides.selected.is_alive()) else {
-                return;
+            let copy = match copied {
+                Ok(Some((copy, _))) if slides.selected.is_alive() => copy,
+                Err(failure) => {
+                    return slides.editor.host().report_failure(format!(
+                        "The slide's notes could not be duplicated. {failure}"
+                    ));
+                }
+                Ok(_) => return,
             };
             if slides.slide_blocks(slide).is_some() {
                 slides.block.operate(Presentation::set_notes(
