@@ -4,8 +4,8 @@ use be_sdk_beui::{
     BlockCommand, BlockInfo, BlockParent, BlockTypeDescriptor, ChildOperations, EditorHost,
     OwnedEditor, PickedBlock, Press, Signer,
 };
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_chat::{ChatContent, ChatOp, Message, Signature};
 use uuid::Uuid;
 

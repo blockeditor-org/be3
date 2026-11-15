@@ -10,8 +10,8 @@ use be_sdk_beui::{
     BlockInfo, BlockParent, DesktopBarWatch, DisplaysWatch, EditorHost, HostDisplay, OwnedEditor,
     PowerAvailability, PowerWatch,
 };
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::display::DisplaySettingsRoot;

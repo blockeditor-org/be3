@@ -5,8 +5,8 @@ use be_sdk_beui::{
     DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch,
     InputReach, InputReachWatch, OwnedEditor, Pointing, Rotation,
 };
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input::InputSettingsRoot;

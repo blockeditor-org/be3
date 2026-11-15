@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn a_table_rule_is_drawn_only_where_its_row_has_a_pipe() {

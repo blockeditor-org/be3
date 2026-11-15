@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn lists_and_quotes_are_painted_with_bullets_and_bars() {

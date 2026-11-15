@@ -1,6 +1,6 @@
 use be_sdk_beui::beui::TouchPhase;
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use beui::Vec2;
 use uuid::Uuid;
 

@@ -31,7 +31,10 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
         None,
         "a value no tab holds selects none of them"
     );
-    assert_eq!(document.api::<styled::ChoiceApi<&str>>(empty).selected(), None);
+    assert_eq!(
+        document.api::<styled::ChoiceApi<&str>>(empty).selected(),
+        None
+    );
     let after_focus = document.api::<unstyled::ButtonApi>(after).focused();
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);

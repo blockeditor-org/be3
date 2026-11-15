@@ -27,7 +27,10 @@ fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let shown = |harness: &Harness| shown_fit(harness.document(), tabs);
     let wide = shown(&harness);
     assert_eq!(
-        harness.document().api::<styled::ChoiceApi<&str>>(wide).selected(),
+        harness
+            .document()
+            .api::<styled::ChoiceApi<&str>>(wide)
+            .selected(),
         Some("Load"),
         "tabs that fit show the tab list"
     );

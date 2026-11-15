@@ -109,11 +109,7 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
         block.and_then(|(id, _)| editor.blocks().info(id)?.metadata.get(&PREFERRED_EDITOR))
     });
     view! {
-        <MenuItem
-            label="Opens in"
-            glyph=ICON_APP_WINDOW
-            @test_id={"file-tree.opens-in".to_owned()}
-        >
+        <MenuItem label="Opens in" glyph=ICON_APP_WINDOW @test_id={"file-tree.opens-in".to_owned()}>
             <ForEach value={keys}>|chosen: Uuid| {
                 let label = move || match chosen.is_nil() {
                     true => "Your default editor".to_owned(),

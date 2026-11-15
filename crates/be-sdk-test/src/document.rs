@@ -1,9 +1,9 @@
 use std::ops::{Deref, DerefMut};
 
 use beui::Vec2;
+use beui::native::Context;
 use beui::native::Document;
 use beui::native::WindowSize;
-use beui::native::Context;
 use beui_host::native::testing::{Gui, Showing, Stepped, Wraps};
 use beui_host::{native::FontLibrary, native::FreetypeFonts};
 

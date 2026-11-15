@@ -3,8 +3,8 @@ use be_sdk_beui::be_block_content::block_url::block_url;
 use be_sdk_beui::be_block_content::presence::{PresenceColor, PresenceKind};
 use be_sdk_beui::beui::Modifiers;
 use be_sdk_beui::{EditorHost, OwnedEditor};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use beui::Key;
 use uuid::Uuid;
 

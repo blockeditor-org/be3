@@ -116,7 +116,10 @@ pub(super) fn AppearanceSection(
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
                             </ForEach>
                             <ForEach value={custom_scale}>|percent: u32|
-                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
                         selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {
@@ -149,7 +152,10 @@ pub(super) fn AppearanceSection(
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
                             </ForEach>
                             <ForEach value={custom_keyboard}>|percent: u32|
-                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
                         selected={Binding::new(selected_keyboard, move |chosen: Option<Option<u32>>| {

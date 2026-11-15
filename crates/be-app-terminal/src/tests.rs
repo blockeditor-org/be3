@@ -4,8 +4,8 @@ use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Key, Modifiers, NodeId, PointerButton, Pos2, Rect, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor, PeerPresence};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_terminal::{
     Terminal, TerminalColor, TerminalColors, TerminalContent, TerminalCursor, TerminalHost,
     TerminalLine, TerminalMessage, TerminalShell, TerminalSize, TerminalStyle,

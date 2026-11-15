@@ -504,7 +504,13 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
         }
     };
     view! {
-        <MenuItem label="Settings" glyph=ICON_SETTINGS disabled @test_id={row_test_id} on_click={open} />
+        <MenuItem
+            label="Settings"
+            glyph=ICON_SETTINGS
+            disabled
+            @test_id={row_test_id}
+            on_click={open}
+        />
     }
 }
 

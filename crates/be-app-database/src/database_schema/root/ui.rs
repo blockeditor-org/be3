@@ -235,7 +235,9 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach value={FIELD_TYPES.map(|(kind, _, _)| kind).to_vec()}>|kind: DatabaseFieldType|
+                                <ForEach
+                                    value={FIELD_TYPES.map(|(kind, _, _)| kind).to_vec()}
+                                >|kind: DatabaseFieldType|
                                     <ChoiceOption value=kind label={field_type_label(kind)} />
                                 </ForEach>
                             }}
@@ -381,7 +383,9 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach value={NUMBER_SCALES.map(|(scale, _)| scale).to_vec()}>|scale: DatabaseNumberScale|
+                                <ForEach
+                                    value={NUMBER_SCALES.map(|(scale, _)| scale).to_vec()}
+                                >|scale: DatabaseNumberScale|
                                     <ChoiceOption value=scale label={number_scale_label(scale)} />
                                 </ForEach>
                             }}

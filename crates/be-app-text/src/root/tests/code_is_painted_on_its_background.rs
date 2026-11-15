@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn code_is_painted_on_its_background() {

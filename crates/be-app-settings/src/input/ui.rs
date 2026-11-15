@@ -13,8 +13,8 @@ use be_sdk_beui::{
 };
 
 use super::remapper::RemapperSetting;
-use beui::Extent;
 use crate::custom::unlisted;
+use beui::Extent;
 
 const VALUE_WIDTH: f32 = 64.0;
 

@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use be_sdk_test::prelude::*;
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::{Image, Input, Modifiers, Vec2};
 
 use super::*;

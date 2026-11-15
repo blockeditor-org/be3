@@ -1,7 +1,7 @@
 use be_sdk_beui::be_block_content::{Edit, ObjectId};
 use be_sdk_beui::beui::native::Document;
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_checklist::{Checklist as ChecklistModel, ChecklistContent};
 use uuid::Uuid;
 

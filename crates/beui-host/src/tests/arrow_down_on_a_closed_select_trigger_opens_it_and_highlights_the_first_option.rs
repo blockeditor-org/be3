@@ -25,12 +25,22 @@ fn arrow_down_on_a_closed_select_trigger_opens_it_and_highlights_the_first_optio
     });
     harness.frame(Vec::new());
 
-    assert!(!harness.document().api::<unstyled::SelectApi<&str>>(select).open());
+    assert!(
+        !harness
+            .document()
+            .api::<unstyled::SelectApi<&str>>(select)
+            .open()
+    );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(harness.document().api::<unstyled::SelectApi<&str>>(select).open());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::SelectApi<&str>>(select)
+            .open()
+    );
     assert_eq!(
         harness
             .document()

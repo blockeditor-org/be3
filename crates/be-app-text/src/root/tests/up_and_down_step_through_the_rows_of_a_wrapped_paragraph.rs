@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::{editor, step_through_wrapped_line};
+use be_sdk_test::prelude::*;
 
 #[test]
 fn up_and_down_step_through_the_rows_of_a_wrapped_paragraph() {

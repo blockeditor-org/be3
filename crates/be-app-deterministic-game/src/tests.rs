@@ -2,8 +2,8 @@ use be_sdk_beui::be_block_content::BlockContent;
 
 use be_sdk_beui::beui::{Pos2, Vec2};
 use be_sdk_beui::{Creation, EditorHost, OwnedEditor};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_deterministic_game::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
 };

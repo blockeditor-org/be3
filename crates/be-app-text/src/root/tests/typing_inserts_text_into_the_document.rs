@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::{editor, text};
+use be_sdk_test::prelude::*;
 
 #[test]
 fn typing_inserts_text_into_the_document() {

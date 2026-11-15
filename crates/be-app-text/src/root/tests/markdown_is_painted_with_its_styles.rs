@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn markdown_is_painted_with_its_styles() {

@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::datetime::Date;
 use beui::native::Document;
 use beui::{Input, NodeId, Pos2, Vec2, pos2};

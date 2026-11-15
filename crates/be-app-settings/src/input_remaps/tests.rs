@@ -1,8 +1,8 @@
 use be_block_input::{InputRemapper, InputRemapperContent};
 use be_sdk_beui::beui::{Key, Modifiers, Vec2, pos2};
 use be_sdk_beui::{EditorHost, OwnedEditor, RemapState, RemapsWatch};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::input_remaps::InputRemapsRoot;

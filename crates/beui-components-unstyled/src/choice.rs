@@ -220,68 +220,70 @@ where
         direction,
     };
     api.fill(ChoiceApi(state));
-    let buttons = options.build_keyed(move |built: Rc<ChoiceOption<T>>, index: ReadSignal<usize>| {
-        let label = built.label;
-        let value = built.value.clone();
-        let is_selected = create_memo(move || selection.is_selected(&Some(index.get())));
-        let id = option_key(&built);
-        let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
-        let focus_here = focused.memo(Some(id));
-        let button = view! {
-            <unstyled::Button
-                cursor
-                tab_stop={tab_stop}
-                focused={focus_here}
-                accessibility={move || {
-                    let mut node = Node::new(match kind {
-                        ChoiceKind::Tabs => Role::Tab,
-                        ChoiceKind::Radio => Role::RadioButton,
-                    });
-                    if label.is_alive() {
-                        node.set_label(label.get());
-                    }
-                    if kind == ChoiceKind::Radio {
-                        node.set_toggled(Toggled::from(is_selected.get()));
-                    } else {
-                        node.set_selected(is_selected.get());
-                    }
-                    node
-                }}
-                on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
-                on_click={move || select(state, index.get_untracked())}
-                on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
-            >|button: ButtonHandle| {
-                option.call(ChoiceOptionHandle {
-                    value: value.clone(),
-                    label: label.into_prop(),
-                    selected: is_selected,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }</unstyled::Button>
-        };
-        if let Some(test_id) = built.test_id() {
-            bind_test_id(button, test_id);
-        }
-        let node = match item {
-            Some(item) => item.call(ChoiceItem {
-                value: built.value.clone(),
-                button,
-            }),
-            None => button,
-        };
-        view! {
-            <ListItem
-                shrink={move || match shrink.get() {
-                    true => 1.0,
-                    false => 0.0,
-                }}
-            >
-                {node}
-            </ListItem>
-        }
-    });
+    let buttons = options.build_keyed(
+        move |built: Rc<ChoiceOption<T>>, index: ReadSignal<usize>| {
+            let label = built.label;
+            let value = built.value.clone();
+            let is_selected = create_memo(move || selection.is_selected(&Some(index.get())));
+            let id = option_key(&built);
+            let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
+            let focus_here = focused.memo(Some(id));
+            let button = view! {
+                <unstyled::Button
+                    cursor
+                    tab_stop={tab_stop}
+                    focused={focus_here}
+                    accessibility={move || {
+                        let mut node = Node::new(match kind {
+                            ChoiceKind::Tabs => Role::Tab,
+                            ChoiceKind::Radio => Role::RadioButton,
+                        });
+                        if label.is_alive() {
+                            node.set_label(label.get());
+                        }
+                        if kind == ChoiceKind::Radio {
+                            node.set_toggled(Toggled::from(is_selected.get()));
+                        } else {
+                            node.set_selected(is_selected.get());
+                        }
+                        node
+                    }}
+                    on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
+                    on_click={move || select(state, index.get_untracked())}
+                    on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
+                >|button: ButtonHandle| {
+                    option.call(ChoiceOptionHandle {
+                        value: value.clone(),
+                        label: label.into_prop(),
+                        selected: is_selected,
+                        hovered: button.hovered,
+                        active: button.active,
+                        focused: button.focused,
+                    })
+                }</unstyled::Button>
+            };
+            if let Some(test_id) = built.test_id() {
+                bind_test_id(button, test_id);
+            }
+            let node = match item {
+                Some(item) => item.call(ChoiceItem {
+                    value: built.value.clone(),
+                    button,
+                }),
+                None => button,
+            };
+            view! {
+                <ListItem
+                    shrink={move || match shrink.get() {
+                        true => 1.0,
+                        false => 0.0,
+                    }}
+                >
+                    {node}
+                </ListItem>
+            }
+        },
+    );
 
     view! {
         <List direction wrap spacing children={buttons} />

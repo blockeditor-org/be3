@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn the_copy_button_copies_a_code_block_without_its_fences() {

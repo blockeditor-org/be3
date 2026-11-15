@@ -7,8 +7,8 @@ use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::be_block_content::presence::PresenceKind;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_database::database::DatabaseValue;
 use be_type_infinite_canvas::Canvas;
 use be_type_infinite_canvas::{

@@ -250,7 +250,12 @@ pub trait Gui {
 
     /// A drag in `steps` moves of the pointer.
     fn drag_in(&mut self, from: impl Into<Target>, to: impl Into<Target>, steps: usize) {
-        act(self, "drag", &[from.into(), to.into()], &[steps.to_string()]);
+        act(
+            self,
+            "drag",
+            &[from.into(), to.into()],
+            &[steps.to_string()],
+        );
     }
 
     fn wheel(&mut self, target: impl Into<Target>, down: i32, right: i32) {

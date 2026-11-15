@@ -1,8 +1,8 @@
 use crate as unstyled;
 use crate::ChoiceOption;
-use crate::choice::{keyed, option_key};
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
+use crate::choice::{keyed, option_key};
 use crate::form::Posted;
 use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
@@ -258,11 +258,10 @@ fn trigger_key<T: Clone + PartialEq + 'static>(state: State<T>, press: KeyPress)
         open(state);
         let options = state.options.value().get_untracked();
         let count = options.len();
-        let current = state.highlighted.get_untracked().and_then(|key| {
-            options
-                .iter()
-                .position(|option| option_key(option) == key)
-        });
+        let current = state
+            .highlighted
+            .get_untracked()
+            .and_then(|key| options.iter().position(|option| option_key(option) == key));
         let next = match press.key {
             Key::ArrowDown => current.map_or(0, |at| (at + 1).min(count.saturating_sub(1))),
             Key::ArrowUp => current.map_or(0, |at| at.saturating_sub(1)),

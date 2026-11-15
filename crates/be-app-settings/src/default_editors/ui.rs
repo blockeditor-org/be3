@@ -1,3 +1,4 @@
+use crate::custom::unlisted;
 use be_sdk_beui::be_sdk_ui::BlockTypes;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
@@ -5,7 +6,6 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
 use be_type_settings::EditorSettings;
 use beui::Extent;
-use crate::custom::unlisted;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq)]
@@ -98,7 +98,13 @@ fn DefaultEditor(
         format!("Default ({name})")
     };
     let ids = create_memo(move || {
-        choices.with(|choices| choices.editors.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
+        choices.with(|choices| {
+            choices
+                .editors
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<Vec<Uuid>>()
+        })
     });
     let selected = create_memo(move || Some(chosen.get()));
     let custom = unlisted(chosen, move |id| ids.with(|ids| ids.contains(id)));

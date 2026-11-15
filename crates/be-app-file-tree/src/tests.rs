@@ -2,8 +2,8 @@ use be_sdk_beui::be_block_content::EditorViewContent;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 use uuid::Uuid;
 

@@ -1,8 +1,8 @@
-use be_sdk_test::prelude::*;
 use super::{
     BeuiTest, EditorHost, Key, ORGANIZATION_ID, OwnedEditor, TextBlock, TextRoot, Uuid, block_url,
 };
 use be_sdk_beui::beui::Modifiers;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn checkboxes_and_block_chips_line_up_with_their_text() {

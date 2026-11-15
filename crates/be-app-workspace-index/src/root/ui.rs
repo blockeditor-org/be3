@@ -185,9 +185,18 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption value=FolderView::LargeGrid label={FolderView::LargeGrid.label()} />
-                                    <ChoiceOption value=FolderView::SmallGrid label={FolderView::SmallGrid.label()} />
-                                    <ChoiceOption value=FolderView::List label={FolderView::List.label()} />
+                                    <ChoiceOption
+                                        value=FolderView::LargeGrid
+                                        label={FolderView::LargeGrid.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderView::SmallGrid
+                                        label={FolderView::SmallGrid.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderView::List
+                                        label={FolderView::List.label()}
+                                    />
                                 }}
                                 selected={Binding::new(shown_mode, move |chosen: Option<FolderView>| {
                                     if let Some(shown) = chosen {
@@ -201,9 +210,18 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption value=FolderSort::Intrinsic label={FolderSort::Intrinsic.label()} />
-                                    <ChoiceOption value=FolderSort::Name label={FolderSort::Name.label()} />
-                                    <ChoiceOption value=FolderSort::Type label={FolderSort::Type.label()} />
+                                    <ChoiceOption
+                                        value=FolderSort::Intrinsic
+                                        label={FolderSort::Intrinsic.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderSort::Name
+                                        label={FolderSort::Name.label()}
+                                    />
+                                    <ChoiceOption
+                                        value=FolderSort::Type
+                                        label={FolderSort::Type.label()}
+                                    />
                                 }}
                                 selected={Binding::new(shown_sort, move |chosen: Option<FolderSort>| {
                                     if let Some(order) = chosen {

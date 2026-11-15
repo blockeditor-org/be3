@@ -3,8 +3,8 @@ use be_type_logic_grid::CompiledLogicContent;
 
 use be_sdk_beui::beui::{Key, Pos2, Vec2};
 use be_sdk_beui::{Artifact, Artifacts, EditorHost};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use be_type_logic_grid::LogicGridContent;
 use logicgame::grid::LogicGrid as Grid;
 use uuid::Uuid;

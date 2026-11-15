@@ -282,7 +282,10 @@ pub(super) fn ScreenSection(
                         width={Extent::fraction(1.0)}
                         options={view! {
                             <ForEach value={rate_list}>|mode: DisplayMode|
-                                <ChoiceOption value=mode label={rate_label(mode.refresh_millihertz)} />
+                                <ChoiceOption
+                                    value=mode
+                                    label={rate_label(mode.refresh_millihertz)}
+                                />
                             </ForEach>
                         }}
                         selected={Binding::new(chosen, move |mode: Option<DisplayMode>| {
@@ -313,7 +316,10 @@ pub(super) fn ScreenSection(
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
                             </ForEach>
                             <ForEach value={custom_scale}>|percent: u32|
-                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
+                                <ChoiceOption
+                                    value={Some(percent)}
+                                    label={format!("Custom ({percent}%)")}
+                                />
                             </ForEach>
                         }}
                         selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {

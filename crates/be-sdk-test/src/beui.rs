@@ -23,9 +23,7 @@ use be_sdk_beui::{
     ViewChange, WebViewCommand, WebViewId,
 };
 use beui::native::Document;
-use beui::{
-    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
-};
+use beui::{Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2};
 use beui_host::native::testing::{FRAME_INTERVAL, Gui, Recording, Snapshots, Target, Wakes};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
@@ -166,7 +164,6 @@ pub struct BeuiTest<A: BeuiRoot> {
     drawn_screens: Vec<(ScreenId, beui::WindowId)>,
     root: PhantomData<A>,
 }
-
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {

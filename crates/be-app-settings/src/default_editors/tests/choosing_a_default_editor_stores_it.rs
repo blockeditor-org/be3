@@ -2,8 +2,8 @@ use be_sdk_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescripto
 use be_type_settings::EditorSettingsContent;
 
 use be_sdk_beui::beui::{Key, Modifiers};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::default_editors::DefaultEditorsRoot;

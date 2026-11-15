@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use be_sdk_test::DocumentTest;
+use be_sdk_test::prelude::*;
 use beui::{Input, Key, Vec2, pos2};
 
 use super::*;

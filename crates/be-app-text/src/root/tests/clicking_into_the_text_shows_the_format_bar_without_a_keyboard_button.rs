@@ -1,5 +1,5 @@
-use be_sdk_test::prelude::*;
 use super::editor;
+use be_sdk_test::prelude::*;
 
 #[test]
 fn clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button() {

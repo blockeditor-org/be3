@@ -9,8 +9,8 @@ use be_sdk_beui::{BlockInfo, BlockParent};
 
 use be_sdk_beui::be_block::SettingsContent;
 use be_sdk_beui::{EditorHost, OwnedEditor};
-use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
+use be_sdk_test::prelude::*;
 use uuid::Uuid;
 
 use crate::root::SettingsRoot;

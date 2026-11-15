@@ -590,7 +590,10 @@ impl<A: Program + 'static> Stepped<A> {
         }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
-            panic!("the program panicked: {failure}\n{}", gui::replay(&self.steps));
+            panic!(
+                "the program panicked: {failure}\n{}",
+                gui::replay(&self.steps)
+            );
         }
     }
 
