@@ -10,9 +10,17 @@ fn a_lists_slots_rest_where_the_carried_row_would_land_among_rows_of_any_length(
     let (c, _) = fixture.node(Rect::from_min_size(pos2(100.0, 160.0), vec2(200.0, 60.0)));
     let rows = ForEachRef::<char, NodeId>::new();
     let index = create_signal(0_usize).read_only();
-    rows.show(
-        vec!['a', 'b', 'c'],
-        vec![('a', index, vec![a]), ('b', index, vec![b]), ('c', index, vec![c])],
+    let fill = rows.claim();
+    fill.keys(Rc::from(['a', 'b', 'c']));
+    fill.rows(
+        [('a', a), ('b', b), ('c', c)]
+            .into_iter()
+            .map(|(key, node)| ShownRow {
+                key,
+                index,
+                nodes: vec![node],
+            })
+            .collect(),
     );
 
     let slots = slots_with(&*fixture.flat, list, rows, &'b', Direction::Vertical);

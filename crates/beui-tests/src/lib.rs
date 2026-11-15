@@ -177,6 +177,9 @@ pub fn Fixture(name: String) -> Root {
         "drag" => view! {
             <rows::DragFixture />
         },
+        "carry" => view! {
+            <rows::CarryFixture />
+        },
         "reorder" => view! {
             <rows::ReorderFixture />
         },
