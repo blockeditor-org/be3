@@ -1,5 +1,7 @@
 use super::*;
 
+mod be_release_moves_only_with_the_server;
+mod the_cdn_must_send_isolation_and_worker_headers;
 mod a_versioned_artifact_cannot_be_replaced_with_different_bytes;
 mod download_pages_discourage_crawlers;
 mod download_pages_escape_values_and_preserve_download_links;

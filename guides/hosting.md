@@ -202,8 +202,9 @@ A deployed download connects only to a server of its own build.
 
 Deploy from the Actions tab: the Deploy workflow, dispatched on a branch, runs `./scripts/deploy`
 on that branch's head, its inputs turning off the steps below as the `--skip-*` flags do, or
-making it a `--dry-run`. Its keys are secrets of the `deploy` environment (Keys, below), whose
-protection rules decide who and which branches may deploy. `./scripts/deploy` still runs from a
+making it a `--dry-run`. Any branch may deploy: the workflow checks none on purpose. Its keys
+are secrets of the `deploy` environment (Keys, below), and that environment's protection rules
+are the only gate on who deploys and from where. `./scripts/deploy` still runs from a
 checkout with the keys, but nothing needs it to.
 
 `./scripts/deploy` (be-tool-local's `deploy`) builds be-server, `be` and be-host for every
@@ -224,7 +225,8 @@ platform in release in one buck2 command, then:
    else outside `data/` changes. The page registers the bundle's own `data/BUILD/web/sw.js` with
    scope `/`, so a new build is a new worker.
 
-`--dry-run` changes nothing; `--skip-server` uploads versioned files only; `--skip-downloads` and
+`--dry-run` changes nothing; `--skip-server` uploads versioned files only, and `--skip-be` needs it,
+since a swapped server refuses the last build's `be`; `--skip-downloads` and
 `--skip-android` avoid needing the keystore; `--help` lists the rest. It refuses a dirty working
 tree, so every deployment can be rebuilt, and writes nothing into the checkout.
 
@@ -243,9 +245,10 @@ installed apps accept updates only with the same certificate.
 
 The workflow's `deploy` environment holds them as `BE3_DEPLOY_BUNNY_STORAGE_KEY`,
 `BE3_DEPLOY_BUNNY_API_KEY` and `BE3_ANDROID_RELEASE_KEYSTORE` (the keystore's base64), with
-`BE3_DEPLOY_SSH_KEY`, a private key whose public half `servers/common.nix` authorizes for
-`root`, `BE3_DEPLOY_KNOWN_HOSTS`, the VPS's `known_hosts` line, and the build server's
-`BE3_NL_TOKEN` (guides/build_server.md).
+`BE3_DEPLOY_SSH_KEY`, the CI deploy key, a key made for deploys alone whose public half is the
+"CI deploy key" entry among `root`'s keys in `servers/common.nix` (deployed to the server like
+any change there, guides/servers.md), `BE3_DEPLOY_KNOWN_HOSTS`, the VPS's `known_hosts` line,
+and the build server's `BE3_NL_TOKEN` (guides/build_server.md).
 
 ### The CDN
 

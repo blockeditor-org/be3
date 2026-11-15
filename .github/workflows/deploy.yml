@@ -6,11 +6,12 @@ name: Deploy
 # zone, swaps the server on the VPS and points index.html and live/ at
 # the new build.
 #
-# It runs the dispatched branch's code with every deployment key, so the keys
-# live in the deploy environment, whose protection rules (required reviewers,
-# which branches may deploy) are set in the repository's settings rather than
-# here. Only someone with write access can dispatch it, and a ref can only be
-# dispatched if it has this file.
+# Any branch may deploy, on purpose: nothing here checks which one. It runs
+# the dispatched branch's code with every deployment key, so the keys live in
+# the deploy environment, and its protection rules (required reviewers, and
+# branches if they are ever limited), set in the repository's settings, are
+# what gate a deployment. Only someone with write access can dispatch it, and
+# a ref can only be dispatched if it has this file.
 on:
   workflow_dispatch:
     inputs:
@@ -19,7 +20,7 @@ on:
         type: boolean
         default: true
       be:
-        description: Upload be
+        description: Upload be (off needs server off, since the server refuses a be from another build)
         type: boolean
         default: true
       web:
@@ -67,8 +68,9 @@ jobs:
 
       - uses: $/.github/actions/buck2
 
-      # ssh and scp reach the VPS as root (BE3_DEPLOY_HOST's default) with this
-      # key, whose public half servers/common.nix authorizes, checking the host
+      # ssh and scp reach the VPS as root (BE3_DEPLOY_HOST's default) with the
+      # CI deploy key, a key used for nothing else, whose public half is the
+      # "CI deploy key" entry in servers/common.nix; they check the host
       # against the recorded key rather than trusting the first one offered. The release
       # keystore signs the APK on this runner; no key enters a build action.
       - name: Install the deployment keys

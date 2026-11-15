@@ -75,7 +75,14 @@ fn live_release() -> Result<String> {
     std::fs::create_dir_all(path.parent().unwrap_or(repository()))
         .map_err(|error| format!("could not create {}: {error}", path.display()))?;
     let partial = partial_path(&path);
-    fetch(&format!("{MIRROR}/live/be-release"), &partial)?;
+    let _ = std::fs::remove_file(&partial);
+    if !fetch_https(&partial, &format!("{MIRROR}/live/be-release"))? {
+        let _ = std::fs::remove_file(&partial);
+        return Err(format!(
+            "Could not download {MIRROR}/live/be-release, which names the build the server runs: \
+             no deploy has published it yet, or the mirror cannot be reached (guides/tracker.md)."
+        ));
+    }
     let read = std::fs::read_to_string(&partial);
     let _ = std::fs::remove_file(&partial);
     let release = read

@@ -20,7 +20,8 @@ release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
 the new build, and points live/be-release on the mirror at the uploaded be,
 which ./scripts/be downloads. index.html and live/ are the mirror's only
-mutable files.
+mutable files. --skip-be needs --skip-server, since the server refuses a be
+from another build.
 
 The downloads are the app with its apps for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
@@ -136,6 +137,12 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
     }
     if options.repository.as_os_str().is_empty() || options.server.as_os_str().is_empty() {
         return Err(format!("run this through ./scripts/deploy\n\n{USAGE}"));
+    }
+    if options.skip_be && !options.skip_server {
+        return Err(format!(
+            "--skip-be needs --skip-server: the server refuses a be from another build, so swapping \
+             it without uploading this build's be would leave {BE_RELEASE} naming a be it refuses"
+        ));
     }
     Ok(options)
 }
@@ -427,11 +434,11 @@ fn run(options: &mut Options) -> Result<(), String> {
         println!("the downloads for build {build} are at {mirror}/live/downloads.html");
     }
 
-    if !options.skip_be && !options.skip_server {
+    if let Some(release) = be_release(options, &build) {
         store.put(
             "the release ./scripts/be downloads",
             BE_RELEASE,
-            format!("{build}\n").as_bytes(),
+            release.as_bytes(),
             "text/plain; charset=utf-8",
             false,
         )?;
@@ -900,6 +907,13 @@ fn upload(
         .send_bytes(bytes)
         .map_err(|error| format!("uploading to {url} failed: {error}"))?;
     Ok(())
+}
+
+/// What `live/be-release` becomes, or `None` when this deployment leaves it alone: it names the
+/// build the server runs, so it moves only with a server swap, which always uploads `be` (`parse`
+/// refuses `--skip-be` without `--skip-server`).
+fn be_release(options: &Options, build: &str) -> Option<String> {
+    (!options.skip_server && !options.skip_be).then(|| format!("{build}\n"))
 }
 
 /// The headers the pull zone must send with a file for the web build to work: the bundle's page

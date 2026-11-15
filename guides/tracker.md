@@ -12,7 +12,9 @@ row is a search document (`Database::search_text_in`).
 another build, so on every run the script reads the live build's id from
 `https://be3.pfg.pw/live/be-release`, which each deploy rewrites (guides/hosting.md), and runs that
 build's `be` with its `build-info.json`, downloaded once into `target/tools/be-BUILD/`
-unpinned: the CDN is trusted for it. A `be` built from the checkout
+unpinned: the CDN is trusted for it (decisions/be_is_downloaded_unpinned.md). Reading the id
+is one network round trip on every run, so `./scripts/be` needs the mirror even when that `be`
+is already downloaded. A `be` built from the checkout
 (`./scripts/buck run //crates/be-tool-cli:native -- ARGS`) talks only to a dev server built from
 the same tree.
 
