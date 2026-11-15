@@ -82,6 +82,12 @@ without the rest. Not to
 references (guides/blocks/server.md, "Organizations and access"), and the log
 names every grantee.
 
+Likewise, members with `Edit` or above on any block of a company organization
+are served the organization's whole log, not a proof path: a sealer checking a
+grant an administrator signed must know the signer was not demoted before it,
+and a proof path could hide that demotion. It reveals only who is or was an
+administrator.
+
 Readers below Edit (View, and Join in plans/hosted_blocks.md), who never
 seal, are served **proof paths**: the entries that prove one right, and the
 chain they hang from, and nothing about other members.
@@ -94,8 +100,8 @@ chain they hang from, and nothing about other members.
   Siblings and the ancestors' other members are not on it.
 - **Authorship**: the root or the latest owner record, and the proof that the
   author can view the parent.
-- **An administrator**: the organization log's path from its root to the
-  record that made them one.
+- **An administrator**, for a reader below Edit: the organization log's path
+  from its root to the record that made them one.
 
 A reader below Edit is served the path of its own grant. Hosted blocks add
 the host's grant and bans (plans/hosted_blocks.md). A proof path can hide a
