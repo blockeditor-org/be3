@@ -97,11 +97,6 @@ fn Header(review: Review) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let status = create_memo(move || {
-        review
-            .painting
-            .with(|painting| painting.as_ref().map_or(Status::Changed, |p| p.status))
-    });
     let detail = create_memo(move || {
         review.painting.with(|painting| {
             painting
@@ -138,7 +133,13 @@ fn Header(review: Review) -> NodeId {
                             {name}
                         </Text>
                     </ListItem>
-                    <Dynamic value={status}>|status: Status|
+                    <Dynamic
+                        value={move || {
+                            review
+                                .painting
+                                .with(|painting| painting.as_ref().map_or(Status::Changed, |p| p.status))
+                        }}
+                    >|status: Status|
                         <StatusBadge status />
                     </Dynamic>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.position"}>
@@ -277,7 +278,6 @@ fn Stage(review: Review) -> NodeId {
             })
         })
     });
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let camera = review.camera;
     let fit_request = create_signal(0u64);
     let centering = create_memo(move || (review.open.get(), content.get()));
@@ -444,7 +444,7 @@ fn Stage(review: Review) -> NodeId {
                                         {notice}
                                     </Text>
                                 </Show>
-                                <Show value={move || failure.with(Option::is_some)}>
+                                <Show value={failure}>|reason: ReadSignal<String>|
                                     <Text
                                         color=TextColor::Danger
                                         @test_id={"paint_review.image.failed"}
