@@ -221,9 +221,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             <RowText cx model text wrap=true on_bounds=bounds />
             <Dynamic
                 value={shown_block}
-                fallback={|| view! {
-                    <Frame />
-                }}
+                fallback=()
             >|index: usize| {
                 let render = cx.block.expect("a block is only shown when the area renders them");
                 let size = block.get_untracked().unwrap_or_default().1;

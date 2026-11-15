@@ -1426,6 +1426,19 @@ fn parse_unbraced_value(input: ParseStream) -> syn::Result<Expr> {
         }));
     }
 
+    if input.peek(syn::token::Paren) {
+        let unit;
+        let paren_token = parenthesized!(unit in input);
+        if unit.is_empty() {
+            return Ok(Expr::Tuple(syn::ExprTuple {
+                attrs: Vec::new(),
+                paren_token,
+                elems: Default::default(),
+            }));
+        }
+        return Err(unit.error("write an expression in parentheses as a braced value: `={(...)}`"));
+    }
+
     if input.peek(Lit) || input.peek(syn::LitBool) {
         let lit: Lit = input.parse()?;
         return Ok(Expr::Lit(ExprLit {
@@ -1461,7 +1474,7 @@ fn parse_unbraced_value(input: ParseStream) -> syn::Result<Expr> {
     }
 
     Err(input.error(
-        "expected a literal, a path, a path call, or a braced expression `={...}` for an attribute value",
+        "expected a literal, a path, a path call, `()`, or a braced expression `={...}` for an attribute value",
     ))
 }
 

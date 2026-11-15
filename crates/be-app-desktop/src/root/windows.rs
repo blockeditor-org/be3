@@ -472,19 +472,14 @@ fn WindowChip(
                         on_click={move || windows.move_to(chip, target)}
                     />
                 </ForEach>
-                {match waiting || display {
-                    true => view! { <></> },
-                    false => view! {
-                        <>
-                            <MenuItem
-                                label="Close"
-                                glyph=ICON_X
-                                row_test_id={close_id}
-                                on_click={move || windows.close(chip)}
-                            />
-                        </>
-                    },
-                }}
+                {(!(waiting || display)).then(|| view! {
+                    <MenuItem
+                        label="Close"
+                        glyph=ICON_X
+                        row_test_id={close_id}
+                        on_click={move || windows.close(chip)}
+                    />
+                })}
             }}
         >
             <unstyled::Button

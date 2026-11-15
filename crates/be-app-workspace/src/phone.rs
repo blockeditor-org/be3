@@ -44,11 +44,7 @@ pub(crate) fn DetailsSheet(workspace: Workspace, sheet: Signal<PhoneSheet>) -> N
             <List spacing=Space::None>
                 <Dynamic
                     value={shown}
-                    fallback={|| view! {
-                        <ListItem grow=1.0>
-                            <Frame />
-                        </ListItem>
-                    }}
+                    fallback=()
                 >|tab: TabId|
                     <ListItem grow=1.0>
                         <DetailsBody workspace sheet tab />

@@ -3376,13 +3376,13 @@ fn TabMenu(
                     disabled={move || !closable.get()}
                     on_click={move || close.call(())}
                 />
-                <Show condition={grouped}>
+                {grouped.then(|| view! {
                     <MenuItem
                         label="Ungroup"
                         disabled={pinned}
                         on_click={move || ungroup.call(())}
                     />
-                </Show>
+                })}
                 <Show condition={offered}>
                     <MenuItem
                         label={fullscreen_label}

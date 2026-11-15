@@ -153,11 +153,7 @@ pub fn OpenRow(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
         <List spacing=Space::None>
             <Dynamic
                 value={row}
-                fallback={|| view! {
-                    <ListItem grow=1.0>
-                        <Frame />
-                    </ListItem>
-                }}
+                fallback=()
             >|row: ObjectId|
                 <ListItem grow=1.0>
                     <RowPanel data={data} row={row} />

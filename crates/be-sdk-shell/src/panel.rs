@@ -247,14 +247,11 @@ pub(crate) fn BlockPanel(
     view! {
         <Frame>
             <List spacing=Space::None>
-                {match session {
-                true => Children::default(),
-                false => view! {
+                {(!session).then(|| view! {
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
                     <DeletedBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
-                },
-            }}
+            })}
                 <TabBar bar={move || bar.call(())} own=true />
                 // A pair, not one `Show` with a fallback: `keep_alive` would also keep the preview's
                 // live editor of the last revision built and paused after the preview closes.
@@ -381,14 +378,11 @@ fn DockedBlockTab(
     }));
     view! {
         <List spacing=Space::None>
-            {match session {
-                true => Children::default(),
-                false => view! {
+            {(!session).then(|| view! {
                     <ArtifactBar workspace={workspace} info={info} />
                     <DeletedBar workspace={workspace} info={info} />
                     <LinkedBar workspace={workspace} info={info} />
-                },
-            }}
+            })}
             <TabBar bar={move || bar.call(())} own />
             <ListItem grow=1.0>
                 <Layers @test_id={"workspace.block"}>{body}</Layers>

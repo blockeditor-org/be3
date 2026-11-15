@@ -987,9 +987,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 open_at={menu_at}
                 on_close={move || menu_at.set(None)}
                 items={view! {
-                    {match floating {
-                        false => Children::default(),
-                        true => view! {
+                    {floating.then(|| view! {
                             <MenuItem
                                 label="Hide"
                                 glyph=ICON_EYE_OFF
@@ -1006,8 +1004,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                                     });
                                 }}
                             />
-                        },
-                    }}
+                    })}
                     <MenuItem
                         label="Close"
                         glyph=ICON_X

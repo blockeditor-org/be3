@@ -65,20 +65,18 @@ impl be_sdk_beui::BeuiRoot for DesktopRoot {
     fn Display(editor: Editor, display: u32) -> NodeId {
         let shared = shared(editor.block_id());
         view! {
-            <Layers>
-                <Show condition={move || shared.with(Option::is_some)}>|| {
-                    let Some(desktop) = shared.get_untracked() else {
-                        return view! {
-                            <Frame />
-                        };
+            <Show condition={move || shared.with(Option::is_some)}>|| {
+                let Some(desktop) = shared.get_untracked() else {
+                    return view! {
+                        <Frame />
                     };
-                    view! {
-                        <Container>|_|
-                            <DisplayBody desktop display />
-                        </Container>
-                    }
-                }</Show>
-            </Layers>
+                };
+                view! {
+                    <Container>|_|
+                        <DisplayBody desktop display />
+                    </Container>
+                }
+            }</Show>
         }
     }
 }

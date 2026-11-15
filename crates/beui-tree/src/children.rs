@@ -429,7 +429,7 @@ lazy_form!(OneOf, CountOne);
 lazy_form!(ZeroOrOne, CountZeroOrOne);
 
 #[diagnostic::on_unimplemented(
-    message = "this slot always holds one `{T}`, and a `Show` without a fallback can hold none: add `fallback=…` so the slot always holds a child",
+    message = "this slot always holds one `{T}`, and this control flow can build none (a `Show` without a fallback, or `fallback=()`): add `fallback=…` so the slot always holds a child",
     label = "this can build no child"
 )]
 pub trait NeedsFallback<T> {
@@ -843,6 +843,12 @@ impl<T: SlotChild> IntoSegment<T> for Children<T> {
     }
 }
 
+impl<T: SlotChild> IntoSegment<T> for Option<Children<T>> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(self.map(|children| children.0).unwrap_or_default())
+    }
+}
+
 #[macro_export]
 macro_rules! child_type {
     (<$($generic:ident),*> $ty:ty) => {
@@ -855,6 +861,12 @@ macro_rules! child_type {
         impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for $ty {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::One(self)
+            }
+        }
+
+        impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for ::core::option::Option<$ty> {
+            fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
+                $crate::reactive::ChildSegment::Many(self.into_iter().collect())
             }
         }
 

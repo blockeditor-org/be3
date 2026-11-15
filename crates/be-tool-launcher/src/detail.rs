@@ -204,9 +204,7 @@ fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
         <List spacing=Space::None>
             <Dynamic
                 value={entry}
-                fallback={|| view! {
-                    <Frame />
-                }}
+                fallback=()
             >|entry: Entry| {
                 match entry {
                     Entry::Comment { author, verb, tone, when, url, body, inline } => view! {
