@@ -140,6 +140,11 @@ pub struct Seen {
     /// a session's journal. Unlike `error`, it is about being in step with the server, so it
     /// clears once the device is connected and nothing waits to be sent (`report`).
     pub sync_error: Option<String>,
+    /// What the last drain that ran answered of what it did not send (`Drained` other than
+    /// `Created`, `Published`, `Moved` and `Defined`), which `unsynced` names beside the outbox
+    /// they leave waiting, with the errors recorded. A drain that fails as a whole leaves the
+    /// outcomes of the one before, its error in `sync_error`.
+    pub last_drain: Vec<String>,
     pub conflicts: Part<imbl::HashMap<Uuid, Vec<Conflict>>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Part<Vec<be_block_client::Contact>>,
@@ -229,7 +234,7 @@ impl Seen {
                 .collect();
             let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
             reasons.push(format!(
-                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}",
+                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}; the last left [{}]; errors: {:?}, {:?}",
                 self.unsealed,
                 unsealed.join("; "),
                 self.waiting,
@@ -239,6 +244,9 @@ impl Seen {
                     true => "one under way",
                     false => "none under way",
                 },
+                self.last_drain.join(", "),
+                self.error,
+                self.sync_error,
             ));
         }
         reasons

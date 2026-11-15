@@ -1871,6 +1871,20 @@ async fn drain_outbox(
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .last_drain = drained
+                .iter()
+                .filter(|outcome| {
+                    !matches!(
+                        outcome,
+                        be_block_client::Drained::Created { .. }
+                            | be_block_client::Drained::Published { .. }
+                    )
+                })
+                .map(|outcome| format!("{outcome:?}"))
+                .collect();
             // A block any of whose commits was refused or set aside keeps them unsent; one
             // that failed or diverged tries again.
             let refused: std::collections::HashSet<Uuid> = drained
