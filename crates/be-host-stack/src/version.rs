@@ -2590,9 +2590,10 @@ async fn merge_over(
             let base = match found {
                 MergeBase::Behind => return Ok(None),
                 MergeBase::Base(base) => Some(base),
-                // Edits made while the command ran reach this deep only on top of the head it
-                // read, which is then their common ancestor.
-                MergeBase::TooDeep => Some(made_from),
+                // Edits made while the command ran reach this deep, or past what the server
+                // thinned away of their history, only on top of the head it read, which is
+                // then their common ancestor.
+                MergeBase::Unreached => Some(made_from),
                 MergeBase::Unrelated => None,
             };
             match base {

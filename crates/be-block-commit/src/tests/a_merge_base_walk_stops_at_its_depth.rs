@@ -1,5 +1,7 @@
 use super::*;
 
+use be_block_store::ObjectStore;
+
 /// What the walk found, and how many commits it reached.
 fn walk(
     store: &CommitStore<MemoryStore>,
@@ -48,7 +50,7 @@ fn a_merge_base_walk_stops_at_its_depth() {
     );
     assert_eq!(
         merge_base(&store, ours, theirs, 3),
-        MergeBase::TooDeep,
+        MergeBase::Unreached,
         "one side reaches the fork only past the depth"
     );
     assert_eq!(
@@ -69,7 +71,7 @@ fn a_merge_base_walk_stops_at_its_depth() {
     let long_theirs = chain(&store, shared, 50, 7_000);
     assert_eq!(
         walk(&store, long_ours, long_theirs, 10),
-        (MergeBase::TooDeep, 2 * 11),
+        (MergeBase::Unreached, 2 * 11),
         "the walk reaches no commit past its depth"
     );
     assert_eq!(
@@ -84,5 +86,16 @@ fn a_merge_base_walk_stops_at_its_depth() {
         merge_base(&store, ours, unrelated, 64),
         MergeBase::Unrelated,
         "histories that share nothing end before the depth"
+    );
+
+    // Retention thinned away a commit on their side: its chain ends there, though the fork
+    // lies past it, so the walk cannot tell they are unrelated.
+    let thinned = chain(&store, shared, 3, 8_000);
+    let past_the_gap = chain(&store, thinned, 2, 9_000);
+    store.vault().store().remove(thinned.hash()).unwrap();
+    assert_eq!(
+        merge_base(&store, long_ours, past_the_gap, 64),
+        MergeBase::Unreached,
+        "a chain cut short by thinning is not a root"
     );
 }

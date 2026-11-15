@@ -163,17 +163,18 @@ pub enum MergeBase {
     Behind,
     /// The common ancestor nearest the two heads.
     Base(CommitId),
-    /// The two histories share no commit: each was walked to its root, or as far as it is held.
+    /// The two histories share no commit: each was walked to its root.
     Unrelated,
-    /// They did not meet within the walk's depth.
-    TooDeep,
+    /// They did not meet within the walk's depth, or before a side reached a commit the store
+    /// lacks (retention thinned it away), which says nothing of what lies past it.
+    Unreached,
 }
 
 /// A walk from two heads back to their common ancestor, a level of parents on each side at a
 /// time, that gives up past a depth: a merge wants the nearest base, and history deeper than
 /// that is not worth reading for it. The caller fetches `frontier` before each `step`, so a
 /// peer reads from the server only the commits the walk reaches. A commit the store lacks ends
-/// its chain (`CommitStore::parents_of`).
+/// its chain, but not as a root does: a walk that ends there is `Unreached`, not `Unrelated`.
 pub struct MergeBaseWalk {
     theirs: CommitId,
     sides: [Side; 2],
@@ -186,6 +187,8 @@ struct Side {
     seen: HashMap<CommitId, usize>,
     /// The commits reached at the last level, whose parents the next step reads.
     frontier: Vec<CommitId>,
+    /// Whether it reached a commit the store lacks.
+    cut: bool,
 }
 
 impl MergeBaseWalk {
@@ -194,6 +197,7 @@ impl MergeBaseWalk {
         let side = |head| Side {
             seen: HashMap::from([(head, 0)]),
             frontier: vec![head],
+            cut: false,
         };
         Self {
             theirs,
@@ -229,7 +233,11 @@ impl MergeBaseWalk {
         for side in &mut self.sides {
             let mut next = Vec::new();
             for id in std::mem::take(&mut side.frontier) {
-                for parent in store.parents_of(id)? {
+                let Some(commit) = store.try_get(id)? else {
+                    side.cut = true;
+                    continue;
+                };
+                for parent in commit.parents {
                     if !side.seen.contains_key(&parent) {
                         side.seen.insert(parent, self.level);
                         next.push(parent);
@@ -257,8 +265,11 @@ impl MergeBaseWalk {
             return Some(MergeBase::Base(base));
         }
         if ours.frontier.is_empty() && theirs.frontier.is_empty() {
-            return Some(MergeBase::Unrelated);
+            return Some(match ours.cut || theirs.cut {
+                true => MergeBase::Unreached,
+                false => MergeBase::Unrelated,
+            });
         }
-        (self.level == self.depth).then_some(MergeBase::TooDeep)
+        (self.level == self.depth).then_some(MergeBase::Unreached)
     }
 }
