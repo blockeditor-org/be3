@@ -121,10 +121,14 @@ impl Surface {
 /// example-gpu-calls); their time counts in the step's. Ending a pass and finishing a bundle are
 /// timed: that is where wgpu validates and encodes everything recorded.
 pub fn only_records(function: &str) -> bool {
-    ["[method]render-pass.", "[method]compute-pass.", "[method]render-bundle-encoder."]
-        .iter()
-        .find_map(|pass| function.strip_prefix(pass))
-        .is_some_and(|method| !matches!(method, "end" | "finish"))
+    [
+        "[method]render-pass.",
+        "[method]compute-pass.",
+        "[method]render-bundle-encoder.",
+    ]
+    .iter()
+    .find_map(|pass| function.strip_prefix(pass))
+    .is_some_and(|method| !matches!(method, "end" | "finish"))
 }
 
 impl Gpu {
