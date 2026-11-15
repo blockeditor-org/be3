@@ -75,8 +75,7 @@ impl Exporter {
             .collect()
     }
 
-    pub(crate) fn error(&self) -> Memo<Option<String>> {
-        let error = self.error;
-        create_memo(move || error.get())
+    pub(crate) fn error(&self) -> ReadSignal<Option<String>> {
+        self.error.read_only()
     }
 }
