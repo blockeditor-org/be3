@@ -55,19 +55,35 @@ pub struct ScrollHandle {
     pub on_engage: Callback<bool>,
 }
 
+/// How a scroll's own parts look: its bar, how far its edges fade, the
+/// marker an autoscroll (a middle-button press) shows where it started, and the
+/// browser's bar on the HTML core. A scroll inside a component (a text area, a
+/// list) takes the same look as a plain one, marker and all.
 #[derive(Clone, Copy, Default)]
-pub struct ScrollbarStyle {
+pub struct ScrollStyle {
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
+    marker: Option<RenderFn<Memo<Direction>, NodeId>>,
     fade: f32,
     browser: Option<(Prop<Color>, Prop<Color>)>,
 }
 
-impl ScrollbarStyle {
+impl ScrollStyle {
     pub fn new(width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
         Self {
             bar: Some((width, RenderFn::new(bar))),
+            marker: None,
             fade: 0.0,
             browser: None,
+        }
+    }
+
+    /// What an autoscroll shows at the point it started from, given the
+    /// scroll's axis; nothing without one. Natively only: the browser draws
+    /// its own.
+    pub fn marker(self, marker: RenderFn<Memo<Direction>, NodeId>) -> Self {
+        Self {
+            marker: Some(marker),
+            ..self
         }
     }
 
@@ -654,8 +670,7 @@ fn Scrolling(
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
-    marker: Render<Memo<Direction>>,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
@@ -770,7 +785,7 @@ fn Scrolling(
             }
         }
     });
-    let bar_width = scrollbar.width();
+    let bar_width = style.width();
     let bar = ScrollHandle {
         position,
         direction,
@@ -791,7 +806,12 @@ fn Scrolling(
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
-    let marker = marker.once();
+    let marker = match style.marker {
+        Some(marker) => marker.call(marker_axis),
+        None => view! {
+            <List spacing=0.0 />
+        },
+    };
     on_key(
         KeyAt::Node(catcher),
         KeyPhase::Bubble,
@@ -900,14 +920,12 @@ fn Scrolling(
                                 open={marked}
                                 keep_alive=true
                             >
-                                {marker.call(marker_axis)}
+                                {marker}
                             </Overlay>
                         </List>
                     </Frame>
                 </Interactive>
-                <List direction={across} justify=Justify::End spacing=0.0>
-                    {scrollbar.over(bar)}
-                </List>
+                <List direction={across} justify=Justify::End spacing=0.0>{style.over(bar)}</List>
             </Layers>
         </Frame>
     }
@@ -944,8 +962,7 @@ pub fn Scroll(
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = None)] focus_ring: Prop<Option<Outline>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
-    marker: Option<Render<Memo<Direction>>>,
+    #[prop(default = ScrollStyle::default())] style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     children: Children<ListItem>,
 ) -> NodeId {
@@ -960,7 +977,7 @@ pub fn Scroll(
                 follow_end
                 bleed
                 focus_ring
-                scrollbar
+                style
                 on_change={on_change}
                 rows
             >
@@ -970,16 +987,9 @@ pub fn Scroll(
         reveal_row(reveal, rows);
         return scroll;
     }
-    let fade = scrollbar.fade();
+    let fade = style.fade();
     let faded = create_signal(None::<ScrollPosition>);
     let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
-    let marker = marker.unwrap_or_else(|| {
-        Render::new(|_| {
-            view! {
-                <List spacing=0.0 />
-            }
-        })
-    });
     let scroll = view! {
         <Scrolling
             api
@@ -987,8 +997,7 @@ pub fn Scroll(
             fit
             bleed
             focus_ring
-            scrollbar
-            marker
+            style
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
             <Frame fade_edges={edges}>
@@ -1034,13 +1043,13 @@ fn BrowserScroll(
     follow_end: Prop<bool>,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListItem>,
 ) -> NodeId {
     let reported = create_signal(None::<ScrollPosition>);
-    let fade = scrollbar.fade();
+    let fade = style.fade();
     let edges = create_memo(move || fade_edges(direction.get(), reported.get(), fade));
     let content = view! {
         <Frame padding={bleed}>
@@ -1087,14 +1096,14 @@ fn BrowserScroll(
             pinned.set(position.offset >= position.max_offset() - END_SLACK);
         }
     };
-    let bare = scrollbar.bar.is_none();
+    let bare = style.bar.is_none();
     let focused = create_signal(false);
     let node = html_escape(move |escape| {
         escape.style("outline", "none".to_owned());
         escape.style("overflow-anchor", "auto".to_owned());
         if bare {
             escape.style("scrollbar-width", "none".to_owned());
-        } else if let Some((thumb, track)) = scrollbar.browser {
+        } else if let Some((thumb, track)) = style.browser {
             escape.style("scrollbar-width", "thin".to_owned());
             escape.style(
                 "scrollbar-color",

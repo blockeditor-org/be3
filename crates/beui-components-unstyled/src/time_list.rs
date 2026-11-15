@@ -4,7 +4,7 @@ use beui_macros::{component, view};
 use crate as unstyled;
 use crate::ButtonHandle;
 use crate::datetime::{HourCycle, MINUTES_PER_DAY, Time};
-use crate::scroll::ScrollbarStyle;
+use crate::scroll::ScrollStyle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
@@ -52,7 +52,7 @@ pub fn TimeList(
     #[prop(default = 1)] max_columns: usize,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
     option: RenderFn<TimeOptionHandle>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
@@ -109,7 +109,7 @@ pub fn TimeList(
     view! {
         <TimeListBox label>
             <ListItem grow=1.0>
-                <unstyled::Scroll offset={shown} scrollbar>
+                <unstyled::Scroll offset={shown} style={scroll}>
                     <List spacing>
                         <ForEach keys={rows}>|row: usize|
                             <TimeRow state={state} row spacing hour_cycle face={option} />

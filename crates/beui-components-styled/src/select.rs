@@ -3,7 +3,7 @@ use beui_macros::{component, view};
 use beui_view::types::Overflow;
 
 use crate::list::List;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor};
 use crate::text_input::text_input_style;
@@ -55,7 +55,7 @@ pub fn Select(
                 <SearchField handle />
             }}
             search_style={text_input_style()}
-            scrollbar={scrollbar_style()}
+            scroll={scroll_style()}
             list_height={OPTIONS_MAX_HEIGHT.px()}
             spacing={POPUP_PADDING.px()}
             trigger={move |handle| view! {

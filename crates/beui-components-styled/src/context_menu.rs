@@ -7,13 +7,14 @@ use crate::border::Separator;
 use crate::button::{ButtonFace, ButtonVariant};
 use crate::list::List;
 use crate::row::{RowFace, RowSize, RowTrailing};
+use crate::scroll::autoscroll_marker;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::SCROLL_FADE;
 use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollbarStyle, SheetWhen,
+    ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollStyle, SheetWhen,
 };
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -565,7 +566,7 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
                         <ListItem shrink=1.0>
                             <unstyled::Scroll
                                 fit=true
-                                scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                                style={ScrollStyle::default().fading(SCROLL_FADE).marker(autoscroll_marker())}
                             >
                                 <Frame padding=MENU_PADDING>{children}</Frame>
                             </unstyled::Scroll>
