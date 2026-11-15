@@ -6,7 +6,7 @@ use be_sdk_beui::beui::dock::{TabId, dock_menu};
 use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use be_sdk_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, Pushed};
 use be_sdk_beui::{
     ArtifactState, ChildBlock, ChildBlockHandle, ChildDockTab, ChildMode, ChildTarget, Editor,
     TopBar,
@@ -183,7 +183,7 @@ fn read_item_info(
         references,
         backrefs,
         artifact: {
-            workspace.editor().artifacts().track();
+            workspace.editor().pushed(Pushed::Artifacts).track();
             workspace.host().artifact(item.id)
         },
         deleted,

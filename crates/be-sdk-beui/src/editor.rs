@@ -638,14 +638,6 @@ impl Editor {
         self.state().core.version(command);
     }
 
-    pub fn histories(&self) -> Trigger {
-        self.pushed(Pushed::Histories)
-    }
-
-    pub fn artifacts(&self) -> Trigger {
-        self.pushed(Pushed::Artifacts)
-    }
-
     /// Whether one of this editor's views has the keyboard: the host gave it to that view, not
     /// another of the app's. False while the editor is not shown in an app's beui program.
     pub fn has_keyboard(&self) -> Memo<bool> {
@@ -768,10 +760,6 @@ impl Editor {
 
     pub fn act(&self, call: impl FnOnce() + 'static) {
         self.state().core.host().act(call);
-    }
-
-    pub fn web_view_events(&self) -> Trigger {
-        self.pushed(Pushed::WebView)
     }
 
     pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
