@@ -81,6 +81,24 @@ impl DockedTabs {
         }
     }
 
+    /// Whether the dock this frame joined is stacked, as the root's dock is on a phone. A joined
+    /// frame has no top bar of its own to say so.
+    pub(crate) fn joined_stacked(&self) -> Memo<bool> {
+        let hosted = match self.slot.borrow().is_some() {
+            true => self.link.borrow().as_ref().map(|link| link.hosted()),
+            false => None,
+        };
+        create_memo(move || {
+            hosted.is_some_and(|hosted| {
+                hosted.with(|hosted| {
+                    hosted
+                        .as_ref()
+                        .is_some_and(|hosted| hosted.mode == beui::dock::DockMode::Stacked)
+                })
+            })
+        })
+    }
+
     pub(crate) fn hosting(&self, content: impl FnOnce() -> beui::NodeId + 'static) -> beui::NodeId {
         let Some(bars) = self.bars.borrow().clone() else {
             return content();
