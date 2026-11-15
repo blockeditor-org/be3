@@ -194,4 +194,10 @@ pub trait Driver {
     fn carry(&self) -> Option<CarryId>;
     /// The frame the carry shows; tracked.
     fn frame(&self) -> Option<DragFrame>;
+    /// Moves a keyboard carry to the nearest place `toward` from where it is; whether one
+    /// was there.
+    fn step(&self, toward: Vec2) -> bool;
+    /// What the last carry said for a screen reader (lifted, each place a step chooses, put
+    /// down), and which carry; tracked.
+    fn said(&self) -> Option<(CarryId, String)>;
 }
