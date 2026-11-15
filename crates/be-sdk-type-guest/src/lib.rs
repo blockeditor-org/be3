@@ -11,7 +11,7 @@ use be_block_content::{
 };
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
-    Journal, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
+    Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
     ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
@@ -34,7 +34,7 @@ pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
 pub use replica::{
-    APPEND_INTERVAL, COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL,
+    COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL,
 };
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
@@ -450,6 +450,11 @@ impl Module {
                 account: opening.account,
                 client: opening.client,
                 tag: opening.tag,
+                origin: opening.origin,
+                taken_before: opening.taken_before,
+                doubtful_through: opening.doubtful_through,
+                kept_restart: opening.kept_restart,
+                kept_through: opening.kept_through,
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
@@ -754,54 +759,44 @@ impl Module {
                 replica,
                 generation,
             } => ops::with_parent(replica, || host::claim_lease(generation)).detach(),
-            Effect::Announce {
-                replica,
-                announcements,
-            } => {
-                let announcements = announcements.into_iter().map(announcement).collect();
-                ops::with_parent(replica, || host::announce(announcements)).detach()
-            }
             Effect::ReportClean {
                 replica,
                 generation,
                 clean_at,
             } => ops::with_parent(replica, || host::report_clean(generation, clean_at)).detach(),
-            Effect::Append {
+            Effect::Submit {
                 replica,
-                generation,
-                entries,
-                relay,
-                from,
+                submission,
                 announcements,
             } => {
-                let announcements = announcements
-                    .into_iter()
-                    .map(|(sequence, made)| be_sdk_type_api::Announced {
-                        sequence,
-                        announcement: announcement(made),
-                    })
-                    .collect();
-                let through = entries
-                    .iter()
-                    .map(|entry| entry.sequence)
-                    .max()
-                    .unwrap_or_default();
-                let pending = ops::with_parent(replica, || {
-                    host::append(generation, entries, relay, announcements)
-                });
-                self.answer_later(replica, pending, move |held| Input::Appended {
-                    from,
-                    through,
-                    held: held == Ok(true),
+                let counter = submission.id.counter;
+                let submission = be_sdk_type_api::Submission {
+                    origin: submission.id.origin,
+                    counter,
+                    base: submission.base,
+                    barrier: submission.barrier,
+                    payload: submission.payload,
+                };
+                let announcements = announcements.into_iter().map(announcement).collect();
+                let pending =
+                    ops::with_parent(replica, || host::submit(submission, announcements));
+                self.answer_later(replica, pending, move |submitted| Input::Submitted {
+                    counter,
+                    outcome: match submitted {
+                        Ok(be_sdk_type_api::host::Submitted::Held) => replica::Outcome::Held,
+                        Ok(be_sdk_type_api::host::Submitted::Kept) => replica::Outcome::Kept,
+                        Ok(be_sdk_type_api::host::Submitted::Failed(error)) => {
+                            replica::Outcome::Failed(error)
+                        }
+                        Err(error) => replica::Outcome::Failed(error.to_string()),
+                    },
                 });
             }
             Effect::Rebase {
                 replica,
                 generation,
                 base,
-                entries,
-            } => ops::with_parent(replica, || host::rebase_journal(generation, base, entries))
-                .detach(),
+            } => ops::with_parent(replica, || host::rebase_journal(generation, base)).detach(),
             Effect::Release { replica } => {
                 let closing = self.shared.state.borrow_mut().closing.remove(&replica);
                 ops::end(replica);
@@ -1094,13 +1089,29 @@ impl replicas::GuestReplica for OpenReplica {
         Box::pin(ready(()))
     }
 
-    fn lease(&self, session: SessionState, resynchronize: bool) -> LocalFuture<()> {
+    fn sequenced(&self, entries: Vec<JournalEntry>) -> LocalFuture<()> {
+        let ops = entries
+            .into_iter()
+            .map(|entry| be_block_session::SessionOp {
+                id: be_block_session::OpId {
+                    origin: entry.origin,
+                    counter: entry.counter,
+                },
+                sequence: entry.sequence,
+                base: entry.base,
+                floor: entry.floor,
+                received: entry.received,
+                payload: entry.payload,
+            })
+            .collect();
+        self.module.input(self.id, Input::Sequenced(ops));
+        Box::pin(ready(()))
+    }
+
+    fn lease(&self, session: SessionState) -> LocalFuture<()> {
         self.module.input(
             self.id,
-            Input::Lease {
-                session,
-                resynchronize,
-            },
+            Input::Lease { session },
         );
         Box::pin(ready(()))
     }

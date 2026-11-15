@@ -23,7 +23,7 @@ pub use peer::{
     Notification, OpenedNotification, Peer, PeerConfig, Reconciled, Resolver, Saved, Sealed,
     Signer, Write,
 };
-pub use refs::{ListedBlock, PendingCounts, RefsDb, UnsentBlock};
+pub use refs::{KeptChange, KeptEdit, ListedBlock, OpenEdits, PendingCounts, RefsDb, UnsentBlock};
 
 pub fn socket_url(server_url: &str) -> String {
     let base = match server_url.split_once("://") {

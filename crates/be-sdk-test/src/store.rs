@@ -19,7 +19,6 @@ use be_sdk_type_guest::api::{
     },
 };
 use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
-use be_sdk_type_guest::wire::Wire;
 use be_sdk_type_guest::{Module, Registration};
 use uuid::Uuid;
 
@@ -49,6 +48,8 @@ struct Block {
     references: Option<Vec<Uuid>>,
     revision: u64,
     taken: u64,
+    /// The block's session's order, as the server would number it.
+    order: be_block_session::Sequencer,
 }
 
 impl Block {
@@ -63,6 +64,7 @@ impl Block {
             references: None,
             revision: 1,
             taken: 0,
+            order: be_block_session::Sequencer::starting(0),
         }
     }
 }
@@ -206,6 +208,7 @@ fn session() -> SessionState {
         owner: Some(THIS_DEVICE),
         participants: vec![THIS_DEVICE],
         clean_at: None,
+        tag: None,
     }
 }
 
@@ -456,35 +459,35 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            Call::Append {
+            Call::Submit {
                 reply,
+                submission,
                 announcements,
-                ..
             } => {
                 let held = !self.offline;
+                let entry = self.number(block, submission, held);
                 let until = match held {
                     true => Announcing::Held,
                     false => Announcing::Journal,
                 };
-                for announced in announcements {
-                    self.announcing.push((
-                        block,
-                        until(announced.sequence),
-                        announced.announcement,
-                    ));
+                for announcement in announcements {
+                    self.announcing
+                        .push((block, until(entry.sequence), announcement));
                 }
                 self.send_announcements(block);
-                reply.send(&mut self.host, &held);
-            }
-            Call::Announce {
-                reply,
-                announcements,
-            } => {
-                for made in announcements {
-                    self.announcing.push((block, Announcing::Held(0), made));
+                let answer = match held {
+                    true => be_sdk_type_guest::api::host::Submitted::Held,
+                    false => be_sdk_type_guest::api::host::Submitted::Kept,
+                };
+                reply.send(&mut self.host, &answer);
+                if let Some(replica) = block
+                    .and_then(|block| self.blocks.get(&block))
+                    .and_then(|held| held.replica)
+                {
+                    self.on_replica(replica, |replica, host| {
+            replica.sequenced(host, vec![entry]);
+        });
                 }
-                self.send_announcements(block);
-                reply.send(&mut self.host, &());
             }
             Call::RebaseJournal { reply, base, .. } => {
                 // This device seals every commit here, so what the base holds goes with it.
@@ -574,6 +577,8 @@ impl Inner {
         };
         let refused_commits = self.refused.get(&block).cloned().unwrap_or_default();
         held.followed.clear();
+        // The replica opens on the head with no journal: the order starts over from it.
+        held.order = be_block_session::Sequencer::starting(0);
         let replica = Replica::new(
             &mut self.host,
             Opening {
@@ -583,6 +588,11 @@ impl Inner {
                 account: self.own.unwrap_or_default(),
                 client: THIS_DEVICE,
                 tag: TAG,
+                origin: self.next_commit + 1,
+                taken_before: 0,
+                doubtful_through: 0,
+                kept_restart: 0,
+                kept_through: 0,
                 head,
                 session: session(),
                 journal: None,
@@ -658,7 +668,7 @@ impl Inner {
         client: ClientId,
         message: be_block_session::SessionMessage,
     ) {
-        let bytes = Wire::Session(message).encode();
+        let bytes = be_sdk_type_guest::wire::encode(&message);
         let now = self.now;
         self.on_replica(replica, |replica, host| {
             replica.message(
@@ -667,7 +677,7 @@ impl Inner {
                 bytes,
                 now,
                 Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Edit,
+                    kind: be_sdk_type_guest::api::RelayKind::Seal,
                     received: now as i64,
                 }),
             );
@@ -684,19 +694,67 @@ impl Inner {
             return;
         };
         self.elsewhere += 1;
-        let id = be_block_session::OpId {
-            client: ELSEWHERE,
+        let submission = be_sdk_type_guest::api::Submission {
+            origin: ELSEWHERE,
             counter: self.elsewhere,
+            base: u64::MAX,
+            barrier: false,
+            payload: be_sdk_type_guest::wire::Submitted {
+                through: 0,
+                entry: be_sdk_type_guest::wire::Entry::Operation(
+                    be_block_session::Payload::Inline(operation),
+                ),
+            }
+            .encode(),
         };
-        self.peer_said(
-            replica,
-            ELSEWHERE,
-            be_block_session::SessionMessage::Submit {
-                id,
-                base: u64::MAX,
-                payload: be_block_session::Payload::Inline(operation),
+        let entry = self.number(Some(block), submission, true);
+        self.on_replica(replica, |replica, host| {
+            replica.sequenced(host, vec![entry]);
+        });
+    }
+
+    /// Numbers `submission` in `block`'s order, as the server would (or this device offline,
+    /// with no time).
+    fn number(
+        &mut self,
+        block: Option<Uuid>,
+        submission: be_sdk_type_guest::api::Submission,
+        online: bool,
+    ) -> be_sdk_type_guest::api::JournalEntry {
+        let now = self.now as i64;
+        let order = match block.and_then(|block| self.blocks.get_mut(&block)) {
+            Some(held) => &mut held.order,
+            None => return be_sdk_type_guest::api::JournalEntry {
+                sequence: 0,
+                origin: submission.origin,
+                counter: submission.counter,
+                base: submission.base,
+                floor: 0,
+                received: None,
+                payload: submission.payload,
             },
+        };
+        let op = order.number(
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: submission.origin,
+                    counter: submission.counter,
+                },
+                base: submission.base,
+                barrier: submission.barrier,
+                payload: submission.payload,
+            },
+            online.then_some(now),
         );
+        be_sdk_type_guest::api::JournalEntry {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            counter: op.id.counter,
+            base: op.base,
+            floor: op.floor,
+            received: op.received,
+            payload: op.payload,
+        }
     }
 
     fn reverting(&mut self, block: Uuid, run: impl FnOnce(&mut Self)) {

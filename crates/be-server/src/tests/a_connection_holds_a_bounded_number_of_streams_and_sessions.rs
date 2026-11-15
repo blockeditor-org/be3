@@ -22,9 +22,9 @@ async fn a_connection_holds_a_bounded_number_of_streams_and_sessions() {
     member.round_trip().await;
 
     let held: Vec<_> = (0..MAX_SESSIONS_PER_CONNECTION)
-        .map(|_| client::sessions::Session::new(&member.peer, block))
+        .map(|_| client::sessions::Session::new(&member.peer, block, TYPE_BUILD))
         .collect();
-    let session = client::sessions::Session::new(&member.peer, block);
+    let session = client::sessions::Session::new(&member.peer, block, TYPE_BUILD);
     let mut events = session.join();
     assert!(
         events.recv().await.is_none(),

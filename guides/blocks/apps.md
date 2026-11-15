@@ -9,7 +9,7 @@ follows is guides/type_modules.md.
 
 ## Content on the app protocol
 
-An editor is a follower of the block's replica ("Editors are endpoints" in
+An editor is an endpoint of the block's replica ("Editors are endpoints" in
 guides/type_modules.md). Everything about a block's content crosses through a
 `replica` resource the editor opens per block: its own (on its first frame) and
 each block it watches. `replica.frames()` streams host-to-editor frames,
@@ -42,7 +42,7 @@ On the app side, `editor.block_content::<C>()` is a `ContentProjection` built
 on `be_sdk_type_guest::editor::EditorMirror<C>`. `operate` applies to what the
 view sees and queues for the host. A `mine` operation coming back only
 confirms, and only that this device's replica took the edit: it confirms at
-once, before any owner accepted it (on a follower it is still `unsettled`), so
+once, before the order numbered it (it is still `unsettled` until then), so
 it says nothing of whether the server holds it (below, "Sending"); another's
 is applied on top, or beneath this instance's in-flight edit
 (`LiveEdit::apply_beneath`). Only another instance's unsettled operation
@@ -65,7 +65,7 @@ state. Dynamic artifacts use `EditorHost::content_of` and
 
 A type that loads only its first part (`be_block_content::Loads::FirstPart`, such as
 `Blob`) leaves the rest of its stored form
-in the store: the replica, its followers and every editor's `Snapshot` hold
+in the store: every replica and every editor's `Snapshot` hold
 only that part's bytes, and `Snapshot::length` says how long the whole is. An
 editor reads the rest with `LiveContent::read_range(offset, length, done)`,
 which sends `FromEditor::Read { token, offset, length }`; the replica answers
@@ -92,16 +92,16 @@ what they made (chat's messages), whichever editor made them. The first answer
 has them all (`reset`), later ones what was added or failed and the ids the
 server now holds. The replica records every edit made on this device, followed
 or not, and keeps each until the server holds it (`be-sdk-type-guest/src/lacking.rs`):
-- as owner, until the host answers the journal append holding it (`append`
-  answers whether the server took the entries; a folded entry holds the run it
-  absorbed) or a commit holding it is published to the server;
-- as follower, until the owner accepts it, which it does only through an append
-  the server relays once it took it; a stash the follower handed the owner,
-  until the owner says `Saved`;
-- an edit too large to relay goes by its part, so it is followed as the others: it
-  waits while its part is put, then as owner until the append holding it is
-  answered, as follower until the owner accepts it (its bytes are not kept past
-  1 MiB: the editor sees only that something is sending);
+- until the host answers the submission holding it as `held` (an edit absorbed
+  into another goes with it);
+- numbered offline (`kept`), until a commit holding it is published to the
+  server;
+- an edit too large to submit inline goes by its part, so it is followed as the
+  others: it waits while its part is put, then until the submission holding it
+  is answered (its bytes are not kept past 1 MiB: the editor sees only that
+  something is sending);
+- one the order passed over (based before a barrier) fails, until the editor
+  lets it go;
 - in a commit kept in this device's outbox (`publish-outcome.kept`), until the
   host says it `drained`, naming the head a drain published (the outbox
   publishes in order, so every commit kept up to it drained, and one kept after
@@ -118,14 +118,13 @@ after its edit is dismissed, so a replica applies the refusal of each commit id
 once (a live `drained` with `refused` always applies, and a replica carries the
 ids it applied; it fails every kept or carried edit, not only those of the
 refused commits); a commit it did not apply before fails what was kept, and
-one it did leaves what is sent after alone. One opened on this device's
-own journal (`opening.journal-kept`) adds the edits it replays; a carried edit
-is settled by its journal sequence when the journal holds it (by its bytes only
-if it has any), so a journal the owner folded still settles it.
+one it did leaves what is sent after alone. One opened on what this device
+numbered offline (`opening.journal-kept`) adds its own edits it replays; a
+carried edit is settled by its journal sequence when the journal holds it (by
+its bytes only if it has any).
 
 The same list carries what each edit announces (`LiveEdit::announcements`, guides/type_modules.md,
-"Announcements"): an owner's go to the host with the append holding the edit, a follower's once
-the owner accepts it.
+"Announcements"): they go to the host with the submission holding the edit.
 
 What is not kept:
 - A host or type module that restarts loses its list of edits. The host opens
@@ -134,14 +133,11 @@ What is not kept:
   and follows what the content adds over it as kept until they drain
   (`LiveEdit::unsent_over`, a type's own answer; none by default), when it carried
   nothing from an earlier replica. An edit the server refused no longer shows
-  "Not sent", and one journaled on this device alone, past the server's journal,
-  is followed only as the replayed journal says.
+  "Not sent", and one numbered on this device alone is followed only as the
+  replayed journal says.
 - A block carried over the module's 64-block limit loses its edits' status: a
   refused message in it shows as sent.
 - A replica reopened after a rejoin lists only what the module carried.
-- An owner that loses the session with an append the server never took shows that
-  edit as failed, since the new owner never had it; it is not carried to a replica
-  opened after, whose content lacks it.
 
 In chat, Discard deletes the message with a delete edit, like any other, and
 lets the failed edit go. be-sdk-test's `ContentStore::set_online`,

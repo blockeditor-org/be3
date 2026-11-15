@@ -7,7 +7,7 @@ use be_block_model::{
     Anchor, BlockRef, Change as ModelChange, Count, Document, Edit, List, Model, ObjectId, Text,
 };
 use be_block_protocol::ClientId;
-use be_block_session::{Lease, Resume};
+use be_block_session::{Lease, Resume, Sequencer};
 use be_block_store::Hash;
 use be_sdk_type_api::{
     Change, Delivery, Description, EditorId, Endpoint, Journal, JournalBase, Opening,
@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::{
     Module, Registration,
     editor::{EditorMirror, FromEditor, Gesture, ToEditor},
+    wire::{Entry, Submitted},
 };
 use be_block_content::{Merge, PartReader};
 use std::cell::Cell;
@@ -33,33 +34,23 @@ mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending;
 mod a_file_maps_to_a_block_and_back;
-mod a_follower_edit_goes_beneath_a_peer_edit_the_owner_ordered_first;
-mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
-mod a_follower_obeys_only_three_resends_in_a_row;
-mod a_follower_reads_a_part_again_when_a_read_fails;
-mod a_follower_replaces_the_content_and_the_owner_takes_it;
-mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
-mod a_follower_that_cannot_read_a_part_catches_up_from_the_head;
-mod a_follower_that_claims_as_it_joins_waits_until_it_has_caught_up;
-mod a_follower_that_gave_up_twice_across_a_promotion_still_catches_up;
-mod a_follower_that_missed_messages_catches_up_once_resynchronized;
-mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
-mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
-mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
-mod a_follower_whose_catchup_was_lost_asks_again;
-mod a_followers_burst_of_view_state_writes_is_sent_as_one_put_each;
-mod a_followers_edit_after_it_reopens_on_the_same_connection_lands;
-mod a_followers_edit_the_owner_took_and_sealed_while_it_was_deaf_lands_once;
-mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
-mod a_followers_edit_too_large_to_relay_lands_once;
-mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
-mod a_followers_edits_stay_lacking_through_a_takeover_until_its_seal;
-mod a_followers_kept_edits_reach_the_owner_that_takes_over;
-mod a_followers_kept_edits_survive_the_owner_leaving_before_saving_them;
-mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
-mod a_followers_put_that_failed_is_tried_again;
-mod a_followers_stash_kept_offline_by_the_new_owner_keeps_lacking_until_the_outbox_drains;
-mod a_forged_arrival_is_never_sequenced;
+mod a_peer_edit_numbered_first_goes_beneath_an_unconfirmed_edit;
+mod a_peer_keeps_its_unconfirmed_edit_through_a_reload;
+mod a_peer_reads_a_part_again_when_a_read_fails;
+mod a_peer_replaces_the_content_and_the_holder_takes_it;
+mod a_peer_takes_the_lease_with_what_the_holder_had_not_sealed;
+mod a_peer_that_takes_the_lease_after_a_seal_publishes_on_top_of_it;
+mod a_peer_that_takes_the_lease_saves_its_edit_too_large_to_relay;
+mod a_peer_typing_while_the_holder_types_keeps_both_runs_whole;
+mod a_peers_edit_after_it_reopens_on_the_same_connection_lands;
+mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_another_seals_it;
+mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
+mod a_peers_edit_too_large_to_relay_is_lacking_until_the_holder_accepts_it;
+mod a_peers_edit_too_large_to_relay_lands_once;
+mod a_peers_edit_too_large_to_relay_lands_once_when_the_holder_leaves;
+mod a_peers_paste_too_large_to_relay_lands_once_over_the_holders_unsealed_edits_and_undoes_alone;
+mod a_peers_put_that_failed_is_tried_again;
+mod a_forged_arrival_is_replaced_by_the_orders;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
 mod a_journal_another_build_wrote_is_dropped_and_the_block_marked;
@@ -69,63 +60,55 @@ mod a_merge_by_parts_waits_for_the_parts_it_reads_and_never_resolves_without_the
 mod a_merge_that_cannot_read_its_parts_is_reported_once_and_tried_again_on_a_timer;
 mod a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_session;
 mod a_merge_that_waits_for_something_other_than_a_part_is_reported_not_waited_for;
-mod a_message_no_build_can_read_stops_a_follower_saving;
+mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod a_module_answers_stateless_requests;
-mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
-mod a_new_owner_replays_a_journaled_edit_by_its_part;
+mod a_new_holder_recovers_edits_from_the_journal_of_one_that_crashed;
+mod a_new_holder_replays_a_journaled_edit_by_its_part;
 mod a_part_longer_than_any_edit_is_not_read;
 mod a_peer_running_another_build_is_refused;
-mod a_promoted_followers_handed_stash_stops_lacking_once_it_keeps_it_itself;
 mod a_refusal_that_leaves_the_commit_in_the_outbox_fails_the_edit_instead_of_settling_it;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
-mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
-mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
-mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
+mod a_replacement_keeps_a_peers_unconfirmed_edits_in_history;
+mod a_replacement_made_while_the_holder_is_gone_reaches_every_peer;
+mod a_replacement_made_while_the_holder_is_gone_reaches_the_holder_that_takes_the_lease;
 mod a_replacement_on_its_way_is_not_counted_as_held_by_the_head;
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
-mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
-mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
+mod a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors;
+mod a_restart_waits_for_the_holder_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
 mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
-mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
+mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
-mod a_snapshot_taken_before_the_commit_does_not_diverge_a_follower;
-mod a_stamp_that_would_not_fit_inline_is_left_off;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
-mod a_submit_relayed_as_less_than_it_asks_is_not_applied;
-mod a_viewer_cannot_make_a_follower_read_a_part;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
+mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
-mod an_owner_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_owner;
-mod an_owner_renews_its_lease_while_it_holds_the_session;
-mod an_owner_that_cannot_read_a_followers_part_has_it_sent_again;
-mod an_owner_that_loses_the_session_with_an_append_in_flight_fails_its_edit;
-mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
-mod an_owner_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
-mod an_owner_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
-mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
-mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
+mod a_holder_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_holder;
+mod a_holder_renews_its_lease_while_it_holds_the_session;
+mod a_holder_whose_lease_lapsed_follows_whoever_claims_it;
+mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
+mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
+mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
+mod a_holders_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod arrivals;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
-mod followers_keep_what_the_owner_typed_while_its_seal_was_out;
-mod messages_piled_behind_an_unreadable_part_make_a_follower_catch_up;
+mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
-mod the_owner_stamps_a_followers_operation_with_when_the_server_took_it;
+mod every_replica_stamps_an_operation_with_when_the_server_took_it;
 mod two_editors_typing_at_once_keep_their_own_undo_steps;
 mod two_oversized_edits_in_a_row_land_in_order;
-mod two_quick_edits_folded_into_one_append_are_both_held_by_it;
 mod typing_behind_an_unconfirmed_edit_goes_out_as_one_edit;
 mod typing_while_a_seal_waits_for_the_server_shows_at_once;
 mod undo_reverts_only_this_devices_edit;
@@ -339,7 +322,7 @@ struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
     manifest: be_block_store::Manifest,
-    sealed_through: Option<(u64, u64)>,
+    sealed_through: Option<u64>,
 }
 
 const SEALING: Uuid = Uuid::from_u128(0x5ea1);
@@ -399,6 +382,11 @@ fn opening(
         account: Uuid::nil(),
         client,
         tag: TAG,
+        origin: client,
+        taken_before: 0,
+        doubtful_through: 0,
+        kept_restart: 0,
+        kept_through: 0,
         head,
         session,
         journal: None,
@@ -414,6 +402,11 @@ fn opening(
 
 struct Device {
     client: ClientId,
+    /// What its replica's submissions name it, kept across reopenings, new for each opening.
+    origin: u64,
+    /// How many local edits earlier openings of its replica took (`opening.taken-before`):
+    /// the simulated host gives none of them again.
+    taken_before: u64,
     /// Whether its account may edit the block; a viewer's is not, which the server holds it to.
     may_edit: bool,
     module: Option<Module>,
@@ -452,8 +445,21 @@ struct Sim<C: LiveEdit + Clone + Default> {
     read_stalled: bool,
     /// How often each device's replica asked the host to resume its session.
     resumed: Vec<usize>,
-    /// Appends are answered as kept on the device alone, and reach no one.
-    unheld_appends: bool,
+    /// Submissions wait until `unstall`.
+    stalled_submits: bool,
+    /// What the next `open` is told the host kept across a stop: the last restart its replica
+    /// had applied and the number of the last kept edit (`opening.kept-restart`,
+    /// `opening.kept-through`).
+    kept_opening: Option<(u64, u64)>,
+    /// Submissions are numbered as a device offline numbers them: in its own order, which the
+    /// server lacks, answered as kept and heard by the device alone.
+    offline_submits: bool,
+    /// The server's order.
+    order: Sequencer,
+    /// The order a device keeps offline (`offline_submits`), from where the server's stood.
+    offline_order: Option<Sequencer>,
+    /// How many submissions it numbered.
+    numbered: usize,
     /// Commits are published to the device's outbox alone, not to the server.
     kept_publishes: bool,
     held: Vec<(usize, Call)>,
@@ -472,14 +478,7 @@ struct Sim<C: LiveEdit + Clone + Default> {
     largest_written: usize,
     written: u64,
     journal: Option<Journal>,
-    /// The generation each journal entry was appended in, by sequence, as the host's journal
-    /// keeps it.
-    journal_generations: BTreeMap<u64, u64>,
-    /// The seal a device made of the journal and the last sequence it holds, as the host's
-    /// journal notes it with the seal's commit, until the next rebase.
-    sealing: Option<(usize, CommitId, u64)>,
     journal_tag: SessionTag,
-    appended: usize,
     make: fn() -> Module,
 }
 
@@ -494,6 +493,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             devices: (0..devices)
                 .map(|index| Device {
                     client: index as ClientId + 1,
+                    origin: 0,
+                    taken_before: 0,
                     may_edit: true,
                     module: None,
                     executor: None,
@@ -527,7 +528,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             stalled: false,
             read_stalled: false,
             resumed: vec![0; devices],
-            unheld_appends: false,
+            stalled_submits: false,
+            kept_opening: None,
+            offline_submits: false,
+            order: Sequencer::starting(0),
+            offline_order: None,
+            numbered: 0,
             kept_publishes: false,
             held: Vec::new(),
             deaf: BTreeSet::new(),
@@ -542,10 +548,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             largest_written: 0,
             written: 0,
             journal: None,
-            journal_generations: BTreeMap::new(),
-            sealing: None,
             journal_tag: TAG,
-            appended: 0,
             make,
         }
     }
@@ -581,13 +584,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         self.to(device, |host| call(replica, host))
     }
 
-    /// What `device`'s replica opening at `head` loads, as `be_block_type_host::journal_for`
-    /// gives it: the journal on `head`, or, when `head` is the seal `device` noted of the
-    /// journal and the journal reaches it (`reaches_seal`), the journal on the commit the seal
-    /// was made on, which it loads first, then takes `head` as its sealed head.
+    /// What a replica opening at `head` loads, as `be_block_type_host::journal_for` gives it:
+    /// the journal on `head`, or, when `head` is a seal made on the journal's base that the
+    /// journal reaches (`reaches_seal`), the journal on that base, which it loads first, then
+    /// takes `head` as its sealed head.
     fn journal_on(
         &self,
-        device: usize,
         head: Option<CommitId>,
     ) -> (
         Option<Journal>,
@@ -601,11 +603,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         {
             return (journal, head, None);
         }
-        let noted = |commit: CommitId| {
-            self.sealing
-                .is_some_and(|(by, sealing, _)| by == device && sealing == commit)
-        };
-        let sealed = head.filter(|commit| noted(*commit)).and_then(|commit| {
+        let sealed = head.and_then(|commit| {
             let stored = self.commits.get(&commit)?;
             let parent = match stored.parents.as_slice() {
                 [] => None,
@@ -615,15 +613,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             Some((commit, parent, stored.sealed_through?))
         });
         match (journal, sealed) {
-            (Some(journal), Some((commit, parent, (generation, through))))
+            (Some(journal), Some((commit, parent, through)))
                 if journal.base.commit == parent
                     && be_block_session::reaches_seal(
                         journal.base.sequence,
-                        journal.entries.iter().map(|entry| {
-                            let of = self.journal_generations.get(&entry.sequence);
-                            (entry.sequence, of.copied().unwrap_or(u64::MAX))
-                        }),
-                        generation,
+                        journal.entries.iter().map(|entry| entry.sequence),
                         through,
                     ) =>
             {
@@ -633,7 +627,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     Some(be_sdk_type_api::SealedHead { commit, through }),
                 )
             }
-            _ => (None, head, None),
+            // The journal is on an earlier commit: the replica opens on it, as the order goes
+            // on from there, and hears of the head after.
+            (Some(journal), _) => {
+                let base = journal.base.commit;
+                (Some(journal), base, None)
+            }
+            (None, _) => (None, head, None),
         }
     }
 
@@ -651,13 +651,16 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         held.clock = None;
         held.sleeping.clear();
         held.released = false;
+        held.origin = held.origin.max(client << 32) + 1;
+        held.taken_before = 0;
         let may_edit = self.devices[device].may_edit;
-        self.lease.join(client, may_edit, self.now as i64);
+        let tag = Hash::from_bytes(self.devices[device].tag.0);
+        self.lease.join(client, may_edit, tag, self.now as i64);
         self.to(device, |host| {
             be_sdk_type_api::embed::exports::replicas::start(host, vec![0; 32])
         });
         self.settle();
-        let (journal, local, sealed_head) = self.journal_on(device, local);
+        let (journal, local, sealed_head) = self.journal_on(local);
         let settles_on = sealed_head.as_ref().map(|sealed| sealed.commit);
         let foreign = self.journal_tag != self.devices[device].tag;
         let lost_edits = foreign
@@ -667,9 +670,12 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
+            origin: self.devices[device].origin,
             journal: journal.filter(|_| !foreign),
             lost_edits,
             sealed_head,
+            kept_restart: self.kept_opening.map_or(0, |(restart, _)| restart),
+            kept_through: self.kept_opening.take().map_or(0, |(_, through)| through),
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));
@@ -688,15 +694,19 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
     /// it reconnects, and attaches its editors again.
     fn reopen(&mut self, device: usize) {
         let client = self.devices[device].client;
-        let journal = self
-            .journal
-            .clone()
-            .filter(|journal| journal.base.commit == self.head);
+        let (journal, head, sealed_head) = self.journal_on(self.head);
+        let held = &mut self.devices[device];
+        // The simulated host gives again none of what the order holds of its edits.
+        held.taken_before += held.status.journaled_taken;
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
+            origin: self.devices[device].origin,
+            taken_before: self.devices[device].taken_before,
             journal,
-            ..opening(client, self.head, self.lease.state().clone())
+            sealed_head,
+            epoch: self.devices[device].status.epoch + 1,
+            ..opening(client, head, self.lease.state().clone())
         };
         self.with_replica(device, |replica, host| replica.reopen(host, opening));
         let editors: Vec<EditorId> = self
@@ -723,12 +733,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
 
     fn lacking(&self, device: usize, editor: EditorId) -> usize {
         self.editors[&(device, editor)].lacking().len()
-    }
-
-    fn resynchronize(&mut self, device: usize) {
-        let session = self.lease.state().clone();
-        self.with_replica(device, |replica, host| replica.lease(host, session, true));
-        self.settle();
     }
 
     fn attach(&mut self, device: usize, editor: EditorId, editable: bool) {
@@ -898,7 +902,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 continue;
             }
             let session = session.clone();
-            self.with_replica(device, |replica, host| replica.lease(host, session, false));
+            self.with_replica(device, |replica, host| replica.lease(host, session));
         }
     }
 
@@ -1040,7 +1044,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let may_edit = self.devices[device].may_edit;
                 let allowed = match kind {
                     RelayKind::Peer => true,
-                    RelayKind::Edit => may_edit,
+                    RelayKind::Seal => may_edit,
                 };
                 if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
                     return;
@@ -1125,9 +1129,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let head = self.commit(manifest, parents);
                 if let Some(stored) = self.commits.get_mut(&head) {
                     stored.sealed_through = sealed_through;
-                }
-                if let Some((_, through)) = sealed_through {
-                    self.sealing = Some((device, head, through));
                 }
                 self.head = Some(head);
                 self.publishes += 1;
@@ -1230,81 +1231,73 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.lease
                     .heartbeat(client, generation, clean_at, self.now as i64);
             }
-            Call::Append {
+            call @ Call::Submit { .. } if self.stalled_submits => self.held.push((device, call)),
+            Call::Submit {
                 reply,
-                generation,
-                entries,
-                relay,
+                submission,
                 ..
             } => {
-                if self.unheld_appends {
-                    return self.to(device, |host| reply.send(host, &false));
+                // As the server: a viewer, or a build the session does not speak, is refused.
+                if !self.devices[device].may_edit || !self.lease.speaks(client) {
+                    let refused = be_sdk_type_api::host::Submitted::Failed("refused".into());
+                    return self.to(device, |host| reply.send(host, &refused));
                 }
-                if !self.devices[device].may_edit {
-                    return self.to(device, |host| reply.send(host, &false));
+                if self.offline_submits {
+                    let order = self.order;
+                    let op = self.offline_order.get_or_insert(order).number(
+                        be_block_session::Submission {
+                            id: be_block_session::OpId {
+                                origin: submission.origin,
+                                counter: submission.counter,
+                            },
+                            base: submission.base,
+                            barrier: submission.barrier,
+                            payload: submission.payload,
+                        },
+                        None,
+                    );
+                    let entry = be_sdk_type_api::JournalEntry {
+                        sequence: op.sequence,
+                        origin: op.id.origin,
+                        counter: op.id.counter,
+                        base: op.base,
+                        floor: op.floor,
+                        received: op.received,
+                        payload: op.payload,
+                    };
+                    self.with_replica(device, |replica, host| replica.sequenced(host, vec![entry]));
+                    return self.to(device, |host| {
+                        reply.send(host, &be_sdk_type_api::host::Submitted::Kept)
+                    });
                 }
-                self.to(device, |host| reply.send(host, &true));
-                let kind = RelayKind::Edit;
-                if relay {
-                    let participants = self.lease.state().participants.clone();
-                    for entry in &entries {
-                        for peer in &participants {
-                            if *peer == client {
-                                continue;
-                            }
-                            if let Some(to) = self.device_of(*peer) {
-                                self.relay_as(to, client, kind, entry.payload.clone());
-                            }
-                        }
-                    }
-                }
-                let state = self.lease.state();
-                if !state.is_owner(client) || state.generation != generation {
-                    return;
-                }
-                self.appended += 1;
-                if self.journal_tag != self.devices[device].tag {
-                    return;
-                }
-                let journal = self.journal.get_or_insert_with(|| Journal {
-                    base: JournalBase {
-                        commit: None,
-                        sequence: 0,
-                        state: Vec::new(),
-                    },
-                    entries: Vec::new(),
+                self.number(device, submission);
+                self.to(device, |host| {
+                    reply.send(host, &be_sdk_type_api::host::Submitted::Held)
                 });
-                for entry in entries {
-                    let last = journal
-                        .entries
-                        .last()
-                        .map_or(journal.base.sequence, |entry| entry.sequence);
-                    if entry.sequence > last {
-                        self.journal_generations.insert(entry.sequence, generation);
-                        journal.entries.push(entry);
-                    }
-                }
             }
             Call::RebaseJournal {
                 reply,
                 generation,
                 base,
-                entries,
             } => {
                 self.to(device, |host| reply.send(host, &()));
                 let state = self.lease.state();
-                if !state.is_owner(client) || state.generation != generation {
+                if !state.is_holder(client) || state.generation != generation {
                     return;
                 }
-                let entries: Vec<_> = entries
+                // Another build's entries go: the holder could not have applied them.
+                let other = self.journal_tag != self.devices[device].tag;
+                let entries: Vec<_> = self
+                    .journal
+                    .take()
+                    .map(|journal| journal.entries)
+                    .unwrap_or_default()
                     .into_iter()
-                    .filter(|entry| entry.sequence > base.sequence)
+                    .filter(|entry| !other && entry.sequence > base.sequence)
                     .collect();
-                self.journal_generations = entries
-                    .iter()
-                    .map(|entry| (entry.sequence, generation))
-                    .collect();
-                self.sealing = None;
+                if other || (entries.is_empty() && base.sequence < self.order.sequence) {
+                    self.order = Sequencer::starting(base.sequence);
+                }
                 self.journal = Some(Journal { base, entries });
                 self.journal_tag = self.devices[device].tag;
             }
@@ -1333,24 +1326,107 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 self.to(device, |host| reply.send(host, &()));
                 self.errors.push((device, message));
             }
-            Call::Announce { reply, .. } => {
-                self.to(device, |host| reply.send(host, &()));
+        }
+    }
+
+    /// As the server: numbers `submission` from `device` (unless the journal holds its id),
+    /// keeps it in the journal and hands it to every participant, `device` too.
+    fn number(&mut self, device: usize, submission: be_sdk_type_api::Submission) {
+        self.largest_relay = self.largest_relay.max(submission.payload.len());
+        let held = self.journal.as_ref().is_some_and(|journal| {
+            journal.entries.iter().any(|entry| {
+                entry.origin == submission.origin && entry.counter == submission.counter
+            })
+        });
+        if held {
+            return;
+        }
+        let op = self.order.number(
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: submission.origin,
+                    counter: submission.counter,
+                },
+                base: submission.base,
+                barrier: submission.barrier,
+                payload: submission.payload,
+            },
+            Some(self.now as i64),
+        );
+        let entry = be_sdk_type_api::JournalEntry {
+            sequence: op.sequence,
+            origin: op.id.origin,
+            counter: op.id.counter,
+            base: op.base,
+            floor: op.floor,
+            received: op.received,
+            payload: op.payload,
+        };
+        self.numbered += 1;
+        self.journal_tag = self.devices[device].tag;
+        // A journal starts on the block's head as the server has it.
+        let head = self.head;
+        self.journal
+            .get_or_insert_with(|| Journal {
+                base: JournalBase {
+                    commit: head,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+                entries: Vec::new(),
+            })
+            .entries
+            .push(entry.clone());
+        for peer in self.lease.state().participants.clone() {
+            if let Some(to) = self.device_of(peer)
+                && !self.deaf.contains(&to)
+            {
+                let entry = entry.clone();
+                self.with_replica(to, |replica, host| replica.sequenced(host, vec![entry]));
             }
         }
+    }
+
+    /// Numbers `payload` as a submission of `device`'s client that its replica never made, as
+    /// a forger's or another build's would be, based on the order as it stands.
+    fn submit_as(&mut self, device: usize, payload: Vec<u8>) {
+        let submission = be_sdk_type_api::Submission {
+            origin: u64::MAX - device as u64,
+            counter: self.numbered as u64 + 1,
+            base: self.order.sequence,
+            barrier: false,
+            payload,
+        };
+        self.number(device, submission);
+        self.settle();
+    }
+
+    /// The operations the journal holds past its base, decoded.
+    fn journal_operations(&self) -> Vec<C::Op> {
+        let Some(journal) = &self.journal else {
+            return Vec::new();
+        };
+        journal
+            .entries
+            .iter()
+            .filter(|entry| entry.sequence > journal.base.sequence)
+            .filter_map(|entry| match Submitted::decode(&entry.payload)?.entry {
+                Entry::Operation(be_block_session::Payload::Inline(bytes)) => {
+                    C::decode_operation(&bytes).ok()
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     fn unstall(&mut self) {
         self.stalled = false;
         self.read_stalled = false;
+        self.stalled_submits = false;
         for (device, call) in std::mem::take(&mut self.held) {
             self.act(device, call);
         }
         self.settle();
-    }
-
-    /// Hands `to` a message as relayed from `from` by a server that checked it as an editor's.
-    fn relay(&mut self, to: usize, from: ClientId, bytes: Vec<u8>) {
-        self.relay_as(to, from, RelayKind::Edit, bytes);
     }
 
     /// Hands `to` a message as relayed from `from` by a server that checked it as `kind`.

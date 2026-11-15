@@ -205,21 +205,30 @@ interface types {
         sealed: list<u8>,
     }
 
-    /// A block's live session: its lease generation, the connection that owns
-    /// the lease, every connection in it, and the head its owner last
-    /// reported clean.
+    /// A block's live session: its lease generation, the connection that holds
+    /// the lease (and so seals), every connection in it, the head its holder
+    /// last reported clean, and the build of the block's type the session
+    /// speaks: its first participant's.
     record session-state {
         generation: u64,
         owner: option<client-id>,
         participants: list<client-id>,
         clean-at: option<commit-id>,
+        tag: option<hash>,
     }
 
-    /// One operation a session's owner sequenced, sealed with the block's key
-    /// as a relay is.
+    /// One submission the session's order numbered: its place (`sequence`),
+    /// the replica that made it (`origin`, `counter`), the last number that
+    /// replica had applied (`base`), the last barrier (`floor`): one based below it is passed over,
+    /// when the server took it by its clock (none for an order a device kept
+    /// offline), and its payload, sealed with the block's key.
     record journal-entry {
-        generation: u64,
         sequence: u64,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        floor: u64,
+        received: option<s64>,
         payload: list<u8>,
     }
 
@@ -232,8 +241,8 @@ interface types {
         state: list<u8>,
     }
 
-    /// What a block's session owners sequenced since its base and have not
-    /// committed, written by the build of the block's type that `tag` names.
+    /// A block's session's order since its base, which no commit holds yet,
+    /// written by the build of the block's type that `tag` names.
     record journal {
         tag: hash,
         base: journal-base,

@@ -4124,7 +4124,6 @@ impl HostCore {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(mut fresh) => {
@@ -4145,7 +4144,6 @@ impl HostCore {
 
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
         match Self::new() {
             Ok(fresh) => *self = fresh,
