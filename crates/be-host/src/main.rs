@@ -40,8 +40,6 @@ use std::{
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::io;
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::Path;
 
 use accounts::{AccountError, Session};
 use be_block::{DisplaySettings, WORKSPACE_EDITOR};
