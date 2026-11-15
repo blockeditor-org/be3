@@ -20,6 +20,18 @@ Fixed items are removed as they land.
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
+## 9. Version control's caches
+
+- **Walks that read thinning as a root.** `CommitStore::common_ancestor` and
+  `is_ancestor` treat a commit the store lacks as having no parents, so where
+  the server thinned history away (one commit a minute in a block's first
+  hour) they can answer "no shared history" or "not an ancestor" for heads
+  that share one; their callers are in `be-block-client/src/peer/offline.rs`
+  and `be-block-session/src/resume.rs` (after #686). `MergeBaseWalk` already
+  tells a gap from a root (`Unreached`). Done: both tell a gap apart and their
+  callers fall back as the merge base walk does, shown by a be-block-commit
+  test with a middle commit missing.
+
 ## 10. Commit times
 
 Depends on #686 (session catch-ups replaced by server ordering).
