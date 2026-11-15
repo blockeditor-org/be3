@@ -424,10 +424,15 @@ struct Rows<C: SlotChild> {
     /// Bumped when a row's run changes on its own, so the rows fill their place again once
     /// per flush however many rows changed.
     changed: Signal<u64>,
+    /// While the `fallback` fills the place, the rows must not.
+    empty: Cell<bool>,
 }
 
 impl<C: SlotChild> Rows<C> {
     fn publish(&self) {
+        if self.empty.get() {
+            return;
+        }
         let runs = self.runs.borrow();
         let mut items = Vec::new();
         for row in self.order.borrow().iter() {
@@ -524,6 +529,7 @@ where
             order: RefCell::default(),
             building: Cell::new(false),
             changed: create_signal(0),
+            empty: Cell::new(false),
         });
         {
             let rows = rows.clone();
@@ -557,6 +563,7 @@ where
             if items.is_empty()
                 && let Some(fallback) = fallback
             {
+                rows.empty.set(true);
                 let empty = empty.value();
                 let mut empty = empty.borrow_mut();
                 if empty.is_none() {
@@ -568,6 +575,7 @@ where
                 return;
             }
             drop(empty.value().borrow_mut().take());
+            rows.empty.set(false);
             let mut keys = Vec::with_capacity(items.len());
             let mut changed = Vec::new();
             {
@@ -728,8 +736,8 @@ where
             }
             let (signal, built) = match found {
                 Some((_, case)) => {
-                    let signal = StoredCell::new(None::<Signal<V>>);
-                    let built = mount(&slot, move || {
+                    let signal = Cell::new(None::<Signal<V>>);
+                    let built = mount(&slot, || {
                         let made = create_signal(next);
                         signal.set(Some(made));
                         case.view.call(made.read_only())

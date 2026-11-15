@@ -23,7 +23,9 @@ nothing to show:
 
 - `Show` shows its body while `value` is `true` or `Some`. Over an `Option` the
   body is handed a `ReadSignal` of what is in it: `<Show value={picked}>|item:
-  ReadSignal<Item>| ..</Show>`.
+  ReadSignal<Item>| ..</Show>`. That signal is set each time the value is read
+  again, equal or not, so pass a memo when what is in it changes less often than
+  what it is read from.
 - `Match` shows the first `Case` that holds for `value`: `<Case is={Shape::Circle}>`,
   `<Case when={|shape: &Shape| shape.round()}>`, or both. A case is built when it
   becomes the one that holds and kept while it stays so, however the value
