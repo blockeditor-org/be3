@@ -58,7 +58,9 @@ a thread that runs beside it.
 1. Give the host's worker (`web/be-worker.js`, which runs the stacks and keeps the host's
    files, be-host's `host_files`) its own memory, serialize `Seen` and commands (the protocol
    crates' own encodings), and stop binding the page's files channel: a file call on the page
-   then fails loudly. The host state's first answer and its `Write`s, and the organization
+   then fails loudly. Two remain to check then, which should never run on the web's page:
+   be-host-runtime `input.rs`'s `read_path` (a dropped file with a path and no bytes) and
+   `fonts.rs`'s fallback reads (no system fonts on the web today). The host state's first answer and its `Write`s, and the organization
    lists, become messages too. The handed-over `Seen` then
    becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker
    wrote since the last), and the page's `Edit`s and replies travel as they do now. A
