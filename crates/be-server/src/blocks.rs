@@ -48,6 +48,7 @@ const _: () = assert!(
 /// The most changes one page of `changed-since` looks at, those of other trees included.
 const MAX_SCANNED: usize = if cfg!(test) { 6 } else { 20_000 };
 
+use crate::watch::{Links, Seen};
 use crate::{
     ServerError,
     keys::{forget_block_keys, store_keys},
@@ -450,31 +451,31 @@ fn summary_with(graph: &BlockGraph, seen: &Visibility, block: Uuid) -> Option<Bl
 
 /// What `summary_with` would tell a connection of `block` that decides which of its listings
 /// hold it, read from the graph without making the summary (its metadata and references).
-fn facts_of(
+pub(crate) fn facts_of(
     graph: &BlockGraph,
     seen: &Visibility,
     block: Uuid,
-    entry: bool,
+    told: Seen,
 ) -> Option<crate::watch::Facts> {
     let node = graph.get(block)?;
     if !seen.access(graph, block).can_view() {
-        return Some(crate::watch::Facts::new(
-            None,
-            true,
-            entry,
-            false,
-            HashSet::new(),
-            false,
-        ));
+        return Some(crate::watch::Facts::new(None, true, told, false, false));
     }
     Some(crate::watch::Facts::new(
         Some(node.parent),
         graph.holds(block),
-        entry,
+        told,
         true,
-        node.references.iter().copied().collect(),
         node.is_open_inside() && graph.settings_owner(block).is_some(),
     ))
+}
+
+/// What `links` and the graph say of `block` for the caller `seen` describes.
+fn seen_by(graph: &BlockGraph, seen: &Visibility, links: &Links, block: Uuid, entry: bool) -> Seen {
+    Seen {
+        entry,
+        linked: links.hold(graph, block, |block| seen.can_view(graph, block)),
+    }
 }
 
 /// What a change did to the references of the blocks it announces: one named here moved them
@@ -626,15 +627,15 @@ impl ServerStore {
     /// What each of `members` is told of `blocks` after a change: with `subtree`, of everything
     /// below them and what that references too, since who may view them moved. `moves` names
     /// what the change did to references (`Moves`).
-    pub async fn graph_views(
+    pub(crate) async fn graph_views(
         &self,
         organization: Uuid,
-        members: Vec<Identity>,
+        members: Vec<(Identity, Links)>,
         blocks: Vec<Uuid>,
         subtree: bool,
         moves: Moves,
         from: be_block_protocol::ClientId,
-    ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
+    ) -> Result<Vec<Vec<(crate::watch::Push, Seen)>>, ServerError> {
         self.with_graph(organization, move |_, graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
@@ -680,7 +681,7 @@ impl ServerStore {
                 .collect();
             Ok(members
                 .into_iter()
-                .map(|identity| {
+                .map(|(identity, links)| {
                     let seen = visibility(identity);
                     let shared: HashSet<Uuid> = match seen.administrator {
                         true => HashSet::new(),
@@ -691,6 +692,7 @@ impl ServerStore {
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
                                 let entry = found.access.can_view() && shared.contains(block);
+                                let told = seen_by(graph, &seen, &links, *block, entry);
                                 let moved = match found.access.can_view() {
                                     true => moved.get(block).cloned().flatten(),
                                     false => None,
@@ -701,7 +703,7 @@ impl ServerStore {
                                         moved,
                                         from,
                                     },
-                                    entry,
+                                    told,
                                 )
                             }
                             _ => (
@@ -709,7 +711,7 @@ impl ServerStore {
                                     block: *block,
                                     revision,
                                 },
-                                false,
+                                Seen::default(),
                             ),
                         })
                         .collect()
@@ -1565,11 +1567,14 @@ impl ServerStore {
     /// `after`, the first whose summaries fit in `room` bytes (at least one), then the next ids
     /// that fit in half that, and `next` when the listing goes on. Only the page's blocks are
     /// summarized. With the page, what the connection is told of each of its blocks.
+    /// A page of `listing`, and the facts the hub keeps of each of its blocks, which `links`
+    /// (the caller's, registered with the listing) decides in part.
     pub(crate) async fn list_page(
         &self,
         identity: Identity,
         listing: Listing,
         after: Option<Uuid>,
+        links: Links,
     ) -> Result<(Listed, Vec<(Uuid, crate::watch::Facts)>), ServerError> {
         self.with_graph(identity.organization, move |store, graph, _| {
             let seen = visibility(identity);
@@ -1589,7 +1594,8 @@ impl ServerStore {
                     break;
                 }
                 room = room.saturating_sub(size);
-                told.push((id, crate::watch::Facts::of(&summary, entry)));
+                let told_of = seen_by(graph, &seen, &links, id, entry);
+                told.push((id, crate::watch::Facts::of(&summary, told_of)));
                 page.blocks.push(summary);
                 ids.next();
             }
@@ -1600,9 +1606,10 @@ impl ServerStore {
                     break;
                 }
                 rest_room -= size;
+                let told_of = seen_by(graph, &seen, &links, id, entry);
                 told.push((
                     id,
-                    facts_of(graph, &seen, id, entry).ok_or(ServerError::Corrupt)?,
+                    facts_of(graph, &seen, id, told_of).ok_or(ServerError::Corrupt)?,
                 ));
                 page.rest.push(id);
                 ids.next();

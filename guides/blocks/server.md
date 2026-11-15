@@ -426,7 +426,16 @@ only the page's blocks): the summaries that fit in
 back as `after` for the ids past it. A block that stays in the listing is on
 exactly one page, and one that joins or leaves between pages is told on
 `changes`. The hub records each page's blocks as told (`Facts`, read from the
-graph for `rest` ids, with no summary made); the client reads
+graph for `rest` ids, with no summary made). `Facts` keep only what the graph
+cannot answer (where the block was, whether it was viewed or an entry point),
+never its references, so a connection that read a folder of `MAX_REFERENCES`
+entries costs the hub no more than one of a single entry: whether a
+`References` or `Backrefs` listing holds a block is read from the graph's
+backrefs in the graph job that summarizes it (`Links::hold`, against the
+listings `WatchHub::links` read before the job), and kept as `linked`, which
+holds the block known while another listing of it is dropped (`unlist`).
+`Links` carry a generation, so a change matched against listings read before a
+new linking listing was registered is taken as linked. The client reads
 `rest`'s summaries with `read-summaries` (at most `MAX_SUMMARIES_ASKED` ids),
 which lists nothing. A change is sent to each connected member in the block's
 audience before or after (and every administrator), as the `BlockChanged` that
@@ -576,7 +585,7 @@ guides/blocks/keys.md). Each budget, with the largest summary and
 `FRAME_ENVELOPE_BYTES`, is held under `MAX_FRAME_BYTES` by a const assertion.
 `list-history` still answers every entry kept at once. Code that walks a block's references must stay linear at `MAX_REFERENCES`:
 `BlockGraph::set_references`, `relinked`, `ReferenceChange::apply`, the
-hub's `Facts` and be-host-stack's `Graph::holds_in` use sets, not
+hub's `Links::hold` (`BlockGraph::refers`) and be-host-stack's `Graph::holds_in` use sets, not
 `Vec::contains`.
 
 Nothing the store does blocks the runtime's threads. Its SQL runs as owned
