@@ -33,10 +33,14 @@ fn a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight() {
     seal_owed();
     wait_until("the seal waits on the server", |shared| shared.waiting > 0);
     add(owed, 4);
-    // `parked` is set while the worker sleeps between rounds, so the round that saw the new edit
-    // has ended and published what it offers.
-    let due = crate::wait_until("parked the worker with the new edit unsaved", |shared| {
-        (shared.undurable > 0 && shared.parked.is_some()).then_some(shared.modules_due)
+    // `parked` is set while the worker sleeps between rounds and cleared as it wakes, so the
+    // round that counted the new edit has ended and published what it offers. The edit is kept
+    // on the device ahead of its submission, so only the server is waited on.
+    let due = crate::wait_until("parked the worker with the new edit kept", |shared| {
+        (counted(shared, owed) == Some(7) && shared.parked.is_some()).then(|| {
+            assert_eq!(shared.undurable, 0, "the device keeps the edit");
+            shared.modules_due
+        })
     });
     assert_eq!(
         due, None,
