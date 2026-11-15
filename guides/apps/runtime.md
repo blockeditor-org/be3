@@ -40,6 +40,12 @@ host holds that until due and asks once in its own frame, so an animating
 editor draws once per host frame and an editor not on screen is asked for
 nothing.
 
+Each step's time is recorded per app in the host's performance report (the
+pacing group): the whole step, "GPU calls" (the time inside every gpu import
+except those that only record into a pass or bundle, such as draws, which are
+left untimed since the clock costs more than they do and count in the step;
+`be_wasm_gpu_host::only_records`) and "submit".
+
 ### When the host asks
 
 The request leaves as soon as the frame's input is delivered when the host has
