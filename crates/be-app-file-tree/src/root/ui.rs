@@ -1029,7 +1029,7 @@ fn picker(
     // On a phone the block opens in the files' place, so its row cannot be renamed where it
     // shows: a name field left open there would come back with the files and take their first
     // tap. It is named from its own title instead.
-    let phone = be_sdk_beui::phone_layout();
+    let phone = phone_layout();
     let picked: Picked = std::rc::Rc::new(move |picked, parent| {
         let block_type = Uuid::from_bytes(picked.block_type);
         tree.remember(picked.id(), block_type);
