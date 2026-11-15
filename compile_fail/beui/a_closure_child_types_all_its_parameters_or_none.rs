@@ -1,6 +1,5 @@
 use beui::NodeId;
 use beui::reactive::*;
-use beui::styled::*;
 
 #[component]
 fn Case(numbers: Signal<Vec<u32>>) -> NodeId {
