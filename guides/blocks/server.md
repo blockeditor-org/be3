@@ -610,7 +610,7 @@ changes an app session calls it.
 An account has an opaque id and a set of **identities** (`identities`): its
 email, providers (`oidc`) and passkeys (`passkey`). Proving any one signs in
 (decisions/accounts_sign_in_with_identities_the_operator_configures.md); the
-last can't be removed. `accounts.email` is the account's verified email, if it
+last one that still signs in (`providers::signs_in`) can't be removed. `accounts.email` is the account's verified email, if it
 has one; an account made through a provider may have none, and then the
 protocol's `email` is the empty string, as it is for a local profile
 (decisions/an_account_with_no_email_has_an_empty_one.md). Sign-in stays in the
@@ -658,9 +658,12 @@ needs code of its own for any method.
 - **Operator login links** (`store/login_links.rs`, `be-server login-link`)
   sign in once within `LOGIN_LINK_LIFETIME` as recovering does, and for an
   email with no account make it, with no invite code; `/auth/link` shows the
-  link with a button, so a mail scanner opening it spends nothing. Only the
-  link's hash is kept. It is the way in on a server whose log is not to be
-  read, and for an account stranded by a provider the operator removed.
+  link with a button, so a mail scanner opening it spends nothing. Using one
+  needs neither `--allow-login` nor `--allow-registration`, so it is the way in
+  on a closed server, on one whose log is not to be read, and for an account
+  stranded by a provider the operator removed. The command prints the link on
+  its standard output, never to the server's log; only the link's hash is
+  kept.
 - **The flags.** `--allow-login` lets anyone sign in, by any identity, and with
   it `--allow-registration` lets anyone make an account, by any identity, with
   an invite code. They gate signing in, not using a session: without them a

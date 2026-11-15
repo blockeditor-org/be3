@@ -128,10 +128,13 @@ registration also `--allow-registration` and an operator invite code. A browser 
 in keeps using its session, settings included, without `--allow-login`.
 
 Mail is not delivered yet (plans/deferred/mail_delivery.md): every message, sign-in and
-recovery codes and their links included, goes to the server's log, so the hosted server's
-journal (`journalctl -u be-server`) holds every live code, and whoever reads it can sign in to
-any account with an email. On the hosted server the operator's login link (below) is the way
-in; treat the journal as a secret.
+recovery codes and their links included, goes to the server's log, the hosted server's journal
+(`journalctl -u be-server`). A code works only in the browser whose `be3-attempt` cookie asked
+for it, so a code someone else asked for is no use to a reader of the journal; but a reader can
+ask for a code for any account's email from their own browser and read it there, and so sign in
+to any account with an email while `--allow-login` is on. With it off, nobody can ask for a code
+and the journal holds none a reader can use. On the hosted server the operator's login link
+(below) is the way in; treat the journal as a secret.
 
 Invite codes are made on the server against the data directory (`sudo -u be-server
 /srv/be-server/be-server invite-code ... --data-dir /mnt/data/be-server`), which works while
@@ -152,10 +155,11 @@ The operator signs anyone in without the log with a login link, made the same wa
 be-server login-link --data-dir DATA --auth-origin ORIGIN (--email EMAIL | --account ID)
 ```
 
-It prints a link that works once, within fifteen minutes, and ends the account's other sessions,
-as "I can't sign in" does; the server keeps only its hash. For an email with no account, using it
-makes the account, with no invite code and whatever `--allow-registration` says, so a new
-server's first account is a link for its owner's email. Then sign be-host in through the portal
+It prints a link on its standard output, never to the server's journal, that works once, within
+fifteen minutes, and ends the account's other sessions, as "I can't sign in" does; the server
+keeps only its hash. Using it needs neither `--allow-login` nor `--allow-registration`, and for
+an email with no account it makes the account, with no invite code, so it is the way in on a
+closed server and a new server's first account is a link for its owner's email. Then sign be-host in through the portal
 as usual, which needs `--allow-login`. A deployed server needs
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.

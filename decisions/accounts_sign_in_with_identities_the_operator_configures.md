@@ -13,7 +13,9 @@ is configured per server, one tenant's issuer each.
   own, and a server with none still works by emailed codes and passkeys.
 - An account holds no content keys (workspace keys are sealed to the recovery
   phrase), so taking one over gets metadata and memberships, never plaintext
-  nor a signature, and an email-based factor is strong enough as the baseline.
+  nor a signature, though it can act as the account on the server (delete,
+  remove members, invite) until its owner recovers it, and recovery ends every
+  other session. So an email-based factor is strong enough as the baseline.
 - Single-tenant providers keep the issuer the server checks one the operator
   chose; Microsoft's `common` or `organizations` would accept any tenant's
   tokens and need a tenant allowlist of their own.
