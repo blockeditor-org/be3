@@ -53,3 +53,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   test where an index over the cap is left alone on battery. Until then the pass
   is capped at `IDLE_MERGE_BYTES` (128 MiB); with both signals it could merge
   larger tiers, once a merge no longer reads its segments whole into memory.
+
+## 11. Large folders
+
+- **The rest of a large folder's change.** A change of a folder now reaches a
+  watcher as what it did to the references, but each end still does O(N) work
+  per change: the client's refs write the block's whole summary row on every
+  change (`Refs::keep`, then `Peer::note`), so a watcher seeing N entries added
+  one at a time writes O(N²) bytes to disk, and the server's `graph_views`
+  clones every reference into each member's summary only for `WatchHub::tell`
+  to empty them. Done: the refs keep a block's references apart from its
+  summary row and write only what a change moved, the server makes a summary
+  without references for a change it tells as `moved`, and a client test
+  adding thousands of entries to a watched folder writes refs bytes linear in
+  them.

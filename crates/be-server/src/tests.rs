@@ -35,6 +35,7 @@ mod a_blocks_references_are_listed_and_announced_together;
 mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
+mod a_change_to_a_block_listed_only_by_id_comes_whole;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
@@ -337,7 +338,18 @@ impl Heard {
         match self {
             Heard::Changes(stream) => stream.poll_recv(context).map(|change| {
                 change.map(|change| match change {
-                    BlockChange::Changed { block, moved, from } => {
+                    BlockChange::Changed {
+                        mut block,
+                        references,
+                        from,
+                    } => {
+                        let moved = match references {
+                            be_block_protocol::ChangedReferences::Whole(references) => {
+                                block.references = references;
+                                None
+                            }
+                            be_block_protocol::ChangedReferences::Moved(moved) => Some(moved),
+                        };
                         Notice::BlockChanged { block, moved, from }
                     }
                     BlockChange::Removed { block, revision } => {

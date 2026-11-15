@@ -678,10 +678,24 @@ impl Client {
         let streams = &mut self.streams;
         let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
         match push {
-            Push::BlockChanged { block, moved, from } => {
+            Push::BlockChanged {
+                mut block,
+                moved,
+                from,
+            } => {
+                let references = match moved {
+                    Some(moved) => be_block_protocol::ChangedReferences::Moved(moved),
+                    None => be_block_protocol::ChangedReferences::Whole(std::mem::take(
+                        &mut block.references,
+                    )),
+                };
                 streams.send(
                     &mut lock,
-                    BlockChange::Changed { block, moved, from },
+                    BlockChange::Changed {
+                        block,
+                        references,
+                        from,
+                    },
                     |route| *route == Route::Changes,
                 )?;
             }

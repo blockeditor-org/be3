@@ -66,5 +66,11 @@ async fn a_change_announced_as_what_moved_in_its_references_arrives_with_them_al
         assert_eq!(references, targets);
     }
 
+    assert_eq!(
+        laptop.connection().rereads(),
+        0,
+        "the laptop read the deck again rather than apply what moved"
+    );
+
     harness.stop().await;
 }

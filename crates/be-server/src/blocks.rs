@@ -461,11 +461,12 @@ pub(crate) fn facts_of(
     if !seen.access(graph, block).can_view() {
         return Some(crate::watch::Facts::new(None, true, told, false, false));
     }
+    // A `rest` id is sent without its summary: until one is, its references were not told.
     Some(crate::watch::Facts::new(
         Some(node.parent),
         graph.holds(block),
         told,
-        true,
+        false,
         node.is_open_inside() && graph.settings_owner(block).is_some(),
     ))
 }
