@@ -63,7 +63,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
 
         let sealed = seal(&peer, block, parent, "sealed", 3).await;
         let (journal, kept, load_at, sealed_head) =
-            crate::replicas::journal_for(&peer, block, None, Some(sealed));
+            crate::replicas::journal_for(&peer, block, None, false, Some(sealed));
         assert_eq!(load_at, parent, "it loads on the commit the seal was made on");
         assert_eq!(
             sealed_head.map(|head| (head.commit, head.through)),
@@ -75,7 +75,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
         // A seal whose last entry the journal never reached.
         let short = seal(&peer, block, parent, "short", 5).await;
         let (journal, _, load_at, sealed_head) =
-            crate::replicas::journal_for(&peer, block, None, Some(short));
+            crate::replicas::journal_for(&peer, block, None, false, Some(short));
         assert_eq!(
             (journal.is_some(), load_at, sealed_head),
             (false, Some(short), None),
@@ -88,7 +88,7 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
             .expect("the journal starts over");
         let empty = seal(&peer, block, parent, "empty", 2).await;
         let (_, _, load_at, sealed_head) =
-            crate::replicas::journal_for(&peer, block, None, Some(empty));
+            crate::replicas::journal_for(&peer, block, None, false, Some(empty));
         assert_eq!((load_at, sealed_head), (Some(empty), None), "the base alone");
     });
 }

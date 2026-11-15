@@ -1125,7 +1125,11 @@ impl<H: Host> Replicas<H> {
             true => head,
             false => ahead(peer, block).or(head),
         };
-        let (journal, journal_kept, load_at, sealed_head) = journal_for(peer, block, journal, head);
+        if !offline && journal.is_none() {
+            mirror_afresh(peer, block, head);
+        }
+        let (journal, journal_kept, load_at, sealed_head) =
+            journal_for(peer, block, journal, !offline, head);
         let Some(replica) = self.start(
             peer,
             block,
@@ -1343,7 +1347,7 @@ impl<H: Host> Replicas<H> {
             true => open.status.head,
             false => head,
         };
-        let loads = reopening(open, peer, journal, from);
+        let loads = reopening(open, peer, journal, true, from);
         let from = loads.2;
         let commits_kept = match ahead.is_some() {
             true => (be_sdk_type_api::KeptCommits::Outbox, Vec::new()),
@@ -2403,6 +2407,7 @@ impl<H: Host> Replicas<H> {
                 self.replay(replica, replayed);
             }
             Event::Sequenced { block, entry } => {
+                eprintln!("DEBUG sequenced {block} seq={} origin={} counter={} base={} floor={}", entry.sequence, entry.origin, entry.counter, entry.base, entry.floor);
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
@@ -2870,7 +2875,7 @@ impl<H: Host> Replicas<H> {
                 _ => true,
             })
             .collect();
-        let loads = reopening(open, peer, journal, open.status.head);
+        let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
         self.reopen_joined(replica, client, session, head, loads, commits_kept);
         for replayed in early {
@@ -2935,7 +2940,7 @@ impl<H: Host> Replicas<H> {
             // Its old module will never report the head it was answered.
             open.reporting = None;
             let (journal, journal_kept, head, sealed_head) =
-                reopening(open, peer, None, open.status.head);
+                reopening(open, peer, None, false, open.status.head);
             open.resent();
             let kept = kept_commits(peer, open.block);
             let opening = Opening {
@@ -3028,6 +3033,7 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return false;
         };
+        eprintln!("DEBUG status {} head={:?} owner={} clean={} journaled={} owes={} taken={} jt={} st={} epoch={}/{} made_up={} joining={}", open.block, status.head, status.owner, status.clean, status.journaled, status.owes_seal, status.taken, status.journaled_taken, status.sealed_taken, status.epoch, open.epoch, open.made_up, open.joining);
         let (block, content_type) = (open.block, open.content_type);
         // Made before the replica was opened again: it says nothing of this opening.
         if status.epoch != open.epoch {
@@ -3316,6 +3322,7 @@ impl<H: Host> Replicas<H> {
                     payload: submission.payload,
                 };
                 let online = !made_up && peer.is_attached();
+                eprintln!("DEBUG submit {block} online={online} made_up={made_up} id={:?} base={} barrier={}", submission.id, submission.base, submission.barrier);
                 let submitted = peer
                     .submit(block, tag, submission, online, announcements)
                     .await;
@@ -3336,6 +3343,7 @@ impl<H: Host> Replicas<H> {
                                     be_sdk_type_api::host::Submitted::Held
                                 }
                                 Err(error) => {
+                                    eprintln!("DEBUG submit failed: {error}");
                                     let failed = be_sdk_type_api::host::Submitted::Failed(
                                         error.to_string(),
                                     );
@@ -3893,18 +3901,27 @@ pub type Loads = (
 /// which the replica opens on because the order goes on from there (it hears of `head` after,
 /// and its holder merges it in). This device's journal on another commit is passed over: what it
 /// numbered offline was sealed into the commits this device keeps.
+/// Online, the server's journal is the order: with none, the order starts afresh at its head,
+/// so this device's journal is passed over too, unless it holds edits only this device
+/// numbered, which a replica opened on it seals.
 pub fn journal_for<S: be_block_store::ObjectStore>(
     peer: &Peer<S>,
     block: Uuid,
     server: Option<be_block_protocol::Journal>,
+    online: bool,
     head: Option<CommitId>,
 ) -> Loads {
-    let online = server.is_some();
-    let Some(journal) = server.or_else(|| peer.local_journal(block).ok().flatten()) else {
+    let device = || {
+        peer.local_journal(block).ok().flatten().filter(|journal| {
+            !online || journal.entries.iter().any(|entry| entry.received.is_none())
+        })
+    };
+    let from_server = server.is_some();
+    let Some(journal) = server.or_else(device) else {
         return (None, false, head, None);
     };
     // Numbered offline: the server lacks what it holds.
-    let kept = !online && journal.entries.iter().any(|entry| entry.received.is_none());
+    let kept = !from_server && journal.entries.iter().any(|entry| entry.received.is_none());
     if journal.base.commit == head {
         return (Some(journal), kept, head, None);
     }
@@ -3925,12 +3942,31 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
             parent,
             Some(be_sdk_type_api::SealedHead { commit, through }),
         ),
-        None if online => {
+        None if from_server => {
             let base = journal.base.commit;
             (Some(journal), false, base, None)
         }
         None => (None, false, head, None),
     }
+}
+
+/// Starts this device's copy of the order afresh at `head` when the server holds no journal,
+/// so what it hears next is not kept beside an order that ended. A journal holding what only
+/// this device numbered is left for the replica opened on it to seal.
+fn mirror_afresh<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid, head: Option<CommitId>) {
+    let Some(mut mirror) = peer.sealed_journal(block) else {
+        return;
+    };
+    if mirror.entries.iter().any(|entry| entry.received.is_none()) {
+        return;
+    }
+    mirror.base = be_block_protocol::JournalBase {
+        commit: head,
+        sequence: 0,
+        state: Vec::new(),
+    };
+    mirror.entries.clear();
+    let _ = peer.keep_journal(block, &mirror);
 }
 
 /// Opens the server's journal as joining answered it, keeping it sealed too.
@@ -3951,13 +3987,18 @@ fn reopening<S: be_block_store::ObjectStore>(
     open: &mut Open,
     peer: &Peer<S>,
     server: Option<ServerJournal>,
+    online: bool,
     head: Option<CommitId>,
 ) -> Loads {
-    if let Some((sealed, _)) = &server {
-        let _ = peer.keep_journal(open.block, sealed);
+    match &server {
+        Some((sealed, _)) => {
+            let _ = peer.keep_journal(open.block, sealed);
+        }
+        None if online => mirror_afresh(peer, open.block, head),
+        None => {}
     }
     open.reported_clean(open.journaled_taken);
-    journal_for(peer, open.block, server.map(|(_, opened)| opened), head)
+    journal_for(peer, open.block, server.map(|(_, opened)| opened), online, head)
 }
 
 /// Whether edits of the block made with another build were lost: `journal` holds some this

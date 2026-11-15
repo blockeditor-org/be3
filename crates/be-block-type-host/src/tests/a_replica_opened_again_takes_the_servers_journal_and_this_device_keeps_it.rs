@@ -65,13 +65,13 @@ fn a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it() {
         // This device numbered three of its own offline.
         numbered(&peer, block, &base, &[0xA, 0xA, 0xA]).await;
         let (journal, kept, load_at, _) =
-            crate::replicas::journal_for(&peer, block, None, head);
+            crate::replicas::journal_for(&peer, block, None, false, head);
         assert!(kept, "offline, this device's journal holds what the server lacks");
         assert_eq!(load_at, head);
         assert_eq!(journal.map(|journal| journal.entries.len()), Some(3));
 
         let (journal, kept, load_at, _) =
-            crate::replicas::journal_for(&peer, block, Some(server.clone()), head);
+            crate::replicas::journal_for(&peer, block, Some(server.clone()), true, head);
         assert_eq!(load_at, head);
         assert!(!kept, "the server holds what it hands over");
         assert_eq!(held(&journal.expect("the server's")), held(&server));
@@ -79,14 +79,14 @@ fn a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it() {
         peer.keep_journal(block, &sealed).expect("kept");
         let kept_here = peer.local_journal(block).unwrap().expect("kept");
         assert_eq!(held(&kept_here), held(&server), "this device keeps the server's journal");
-        let (journal, kept, _, _) = crate::replicas::journal_for(&peer, block, None, head);
+        let (journal, kept, _, _) = crate::replicas::journal_for(&peer, block, None, false, head);
         assert!(!kept);
         assert_eq!(held(&journal.expect("this device's")), held(&server));
 
         let mut other = server.clone();
         other.base.commit = None;
         let (journal, _, load_at, sealed_head) =
-            crate::replicas::journal_for(&peer, block, Some(other), head);
+            crate::replicas::journal_for(&peer, block, Some(other), true, head);
         assert_eq!(
             (load_at, sealed_head),
             (None, None),
