@@ -84,7 +84,8 @@ pub struct SearchHit {
     /// The stretch of the text around the first match, or its start when only the name
     /// matched.
     pub snippet: String,
-    /// The matched words, as byte ranges of `snippet`.
+    /// The matched words, as byte ranges of `snippet` (`Query::matches`: a phrase in a row is
+    /// one range).
     pub matches: Vec<Range<usize>>,
 }
 

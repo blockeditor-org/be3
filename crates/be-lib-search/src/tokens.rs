@@ -22,7 +22,7 @@ pub fn terms(text: &str) -> impl Iterator<Item = String> + '_ {
 
 /// A term cut into pieces of at most `LONGEST_TERM` bytes on character
 /// boundaries.
-fn split(term: String) -> Vec<String> {
+pub(crate) fn split(term: String) -> Vec<String> {
     if term.len() <= LONGEST_TERM {
         return vec![term];
     }

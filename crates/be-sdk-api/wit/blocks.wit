@@ -255,9 +255,10 @@ interface blocks {
     }
 
     /// Where in a block a search found something (`search-hit`): the document
-    /// within it, empty for a block that is one document, and the words it
-    /// matched. The editor that shows the block selects the first place they
-    /// occur, where it supports a location (`editor-event.reveal`).
+    /// within it, empty for a block that is one document, and the words of its
+    /// first match (a phrase's words in a row), which is where the document's text
+    /// first matches the query. The editor that shows the block selects the
+    /// first place they occur, where it supports a location (`editor-event.reveal`).
     record search-location {
         key: string,
         text: string,
@@ -364,7 +365,8 @@ interface blocks {
         /// The stretch of its text around the first match, or its start when only the
         /// block's name matched.
         snippet: string,
-        /// The matched words, as byte ranges of `snippet`.
+        /// The matched words, as byte ranges of `snippet` in order: a phrase where its
+        /// words occur in a row is one range, and a word of it alone is none.
         matches: list<tuple<u32, u32>>,
     }
 

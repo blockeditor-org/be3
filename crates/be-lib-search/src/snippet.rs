@@ -3,7 +3,10 @@
 
 use std::ops::Range;
 
-use crate::{Clause, Query, tokens::fold};
+use crate::{
+    Clause, Query,
+    tokens::{fold, split},
+};
 
 /// A stretch of a text and where the query matches inside it, as byte ranges of `text`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -16,25 +19,50 @@ pub struct Snippet {
 const CONTEXT: usize = 60;
 
 impl Query {
-    /// The byte ranges of `text`'s words that a clause matches: a word or a phrase's word
-    /// equal to one of the clauses, or a word starting with a prefix.
+    /// The byte ranges of `text` that a clause matches, in order and never overlapping: a word
+    /// equal to a word clause, a word starting with a prefix, or a phrase's words where they
+    /// occur in a row, as one range from its first word to its last. A phrase's word alone
+    /// matches nothing, so the first range is where the text first matches the query, the
+    /// place a hit opens at.
     pub fn matches(&self, text: &str) -> Vec<Range<usize>> {
-        let mut words = Vec::new();
-        let mut prefixes = Vec::new();
-        for clause in &self.clauses {
-            match clause {
-                Clause::Word(word) => words.push(word.as_str()),
-                Clause::Prefix(prefix) => prefixes.push(prefix.as_str()),
-                Clause::Phrase(phrase) => words.extend(phrase.iter().map(String::as_str)),
+        // Each word's terms, as the index keeps them: a long word is several, all its range.
+        let terms: Vec<(Range<usize>, String)> = be_lib_graphemes::words(text.as_bytes())
+            .flat_map(|range| {
+                split(fold(&text[range.clone()]))
+                    .into_iter()
+                    .map(move |term| (range.clone(), term))
+            })
+            .collect();
+        let mut found = Vec::new();
+        for (index, (range, term)) in terms.iter().enumerate() {
+            for clause in &self.clauses {
+                match clause {
+                    Clause::Word(word) if word == term => found.push(range.clone()),
+                    Clause::Prefix(prefix) if term.starts_with(prefix.as_str()) => {
+                        found.push(range.clone())
+                    }
+                    Clause::Phrase(phrase)
+                        if terms.len() - index >= phrase.len()
+                            && terms[index..index + phrase.len()]
+                                .iter()
+                                .zip(phrase)
+                                .all(|((_, term), word)| term == word) =>
+                    {
+                        found.push(range.start..terms[index + phrase.len() - 1].0.end)
+                    }
+                    _ => {}
+                }
             }
         }
-        be_lib_graphemes::words(text.as_bytes())
-            .filter(|range| {
-                let folded = fold(&text[range.clone()]);
-                words.contains(&folded.as_str())
-                    || prefixes.iter().any(|prefix| folded.starts_with(prefix))
-            })
-            .collect()
+        found.sort_by_key(|range| range.start);
+        let mut merged: Vec<Range<usize>> = Vec::with_capacity(found.len());
+        for range in found {
+            match merged.last_mut() {
+                Some(last) if range.start < last.end => last.end = last.end.max(range.end),
+                _ => merged.push(range),
+            }
+        }
+        merged
     }
 
     /// The stretch of `text` around the first match, cut at word gaps where it can be and
