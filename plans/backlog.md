@@ -169,3 +169,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   Done: a `drive` step that lets an app's present arrive before the next poll,
   and a host test at phone size that opens a document from the files and
   shows each frame between.
+
+## 17. Dragging
+
+- **A carried item's own face, unclipped.** A carry with no `preview` floats as
+  its source drawn displaced and raised, which a scroll around the source still
+  clips (guides/beui/components.md, Drags as places). Done: the source's face
+  captured as a texture on both cores floats in a top layer like a preview,
+  so no carry needs `preview` just to leave its scroll.
