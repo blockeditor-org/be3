@@ -246,3 +246,4 @@ mod an_app_that_panics_reports_its_panic_message;
 mod an_interrupted_app_stops_on_every_thread;
 mod an_interrupted_host_loads_no_app;
 mod the_thread_local_diamond_runs_on_every_thread;
+mod v8_runs_a_wasm_module;

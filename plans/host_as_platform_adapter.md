@@ -235,7 +235,7 @@ A new WIT interface the host serves to the root guest, and later to apps
   as the other end.
 - On the web, spawning makes a Web Worker from the page.
 - The config assumes wasmtime natively: epochs or fuel, and canonical NaNs. Running guests on V8
-  instead (plans/deferred/wasm_on_v8.md) would have to answer for both.
+  instead (plans/wasm_on_v8.md) would have to answer for both.
 - It is one async interface for every caller, its calls async ops like every other guest call
   (decisions/guest_calls_are_async_ops_except_local_ones.md). The root guest awaits them from its
   resumable frame, which returns `Pending` until they complete. The root's frame entry is an
