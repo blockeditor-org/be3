@@ -11,7 +11,7 @@ fn a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>

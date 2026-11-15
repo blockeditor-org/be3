@@ -13,7 +13,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
                             keys={keys}

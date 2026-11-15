@@ -53,10 +53,6 @@ const DOCK_HOLD: f32 = 1.5;
 /// A bar grabbed while floating over an edge docks there only once the pointer has come this
 /// share of the way from where it grabbed towards the edge, so a grab alone keeps it floating.
 const FLOAT_HOLD: f32 = 0.5;
-const SETTLE: Spring = Spring {
-    stiffness: 420.0,
-    damping: 32.0,
-};
 const LEFT: TabId = TabId::new(u64::MAX);
 
 pub struct DockBarBandHandle {
@@ -822,7 +818,8 @@ impl State {
             }
             lifting
                 .growth
-                .set((ease(flight.grow), 1.0 - ease(1.0 - flight.shrink)));
+                .set((self.curves.ease.sample(flight.grow),
+            1.0 - self.curves.ease.sample(1.0 - flight.shrink),));
         }
         lifting.gap.set(None);
         lifting.lift.set(Some(Lift { target, ..lift }));
@@ -981,7 +978,8 @@ impl State {
         if flight.shrink <= 0.0 && lifting.gone.get_untracked().is_some() {
             lifting.gone.set(None);
         }
-        let growth = (ease(flight.grow), 1.0 - ease(1.0 - flight.shrink));
+        let growth = (self.curves.ease.sample(flight.grow),
+            1.0 - self.curves.ease.sample(1.0 - flight.shrink),);
         if lifting.growth.get_untracked() != growth {
             lifting.growth.set(growth);
         }
@@ -991,8 +989,8 @@ impl State {
                 true => {
                     let mut off = flight.pos - goal;
                     let mut speed = flight.speed;
-                    SETTLE.advance(&mut off.x, &mut speed.x, seconds);
-                    SETTLE.advance(&mut off.y, &mut speed.y, seconds);
+                    self.curves.settle.advance(&mut off.x, &mut speed.x, seconds);
+                    self.curves.settle.advance(&mut off.y, &mut speed.y, seconds);
                     flight.pos = goal + off;
                     flight.speed = speed;
                 }
@@ -1048,10 +1046,6 @@ impl State {
         );
         self.lifting.motion.set(Some(motion));
     }
-}
-
-fn ease(progress: f32) -> f32 {
-    tween(progress, 1.0, Easing::OutCubic)
 }
 
 #[derive(Clone, Copy, PartialEq)]

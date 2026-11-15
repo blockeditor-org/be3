@@ -1344,7 +1344,7 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<NodeId>>,
     block: Option<RenderFn<usize>>,

@@ -8,7 +8,7 @@ use beui::Direction;
 #[component]
 fn Strip() -> NodeId {
     view! {
-        <Scroll @test_id="strip" direction=Direction::Horizontal>
+        <Scroll @test_id="strip" direction=Direction::Horizontal style={plain_scroll()}>
             <ForEach keys={indices(20)}>|index: usize|
                 <Frame width=120.0 height=40.0>
                     <Text color=Color32::WHITE>{format!("Card {index}")}</Text>
@@ -43,7 +43,7 @@ fn a_vertical_wheel_scrolls_a_horizontal_scroll_unless_something_around_it_scrol
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="page">
+                    <Scroll @test_id="page" style={plain_scroll()}>
                         <Strip />
                         <ForEach keys={indices(40)}>|index: usize|
                             <Frame height=40.0>

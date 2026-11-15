@@ -11,7 +11,8 @@ use beui_view::reactive::NodeId;
 use beui_view::types::icons::{ICON_COPY, ICON_X};
 
 use crate::list::List;
-use crate::tokens::{Padding, Size, Space, Stroke};
+use beui_components_unstyled::ScrollStyle;
+use crate::tokens::{Padding, Size, Space, Stroke, Movement};
 use beui_view::reactive::*;
 
 use crate::button::{Button, ButtonSize};
@@ -199,5 +200,6 @@ pub fn text_input_style() -> TextInputStyle {
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),
         menu: Some(menu_style()),
+        scroll: ScrollStyle::new(Movement::Rubber.spring()),
     }
 }

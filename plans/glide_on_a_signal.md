@@ -1,7 +1,6 @@
 # Glide armed by a signal, with its spring from the theme
 
-Depends on: plans/motion_tokens.md, step 1, for the styled `Glide`; plans/for_each_handle.md,
-step 1, for the row-index test.
+Depends on: plans/for_each_handle.md, step 1, for the row-index test.
 
 `unstyled::Glide` (`beui-components-unstyled` `glide.rs`) is already one component on both cores,
 built from `Frame`'s `translate` and `raised`, `measure`, `measure::scrolled_by` and
@@ -35,8 +34,10 @@ token prop is added only when a second look is needed.
   bumping `arm` does today. An explicit prop, never a context: a layer that provided one by
   accident would arm glides nobody asked to move.
 - **`spring`:** required on the unstyled `Glide`, as a curve is appearance
-  (decisions/beui_unstyled_layer_has_no_appearance_defaults.md). `GLIDE_SPRING` goes; its value
-  becomes the theme's `Movement::Settle`. This plan owns that move.
+  (decisions/beui_unstyled_layer_has_no_appearance_defaults.md). `GLIDE_SPRING` (500, 42) goes
+  and the styled `Glide` passes `Movement::Settle.spring()` (`styled::tokens`, 420, 32: what the
+  dock's bars already land on), so glides settle a little softer and their paintings are
+  accepted again. This plan owns that move.
 
 ## beui-reactive's `Trigger`
 
@@ -50,4 +51,4 @@ what `on` takes when the move is not a keyed one, and it replaces counters kept 
    `arm` caller (`rg 'arm=' crates`) and drop `Reorder`'s `arm` signal.
 3. Tests: arming from a row's index glides a reordered row; arming from a `Trigger` glides a
    row moved by something other than its key; the existing glide tests keep passing on `on`.
-4. Update components.md's paragraph on `Glide` (Timers and animation).
+4. Update components.md's paragraph on `Glide` (Time).

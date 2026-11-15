@@ -11,7 +11,7 @@ use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, 
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
     DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
-    NumberFaceHandle, NumberFieldHandle, SheetGripHandle, TreeRevealHandle, TreeRowHandle,
+    NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves, TreeRevealHandle, TreeRowHandle,
     TreeToggleHandle, emoji_completer,
 };
 
@@ -27,6 +27,27 @@ const BIN_HEIGHT: Size = Size::Custom(180.0);
 const SCROLL_HEIGHT: f32 = 200.0;
 const SCROLL_LINES: usize = 40;
 const BAR_WIDTH: f32 = 6.0;
+/// The unstyled layer has no curves of its own, so this page gives its motions
+/// theirs.
+const RUBBER: beui::reactive::Spring = beui::reactive::Spring {
+    stiffness: 180.0,
+    damping: 26.832_815,
+};
+const PULL: beui::reactive::Spring = beui::reactive::Spring {
+    stiffness: 400.0,
+    damping: 38.0,
+};
+const SHEET_CURVES: SheetCurves = SheetCurves {
+    enter: beui::reactive::Easing::OutCubic,
+    settle: beui::reactive::Easing::OutCubic,
+    pull: PULL,
+    rubber: RUBBER,
+};
+const SLIDE_CURVES: SlideCurves = SlideCurves {
+    enter: beui::reactive::Easing::OutCubic,
+    leave: beui::reactive::Easing::OutQuad,
+    settle: beui::reactive::Easing::OutCubic,
+};
 const NUMBER_WIDTH: Size = Size::Custom(120.0);
 const SWATCH_SIZE: Size = Size::Lg;
 const TREE_HEIGHT: Size = Size::Custom(180.0);
@@ -288,6 +309,7 @@ fn UnderlinedInput() -> NodeId {
                     prose: Prop::Static(None),
                     geometry: Prop::Static(text_area_geometry()),
                     menu: None,
+                    scroll: ScrollStyle::new(RUBBER),
                 }}
                 on_submit={move |value: String| submitted.set(format!("Searched for {value}"))}
             >|handle: TextInputHandle|
@@ -329,6 +351,7 @@ fn ProseInput() -> NodeId {
                     })),
                     geometry: Prop::Static(text_area_geometry()),
                     menu: None,
+                    scroll: ScrollStyle::new(RUBBER),
                 }}
             />
         </Frame>
@@ -917,7 +940,7 @@ fn ThinScroll() -> NodeId {
 
 #[sample]
 fn thin_scrollbar() -> ScrollStyle {
-    ScrollStyle::new(BAR_WIDTH, |handle: ScrollHandle| {
+    ScrollStyle::new(RUBBER).bar(BAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,
@@ -1106,6 +1129,7 @@ fn underlined_style() -> TextInputStyle {
         prose: Prop::Static(None),
         geometry: Prop::Static(text_area_geometry()),
         menu: None,
+        scroll: ScrollStyle::new(RUBBER),
     }
 }
 
@@ -1233,7 +1257,7 @@ fn FolderTree() -> NodeId {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=Space::None>
                 <ListItem grow=1.0>
-                    <unstyled::Scroll @node_ref={&viewport}>
+                    <unstyled::Scroll @node_ref={&viewport} style={ScrollStyle::new(RUBBER)}>
                         <unstyled::Tree
                             api=tree
                             keys
@@ -1403,6 +1427,7 @@ fn PlainNote() -> NodeId {
                     colors={move || beui::styled::text_area_colors(&theme.get())}
                     look={beui::styled::text_area_look()}
                     font_size=14.0
+                    scroll={ScrollStyle::new(RUBBER)}
                     padding={beui::Sides::symmetric(12.0, 8.0)}
                     completer={emoji_completer()}
                     completion_menu={CompletionMenu::new(
@@ -1460,6 +1485,7 @@ fn PullUpSheet() -> NodeId {
                 fit=true
                 rest=0.9
                 stops={vec![0.9]}
+                curves=SHEET_CURVES
                 scrim={Color32::from_rgba_unmultiplied(0, 0, 0, 120)}
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />
@@ -1511,6 +1537,7 @@ fn FolderPages() -> NodeId {
     let label = create_memo(move || folder_label(depth.get()));
     view! {
         <unstyled::BackSlide
+            curves=SLIDE_CURVES
             enabled={nested}
             on_back={move || depth.set(depth.get_untracked().saturating_sub(1))}
             behind={above}

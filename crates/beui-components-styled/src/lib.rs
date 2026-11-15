@@ -3,6 +3,7 @@ extern crate beui_view as beui;
 pub mod accordion;
 pub mod action_bar;
 pub mod action_row;
+pub mod back_slide;
 pub mod banner;
 pub mod border;
 pub mod button;
@@ -63,6 +64,7 @@ pub mod treemap;
 pub use accordion::Accordion;
 pub use action_bar::{ActionBar, ActionLabels};
 pub use action_row::ActionRow;
+pub use back_slide::BackSlide;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
@@ -70,7 +72,7 @@ pub use beui_components_unstyled::{
     provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{
-    BackSlide, ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
+    ChoiceOption, Container, DragHandle, DragPoint, DragSource, Draggable, DropHandle,
     DropTarget, Edge, Floating, MenuCaption, MenuGrid, MenuItem, MenuNodes, MenuThen, PanZoom,
     PanZoomHandle, PanZoomView, PointerLock, PointerLockHandle, PopoverHandle, PopoverPlacement,
     Pressable, Prose, ProseLine, RemoteTextCursor, ScrollAnchor, SliderScale, SyntaxColors,
@@ -152,7 +154,7 @@ pub use theme::{
 };
 pub use tile_button::TileButton;
 pub use toast::Toasts;
-pub use tokens::{CornerSet, Length, Padding, Size, Space, Stroke};
+pub use tokens::{CornerSet, Length, Movement, Padding, Size, Space, Stroke};
 pub use tool_pill::ToolPill;
 pub use tooltip::Tooltip;
 pub use tree::{Tree, TreeRowFace};

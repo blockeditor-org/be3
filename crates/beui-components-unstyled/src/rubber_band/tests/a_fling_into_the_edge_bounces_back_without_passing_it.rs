@@ -4,7 +4,7 @@ use super::*;
 fn a_fling_into_the_edge_bounces_back_without_passing_it() {
     let frame = 1.0 / 120.0;
     let (mut stretch, mut velocity) = (-1.0, -3000.0);
-    bounce(&mut stretch, &mut velocity, frame);
+    bounce(&mut stretch, &mut velocity, frame, RUBBER);
     let entered = (stretch + 1.0) / frame;
     assert!(
         entered < -2900.0,
@@ -13,7 +13,7 @@ fn a_fling_into_the_edge_bounces_back_without_passing_it() {
 
     let mut deepest = stretch;
     for _ in 0..240 {
-        let back = bounce(&mut stretch, &mut velocity, frame);
+        let back = bounce(&mut stretch, &mut velocity, frame, RUBBER);
         assert_eq!(back, 0.0, "a fling bouncing back comes to rest at the edge");
         assert!(stretch <= 0.0, "it never springs past the edge: {stretch}");
         deepest = deepest.min(stretch);

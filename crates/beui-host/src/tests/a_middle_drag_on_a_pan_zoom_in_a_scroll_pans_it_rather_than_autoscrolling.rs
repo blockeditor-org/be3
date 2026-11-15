@@ -10,7 +10,7 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll>
+                    <Scroll style={plain_scroll()}>
                         <Frame height=200.0>
                             <PanZoomStage />
                         </Frame>

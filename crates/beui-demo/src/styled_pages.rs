@@ -3890,6 +3890,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Spacers" code={vec![SpacedMarks::SOURCE]}>
                 <SpacedMarks />
             </Sample>
+            <Sample title="Movements" code={vec![Movements::SOURCE]}>
+                <Movements />
+            </Sample>
             <Sample title="Pictures" code={vec![Pictures::SOURCE, sunset::SOURCE]}>
                 <Pictures />
             </Sample>
@@ -3963,6 +3966,82 @@ fn SpacedMarks() -> NodeId {
                 </List>
             </ForEach>
         </List>
+    }
+}
+
+const PLOT_STEPS: usize = 24;
+const PLOT_HEIGHT: f32 = 40.0;
+const PLOT_DOT: f32 = 3.0;
+
+/// Where `movement`'s easing has a motion at each of `PLOT_STEPS` even steps.
+fn eased(movement: Movement) -> Vec<f32> {
+    let last = (PLOT_STEPS - 1) as f32;
+    (0..PLOT_STEPS)
+        .map(|step| movement.easing().sample(step as f32 / last))
+        .collect()
+}
+
+/// Where `movement`'s spring has a motion let go still, over 0.3 seconds.
+fn sprung(movement: Movement) -> Vec<f32> {
+    let spring = movement.spring();
+    let step = 0.3 / (PLOT_STEPS - 1) as f32;
+    let (mut displacement, mut velocity) = (1.0, 0.0);
+    (0..PLOT_STEPS)
+        .map(|index| {
+            if index > 0 {
+                spring.advance(&mut displacement, &mut velocity, step);
+            }
+            1.0 - displacement
+        })
+        .collect()
+}
+
+#[sample]
+#[component]
+fn Movements() -> NodeId {
+    view! {
+        <List @test_id="demo.layout.movements" spacing=Space::Md>
+            <ForEach keys={Movement::ALL.to_vec()}>|movement: Movement|
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
+                    <Frame width={Size::Custom(56.0)}>
+                        <Text style=TextStyle::CAPTION>{movement.name()}</Text>
+                    </Frame>
+                    <MovementPlot points={eased(movement)} />
+                    <MovementPlot points={sprung(movement)} />
+                </List>
+            </ForEach>
+        </List>
+    }
+}
+
+/// `points` from 0 to 1 (a spring may pass 1), a dot each, left to right.
+#[component]
+fn MovementPlot(points: Vec<f32>) -> NodeId {
+    let points = std::rc::Rc::new(points);
+    let room = PLOT_HEIGHT - PLOT_DOT;
+    view! {
+        <Frame fill=ColorRole::Shade radius=Radius::Sm padding=Space::Xs>
+            <List direction=Direction::Horizontal spacing=Space::Xs2>
+                <ForEach keys={(0..points.len()).collect::<Vec<_>>()}>|index: usize| {
+                    let y = (1.2 - points[index]) / 1.4 * room;
+                    view! {
+                        <Frame
+                            width={Size::Custom(PLOT_DOT)}
+                            height={Size::Custom(PLOT_HEIGHT)}
+                            align={beui::Align2::START}
+                        >
+                            <Frame
+                                width={Size::Custom(PLOT_DOT)}
+                                height={Size::Custom(PLOT_DOT)}
+                                fill=ColorRole::Accent
+                                radius=Radius::Full
+                                translate={beui::Vec2::new(0.0, y)}
+                            />
+                        </Frame>
+                    }
+                }</ForEach>
+            </List>
+        </Frame>
     }
 }
 

@@ -783,6 +783,7 @@ mod escape_glides_a_lifted_row_back_and_moves_nothing;
 mod escape_then_tab_moves_the_focus_out_of_a_text_area_that_takes_tab;
 mod escaping_a_pick_clears_its_highlight;
 mod every_coalesced_sample_drags_and_the_last_carries_its_prediction;
+mod every_movement_comes_to_rest_where_it_is_going;
 mod every_sample_drags_at_the_time_it_happened;
 mod every_srgb_color_has_a_place_in_an_oklch_wheels_triangle;
 mod every_styled_interactive_control_paints_a_keyboard_focus_ring;
@@ -1865,6 +1866,12 @@ pub(crate) fn PanZoomStage(
     }
 }
 
+/// The look the unstyled `Scroll` tests give it: no bar or fade, springing back
+/// on the theme's `Movement::Rubber`.
+pub(crate) fn plain_scroll() -> crate::unstyled::ScrollStyle {
+    crate::unstyled::ScrollStyle::new(crate::styled::Movement::Rubber.spring())
+}
+
 pub(crate) struct VirtualScroll {
     pub(crate) document: Document,
     pub(crate) scroll: NodeId,
@@ -2645,10 +2652,10 @@ fn nested() -> Document {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="outer">
+                    <Scroll @test_id="outer" style={plain_scroll()}>
                         <Frame height=200.0 />
                         <Frame height=150.0>
-                            <Scroll @test_id="inner">
+                            <Scroll @test_id="inner" style={plain_scroll()}>
                                 <Rows count=20 />
                             </Scroll>
                         </Frame>

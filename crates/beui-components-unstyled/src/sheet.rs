@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
 use super::modal::{Modal, ModalHandle, ModalMotion, ModalPlacement};
-use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, bounce, rubber_band, spring_back, unband};
+use super::rubber_band::{Spring, bounce, rubber_band, spring_back, unband};
 use beui_view::components::overlay::use_overlay_presence;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -136,7 +136,20 @@ struct Held {
     backing: bool,
 }
 
+/// How a sheet's motions look: the easing it rises on (`enter`) and comes back
+/// to a stop on after a drag or a back gesture lets go (`settle`), and the
+/// springs it comes back on when pulled past its top (`pull`) and its content
+/// when scrolled past an end (`rubber`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SheetCurves {
+    pub enter: Easing,
+    pub settle: Easing,
+    pub pull: Spring,
+    pub rubber: Spring,
+}
+
 struct Motion {
+    curves: SheetCurves,
     extent: Memo<f32>,
     shares: Rc<[f32]>,
     resting: Rest,
@@ -606,7 +619,7 @@ impl Motion {
             self.place_height(self.resting);
             return false;
         }
-        let eased = Easing::OutCubic.sample(progress);
+        let eased = self.curves.enter.sample(progress);
         self.held.borrow_mut().slide = Slide::Morphing {
             elapsed,
             from,
@@ -679,7 +692,7 @@ impl Motion {
             } => {
                 let elapsed = before + elapsed;
                 let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
-                let eased = Easing::OutCubic.sample(progress);
+                let eased = self.curves.enter.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Entering { elapsed, waited },
@@ -713,7 +726,7 @@ impl Motion {
             } => {
                 let elapsed = before + elapsed;
                 let progress = tween(elapsed, RETURN_SECONDS, Easing::Linear);
-                let eased = Easing::OutCubic.sample(progress);
+                let eased = self.curves.settle.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Returning { elapsed, from },
@@ -1028,7 +1041,7 @@ impl Motion {
                 let (target, closes) = (*target, *closes);
                 let goal = self.rest_height(target, &shape);
                 let mut distance = self.height() - goal;
-                spring_back(&mut distance, velocity, elapsed, WINDOW_SPRING);
+                spring_back(&mut distance, velocity, elapsed, self.curves.pull);
                 if closes && goal + distance <= 0.0 {
                     distance = 0.0;
                     *velocity = 0.0;
@@ -1073,7 +1086,7 @@ impl Motion {
             }
             Phase::SheetBounce { velocity } => {
                 let mut shift = self.shifted.get();
-                spring_back(&mut shift, velocity, elapsed, SCROLL_SPRING);
+                spring_back(&mut shift, velocity, elapsed, self.curves.rubber);
                 let settled = shift == 0.0 && *velocity == 0.0;
                 if settled {
                     held.phase = Phase::Still;
@@ -1084,7 +1097,7 @@ impl Motion {
             }
             Phase::Bounce { velocity } => {
                 let mut stretch = unband(overscroll, shape.viewport);
-                let back = bounce(&mut stretch, velocity, elapsed);
+                let back = bounce(&mut stretch, velocity, elapsed, self.curves.rubber);
                 if stretch == 0.0 {
                     held.phase = Fling::new(back).map_or(Phase::Still, Phase::Fling);
                 }
@@ -1112,6 +1125,7 @@ pub fn Sheet(
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
+    curves: SheetCurves,
     grip: Render<SheetGripHandle>,
     panel: Render<NodeId>,
     on_presence: Callback<f32>,
@@ -1134,6 +1148,7 @@ pub fn Sheet(
     let content = NodeRef::new();
     let slot = NodeRef::new();
     let motion = store(Motion {
+        curves,
         extent,
         shares,
         resting,
@@ -1275,6 +1290,7 @@ pub fn ModalSheet(
     stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
+    curves: SheetCurves,
     scrim: Prop<Color>,
     grip: Render<SheetGripHandle>,
     panel: Render<NodeId>,
@@ -1296,6 +1312,7 @@ pub fn ModalSheet(
                 stops
                 fit
                 fade
+                curves
                 grip
                 panel
                 on_presence={modal.presence}
@@ -1314,6 +1331,7 @@ fn ModalSheetBody(
     stops: Vec<f32>,
     fit: bool,
     fade: f32,
+    curves: SheetCurves,
     grip: Render<SheetGripHandle>,
     panel: Render<NodeId>,
     on_presence: Callback<f32>,
@@ -1359,6 +1377,7 @@ fn ModalSheetBody(
                     stops
                     fit
                     fade
+                    curves
                     grip
                     panel
                     on_presence={move |presence: f32| on_presence.call(presence)}

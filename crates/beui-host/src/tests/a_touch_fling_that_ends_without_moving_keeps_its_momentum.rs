@@ -11,7 +11,7 @@ fn a_touch_fling_that_ends_without_moving_keeps_its_momentum() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(40)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />

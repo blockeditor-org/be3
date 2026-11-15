@@ -2,6 +2,16 @@ use super::*;
 #[allow(unused_imports)]
 use beui_view::native_api::{build, draw_gpu};
 
+/// A scroll with no bar or fade, springing back on the curve the styled layer's
+/// `Movement::Rubber` gives.
+#[allow(dead_code)]
+fn plain_scroll() -> beui_components_unstyled::ScrollStyle {
+    beui_components_unstyled::ScrollStyle::new(beui_view::reactive::Spring {
+        stiffness: 180.0,
+        damping: 26.832_815,
+    })
+}
+
 mod a_blur_repaints_the_light_it_spreads_outside_the_damaged_region;
 mod a_blur_thinner_than_a_pixel_spreads_less_light_than_a_whole_one;
 mod a_blurred_region_spreads_light_past_the_shape_that_made_it;

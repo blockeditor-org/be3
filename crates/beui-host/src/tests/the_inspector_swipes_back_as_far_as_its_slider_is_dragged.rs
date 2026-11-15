@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::BackSlide;
+use crate::styled::BackSlide;
 
 const REVEAL: f32 = 200.0;
 

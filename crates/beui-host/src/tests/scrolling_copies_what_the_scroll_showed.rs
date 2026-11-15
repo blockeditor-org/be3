@@ -11,7 +11,7 @@ fn scrolling_copies_what_the_scroll_showed() {
             <List spacing=0.0>
                 <Frame height=100.0 fill=Color32::WHITE radius=0.0 />
                 <Frame height=150.0>
-                    <Scroll @test_id="scroll">
+                    <Scroll @test_id="scroll" style={plain_scroll()}>
                         <Bands count=20 />
                     </Scroll>
                 </Frame>

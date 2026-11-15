@@ -23,7 +23,7 @@ fn scrolling() -> Document {
                             radius=0.0
                             outline={Outline::new(Color32::from_rgb(250, 250, 120), 1.0)}
                         >
-                            <Scroll @test_id="scroll">
+                            <Scroll @test_id="scroll" style={plain_scroll()}>
                                 <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
                                     <Frame height=10.0>
                                         <Frame

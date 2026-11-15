@@ -29,11 +29,12 @@ use beui_components_unstyled::Draggable;
 use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
-use beui_components_unstyled::back_slide::BackSlide;
+use beui_components_unstyled::ScrollStyle;
+use beui_components_unstyled::back_slide::{BackSlide, SlideCurves};
 use beui_components_unstyled::context_menu::ContextMenu;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
-use beui_components_unstyled::rubber_band::{Band, WINDOW_SPRING};
+use beui_components_unstyled::rubber_band::Band;
 use beui_components_unstyled::{DragPoint, Take};
 use beui_components_unstyled::{
     Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
@@ -298,6 +299,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_beak: f32,
+    curves: DockCurves,
     dialog_radius: f32,
     dialog_scrim: Memo<Color>,
     window_border: f32,
@@ -896,12 +898,13 @@ impl State {
         let target = self.sidebar_target(leaf);
         let shown = create_signal(target.get_untracked());
         let from = StoredCell::new(shown.get_untracked());
+        let ease = self.curves.ease;
         let animation = create_animation(
             move |frame| {
                 let progress = tween(
                     frame.elapsed.as_secs_f32(),
                     SIDEBAR_SECONDS,
-                    Easing::OutCubic,
+                    ease,
                 );
                 let start = from.get();
                 shown.set(start + (target.get_untracked() - start) * progress);
@@ -1732,6 +1735,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_beak: f32,
+    pub(crate) curves: DockCurves,
     pub(crate) dialog_radius: f32,
     pub(crate) dialog_scrim: Memo<Color>,
     pub(crate) window_border: f32,
@@ -1795,6 +1799,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog,
         dialog_chrome,
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,
@@ -1869,6 +1874,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_chrome: dialog_chrome
             .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,
@@ -1947,10 +1953,10 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             })
         }),
         strip: strip.unwrap_or_else(|| {
-            RenderFn::new(|handle: DockStripHandle| {
+            RenderFn::new(move |handle: DockStripHandle| {
                 let DockStripHandle { direction, tabs } = handle;
                 view! {
-                    <Scroll direction>{tabs}</Scroll>
+                    <Scroll direction style={ScrollStyle::new(curves.rubber)}>{tabs}</Scroll>
                 }
             })
         }),
@@ -2220,6 +2226,7 @@ fn DockStack(dock: State) -> NodeId {
     });
     view! {
         <BackSlide
+            curves={dock.curves.slide}
             enabled={backward}
             shade={dock.back_shade}
             behind={move || {
@@ -3733,7 +3740,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         true => pos2(HANDLE_REACH, HANDLE_REACH),
         false => area.get().min + placed.get().min.to_vec2() + overshoot.get(),
     });
-    let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+    let band = store(RefCell::new(Band::new(dock.curves.pull)));
     let bounce = create_animation(
         move |frame| {
             let band = band.value();
@@ -4248,6 +4255,20 @@ fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
             .map(|held| vec![Claim::holding(held, true)])
             .unwrap_or_default()
     })
+}
+
+/// How the dock's motions look: the easing gaps open and close and a sidebar
+/// changes width on (`ease`), the spring a dropped bar lands on (`settle`), the
+/// spring a floating window pulled past the edge comes back on (`pull`), the
+/// spring the default tab strip's tabs come back on when scrolled past an end
+/// (`rubber`), and how a pane slides away on back (`slide`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct DockCurves {
+    pub ease: Easing,
+    pub settle: Spring,
+    pub pull: Spring,
+    pub rubber: Spring,
+    pub slide: SlideCurves,
 }
 
 /// The chords of the dock's Next tab and Previous tab. `CTRL` (Ctrl+Tab, Ctrl+Shift+Tab) is the

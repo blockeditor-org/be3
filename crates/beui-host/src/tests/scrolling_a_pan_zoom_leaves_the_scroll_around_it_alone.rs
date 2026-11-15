@@ -16,7 +16,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                     <Scroll
                         on_change={move |position: beui::ScrollPosition| {
                             reported.set(Some(position.offset));
-                        }}
+                        }} style={plain_scroll()}
                     >
                         <Frame height=200.0>
                             <PanZoomStage />

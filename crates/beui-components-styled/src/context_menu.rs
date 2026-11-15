@@ -11,7 +11,7 @@ use crate::scroll::autoscroll_marker;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::SCROLL_FADE;
-use crate::tokens::{Padding, Size, Space};
+use crate::tokens::{Padding, Size, Space, Movement};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollStyle, SheetWhen,
@@ -559,7 +559,7 @@ fn MenuPanel(min_width: Size, children: Child) -> NodeId {
                         <ListItem shrink=1.0>
                             <unstyled::Scroll
                                 fit=true
-                                style={ScrollStyle::default().fading(SCROLL_FADE).marker(autoscroll_marker())}
+                                style={ScrollStyle::new(Movement::Rubber.spring()).fading(SCROLL_FADE).marker(autoscroll_marker())}
                             >
                                 <Frame padding=MENU_PADDING>{children}</Frame>
                             </unstyled::Scroll>

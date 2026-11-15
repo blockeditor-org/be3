@@ -12,7 +12,7 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(300)}>|index: usize|
                             <LabelledButton
                                 label={format!("Row {index}")}

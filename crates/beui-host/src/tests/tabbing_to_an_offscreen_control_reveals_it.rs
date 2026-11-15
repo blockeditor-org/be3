@@ -11,7 +11,7 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
         let (scroll, buttons) = (scroll, buttons.clone());
         move || {
             view! {
-                <Scroll @node_ref=&scroll>
+                <Scroll @node_ref=&scroll style={plain_scroll()}>
                     <ForEach keys={indices(buttons.len())}>|index: usize|
                         <LabelledButton
                             @node_ref={&buttons[index]}

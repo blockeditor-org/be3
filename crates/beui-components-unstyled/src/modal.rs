@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
-use super::back_slide::BackSlide;
+use super::back_slide::{BackSlide, SlideCurves};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -21,8 +21,9 @@ pub enum ModalPlacement {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModalMotion {
-    /// The content sits in a [`BackSlide`], which carries it away on back.
-    Slides,
+    /// The content sits in a [`BackSlide`] moving on these curves, which
+    /// carries it away on back.
+    Slides(SlideCurves),
     Still,
     /// The content reports its own presence through [`ModalHandle::presence`]
     /// (as `ModalSheet`'s sheet does), and the scrim fades with it.
@@ -47,13 +48,13 @@ pub fn Modal(
     scrim: Prop<Color>,
     #[prop(default = ModalPlacement::Center)] placement: ModalPlacement,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
-    #[prop(default = ModalMotion::Slides)] motion: ModalMotion,
+    motion: ModalMotion,
     #[prop(default = None)] shown_in: Prop<Option<WindowId>>,
     on_dismiss: Callback<()>,
     #[prop(children)] content: Render<ModalHandle>,
 ) -> NodeId {
     let presence = create_signal(match motion {
-        ModalMotion::Slides | ModalMotion::Still => 1.0_f32,
+        ModalMotion::Slides(_) | ModalMotion::Still => 1.0_f32,
         ModalMotion::Reported => 0.0,
     });
     let asked = create_signal(false);
@@ -68,12 +69,13 @@ pub fn Modal(
     let body = Render::new(move |()| {
         let content = content.call(handle);
         match motion {
-            ModalMotion::Slides => {
+            ModalMotion::Slides(curves) => {
                 if let Some(overlay) = use_overlay_presence() {
                     overlay.linger_while(create_memo(move || asked.get() && !open.get()));
                 }
                 view! {
                     <BackSlide
+                        curves
                         enters=false
                         open={move || open.get() || !asked.get()}
                         on_back={move || {

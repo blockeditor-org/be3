@@ -12,7 +12,7 @@ fn rows_removed_under_a_scroll_at_its_end_leave_it_at_the_new_end() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={rows}>|index: usize|
                             <LabelledButton
                                 @test_id={format!("row.{index}")}

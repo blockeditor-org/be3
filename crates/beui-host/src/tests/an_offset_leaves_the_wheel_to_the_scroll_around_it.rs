@@ -11,7 +11,7 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="scroll">
+                    <Scroll @test_id="scroll" style={plain_scroll()}>
                         <Frame height=150.0>
                             <Offset @test_id="offset">
                                 <List spacing=0.0>

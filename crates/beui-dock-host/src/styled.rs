@@ -12,7 +12,7 @@ pub use crate::unstyled::{
     DockApi, DockArea, DockHostLayout, DockSnap, DockTabKeys, DockWindowActions, HiddenBand,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
+    DockAwayHandle, DockCurves, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
     DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,
     DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
 };
@@ -23,7 +23,8 @@ use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{
     NARROW_WIDTH, PHONE_LANDSCAPE_WIDTH, POINTER_REACH, SHORT_HEIGHT, use_theme,
 };
-use beui_components_styled::tokens::{Padding, Size, Space, Stroke};
+use beui_components_styled::back_slide::SLIDE_CURVES;
+use beui_components_styled::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::BAND_FILL;
 use beui_components_styled::tooltip::Tooltip;
 use beui_components_styled::{Length, List, Scroll, Separator};
@@ -82,6 +83,14 @@ const AWAY_PADDING: Space = Space::Xl3;
 const PREVIEW_OPACITY: f32 = 0.92;
 const WAITING_DOT: Size = Size::Custom(6.0);
 
+const CURVES: DockCurves = DockCurves {
+    ease: Movement::Settle.easing(),
+    settle: Movement::Settle.spring(),
+    pull: Movement::Pull.spring(),
+    rubber: Movement::Rubber.spring(),
+    slide: SLIDE_CURVES,
+};
+
 #[component]
 pub fn DockHost(
     #[prop(default = DockHostLayout::new())] layout: DockHostLayout,
@@ -138,6 +147,7 @@ pub fn DockHost(
                 <DockDialogFace handle />
             }}
             dialog_beak=POINTER_REACH
+            curves=CURVES
             dialog_radius={CARD_RADIUS.px()}
             dialog_scrim={create_memo(move || ColorRole::Scrim.resolve(&theme))}
             window_border=CHROME_BORDER

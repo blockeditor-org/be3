@@ -11,7 +11,7 @@ fn pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>

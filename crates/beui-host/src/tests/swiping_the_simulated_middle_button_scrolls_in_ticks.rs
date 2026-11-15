@@ -12,7 +12,7 @@ fn swiping_the_simulated_middle_button_scrolls_in_ticks() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>

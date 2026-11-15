@@ -151,7 +151,7 @@ pub fn SearchList<K>(
     list_height: Prop<f32>,
     #[prop(default = false)] fill_height: Prop<bool>,
     spacing: f32,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     accessibility: Func<K, Node>,
     row: RenderFn<SearchRowHandle<K>>,
 ) -> NodeId

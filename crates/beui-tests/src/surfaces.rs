@@ -54,6 +54,7 @@ pub fn TimeListFixture() -> NodeId {
                     value={chosen}
                     step_minutes=30
                     row_height=28.0
+                    scroll={beui::unstyled::ScrollStyle::new(Movement::Rubber.spring())}
                     label="Start"
                     option={|option: TimeOptionHandle| {
                         let TimeOptionHandle { label, selected, focused, .. } = option;
