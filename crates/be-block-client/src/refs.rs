@@ -49,10 +49,11 @@ pub(crate) enum Table {
     Summary,
     Held,
     LetGo,
+    ContactNames,
 }
 
 impl Table {
-    pub const ALL: [Self; 17] = [
+    pub const ALL: [Self; 18] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -70,6 +71,7 @@ impl Table {
         Self::Summary,
         Self::Held,
         Self::LetGo,
+        Self::ContactNames,
     ];
 
     pub fn code(self) -> u8 {
@@ -91,6 +93,7 @@ impl Table {
             Self::Summary => 15,
             Self::Held => 16,
             Self::LetGo => 17,
+            Self::ContactNames => 18,
         }
     }
 
@@ -336,6 +339,9 @@ struct State {
     keys: HashMap<Uuid, KeyRow>,
     wraps: HashMap<(Uuid, WrappedBy), (u64, WrappedKey)>,
     contacts: Vec<(Uuid, [u8; 32])>,
+    /// Every contact's name as the server last listed it, so a push opened with no connection
+    /// names its sender (`Peer::contact_name`).
+    contact_names: Vec<(Uuid, String)>,
     signers: HashMap<Uuid, Vec<KnownSigner>>,
     outbox: BTreeMap<u64, Op>,
     unsent: BTreeMap<Uuid, Unsent>,
@@ -458,6 +464,7 @@ impl State {
                     .insert((wrap.key, wrap.wrapped_by), (sequence, wrap));
             }
             Table::Contacts => self.contacts = decode(value)?,
+            Table::ContactNames => self.contact_names = decode(value)?,
             Table::Signers => {
                 self.signers.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -1081,6 +1088,28 @@ impl Refs {
     /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
     /// never forgotten, so what an account signed before a new phrase still verifies, though
     /// not as its current key (`Peer::verify_authored`).
+    pub fn contact_name(&self, account: Uuid) -> Option<String> {
+        self.state
+            .lock()
+            .unwrap()
+            .contact_names
+            .iter()
+            .find(|(named, _)| *named == account)
+            .map(|(_, name)| name.clone())
+    }
+
+    pub fn set_contact_names(&self, mut names: Vec<(Uuid, String)>) -> Result<(), StoreError> {
+        names.sort();
+        {
+            let mut state = self.state.lock().unwrap();
+            if state.contact_names == names {
+                return Ok(());
+            }
+            state.contact_names = names.clone();
+        }
+        self.write(vec![row(Table::ContactNames, Vec::new(), &names)])
+    }
+
     pub fn add_signer(
         &self,
         account: Uuid,

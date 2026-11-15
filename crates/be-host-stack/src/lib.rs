@@ -12,6 +12,7 @@ pub mod app_graph;
 pub mod authorship;
 mod changes;
 pub mod conflicts;
+pub mod device_push;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod embedded_server;
@@ -273,6 +274,15 @@ pub fn start(config: Config) {
         running,
     });
     changes::everything();
+}
+
+/// The organization the stack runs in in this process, while it runs.
+pub fn running_organization() -> Option<Uuid> {
+    stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| stack.organization)
 }
 
 pub fn installed_for(account: Uuid, organization: Uuid) -> bool {

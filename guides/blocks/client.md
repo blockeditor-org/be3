@@ -191,7 +191,7 @@ A `Peer` keeps what it learns in `RefsDb` (`be_block_client::refs`, SQLite on
 every platform, in the origin private file system on the web), keyed by server,
 account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
-key rows and wraps, verified contacts and escrow chain, the workspace list, the
+key rows and wraps, verified contacts, every contact's name and the escrow chain, the workspace list, the
 outbox, the unsent area, each block's journal and the blocks the search indexer let
 go (`Peer::let_go`). A sealed commit and its local
 head are written in one transaction (`Refs::push_publish`), and so is a publish
@@ -253,7 +253,9 @@ the server vouches for, then the text sealed under the block's data key with
 the organization, block, sender and send time. `Peer::open_notification` opens
 that offline from the cached key rows, with no block load and no type module,
 refusing one sealed about another organization, block or sender, or older than
-`MAX_NOTIFICATION_AGE_MILLISECONDS`.
+`MAX_NOTIFICATION_AGE_MILLISECONDS`; `Peer::contact_name` and `Peer::kept_name`
+name its sender and block from the refs database alone, for a device that opens
+a push with the app closed (`be_host_stack::device_push`).
 
 ## Saving and the outbox
 
