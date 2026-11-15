@@ -353,7 +353,9 @@ impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>>
             let stored = create_memo(move || {
                 announced.track();
                 let live = this.live();
-                live.stored_length().ok().map(|length| (length, live.snapshots()))
+                live.stored_length()
+                    .ok()
+                    .map(|length| (length, live.snapshots()))
             });
             create_async_memo(move || {
                 let stored = stored.get();

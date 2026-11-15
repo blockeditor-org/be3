@@ -25,6 +25,10 @@ fn settling_alone_wakes_a_reader_whose_value_stays_equal() {
 
     source.set(Ok(5));
     flush();
-    assert_eq!(runs.get(), 2, "only whether it is there changed, and that wakes the reader");
+    assert_eq!(
+        runs.get(),
+        2,
+        "only whether it is there changed, and that wakes the reader"
+    );
     assert_eq!(loading.state(), Ok(()));
 }

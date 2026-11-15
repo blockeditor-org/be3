@@ -1,9 +1,9 @@
 use crate::async_memo::AsyncMemo;
 use crate::loading::Ready;
 use crate::memo::Memo;
-use crate::source::Source;
 use crate::runtime::check_tracked_read;
 use crate::signal::{Get, ReadSignal, Signal};
+use crate::source::Source;
 use crate::stored::{Stored, store};
 
 /// Any read-only reactive value of a `T`: a signal, a memo, or a closure computing one. An
@@ -113,9 +113,9 @@ impl<T: 'static> From<Memo<T>> for Reader<T> {
 
 impl<T: 'static> From<Source<T>> for Reader<Ready<T>> {
     fn from(source: Source<T>) -> Self {
-        Self(Held::Lent(store(Box::new(move |f: &mut dyn FnMut(&Ready<T>)| {
-            source.with(|value| f(value))
-        }))))
+        Self(Held::Lent(store(Box::new(
+            move |f: &mut dyn FnMut(&Ready<T>)| source.with(|value| f(value)),
+        ))))
     }
 }
 

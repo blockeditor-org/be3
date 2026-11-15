@@ -83,8 +83,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
                         <EditorMenu state={state} />
                         <ListItem grow=1.0>
                             <Loaded label="Loading the text">|| {
-                                // Waits while the text is on its way: the read registers with
-                                // the boundary.
                                 let _ = untrack(|| editor.block_content::<TextContent>().ready());
                                 view! {
                                     <Show value={state.hex_view} fallback={text_surface}>

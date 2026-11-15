@@ -21,15 +21,27 @@ fn a_rerun_async_memo_drops_its_last_future_and_keeps_its_last_answer() {
 
     id.set(2);
     flush();
-    assert_eq!(memo.get_untracked(), Ok(11), "the last answer shows while the next is asked");
+    assert_eq!(
+        memo.get_untracked(),
+        Ok(11),
+        "the last answer shows while the next is asked"
+    );
     assert!(memo.pending());
     id.set(3);
     flush();
     run_futures();
-    assert_eq!(spawned(), 1, "the dropped future finished without an answer");
+    assert_eq!(
+        spawned(),
+        1,
+        "the dropped future finished without an answer"
+    );
     answers.borrow()[1].give(5);
     run_futures();
-    assert_eq!(memo.get_untracked(), Ok(11), "a dropped future's answer never lands");
+    assert_eq!(
+        memo.get_untracked(),
+        Ok(11),
+        "a dropped future's answer never lands"
+    );
     answers.borrow()[2].give(2);
     run_futures();
     assert_eq!(memo.get_untracked(), Ok(23));

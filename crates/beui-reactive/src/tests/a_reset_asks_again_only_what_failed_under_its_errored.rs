@@ -51,8 +51,20 @@ fn a_reset_asks_again_only_what_failed_under_its_errored() {
 
     first.reset();
     flush();
-    assert_eq!(first_answers.borrow().len(), 2, "made under it: asked again");
-    assert_eq!(outside_answers.borrow().len(), 2, "failed and read under it: asked again");
-    assert_eq!(second_answers.borrow().len(), 1, "under the other Errored: left alone");
+    assert_eq!(
+        first_answers.borrow().len(),
+        2,
+        "made under it: asked again"
+    );
+    assert_eq!(
+        outside_answers.borrow().len(),
+        2,
+        "failed and read under it: asked again"
+    );
+    assert_eq!(
+        second_answers.borrow().len(),
+        1,
+        "under the other Errored: left alone"
+    );
     assert_eq!(second.failure(), Some("offline".to_owned()));
 }

@@ -1233,19 +1233,23 @@ fn SlowGreeting() -> NodeId {
         move || server.answer(Ok("Hello, the data is here".to_owned()))
     };
     let fail = move || server.answer(Err("The server said no".to_owned()));
-    let waiting = |_: Pending| view! {
-        <Progress width=PROGRESS_WIDTH label="Waiting" />
+    let waiting = |_: Pending| {
+        view! {
+            <Progress width=PROGRESS_WIDTH label="Waiting" />
+        }
     };
-    let failed = |(error, errored): (String, ErrorBoundary)| view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-            <Text style=TextStyle::CAPTION>{error}</Text>
-            <Button
-                label="Retry"
-                variant=ButtonVariant::Secondary
-                on_click={move || errored.reset()}
-                @test_id="demo.loading.retry"
-            />
-        </List>
+    let failed = |(error, errored): (String, ErrorBoundary)| {
+        view! {
+            <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                <Text style=TextStyle::CAPTION>{error}</Text>
+                <Button
+                    label="Retry"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || errored.reset()}
+                    @test_id="demo.loading.retry"
+                />
+            </List>
+        }
     };
     view! {
         <List spacing=SECTION_SPACING>
@@ -1263,16 +1267,14 @@ fn SlowGreeting() -> NodeId {
                     @test_id="demo.loading.fail"
                 />
             </List>
-            <Errored fallback={failed}>|| {
-                view! {
-                    <Loading fallback={waiting}>|| {
-                        let shown = create_memo(move || greeting.get());
-                        view! {
-                            <Text @test_id="demo.loading.content">{shown}</Text>
-                        }
-                    }</Loading>
-                }
-            }</Errored>
+            <Errored fallback={failed}>||
+                <Loading fallback={waiting}>|| {
+                    let shown = create_memo(move || greeting.get());
+                    view! {
+                        <Text @test_id="demo.loading.content">{shown}</Text>
+                    }
+                }</Loading>
+            </Errored>
         </List>
     }
 }
