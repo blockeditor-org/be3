@@ -47,6 +47,8 @@ fn what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_s
     wait_until("rejoined and sent what this device kept", |shared| {
         shared.connected && shared.waiting == 0 && !shared.draining
     });
+    // Rejoined, the replica submits what the server's order lacks, and owes a seal of it.
+    wait_until("had the kept edits ordered", |shared| shared.owing > 0);
     flush_and_send();
     assert_eq!(count_of(block), Some(7));
     assert_eq!(
