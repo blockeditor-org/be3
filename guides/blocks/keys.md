@@ -148,8 +148,32 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   `InviteCode::lookup`, so it is `{server}/#invite/{CODE}` (`invite_link.rs`).
   It carries the inviter's card and escrow key sealed with the code; accepting
   it returns the invitee's card as any link does, pins the escrow key and joins
-  the organization. The web build takes the code from the address bar and
-  replaces it with `#`; the server never sees what follows `#`.
+  the organization as an editor. It names no email: the link is a bearer
+  secret, single use and good for `INVITATION_LIFETIME` (seven days), and the
+  server mails nothing, so the inviter sends it themselves. An administrator is
+  never made by invitation, since an administrator is sealed the escrow key:
+  `set-role` on a member who is already the administrator's verified contact
+  does that. The web build takes the code from the address bar and replaces it
+  with `#`; the server never sees what follows `#`.
+- **Opening an invite link**: be-host reads the invitation before anyone signs
+  in (`read-invitation`, a one-shot call, rate-limited per address), which
+  answers the organization's name, the inviter's sealed card and where it
+  stands, and opens the card with the code, so a person with no account yet
+  sees who invited them to what. The host holds the code (`Joining` in
+  be-host's main.rs) while they sign in or register through the portal, then
+  looks the invitation up as that account and offers to join. An account that
+  can't take it (already a member) is told whose invitation it is and offered
+  another account. Reading an invitation marks it opened.
+- **The invite list** (Invitations, in the organization's menu, for
+  administrators; `list-invitations`): every invitation of the organization,
+  outstanding and ended (accepted, expired, revoked), with who made it, who
+  accepted it and when. A row stays `INVITATION_RETENTION` after it ends, and
+  an organization keeps at most `MAX_INVITATIONS_KEPT_PER_ORGANIZATION`. The
+  code comes back only to its inviter, sealed to their identity
+  (`RecoverySecret::seal_own`), so they copy the link again; any administrator
+  revokes an open one (`delete-link`), and an expired one offers a fresh link.
+  The Invite member dialog makes a link at once and ends on it, with copy and
+  a QR code (`be-host/src/qr.rs`).
 - **Adding a device**: the new device shows an eight-character code, typed on a
   device of the same account; the two run SPAKE2 over the server's relay
   (`Pair`, `Paired`), and the open device seals the identity secret under the
@@ -207,12 +231,12 @@ device seals a key only to a contact's public key verified that way.
 - **Links** are one family (`contacts.wit`): a card sealed with the code, a
   lookup id derived from it, and an accept that makes the two accounts
   contacts. Its `link-kind` says what else accepting does: a `contact` link may
-  carry a pending grant (below); an `invitation` joins its organization with
-  its role. Any account makes a contact link; only an administrator of the
+  carry a pending grant (below); an `invitation` joins its organization as
+  an editor. Any account makes a contact link; only an administrator of the
   organization makes an invitation (`rule` splits `create-link` on the kind),
-  only the account with its email reads or accepts it, and a new one for an
-  email replaces the one outstanding. `list-links` lists the caller's links,
-  outstanding ones included, and `delete-link` revokes one.
+  and any account opens and accepts it. `list-links` lists the caller's links
+  still to act on, outstanding ones included, and `delete-link` revokes one, or
+  finishes one accepted; an invitation's row stays for the invite list.
 - **The exchange** (`be_block_client::contacts`): the maker posts
   `create-link` (`make_link`, `invite`); the other side reads it
   (`open_link`), opens the card, and on "Connect with NAME (EMAIL)?" (or the

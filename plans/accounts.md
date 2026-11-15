@@ -4,7 +4,9 @@ Depends on: none.
 
 Today a remote account signs in, registers and recovers by a code mailed to its
 email, or signs in with an OpenID Connect provider the operator configured or a
-passkey it added; an operator invite code gates registration
+passkey it added; an operator invite code gates registration, and an
+organization's invitations are links bound to no email that join as editors
+(guides/blocks/keys.md, "Inviting")
 (guides/blocks/server.md, "Accounts"). Passwords are gone
 (decisions/accounts_have_no_passwords.md). The portal also changes an email
 (`email_change_link`) and lists browser sessions. Mail goes through
@@ -143,65 +145,10 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    the plain-HTTP setup uses a cookie name of its own. An account with no
    email is told nothing when an identity is added or removed: give it the
    notice in the app, on its other sessions, as the rules above say.
-2. **Invitations stop depending on email.** Today an invitation is already a
-   link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
-   `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
-   But it is bound to an email: only the account with that email reads or
-   accepts it, and a new one for the same email replaces the outstanding one.
-   - Drop the email. An invitation names an organization and joins as an
-     editor, never as an administrator: an administrator is sealed the escrow
-     key, so a leaked administrator invitation would hand over the
-     organization. Making someone an administrator is `set-role` on a member
-     who is already the administrator's verified contact. Whoever opens the link
-     with an account on the server may accept it; for an editor, the list
-     showing who accepted, and `remove-member`, are enough, with no confirming
-     step.
-   - A link is then a bearer secret: single use, expiring after seven days by
-     default, and the id reaches the invitee only in the link,
-     as now. At most a bounded number outstanding per organization, in place of
-     one per email.
-   - Reading the invitation before signing in: `get-link` needs a signed-in
-     account today. Add an unauthenticated read by link id that answers the
-     organization name (in the clear on the server already) and the sealed
-     card, rate-limited per address; the host opens the card with the code and
-     shows who invited them and to what. The alternative, showing the card only
-     after sign-in, is simpler but sends people into registration not knowing
-     who invited them.
-   - The link works for someone with no account. The server never sees what
-     follows `#`, so the host (the web build, or be-host) keeps the code, sends
-     them through the portal to register or sign in with any identity above, and
-     returns to the invitation with the code still held. An operator invite code
-     still applies to registering; the portal asks for one when the server
-     requires it. plans/share_links.md needs the same round trip for a share
-     link's secret; whichever lands second uses the first one's mechanism.
-   - Opening it signed in as the wrong account (one already a member, say) says
-     whose invite it is and offers to sign in as another, not a bare error.
-   - **Kept rows.** Today `finish_links` and `delete-link` delete a link's row,
-     and links never expire. The invite list needs rows kept after accepting,
-     expiring and revoking: new, with a bound per organization and a retention
-     period after which they go.
-   - **The invite list** (new, in the organization screen,
-     `crates/be-host/src/ui/organization.rs`, with the Invite member dialog in
-     `crates/be-host/src/ui/dialogs.rs`): creating an invite ends on the link,
-     with copy, the platform share sheet and a QR code, and says plainly that
-     nothing was sent (today the dialog asks for an email and shows the link
-     once in a field). Each invite shows its state: waiting, opened (the server
-     answered a read for it, which tells the inviter the link arrived), accepted,
-     expired or revoked, who accepted, and when. Revoke, and copy the same link
-     again, from the list: the inviter's device keeps the code sealed for itself
-     (`RecoverySecret::seal_own`). An expired invite offers a fresh link in one
-     step.
-   - Accepting makes the two accounts contacts, as now.
-   Done: tests where an invitation joins an account with any email as an
-   editor; one opened a second time, an expired one and a revoked one are
-   refused; the read before sign-in answers the organization name and sealed
-   card only; the list shows opened and accepted; a painting of the invite list
-   and of the link with its QR code.
-3. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+2. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
-   redirect URIs), and the invitation lines in guides/blocks/keys.md
-   ("Inviting", "Contacts"); add the decision records below.
+   redirect URIs); add the decision records below.
 
 Registration admission (operator invite codes) stays a separate policy from the
 credential kind and from member invitations. It is temporary, for while the
@@ -231,8 +178,6 @@ asking for the code when the server wants one.
 - An account that is only a bare keypair (rejected): fits end-to-end encryption
   but key loss has no safety net beyond the recovery phrase and it is hard to
   explain; passkeys give most of the benefit with platform sync.
-- Invitations are links the inviter sends, never mail the server sends or
-  anything bound to an email, and they join as editors only.
 - Providers are configured by the operator, per server; accounts do not federate
   across servers.
 - An account needs no email; its providers and passkeys are its recovery. A
