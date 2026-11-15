@@ -320,8 +320,6 @@ fn DockIconTab(
         true => Some(ICON_APP_WINDOW),
         false => icon.get(),
     });
-    let pictured = create_memo(move || !shows_picture.get() && glyph.get().is_some());
-    let lettered = create_memo(move || !shows_picture.get() && glyph.get().is_none());
     let initial = create_memo(move || {
         title
             .with(|title| {
@@ -344,16 +342,22 @@ fn DockIconTab(
                 focus={focused}
             >
                 <List align=Align::Center spacing=Space::None>
-                    <Show condition={pictured}>
-                        <Text color={label} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
-                    </Show>
-                    <Show condition={shows_picture}>
+                    <Show
+                        condition={shows_picture}
+                        fallback={move || view! {
+                            <Show
+                                condition={move || glyph.with(Option::is_some)}
+                                fallback={move || view! {
+                                    <Text color={label} align=TextAlign::Center>{initial}</Text>
+                                }}
+                            >
+                                <Text color={label} align=TextAlign::Center>
+                                    <Icon glyph={glyph} />
+                                </Text>
+                            </Show>
+                        }}
+                    >
                         <TabPicture picture={picture} />
-                    </Show>
-                    <Show condition={lettered}>
-                        <Text color={label} align=TextAlign::Center>{initial}</Text>
                     </Show>
                 </List>
             </Frame>
@@ -720,7 +724,6 @@ fn DockSideBar(
 ) -> NodeId {
     let titled = tabs.is_none();
     let fill = bar_fill(vacant);
-    let titles = create_memo(move || !icons_only.get());
     let header = create_memo(move || match icons_only.get() {
         true => Justify::Center,
         false => Justify::SpaceBetween,
@@ -748,7 +751,7 @@ fn DockSideBar(
                                 spacing=BAR_SPACING
                             >
                                 {grip}
-                                <Show condition={titles}>|| {
+                                <Show condition={move || !icons_only.get()}>|| {
                                     let test_prefix = narrow.clone(); view! {
                                         <List
                                             direction=Direction::Horizontal
