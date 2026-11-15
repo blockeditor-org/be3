@@ -36,6 +36,9 @@ fn a_merge_over_the_byte_cap_is_not_made() {
     let written = run(index.compact(&store, id(11), 1, usize::MAX, total, bytes)).unwrap();
     store.keep(&written);
     assert_eq!(index.segment_count(), 1);
-    assert!(!index.merges_over(0, |_| u64::MAX), "one segment has nothing to merge");
+    assert!(
+        !index.merges_over(0, |_| u64::MAX),
+        "one segment has nothing to merge"
+    );
     assert_eq!(found(&index, &store, "uniq2v0x "), [doc(2)].into());
 }

@@ -151,7 +151,13 @@ impl InputState {
         if leaving {
             let source = 0;
             if let Some(pos) = self.pointer.mouse() {
-                input.emit_at(source, self.window, PointerId::Mouse, PointerPhase::Gone, pos);
+                input.emit_at(
+                    source,
+                    self.window,
+                    PointerId::Mouse,
+                    PointerPhase::Gone,
+                    pos,
+                );
             }
             for (window, id, pos) in &self.touches {
                 let touch = PointerId::Touch(*id);
@@ -386,7 +392,11 @@ impl InputState {
         match (phase, held) {
             (TouchPhase::Start, None) => {
                 let window = self.window;
-                if !self.touches.iter().any(|(touched, _, _)| *touched == window) {
+                if !self
+                    .touches
+                    .iter()
+                    .any(|(touched, _, _)| *touched == window)
+                {
                     self.pointer.count_click(pos, window, now);
                 }
                 if self.touches.is_empty() {

@@ -936,7 +936,8 @@ impl Versions {
         .with_change(current.change())
         .with_kind(CommitKind::Snapshot(description.to_owned()));
         let finished = self.put(context, repository, finished).await?;
-        self.objects.put_tree(finished, current.working.tree.clone());
+        self.objects
+            .put_tree(finished, current.working.tree.clone());
         let next = self.start_change(context, repository, finished).await?;
         let branch = state.branch.clone();
         self.operate(
@@ -2577,11 +2578,7 @@ async fn merge_over(
     let base = match made_from {
         Some(made_from) => {
             let mut walk = MergeBaseWalk::new(made_from, theirs, MERGE_BASE_DEPTH);
-            let found = context
-                .peer
-                .merge_base(&mut walk)
-                .await
-                .map_err(failed)?;
+            let found = context.peer.merge_base(&mut walk).await.map_err(failed)?;
             #[cfg(test)]
             WALKED
                 .lock()

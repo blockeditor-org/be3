@@ -159,7 +159,11 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     );
     // Asked afresh, so each search reads the compacted index rather than answering from before.
     for (word, note) in words.iter().zip(&notes) {
-        assert_eq!(found(&format!("{word} ")), [*note], "{word} is found as before");
+        assert_eq!(
+            found(&format!("{word} ")),
+            [*note],
+            "{word} is found as before"
+        );
     }
     assert_eq!(found("figs "), all);
     assert_eq!(found("grapefruit "), [notes[0]]);

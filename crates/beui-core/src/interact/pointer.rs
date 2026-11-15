@@ -1394,7 +1394,11 @@ fn finger_moved(doc: &mut Document, frame: &Frame, id: TouchId, pos: Pos2) {
             dropped = fingers.hold.take();
         }
     }
-    let held = doc.pointers.fingers.iter().find(|(held, _)| *held == window);
+    let held = doc
+        .pointers
+        .fingers
+        .iter()
+        .find(|(held, _)| *held == window);
     if moved && let Some(hold) = held.and_then(|(_, fingers)| fingers.hold.as_ref()) {
         tell_hold(doc, frame.rects, hold, PointerStage::Move, pos, frame.now);
     }

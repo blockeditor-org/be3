@@ -31,15 +31,25 @@ fn a_finger_in_another_window_never_joins_the_first_windows_gesture() {
     );
     input.begin_frame(vec![touch(1, TouchPhase::End, at)], now);
     input.begin_frame(vec![touch(1, TouchPhase::Start, at)], now);
-    assert_eq!(input.pointer.clicks(), 2, "a second tap in one window is a double-tap");
+    assert_eq!(
+        input.pointer.clicks(),
+        2,
+        "a second tap in one window is a double-tap"
+    );
 
     input.begin_frame(
-        vec![Event::PointerWindow(second), touch(2, TouchPhase::Start, at)],
+        vec![
+            Event::PointerWindow(second),
+            touch(2, TouchPhase::Start, at),
+        ],
         now,
     );
     let down = input.pointer_events[0];
-    assert_eq!((down.window, down.clicks), (second, 1),
-        "a finger in another window joined the first window's taps");
+    assert_eq!(
+        (down.window, down.clicks),
+        (second, 1),
+        "a finger in another window joined the first window's taps"
+    );
 
     input.begin_frame(
         vec![

@@ -78,8 +78,7 @@ impl Clipboard {
         let nonce = fresh_nonce();
         // The nonce goes in either way, so a paste here still knows the
         // clipboard is this copy's when its text there was cut short.
-        let set = android::set(&text, &fitting, nonce)
-            .or_else(|_| android::set(&text, &[], nonce));
+        let set = android::set(&text, &fitting, nonce).or_else(|_| android::set(&text, &[], nonce));
         self.mark = Some(match set {
             Ok(()) => Mark::Nonce(nonce),
             Err(_) => Mark::Unchanged(Mark::of(android::get().ok().flatten().as_ref())),
@@ -89,7 +88,10 @@ impl Clipboard {
 
     pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let now = android::get().ok().flatten();
-        let ours = self.mark.as_ref().is_some_and(|mark| mark.ours(now.as_ref()));
+        let ours = self
+            .mark
+            .as_ref()
+            .is_some_and(|mark| mark.ours(now.as_ref()));
         if let Some(clip) = self.held.current(ours) {
             return clip.resolve(wanted, move |item| answer.send(item));
         }

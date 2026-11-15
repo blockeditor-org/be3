@@ -31,7 +31,12 @@ fn merge_base(
 
 fn chain(store: &CommitStore<MemoryStore>, from: CommitId, length: usize, time: i64) -> CommitId {
     (0..length).fold(from, |parent, step| {
-        commit(store, &format!("{time} {step}\n"), time + step as i64, Some(parent))
+        commit(
+            store,
+            &format!("{time} {step}\n"),
+            time + step as i64,
+            Some(parent),
+        )
     })
 }
 

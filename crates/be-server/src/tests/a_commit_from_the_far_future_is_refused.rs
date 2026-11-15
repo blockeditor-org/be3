@@ -17,10 +17,7 @@ async fn a_commit_from_the_far_future_is_refused() {
     let refused = client
         .publish(&author, block, forged, chunks, None, far)
         .await;
-    assert!(
-        refused_as(&refused, ErrorCode::CommitAhead),
-        "{refused:?}"
-    );
+    assert!(refused_as(&refused, ErrorCode::CommitAhead), "{refused:?}");
 
     let soon = be_block_commit::now_milliseconds() + be_block_commit::retention::MINUTE;
     let (fast, chunks) = author.compose(b"from a fast clock\n", soon, None);

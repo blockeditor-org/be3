@@ -53,7 +53,10 @@ fn edits_deeper_than_the_merge_base_walk_are_merged_over_the_head_the_command_re
     let runtime = runtime();
     runtime.block_on(keep_every_commit(&harness));
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block_repository::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     open(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
