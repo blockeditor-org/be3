@@ -61,18 +61,15 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
     #[component]
     fn View(editor: Editor) -> Root {
         let presented = editor.presenting();
-        let editing = create_memo(move || !presented.get());
         view! {
             <Root>
                 <Loaded>
-                    <Layers>
-                        <Show condition={editing}>
-                            <CanvasEditor editor={editor} />
-                        </Show>
-                        <Show condition={presented}>
-                            <CanvasPresented editor={editor} />
-                        </Show>
-                    </Layers>
+                    <Show
+                        condition={presented}
+                        fallback={move || view! { <CanvasEditor editor={editor} /> }}
+                    >
+                        <CanvasPresented editor={editor} />
+                    </Show>
                 </Loaded>
             </Root>
         }
@@ -107,9 +104,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     editor.keep_fitted(|| Some(Fit::Centre));
     let chrome = editor.chrome_shown();
-    let inspected = create_memo(move || {
-        chrome.get() && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
-    });
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
@@ -139,7 +133,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                         </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={inspected}>
+                <Show
+                    condition={move || {
+                        chrome.get()
+                            && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
+                    }}
+                >
                     <DockSplit
                         id="side"
                         direction=Direction::Vertical

@@ -178,9 +178,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         Action::new(id, label, move || state.set_tool(tool))
             .glyph(tool.glyph())
             .radio(create_memo(move || state.tool.get() == tool))
-            .enabled(create_memo(move || {
-                free.get() && tool.usable_in(state.profile.get())
-            }))
+            .enabled(move || free.get() && tool.usable_in(state.profile.get()))
     };
     let rastering = create_memo(move || free.get() && state.profile.get() == CanvasProfile::Raster);
     let command = |id: &str, label: &'static str, glyph: Glyph, command: CanvasCommand| {
@@ -485,7 +483,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let select_mode = Action::new("canvas.tool.select-mode", "Select", move || {
         state.switch_select_tool()
     })
-    .checked(create_memo(move || state.tool.get().selects()))
+    .checked(move || state.tool.get().selects())
     .enabled(free)
     .detached();
     let frame = tool("canvas.tool.frame", "Draw a frame", Tool::Frame)

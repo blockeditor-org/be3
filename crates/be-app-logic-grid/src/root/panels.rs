@@ -96,9 +96,6 @@ fn or_none(value: Option<String>) -> String {
 #[component]
 fn MetricsPanel(session: Session) -> NodeId {
     let error = create_memo(move || session.read(|model| model.simulation.error.clone()));
-    let failed = create_memo(move || error.get().is_some());
-    let problem =
-        create_memo(move || format!("Cannot compile: {}", error.get().unwrap_or_default()));
     let rows = create_memo(move || {
         session.read(|model| {
             let vm = model.simulation.vm.as_ref();
@@ -127,8 +124,8 @@ fn MetricsPanel(session: Session) -> NodeId {
     });
     view! {
         <List spacing=SPACING>
-            <Show condition={failed}>
-                <Problem content={problem} />
+            <Show condition={move || error.with(Option::is_some)}>
+                <Problem content={move || format!("Cannot compile: {}", error.get().unwrap_or_default())} />
             </Show>
             <Rows rows={rows} />
         </List>
@@ -599,9 +596,6 @@ fn ChallengePanel(session: Session) -> NodeId {
     let goal = create_memo(move || shown.get().map(|shown| shown.goal).unwrap_or_default());
     let status = create_memo(move || shown.get().map(|shown| shown.status).unwrap_or_default());
     let error = create_memo(move || shown.get().and_then(|shown| shown.error));
-    let failed = create_memo(move || error.get().is_some());
-    let working = create_memo(move || error.get().is_none());
-    let problem = create_memo(move || format!("Cannot run: {}", error.get().unwrap_or_default()));
     let header = create_memo(move || shown.get().map(|shown| shown.header).unwrap_or_default());
     let ticks = create_memo(move || {
         (0..shown.get().map_or(0, |shown| shown.rows.len())).collect::<Vec<_>>()
@@ -627,10 +621,12 @@ fn ChallengePanel(session: Session) -> NodeId {
                 />
                 <Button label="Reset" variant=ButtonVariant::Secondary on_click={reset} />
             </List>
-            <Show condition={failed}>
-                <Problem content={problem} />
-            </Show>
-            <Show condition={working}>
+            <Show
+                condition={move || error.with(Option::is_none)}
+                fallback={move || view! {
+                    <Problem content={move || format!("Cannot run: {}", error.get().unwrap_or_default())} />
+                }}
+            >
                 <List spacing=Space::Xs2>
                     <Text style=TextStyle::CAPTION @test_id={"logic-grid.challenge-status"}>
                         {status}
@@ -951,32 +947,30 @@ fn GraphPanel(session: Session) -> NodeId {
         ]
     });
     let empty = create_memo(move || shape.get().graph.nodes.is_empty());
-    let drawn = create_memo(move || !empty.get());
     let width = create_memo(move || Size::Custom(shape.get().size.x));
     let height = create_memo(move || Size::Custom(shape.get().size.y));
-    let draw: Prop<Draw> = Prop::dynamic(move || {
-        let shape = shape.get();
-        Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
-    });
     view! {
         <List spacing=SPACING>
             <Rows rows={counts} />
-            <Show condition={empty}>
-                <Text style=TextStyle::CAPTION>"The generated graph is empty."</Text>
-            </Show>
-            <Show condition={drawn}>|| {
-                let draw = draw.clone(); view! {
+            <Show
+                condition={empty}
+                fallback={move || view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
                             session={session}
                             shape={shape}
                             width={width}
                             height={height}
-                            draw={draw}
+                            draw={move || {
+                                let shape = shape.get();
+                                Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
+                            }}
                         />
                     </Scroll>
-                }
-            }</Show>
+                }}
+            >
+                <Text style=TextStyle::CAPTION>"The generated graph is empty."</Text>
+            </Show>
         </List>
     }
 }

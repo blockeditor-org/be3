@@ -1069,7 +1069,6 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
     let dialog = exporter.dialog;
     let options = exporter.options;
     let open = create_memo(move || dialog.get().is_some());
-    let raster = create_memo(move || dialog.get() == Some(ExportFormat::Png));
     let title = create_memo(move || {
         let format = dialog.get().unwrap_or(ExportFormat::Png);
         format!("Export as {}", format.name())
@@ -1096,7 +1095,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             open={open}
             title={title}
             id="infinite-canvas.export"
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             actions={vec![
                 DialogAction::secondary("Copy", move || finish(ExportTo::Clipboard)).named("copy"),
                 DialogAction::cancel("Cancel"),
@@ -1105,7 +1104,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             on_dismiss={move || dialog.set(None)}
         >
             <List spacing=DIALOG_SPACING>
-                <Show condition={raster}>
+                <Show condition={move || dialog.get() == Some(ExportFormat::Png)}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

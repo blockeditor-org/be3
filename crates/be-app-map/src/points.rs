@@ -49,7 +49,7 @@ pub(crate) fn Marker(
                     width={Size::Custom(RING_SIZE)}
                     height={Size::Custom(RING_SIZE)}
                     radius=Radius::Full
-                    border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR.into())).width(Stroke::Focus)))}
+                    border={move || selected.get().then_some(Border::new(ColorRole::Custom(SELECTION_COLOR.into())).width(Stroke::Focus))}
                 >
                     <Text
                         size=MARKER_SIZE

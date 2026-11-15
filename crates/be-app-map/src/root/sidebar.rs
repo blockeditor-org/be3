@@ -69,10 +69,7 @@ pub(crate) fn MapInspector(state: MapState) -> NodeId {
 #[component]
 fn MapSidebar(state: MapState) -> NodeId {
     let selected = create_memo(move || state.selected.get());
-    let listing = create_memo(move || selected.get().is_none());
-    let chosen = create_memo(move || selected.get().is_some());
     let error = state.import_error;
-    let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
@@ -81,13 +78,13 @@ fn MapSidebar(state: MapState) -> NodeId {
             <Separator />
             <RegionInspector state={state} />
             <Separator />
-            <Show condition={listing}>
-                <PointList state={state} />
-            </Show>
-            <Show condition={chosen}>
+            <Show
+                condition={move || selected.get().is_some()}
+                fallback={move || view! { <PointList state={state} /> }}
+            >
                 <PointDetails state={state} selected={selected} />
             </Show>
-            <Show condition={failed}>
+            <Show condition={move || error.get().is_some()}>
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                     <Button
@@ -105,7 +102,6 @@ fn MapSidebar(state: MapState) -> NodeId {
 fn RegionInspector(state: MapState) -> NodeId {
     let region = state.preview_region;
     let fixed = create_memo(move || region.get().is_some());
-    let loose = create_memo(move || !fixed.get());
     let loose_color = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
@@ -118,12 +114,14 @@ fn RegionInspector(state: MapState) -> NodeId {
                 })}
                 @test_id={"map.preview-region"}
             />
-            <Show condition={loose}>
-                <Text style=TextStyle::CAPTION color={loose_color}>
-                    "Previews show the whole world."
-                </Text>
-            </Show>
-            <Show condition={fixed}>
+            <Show
+                condition={fixed}
+                fallback={move || view! {
+                    <Text style=TextStyle::CAPTION color={loose_color}>
+                        "Previews show the whole world."
+                    </Text>
+                }}
+            >
                 <List spacing=Space::Sm>
                     <RegionEdges state={state} />
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
@@ -272,18 +270,17 @@ fn PointList(state: MapState) -> NodeId {
             .collect::<Vec<Uuid>>()
     });
     let empty = create_memo(move || ids.get().is_empty());
-    let any = create_memo(move || !empty.get());
     let hint = TextColor::Muted;
     view! {
         <List spacing=Space::Sm>
             <Text>"Points of interest"</Text>
-            <Show condition={empty}>
+            <Show
+                condition={empty}
+                fallback={|| view! { <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text> }}
+            >
                 <Text style=TextStyle::CAPTION color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
-            </Show>
-            <Show condition={any}>
-                <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
             </Show>
             <ForEach keys={ids}>|id: Uuid|
                 <PointRow state id />
@@ -325,9 +322,8 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
 
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
-    let color = create_memo(move || TextColor::Custom(color.get().into()));
     view! {
-        <Text size=TextSize::Xs color={color} align=TextAlign::Center>
+        <Text size=TextSize::Xs color={move || TextColor::Custom(color.get().into())} align=TextAlign::Center>
             <Icon glyph=ICON_CIRCLE />
         </Text>
     }
@@ -345,7 +341,6 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
         let label = state.label_of(point.block_id).ok()?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
-    let openable = create_memo(move || block.get().is_none());
     let editor = state.editor();
     let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
     let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
@@ -381,7 +376,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 <Button
                     label="Edit"
                     variant=ButtonVariant::Secondary
-                    disabled={openable}
+                    disabled={move || block.get().is_none()}
                     on_click={move || {
                         if let Some(target) = block.get_untracked() {
                             state.editor().host().open_block(target.id, target.block_type);

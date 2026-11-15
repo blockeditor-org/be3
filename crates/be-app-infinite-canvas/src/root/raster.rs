@@ -527,16 +527,17 @@ pub(crate) fn RasterGuideDrawing(
             color: beui::reactive::resolve_color(theme.border.get()),
         })
     });
-    let draw = Prop::dynamic(move || -> Draw {
-        let guide = guide.get();
-        Rc::new(move |painter: &Painter, _rect: Rect| {
-            if let Some(guide) = guide.as_ref() {
-                guide.draw(painter);
-            }
-        })
-    });
     view! {
-        <Drawing draw={draw} />
+        <Drawing
+            draw={move || -> Draw {
+                let guide = guide.get();
+                Rc::new(move |painter: &Painter, _rect: Rect| {
+                    if let Some(guide) = guide.as_ref() {
+                        guide.draw(painter);
+                    }
+                })
+            }}
+        />
     }
 }
 
@@ -548,7 +549,6 @@ pub(crate) fn rastering(state: CanvasState) -> Memo<bool> {
 pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
     let layer = create_memo(move || state.selected_raster().is_some());
     let narrow = be_sdk_beui::narrow_chrome();
-    let roomy = create_memo(move || !narrow.get());
     view! {
         <List spacing=SPACING @test_id={"infinite-canvas.raster"}>
             <BrushSection state={state} />
@@ -557,7 +557,7 @@ pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
                 <LayerSection state={state} />
             </Show>
             <PixelSection />
-            <Show condition={roomy}>
+            <Show condition={move || !narrow.get()}>
                 <List spacing=SPACING>
                     <Separator />
                     <ShortcutsSection raster=true />
@@ -640,8 +640,6 @@ fn ColorSection(state: CanvasState) -> NodeId {
         }
         None => text.set(typed),
     };
-    let current = create_memo(move || pixel_color(color.get()));
-    let current_label = create_memo(move || format_hex_color(color.get()));
     let cannot_add = create_memo(move || {
         palette.with(|palette| {
             palette.len() >= MAX_RASTER_PALETTE_COLORS || palette.contains(&color.get())
@@ -655,8 +653,8 @@ fn ColorSection(state: CanvasState) -> NodeId {
             <List spacing=Space::Sm>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                     <SwatchButton
-                        color={current}
-                        label={current_label}
+                        color={move || pixel_color(color.get())}
+                        label={move || format_hex_color(color.get())}
                         radius=Radius::Xs
                         on_click={move || {}}
                     />

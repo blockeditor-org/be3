@@ -28,19 +28,20 @@ const PANELS_WIDTH: f32 = SIDE_PANEL_WIDTH;
 pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let session = Session::new(editor);
     let loaded = create_memo(move || session.read(LogicGridEditor::loaded));
-    let waiting = create_memo(move || !loaded.get());
     let scope = NodeRef::new();
     action_scope(&scope);
     register_keys(session);
     let chrome = editor.chrome_shown();
     view! {
         <List @node_ref=&scope spacing=Space::None>
-            <Show condition={waiting}>
-                <ListItem grow=1.0>
-                    <LoadingPane label="Loading the grid" />
-                </ListItem>
-            </Show>
-            <Show condition={loaded}>
+            <Show
+                condition={loaded}
+                fallback={|| view! {
+                    <ListItem grow=1.0>
+                        <LoadingPane label="Loading the grid" />
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <List spacing=Space::None>
                         <ListItem grow=1.0>
@@ -218,13 +219,11 @@ fn GridTools(session: Session) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let challenged = create_memo(move || !challenge.get().is_empty());
     let problems = create_memo(move || session.read(|model| model.grid.validate().len()));
     let misplaced = create_memo(move || problems.get() > 0);
     let problem_text = create_memo(move || format!("{} placement problems", problems.get()));
     let compile_error =
         create_memo(move || session.read(|model| model.compile_error.clone().unwrap_or_default()));
-    let failed = create_memo(move || !compile_error.get().is_empty());
     view! {
         <DockBarSurface spacing=Space::Md @test_id={"logic-grid.toolbar"}>
             <Frame @test_id={"logic-grid.toolbar.grip"}>
@@ -238,13 +237,13 @@ fn GridTools(session: Session) -> NodeId {
                 @test_id={"logic-grid.compile"}
                 on_click={compile}
             />
-            <Show condition={challenged}>
+            <Show condition={move || challenge.with(|challenge| !challenge.is_empty())}>
                 <Text>{challenge}</Text>
             </Show>
             <Show condition={misplaced}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{problem_text}</Text>
             </Show>
-            <Show condition={failed}>
+            <Show condition={move || compile_error.with(|error| !error.is_empty())}>
                 <Text
                     style=TextStyle::CAPTION
                     color=TextColor::Danger
@@ -384,7 +383,7 @@ fn GridCanvas(session: Session) -> NodeId {
             >
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                        <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                        <Drawing draw={move || draw_gpu(drawing.get())} />
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <Canvas view={shown}>

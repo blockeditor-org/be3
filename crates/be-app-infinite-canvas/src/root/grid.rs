@@ -35,7 +35,7 @@ pub(crate) fn grid_actions(state: CanvasState) -> GridActions {
         });
     })
     .glyph(ICON_GRID_3X3)
-    .checked(create_memo(move || !grid.get().hidden))
+    .checked(move || !grid.get().hidden)
     .enabled(live)
     .register();
     let spaced = |id: &str, label: &'static str, spacing: CanvasGridSpacing| {
