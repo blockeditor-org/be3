@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use super::{Letter, wake};
+use super::{Encoded, Letter, wake};
 
 static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
 /// Told whenever a letter is posted (`wait_for_letter`).
@@ -23,6 +23,11 @@ pub(super) fn post(to: ThreadId, letter: Letter) {
     *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner) += 1;
     POSTED_SIGNAL.notify_all();
     wake();
+}
+
+/// A letter in bytes, which its mailbox decodes as it delivers it (`Across`).
+pub(super) fn post_bytes(to: ThreadId, mailbox: u64, bytes: Vec<u8>) {
+    post(to, (mailbox, Box::new(Encoded(bytes))));
 }
 
 /// Takes, in the order they were posted, the letters for `here` whose mailbox `at_this_desk`

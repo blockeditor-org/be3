@@ -128,12 +128,13 @@ function stackWorkerStart(entry) {
 
 export { stackWorkerStart as "be-worker-start" };
 
-// Letters (be-host-base's host::Post::send) a worker posts to a mailbox the
+// Letters (be-host-base's host::Across::send) a worker posts to a mailbox the
 // page made. The page shares no lock with a worker for them
-// (plans/web_page_never_waits.md): the worker posts the letter's address on a
-// channel only this page's workers know the name of, and the page hands it to
-// the module, which puts it in the page's own list and wakes the host. A
-// channel delivers what one worker posts in the order it posted it.
+// (plans/web_page_never_waits.md): the worker posts the letter's bytes, copied
+// out of its memory, on a channel only this page's workers know the name of,
+// and the page hands them to the module, which copies them in, puts the letter
+// in the page's own list and wakes the host. A channel delivers what one
+// worker posts in the order it posted it.
 /** @type {{name: string, channel: BroadcastChannel, page: boolean} | null} */
 let letters = null;
 
@@ -144,7 +145,7 @@ let letters = null;
 export function receiveLetters(arrived) {
     const name = `be-letters-${crypto.randomUUID()}`;
     const channel = new BroadcastChannel(name);
-    channel.onmessage = (event) => arrived(event.data);
+    channel.onmessage = (event) => arrived(event.data.mailbox, event.data.bytes);
     letters = { name, channel, page: true };
 }
 
@@ -158,10 +159,9 @@ export function bindLetters(name) {
     letters = name ? { name, channel: new BroadcastChannel(name), page: false } : null;
 }
 
-// A letter no page can take is reported and its Box leaked (`be_letter_arrived` frees it):
-// throwing into the poster's wasm would skip its Rust destructors, and could leave a lock it
-// holds locked for good.
-function letterPost(letter) {
+// A letter no page can take is reported and dropped: throwing into the poster's wasm would
+// skip its Rust destructors, and could leave a lock it holds locked for good.
+function letterPost(mailbox, pointer, length) {
     if (letters === null || letters.page) {
         console.error(
             letters === null
@@ -170,7 +170,8 @@ function letterPost(letter) {
         );
         return;
     }
-    letters.channel.postMessage(letter >>> 0);
+    const bytes = new Uint8Array(context.memory.buffer).slice(pointer >>> 0, (pointer >>> 0) + (length >>> 0));
+    letters.channel.postMessage({ mailbox, bytes });
 }
 
 export { letterPost as "be-letter-post" };
