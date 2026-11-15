@@ -185,6 +185,13 @@ pub trait Driver {
     fn cancel(&self) -> bool;
     fn stop_edge(&self);
     /// Lifts `carry` at `point`, a drag an `Interactive`'s `drag` began: from here the
-    /// carried item chooses among the places the drop sites that accept it give.
-    fn lift(&self, carry: Carry, point: DragPoint);
+    /// carried item chooses among the places the drop sites that accept it give. `None`
+    /// when something is carried already.
+    fn lift(&self, carry: Carry, point: DragPoint) -> Option<CarryId>;
+    /// Puts `carry` down without dropping it, if it is still carried: its source is gone.
+    fn put_down(&self, carry: CarryId);
+    /// The carry held now; tracked.
+    fn carry(&self) -> Option<CarryId>;
+    /// The frame the carry shows; tracked.
+    fn frame(&self) -> Option<DragFrame>;
 }

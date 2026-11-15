@@ -256,11 +256,13 @@ impl<D: 'static> DragSpec<D> {
 
 /// What a drag lifts: its payload, erased (a board hands it back typed), and the item's rect
 /// relative to the pointer, which the item keeps while it floats. With no `item`, an
-/// `Interactive` lifting it gives its own node, held where it was pressed.
+/// `Interactive` lifting it gives its own node, held where it was pressed. With no
+/// `preview`, the source itself is drawn where the item floats.
 #[derive(Clone)]
 pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
+    pub preview: Option<Rc<dyn Fn() -> NodeId>>,
 }
 
 impl Carry {
@@ -268,6 +270,16 @@ impl Carry {
         Self {
             payload: Rc::new(payload),
             item: None,
+            preview: None,
+        }
+    }
+
+    /// What floats under the pointer instead of the source: built when the item floats, in
+    /// a layer above the window, so no scroll clips it.
+    pub fn preview(self, preview: impl Fn() -> NodeId + 'static) -> Self {
+        Self {
+            preview: Some(Rc::new(preview)),
+            ..self
         }
     }
 
@@ -279,6 +291,10 @@ impl Carry {
         }
     }
 }
+
+/// A carry a board holds, as `Driver::lift` names it.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct CarryId(pub u64);
 
 /// Which place a frame chose: the position of its spec in the tree, counted depth first, so it
 /// stays the same while the spec does.
