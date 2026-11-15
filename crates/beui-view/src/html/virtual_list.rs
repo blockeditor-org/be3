@@ -205,13 +205,15 @@ pub(crate) fn virtual_list<K>(
     item_size: Prop<f32>,
     direction: Prop<Direction>,
     overscan: Prop<f32>,
+    anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     item: RenderFn<ReadSignal<K>>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
 {
-    let _ = text;
+    // The browser anchors the scroll on what is shown (`overflow-anchor`).
+    let _ = (text, anchor);
     let list = create("VirtualList", "div");
     set_style(list, "display", Some("flex".to_owned()));
     let lead = create("VirtualListSpacer", "div");

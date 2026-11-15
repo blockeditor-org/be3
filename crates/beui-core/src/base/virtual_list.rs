@@ -38,6 +38,10 @@ pub struct VirtualListNode<K> {
     held: Vec<Row<K>>,
     retained: VecDeque<K>,
     origin: Option<(K, f32)>,
+    /// The row its owner keeps in place (`set_virtual_list_anchor`): while built, it is the
+    /// origin the next layout lays the rows out from, so rows around it measured anew move
+    /// only what is beyond them.
+    anchor: Option<K>,
     overscan: f32,
 }
 
@@ -55,6 +59,7 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             held: Vec::new(),
             retained: VecDeque::new(),
             origin: None,
+            anchor: None,
             overscan: 0.0,
         }
     }
@@ -239,7 +244,14 @@ impl<K: Clone + Hash + Eq + 'static> VirtualListNode<K> {
             Some(row) => {
                 let wanted = self.metrics.position(row.index);
                 let shift = wanted - row.position;
-                self.origin = Some((row.key.clone(), wanted));
+                // Every built row is laid out from the origin with its measured length, so the
+                // shift is the same for each; the origin is the anchor while it is built.
+                let origin = self
+                    .anchor
+                    .as_ref()
+                    .and_then(|anchor| rows.iter().find(|row| row.key == *anchor))
+                    .unwrap_or(row);
+                self.origin = Some((origin.key.clone(), self.metrics.position(origin.index)));
                 shift
             }
             None => {
@@ -630,6 +642,19 @@ impl Document {
         let node = self.arena.get_as(list);
         let index = *node.indices.get(&(key.clone(), 0))?;
         Some(node.metrics.position(index))
+    }
+
+    /// Names the row of `key` as the one the list keeps in place as rows around it are measured
+    /// anew, in place of the first row it builds; `None` goes back to that.
+    pub fn set_virtual_list_anchor<K: Clone + Hash + Eq + 'static>(
+        &mut self,
+        list: NodeOf<VirtualListNode<(K, usize)>>,
+        key: Option<K>,
+    ) {
+        let anchor = key.map(|key| (key, 0));
+        self.arena
+            .get_mut_as::<VirtualListNode<(K, usize)>>(list)
+            .anchor = anchor;
     }
 
     pub fn set_virtual_list_overscan<K: Clone + Hash + Eq + 'static>(
