@@ -1561,12 +1561,17 @@ fn own_agents(
 /// Makes an invitation into the organization open, as an editor, and answers its link.
 pub async fn invite() -> Result<String, String> {
     let (reply, made) = tokio::sync::oneshot::channel();
-    send(Command::Invitations(worker::InvitationsCommand::Create(
-        Box::new(move |made| {
-            let _ = reply.send(made);
-        }),
-    )));
+    create_invitation(Box::new(move |made| {
+        let _ = reply.send(made);
+    }));
     made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
+}
+
+/// `invite`, answering through `reply`.
+pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) {
+    send(Command::Invitations(worker::InvitationsCommand::Create(
+        reply,
+    )));
 }
 
 /// An invitation in the organization's invite list.

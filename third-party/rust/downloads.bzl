@@ -3392,6 +3392,12 @@ downloads = {
         "size_bytes": 879481,
         "version": "0.1.29",
     },
+    "qrcodegen-1.8.0": {
+        "name": "qrcodegen",
+        "sha256": "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142",
+        "size_bytes": 15014,
+        "version": "1.8.0",
+    },
     "quick-error-2.0.1": {
         "name": "quick-error",
         "sha256": "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3",

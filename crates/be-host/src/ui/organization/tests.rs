@@ -119,5 +119,6 @@ fn unsent_view() -> HostUi {
 mod approving_a_device_offline_says_it_needs_a_connection;
 mod leaving_offline_says_it_needs_a_connection;
 mod the_leave_dialog_quotes_a_long_or_tricky_name_safely;
+mod the_invite_dialog_ends_on_its_link_and_the_list_shows_each_invitation;
 mod the_status_says_whether_changes_are_saved_syncing_offline_or_failed;
 mod unsent_edits_can_be_restored_or_discarded;

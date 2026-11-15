@@ -109,14 +109,58 @@ pub(super) fn AccountsScreen(view: HostUiStore) -> NodeId {
         false => view.account_error.get(),
     });
     view! {
-        <be_host_accounts_ui::AccountsScreen
-            accounts
-            error
-            on_add={|| send(UiCommand::OpenAddAccount)}
-            on_open={|key: String| send(UiCommand::OpenAccount(key))}
-            on_choose_organization={|key: String| send(UiCommand::ChooseOrganization(key))}
-            on_log_out={|key: String| send(UiCommand::LogOut(key))}
-        />
+        <List spacing=Space::None>
+            <InvitationBanner view />
+            <ListItem grow=1.0>
+                <be_host_accounts_ui::AccountsScreen
+                    accounts
+                    error
+                    on_add={|| send(UiCommand::OpenAddAccount)}
+                    on_open={|key: String| send(UiCommand::OpenAccount(key))}
+                    on_choose_organization={|key: String| send(UiCommand::ChooseOrganization(key))}
+                    on_log_out={|key: String| send(UiCommand::LogOut(key))}
+                />
+            </ListItem>
+        </List>
+    }
+}
+
+/// An invite link opened before signing in: whose invitation it is and into what. Its code is
+/// held while the person signs in or makes an account, and the invitation waits for them in
+/// Join an organization after.
+#[component]
+fn InvitationBanner(view: HostUiStore) -> NodeId {
+    let joining = create_memo(move || view.organizations.get().joining);
+    view! {
+        <Show value={joining}>|row: ReadSignal<JoiningRow>| {
+            let title = create_memo(move || {
+                row.with(|row| format!("{} invited you to join {}", row.inviter, row.organization))
+            });
+            let lead = create_memo(move || {
+                row.with(|row| match row.problem.is_empty() {
+                    true => "Sign in, or add an account, to accept it. You join as an editor."
+                        .to_owned(),
+                    false => row.problem.clone(),
+                })
+            });
+            view! {
+                <Frame padding={Padding::all(Space::Lg)} @test_id={"host.invited"}>
+                    <Card>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <Text size=TextSize::Lg color=TextColor::Accent>
+                                <Icon glyph=ICON_USER_PLUS />
+                            </Text>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text weight=Weight::Bold>{title}</Text>
+                                    <Text style=TextStyle::CAPTION>{lead}</Text>
+                                </List>
+                            </ListItem>
+                        </List>
+                    </Card>
+                </Frame>
+            }
+        }</Show>
     }
 }
 
@@ -601,30 +645,54 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                     </List>
                 }}
             >|row: ReadSignal<JoiningRow>| {
-                let title = create_memo(move || row.with(|row| format!("Join {} as {}?", row.organization, row.role)));
-                let invited = create_memo(move || row.with(|row| format!("Invited as {}", row.email)));
+                let title = create_memo(move || row.with(|row| format!("Join {}?", row.organization)));
+                let invited = create_memo(move || {
+                    row.with(|row| format!("Invited by {}. You join as an editor.", row.inviter))
+                });
+                let problem = create_memo(move || row.with(|row| row.problem.clone()));
+                let can_join = create_memo(move || row.with(|row| row.can_join));
+                let refused = create_memo(move || !problem.with(String::is_empty));
                 view! {
                     <Card>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <ListItem grow=1.0>
-                                <List spacing=Space::Xs2>
-                                    <Text size=TextSize::Lg>{title}</Text>
-                                    <Text style=TextStyle::CAPTION>{invited}</Text>
+                        <List spacing=Space::Md>
+                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                <ListItem grow=1.0>
+                                    <List spacing=Space::Xs2>
+                                        <Text size=TextSize::Lg>{title}</Text>
+                                        <Text style=TextStyle::CAPTION>{invited}</Text>
+                                    </List>
+                                </ListItem>
+                                <Button
+                                    label="Cancel"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={busy}
+                                    on_click={|| send(UiCommand::CancelJoin)}
+                                />
+                                <Show value={can_join}>
+                                    <Button
+                                        label="Join"
+                                        variant=ButtonVariant::Primary
+                                        disabled={busy}
+                                        @test_id={"host.join.confirm"}
+                                        on_click={|| send(UiCommand::JoinInvited)}
+                                    />
+                                </Show>
+                            </List>
+                            <Show value={refused}>
+                                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                                    <ListItem grow=1.0>
+                                        <Text style=TextStyle::CAPTION @test_id={"host.join.problem"}>
+                                            {problem}
+                                        </Text>
+                                    </ListItem>
+                                    <Button
+                                        label="Use another account"
+                                        variant=ButtonVariant::Secondary
+                                        @test_id={"host.join.another"}
+                                        on_click={|| send(UiCommand::OpenAddAccount)}
+                                    />
                                 </List>
-                            </ListItem>
-                            <Button
-                                label="Cancel"
-                                variant=ButtonVariant::Secondary
-                                disabled={busy}
-                                on_click={|| send(UiCommand::CancelJoin)}
-                            />
-                            <Button
-                                label="Join"
-                                variant=ButtonVariant::Primary
-                                disabled={busy}
-                                @test_id={"host.join.confirm"}
-                                on_click={|| send(UiCommand::JoinInvited)}
-                            />
+                            </Show>
                         </List>
                     </Card>
                 }
