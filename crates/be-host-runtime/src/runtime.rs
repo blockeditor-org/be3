@@ -271,6 +271,9 @@ pub(super) struct Runtime {
     presents_applied: u64,
     /// The app's screens while anchored views it closed are still shown (`Runtime::place`).
     closing: Option<Closing>,
+    /// The last frames of views the app's layout left out while the host still holds them
+    /// (`Runtime::keep_left_out`).
+    kept: HashMap<ScreenId, Kept>,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -356,6 +359,32 @@ struct Closing {
     presented_by: u64,
     drawn_by: Option<u64>,
     layout: ScreenLayout,
+}
+
+/// Whether the host keeps the last frame of a view its app stops drawing. Natively it holds the
+/// frame's textures itself; on the web a surface is the app worker's canvas, which goes when the
+/// app's layout leaves it out.
+const KEEPS_FRAMES: bool = cfg!(not(target_arch = "wasm32"));
+
+/// The last frame of a view the app's layout left out because the host stopped showing it (a
+/// dock tab or bar hidden with its tab), while the host still holds the view: shown again, the
+/// view draws this until the app's new frame of it has been drawn, so it never shows empty while
+/// that frame is on its way.
+struct Kept {
+    placement: ScreenPlacement,
+    /// How far the app has come drawing the view again, once it lays its screen out again.
+    back: Option<Back>,
+}
+
+/// A kept frame goes once the present that follows the layout bringing its view back has been
+/// applied and, where it painted, its frame has been drawn, as an anchored view that closes does
+/// (`Closing`).
+#[derive(Clone, Copy)]
+enum Back {
+    /// Laid out again; waits for this many presents applied.
+    Laid(u64),
+    /// That present came, with the sequence of its frame if it painted.
+    Presented(Option<u64>),
 }
 
 struct Laid {
@@ -560,6 +589,7 @@ impl Runtime {
             presents_heard: 0,
             presents_applied: 0,
             closing: None,
+            kept: HashMap::default(),
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -616,6 +646,7 @@ impl Runtime {
         self.presents_heard = 0;
         self.presents_applied = 0;
         self.closing = None;
+        self.kept.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -875,7 +906,11 @@ impl Runtime {
     fn painted(&mut self, payload: &[u8]) {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
-        shared.paintings.clear();
+        // A kept frame's painting stays with it: the app no longer paints a view it left out.
+        let kept = &self.kept;
+        shared
+            .paintings
+            .retain(|screen, _| kept.contains_key(screen));
         shared.overflows.clear();
         let Ok(paintings) = beui::native::painting::ScreenPaintings::decode(payload) else {
             return;
@@ -1100,7 +1135,12 @@ impl Runtime {
         if frame.composited() {
             frame.set_damage(self.presents.damage_through(frame.presents()));
             changed = frame_changed(frame.damage());
-            self.shared.borrow_mut().publish(&self.layout, Some(frame));
+            if !self.kept.is_empty() {
+                self.release_kept();
+            }
+            self.shared
+                .borrow_mut()
+                .publish(&self.layout, self.kept_placements(), Some(frame));
             self.close_anchored();
             self.frames += 1;
             be_host_base::performance::record_group_count(
@@ -1276,13 +1316,77 @@ impl Runtime {
         self.backend
             .export(shown.iter().map(|placement| placement.surface).collect());
         self.instances.keep_anchored(&layout);
-        let surfaces: Vec<u32> = layout
+        self.keep_left_out(&layout);
+        self.layout = layout;
+        self.release_kept();
+    }
+
+    /// Keeps the last frame of each view `layout` leaves out that the host still holds, and notes
+    /// when the app lays out again a view whose last frame is kept (`Kept`).
+    fn keep_left_out(&mut self, layout: &ScreenLayout) {
+        if !KEEPS_FRAMES {
+            return;
+        }
+        for placement in &self.layout.screens {
+            let held = placement.view != ViewId::PREVIEW
+                && self.instances.view_request_of(placement.screen).is_some();
+            if !held || layout.placement(placement.screen).is_some() {
+                continue;
+            }
+            self.kept
+                .entry(placement.screen)
+                .and_modify(|kept| kept.back = None)
+                .or_insert(Kept {
+                    placement: *placement,
+                    back: None,
+                });
+        }
+        let next = self.presents_applied + 1;
+        for placement in &layout.screens {
+            if let Some(kept) = self.kept.get_mut(&placement.screen)
+                && kept.back.is_none()
+            {
+                kept.back = Some(Back::Laid(next));
+            }
+        }
+    }
+
+    /// Lets go of each kept frame whose view is gone or whose new frame has been drawn, and of
+    /// every texture neither the app's layout nor a kept frame holds.
+    fn release_kept(&mut self) {
+        let shown = self.presents.shown;
+        let instances = &self.instances;
+        self.kept.retain(|screen, kept| {
+            let drawn = match kept.back {
+                None | Some(Back::Laid(_)) => false,
+                Some(Back::Presented(painted)) => painted.is_none_or(|sequence| shown >= sequence),
+            };
+            instances.view_request_of(*screen).is_some() && !drawn
+        });
+        self.shared.borrow_mut().kept = self.kept_placements();
+        presenter::keep(self.surface, &self.retained_surfaces());
+    }
+
+    fn kept_placements(&self) -> Vec<ScreenPlacement> {
+        self.kept.values().map(|kept| kept.placement).collect()
+    }
+
+    fn retained_surfaces(&self) -> Vec<u32> {
+        self.layout
             .screens
             .iter()
+            .chain(self.kept.values().map(|kept| &kept.placement))
             .map(|placement| placement.surface)
-            .collect();
-        presenter::keep(self.surface, &surfaces);
-        self.layout = layout;
+            .collect()
+    }
+
+    /// The placement a screen is drawn from: its kept last frame while it has one, else the
+    /// app's layout's.
+    fn shown_placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
+        self.kept
+            .get(&screen)
+            .map(|kept| &kept.placement)
+            .or_else(|| self.layout.placement(screen))
     }
 
     fn offer_previews(&mut self, messages: &[Outbound]) {
@@ -1537,10 +1641,22 @@ impl Runtime {
                 .filter(|_| cfg!(not(target_arch = "wasm32")))
                 .map(|presented| presented.sequence);
         }
+        for kept in self.kept.values_mut() {
+            if let Some(Back::Laid(presented_by)) = kept.back
+                && self.presents_applied >= presented_by
+            {
+                kept.back = Some(Back::Presented(
+                    presented.as_ref().map(|presented| presented.sequence),
+                ));
+            }
+        }
         if let Some(presented) = presented {
             self.presents.report(presented);
         }
         self.close_anchored();
+        if !self.kept.is_empty() {
+            self.release_kept();
+        }
         self.drawn = self
             .layout
             .screens
@@ -1631,11 +1747,13 @@ impl Runtime {
         if !presented {
             return;
         }
-        self.shared.borrow_mut().publish(&self.layout, None);
+        self.shared
+            .borrow_mut()
+            .publish(&self.layout, self.kept_placements(), None);
     }
 
     fn template(&self, screen: ScreenId, drawn: Option<(u32, u32)>) -> Blit {
-        let placement = self.layout.placement(screen);
+        let placement = self.shown_placement(screen);
         Blit {
             surface: self.surface,
             status: self.status.clone(),
@@ -2512,6 +2630,7 @@ pub fn close(app_id: &str, instance: EditorInstanceId) {
         if let Some(messages) = messages {
             runtime.send(messages);
         }
+        runtime.release_kept();
     });
     mark(app_id);
 }
@@ -3383,7 +3502,7 @@ fn shown_view(
         let chosen = (placement.rect, placement.clip);
         let (rect, clip) = own.map_or(chosen, |own| (own.rect, own.clip));
         let screen = runtime.instances.screen_id(instance, region);
-        let painted = screen.and_then(|screen| runtime.layout.placement(screen));
+        let painted = screen.and_then(|screen| runtime.shown_placement(screen));
         let visible = rect.intersect(clip);
         let shown = runtime
             .placements
@@ -3501,7 +3620,7 @@ fn shown_view(
                 pieces_of(rect, visible, textured, &marks_painted),
             ),
         };
-        let loading = screen.is_none_or(|screen| runtime.layout.placement(screen).is_none());
+        let loading = screen.is_none_or(|screen| runtime.shown_placement(screen).is_none());
         let anchored = runtime.instances.shown_anchored(instance, region);
         let gives_keyboard = |layer: &HostAnchored| {
             layer.keyboard
@@ -3688,14 +3807,18 @@ pub fn anchored_drawing(blits: AnchoredBlits) -> beui::native::Drawing {
 }
 
 pub fn view_placed(app_id: &str, instance: EditorInstanceId, region: ViewId) -> Option<[u32; 3]> {
-    with(app_id, |runtime| {
-        let screen = runtime.instances.screen_id(instance, region)?;
-        runtime
-            .layout
-            .placement(screen)
-            .map(|placement| [placement.surface, placement.width, placement.height])
-    })
-    .flatten()
+    with(app_id, |runtime| view_placed_in(runtime, instance, region)).flatten()
+}
+
+fn view_placed_in(
+    runtime: &Runtime,
+    instance: EditorInstanceId,
+    region: ViewId,
+) -> Option<[u32; 3]> {
+    let screen = runtime.instances.screen_id(instance, region)?;
+    runtime
+        .shown_placement(screen)
+        .map(|placement| [placement.surface, placement.width, placement.height])
 }
 
 pub fn view_damage(

@@ -121,6 +121,15 @@ last reported for another view, else with what its placer's view is filled
 with (`Behind` in `app_view.rs`), so it never shows what is behind its placer
 while its app draws it.
 
+A view the host stops showing (a dock tab, or a dock bar hidden with its tab)
+is left out of the app's next layout, which lets its surface go. The host keeps
+that view's last frame (`Kept` in `runtime.rs`: its placement, textures and
+painting) while it still holds the view, and draws it if the view is shown
+again, until the app's new frame of it has been drawn; so a text's format bar
+never blanks for a frame when a tab switch brings it back before its app
+answers. The kept frame goes when that frame is drawn, the instance closes, or
+the app restarts. The web keeps none: its surfaces are the app worker's canvases.
+
 An anchored view the app closes leaves the same way (`Runtime::place`, `Closing`): the app sends
 its screens ahead of the frame's commits, and the host keeps the closed view, showing its last
 frame, until the present that follows and, where it composites the app's surfaces, that present's
