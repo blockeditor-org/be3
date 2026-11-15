@@ -149,6 +149,7 @@ fn MonthCell(
                     });
                     let open = move || on_pick_event.call(row);
                     view! {
+                        <Tooltip label={title}>
                         <Frame fill=ColorRole::Accent radius=Radius::Xs>
                             <ListRow
                                 @test_id={format!("database-view.calendar.event.{row}")}
@@ -164,6 +165,7 @@ fn MonthCell(
                                 </Text>
                             </ListRow>
                         </Frame>
+                        </Tooltip>
                     }
                 }</ForEach>
                 <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{overflow}</Text>

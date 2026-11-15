@@ -20,6 +20,7 @@ mod fonts_added_later_redraw_the_text_that_was_missing_them;
 mod layered_colour_glyphs_are_drawn_in_their_palette_colours;
 mod letters_land_where_their_advances_put_them;
 mod replacing_the_fonts_lays_the_text_out_again;
+mod spaces_after_the_last_word_that_fits_hang_past_the_edge;
 
 const SIZE: f32 = 14.0;
 

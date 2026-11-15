@@ -2,7 +2,7 @@ use std::ops::Range;
 
 use crate::font::{Galley, Wraps};
 use crate::painter::Painter;
-use be_lib_graphemes::is_grapheme_boundary;
+use be_lib_graphemes::grapheme_boundaries;
 use beui_types::Color32;
 use beui_types::{FontId, TextAlign};
 use beui_types::{Rect, Vec2, pos2, vec2};
@@ -15,12 +15,21 @@ const WRAP_SLACK: f32 = 1.0 / 1024.0;
 /// How wide the break zone at the end of a wrapped line is, in ems of the text's font.
 pub const BREAK_ZONE_EMS: f32 = 6.0;
 
+/// A place a line could end: its byte, its x, the x it must fit by (before any spaces it
+/// follows, which hang) and how good a break it is, if the line can break there at all.
+struct Stop {
+    byte: usize,
+    x: f32,
+    fit: f32,
+    tier: Option<Tier>,
+}
+
 /// How good a place to break a line is, best first (guides/beui/text.md, "Wrapping").
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 enum Tier {
     /// A Unicode line break opportunity (UAX #14), or the end of a piece that breaks after it.
     Good,
-    /// After `/ . _ : , ; ) ] }` or before `( [ {` inside a word, as in code, paths and URLs.
+    /// After `/ . _ : , ; ) ] } -` or before `( [ {` inside a word, as in code, paths and URLs.
     LessGood,
     /// Any other grapheme cluster boundary.
     LastResort,
@@ -295,7 +304,6 @@ struct Builder<'a> {
     segment: Range<usize>,
     anywhere: bool,
     whole: Vec<Option<(Range<usize>, Galley)>>,
-    opportunities: Vec<bool>,
 }
 
 struct Segment {
@@ -521,6 +529,65 @@ impl Builder<'_> {
         stops
     }
 
+    /// Classifies each stop of the paragraph as a place to break (guides/beui/text.md,
+    /// "Wrapping"), in one pass: its tier, and the x it must fit by, which for a stop after
+    /// spaces is where the spaces begin, so trailing spaces hang past the edge.
+    fn classify(&self, stops: Vec<(usize, f32)>) -> Vec<Stop> {
+        let Range { start, end } = self.paragraph.clone();
+        let paragraph = self.text.get(start..end).unwrap_or_default();
+        let mut good = vec![false; paragraph.len() + 1];
+        for (at, _) in unicode_linebreak::linebreaks(paragraph) {
+            good[at] = true;
+        }
+        let mut boundary = vec![false; paragraph.len() + 1];
+        for at in grapheme_boundaries(paragraph.as_bytes()) {
+            boundary[at] = true;
+        }
+        let bytes = self.text.as_bytes();
+        let mut span = self.spans.partition_point(|span| span.range.end < start);
+        let mut ink = f32::NEG_INFINITY;
+        stops
+            .into_iter()
+            .map(|(byte, x)| {
+                while self.spans.get(span).is_some_and(|it| it.range.end < byte) {
+                    span += 1;
+                }
+                let gap_or_break_after = self.spans[span.min(self.spans.len())..]
+                    .iter()
+                    .take_while(|it| it.range.end == byte)
+                    .any(|it| it.break_after || matches!(it.kind, SpanKind::Gap(_)));
+                let at = byte.saturating_sub(start).min(paragraph.len());
+                let tier = match () {
+                    _ if gap_or_break_after || good[at] => Some(Tier::Good),
+                    _ if !boundary[at] => None,
+                    _ if self.anywhere => Some(Tier::Good),
+                    _ if matches!(
+                        bytes.get(byte.wrapping_sub(1)),
+                        Some(b'/' | b'.' | b'_' | b':' | b',' | b';' | b')' | b']' | b'}' | b'-')
+                    ) || matches!(bytes.get(byte), Some(b'(' | b'[' | b'{')) =>
+                    {
+                        Some(Tier::LessGood)
+                    }
+                    _ => Some(Tier::LastResort),
+                };
+                let spaced = byte > start
+                    && self.text[start..byte]
+                        .chars()
+                        .next_back()
+                        .is_some_and(char::is_whitespace);
+                if !spaced || ink == f32::NEG_INFINITY {
+                    ink = x;
+                }
+                Stop {
+                    byte,
+                    x,
+                    fit: ink,
+                    tier,
+                }
+            })
+            .collect()
+    }
+
     /// Where the line from `from` breaks when the rest of the paragraph does not fit in `wrap`
     /// (guides/beui/text.md, "Wrapping"): the rightmost break point of the best tier inside the
     /// break zone, the last `zone` before `wrap`, else the rightmost grapheme boundary that fits.
@@ -528,31 +595,31 @@ impl Builder<'_> {
     /// does not. One pass forward from `from`, and on past the line at most `zone` further.
     fn breakpoint(
         &self,
-        stops: &[(usize, f32)],
+        stops: &[Stop],
         from: usize,
         to: usize,
         origin: f32,
         wrap: f32,
         zone: f32,
     ) -> Option<(usize, f32, f32)> {
-        let first = stops.partition_point(|(byte, _)| *byte <= from);
+        let first = stops.partition_point(|stop| stop.byte <= from);
         let edge = wrap - zone;
         let mut best = [None::<(usize, f32)>; 3];
         let mut fitting = None::<(usize, f32)>;
         let mut before = [f32::NEG_INFINITY; 2];
         let mut index = first;
-        while let Some(&(byte, x)) = stops.get(index) {
-            let x = x - origin;
-            if byte >= to || x > wrap {
+        while let Some(stop) = stops.get(index) {
+            let x = stop.fit - origin;
+            if stop.byte >= to || x > wrap {
                 break;
             }
             index += 1;
-            let Some(tier) = self.tier(byte) else {
+            let Some(tier) = stop.tier else {
                 continue;
             };
-            fitting = Some((byte, x));
+            fitting = Some((stop.byte, x));
             match x >= edge {
-                true => best[tier as usize] = Some((byte, x)),
+                true => best[tier as usize] = Some((stop.byte, x)),
                 false => {
                     for (better, rightmost) in before.iter_mut().enumerate() {
                         if tier as usize <= better {
@@ -568,10 +635,10 @@ impl Builder<'_> {
             _ => fitting.map(|fitting| (fitting, Tier::LastResort)),
         };
         let Some(((byte, x), tier)) = chosen else {
-            let (byte, x) = stops[first..]
+            let stop = stops[first..]
                 .iter()
-                .find(|(byte, x)| *byte < to && *x > origin && self.tier(*byte).is_some())?;
-            return Some((*byte, 0.0, x - origin));
+                .find(|stop| stop.byte < to && stop.x > origin && stop.tier.is_some())?;
+            return Some((stop.byte, 0.0, stop.fit.max(origin) - origin));
         };
         let mut reach = x;
         if let Some(better) = (tier as usize).checked_sub(1) {
@@ -584,12 +651,12 @@ impl Builder<'_> {
             Tier::LastResort => f32::INFINITY,
             _ => x + zone,
         };
-        for &(next, at) in &stops[index..] {
-            let at = at - origin;
-            if next >= to {
+        for stop in &stops[index..] {
+            let at = stop.fit - origin;
+            if stop.byte >= to {
                 break;
             }
-            let Some(found) = self.tier(next).filter(|_| next > byte) else {
+            let Some(found) = stop.tier.filter(|_| stop.byte > byte) else {
                 if at >= limit && !alone {
                     break;
                 }
@@ -607,7 +674,7 @@ impl Builder<'_> {
                 break;
             }
         }
-        let rest = stops[stops.partition_point(|(stop, _)| *stop <= to) - 1].1 - origin;
+        let rest = stops[stops.partition_point(|stop| stop.byte <= to) - 1].fit - origin;
         let limit = match alone {
             true => rest,
             false => limit.min(rest),
@@ -616,57 +683,6 @@ impl Builder<'_> {
             true => Some((byte, reach, limit)),
             false => Some((byte, wrap, wrap + WRAP_SLACK)),
         }
-    }
-
-    /// The tier of a break before `byte`, or `None` where the line cannot break (inside a
-    /// grapheme cluster).
-    fn tier(&self, byte: usize) -> Option<Tier> {
-        let bytes = self.text.as_bytes();
-        if self.breaks_after(byte)
-            || self
-                .opportunities
-                .get(byte.wrapping_sub(self.paragraph.start))
-                .is_some_and(|good| *good)
-        {
-            return Some(Tier::Good);
-        }
-        if !is_grapheme_boundary(bytes, byte) {
-            return None;
-        }
-        let hyphen = bytes.get(byte.wrapping_sub(1)) == Some(&b'-')
-            && bytes
-                .get(byte.wrapping_sub(2))
-                .is_some_and(u8::is_ascii_alphanumeric);
-        if self.anywhere || hyphen {
-            return Some(Tier::Good);
-        }
-        let after = matches!(
-            bytes.get(byte.wrapping_sub(1)),
-            Some(b'/' | b'.' | b'_' | b':' | b',' | b';' | b')' | b']' | b'}')
-        );
-        let before = matches!(bytes.get(byte), Some(b'(' | b'[' | b'{'));
-        Some(match after || before {
-            true => Tier::LessGood,
-            false => Tier::LastResort,
-        })
-    }
-
-    /// Marks the paragraph's UAX #14 line break opportunities, by byte from its start.
-    fn find_opportunities(&mut self) {
-        let paragraph = self.text.get(self.paragraph.clone()).unwrap_or_default();
-        self.opportunities.clear();
-        self.opportunities.resize(paragraph.len() + 1, false);
-        for (at, _) in unicode_linebreak::linebreaks(paragraph) {
-            self.opportunities[at] = true;
-        }
-    }
-
-    fn breaks_after(&self, byte: usize) -> bool {
-        let index = self.spans.partition_point(|span| span.range.end < byte);
-        self.spans[index..]
-            .iter()
-            .take_while(|span| span.range.end == byte)
-            .any(|span| span.break_after || matches!(span.kind, SpanKind::Gap(_)))
     }
 }
 
@@ -789,7 +805,6 @@ impl RichLayout {
             segment: 0..0,
             anywhere: options.anywhere,
             whole: vec![None; spans.len()],
-            opportunities: Vec::new(),
         };
         let segments = segments(text, &spans);
         let kept = previous.map_or(0, |(previous, changed)| {
@@ -827,29 +842,28 @@ impl RichLayout {
             builder.segment = segment.spans.clone();
             let whole = builder.runs(start, end);
             let total = whole.last().map_or(0.0, |run| run.x + run.width);
-            let breaks = total > options.wrap_width + WRAP_SLACK || from != start;
+            let hangs = text[start..end].ends_with(char::is_whitespace);
+            let breaks = total > options.wrap_width + WRAP_SLACK || from != start || hangs;
             let stops = match breaks {
-                true => {
-                    builder.find_opportunities();
-                    builder.stops(&whole)
-                }
+                true => builder.classify(builder.stops(&whole)),
                 false => Vec::new(),
             };
             let hang = hang_indent(&whole, start..end, options.hang, options.wrap_width);
             let zone = options.style.font.size * BREAK_ZONE_EMS;
+            let inked = stops.last().map_or(total, |stop| stop.fit);
             let mut whole = Some(whole);
             loop {
                 let (origin, indent) = match from == start {
                     true => (0.0, 0.0),
                     false => (
                         stops
-                            .get(stops.partition_point(|(byte, _)| *byte < from))
-                            .map_or(0.0, |(_, x)| *x),
+                            .get(stops.partition_point(|stop| stop.byte < from))
+                            .map_or(0.0, |stop| stop.x),
                         hang,
                     ),
                 };
                 let wrap = options.wrap_width - indent + WRAP_SLACK;
-                let broke = match total - origin > wrap {
+                let broke = match inked - origin > wrap {
                     true => builder.breakpoint(&stops, from, end, origin, wrap, zone),
                     false => None,
                 };
@@ -864,7 +878,7 @@ impl RichLayout {
                 let mut line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
                 let Some((_, reach, limit)) = broke else {
-                    line.reach = total - origin + indent - WRAP_SLACK;
+                    line.reach = inked - origin + indent - WRAP_SLACK;
                     lines.push(line);
                     break;
                 };
