@@ -32,6 +32,7 @@ fn a_kept_subtree_is_built_once_and_paused_while_hidden() {
                 </List>
             </KeepAlive>
         }
+        .into_child()
     });
 
     let column = column.get();
