@@ -42,12 +42,12 @@ fn a_scroll_that_shifts_to_keep_its_anchor_reports_once_from_where_it_ends() {
                             <Frame
                                 @test_id={create_memo(move || format!("row.{}", index.get()))}
                                 height={create_memo(move || {
-                                let grows = (ANCHOR - 5..ANCHOR).contains(&index.get());
-                                match tall.get() && grows {
-                                    true => ROW * 3.0,
-                                    false => ROW,
-                                }
-                            })}
+                                    let grows = (ANCHOR - 5..ANCHOR).contains(&index.get());
+                                    match tall.get() && grows {
+                                        true => ROW * 3.0,
+                                        false => ROW,
+                                    }
+                                })}
                             />
                         </VirtualList>
                     </Scroll>

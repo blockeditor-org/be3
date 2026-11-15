@@ -56,5 +56,7 @@ where
     let item = RenderFn::new(move |(key, index): (ReadSignal<K>, ReadSignal<usize>)| {
         item.call(H::row(key, index))
     });
-    crate::core::virtual_list(value, item_size, direction, overscan, anchor, text, handle, item)
+    crate::core::virtual_list(
+        value, item_size, direction, overscan, anchor, text, handle, item,
+    )
 }
