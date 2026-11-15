@@ -475,18 +475,27 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
     }
 }
 
-pub fn attr<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
+pub fn attr<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+) -> Node {
     bind_attribute(&node, name, value.into_prop_with());
     node
 }
 
-pub fn data<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
+pub fn data<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid data attribute name");
     bind_attribute(&node, format!("data-{name}"), value.into_prop_with());
     node
 }
 
-pub fn aria<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
+pub fn aria<M>(
+    node: Node,
+    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid ARIA attribute name");
     bind_attribute(&node, format!("aria-{name}"), value.into_prop_with());
     node
