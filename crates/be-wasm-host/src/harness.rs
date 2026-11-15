@@ -194,7 +194,8 @@ impl Host {
 
 /// The tests, as one module with everything in it whose `_start` runs them, or linked against
 /// `libraries` (guides/app_libraries.md), whose `__main_void` runs them once they are linked as
-/// an app's are.
+/// an app's are. The libraries are given in the order the module lists them, its whole closure
+/// (buck/wasm/defs.bzl passes them so); each is checked against the identity it is given for.
 struct Tests {
     module: Vec<u8>,
     libraries: Vec<PathBuf>,
