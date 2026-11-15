@@ -53,7 +53,6 @@ pub(crate) struct State {
     /// Whether the gutter of line numbers is shown: a choice of this view, kept in its state
     /// (`LineNumbers`), not in the text. Off until it is chosen.
     pub line_numbers: Memo<bool>,
-    pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
     /// Set once the text has first been read from its block, with the caret at its start.
     pub loaded: Signal<bool>,
@@ -99,7 +98,6 @@ impl State {
                 .flatten()
                 .is_some_and(|kept| kept.0)
         });
-        let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
         let peers = editor.peers::<TextCursor>();
         let visible = editor.presence_visible();
@@ -126,7 +124,6 @@ impl State {
             embeds,
             hex_view,
             line_numbers,
-            typing,
             hex_insert_mode,
             loaded: create_signal(false),
             position_restored: create_signal(false),
