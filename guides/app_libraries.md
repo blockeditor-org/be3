@@ -23,7 +23,8 @@ A Rust app links two libraries, or one (`buck/wasm/defs.bzl`):
   HarfBuzz.
 
 Every editor links both (`DEFAULT_LIBRARIES`) unless its `app()` says
-otherwise; triangle names base alone (`BASE_LIBRARY`), and
+otherwise, and its tests link a third (Tests, below); triangle names base
+alone (`BASE_LIBRARY`), and
 `app(libraries = [])` links an editor standalone. A library is linked whole
 and exports everything, since it cannot know what a future app will use, so a
 crate only one or two apps use stays in those apps. To move a crate into a
@@ -39,6 +40,43 @@ module links must be compiled position-independent, which the apps' toolchain
 does (`_wasi_flags` in `buck/toolchains/BUCK` adds `-fPIC`, which cc-rs
 leaves out on wasm), so C libraries are built from source on it (as
 `third-party/pdfium` builds PDFium); an archive built elsewhere will not link.
+
+## Tests
+
+An app's tests (`app_tests` in `buck/wasm/defs.bzl`: every `app()`'s, and
+be-sdk's, be-sdk-beui's, beui-demo's and paint-review's) are one module linked
+against the same libraries as the app, so they run against the libraries apps
+ship with. Where those hold base and beui they also link **test**,
+`crates/be-sdk-library-test`, above beui: be-sdk-test and what only it uses
+(be-sdk-type-host, beui-host, the block store) and libtest, none of which an
+app ships. A test module then holds only its crate, its tests and the
+generics they instantiate: checklist's is 3.3 MB, against 47 MB with
+everything in it. `app_tests(libraries = [])` links a standalone test module.
+
+- **libtest.** The toolchain's prebuilt libtest, like std, is not
+  position-independent, so it cannot be linked into a `-shared` module.
+  `third-party/libtest` compiles libtest and getopts from the toolchain's
+  rust-src; every test module names it as its `test` crate, which `rustc
+  --test` then links in place of the toolchain's, and the test library links
+  both archives whole, so test modules leave them out. Upgrading Rust means
+  updating its pins.
+- **Link.** rustc `--test` makes a WASI command; the linker drops
+  `crt1-command.o` from a linked one, and rustc already exports
+  `__main_void`, the test harness's `main`.
+- **Run.** The harness (`wasm_test_harness`) passes app-test-runner each
+  library in the closure, in order, as `--library`, and the module last.
+  `Host::run_tests` links them as it links an app (`src/dylink.rs`), then
+  calls `__main_void`, whose result is the exit code; a panic still ends the
+  instance, and the rerun one at a time is unchanged.
+- **Compile.** The libraries' `.cwasm`s are be-host's `:precompiled` ones
+  (its `libraries` names the test library), so every test and the host share
+  one compile of each; the test module itself is precompiled `--quick` in an
+  action of its own.
+
+A standalone module that links C libraries with the same symbols, such as
+PDFium's FreeType and beui's, gets one definition of each name from whichever
+archive comes first, so before tests were linked PDFium's tests ran on a mix
+of two FreeType builds and painted text a little differently from the app.
 
 ## Identity
 

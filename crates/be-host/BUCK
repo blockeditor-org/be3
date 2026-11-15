@@ -46,14 +46,15 @@ cargo_binary(
 )
 
 # Every editor's modules precompiled for the platform be-host is built for,
-# once, for :native, :dev-host and the hosts crates/be-host-tests stages per test.
+# once, for :native, :dev-host, the hosts crates/be-host-tests stages per test,
+# and the libraries every app test runs against (app_tests in buck/wasm/defs.bzl).
 precompiled_apps(
     name = "precompiled",
     app_types = ["//{}:types".format(package) for package in app_packages()],
+    libraries = ["//crates/be-sdk-library-test:module"],
     modules = ["//{}:module".format(package) for package in app_packages()],
     precompile_target = per_cross_platform("x86_64-unknown-linux-gnu", cross_triple),
     precompiler = "//crates/be-sdk-test-runner:precompiler",
-    visibility = ["//crates/be-host-tests:"],
 )
 
 # be-host with every app beside it: `./scripts/buck run //crates/be-host:native`

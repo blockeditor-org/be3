@@ -190,8 +190,9 @@ and says how to set it up locally. Fix dynamic ids, form tokens and times in fix
 ## 5. Running them
 
 An app's tests are compiled to wasm32-wasip1-threads and run by crates/be-sdk-test-runner,
-the same wasmtime runtime be-host opens apps with, so what they paint is what the shipped app
-paints (decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package
+the same wasmtime runtime be-host opens apps with, against the libraries the app ships with
+(guides/app_libraries.md, Tests), so what they paint is what the shipped app paints
+(decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package
 checks something that never ships. The host's own crates (be-host and its desktop and
 accounts crates, beui-layer-space) paint natively with `cargo_test(paints = True)`. Each crate's
 tests run in exactly one of these places.

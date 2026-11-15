@@ -2,6 +2,7 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 load("@root//buck/platforms:cross.bzl", "CROSS_PLATFORMS", "cross_triple")
 load("@toolchains//:defs.bzl", "script")
 load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroot")
+load(":rust.bzl", "RUST_VERSION")
 
 # The compilers and tools the build runs. A worker is a container with nothing
 # of this project's in it (defs.bzl), so everything is downloaded here, pinned
@@ -11,7 +12,7 @@ load(":defs.bzl", "apple_sdk_tool", "configured_once", "llvm_tree", "rust_sysroo
 # Every download has its size as well as its hash: with both, buck2 never asks
 # the host anything, where with the hash alone it sends a HEAD request per file
 # on every new daemon.
-rust_version = "1.98.0"
+rust_version = RUST_VERSION
 
 rust_host = "x86_64-unknown-linux-gnu"
 

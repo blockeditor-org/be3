@@ -99,12 +99,17 @@ PrecompiledInfo = provider(fields = {"artifacts": provider_field(dict)})
 
 def _precompiled_apps_impl(ctx: AnalysisContext) -> list[Provider]:
     artifacts = {}
-    for module in ctx.attrs.modules:
+    for module in ctx.attrs.modules + ctx.attrs.libraries:
         info = module.get(WasmLibrariesInfo)
         for library in info.closure if info else []:
             if library not in artifacts:
                 name = "library{}-{}".format(len(artifacts), library.basename.removesuffix(".wasm"))
                 artifacts[library] = _precompile(ctx, library, name)
+    for library in ctx.attrs.libraries:
+        wasm = library[DefaultInfo].default_outputs[0]
+        if wasm not in artifacts:
+            name = "library{}-{}".format(len(artifacts), wasm.basename.removesuffix(".wasm"))
+            artifacts[wasm] = _precompile(ctx, wasm, name)
     for module in ctx.attrs.modules + ctx.attrs.app_types:
         for wasm in module[DefaultInfo].default_outputs[:1]:
             artifacts[wasm] = _precompile(ctx, wasm)
@@ -113,6 +118,9 @@ def _precompiled_apps_impl(ctx: AnalysisContext) -> list[Provider]:
 precompiled_apps = rule(
     attrs = {
         "app_types": attrs.list(attrs.dep(), default = []),
+        # Libraries no app links, precompiled with the apps' own: the one app
+        # tests link (TEST_LIBRARY in buck/wasm/defs.bzl).
+        "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
         "modules": attrs.list(attrs.dep()),
         "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
         "precompiler": attrs.dep(providers = [RunInfo]),

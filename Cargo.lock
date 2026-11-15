@@ -2033,6 +2033,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-sdk-library-test"
+version = "0.1.0"
+dependencies = [
+ "be-sdk-test",
+]
+
+[[package]]
 name = "be-sdk-manifest"
 version = "0.1.0"
 dependencies = [

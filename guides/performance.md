@@ -272,12 +272,12 @@ web host tests depend on be-host and every app. In CPU seconds:
 | the largest app tests: infinite-canvas, beui-demo, map, desktop | 32, 26, 22, 17 |
 | 151 be-host-stack parts | 29 |
 
-A change under beui costs far more in compiling than in testing: each of about thirty app test
-modules is compiled (checklist's: 95 CPU s of rustc) and then precompiled by Cranelift (60 CPU s;
-about 20 s of wall on 16 cores, which is how buck2 reports it), for tests that take well under a
-second to run. A test module holds about ten times the code of the same app linked against the
-shared libraries (guides/app_libraries.md): 25.7 MB of code against 2.5 MB, most of it base and
-beui, which every module compiles again.
+A change under beui recompiles each of about thirty app test modules. Each is linked against the
+shared libraries (guides/app_libraries.md, Tests), so it holds only its crate and its tests:
+checklist's is 3.3 MB and precompiles in about 4 CPU s (measured on a 4-core agent VM), where
+with base, beui and be-sdk-test in it, as until November 2026, it was 47 MB and took 38 (60 on
+the build server). Its rustc, about 13 CPU s here, is the compile of the crate itself; the link
+was never the cost.
 
 Since then the web host tests draw a smaller page (a quarter less) and are thorough tests, which
 verify leaves out (guides/buck2.md, What verify builds); the C under host builds is optimised.
@@ -302,8 +302,9 @@ verify leaves out (guides/buck2.md, What verify builds); the C under host builds
   the C a third-party build script compiles, at its crate's own level (`_build_script_opt` in
   buck/cargo/third_party.bzl): SQLite at `-O0` made every server and host query slower.
 - **Compiles are the larger cost.** Before making a dependency of every app heavier, count it
-  thirty times: once for each app test module that compiles and precompiles it
-  (plans/app_tests_linked_against_libraries.md would share it instead).
+  thirty times, once for each app and app test module that compiles it, unless it lives in a
+  library (guides/app_libraries.md): a crate only tests use belongs in the test library, so
+  each test module does not link and precompile it again.
 - **A changed painting costs its test a second run.** When a test makes a painting that is new
   or differs from the accepted one, and in CI for every painting a pull request changed, the
   test runs once more and its paintings are compared again (`_again` in buck/dev/test.bzl), once

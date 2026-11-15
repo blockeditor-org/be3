@@ -51,6 +51,7 @@ const APP_FLAGS: [&str; 7] = [
     "--export=__tls_align",
     "--export=__tls_base",
 ];
+const COMMAND_START: &str = "crt1-command.o";
 const ROOT_FLAGS: [&str; 3] = ["--export-all", "--export-table", "--growable-table"];
 const UNUSED_SECTIONS: [&str; 3] = [".rmeta", ".rmeta-link", "__wasm_bindgen_unstable"];
 const WHOLE_LIBRARIES: [&str; 2] = ["-lc++", "-lc++abi"];
@@ -541,6 +542,7 @@ pub fn app_arguments(arguments: Vec<String>, linked: &HashSet<String>) -> Vec<St
             continue;
         }
         let dropped = DROPPED_FROM_APPS.contains(&argument.as_str())
+            || basename(&argument) == COMMAND_START
             || (argument.starts_with("-l") && linked.contains(&argument))
             || (is_archive(&argument) && linked.contains(basename(&argument)));
         if !dropped {
