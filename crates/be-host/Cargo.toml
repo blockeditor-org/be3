@@ -101,6 +101,8 @@ be-host-win32-capture = { path = "../be-host-win32-capture" }
 libc = "0.2"
 
 [target.'cfg(target_os = "android")'.dependencies]
+jni = "0.22"
+ndk-context = "0.1"
 libc = "0.2"
 zip = { version = "8", default-features = false, features = ["deflate"] }
 

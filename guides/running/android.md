@@ -86,6 +86,39 @@ One touch moves TalkBack's focus to the node under it, and two in a row within o
 through `adb` is not reliable, so run it a few times before concluding it is broken, and
 compare against main with `--apk`.
 
+## Push notifications
+
+Through a UnifiedPush distributor the person installs (decisions/android_push_via_unifiedpush.md;
+the Java is `crates/be-host/android/java/com/be3/host/`, the Rust `crates/be-host/src/android_push.rs`).
+
+- *The switch.* The settings list's "Notifications" row (`be_host_base::push_device`, installed
+  by `android_push::install`) reads `MainActivity.pushState`: unsupported with no distributor
+  (one whose receiver takes `org.unifiedpush.android.distributor.REGISTER`, listed under
+  `<queries>` in the manifest), denied once the person refused `POST_NOTIFICATIONS` (Android
+  13+). Turning it on asks for that permission, then sends `REGISTER` with a token kept in the
+  app's preferences and the server's VAPID key.
+- *Registering.* The distributor answers `NEW_ENDPOINT` to `PushReceiver`, which keeps the
+  endpoint in the host state beside this device's RFC 8291 keys (`push_receiver`, made once,
+  `be_host_stack::device_push::keys`); the host registers it as `PushService::WebPush` for each
+  organization it opens once connected, and again after a new endpoint (`android_push::sync`).
+- *Showing.* `MESSAGE` carries the raw encrypted body. `PushReceiver` may run with no activity:
+  it loads `libbe_host` itself and, on a thread while the broadcast is held (`goAsync`), calls
+  `nativeMessage`, which runs `device_push::receive` on the files directory: decrypt, drop a push
+  already shown (`shown_pushes`, by a hash of the sealed bytes, for
+  `MAX_NOTIFICATION_AGE_MILLISECONDS`), then open it through the stack when it runs in this
+  process in that organization, or else through a `Peer::cached` built from the refs database
+  (`refs_in`, the handle the process shares, so an activity starting meanwhile uses the same one)
+  for each saved account that kept that organization, naming the sender from the contact names
+  and the block from the summaries kept there. Anything missing shows "New message" naming
+  nothing. It shows on the "Messages" channel, tagged by block, and acknowledges the message
+  (`MESSAGE_ACK`).
+- *Pressing* starts `MainActivity` (or brings it back, `onNewIntent`) with the organization and
+  block, which `nativeOpen` holds for the host to open (`pressed_notifications`), as on the web.
+- *Signing out* the last saved account sends `UNREGISTER`; every sign-out names the endpoint to
+  `logout`, so the server forgets it (`android_push::sign_out`).
+
+Nothing of this has run on a device or the emulator yet (plans/notifications.md).
+
 ## Signing the APK
 
 Both APKs require Android 7 (API 24), matching the native toolchain, target SDK 35, and are
