@@ -44,6 +44,7 @@ mod a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused;
 mod a_panicking_effect_can_run_again;
 mod a_paused_scope_defers_its_effects_until_it_resumes;
 mod a_reader_reads_a_signal_a_memo_or_a_closure_alike;
+mod a_rerun_async_memo_drops_its_last_future_and_keeps_its_last_answer;
 mod a_resumed_effect_runs_when_what_it_read_changed_and_changed_back;
 mod a_scope_opened_inside_an_effect_lives_until_its_handle_drops;
 mod a_scope_pausing_effects_still_runs_its_bindings;
@@ -57,6 +58,7 @@ mod a_trigger_wakes_what_tracked_it_each_time_it_fires;
 mod a_write_outside_an_entry_wakes_the_host_once;
 mod a_zone_is_woken_once_when_its_first_effect_waits;
 mod all_cleanups_run_even_when_one_panics;
+mod an_async_memo_reads_loading_then_its_answer;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
 mod an_effect_made_outside_every_zone_waits_until_the_zone_entered_is_left;
 mod an_effect_on_change_runs_only_after_its_dependencies_change;
@@ -100,3 +102,61 @@ mod untracked_memo_reads_still_refresh_without_subscribing;
 mod untracked_reads_do_not_subscribe;
 mod updating_a_store_wakes_only_the_fields_it_changed;
 mod writes_defer_effects_until_a_flush_but_memo_reads_are_current;
+
+/// A test's executor for async memos: it holds what they spawn, and `run_futures` polls each
+/// until none can go further.
+mod executor {
+    use std::cell::RefCell;
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::rc::Rc;
+    use std::task::{Context, Poll, Waker};
+
+    use crate::LocalFuture;
+
+    thread_local! {
+        static SPAWNED: RefCell<Vec<LocalFuture>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub(super) fn install() {
+        crate::spawn_with(|future| SPAWNED.with(|spawned| spawned.borrow_mut().push(future)));
+    }
+
+    /// Polls every spawned future once more, dropping those that finished, and flushes.
+    pub(super) fn run_futures() {
+        let mut held = SPAWNED.with(|spawned| std::mem::take(&mut *spawned.borrow_mut()));
+        let mut context = Context::from_waker(Waker::noop());
+        held.retain_mut(|future| future.as_mut().poll(&mut context).is_pending());
+        SPAWNED.with(|spawned| {
+            let mut spawned = spawned.borrow_mut();
+            held.append(&mut spawned);
+            *spawned = held;
+        });
+        crate::flush();
+    }
+
+    pub(super) fn spawned() -> usize {
+        SPAWNED.with(|spawned| spawned.borrow().len())
+    }
+
+    /// A future that waits until its test answers it.
+    #[derive(Clone, Default)]
+    pub(super) struct Answer<T>(Rc<RefCell<Option<T>>>);
+
+    impl<T> Answer<T> {
+        pub(super) fn give(&self, value: T) {
+            self.0.replace(Some(value));
+        }
+    }
+
+    impl<T> Future for Answer<T> {
+        type Output = T;
+
+        fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<T> {
+            match self.0.borrow_mut().take() {
+                Some(value) => Poll::Ready(value),
+                None => Poll::Pending,
+            }
+        }
+    }
+}

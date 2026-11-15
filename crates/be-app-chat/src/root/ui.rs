@@ -346,7 +346,7 @@ pub fn Chat(editor: Editor) -> NodeId {
         }
     });
     let ids = rows.keys();
-    let older = Older::new(chat, me, forged);
+    let older = Older::new(chat, editor, me, forged);
     let older_ids = older.rows.keys();
     let empty = create_memo(move || ids.with(Vec::is_empty) && older_ids.with(Vec::is_empty));
     let composer = Composer {
@@ -723,6 +723,7 @@ pub fn Chat(editor: Editor) -> NodeId {
 #[derive(Clone, Copy)]
 struct Older {
     chat: Chat,
+    editor: Editor,
     /// The segments read so far, each as its index entry names it (two that overlap can open at
     /// the same message), with the messages its part holds.
     read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>>,
@@ -738,12 +739,18 @@ struct Older {
 }
 
 impl Older {
-    fn new(chat: Chat, me: Uuid, forged: Memo<Vec<(ObjectId, Deletion)>>) -> Self {
+    fn new(
+        chat: Chat,
+        editor: Editor,
+        me: Uuid,
+        forged: Memo<Vec<(ObjectId, Deletion)>>,
+    ) -> Self {
         let segments = chat.project(|content: &ChatContent| content.segments());
         let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
         let rows = KeyedStore::new();
         let older = Self {
             chat,
+            editor,
             read,
             segments,
             rows,
@@ -816,9 +823,9 @@ impl Older {
         self.failed.set(false);
         let this = *self;
         let segment = segment.clone();
-        live.read_range(
-            range.start,
-            range.end.saturating_sub(range.start),
+        let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
+        self.editor.then(
+            async move { Some(reading.await) },
             move |bytes| {
                 let messages = bytes.ok().and_then(|bytes| {
                     this.chat
@@ -1365,30 +1372,30 @@ fn MessageRow(
     };
     let proofs = create_memo(move || row.with(|row| row.proofs.clone()));
     // Who signed it, once the host says: nothing is marked until then.
-    let signer = create_signal(None::<Signer>);
-    create_effect(move || {
+    let signer = create_async_memo(move || {
         let proofs = proofs.get();
         let chat = signing.get();
-        signer.set(None);
         let host = editor.host();
-        let asked = async move {
+        async move {
             let mut found = Vec::new();
             for proof in proofs {
                 let Some(bytes) = proof.record.signed_bytes(chat) else {
                     found.push(Signer::Bad);
                     continue;
                 };
-                let verified = host.verify(proof.author, bytes, proof.signature);
-                found.push(verified.await?.ok()?);
+                let verified = host.verify(proof.author, bytes, proof.signature).await;
+                found.push(
+                    verified
+                        .and_then(Result::ok)
+                        .ok_or(be_sdk_beui::beui::reactive::Pending::Loading)?,
+                );
             }
-            Some(least(found))
-        };
-        let asking = editor.then(asked, move |found| signer.set(Some(found)));
-        on_cleanup(move || asking.cancel());
+            Ok(least(found))
+        }
     });
-    let unverified = create_memo(move || signer.get() == Some(Signer::Unverified));
-    let changed = create_memo(move || signer.get() == Some(Signer::Changed));
-    let forged = create_memo(move || signer.get() == Some(Signer::Bad));
+    let unverified = create_memo(move || signer.get() == Ok(Signer::Unverified));
+    let changed = create_memo(move || signer.get() == Ok(Signer::Changed));
+    let forged = create_memo(move || signer.get() == Ok(Signer::Bad));
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
     let arrived = create_memo(move || row.with(|row| row.arrived.clone().unwrap_or_default()));
