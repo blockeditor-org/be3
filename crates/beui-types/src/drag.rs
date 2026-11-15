@@ -1,6 +1,6 @@
 use be_lib_geometry::{Pos2, Rect, Vec2};
 
-use crate::input::{Modifiers, PointerPress};
+use crate::input::{Modifiers, PointerId, PointerPress};
 use crate::window::WindowId;
 
 mod spec;
@@ -15,6 +15,8 @@ pub struct DragPoint {
     pub fraction: Vec2,
     pub modifiers: Modifiers,
     pub item: Rect,
+    /// Which pointer carries: a board follows one carry per pointer.
+    pub pointer: PointerId,
 }
 
 impl DragPoint {
@@ -27,6 +29,7 @@ impl DragPoint {
             fraction: press.fraction,
             modifiers: press.modifiers,
             item: Rect::ZERO,
+            pointer: press.pointer,
         }
     }
 
@@ -39,7 +42,12 @@ impl DragPoint {
             fraction: Vec2::ZERO,
             modifiers,
             item: Rect::ZERO,
+            pointer: PointerId::Mouse,
         }
+    }
+
+    pub fn by(self, pointer: PointerId) -> Self {
+        Self { pointer, ..self }
     }
 
     pub fn in_window(self, window: WindowId) -> Self {
@@ -172,7 +180,8 @@ pub trait Driver {
     fn carrying(&self) -> bool;
     fn set_outside(&self, outside: bool);
     fn track(&self, point: DragPoint, order: Order);
-    fn release(&self, cancelled: bool, order: Order);
+    /// `pointer` let go (or lost its press); a carry held by another pointer goes on.
+    fn release(&self, pointer: PointerId, cancelled: bool, order: Order);
     fn cancel(&self) -> bool;
     fn stop_edge(&self);
     /// Lifts `carry` at `point`, a drag an `Interactive`'s `drag` began: from here the

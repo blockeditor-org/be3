@@ -191,6 +191,8 @@ pub struct PointerPress {
     pub pen: Option<Pen>,
     pub predicted: Option<Pos2>,
     pub time: Instant,
+    /// Which pointer pressed: the mouse, a finger or a pen.
+    pub pointer: PointerId,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]

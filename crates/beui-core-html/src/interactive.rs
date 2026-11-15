@@ -197,6 +197,7 @@ mod web {
             pen: None,
             predicted: None,
             time: crate::frame::now(),
+            pointer: crate::drags::pointer_of(event.dyn_ref::<web_sys::PointerEvent>()),
         }
     }
 
