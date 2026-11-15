@@ -731,15 +731,17 @@ fn LinksValue(
     }
 }
 
+/// The relations other databases hold to `database`, loading until each of them is read.
 pub fn watch_inverses(
     editor: be_sdk_beui::Editor,
     database: Memo<Option<Uuid>>,
-) -> Memo<Option<Vec<Inverse>>> {
-    let found = create_signal(None::<Vec<Inverse>>);
+) -> Memo<Ready<Vec<Inverse>>> {
+    let found = create_source::<Vec<Inverse>>();
     let watched: std::cell::RefCell<Option<(Uuid, be_sdk_beui::BlockList)>> =
         std::cell::RefCell::new(None);
     create_binding(move || {
         let Some(target) = database.get() else {
+            found.set(Ok(Vec::new()));
             return;
         };
         let mut held = watched.borrow_mut();
@@ -783,34 +785,18 @@ pub fn watch_inverses(
                 };
                 all.extend(inverses);
             }
-            found.set(Some(all));
+            found.set(Ok(all));
         });
-    });
-    wait_for(move || {
-        if database.get().is_some() && found.with(Option::is_none) {
-            Err(Pending::Loading)
-        } else {
-            Ok(())
-        }
     });
     create_memo(move || found.get())
 }
 
-fn settled<C>(
-    editor: be_sdk_beui::Editor,
-    block: Uuid,
-    content: be_sdk_beui::ContentProjection<C>,
-) -> Memo<bool>
+/// Whether `content` arrived, or settled as one this viewer cannot view.
+fn settled<C>(content: be_sdk_beui::ContentProjection<C>) -> Memo<bool>
 where
     C: be_block_content::LiveEdit + Clone + Default,
 {
-    let found = editor.blocks().watch(be_sdk_beui::BlockQuery::Block(block));
-    create_memo(move || {
-        content.ready().is_ok()
-            || found
-                .read()
-                .is_ok_and(|found| found.first().is_none_or(|info| !info.access.can_view()))
-    })
+    create_memo(move || content.ready().is_ok())
 }
 
 fn source_inverses(
@@ -819,7 +805,7 @@ fn source_inverses(
     source: Uuid,
 ) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
-    let content_settled = settled(editor, source, content);
+    let content_settled = settled(content);
     let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let found = create_signal(None);
     create_binding(move || {
@@ -831,7 +817,7 @@ fn source_inverses(
             return;
         };
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-        let schema_settled = settled(editor, schema, schema_content);
+        let schema_settled = settled(schema_content);
         let schema = schema_content.project(|schema| schema.root());
         let rows = content.objects(be_block_content::ObjectId::ROOT, Database::ROWS);
         create_binding(move || {
@@ -872,10 +858,13 @@ pub struct RowLabels {
     pub unreachable: Memo<std::collections::BTreeSet<Uuid>>,
 }
 
+/// The labels of the rows of `databases`, loading until all of them are read; while they are
+/// read again after `databases` changes, the labels read last.
 pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
-    let found = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
+    let found = create_source::<BTreeMap<RowRef, String>>();
     create_binding(move || {
         let wanted = databases.get();
+        found.set(Err(Pending::Loading));
         let watched: Vec<ReadSignal<Option<RowTitles>>> = wanted
             .iter()
             .map(|database| row_titles(editor, *database))
@@ -888,7 +877,7 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
                 };
                 all.extend(titles);
             }
-            found.set(Some((wanted.clone(), all)));
+            found.set(Ok(all));
         });
     });
     let blocks = editor.blocks();
@@ -901,29 +890,12 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
                 .collect()
         })
     });
-    let loaded = create_memo(move || {
-        let wanted = databases.get();
-        found.with(|found| {
-            found
-                .as_ref()
-                .is_some_and(|(covered, _)| *covered == wanted)
-        })
-    });
-    wait_for(move || {
-        if loaded.get() {
-            Ok(())
-        } else {
-            Err(Pending::Loading)
-        }
-    });
     RowLabels {
         unreachable,
-        labels: create_memo(move || {
-            found.with(|found| {
-                found
-                    .as_ref()
-                    .map(|(_, labels)| labels.clone())
-                    .unwrap_or_default()
+        labels: create_memo(move |last: Option<&BTreeMap<RowRef, String>>| {
+            found.with(|found| match found {
+                Ok(labels) => labels.clone(),
+                Err(_) => last.cloned().unwrap_or_default(),
             })
         }),
     }
@@ -931,7 +903,7 @@ pub fn watch_row_labels(editor: be_sdk_beui::Editor, databases: Memo<Vec<Uuid>>)
 
 fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
-    let content_settled = settled(editor, database, content);
+    let content_settled = settled(content);
     let schema_id = content.field(be_block_content::ObjectId::ROOT, Database::SCHEMA);
     let titles = create_signal(None);
     create_binding(move || {
@@ -940,7 +912,7 @@ fn row_titles(editor: be_sdk_beui::Editor, database: Uuid) -> ReadSignal<Option<
         }
         let title_field = schema_id.get().map(|schema| {
             let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-            let settled = settled(editor, schema, schema_content);
+            let settled = settled(schema_content);
             let title = schema_content.project(|schema| schema.root().title_field());
             (settled, title)
         });

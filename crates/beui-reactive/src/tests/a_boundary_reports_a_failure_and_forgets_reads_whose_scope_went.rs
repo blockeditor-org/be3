@@ -1,17 +1,20 @@
 use super::*;
-use crate::{Boundary, Pending, Ready, hold};
+use crate::{Boundary, Pending, create_source};
 
 #[test]
-fn a_boundary_reports_a_failure_and_forgets_holds_that_are_gone() {
+fn a_boundary_reports_a_failure_and_forgets_reads_whose_scope_went() {
     let _root = RootScope::new();
-    let failing = create_signal::<Ready<u32>>(Err(Pending::Failed("refused".to_owned())));
-    let loading = create_signal::<Ready<u32>>(Err(Pending::Loading));
+    let failing = create_source::<u32>();
+    failing.set(Err(Pending::Failed("refused".to_owned())));
+    let loading = create_source::<u32>();
     let scope = Scope::new();
     let (boundary, inner) = scope.run(|| {
         let boundary = Boundary::provide();
-        hold(loading);
+        let _ = loading.get_untracked();
         let inner = Scope::new();
-        inner.run(|| hold(failing));
+        inner.run(|| {
+            let _ = failing.get_untracked();
+        });
         (boundary, inner)
     });
 

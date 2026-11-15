@@ -16,7 +16,7 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
-    AccessLevel, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
+    AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
     Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
     NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
 };
@@ -81,6 +81,11 @@ pub struct Workspace {
     focus: Signal<Focus>,
     pub(crate) dialog: Signal<Option<OpenDialog>>,
     pub(crate) share: Signal<Option<Share>>,
+    /// Who has access to the block the share dialog shows, as the host lists it, with the
+    /// block it lists: `None` while no dialog shows. It keeps the last listing while it lists
+    /// again, so read it through `share_members`, which waits for the one of the shown block.
+    share_listing: AsyncMemo<Option<(Uuid, AccessListing)>>,
+    pub(crate) share_members: Memo<Ready<AccessListing>>,
     pub(crate) windows: Memo<Vec<HostWindow>>,
     pub(crate) programs: Signal<Programs>,
     pub(crate) heard: Signal<HashMap<TabId, Heard>>,
@@ -106,7 +111,32 @@ impl Workspace {
         let routes = create_trigger();
         let phone = create_signal(false);
         let dialog = create_signal(None);
-        let share = create_signal(None);
+        let share = create_signal(None::<Share>);
+        let shared = create_memo(move || share.with(|share| share.as_ref().map(|share| share.block)));
+        let share_listing = {
+            let host = editor.host();
+            create_async_memo(move || {
+                let asked = shared.get().map(|block| (block, host.list_access(block)));
+                async move {
+                    let Some((block, asked)) = asked else {
+                        return Ok(None);
+                    };
+                    match asked.await {
+                        Some(Ok(listing)) => Ok(Some((block, listing))),
+                        Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
+                        None => Err(Pending::Loading),
+                    }
+                }
+            })
+        };
+        let share_members = create_memo(move || {
+            let shown = shared.get();
+            share_listing.with(|listing| match listing {
+                Ok(Some((block, listing))) if Some(*block) == shown => Ok(listing.clone()),
+                Err(Pending::Failed(error)) => Err(Pending::Failed(error.clone())),
+                _ => Err(Pending::Loading),
+            })
+        });
         let panels = create_signal(Vec::new());
         let entries = editor.watch::<WindowsWatch>();
         let windows = create_memo(move || entries.with(|entries| listed_windows(entries)));
@@ -158,6 +188,8 @@ impl Workspace {
             default_editors,
             dialog,
             share,
+            share_listing,
+            share_members,
             windows,
             programs: create_signal(Programs::new()),
             heard: create_signal(HashMap::new()),
@@ -188,10 +220,27 @@ impl Workspace {
             workspace.open_landing();
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
-        create_effect(move || {
-            shows.track();
-            untrack(|| workspace.show_requested());
-        });
+        create_effect_on(move || shows.track(), move |_, _| workspace.show_requested());
+        // An Enter pressed while the members were listed is carried out once they are.
+        let me = workspace.host().account_id();
+        create_effect_on(
+            move || share_members.get(),
+            move |listing, _| {
+                let Ok(listing) = listing else {
+                    return;
+                };
+                if workspace
+                    .share
+                    .with_untracked(|share| share.as_ref().is_some_and(|share| share.submit_waiting))
+                {
+                    workspace.share.update(|share| {
+                        if let Some(share) = share {
+                            share.listed(listing, me);
+                        }
+                    });
+                }
+            },
+        );
         create_binding(move || {
             workspace.restore();
         });
@@ -449,8 +498,8 @@ impl Workspace {
     pub(crate) fn open_dialog(&self, dialog: OpenDialog) {
         self.forget_share();
         if let OpenDialog::Share(block) = dialog {
-            let request = self.list_share(block);
-            self.share.set(Some(Share::new(block, request)));
+            self.share.set(Some(Share::new(block)));
+            self.share_listing.refresh();
         }
         self.dialog.set(Some(dialog));
     }
@@ -468,18 +517,6 @@ impl Workspace {
         let state = self.state.value();
         state.next_ask.set(state.next_ask.get() + 1);
         state.next_ask.get()
-    }
-
-    fn list_share(&self, block: Uuid) -> u64 {
-        let ask = self.ask_number();
-        let workspace = *self;
-        let task = self
-            .editor
-            .then(self.host().list_access(block), move |listing| {
-                workspace.share_listed(ask, listing);
-            });
-        self.state.value().share_asks.borrow_mut().push(task);
-        ask
     }
 
     fn forget_share(&self) {
@@ -517,7 +554,8 @@ impl Workspace {
             self.share.set(Some(share));
             return;
         }
-        let (grants, mut reload) = share.act(action, self.host().account_id());
+        let listing = self.share_members.get_untracked().ok();
+        let (grants, mut reload) = share.act(action, listing.as_ref(), self.host().account_id());
         for (account, access) in grants {
             let workspace = *self;
             let asked = self.host().set_access(share.block, account, access);
@@ -529,8 +567,7 @@ impl Workspace {
         }
         if reload {
             share.error = None;
-            share.relisting();
-            share.request = Some(self.list_share(share.block));
+            self.share_listing.refresh();
         }
         self.share.set(Some(share));
     }
@@ -556,9 +593,8 @@ impl Workspace {
             return;
         };
         share.error = Some(failure.to_string());
-        share.relisting();
-        share.request = Some(self.list_share(share.block));
         self.share.set(Some(share));
+        self.share_listing.refresh();
     }
 
     fn contact_made(&self, ask: u64, made: Result<String, Failure>) {
@@ -573,17 +609,6 @@ impl Workspace {
             Ok(link) => share.invite_link = Some(link),
             Err(error) => share.error = Some(error.to_string()),
         }
-        self.share.set(Some(share));
-    }
-
-    fn share_listed(&self, ask: u64, listing: Result<be_sdk_beui::AccessListing, Failure>) {
-        let Some(mut share) = self.share.get_untracked() else {
-            return;
-        };
-        if share.request != Some(ask) {
-            return;
-        }
-        share.listed(listing, self.host().account_id());
         self.share.set(Some(share));
     }
 

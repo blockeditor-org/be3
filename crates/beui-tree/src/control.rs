@@ -20,7 +20,7 @@ use crate::prop::Prop;
 
 type Built<C> = RenderFn<(), Children<C>>;
 
-fn built<C: SlotChild, H: 'static, B: Branch<C>>(
+pub(crate) fn built<C: SlotChild, H: 'static, B: Branch<C>>(
     render: RenderFn<H, B>,
 ) -> RenderFn<H, Children<C>> {
     RenderFn::new(move |handle| render.call(handle).into_children())
@@ -28,7 +28,7 @@ fn built<C: SlotChild, H: 'static, B: Branch<C>>(
 
 /// Builds `branch` in a scope of its own and puts what it builds in `slot`, replacing what
 /// was there.
-fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>) -> Scope {
+pub(crate) fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>) -> Scope {
     let scope = Scope::detached();
     scope.context().run(|| branch().mount_in(slot.clone()));
     scope

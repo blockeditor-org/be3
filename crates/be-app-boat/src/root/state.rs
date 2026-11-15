@@ -103,7 +103,7 @@ pub(crate) struct State {
     /// The viewer's own terminals, from their owner-only settings, by terminal block.
     pub own_terminals: Memo<BTreeMap<Uuid, TerminalAgent>>,
     /// The terminals the block references, by terminal block id.
-    pub content_terminals: ReadSignal<BTreeMap<String, BoatTerminal>>,
+    pub content_terminals: Memo<BTreeMap<String, BoatTerminal>>,
     /// The referenced terminals the viewer can open.
     pub visible_terminals: Memo<BTreeSet<Uuid>>,
     /// How the viewer's own terminals stand in this editor.

@@ -138,7 +138,7 @@ struct Controls {
 
 #[derive(Clone, Copy)]
 struct Details {
-    name: ReadSignal<String>,
+    name: Memo<String>,
     blocked: Memo<bool>,
     failure: ReadSignal<Option<String>>,
     choose: Callback<()>,

@@ -23,7 +23,7 @@ const SET_UP_CAPTION: &str = "This device starts with settings that suit its kin
 pub(super) struct DeviceSetup {
     editor: Editor,
     profile: ContentProjection<SettingsProfileContent>,
-    class: ReadSignal<Option<DeviceClass>>,
+    class: Memo<Option<DeviceClass>>,
     own_block: Memo<Option<Uuid>>,
     every: ReadSignal<DisplaySettings>,
     own: ReadSignal<DisplaySettings>,

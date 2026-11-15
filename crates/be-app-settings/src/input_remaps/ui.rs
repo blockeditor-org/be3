@@ -13,7 +13,7 @@ pub(super) type Remapper = ContentProjection<InputRemapperContent>;
 #[derive(Clone, Copy)]
 pub(super) struct Shared {
     pub(super) remapper: Remapper,
-    pub(super) stored: ReadSignal<String>,
+    pub(super) stored: Memo<String>,
     pub(super) read_only: Memo<bool>,
 }
 

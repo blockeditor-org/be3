@@ -8,10 +8,10 @@ use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
 use crate::runtime::{check_tracked_read, tracking};
 use crate::scope::on_cleanup;
-use crate::signal::{Get, Source, track};
+use crate::signal::{Get, Node, track};
 
 struct Watched {
-    source: Rc<Source>,
+    source: Rc<Node>,
     watchers: usize,
 }
 
@@ -92,7 +92,7 @@ impl<K: Clone + Eq + Hash + 'static> Selector<K> {
         let source = {
             let mut keys = keys.borrow_mut();
             let watched = keys.entry(key.clone()).or_insert_with(|| Watched {
-                source: Rc::new(Source::default()),
+                source: Rc::new(Node::default()),
                 watchers: 0,
             });
             watched.watchers += 1;

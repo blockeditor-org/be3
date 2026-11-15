@@ -3,7 +3,7 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
-    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, flush,
+    SlotChild, SlotHost, SlotId, component, create_binding, create_effect, create_memo, create_signal, flush,
     on_cleanup, store, view,
 };
 
@@ -19,6 +19,7 @@ mod a_for_each_shows_its_fallback_while_it_has_no_keys;
 mod a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one;
 mod a_kept_alive_show_whose_condition_reruns_unchanged_leaves_its_slot_alone;
 mod a_match_shows_the_first_case_that_holds;
+mod a_mock_dom_errored_shows_its_fallback_while_what_its_content_read_has_failed;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
@@ -132,7 +133,8 @@ fn Element(
 ) -> DomNode {
     let element = DomNode::new(tag);
     let shown = Rc::downgrade(&element.0);
-    create_effect(move || {
+    // A binding, as a real node's props are: it runs in a hidden `Loading` too.
+    create_binding(move || {
         let text = text.get();
         if let Some(texts) = texts {
             texts.update(|texts| *texts += 1);

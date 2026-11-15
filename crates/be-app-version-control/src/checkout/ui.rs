@@ -51,7 +51,7 @@ fn conflict_label(kind: ConflictKind) -> &'static str {
 pub fn CheckoutView(editor: Editor) -> NodeId {
     let content = editor.block_content::<CheckoutContent>();
     let state = content.project(|content| content.root());
-    let status = editor.version_status();
+    let status = hold(editor.version_status());
     let editable = editor.editable();
     let summary = create_memo(move || {
         let branch = state.with(|state| state.branch.clone());

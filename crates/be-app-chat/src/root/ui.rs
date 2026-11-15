@@ -727,7 +727,7 @@ struct Older {
     /// The segments read so far, each as its index entry names it (two that overlap can open at
     /// the same message), with the messages its part holds.
     read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>>,
-    segments: ReadSignal<Vec<Segment>>,
+    segments: Memo<Vec<Segment>>,
     rows: KeyedStore<ObjectId, Row>,
     reading: Signal<bool>,
     /// The last read failed, or returned bytes the index does not describe.
