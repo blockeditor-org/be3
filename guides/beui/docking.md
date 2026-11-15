@@ -85,9 +85,17 @@ rebuild a body only when its document changes.
 ## Panels, focus and keys
 
 A tab's panel is built the first time the tab is shown and belongs to the dock, not the pane: the
-pane shows it through a `Portal`, so the panel keeps its nodes, scroll, caret and state when hidden,
-dragged, floated, or switched between tiled and stacked. A panel no pane shows is not laid out and
-not read by a screen reader.
+dock holds one `KeepAlive` and each pane shows a panel through a `Kept` keyed by its tab (bars'
+panels likewise), so the panel keeps its nodes, scroll, caret and state when hidden, dragged,
+floated, or switched between tiled and stacked. A panel no view shows is paused, not laid out and
+not read by a screen reader; it is dropped once its tab leaves the dock. The panel of a tab whose
+own dock joined this one is in `KeepAlive`'s `awake`: shown as that dock's tabs, it keeps running
+and reads as shown (`kept_shown()`), so the join holds. A view of a tab's content that takes the
+keyboard while no pane or fullscreen view shows its panel (an app putting it back on a popup's
+trigger as a press on another tab closes the popup) does not show the tab again; the back preview,
+which only pictures the page a back gesture goes to, does not count. Tab content is built inside the dock's
+`KeepAlive`, so a `Kept` in it with no `KeepAlive` of its own joins the dock's, which keeps only
+the dock's keys: give it its own `KeepAlive`.
 
 Pressing a pane's chrome (bar, tab, grip) gives the keyboard to the tab it shows: the bar is an
 `Interactive` with `press_focus=false` (guides/beui_keyboard.md) and
