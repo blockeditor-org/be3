@@ -80,8 +80,8 @@ on connect, `ContactsChanged`, each `KeyWork` and after its own changes.
 
 `Peer::rotate` sends one `Rotate` for a subtree: new epochs of every scope key,
 every data key rewrapped, a new data key per block. The server takes it only
-whole. Content is not resealed, except that the owner of a live session on a
-rekeyed block seals once more (`Session::rekey`), which reseals the parts it
+whole. Content is not resealed, except that the lease holder of a live session
+on a rekeyed block seals once more (`Session::rekey`), which reseals the parts it
 reuses under the new key (`Vault::write`). A rotation nobody can do yet
 waits until a client that may edit the block tends. A kind open inside
 (guides/settings.md) is also offered by any viewer to its own contacts among

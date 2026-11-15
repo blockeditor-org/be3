@@ -20,20 +20,19 @@ they happen.
 - An open gesture only groups undo. Each edit goes through `Replica::edit` (be-sdk-type-guest
   `replica.rs`) at once: applied to `visible`, told to the other attached editors with
   `journal(Journaled::Edited)` (despite its name, `journal` feeds the editors' projections,
-  `landed`), kept with `lacking.add`, then sequenced by an owner (or pushed onto its `held` FIFO
-  while a seal is out or a part is being put, and later sequenced by `sequence_held`), or by a
-  follower submitted, or queued on `unsent`, where `C::absorb_operation` folds it into the last
-  queued edit, and sent by `flush`. What survives the host crashing is what was sequenced and
-  appended to the device's journal. While the host stays alive, a module restart or a reopen is
-  also given again the local edits the host keeps in memory (`Open::replay`, a `Vec<Replayed>` in
-  be-block-type-host `replicas.rs`; guides/blocks/host.md, Opening again), cut by the counts
-  `reported_clean(taken)`, `sealed-taken`, `journaled-taken`, `untaken` and `acknowledged`. Those
-  cuts assume that the edits sequenced or journaled are a prefix of the edits taken, in the order
-  they arrived.
-- `rebuild_visible` rebuilds `visible` as `confirmed`, then a follower's pending submissions,
-  then `unsent`, then `held`. Most paths do not rebuild, though: the owner's `Submit` and an
-  ordinary edit apply on top of `visible`, so while `held` is non-empty during a seal, a peer's
-  edit shows above held ones it will be sequenced beneath. The invariant below fixes that too.
+  `landed`), kept with `lacking.add`, then queued on `unsent`, where `C::absorb_operation` folds it
+  into the last queued edit, and submitted to the server's order by `flush`, one in flight
+  (`pending`) at a time. What survives the host crashing is what the server numbered into the
+  block's journal (or, offline, what the host numbered into the device's). While the host stays
+  alive, a module restart or a reopen is also given again the local edits the host keeps in
+  memory (`Open::replay`, a `Vec<Replayed>` in be-block-type-host `replicas.rs`;
+  guides/blocks/host.md, Opening again), cut by the counts `reported_clean(taken)`,
+  `sealed-taken`, `journaled-taken`, `untaken` and `acknowledged`, and a replayed edit the order
+  already holds is skipped by its number (`taken-before`, `own_through`). Those cuts and numbers
+  assume that the edits submitted are a prefix of the edits taken, in the order they arrived.
+- `rebuild_visible` rebuilds `visible` as `confirmed`, then `pending`, then `unsent`. A peer's
+  entry the order numbers before this replica's own goes beneath them (`apply_beneath`, told to
+  editors as `Journaled::Beneath`); with nothing unconfirmed it applies on top.
 - `be-host-runtime` (`instances.rs`) tracks one `gesturing` flag per link and cancels it when the
   instance closes.
 
@@ -46,12 +45,12 @@ they happen.
   several drags and each ends on its own. `History` keeps undo groups and tentative gestures side
   by side, each under its id.
 - **The tentative layer.** The replica gains `tentative: Vec<(GestureId, C::Op)>`, a layer of its
-  own after `held` and `unsent`, holding every open tentative gesture's edits in the order they
+  own after `pending` and `unsent`, holding every open tentative gesture's edits in the order they
   were made: one group for the block, however many gestures are open. An edit made in a tentative
   gesture is applied to `visible`, told to the other editors (`journal(Journaled::Edited)`, so
   every view on the device previews it) and pushed onto the layer. It is not kept with
-  `lacking.add` and never enters `held` or `unsent`, so `sequence_held` and `flush` never see it
-  and it is never appended to the device's journal; `absorb_operation` never folds an ordinary
+  `lacking.add` and never enters `unsent`, so `flush` never submits it and it never reaches a
+  journal; `absorb_operation` never folds an ordinary
   edit into it or it into one. Consecutive edits of one gesture to the same item may be folded
   with each other, since only the last position matters.
 - **Counting and replay.** A host crash loses the layer with nothing more to do, since replay
@@ -66,24 +65,20 @@ they happen.
   taken during the hold, so a positional `reported_clean` cut could drop them: the host moves a
   committed gesture's messages to the commit's place in replay, or records the commit as one
   message that carries them.
-- **The invariant.** At all times `visible` = `confirmed` + pending + `unsent` + `held` +
-  `tentative`, in that order. While `held` or `tentative` is non-empty, each path keeps it by
-  applying beneath them (`C::apply_beneath`, telling editors through `Journaled::Beneath`) or by
-  rebuilding (`rebuild_visible`, then a reprojection):
-  - the owner's `Submit` applies a peer's edit with `apply_beneath`, `local` being `held` and
-    `tentative`;
-  - `edit`, for an ordinary edit: an owner sequencing it at once applies it with `apply_beneath`
-    the same way, which applies it to `confirmed` too, so the separate `confirmed.apply` after
-    `sequencer.accept` goes; one that pushes it onto `held`, and a follower queuing or submitting it, rebuild;
-  - the follower's `apply_accepted` takes its fast path (apply on top) only when the layer is
-    empty too; otherwise its `apply_beneath` `local` is pending, `unsent` and `tentative`, so the
-    held edits stay on top;
-  - an accepted edit of the follower's own already rebuilds.
+- **The invariant.** At all times `visible` = `confirmed` + `pending` + `unsent` + `tentative`,
+  in that order. While `tentative` is non-empty, each path keeps it by applying beneath it
+  (`C::apply_beneath`, telling editors through `Journaled::Beneath`) or by rebuilding
+  (`rebuild_visible`, then a reprojection):
+  - a peer's entry (`apply_operation`) goes beneath with `local` being `pending`, `unsent` and
+    `tentative`, and takes its fast path (apply on top) only when all three are empty;
+  - `edit`, for an ordinary edit, queues it on `unsent` and rebuilds, so it lands beneath the layer;
+  - an entry of the replica's own leaves `visible` as it is, since it already sits beneath the
+    layer.
 - **History beneath the layer.** An ordinary edit made during a hold records its undo step
   (`History::record`, `Undo::step`) against the content it is applied to, `visible` without the
   layer, which the replica keeps beside `visible` while the layer is non-empty.
 - **Commit.** When the last gesture in the layer commits, its edits move, in the order they were
-  made, to the end of the ordinary path (`lacking.add`, then sequenced, `held` or `unsent`), and
+  made, to the end of the ordinary path (`lacking.add`, then `unsent`), and
   `History` makes them one undo step. They are already on top of `visible` and stay there, so they
   are not applied again. This is the decision's invariant: no tentative edit goes ahead of one it
   was built on, while ordinary edits may have gone ahead of all of them.
@@ -99,18 +94,18 @@ they happen.
 
 ### Session events while the layer is held
 
-What the replica does with `tentative` when its `confirmed` or role changes underneath it, and how
+What the replica does with `tentative` when its `confirmed` changes underneath it, and how
 the editor and the drag board hear. `GestureEnded { id, cancelled }` is a new message to the
 editor that opened the gesture, through `ContentProjection` (be-sdk-beui); the drag board cancels
 a carry whose gesture ended, so the item glides home and the site stops previewing.
 
 | Event | The layer | Editor and drag board hear |
 | --- | --- | --- |
-| A snapshot (`Then::Snapshot`), or a seal reloaded without `restart` (`Then::SealedReload`) | reapplied as it is by `rebuild_visible`, after `unsent` and `held`, as they are. An edit whose item is gone applies as nothing, as one in `unsent` does today; its gesture stays open | the usual reprojection; a carry whose source node was torn down ends as any such carry does |
-| A restart: `Then::SealedReload` with `restart` (`carry_pending`), or `Then::Restarted` (`restarted`) | each edit goes through `C::carry_over` after `carry_pending`'s, or `restarted`'s `held` loop, continuing the same `before`/`after` chain rather than starting from the old `confirmed`; `History::restart` keeps the open gestures' steps, so a commit is still one undo step | the usual reprojection; a gesture with an edit that does not carry is ended with `GestureEnded { cancelled: true }` and its edits dropped from the layer |
-| Ownership change (owner to follower or back) | untouched: it was never sequenced or submitted, so moving `held` and `unsent` across roles skips it | nothing |
-| A conflict stash (`stash`, `AfterStash::Keep`/`Merge`) | kept held; what is stashed is written from `visible` without the layer, so a held position never reaches a stash | nothing |
-| `history.clear()` (a replacement: `Then::Replacement`, `FromEditor::Replace`, `replaced`) | cancelled whole: the content it moved is gone | `GestureEnded { cancelled: true }` for each open gesture |
+| A reload the order reaches without `restart` (a replica opening on a sealed head, `reloaded`) | reapplied as it is by `rebuild_visible`, after `pending` and `unsent`, as they are. An edit whose item is gone applies as nothing, as one in `unsent` does today; its gesture stays open | the usual reprojection; a carry whose source node was torn down ends as any such carry does |
+| A restart: a reload with `restart` (`reloaded`, then `carry_pending`) | each edit goes through `C::carry_over` after `carry_pending`'s, continuing the same `before`/`after` chain rather than starting from the old `confirmed`; `History::restart` keeps the open gestures' steps, so a commit is still one undo step | the usual reprojection; a gesture with an edit that does not carry is ended with `GestureEnded { cancelled: true }` and its edits dropped from the layer |
+| The lease moving to or from this replica | untouched: the lease only seals what the order holds, which the layer never reaches | nothing |
+| A stash (`stash`: a conflict, `AfterStash::Merge`, or work a replacement would lose, `AfterStash::Unsaved`) | kept held; what is stashed is written from `visible` without the layer, so a held position never reaches a stash | nothing |
+| `history.clear()` (a replacement: a reload with `replace`, `FromEditor::Replace`) | cancelled whole: the content it moved is gone | `GestureEnded { cancelled: true }` for each open gesture |
 
 ## Steps
 
@@ -123,8 +118,8 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    status cuts stay right with edits taken during a held drag; two drags in one block
    commit as one step when the second ends; cancelling one of two keeps the other; a typed edit
    during a held drag reaches peers at once; a peer's move of an item held mid-drag shows beneath
-   the held move, and every replica ends the same after the commit; the same for `held` during a
-   seal; a catch-up mid-drag keeps the drag; a restart that removes the dragged item ends it; a replacement
+   the held move, and every replica ends the same after the commit; a seal mid-drag leaves the
+   drag out of the commit; a restart that removes the dragged item ends it; a replacement
    mid-drag ends it; undo mid-drag cancels it. Audit that each content type's operations name
    items by id, not position, and fix one that does not.
 3. The app protocol and `ContentProjection` (`be-sdk`, `be-sdk-beui`): `begin_tentative`, gesture

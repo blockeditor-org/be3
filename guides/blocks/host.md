@@ -122,10 +122,10 @@ A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
 cut short by `retry_now`), reconnects, reloads the graph and rejoins every open
 block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
-`Up` or `Down`), and every open replica is handed a session it owns
-(`Replicas::disconnected`), so a follower takes over what it had not confirmed,
-and each is asked to seal at once, locally, since reconnecting reopens it from
-its head. `Replicas::reconnect` asks the same of every replica that holds
+`Up` or `Down`), and every open replica is handed a made-up session whose lease
+it holds (`Replicas::disconnected`), in which this device numbers what it
+submits, and each is asked to seal at once, locally, since reconnecting reopens
+it on the server's journal. `Replicas::reconnect` asks the same of every replica that holds
 unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
@@ -133,40 +133,35 @@ one. `Connection::is_closed` reads true as soon as `close` is called, a moment
 before `Connection::closed` says so, so be-host's link never hands a new stack
 the connection a stopping stack closed.
 
-- **Opening again.** A replica opened again (on joining, rejoining or a module
-  restart) starts on a head: rejoining and a restart on the last head it
-  reported, joining on the server's head unless it was edited meanwhile or
-  holds commits ahead of it. It is handed the journal on that head
-  (`reopening_journal`): the server's when there is one, otherwise this
-  device's, entries included. The journal carries the session's state, which
-  numbers each writer's next edit: without it an edit an editor made on what it
-  was shown is refused as out of order. When the server's is taken, this
-  device's journal becomes it, so what the replica journals next follows the
-  session's numbering and a later start opens on the session's journal; entries
-  it held that the server's lacks (journaled offline beside another owner, or on
-  another commit) are reported lost to the replica (`lost-edits`). The replica is given again the local edits its module took
-  that neither the head nor this device's journal holds (`Open::replay`):
-  every status cuts `replay` at `status.sealed-taken` (for an owner what its
-  head holds, a replacement on its way not included; for a follower, once it is
-  clean, what its owner accepted into the session's journal), and a reopen
-  handed this device's journal at `status.journaled-taken` too, unless the
-  replica's last append to it failed. One count is conservative: an edit a
-  follower took before it was promoted and that waits for its part to be put is
-  not known among the local edits, so none taken since it was last clean counts
-  as sequenced.
-- **Opening early.** A block this device knows opens from its local head as a
-  follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
+- **Opening again.** A replica opened again (on joining, rejoining, a module
+  restart, or when the host fell behind what the server sent) starts where
+  `journal_for` says: on the server's journal, at its base, when there is one
+  (the order goes on from there; the host then tells it of heads that landed
+  since, and its holder merges them in), or on a seal made on that base that the
+  journal reaches (`opening.sealed-head`); offline, on this device's journal when
+  it is on the head, entries included, `journal-kept` when this device numbered
+  them. This device's journal keeps the server's as joining answered it. The
+  replica is given again the local edits its module took that neither the head
+  nor the order holds (`Open::replay`): every status cuts `replay` at
+  `status.sealed-taken` (what its head holds, a replacement on its way not
+  included), and a reopen at `status.journaled-taken` too. The replica keeps its
+  `origin` (`Open::origin`) and is told how many local edits it is no longer
+  given (`Open::given_up`, `opening.taken-before`), so it numbers what it is given
+  again as before and skips what the order holds already: an edit whose answer
+  was lost is never made twice.
+- **Opening early.** A block this device knows opens from its local head in a
+  session a placeholder holds (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
   with the real session, replaying what happened meanwhile; an editor that made
   an edit kept for that and has detached since is attached for its edits to be
   given again (`Open::departed`), or the replica would drop them. A seal asked of a
-  joining replica with unconfirmed edits first gives it a session it owns, so
-  flush and stop never wait for a join.
-- **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
-  made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
-  commit in the outbox), `Resume` treats the local head as remote, and
-  heartbeats, claims and relays are skipped, and the journal is the device's
-  alone. It opens on the newest head whose content the device holds
+  joining replica with unconfirmed edits first gives it a made-up session whose
+  lease it holds, so flush and stop never wait for a join.
+- **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` holding
+  the lease of a made-up session (`Open::made_up`): `Submit` is numbered in this
+  device's own order (`Peer::submit` offline) and heard by the replica at once,
+  `Publish` becomes `Peer::seal` (a local commit in the outbox), `Resume` treats
+  the local head as remote, and heartbeats, claims and relays are skipped. It opens on the newest head whose content the device holds
   (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
   it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
@@ -224,7 +219,7 @@ creation (`Peer::create_block`), `Peer::summary` answers from the device until
 the server knows it, and a listing the server answers is laid over with what the
 outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
-owns and joins (`Replicas::created` asks for that seal once, while it owes one
+ordered and joins (`Replicas::created` asks for that seal once, while it owes one
 and none is on its way). A command that needs the server to know a block waits
 first for a drain to send what this device made of it (`Tasks::sent`; an
 export, and a version command in the lane, waits for the whole outbox, since it
@@ -426,10 +421,11 @@ index and search it locally.
   a first commit, and is ignored for a block that has content or is open.
 - **Replacing.** `editor.replace_content` (`write-content` with `replace`)
   becomes the replica's `Change::Replace`, or a direct publish when nothing has
-  the block open. The replica publishes a commit (the bytes take the chunked
-  upload, not the session) and the replacement wins: unsaved work is stashed
-  as a parent of a later head, and followers reload (`SessionMessage::Replaced`
-  from a follower). Image, audio and PDF "replace" and compiled logic use it.
+  the block open. The replica stashes it as a commit (the bytes take the chunked
+  upload, not the session) and submits a barrier reload of it, and the
+  replacement wins: unsaved work is stashed as a parent of a later head, and
+  every replica reloads it (guides/type_modules.md, Peers). Image, audio and PDF
+  "replace" and compiled logic use it.
 
 ## Exporting and importing
 

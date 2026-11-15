@@ -2,13 +2,13 @@
 
 A live session keeps session state (tombstones, text positions, split fragments)
 so concurrent edits land where their authors meant. It only grows, so a block
-someone always has open would keep every tombstone forever. The owner restarts
+someone always has open would keep every tombstone forever. The lease holder restarts
 the session at a commit once that state passes `RESTART_STATE_BYTES` (1 MiB)
 and outgrows the content it describes, while no gesture is open and it is alone
 in the session, or with others once the state passes `RESTART_CEILING` (4)
-times the limit (`be-sdk-type-guest/src/replica.rs`, `restart_due`). It commits, tells the
-followers with `SessionMessage::Sealed { restart: true }`, and every replica
-reloads the commit; loading gives every replica the same positions, so they go
+times the limit (`be-sdk-type-guest/src/replica.rs`, `restart_due`). It commits and submits a
+barrier reload with `restart` set, and every replica reloads the commit when the
+order reaches it; loading gives every replica the same positions, so they go
 on exchanging operations. The last participant to leave restarts for free: it
 rebases the journal with no state, so the next session loads the commit
 afresh.

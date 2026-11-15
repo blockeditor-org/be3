@@ -24,14 +24,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   text there cut short with a notice, or says it is too large to copy, and
   pastes in the program still get it whole from the held clip.
 
-## 7. Sessions
-
-- **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
-  send one, and each makes the owner answer a `Snapshot` (with session state
-  unless the asker already holds it) and may set it to reload. Done: the owner
-  answers one sender at most once per interval, shown by a be-sdk-type-guest
-  test where a viewer's repeated `Catchup`s get one `Snapshot`.
-
 ## 8. Input
 
 - **Touches per window.** beui-core's `InputState::touches` is one list across
