@@ -5,6 +5,7 @@ use std::rc::Rc;
 use beui_reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
 use crate::children::IntoChild;
+use crate::prop::{ByClosure, ByValue, Given, PassedOn};
 
 thread_local! {
     static CURRENT_COMPONENT: RefCell<Option<Rc<ComponentContext>>> = const { RefCell::new(None) };
@@ -270,6 +271,52 @@ impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
     }
 }
 
+
+/// How an optional render prop, `Option<RenderFn<H, C>>` or `Option<Render<H, C>>`, takes
+/// what a tag passes it: what the render prop takes, as `Some`, a `|| ..` closure that
+/// ignores what it is handed, or another component's optional render prop passed on as it
+/// is.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be passed as an optional `{R}` prop",
+    label = "pass a closure that builds the children, or an `Option<{R}>` to pass on"
+)]
+pub trait IntoOptionalRender<R, M> {
+    fn into_optional_render(self) -> Option<R>;
+}
+
+impl<R> IntoOptionalRender<R, PassedOn> for Option<R> {
+    fn into_optional_render(self) -> Option<R> {
+        self
+    }
+}
+
+impl<H, C, V: IntoRenderFn<H, C>> IntoOptionalRender<RenderFn<H, C>, Given<ByValue>> for V {
+    fn into_optional_render(self) -> Option<RenderFn<H, C>> {
+        Some(self.into_render_fn())
+    }
+}
+
+impl<H, C, V: IntoRender<H, C>> IntoOptionalRender<Render<H, C>, Given<ByValue>> for V {
+    fn into_optional_render(self) -> Option<Render<H, C>> {
+        Some(self.into_render())
+    }
+}
+
+impl<H: 'static, C: 'static, X: IntoChild<C>, F: Fn() -> X + 'static>
+    IntoOptionalRender<RenderFn<H, C>, Given<ByClosure>> for F
+{
+    fn into_optional_render(self) -> Option<RenderFn<H, C>> {
+        Some(RenderFn::new(move |_| self().into_child()))
+    }
+}
+
+impl<H: 'static, C: 'static, X: IntoChild<C>, F: FnOnce() -> X + 'static>
+    IntoOptionalRender<Render<H, C>, Given<ByClosure>> for F
+{
+    fn into_optional_render(self) -> Option<Render<H, C>> {
+        Some(Render::new(move |_| self().into_child()))
+    }
+}
 #[diagnostic::on_unimplemented(
     message = "this component hands nothing to its children, so there is no value to name",
     label = "write these children without `|value|`"
