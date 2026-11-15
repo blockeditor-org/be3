@@ -14,11 +14,19 @@ fn a_memo_over_an_async_memo_reads_its_answer_for_the_current_input() {
         let id = id.get();
         async move { Ok(id * 10) }
     });
-    assert_eq!(memo.get_untracked(), Ok(10), "an answer there at once lands with no executor");
+    assert_eq!(
+        memo.get_untracked(),
+        Ok(10),
+        "an answer there at once lands with no executor"
+    );
 
     id.set(2);
     let derived = create_memo(move || memo.get());
-    assert_eq!(derived.get(), Ok(20), "read before any flush, it asks for the new input");
+    assert_eq!(
+        derived.get(),
+        Ok(20),
+        "read before any flush, it asks for the new input"
+    );
     flush();
     assert_eq!(derived.get(), Ok(20));
     id.set(3);

@@ -23,7 +23,15 @@ fn an_answer_there_at_once_is_for_the_latest_write() {
     assert_eq!(memo.get_untracked(), Ok(3));
 
     id.set(4);
-    assert_eq!(memo.get_untracked(), Ok(4), "a read asks for the newest input first");
+    assert_eq!(
+        memo.get_untracked(),
+        Ok(4),
+        "a read asks for the newest input first"
+    );
     flush();
-    assert_eq!(*asked.borrow(), vec![1, 3, 4], "and the flush does not ask again");
+    assert_eq!(
+        *asked.borrow(),
+        vec![1, 3, 4],
+        "and the flush does not ask again"
+    );
 }
