@@ -137,15 +137,3 @@ Depends on #686 (session catch-ups replaced by server ordering).
   (`log_unlisted_held`); with no such line, the missing reference is past the
   graph, in what the app's `Backrefs` watch was told. Done: the cause found
   from that output and fixed at its source, with a test that shows it.
-
-## 16. Loading
-
-- **Editors that reveal before their content.** Since `block_content()` stopped
-  holding the `Loaded` it is made under, an editor's `Loaded` waits only for
-  what is read under it in a body, binding or memo. The pdf editor read its
-  block only in an effect, so it revealed early and rendered its page at a
-  passing size; its pump is now a binding. Find the editors that read their own
-  content only in effects (or only after the reveal) and make the read that
-  holds their `Loaded` a real one. Done: each editor's `Loaded` holds until its
-  content is there, with a test per editor that it shows nothing of the content
-  before then.

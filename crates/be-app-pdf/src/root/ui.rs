@@ -44,9 +44,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     let canvas = editor.canvas();
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
-    // A binding, so its read of the block holds the `Loaded` around it until the content is
-    // there, and the page is rendered at the size it is first shown at.
-    create_binding(move || {
+    create_effect(move || {
         rendered.track();
         let _measure = performance.measure("Editor pump");
         let size = pages.shown().get_untracked().size();
@@ -344,9 +342,7 @@ pub fn PdfPreview(editor: Editor) -> NodeId {
     let placed = editor.placed();
     let device = editor.pixels_per_point();
     let (waker, rendered) = editor.woken();
-    // A binding, so its read of the block holds the `Loaded` around it until the content is
-    // there, and the page is rendered at the size it is first shown at.
-    create_binding(move || {
+    create_effect(move || {
         rendered.track();
         let _measure = performance.measure("Preview pump");
         let size = pages.shown().get_untracked().size();
