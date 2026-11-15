@@ -194,6 +194,9 @@ nothing but its `Docking`.
 - The tab body holding the editor's content is where the host keeps its
   camera, chrome and frame takeovers, so a joined canvas pans and hands its
   frame to a card as it does alone.
+- A joined frame shows no top bar of its own, so `phone_layout()` also reads
+  the stacked mode of the dock it joined: on a phone it lays out, and opens
+  Rename as a sheet, as an editor on its own does.
 - A child keeps its child id while its body moves between views, and stays
   docked while its placer hosts it, after (`DockHold`), and while the placer
   is off screen, so it is never rebuilt undocked in between.
