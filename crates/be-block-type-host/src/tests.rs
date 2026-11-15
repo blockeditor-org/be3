@@ -27,7 +27,7 @@ mod a_stateless_request_reads_only_parts_of_the_commits_it_was_handed;
 mod a_stream_of_relays_under_keys_that_cannot_be_got_costs_one_search_per_key;
 mod an_edit_and_a_definition_kept_beside_another_devices_head_both_reach_the_server;
 mod an_edit_from_an_editor_that_left_before_its_block_joined_is_kept;
-mod an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica;
+mod an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica;
 mod an_edit_made_on_the_content_from_before_a_replica_joins_lands_after;
 mod an_edit_sealed_beside_a_commit_waiting_in_the_outbox_is_merged_with_it;
 mod an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining;
@@ -188,6 +188,7 @@ fn with_devices<F: Future<Output = ()>>(
             }
         };
         let peer = device(None).await;
+        listen(&peer);
         let another = match another {
             true => Some(device(Some(peer.organization())).await),
             false => None,
@@ -202,6 +203,70 @@ fn with_devices<F: Future<Output = ()>>(
         .await;
         server.stop().await;
     });
+}
+
+thread_local! {
+    /// What the connection the test listens to says: the order's entries and leases, which the
+    /// worker's loop hands the replicas in be-host-stack.
+    static EVENTS: std::cell::RefCell<Option<(
+        Arc<be_block_client::Connection>,
+        tokio::sync::broadcast::Receiver<be_block_client::Event>,
+    )>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Listens to `peer`'s connection, a new one after it reconnects.
+fn listen(peer: &Peer<MemoryStore>) {
+    let connection = peer.connection();
+    EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        if events
+            .as_ref()
+            .is_none_or(|(listened, _)| !Arc::ptr_eq(listened, &connection))
+        {
+            let receiver = connection.subscribe();
+            *events = Some((connection, receiver));
+        }
+    });
+}
+
+/// Hands the replicas what the connection said since this was last asked.
+fn hear(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
+    listen(peer);
+    let heard: Vec<be_block_client::Event> = EVENTS.with(|events| {
+        let mut events = events.borrow_mut();
+        let Some((_, receiver)) = events.as_mut() else {
+            return Vec::new();
+        };
+        std::iter::from_fn(|| receiver.try_recv().ok()).collect()
+    });
+    for event in heard {
+        replicas.heard((peer, shared), &event);
+    }
+}
+
+/// Waits for a module or the connection to say something, and hands the replicas all of it.
+async fn step(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
+    hear(peer, shared, replicas);
+    let listened = EVENTS.with(|events| events.borrow_mut().take());
+    let listened = match listened {
+        Some((connection, mut receiver)) => {
+            let heard = tokio::select! {
+                () = replicas.woken() => None,
+                heard = receiver.recv() => heard.ok(),
+            };
+            EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
+            heard
+        }
+        None => {
+            replicas.woken().await;
+            None
+        }
+    };
+    if let Some(event) = listened {
+        replicas.heard((peer, shared), &event);
+    }
+    hear(peer, shared, replicas);
+    replicas.pump((peer, shared)).await;
 }
 
 /// Gives `mirror` what the replica sent `editor` since the frames were last taken, as the

@@ -33,13 +33,12 @@ async fn count(
         .value()
 }
 
-/// An editor adds 1 and then, while the seal of that is out, 2, which the replica holds back
-/// and sequences once the seal lands: its head then holds the first and not the second, and it
-/// says so (`Status::sealed_taken`), so the host keeps the second alone to give again, though
-/// the replica is not clean. Its module stops, and the replica opened again on that head reads
-/// 3, not 4: an addition given twice counts twice.
+/// An editor adds 1, which the order holds and a seal keeps, and then 2, which the order holds
+/// past that seal: the head holds the first and not the second, and the replica says so
+/// (`Status::sealed_taken`), so the host keeps the second alone to give again. Its module stops,
+/// and the replica opened again reads 3, not 4: an addition given twice counts twice.
 #[test]
-fn an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica() {
+fn an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica() {
     with_test_types(|peer, shared, mut replicas| async move {
         let block = peer
             .create::<CounterContent>(BlockParent::Root)
@@ -52,22 +51,30 @@ fn an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica() {
         let editor = 7;
         replicas.attach(block, editor, true);
         add(&mut replicas, block, editor, 1);
-        replicas.pump((&peer, &shared)).await;
+        while replicas
+            .status(block)
+            .is_none_or(|status| status.taken < 1 || !status.journaled)
+        {
+            step(&peer, &shared, &mut replicas).await;
+        }
         let before = replicas.status(block).and_then(|status| status.head);
-
         replicas.seal_later(block, true);
+        while replicas
+            .status(block)
+            .is_none_or(|status| status.head == before)
+        {
+            step(&peer, &shared, &mut replicas).await;
+        }
+
         add(&mut replicas, block, editor, 2);
-        while replicas.status(block).is_none_or(|status| {
-            status.head == before || status.taken < 2 || status.sealed_taken < 1
-        }) {
-            replicas.woken().await;
-            replicas.pump((&peer, &shared)).await;
+        while replicas
+            .status(block)
+            .is_none_or(|status| status.taken < 2 || !status.journaled)
+        {
+            step(&peer, &shared, &mut replicas).await;
         }
         let status = replicas.status(block).expect("the counter is open");
-        assert_eq!(
-            status.sealed_taken, 1,
-            "the seal holds the first edit alone"
-        );
+        assert_eq!(status.sealed_taken, 1, "the seal holds the first edit alone");
         assert_eq!(
             replicas.replayed_edits(block),
             1,
@@ -76,6 +83,10 @@ fn an_edit_held_while_a_seal_was_out_is_given_once_to_a_restarted_replica() {
         assert_eq!(count(&peer, &shared, &mut replicas, block).await, 3);
 
         replicas.modules.restart_type(CounterContent::CONTENT_TYPE);
+        replicas.pump((&peer, &shared)).await;
+        while replicas.joining() {
+            step(&peer, &shared, &mut replicas).await;
+        }
         replicas.pump((&peer, &shared)).await;
         assert_eq!(
             count(&peer, &shared, &mut replicas, block).await,
