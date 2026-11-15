@@ -163,6 +163,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   failed test's host is in step and with what, and what the last drain answered
   of what it left. Done: each cause found from that output and fixed at its
   source, with a test that shows it.
+- **A settings page beside the settings list, painting one glyph two ways.**
+  `a_settings_page_and_the_settings_list_show_the_same_block_side_by_side`
+  (be-host-tests) painted the glyph over [877, 14, 889, 26] in [230, 235, 243]
+  in one run of verify and in [141, 153, 174] when run again: one of the two
+  colours a hovered or focused control shows, as if the pointer or the focus
+  sits on it in one run and not the other. Done: the cause found (what the
+  test reads that varies, guides/testing_a_gui.md, 6) and fixed at its source,
+  so the painting is the same every run.
 
 ## 16. Host test tools
 

@@ -230,7 +230,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      the lift, each place and the end
      (decisions/beui_activating_drag_sources_keep_their_keys.md). It may give a site
      an optional node, which the inspector and `Into` nesting want.
-   - **1d:** beui-demo pages: the list above, free positioning that snaps into slots
+   - **1d (done):** beui-demo pages: the list above, free positioning that snaps into slots
      (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An
      inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector), that
      draws every candidate, its zone and the chosen one.

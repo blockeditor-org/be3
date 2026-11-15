@@ -165,7 +165,7 @@ left to draw (guides/beui/platforms.md, Unseen windows).
 
 Ctrl+Shift+I in a standalone window opens the inspector (crates/beui-inspector).
 Its document is a `Docking` (guides/beui/docking.md) whose tabs are the tools
-(Beui, Comp, A11y, Perf, Sim) and the inspected program, an `Embed` the
+(Beui, Comp, A11y, Perf, Sim, Drag) and the inspected program, an `Embed` the
 program's document is laid out in, so tools can be docked beside, under or
 floating, and on a narrow window the dock stacks
 ([decision](../../decisions/beui_inspector_tools_are_dock_tabs.md)). The tree
@@ -183,6 +183,10 @@ tools pin a Pick toggle and every tool pins Close to the dock's bar.
   window (`Context::shows_main` false: an app, the DRM session) gets an
   inspector with no Program tab, drawn over the right edge of the window that
   has the keyboard.
+- **Drag** lists what the program's drag board carries and every fixed place it
+  can land in (each `Rest`, from `Board::inspect`), the chosen one marked, and
+  while it shows draws them over the program: each rest outlined, each zone
+  shaded, the chosen place filled and where the item draws.
 - **Comp** lists the `#[component]`s that built the tree: each records its name
   against the node it returns, so components returning the same node nest.
 - **Keys.** Ctrl+Shift+C picks a node; Ctrl+Shift+F moves the keyboard into the
