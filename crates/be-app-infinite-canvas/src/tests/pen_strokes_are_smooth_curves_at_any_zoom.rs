@@ -26,16 +26,12 @@ fn draw_strokes(editor: &mut BeuiTest<CanvasRoot>) {
     let pressed =
         |t: f32| center + Vec2::new(-180.0 + 360.0 * t, 130.0 + 30.0 * (t * 3.0 * PI).sin());
     editor.pen(PenPhase::Move, pressed(0.0), 0.0);
-    editor.next_frame();
     editor.pen(PenPhase::Down(PointerButton::Primary), pressed(0.0), 0.05);
     for step in 1..=40 {
         let t = step as f32 / 40.0;
-        editor.next_frame();
         editor.pen(PenPhase::Move, pressed(t), 0.05 + 0.95 * (t * PI).sin());
     }
-    editor.next_frame();
     editor.pen(PenPhase::Up(PointerButton::Primary), pressed(1.0), 0.0);
-    editor.run();
     editor.key(Key::Escape, Modifiers::NONE);
 }
 

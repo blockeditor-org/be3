@@ -16,14 +16,12 @@ fn one_undo_takes_back_a_whole_gesture() {
             from + Vec2::new(step as f32 * 10.0, 0.0),
             0.5,
         );
-        editor.run();
     }
     editor.pen(
         PenPhase::Up(PointerButton::Primary),
         from + Vec2::new(120.0, 0.0),
         0.0,
     );
-    editor.run();
     assert_eq!(
         entities(&editor)[0].transform.center,
         CanvasPoint::new(120.0, 0.0)
@@ -33,34 +31,28 @@ fn one_undo_takes_back_a_whole_gesture() {
     let start = editor.rect_of("infinite-canvas.canvas").center() + Vec2::new(0.0, 150.0);
     editor.pen(PenPhase::Down(PointerButton::Primary), start, 0.5);
     for step in 1..=20 {
-        editor.next_frame();
         editor.pen(
             PenPhase::Move,
             start + Vec2::new(step as f32 * 8.0, 0.0),
             0.5,
         );
-        editor.run();
     }
     editor.pen(
         PenPhase::Up(PointerButton::Primary),
         start + Vec2::new(160.0, 0.0),
         0.0,
     );
-    editor.run();
     assert_eq!(entities(&editor).len(), 2);
 
     editor.click("infinite-canvas.dock.tool.Rectangle");
     editor.pen(PenPhase::Down(PointerButton::Primary), start, 0.5);
-    editor.next_frame();
     editor.pen(PenPhase::Move, start + Vec2::new(80.0, 60.0), 0.5);
-    editor.run();
     editor.key(Key::Escape, Modifiers::NONE);
     editor.pen(
         PenPhase::Up(PointerButton::Primary),
         start + Vec2::new(80.0, 60.0),
         0.0,
     );
-    editor.run();
     assert_eq!(
         entities(&editor).len(),
         2,

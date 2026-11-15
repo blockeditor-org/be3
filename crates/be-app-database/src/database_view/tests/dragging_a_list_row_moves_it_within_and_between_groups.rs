@@ -32,7 +32,6 @@ fn dragging_a_list_row_moves_it_within_and_between_groups() {
     for _ in 0..8 {
         fixture.harness.advance(Duration::from_millis(50));
         fixture.harness.run();
-        fixture.harness.next_frame();
         fixture.harness.run();
     }
     fixture

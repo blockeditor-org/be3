@@ -7,7 +7,6 @@ fn the_text_tool_writes_its_box_while_it_is_dragged() {
     editor.click("infinite-canvas.dock.tool.Text");
     let start = editor.rect_of("infinite-canvas.canvas").center();
     editor.down(start, PointerButton::Primary);
-    editor.next_frame();
     editor.hover(start + Vec2::new(120.0, 50.0));
 
     let drawn = entities(&editor);

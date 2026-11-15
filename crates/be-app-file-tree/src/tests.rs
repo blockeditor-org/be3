@@ -152,9 +152,7 @@ impl Fixture {
     fn lift(&mut self, block: Uuid) {
         let from = self.row(block).center();
         self.test.down(from, PointerButton::Primary);
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 4.0));
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 10.0));
         self.settle();
     }

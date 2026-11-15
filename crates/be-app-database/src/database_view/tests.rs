@@ -127,14 +127,11 @@ impl Fixture {
 
     fn lift(&mut self, from: Pos2, to: Pos2) {
         self.harness.down(from, PointerButton::Primary);
-        self.harness.next_frame();
         self.harness.hover(from + Vec2::new(0.0, 8.0));
-        self.harness.next_frame();
         self.harness.hover(to);
     }
 
     fn put(&mut self, at: Pos2) {
-        self.harness.next_frame();
         self.harness.up(at, PointerButton::Primary);
         self.settle();
     }

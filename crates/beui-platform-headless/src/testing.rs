@@ -530,7 +530,8 @@ impl<A: Program + 'static> Stepped<A> {
         windows.reports.push(report);
     }
 
-    pub fn size(&self) -> Vec2 {
+    /// The window's size in points, which `Gui::size` answers for a document.
+    fn shown_size(&self) -> Vec2 {
         match &self.window {
             Window::Simulated(simulation) => simulation.shown(),
             Window::Other(_) => self.size,
@@ -552,7 +553,7 @@ impl<A: Program + 'static> Stepped<A> {
     }
 
     pub fn rescale(&mut self, scale: f32) {
-        let size = self.size();
+        let size = self.shown_size();
         self.resize_window(WindowSize { size, scale });
     }
 
@@ -589,7 +590,7 @@ impl<A: Program + 'static> Stepped<A> {
         }
         self.closed |= self.runner.exited();
         if let Some(failure) = self.runner.failure() {
-            panic!("the program panicked: {failure}\n{}", self.replay());
+            panic!("the program panicked: {failure}\n{}", gui::replay(&self.steps));
         }
     }
 
@@ -616,7 +617,7 @@ impl<A: Program + 'static> Stepped<A> {
             Reply::Error(error) => Err(error),
             Reply::Text(_) | Reply::Image { .. } => Err("the answer is not a painting".to_owned()),
         };
-        painted.unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+        painted.unwrap_or_else(|error| panic!("{error}\n{}", gui::replay(&self.steps)))
     }
 
     fn reply(&mut self, words: &[&str]) -> Reply {
@@ -641,7 +642,7 @@ impl<A: Program + 'static> Stepped<A> {
         }
         panic!(
             "the program never answered {words:?} in {ANSWER_FRAMES} frames\n{}",
-            self.replay()
+            gui::replay(&self.steps)
         );
     }
 
@@ -654,7 +655,7 @@ impl<A: Program + 'static> Stepped<A> {
     /// Runs one `drive` command and answers what it answered.
     pub fn drive(&mut self, words: &[&str]) -> String {
         self.ask(words)
-            .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()))
+            .unwrap_or_else(|error| panic!("{error}\n{}", gui::replay(&self.steps)))
     }
 
     /// Waits until the tree shows `target` (`drive wait`).
@@ -677,16 +678,6 @@ impl<A: Program + 'static> Stepped<A> {
     fn word(&self, target: Target) -> String {
         target.word(self.runner.context().pixels_per_point())
     }
-
-    fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in &self.steps {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
-    }
 }
 
 impl Gui for Stepped<Showing> {
@@ -706,7 +697,7 @@ impl Gui for Stepped<Showing> {
     }
 
     fn size(&self) -> Vec2 {
-        Stepped::size(self)
+        self.shown_size()
     }
 
     fn pixels_per_point(&self) -> f32 {

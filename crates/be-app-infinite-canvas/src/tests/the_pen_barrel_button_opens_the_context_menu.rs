@@ -11,11 +11,8 @@ fn the_pen_barrel_button_opens_the_context_menu() {
         .center();
 
     editor.pen(PenPhase::Move, center, 0.0);
-    editor.next_frame();
     editor.pen(PenPhase::Down(PointerButton::Secondary), center, 0.0);
-    editor.next_frame();
     editor.pen(PenPhase::Up(PointerButton::Secondary), center, 0.0);
-    editor.run();
     assert!(
         editor.shown("infinite-canvas.menu.canvas.delete"),
         "the barrel button opens the menu where the pen is"

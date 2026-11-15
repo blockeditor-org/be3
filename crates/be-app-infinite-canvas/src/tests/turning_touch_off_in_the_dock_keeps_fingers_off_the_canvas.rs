@@ -59,11 +59,8 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
     );
 
     editor.pen(PenPhase::Move, center, 0.0);
-    editor.next_frame();
     editor.pen(PenPhase::Down(PointerButton::Primary), center, 0.5);
-    editor.next_frame();
     editor.pen(PenPhase::Up(PointerButton::Primary), center, 0.0);
-    editor.run();
     assert!(
         editor.shown("infinite-canvas.selection-bar"),
         "the pen still selects"

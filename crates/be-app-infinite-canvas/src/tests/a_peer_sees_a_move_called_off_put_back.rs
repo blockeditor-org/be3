@@ -11,9 +11,7 @@ fn a_peer_sees_a_move_called_off_put_back() {
 
     let from = mover.rect_of(&item).center();
     mover.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
-    mover.next_frame();
     mover.pen(PenPhase::Move, from + Vec2::new(90.0, 0.0), 0.5);
-    mover.run();
     sync(&mut mover, &mut watcher);
     assert_ne!(watcher.rect_of(&item), resting);
 
@@ -26,7 +24,6 @@ fn a_peer_sees_a_move_called_off_put_back() {
         from + Vec2::new(90.0, 0.0),
         0.0,
     );
-    mover.run();
     assert_eq!(entities(&mover), vec![shape.clone()]);
     assert_eq!(entities(&watcher), vec![shape]);
 }

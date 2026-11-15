@@ -29,7 +29,6 @@ fn the_eraser_finds_shapes_where_they_have_moved_to() {
     editor.key(Key::E, Modifiers::NONE);
     editor.down(at, PointerButton::Primary);
     for step in 1..=3 {
-        editor.next_frame();
         editor.hover(at + Vec2::new(step as f32 * 4.0, 0.0));
     }
     editor.run();

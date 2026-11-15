@@ -10,17 +10,13 @@ fn once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects() {
 
     let from = shape.left_top() - Vec2::new(60.0, 60.0);
     editor.pen(PenPhase::Move, from, 0.0);
-    editor.next_frame();
     editor.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
-    editor.next_frame();
     editor.pen(PenPhase::Move, from + Vec2::new(40.0, 0.0), 0.5);
-    editor.next_frame();
     editor.pen(
         PenPhase::Up(PointerButton::Primary),
         from + Vec2::new(40.0, 0.0),
         0.0,
     );
-    editor.run();
     assert_eq!(entities(&editor).len(), 2, "the pen draws");
 
     editor.fingers(TouchPhase::Start, &[(1, shape.center())]);
@@ -46,8 +42,6 @@ fn once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects() {
     );
 
     editor.pen(PenPhase::Down(PointerButton::Primary), empty, 0.5);
-    editor.next_frame();
     editor.pen(PenPhase::Up(PointerButton::Primary), empty, 0.0);
-    editor.run();
     assert_eq!(entities(&editor).len(), 3, "and the pen still draws");
 }

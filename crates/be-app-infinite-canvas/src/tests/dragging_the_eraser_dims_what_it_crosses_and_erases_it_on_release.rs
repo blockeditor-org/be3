@@ -24,7 +24,6 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     };
     let walk = |editor: &mut BeuiTest<CanvasRoot>, from: Pos2, to: Pos2| {
         for step in 1..=6 {
-            editor.next_frame();
             editor.hover(from + (to - from) * (step as f32 / 6.0));
         }
         editor.run();

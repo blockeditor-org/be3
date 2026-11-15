@@ -96,13 +96,7 @@ pub trait Gui {
     }
 
     fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in self.steps() {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
+        replay(self.steps())
     }
 
     fn test_ids(&self) -> Rc<TestIds> {
@@ -502,6 +496,17 @@ pub trait Snapshots {
         let found = std::mem::take(&mut self.recording().out_of_bounds);
         assert_fits(name, found);
     }
+}
+
+/// The steps so far, as `drive` commands to replay them with.
+pub(super) fn replay(steps: &[String]) -> String {
+    let mut replay = String::from("the steps so far, as drive commands:\n");
+    for step in steps {
+        replay.push_str("  ");
+        replay.push_str(step);
+        replay.push('\n');
+    }
+    replay
 }
 
 /// Whether a scroll cuts any node with this test id, so it must be revealed even where the

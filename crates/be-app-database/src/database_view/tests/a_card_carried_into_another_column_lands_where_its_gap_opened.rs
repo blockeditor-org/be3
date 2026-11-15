@@ -16,7 +16,6 @@ fn a_card_carried_into_another_column_lands_where_its_gap_opened() {
     let between = first.center() + (second.center() - first.center()) * 0.5;
 
     fixture.lift(fixture.harness.rect_of(&card(a)).center(), between);
-    fixture.harness.next_frame();
     fixture.harness.run();
     assert!(
         fixture.harness.shown("database-view.card-ghost"),

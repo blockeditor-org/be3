@@ -11,13 +11,10 @@ fn a_growing_stroke_writes_only_its_new_points() {
     let steps = 400;
     let mut writes = Vec::new();
     for step in 1..=steps {
-        editor.next_frame();
         editor.pen(PenPhase::Move, at(step as f32 / steps as f32), 0.5);
-        editor.run();
         writes.extend(editor.store().take_written(None).iter().map(Vec::len));
     }
     editor.pen(PenPhase::Up(PointerButton::Primary), at(1.0), 0.0);
-    editor.run();
 
     let points = entities(&editor)[0].points.len();
     assert!(points > steps / 2, "the stroke kept {points} points");

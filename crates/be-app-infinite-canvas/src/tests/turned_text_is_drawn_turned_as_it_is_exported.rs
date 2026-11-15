@@ -44,7 +44,6 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     card.transform.rotation = TURN;
     card.text = "Turned label".into();
     let mut editor = editor(&[note.clone(), card]);
-    editor.next_frame();
 
     for written in ["Turned note", "Turned label"] {
         let (angle, bounds, clip) = turned(&editor, written);
@@ -83,7 +82,6 @@ fn turned_text_is_drawn_turned_as_it_is_exported() {
     );
 
     editor.double_click(format!("infinite-canvas.text.{}", note.id));
-    editor.next_frame();
     let (angle, ..) = turned(&editor, "Turned note");
     assert_eq!(angle, 0.0, "text being edited is drawn upright");
 }

@@ -461,21 +461,27 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    pub(super) fn desk_tap(&mut self, key: Key) -> Option<bool> {
-        let desk = self.desk.as_mut()?;
+    /// Queues a tap of `key` for another display's screen that intercepts it, saying whether
+    /// one did.
+    pub(super) fn desk_tap(&mut self, key: Key) -> bool {
+        let Some(desk) = self.desk.as_mut() else {
+            return false;
+        };
         let tap = KeyChord::tap(key);
-        let screen = desk
+        let Some(&(screen, _)) = desk
             .intercepts
             .iter()
-            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))?
-            .0;
+            .find(|(screen, keys)| *screen != SCREEN && keys.contains(&tap))
+        else {
+            return false;
+        };
         self.desk_batches.push(InputBatch {
             screen,
             every_sample: false,
             events: vec![TimedInput::from(Input::InterceptedTap(key))],
             dismissed: Vec::new(),
         });
-        Some(true)
+        true
     }
 
     pub fn desk_windows(&self) -> Vec<Rect> {

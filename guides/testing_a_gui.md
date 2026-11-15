@@ -81,8 +81,10 @@ program, one frame (`run`) and its clock. A fixture of a test's own that derefs 
 says `impl Wraps for Fixture {}` to be one too.
 
 - A gesture paints the frames that take it before it returns, so what it caused is in
-  `shown()`, `label()` and the model at once. `run()` paints one more frame. Input that is no
-  drive gesture (`pen`, `predict`, `host_key`, `hold_modifiers`) only queues until `run()`.
+  `shown()`, `label()` and the model at once. `run()` paints one more frame. `BeuiTest`'s input
+  that is no drive gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`,
+  `hold_modifiers`) paints its own frame too; to give several in one frame, as a device that
+  coalesces its pen samples does, give them inside `in_one_frame(|test| ...)`.
 - Typing goes to what has focus, so click a text field first.
 - `click()` first scrolls a target that a scroll hides or cuts into view, as a person would,
   so a test need not know how much fits on screen. It panics when no node has that id: usually
@@ -180,7 +182,9 @@ with drive's gestures and a frame clock, and the same `Gui` as `BeuiTest`. Its g
 through the drive layer, which reveals their targets; a target may also be a line of the
 tree (`Target::text("Tab \"Layers\"")`), as in drive. With the clock stopped, `settle()` is
 `drive settle`: it waits for input to be handled, not for animations, which move only with
-`advance` or `pause`.
+`advance` or `pause`. `pause(by)` is `drive pause`: it lets `by` pass over painted frames
+(a long one in bigger steps, ending a frame interval apart), as a person waiting would see it;
+`advance(by)` jumps the clock without painting, and the next frame lands `by` later.
 
 ### Browser pages
 

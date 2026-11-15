@@ -72,18 +72,6 @@ thread_local! {
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
-/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
-/// its host: there is no server or block store, and every call goes over a be-wasm-ops
-/// connection encoded as on the wire, so a call the app refuses fails the test.
-///
-/// It is a `Gui` (beui's `testing::Gui`): gestures (`click`, `drag`, `type_text`, `tap`, ...)
-/// are drive's and paint the frames that take them before they return. A click reveals an
-/// out-of-view target first and panics when no node has the test id. Input that is no drive
-/// gesture (`pen`, `predict`, `host_key`, `hold_modifiers`, `step`'s events) only queues, and
-/// the next `run()` paints it. Whatever the app sends
-/// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
-/// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
-/// directly skips the protocol and is overwritten by the session on the next frame.
 /// A revision preview an editor asked for (`BeuiTest::take_revision_previews`).
 pub struct AskedPreview {
     pub block: [u8; 16],
@@ -91,6 +79,19 @@ pub struct AskedPreview {
     pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>>,
 }
 
+/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
+/// its host: there is no server or block store, and every call goes over a be-wasm-ops
+/// connection encoded as on the wire, so a call the app refuses fails the test.
+///
+/// It is a `Gui` (beui's `testing::Gui`): gestures (`click`, `drag`, `type_text`, `tap`, ...)
+/// are drive's and paint the frames that take them before they return. A click reveals an
+/// out-of-view target first and panics when no node has the test id. Input that is no drive
+/// gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`, `hold_modifiers`) paints its
+/// own frame too, unless given inside `in_one_frame`; `step` paints a frame with exactly the
+/// events it is given. Whatever the app sends the host is kept for the `take_*` methods;
+/// `clear_calls` drops it. Calls such as `set_view` queue what be-host would send; setting the
+/// same state on the `EditorHost` directly skips the protocol and is overwritten by the
+/// session on the next frame.
 pub struct BeuiTest<A: BeuiRoot> {
     app: HeadlessApp,
     kind: Kind,
@@ -103,6 +104,8 @@ pub struct BeuiTest<A: BeuiRoot> {
     gestures: Gestures,
     steps: Vec<String>,
     frames: Vec<Vec<Input>>,
+    /// Whether input is being gathered for `in_one_frame`, so it waits to be painted.
+    one_frame: bool,
     inbox: Vec<Inbound>,
     answered: Vec<Vec<u8>>,
     acknowledged: std::collections::HashSet<OpId>,
@@ -395,6 +398,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             steps: Vec::new(),
             gestures: Gestures::default(),
             frames: Vec::new(),
+            one_frame: false,
             inbox: Vec::new(),
             answered: Vec::new(),
             acknowledged: std::collections::HashSet::new(),
@@ -831,6 +835,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self
     }
 
+    /// Gives the editor's window this size in points, as the host does when its frame or
+    /// window changes size.
     pub fn set_size(&mut self, size: Vec2) {
         self.size = size;
         self.place();
@@ -931,7 +937,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
-    pub fn resize(&mut self, size: Vec2) {
+    /// Tells the editor its embed was resized to `size`, as the host does when a person
+    /// resizes the embed in the block that holds it (`Editor::resized`). The window keeps
+    /// its size, which `set_size` changes.
+    pub fn resize_embed(&mut self, size: Vec2) {
         let size = be_sdk_api::Vec2 {
             x: size.x,
             y: size.y,
@@ -1979,10 +1988,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.window.pointer_locked
     }
 
-    pub fn pointer_motion(&mut self, delta: Vec2) {
-        self.push(Input::PointerMotion(delta));
-    }
-
     pub fn intrinsic_size(&self) -> Option<Vec2> {
         self.intrinsic
     }
@@ -1995,28 +2000,28 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn push(&mut self, event: Input) {
-        match self.frames.last_mut() {
-            Some(frame) => frame.push(event),
-            None => self.frames.push(vec![event]),
+    /// Paints `frames` before returning, as a gesture does, or keeps them for the frame
+    /// `in_one_frame` paints.
+    fn perform(&mut self, frames: Frames) {
+        self.frames.extend(frames);
+        if !self.one_frame {
+            self.run();
         }
     }
 
-    fn queue(&mut self, frames: Frames) {
-        for (index, frame) in frames.into_iter().enumerate() {
-            if index > 0 {
-                self.next_frame();
-            }
-            for event in frame {
-                self.push(event);
-            }
-        }
-    }
-
-    pub fn next_frame(&mut self) {
-        if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
-            self.frames.push(Vec::new());
-        }
+    /// Paints everything `input` gives with `pen`, `eraser`, `predict`, `hold_modifiers` and
+    /// the host's keys in one frame, as a device that coalesces its samples delivers them. The
+    /// other gestures paint their own frames, so they are not given inside it.
+    pub fn in_one_frame(&mut self, input: impl FnOnce(&mut Self)) {
+        assert!(!self.one_frame, "in_one_frame does not nest");
+        self.one_frame = true;
+        input(self);
+        self.one_frame = false;
+        let events: Vec<Input> = std::mem::take(&mut self.frames)
+            .into_iter()
+            .flatten()
+            .collect();
+        self.perform(vec![events]);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -2046,34 +2051,38 @@ impl<A: BeuiRoot> BeuiTest<A> {
         {
             return false;
         }
-        self.hold_modifiers(modifiers);
+        let mut frames = self.gestures.hold(modifiers);
         let presses = std::iter::once((true, false))
             .chain(std::iter::repeat_n((true, true), repeats))
-            .chain(std::iter::once((false, false)));
-        for (pressed, repeat) in presses {
-            self.push(Input::InterceptedKey {
+            .chain(std::iter::once((false, false)))
+            .map(|(pressed, repeat)| Input::InterceptedKey {
                 key,
                 pressed,
                 repeat,
             });
+        match frames.last_mut() {
+            Some(last) => last.extend(presses),
+            None => frames.push(presses.collect()),
         }
+        self.perform(frames);
         true
     }
 
     pub fn host_tap(&mut self, key: Key) -> bool {
-        if let Some(tapped) = self.desk_tap(key) {
-            return tapped;
+        if self.desk_tap(key) {
+            self.perform(Vec::new());
+            return true;
         }
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }
-        self.push(Input::InterceptedTap(key));
+        self.perform(vec![vec![Input::InterceptedTap(key)]]);
         true
     }
 
     pub fn hold_modifiers(&mut self, modifiers: Modifiers) {
         let frames = self.gestures.hold(modifiers);
-        self.queue(frames);
+        self.perform(frames);
     }
 
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
@@ -2090,7 +2099,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 ..Pen::default()
             },
         );
-        self.queue(frames);
+        self.perform(frames);
     }
 
     pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
@@ -2100,7 +2109,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             eraser: true,
         };
         let frames = self.gestures.pen_sample(phase, pos, eraser);
-        self.queue(frames);
+        self.perform(frames);
     }
 
     /// Zooms the editor's view as the host does for a pinch on it, without the pinch
@@ -2118,8 +2127,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
+    /// Gives where the device predicts the pointer goes next, painting the frame that takes
+    /// it; `in_one_frame` gives it with the samples it follows.
     pub fn predict(&mut self, pos: Pos2) {
-        self.push(Input::Predicted(pos));
+        self.perform(vec![vec![Input::Predicted(pos)]]);
     }
 
     /// Spends a frame on each point and releases in a frame of its own, for a gesture whose
@@ -2196,6 +2207,10 @@ impl<A: BeuiRoot> Gui for BeuiTest<A> {
     /// Plans the gesture's frames as drive does, queues them (on the desk, through its
     /// windows) and paints them with `run`.
     fn gesture(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
+        assert!(
+            !self.one_frame,
+            "{command} paints its own frames, so in_one_frame does not take it"
+        );
         let mut step = format!("drive {command}");
         for word in arguments {
             let plain = !word.is_empty()
@@ -2224,7 +2239,7 @@ impl<A: BeuiRoot> Gui for BeuiTest<A> {
             .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
         match self.desk.is_some() && matches!(command, "click" | "move" | "down" | "up" | "drag") {
             true => self.desk_perform(frames),
-            false => self.queue(frames),
+            false => self.frames.extend(frames),
         }
         self.run();
     }

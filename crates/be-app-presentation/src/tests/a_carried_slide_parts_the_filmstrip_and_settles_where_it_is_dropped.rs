@@ -16,9 +16,7 @@ fn a_carried_slide_parts_the_filmstrip_and_settles_where_it_is_dropped() {
         .center()
         + Vec2::new(0.0, 10.0);
     test.down(grab, PointerButton::Primary);
-    test.next_frame();
     test.hover(grab + Vec2::new(0.0, 6.0));
-    test.next_frame();
     test.hover(past);
     test.record();
     for _ in 0..3 {

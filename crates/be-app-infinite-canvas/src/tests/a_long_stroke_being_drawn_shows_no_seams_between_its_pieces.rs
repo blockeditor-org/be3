@@ -16,13 +16,11 @@ fn a_long_stroke_being_drawn_shows_no_seams_between_its_pieces() {
     let steps = 600;
     for step in 1..=steps {
         let along = step as f32 / steps as f32;
-        editor.next_frame();
         editor.pen(
             PenPhase::Move,
             at(along),
             0.3 + 0.6 * (along * 13.0).sin().abs(),
         );
-        editor.run();
     }
     editor.snapshot("a_long_stroke_being_drawn_shows_no_seams_between_its_pieces");
 }

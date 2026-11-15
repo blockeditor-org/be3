@@ -30,11 +30,8 @@ fn a_field_dragged_below_another_moves_after_it() {
     let first = harness.rect_of(&name(ids[0]));
     let below = grip + Vec2::new(0.0, last.center().y - first.center().y + 12.0);
     harness.down(grip, PointerButton::Primary);
-    harness.next_frame();
     harness.hover(grip + Vec2::new(0.0, 8.0));
-    harness.next_frame();
     harness.hover(below);
-    harness.next_frame();
     harness.up(below, PointerButton::Primary);
     assert_eq!(order(&harness), vec![ids[1], ids[2], ids[0]]);
 

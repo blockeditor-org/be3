@@ -45,7 +45,6 @@ fn a_painted_scaled_raster_layer_duplicates_with_its_pixels_and_scale() {
         from + Vec2::new(160.0, 0.0),
     ]);
     editor.hold_modifiers(Modifiers::NONE);
-    editor.run();
     let [held, dragged] = &rasters(&editor)[..] else {
         panic!("an Alt-drag adds one layer");
     };

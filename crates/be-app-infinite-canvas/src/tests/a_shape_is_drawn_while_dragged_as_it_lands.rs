@@ -27,9 +27,7 @@ fn a_shape_is_drawn_while_dragged_as_it_lands() {
         let from = canvas.center() + Vec2::new(offset, -60.0);
         let to = from + Vec2::new(120.0, 80.0);
         editor.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
-        editor.next_frame();
         editor.pen(PenPhase::Move, to, 0.5);
-        editor.run();
         let dragged: Vec<(Uuid, Rect)> = shown_entities(&editor)
             .into_iter()
             .filter(|(id, _)| !landed.contains(id))
@@ -43,7 +41,6 @@ fn a_shape_is_drawn_while_dragged_as_it_lands() {
         ));
 
         editor.pen(PenPhase::Up(PointerButton::Primary), to, 0.0);
-        editor.run();
         let drawn = entities(&editor);
         let entity = drawn.last().expect("the shape lands");
         assert_eq!((entity.id, entity.shape), (id, shape));

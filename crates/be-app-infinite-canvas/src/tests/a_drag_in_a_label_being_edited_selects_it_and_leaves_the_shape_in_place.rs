@@ -19,9 +19,10 @@ fn a_drag_in_a_label_being_edited_selects_it_and_leaves_the_shape_in_place() {
     editor.advance(Duration::from_secs(1));
     editor.run();
     editor.drag(left, right);
-    editor.pen(PenPhase::Down(PointerButton::Primary), right, 0.5);
-    editor.pen(PenPhase::Move, left, 0.5);
-    editor.run();
+    editor.in_one_frame(|editor| {
+        editor.pen(PenPhase::Down(PointerButton::Primary), right, 0.5);
+        editor.pen(PenPhase::Move, left, 0.5);
+    });
     editor.pen(PenPhase::Up(PointerButton::Primary), left, 0.5);
     editor.fingers(TouchPhase::Start, &[(1, left)]);
     editor.fingers(TouchPhase::Move, &[(1, right)]);
