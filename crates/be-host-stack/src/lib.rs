@@ -246,7 +246,7 @@ struct Stack {
     /// How many commands the page sent: those the worker has not finished are pending.
     sent: Arc<AtomicUsize>,
     /// Frames the host could not deliver yet (`keep_editor_frames`), by editor.
-    kept_frames: std::collections::HashMap<u64, Vec<(Uuid, Vec<u8>)>>,
+    kept_frames: std::collections::HashMap<u64, Vec<(Uuid, Arc<Vec<u8>>)>>,
     /// Whether an editor watches the account's storage (`watch_storage`).
     storage_watched: bool,
     /// The full-text searches each owner shows (`want_searches`).
@@ -269,10 +269,14 @@ impl Stack {
             .retain(|(number, _)| *number > seen.edits_applied);
         self.view = seen;
         if !self.edits.is_empty() {
+            // The page heard of these edits as it made them: laying them over a newer `Seen`
+            // tells it nothing again.
             let view = Arc::make_mut(&mut self.view);
-            for edit in self.edits.iter().flat_map(|(_, edits)| edits) {
-                edit.apply(view);
-            }
+            changes::quietly(|| {
+                for edit in self.edits.iter().flat_map(|(_, edits)| edits) {
+                    edit.apply(view);
+                }
+            });
         }
     }
 
@@ -659,7 +663,7 @@ pub use replicas::unframe;
 /// What the worker has for `editor` since the last take, after what the host kept back
 /// (`keep_editor_frames`). The worker forgets them once it hears they were taken
 /// (`Edit::TookFrames`).
-pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
+pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Arc<Vec<u8>>)> {
     let (mut frames, upto) = {
         let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
         let Some(stack) = held.as_mut() else {
@@ -674,7 +678,7 @@ pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
                     queued
                         .into_iter()
                         .flatten()
-                        .map(|frame| (frame.block, frame.bytes.to_vec())),
+                        .map(|frame| (frame.block, Arc::clone(&frame.bytes))),
                 )
                 .collect::<Vec<_>>(),
             queued.and_then(|queued| queued.last()).map(|frame| frame.number),
@@ -688,7 +692,7 @@ pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
 }
 
 /// Keeps frames the host took and could not deliver yet, for the next take.
-pub fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Vec<u8>)>) {
+pub fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Arc<Vec<u8>>)>) {
     if kept.is_empty() {
         return;
     }
@@ -1029,20 +1033,26 @@ fn edit(edits: Vec<Edit>) {
     }) {
         return;
     }
-    let Some((number, touched)) = with_stack(|stack| {
+    // Numbered and sent under the one lock, so edits reach the worker in the order numbered.
+    let Some(touched) = with_stack(|stack| {
         stack.catch_up();
         stack.edited += 1;
         let view = Arc::make_mut(&mut stack.view);
         let touched: Vec<Uuid> = edits.iter().flat_map(|edit| edit.apply(view)).collect();
         stack.edits.push((stack.edited, edits.clone()));
-        (stack.edited, touched)
+        if let Some(commands) = &stack.commands {
+            stack.sent.fetch_add(1, Ordering::AcqRel);
+            if commands.send(Command::Edit(stack.edited, edits)).is_err() {
+                stack.sent.fetch_sub(1, Ordering::AcqRel);
+            }
+        }
+        touched
     }) else {
         return;
     };
     for block in touched {
         changes::block(block);
     }
-    send(Command::Edit(number, edits));
 }
 
 /// Why the block store keeps a driver waiting (`Shared::busy`). `hurried` says whether the host

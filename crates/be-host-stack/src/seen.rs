@@ -96,17 +96,17 @@ pub struct Frame {
 /// What the page's synchronous API reads: the part of the worker's `Shared` it hands over.
 #[derive(Clone, Default)]
 pub struct Seen {
-    pub revision_previews: Part<HashMap<Uuid, Preview>>,
-    pub preview_aliases: Part<HashMap<(Uuid, Uuid), Uuid>>,
+    pub revision_previews: Part<imbl::HashMap<Uuid, Preview>>,
+    pub preview_aliases: Part<imbl::HashMap<(Uuid, Uuid), Uuid>>,
     pub released_previews: Vec<Uuid>,
     pub graph: Part<Graph>,
-    pub blocks: Part<HashMap<Uuid, Content>>,
-    pub described: Part<HashMap<Uuid, Description>>,
+    pub blocks: Part<imbl::HashMap<Uuid, Content>>,
+    pub described: Part<imbl::HashMap<Uuid, Description>>,
     /// What the worker has for each editor that the page has not taken yet.
-    pub editor_frames: Part<HashMap<EditorId, Vec<Frame>>>,
+    pub editor_frames: Part<imbl::HashMap<EditorId, Vec<Frame>>>,
     /// The number the next frame queued gets.
     pub frames_queued: u64,
-    pub histories: Part<HashMap<Uuid, History>>,
+    pub histories: Part<imbl::HashMap<Uuid, History>>,
     pub wakes: u64,
     pub unsealed: usize,
     pub saves: u64,
@@ -140,7 +140,7 @@ pub struct Seen {
     /// a session's journal. Unlike `error`, it is about being in step with the server, so it
     /// clears once the device is connected and nothing waits to be sent (`report`).
     pub sync_error: Option<String>,
-    pub conflicts: Part<HashMap<Uuid, Vec<Conflict>>>,
+    pub conflicts: Part<imbl::HashMap<Uuid, Vec<Conflict>>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Part<Vec<be_block_client::Contact>>,
     /// The account's storage, while an editor watches it (`watch_storage`).
@@ -151,7 +151,7 @@ pub struct Seen {
     pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
     /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
     pub locked: Part<HashSet<Uuid>>,
-    pub versions: Part<HashMap<Uuid, VersionState>>,
+    pub versions: Part<imbl::HashMap<Uuid, VersionState>>,
     /// How many commands the worker has finished: those the page sent and it has not finished
     /// are pending (`Shared::pending`).
     pub done: usize,
@@ -170,8 +170,8 @@ pub struct Seen {
     /// busy reason that names what queued commands wait behind.
     pub step: Option<&'static str>,
     pub previewed: Part<HashSet<Uuid>>,
-    pub staged: Part<HashMap<Uuid, (Uuid, Arc<Vec<u8>>)>>,
-    pub unreadable: Part<HashMap<Uuid, String>>,
+    pub staged: Part<imbl::HashMap<Uuid, (Uuid, Arc<Vec<u8>>)>>,
+    pub unreadable: Part<imbl::HashMap<Uuid, String>>,
     pub waiting: usize,
     /// What the outbox held when `waiting` was counted, for `unsynced` to name.
     pub outbox: Vec<(&'static str, Uuid)>,
@@ -588,6 +588,13 @@ fn stop_comparing(seen: &mut Seen) {
 /// has not taken when the worker puts a newer one is dropped.
 #[derive(Default)]
 pub(crate) struct Handover(AtomicPtr<Seen>);
+
+// The slot hands a `Seen` from the worker's thread to the page's, which `AtomicPtr` would let
+// through whatever `Seen` holds: it must be safe to send and share.
+const _: () = {
+    const fn send_and_sync<T: Send + Sync>() {}
+    send_and_sync::<Seen>();
+};
 
 impl Handover {
     pub(crate) fn put(&self, seen: Arc<Seen>) {

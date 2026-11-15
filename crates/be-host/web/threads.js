@@ -157,14 +157,15 @@ export function bindLetters(name) {
     letters = name ? { name, channel: new BroadcastChannel(name), page: false } : null;
 }
 
+// A letter no page can take would leak the Box that holds it (`be_letter_arrived` frees it), so
+// posting one is an error at the poster, not a letter silently dropped.
 function letterPost(letter) {
     if (letters === null || letters.page) {
-        console.error(
+        throw new Error(
             letters === null
                 ? "a letter was posted with no page to take it"
                 : "the page posted a letter to another thread's mailbox, which only the page makes",
         );
-        return;
     }
     letters.channel.postMessage(letter >>> 0);
 }

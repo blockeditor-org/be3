@@ -1,4 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use be_block_commit::CommitId;
 use be_block_content::{BlockMetadata, Entries};
@@ -8,7 +11,8 @@ use be_block_repository::{local_id, masked, scope_mask};
 use be_sdk_api::BlockIdRole;
 use uuid::Uuid;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
+#[cfg_attr(not(test), derive(Clone))]
 pub struct Node {
     pub id: Uuid,
     pub content_type: Uuid,
@@ -24,6 +28,33 @@ pub struct Node {
     /// Bytes the server keeps for this block alone, and with every block below it.
     pub size: u64,
     pub tree_size: u64,
+}
+
+/// How many nodes were copied, for a test to tell that a change copies what it changes, not
+/// the graph a `Seen` handed over shares.
+#[cfg(test)]
+pub(crate) static NODES_COPIED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(test)]
+impl Clone for Node {
+    fn clone(&self) -> Self {
+        NODES_COPIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self {
+            id: self.id,
+            content_type: self.content_type,
+            author: self.author,
+            parent: self.parent,
+            access: self.access,
+            references: self.references.clone(),
+            metadata: self.metadata.clone(),
+            head: self.head,
+            locked: self.locked,
+            held: self.held,
+            sets_access: self.sets_access,
+            size: self.size,
+            tree_size: self.tree_size,
+        }
+    }
 }
 
 impl Node {
@@ -93,7 +124,7 @@ enum Fetch {
 
 #[derive(Clone, Debug, Default)]
 struct Listed {
-    members: HashSet<Uuid>,
+    members: imbl::HashSet<Uuid>,
     fetch: Fetch,
     /// Asked for again while a fetch was under way, whose answer may be from before the change
     /// that asked: fetched once more when it lands (`relist`).
@@ -105,23 +136,25 @@ pub struct Graph {
     /// Counts the changes to the mirror, for the stack's own work to tell whether it moved;
     /// the host hears of each one as a change notice (`Changes::graph`).
     pub revision: u64,
-    nodes: HashMap<Uuid, Node>,
+    /// Persistent maps of shared nodes, so a change copies the path to what it changes rather
+    /// than the whole graph a `Seen` handed over shares.
+    nodes: imbl::HashMap<Uuid, Arc<Node>>,
     wants: HashMap<Owner, Vec<Query>>,
-    listings: HashMap<Listing, Listed>,
+    listings: imbl::HashMap<Listing, Listed>,
     unlisted: Vec<Listing>,
-    heard: HashMap<Uuid, u64>,
+    heard: imbl::HashMap<Uuid, u64>,
     floor: u64,
-    pending: HashMap<Uuid, u32>,
+    pending: imbl::HashMap<Uuid, u32>,
     /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
     unpublished: HashSet<Uuid>,
-    derived: HashMap<Uuid, Entries>,
-    referenced: HashMap<Uuid, Vec<Uuid>>,
+    derived: imbl::HashMap<Uuid, Entries>,
+    referenced: imbl::HashMap<Uuid, Vec<Uuid>>,
     /// The head an open block's replica last reported, which what the server lists of it does not
     /// outrun: a listing or an event made before the commit reached the server says the head
     /// it had, and the replica says nothing more until the head changes again.
-    reported: HashMap<Uuid, CommitId>,
+    reported: imbl::HashMap<Uuid, CommitId>,
     placing: std::collections::HashSet<Uuid>,
     /// The last children whose parent's references took them in (`placed`), with that parent,
     /// so a child that drops out of them again while it still names the parent is noticed
@@ -293,10 +326,14 @@ impl Graph {
 
     pub fn take_wanted(&mut self) -> Vec<Listing> {
         let mut found = Vec::new();
-        for (listing, listed) in &mut self.listings {
+        for (listing, listed) in &self.listings {
             if listed.fetch == Fetch::Wanted {
-                listed.fetch = Fetch::Fetching;
                 found.push(*listing);
+            }
+        }
+        for listing in &found {
+            if let Some(listed) = self.listings.get_mut(listing) {
+                listed.fetch = Fetch::Fetching;
             }
         }
         found
@@ -449,7 +486,7 @@ impl Graph {
     pub fn relist_all(&mut self) {
         self.heard.clear();
         self.floor = 0;
-        for listed in self.listings.values_mut() {
+        for (_, listed) in self.listings.iter_mut() {
             listed.fetch = Fetch::Wanted;
         }
     }
@@ -564,10 +601,18 @@ impl Graph {
         self.insert(node);
     }
 
+    /// A node to change, copied first if a `Seen` handed over shares it: the persistent map
+    /// copies the path to it, and the node itself only when shared.
+    fn node_mut(&mut self, block: Uuid) -> Option<&mut Node> {
+        self.nodes.get_mut(&block).map(Arc::make_mut)
+    }
+
     pub fn update(&mut self, block: Uuid, change: impl FnOnce(&mut Node)) {
-        if let Some(node) = self.nodes.get_mut(&block) {
+        if self.nodes.contains_key(&block) {
             *self.pending.entry(block).or_default() += 1;
-            change(node);
+            if let Some(node) = self.node_mut(block) {
+                change(node);
+            }
             self.moved();
         }
     }
@@ -587,9 +632,24 @@ impl Graph {
         false
     }
 
+    /// Whether `derive` would change nothing.
+    pub fn derives(&self, block: Uuid, derived: &Entries) -> bool {
+        self.derived.get(&block) == Some(derived)
+            && self
+                .nodes
+                .get(&block)
+                .is_none_or(|node| node.metadata.derived == *derived)
+    }
+
     pub fn derive(&mut self, block: Uuid, derived: Entries) {
-        if let Some(node) = self.nodes.get_mut(&block)
-            && node.metadata.derived != derived
+        if self.derives(block, &derived) {
+            return;
+        }
+        if self
+            .nodes
+            .get(&block)
+            .is_some_and(|node| node.metadata.derived != derived)
+            && let Some(node) = self.node_mut(block)
         {
             node.metadata.derived.clone_from(&derived);
             self.moved();
@@ -601,20 +661,43 @@ impl Graph {
         self.derived.remove(&block);
     }
 
+    /// Whether `refer` would change nothing: the replica reports the references it reported
+    /// last, the node and its references' listing hold them, and no child waits to be placed.
+    pub fn refers(&self, block: Uuid, references: &[Uuid]) -> bool {
+        self.referenced.get(&block).map(Vec::as_slice) == Some(references)
+            && self.nodes.get(&block).is_none_or(|node| {
+                node.references == with_described(references.to_vec(), &node.metadata)
+            })
+            && self
+                .listings
+                .get(&Listing::References(block))
+                .is_none_or(|listed| {
+                    references.iter().all(|reference| {
+                        !self.nodes.contains_key(reference) || listed.members.contains(reference)
+                    })
+                })
+            && !references.iter().any(|reference| self.placing.contains(reference))
+    }
+
     pub fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
-        if let Some(node) = self.nodes.get_mut(&block) {
-            let all = with_described(references.clone(), &node.metadata);
-            if node.references != all {
-                node.references = all;
-                self.moved();
-                self.relist(Listing::References(block));
-                self.check_dropped(block, "its open replica's report");
-            }
+        let all = self
+            .nodes
+            .get(&block)
+            .map(|node| with_described(references.clone(), &node.metadata))
+            .filter(|all| self.nodes.get(&block).is_some_and(|node| node.references != *all));
+        if let Some(all) = all
+            && let Some(node) = self.node_mut(block)
+        {
+            node.references = all;
+            self.moved();
+            self.relist(Listing::References(block));
+            self.check_dropped(block, "its open replica's report");
         }
         if let Some(listed) = self.listings.get_mut(&Listing::References(block)) {
             listed.members.extend(
                 references
                     .iter()
+                    .copied()
                     .filter(|reference| self.nodes.contains_key(reference)),
             );
         }
@@ -708,12 +791,23 @@ impl Graph {
         }
         let references = node.references.clone();
         self.placed(node.id, &references);
-        for (listing, listed) in &mut self.listings {
-            match member(*listing, &node, &self.nodes) {
-                Some(true) => listed.members.insert(node.id),
-                Some(false) => listed.members.remove(&node.id),
-                None => continue,
-            };
+        // Only the listings whose membership changes are written: a persistent map copies what
+        // it writes while a `Seen` handed over shares it.
+        let moved: Vec<(Listing, bool)> = self
+            .listings
+            .iter()
+            .filter_map(|(listing, listed)| {
+                let member = member(*listing, &node, &self.nodes)?;
+                (member != listed.members.contains(&node.id)).then_some((*listing, member))
+            })
+            .collect();
+        for (listing, member) in moved {
+            if let Some(listed) = self.listings.get_mut(&listing) {
+                match member {
+                    true => listed.members.insert(node.id),
+                    false => listed.members.remove(&node.id),
+                };
+            }
         }
         if !self.covers(node.id) {
             if self.nodes.remove(&node.id).is_some() {
@@ -726,8 +820,8 @@ impl Graph {
             false => "a listing",
         };
         let id = node.id;
-        if self.nodes.get(&node.id) != Some(&node) {
-            self.nodes.insert(node.id, node);
+        if self.nodes.get(&node.id).map(|known| &**known) != Some(&node) {
+            self.nodes.insert(node.id, Arc::new(node));
             self.moved();
         }
         if changed_references {
@@ -738,6 +832,19 @@ impl Graph {
     /// The head of an open block's replica, kept over whatever is listed of it until
     /// `forget_reported_head`, and set on its node now or when the node arrives. `None` is no
     /// news: it keeps the head reported before.
+    /// Whether `report_head` would change nothing: the replica reports what it reported last,
+    /// and the node already has it.
+    pub fn reports(&self, block: Uuid, head: Option<CommitId>) -> bool {
+        let Some(head) = head else {
+            return true;
+        };
+        self.reported.get(&block) == Some(&head)
+            && self
+                .nodes
+                .get(&block)
+                .is_none_or(|node| node.head == Some(head))
+    }
+
     pub fn report_head(&mut self, block: Uuid, head: Option<CommitId>) {
         if let Some(head) = head {
             self.reported.insert(block, head);
@@ -764,13 +871,13 @@ impl Graph {
     /// replica's is now: the overlay follows it, or the next listing would put the old one back.
     pub fn set_head(&mut self, block: Uuid, head: Option<CommitId>) {
         if let Some(head) = head
-            && let Some(reported) = self.reported.get_mut(&block)
+            && self.reported.get(&block).is_some_and(|reported| *reported != head)
         {
-            *reported = head;
+            self.reported.insert(block, head);
         }
-        if let Some(node) = self.nodes.get_mut(&block)
-            && node.head != head
-            && head.is_some()
+        if head.is_some()
+            && self.nodes.get(&block).is_some_and(|node| node.head != head)
+            && let Some(node) = self.node_mut(block)
         {
             node.head = head;
             self.moved();
@@ -779,8 +886,16 @@ impl Graph {
 
     pub fn forget(&mut self, block: Uuid) {
         self.unpublished.remove(&block);
-        for listed in self.listings.values_mut() {
-            listed.members.remove(&block);
+        let holding: Vec<Listing> = self
+            .listings
+            .iter()
+            .filter(|(_, listed)| listed.members.contains(&block))
+            .map(|(listing, _)| *listing)
+            .collect();
+        for listing in holding {
+            if let Some(listed) = self.listings.get_mut(&listing) {
+                listed.members.remove(&block);
+            }
         }
         if self.nodes.remove(&block).is_some() {
             self.moved();
@@ -788,21 +903,21 @@ impl Graph {
     }
 
     pub fn get(&self, block: Uuid) -> Option<&Node> {
-        self.nodes.get(&block)
+        self.nodes.get(&block).map(|node| &**node)
     }
 
     /// Forgets a block's name, as a mirror that has not read a rename yet holds it (a test's
     /// way to hold the mirror back).
     #[cfg(test)]
     pub(crate) fn forget_name(&mut self, block: Uuid) {
-        if let Some(node) = self.nodes.get_mut(&block) {
+        if let Some(node) = self.node_mut(block) {
             node.metadata.remove(&be_block_content::NAME);
         }
     }
 
     /// Every block the host has loaded, in no order.
     pub fn nodes(&self) -> impl Iterator<Item = &Node> {
-        self.nodes.values()
+        self.nodes.values().map(|node| &**node)
     }
 
     pub fn query(&self, query: Query) -> Vec<Node> {
@@ -813,7 +928,7 @@ impl Graph {
                 self.nodes
                     .values()
                     .filter(|node| node.parent.is_some() && !self.holds_in(node, &mut sets))
-                    .cloned()
+                    .map(|node| Node::clone(node))
                     .collect()
             }
             Query::Shared => self
@@ -823,14 +938,14 @@ impl Graph {
                 .flat_map(|listed| listed.members.iter())
                 .filter_map(|block| self.nodes.get(block))
                 .filter(|node| node.access.can_view())
-                .cloned()
+                .map(|node| Node::clone(node))
                 .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
             Query::References(block) => {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
                     node.contents()
                         .iter()
-                        .filter_map(|reference| self.nodes.get(reference).cloned())
+                        .filter_map(|reference| self.nodes.get(reference).map(|node| Node::clone(node)))
                         .collect()
                 });
             }
@@ -838,10 +953,10 @@ impl Graph {
                 .nodes
                 .values()
                 .filter(|node| node.references.contains(&block))
-                .cloned()
+                .map(|node| Node::clone(node))
                 .collect(),
             Query::Parents(block) => return self.ancestors(block),
-            Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
+            Query::Block(block) => return self.nodes.get(&block).map(|node| Node::clone(node)).into_iter().collect(),
             Query::OpenSettings(block) => self
                 .listings
                 .get(&Listing::OpenSettings(block))
@@ -849,12 +964,12 @@ impl Graph {
                 .flat_map(|listed| listed.members.iter())
                 .filter_map(|block| self.nodes.get(block))
                 .filter(|node| node.access.can_view())
-                .cloned()
+                .map(|node| Node::clone(node))
                 .collect(),
             Query::Subtree(root) => self
                 .subtree(root)
                 .into_iter()
-                .filter_map(|block| self.nodes.get(&block).cloned())
+                .filter_map(|block| self.nodes.get(&block).map(|node| Node::clone(node)))
                 .collect(),
         };
         found.sort_by_key(|node| node.id);
@@ -1005,7 +1120,7 @@ impl Graph {
         self.nodes
             .values()
             .filter(|node| node.parent == Some(parent))
-            .cloned()
+            .map(|node| Node::clone(node))
             .collect()
     }
 
@@ -1022,7 +1137,7 @@ impl Graph {
             if chain.iter().any(|seen: &Node| seen.id == parent) {
                 break;
             }
-            chain.push(node.clone());
+            chain.push(Node::clone(node));
             current = node.parent.and_then(BlockParent::block);
         }
         chain.reverse();
@@ -1030,7 +1145,7 @@ impl Graph {
     }
 }
 
-fn member(listing: Listing, node: &Node, nodes: &HashMap<Uuid, Node>) -> Option<bool> {
+fn member(listing: Listing, node: &Node, nodes: &imbl::HashMap<Uuid, Arc<Node>>) -> Option<bool> {
     match listing {
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),

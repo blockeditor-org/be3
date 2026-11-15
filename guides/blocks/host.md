@@ -79,7 +79,14 @@ statuses, status counts, contacts, pairing, conflicts, search answers, editors' 
 worker hands `Seen` over as a whole value, an `Arc<Seen>` swapped into a one-value atomic
 slot (`Handover`), which the host swaps out as it reads. Neither side waits on the other, as
 the web's page must not (plans/web_page_never_waits.md). The large parts are `Part`s, an
-`Arc` the worker copies on its next write, so a hand-over copies pointers.
+`Arc` the worker copies on its next write, so a hand-over copies pointers. The maps in them
+are persistent (`imbl`), and the graph's nodes are `Arc<Node>`, so that write copies the
+path to what it changes, not the part: a head a replica reports, or one another device
+published, copies one node of the graph however large it is (the graph's
+`a_head_change_copies_one_node_not_the_graph_a_seen_shares` and the stack's
+`a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one` count it). A write that
+would change nothing must not be made: reaching a `Part` mutably copies it, so hot paths ask
+first (`Graph::reports`, `refers`, `derives`, `wanted`) and write only on a change.
 
 The worker publishes at the end of each pass and before the host hears anything from the
 worker thread: `changes::post`, `changes::wake` and a reply to a host call
@@ -92,8 +99,11 @@ publish too.
 What the host changes itself is an `Edit` (`create`, `define`, `set_parent`, `want`, an
 import, revision previews, comparing conflicts, taking an editor's frames): applied at once
 to the host's own view and sent as `Command::Edit`, numbered, which the worker applies as
-it takes the command. Until a `Seen` says the worker applied it (`edits_applied`), the host
-lays it over each `Seen` it takes. Everything else the host asks for is a command;
+it takes the command, in the order numbered (`edit` numbers and sends under one lock). Until
+a `Seen` says the worker applied it (`edits_applied`), the host lays it over each `Seen` it
+takes, quietly (`changes::quietly`): the host heard of it when it made it. The host takes
+the newest `Seen` as it reads, not once a frame, so two reads in one frame may read two.
+Everything else the host asks for is a command;
 `Seen::done` against the commands sent is what is pending. The modules' held clock is
 handed to a stack as it starts (`Inbox::held_clock`), then as `Command::HoldClock`.
 
