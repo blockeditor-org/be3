@@ -1,8 +1,8 @@
 use super::*;
 
-/// The owner puts its paste as a part and sequences it once the part is put, holding back what
-/// it types meanwhile; a follower holds back what was sequenced after the paste until it has
-/// read the part.
+/// A paste too large to submit inline goes as a part, submitted once the part is put, with what
+/// is typed meanwhile after it; every other replica holds back what was numbered after the paste
+/// until it has read the part, and the holder commits the paste at once.
 #[test]
 fn an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once() {
     let mut sim = Sim::<ProseContent>::new(2, prose_module);
@@ -28,7 +28,9 @@ fn an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once()
         assert!(sim.typed(device, 1) == expected, "device {device}");
     }
     sim.advance(0);
-    assert_eq!(sim.publishes, 1, "the owner committed at once");
+    assert!(sim.publishes >= 1, "the holder committed at once");
+    assert!(prose(&sim.head_content()).contains(&pasted));
+    sim.advance(crate::QUIET_INTERVAL);
     assert!(prose(&sim.head_content()) == expected);
     sim.type_at(1, 1, 2, "!");
     sim.settle();

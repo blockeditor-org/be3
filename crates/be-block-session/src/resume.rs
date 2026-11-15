@@ -48,11 +48,3 @@ pub fn resume<S: ObjectStore>(
         }
     }
 }
-
-pub fn takeover_needs_merge(clean_at: Option<CommitId>, head: Option<CommitId>) -> bool {
-    match (clean_at, head) {
-        (Some(clean), Some(head)) => clean != head,
-        (None, None) => false,
-        _ => true,
-    }
-}

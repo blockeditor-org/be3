@@ -7,9 +7,7 @@ use tokio::sync::Mutex;
 
 use crate::watch::Place;
 
-/// How long the registry remembers a session nobody is in, for its `clean_at`. A peer taking
-/// over a session forgotten after this merges rather than fast-forwards
-/// (`be_block_session::takeover_needs_merge`), which is safe, only slower.
+/// How long the registry remembers a session nobody is in, for its `clean_at`.
 pub const EMPTY_SESSION_MEMORY_MILLISECONDS: i64 = 24 * 60 * 60 * 1000;
 /// Empty sessions the registry remembers at most; past this it forgets the longest empty first.
 pub const MAX_EMPTY_SESSIONS: usize = 65_536;
@@ -93,12 +91,19 @@ impl SessionRegistry {
         }
     }
 
-    /// `client` joins `block`'s session, taking the lease if no one holds it and it `may_edit`.
-    pub async fn join(&self, block: Place, client: ClientId, may_edit: bool) -> SessionState {
+    /// `client`, running the build `tag`, joins `block`'s session, taking the lease if no one
+    /// holds it and it `may_edit`.
+    pub async fn join(
+        &self,
+        block: Place,
+        client: ClientId,
+        may_edit: bool,
+        tag: be_block_store::Hash,
+    ) -> SessionState {
         let mut sessions = self.sessions.lock().await;
         let now = now_milliseconds();
         let lease = sessions.lease(block, self.lease);
-        lease.join(client, may_edit, now);
+        lease.join(client, may_edit, tag, now);
         let state = lease.state().clone();
         sessions.joined(block, client);
         sessions.settle(block, now);
@@ -191,6 +196,16 @@ impl SessionRegistry {
             .get(&block)
             .map(|lease| lease.state().clone())
             .unwrap_or_default()
+    }
+
+    /// Whether `client` is in `block`'s session and runs the build it speaks.
+    pub async fn speaks(&self, block: Place, client: ClientId) -> bool {
+        self.sessions
+            .lock()
+            .await
+            .leases
+            .get(&block)
+            .is_some_and(|lease| lease.speaks(client))
     }
 
     pub async fn participants(&self, block: Place) -> Vec<ClientId> {

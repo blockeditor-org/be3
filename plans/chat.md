@@ -13,23 +13,14 @@ counts are built (guides/chat.md). What is left:
   unverified), with no framework types.
 - **Unread counts outside the editor.** No sidebar or block row shows a chat's
   count yet.
-- **The owner's own messages unstamped.** The owner applies its own operation
-  before the server has seen it, so it carries no stamp. Stamping it needs
-  `append` to answer the server time it took the entries at, the same time it
-  stamps their relays with, and a session message (`Stamped`, say) so every
-  replica, and the snapshots and journal the owner hands on, hold the same
-  stamp; otherwise replicas would disagree on content. Done: an owner's message
-  shows when the server took it on every replica, checked by a guest test.
 - **"Not sent" across a restart.** A refused commit's edit no longer shows
   "Not sent" after a host or module restart: `refused-commits` names commits,
   not edits. An `unsent_over` against the refused commit's parent would name
   them.
 - **Notifications that never go** (guides/type_modules.md, "Announcements"): a
-  follower's message is told by the follower's replica once the owner accepts
-  it, so a follower that closes or restarts before then tells nobody, as its
-  unsent edit is lost too; and an owner whose append the server took but whose
-  answer a disconnect lost, after which another device took the session over,
-  never tells it.
+  message's replica hands its announcements to the host with the submission,
+  so a replica that closes or restarts before it submits tells nobody, as its
+  unsent edit is lost too.
 - **Copying parts.** Duplicate, export, `be` transfer, version control's
   re-listing of a parent and revision preview or restore refuse a chat with
   closed segments until a copy of parts exists.

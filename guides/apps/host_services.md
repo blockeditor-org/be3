@@ -114,10 +114,10 @@ Notes on particular calls:
   closes one that opens after the editor let go. In tests,
   `take_revision_previews` and `take_closed_previews`. `list_revisions` marks the head the server read
   with the list, and history keeps one state a minute (guides/blocks/server.md).
-  Restoring keeps the state it replaced: the owner seals it as a "Before
-  restoring" bookmark first (`Replicas::bookmark`); a follower, which cannot
-  seal, stashes it and publishes the restore as a merge with it, whose parents
-  history never prunes.
+  Restoring keeps the state it replaced: the lease holder seals it as a
+  "Before restoring" bookmark first (`Replicas::bookmark`), and the replica
+  stashes what it showed under the restore, which the order takes as a
+  barrier; history never prunes a stash.
 - Notifications to a block's members who have no connection open
   (guides/blocks/server.md, "Notifications") are not an editor's to send: an
   edit announces itself. The block type names what each edit made on this

@@ -46,8 +46,7 @@ fn an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given
             .status(block)
             .is_none_or(|status| !status.clean || status.head.is_none())
         {
-            replicas.woken().await;
-            replicas.pump((&peer, &shared)).await;
+            step(&peer, &shared, &mut replicas).await;
         }
         let clean = replicas.status(block).expect("the text is open");
         type_at_start(&mut replicas, block, editor, &mut mirror, "socks ");
@@ -62,8 +61,7 @@ fn an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given
 
         replicas.reconnect((&peer, &shared));
         while replicas.joining() {
-            replicas.woken().await;
-            replicas.pump((&peer, &shared)).await;
+            step(&peer, &shared, &mut replicas).await;
         }
         // Asked after the replica's `resent`, so answered once the editor was sent its snapshot.
         let bytes = replicas

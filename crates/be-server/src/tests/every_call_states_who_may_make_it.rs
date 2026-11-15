@@ -450,7 +450,7 @@ impl TestClient {
             };
             answers.push((name, answer));
         }
-        let session = client::sessions::Session::new(peer, block);
+        let session = client::sessions::Session::new(peer, block, TYPE_BUILD);
         let mut events = session.join();
         let joined = match events.recv().await {
             Some(SessionEvent::Joined { .. }) => Answered::Allowed,
@@ -472,21 +472,8 @@ impl TestClient {
             answered(session.relay(None, RelayKind::Peer, sealed()).await),
         ));
         answers.push((
-            "session-append",
-            answered(
-                session
-                    .append(
-                        1,
-                        be_block_store::Hash::from_bytes([0; 32]),
-                        vec![be_block_protocol::JournalEntry {
-                            generation: 1,
-                            sequence: 1,
-                            payload: sealed(),
-                        }],
-                        true,
-                    )
-                    .await,
-            ),
+            "session-submit",
+            answered(session.submit(1, 1, 0, false, sealed()).await),
         ));
         answers.push((
             "session-rebase-journal",
@@ -494,7 +481,6 @@ impl TestClient {
                 session
                     .rebase_journal(
                         1,
-                        be_block_store::Hash::from_bytes([0; 32]),
                         be_block_protocol::JournalBase {
                             commit: None,
                             sequence: 0,
@@ -604,7 +590,7 @@ async fn every_call_states_who_may_make_it() {
         "session-claim-ownership",
         "session-heartbeat",
         "session-relay",
-        "session-append",
+        "session-submit",
         "session-rebase-journal",
         "set-notify-mode",
         "notify",

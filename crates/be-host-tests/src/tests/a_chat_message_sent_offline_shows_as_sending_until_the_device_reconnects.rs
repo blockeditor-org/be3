@@ -21,8 +21,8 @@ fn a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects() {
     phone.type_text("Anyone there");
     phone.click("#chat.send");
     phone.wait("\"Anyone there\"");
-    // The owner groups what it sends for `APPEND_INTERVAL` (250 ms) before it seals: twice
-    // that, on the stopped clock.
+    // Offline, the device numbers the message itself; it still shows as sending a while on, on
+    // the stopped clock.
     phone.run(&["pause", "500"]);
     phone.wait("Sending");
     phone.snapshot("a_chat_message_sent_offline_shows_as_sending_until_the_device_reconnects");

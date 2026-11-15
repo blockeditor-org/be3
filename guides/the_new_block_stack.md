@@ -10,7 +10,7 @@ type, read guides/adding_a_block.md first. This guide and the files under
 
 1. Durable state is bytes: a block's persistent form is a byte string, stored
    as chunks. Backups are a commit chain over those bytes.
-2. Live editing converges through a session owner, not a CRDT.
+2. Live editing converges through one order the server numbers, not a CRDT.
 3. Offline divergence resolves by three-way merge over the persistent bytes,
    so a wholesale rewrite conflicts visibly instead of interleaving.
 4. Partial reads: a ten gigabyte video streams; it is not loaded to be shown.
@@ -25,7 +25,7 @@ Why the stack is split this way: `decisions/block_stack_separates_durable_bytes.
 ```
 be-block-store         objects, chunking, encryption            client + server
 be-block-commit        commit DAG, retention, merge             client + server
-be-block-session       ownership lease, sequencer, resume       client + server
+be-block-session       sealing lease, order, resume             client + server
 be-block-graph         parents, edges, access, refcounts        server (and host mirror)
 be-block-protocol      the wire format (WIT be3:server)         client + server
 be-block-keys          account-level cryptography               client + server
@@ -55,7 +55,7 @@ guides/type_modules.md.
   be-server (transport, protocol, publishing, organizations, access,
   announcements, accounts), running a server, and the test harnesses.
 - guides/blocks/client.md: `Peer` and `Connection` (transport, liveness, the
-  fault relay), reading and writing, live sessions and ownership, the refs
+  fault relay), reading and writing, live sessions and the order, the refs
   database, saving and the outbox.
 - guides/blocks/content_types.md: the content traits, `be_block_model` and its
   field kinds, sequences, the stored form and how it changes, blobs, and
@@ -80,7 +80,7 @@ Which formats are frozen (none yet): guides/frozen_formats.md.
 
 - **Authorship.** Nothing vouches for who wrote an item: the deterministic game
   stores each move's account as a field the sender fills in. Signing operations
-  is not enough, since the session owner sequences and relays everything; the
+  is not enough, since the lease holder seals everything the server ordered; the
   stored items would have to carry their own signatures.
 - **Previews from content.** Server-side previews are impossible under
   end-to-end encryption. Search is a client-built index per root block

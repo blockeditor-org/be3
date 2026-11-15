@@ -3,7 +3,9 @@ use super::*;
 #[test]
 fn a_drain_naming_no_kept_commit_forgets_nothing() {
     let mut lacking = Lacking::default();
-    lacking.add(vec![1], Until::Sequenced(1), Vec::new());
+    lacking.add(vec![1], Vec::new());
+    lacking.submitted(5, 1);
+    lacking.numbered(5, 1);
     lacking.sealed(1, false, commit(1));
     assert_eq!(sending(&lacking), 1);
 

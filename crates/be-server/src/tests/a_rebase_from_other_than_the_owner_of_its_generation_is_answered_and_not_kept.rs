@@ -1,9 +1,9 @@
-use be_block_protocol::{JournalBase, JournalEntry};
+use be_block_protocol::JournalBase;
 
 use super::*;
 
-/// An owner whose lease lapsed or passed rebases on until the next `Lease` tells it: the server
-/// answers it as it answers such an append, as done, and keeps the journal as it was.
+/// A holder whose lease lapsed or passed seals on until the next `Lease` tells it: the server
+/// answers its rebase as done, and keeps the journal as it was.
 #[tokio::test]
 async fn a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_not_kept() {
     let harness = Harness::start().await;
@@ -18,36 +18,14 @@ async fn a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_no
         .await;
     let (_, state) = phone.join_session(block).await;
     let generation = state.generation;
-    let build = Hash::from_bytes([1; 32]);
     let base = JournalBase {
         commit: Some(first.0),
         sequence: 0,
         state: Vec::new(),
     };
-    phone.sessions[&block]
-        .rebase_journal(generation, build, base.clone())
-        .await
-        .unwrap()
-        .unwrap();
-    phone.sessions[&block]
-        .append(
-            generation,
-            build,
-            vec![JournalEntry {
-                generation,
-                sequence: 1,
-                payload: b"an edit".to_vec(),
-            }],
-            false,
-        )
-        .await
-        .unwrap()
-        .unwrap();
+    phone.submit(block, 7, 1, 0, b"an edit".to_vec()).await.unwrap();
 
-    let answered = phone.sessions[&block]
-        .rebase_journal(generation + 1, build, base)
-        .await
-        .unwrap();
+    let answered = phone.rebase_journal(block, generation + 1, base).await;
     assert!(
         answered.is_ok(),
         "a rebase of a generation it does not own is answered: {answered:?}"
@@ -56,7 +34,7 @@ async fn a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_no
     assert_eq!(
         journal.map(|journal| journal.entries.len()),
         Some(1),
-        "the owner's journal is kept as it was"
+        "the journal is kept as it was"
     );
 }
 

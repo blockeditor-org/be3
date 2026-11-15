@@ -64,7 +64,7 @@ aside until the user picks it up. The limits below are accepted for now.
   within the hour, which wins ties for that long. A merge of two index heads has
   no clock, so it keeps a forged time until the next apply.
 - **The writer only.** The device whose session seals a commit indexes it
-  (`Status::owner`); a follower's edits are indexed by the owner device. A
+  (the lease holder); edits another device made are indexed by the holder. A
   device that cannot edit the root never writes its index.
 - **Rotation** reseals every part the index reuses at its next save, so a
   rotation costs one re-upload of the index;

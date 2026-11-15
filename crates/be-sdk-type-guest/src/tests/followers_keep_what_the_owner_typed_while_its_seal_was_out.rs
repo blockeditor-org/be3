@@ -17,7 +17,7 @@ fn followers_keep_what_the_owner_typed_while_its_seal_was_out() {
     sim.advance(crate::QUIET_INTERVAL);
     sim.type_at(0, 1, 4, " and bread");
     sim.settle();
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert!(
         sim.devices[0].status.journaled,
         "what was typed during the seal is in the journal"
