@@ -591,6 +591,64 @@ fn walk<'s, D: Clone>(
     }
 }
 
+/// Every fixed place in `spec`, where it rests now and its label, in the spec's order: what
+/// a keyboard carry steps between. A place whose node is gone is left out.
+pub fn rests<D>(
+    spec: &DragSpec<D>,
+    placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>,
+) -> Vec<(Rect, Option<String>)> {
+    fn walk<D>(
+        spec: &DragSpec<D>,
+        placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>,
+        into: &mut Vec<(Rect, Option<String>)>,
+    ) {
+        match spec {
+            DragSpec::Fixed(candidate) => {
+                let rest = candidate.node.try_get().and_then(placed).map(|(at, scale)| {
+                    Rect::from_min_size(
+                        at.min + candidate.rest.min.to_vec2() * scale,
+                        candidate.rest.size() * scale,
+                    )
+                });
+                if let Some(rest) = rest {
+                    into.push((rest, candidate.label.clone()));
+                }
+            }
+            DragSpec::Closest { of, .. } => of.iter().for_each(|spec| walk(spec, placed, into)),
+            DragSpec::WhenFar { near, far, .. } => {
+                walk(near, placed, into);
+                walk(far, placed, into);
+            }
+            DragSpec::SnapRadius { spec, .. } | DragSpec::Thrown { spec, .. } => {
+                walk(spec, placed, into)
+            }
+            DragSpec::Free { .. }
+            | DragSpec::Floating
+            | DragSpec::Into { .. }
+            | DragSpec::Custom(_) => {}
+        }
+    }
+    let mut into = Vec::new();
+    walk(spec, placed, &mut into);
+    into
+}
+
+/// Of `rests`, the nearest whose centre lies towards `toward` from `from` (within 60 degrees
+/// of it), as a keyboard step chooses: its index.
+pub fn step_toward(rests: &[Rect], from: Pos2, toward: Vec2) -> Option<usize> {
+    let toward = toward / toward.length().max(f32::EPSILON);
+    rests
+        .iter()
+        .enumerate()
+        .filter_map(|(at, rest)| {
+            let away = rest.center() - from;
+            let length = away.length();
+            (length > 0.5 && away.dot(toward) >= 0.5 * length).then_some((at, length))
+        })
+        .min_by(|left, right| left.1.total_cmp(&right.1))
+        .map(|(at, _)| at)
+}
+
 /// `item` moved the least that puts it inside `area`, or centred on an axis it is too long for.
 fn clamp_into(item: Rect, area: Rect) -> Rect {
     let axis = |min: f32, length: f32, low: f32, high: f32| {

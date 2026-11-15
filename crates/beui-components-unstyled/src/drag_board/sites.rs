@@ -129,7 +129,65 @@ impl Board {
         self.lifted.update(|lifted| *lifted = Some(payload));
         self.current.set(Some(id));
         self.place(point, false);
+        let rests = self.rests();
+        let shown = self.shown.get_untracked().map(|frame| frame.item);
+        let over = rests.iter().position(|(rest, _)| Some(*rest) == shown);
+        self.say(match over {
+            Some(at) => format!("Lifted, {}", over_place(&rests, at)),
+            None => format!("Lifted, {} places to drop it", rests.len()),
+        });
         Some(id)
+    }
+
+    /// Every fixed place of the carry, where it rests now and its label.
+    fn rests(&self) -> Vec<(beui_view::types::Rect, Option<String>)> {
+        let space = Rc::clone(&self.space);
+        let placed = move |node: NodeId| space.placed(node);
+        self.placing
+            .borrow()
+            .as_ref()
+            .map(|placing| beui_view::drag::rests(&placing.spec, &placed))
+            .unwrap_or_default()
+    }
+
+    fn say(&self, said: String) {
+        if let Some(id) = self.current.get_untracked() {
+            self.said.set(Some((id, said)));
+        }
+    }
+
+    /// Moves a carry the keyboard holds to the nearest place `toward` from where it is drawn,
+    /// and says which place of how many it is over.
+    pub fn step(&self, toward: beui_view::types::Vec2) -> bool {
+        let Some((item, from)) = self.placing.borrow().as_ref().and_then(|placing| {
+            (placing.pointer == PointerId::Keyboard)
+                .then(|| (placing.carry.item, placing.frame.item.center()))
+        }) else {
+            return false;
+        };
+        let rests = self.rests();
+        let shapes: Vec<_> = rests.iter().map(|(rect, _)| *rect).collect();
+        let Some(at) = beui_view::drag::step_toward(&shapes, from, toward) else {
+            return false;
+        };
+        let (rest, _) = &rests[at];
+        // The point that draws the item exactly at the place's rest.
+        let item = item.unwrap_or(beui_view::types::Rect::from_min_size(
+            beui_view::types::Pos2::ZERO - rest.size() / 2.0,
+            rest.size(),
+        ));
+        let last = self.placing.borrow().as_ref().and_then(|placing| placing.last);
+        let Some(last) = last else {
+            return false;
+        };
+        let point = DragPoint {
+            pos: rest.center() - item.center().to_vec2(),
+            ..last
+        };
+        self.place(point, false);
+        let said = over_place(&rests, at);
+        self.say(format!("{}{}", said[..1].to_uppercase(), &said[1..]));
+        true
     }
 
     /// Whether the carry is held by `pointer`; another pointer's moves and releases leave it.
@@ -149,7 +207,9 @@ impl Board {
         self.lifted.get()
     }
 
-    /// The frame the carry shows: where its item draws and whether it floats; tracked.
+    /// The frame the carry shows: where its item draws and whether it floats; tracked. It is
+    /// also what peers are shown: a host publishes it as presence from an effect over it
+    /// (peers drawing a remote carry wait for plans/declarative_dragging.md, step 5).
     pub fn frame(&self) -> Option<DragFrame> {
         self.shown.get()
     }
@@ -225,6 +285,16 @@ impl Board {
         if commit && let Some(last) = last {
             self.place(last, true);
         }
+        let committing = commit
+            && self
+                .placing
+                .borrow()
+                .as_ref()
+                .is_some_and(|placing| placing.chosen.is_some());
+        self.say(match committing {
+            true => "Dropped".to_owned(),
+            false => "Put down where it was".to_owned(),
+        });
         let Some(placing) = self.placing.borrow_mut().take() else {
             return false;
         };
@@ -248,4 +318,10 @@ impl Board {
         }
         true
     }
+}
+
+/// "over the left basket, place 1 of 3": the place a carry is over, for a screen reader.
+fn over_place(rests: &[(beui_view::types::Rect, Option<String>)], at: usize) -> String {
+    let name = rests[at].1.clone().unwrap_or_else(|| "a place".to_owned());
+    format!("over {name}, place {} of {}", at + 1, rests.len())
 }

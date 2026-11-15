@@ -7,6 +7,7 @@ use crate::input::Modifiers;
 mod a_drag_floats_beyond_the_reach_of_its_near_places;
 mod a_fast_release_lands_where_its_path_leads;
 mod a_free_drag_stays_inside_its_area;
+mod a_keyboard_step_takes_the_nearest_place_that_way;
 mod a_zone_left_lets_go_of_its_place;
 mod a_zoned_place_is_chosen_while_the_pointer_is_in_its_zone;
 mod closest_snaps_to_the_nearest_rest_and_holds_it_until_another_is_clearly_nearer;

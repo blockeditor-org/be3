@@ -222,8 +222,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      whose scope is dropped mid-carry puts the carry down, dropping nothing. The default face is
      the source drawn displaced and raised, which a scroll around it still clips: a carry that
      leaves its scroll gives `.preview`; capturing the face as a texture is in the backlog.
-     Presence in 1c is only a hook the board calls with each frame; peers drawing a remote
-     carry wait for step 5, once a site has a stable id to name places by. It may give a site
+     Presence in 1c is only the hook: the board's tracked `frame()`, which a host publishes
+     from an effect; peers drawing a remote carry wait for step 5, once a site has a stable id
+     to name places by. Keys: Space lifts a focused source, the arrows step between its places
+     (`step_toward`), Space or Enter drops, Escape or Tab puts it down, and a live region says
+     the lift, each place and the end. It may give a site
      an optional node, which the inspector and `Into` nesting want.
    - **1d:** beui-demo pages: the list above, free positioning that snaps into slots
      (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An

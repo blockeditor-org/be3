@@ -79,9 +79,9 @@ pub fn Interactive(
     on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
-    let (on_press, on_drag, children) = match drag {
-        Some(drag) => carrying(drag, on_press, on_drag, children),
-        None => (on_press, on_drag, children),
+    let (on_press, on_drag, on_key, children) = match drag {
+        Some(drag) => carrying(drag, on_press, on_drag, on_key, children),
+        None => (on_press, on_drag, on_key, children),
     };
     crate::core::interactive(
         focusable,
@@ -152,8 +152,14 @@ fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
+    on_key: Callback<KeyPress, bool>,
     children: Option<Child>,
-) -> (Callback<PointerPress>, Callback<PointerPress>, Option<Child>) {
+) -> (
+    Callback<PointerPress>,
+    Callback<PointerPress>,
+    Callback<KeyPress, bool>,
+    Option<Child>,
+) {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use std::cell::RefCell;
     use crate::components::overlay::Overlay;
@@ -242,9 +248,24 @@ fn carrying(
     });
     let window = create_memo(move || origin_window(&origin));
     let open = create_memo(move || floating.get() && previewed.get());
+    // What this node's carry last said, for a screen reader.
+    let said = create_memo(move || {
+        let id = mine.get()?;
+        let (said_by, said) = crate::drag::driver()?.said()?;
+        (said_by == id).then_some(said)
+    });
+    let keyboard_lift = {
+        let preview = Rc::clone(&preview);
+        Rc::new(move |id: crate::drag::CarryId, floats: Option<Preview>| {
+            previewed.set(floats.is_some());
+            *preview.borrow_mut() = floats;
+            mine.set(Some(id));
+        }) as Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>
+    };
     let wrapped = view! {
         <Frame raised={raised}>
             <List spacing=0.0>
+                <CarryStatus said={said} />
                 <Frame translate={offset} children={children} />
                 <Overlay
                     anchor={anchor}
@@ -266,10 +287,112 @@ fn carrying(
             </List>
         </Frame>
     };
-    measured.set(Some(crate::measure::measure(wrapped)));
-    (pressed, dragged, Some(wrapped.into()))
+    let laid_out = crate::measure::measure(wrapped);
+    measured.set(Some(laid_out));
+    let keyed = Callback::new(move |press: KeyPress| {
+        carry_keys(press, drag, mine, laid_out, &keyboard_lift) || on_key.call(press)
+    });
+    (pressed, dragged, keyed, Some(wrapped.into()))
 }
 
 fn origin_window(origin: &std::rc::Rc<std::cell::Cell<Option<PointerPress>>>) -> Option<crate::types::WindowId> {
     origin.get().map(|press| press.window)
+}
+
+/// Keys on a source given `drag`, while it has focus: Space lifts its carry with the keyboard,
+/// and while the keyboard holds it the arrows step it between the places it can land, Space
+/// or Enter drops it there, and Escape or Tab puts it down where it was (Tab does not move
+/// focus away from a carry in hand). Whether the key was taken.
+fn carry_keys(
+    press: KeyPress,
+    drag: Func<PointerPress, Option<crate::drag::Carry>>,
+    mine: crate::reactive::Signal<Option<crate::drag::CarryId>>,
+    laid_out: crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
+    lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>,
+) -> bool {
+    use crate::reactive::Get;
+    use crate::types::{Key, Rect, WindowId, input::PointerId};
+    if !press.pressed || press.modifiers.ctrl || press.modifiers.alt || press.modifiers.logo {
+        return false;
+    }
+    let Some(driver) = crate::drag::driver() else {
+        return false;
+    };
+    let held = mine.get_untracked().is_some_and(|id| driver.carry() == Some(id));
+    let flat = |_| (Vec::new(), WindowId::MAIN);
+    if held {
+        let toward = match press.key {
+            Key::ArrowUp => Some(Vec2::new(0.0, -1.0)),
+            Key::ArrowDown => Some(Vec2::new(0.0, 1.0)),
+            Key::ArrowLeft => Some(Vec2::new(-1.0, 0.0)),
+            Key::ArrowRight => Some(Vec2::new(1.0, 0.0)),
+            _ => None,
+        };
+        if let Some(toward) = toward {
+            driver.step(toward);
+            return true;
+        }
+        return match press.key {
+            Key::Space | Key::Enter => {
+                driver.release(PointerId::Keyboard, false, &flat);
+                true
+            }
+            Key::Escape | Key::Tab => {
+                driver.release(PointerId::Keyboard, true, &flat);
+                true
+            }
+            _ => false,
+        };
+    }
+    if press.key != Key::Space || press.modifiers.shift || driver.carrying() {
+        return false;
+    }
+    let Some(rect) = laid_out.get_untracked().map(|measured| measured.rect) else {
+        return false;
+    };
+    let center = rect.center();
+    let at = PointerPress {
+        window: WindowId::MAIN,
+        pos: center,
+        local: Pos2::ZERO + rect.size() / 2.0,
+        size: rect.size(),
+        fraction: Vec2::new(0.5, 0.5),
+        clicks: 0,
+        modifiers: press.modifiers,
+        touch: false,
+        pen: None,
+        predicted: None,
+        time: crate::reactive::now(),
+        pointer: PointerId::Keyboard,
+    };
+    let Some(mut carry) = drag.call(at) else {
+        return false;
+    };
+    if carry.item.is_none() {
+        carry.item = Some(Rect::from_min_size(Pos2::ZERO - rect.size() / 2.0, rect.size()));
+    }
+    let floats = carry.preview.clone();
+    match driver.lift(carry, crate::drag::DragPoint::of(at)) {
+        Some(id) => {
+            lifted(id, floats);
+            true
+        }
+        None => false,
+    }
+}
+
+/// A live region saying what a carry does, for a screen reader.
+#[component]
+fn CarryStatus(said: crate::reactive::Memo<Option<String>>) -> NodeId {
+    use crate::reactive::Get;
+    crate::reactive::component_accessibility(crate::reactive::create_memo(move || {
+        let mut node = accesskit::Node::new(accesskit::Role::Status);
+        node.set_live(accesskit::Live::Polite);
+        if let Some(said) = said.get() {
+            node.set_label(said);
+        }
+        node
+    }));
+    use crate::primitives::Frame;
+    view! { <Frame /> }
 }
