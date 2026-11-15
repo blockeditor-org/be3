@@ -219,25 +219,25 @@ fn GameShape(
     game: Stored<Rc<dyn GameModel>>,
     snapshot: ReadSignal<GameSnapshot>,
 ) -> NodeId {
-    let shape = snapshot.get_untracked().shape();
-    let loading = shape == Shape::Loading;
-    let failed = shape == Shape::Error;
-    let playing = shape == Shape::Screen;
     view! {
         <List spacing=Space::None>
-            <Show condition=loading>
-                <ListItem grow=1.0>
-                    <LoadingPane label="Loading the game" />
-                </ListItem>
-            </Show>
-            <Show condition=failed>
-                <GameError snapshot={snapshot} />
-            </Show>
-            <Show condition=playing>
-                <ListItem grow=1.0>
-                    <GamePlay editor={editor} game={game} snapshot={snapshot} />
-                </ListItem>
-            </Show>
+            {match snapshot.get_untracked().shape() {
+                Shape::Loading => view! {
+                    <ListItem grow=1.0>
+                        <LoadingPane label="Loading the game" />
+                    </ListItem>
+                },
+                Shape::Error => view! {
+                    <ListItem>
+                        <GameError snapshot={snapshot} />
+                    </ListItem>
+                },
+                Shape::Screen => view! {
+                    <ListItem grow=1.0>
+                        <GamePlay editor={editor} game={game} snapshot={snapshot} />
+                    </ListItem>
+                },
+            }}
         </List>
     }
 }
@@ -716,13 +716,11 @@ pub(crate) fn GameCreation(
                                 @test_id={format!("game.staged.{index}")}
                                 on_click={move || creation.value().choose_staged(index)}
                             />
-                            <Show condition={failed}>|| {
-                                let caption = caption.clone(); view! {
-                                    <Text style=TextStyle::CAPTION color=TextColor::Danger>
-                                        {caption}
-                                    </Text>
-                                }
-                            }</Show>
+                            {failed.then(|| view! {
+                                <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                                    {caption}
+                                </Text>
+                            })}
                         </List>
                     }
                 }</ForEach>

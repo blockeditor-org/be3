@@ -114,7 +114,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let conflicted = create_memo(move || !conflicts.with(Vec::is_empty));
     let combining = create_memo(move || {
         status.with(|status| {
             status
@@ -209,7 +208,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     </List>
                                 </Card>
                             </Show>
-                            <Show condition={conflicted}>
+                            <Show condition={move || !conflicts.with(Vec::is_empty)}>
                                 <Card>
                                     <List spacing=Space::Lg>
                                         <Text style=TextStyle::HEADING>"Clashing edits"</Text>
@@ -342,16 +341,10 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
             @test_id={format!("checkout.change.{block}")}
         >
             <Text style=TextStyle::CAPTION>{label}</Text>
-            <Show
-                condition={removed}
-                fallback={move || view! {
-                    <BlockLink editor={editor} block={target} />
-                }}
-            >|| {
-                let name = name.clone(); view! {
-                    <Text>{name}</Text>
-                }
-            }</Show>
+            {match removed {
+                true => view! { <Text>{name}</Text> },
+                false => view! { <BlockLink editor={editor} block={target} /> },
+            }}
         </List>
     }
 }
@@ -383,7 +376,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                 <BlockLink editor={editor} block={working} />
                 <Text style=TextStyle::CAPTION>{label}</Text>
             </List>
-            <Show condition={compared}>
+            {compared.then(|| view! {
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Before"</Text>
                     <BlockLink editor={editor} block={base} fallback="none" />
@@ -392,7 +385,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     <Text style=TextStyle::CAPTION>"Incoming"</Text>
                     <BlockLink editor={editor} block={theirs} fallback="none" />
                 </List>
-            </Show>
+            })}
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Use before"
@@ -447,19 +440,16 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
             <ListItem grow=1.0>
                 <Text overflow=Overflow::Ellipsis>{name}</Text>
             </ListItem>
-            <Show condition={!current}>|| {
-                let (merged, merge_test_id) = (merged.clone(), merge_test_id.clone());
-                view! {
-                    <Button
-                        label="Combine into this"
-                        glyph=ICON_GIT_MERGE
-                        variant=ButtonVariant::Ghost
-                        disabled={blocked}
-                        @test_id=merge_test_id
-                        on_click={move || editor.version(VersionCommand::Merge { branch: merged.clone() })}
-                    />
-                }
-            }</Show>
+            {(!current).then(|| view! {
+                <Button
+                    label="Combine into this"
+                    glyph=ICON_GIT_MERGE
+                    variant=ButtonVariant::Ghost
+                    disabled={blocked}
+                    @test_id=merge_test_id
+                    on_click={move || editor.version(VersionCommand::Merge { branch: merged.clone() })}
+                />
+            })}
             <Button
                 label={label}
                 variant=ButtonVariant::Secondary

@@ -57,7 +57,7 @@ pub fn RotationPicker(
     test_id: String,
     display: Memo<Option<HostDisplay>>,
     chosen: Memo<Rotation>,
-    read_only: Memo<bool>,
+    read_only: Prop<bool>,
     on_pick: Callback<Rotation>,
 ) -> NodeId {
     let current = create_memo(move || {
@@ -103,7 +103,7 @@ fn RotationTile(
     chosen: Memo<Rotation>,
     landscape: Memo<bool>,
     size: Memo<(f32, f32)>,
-    read_only: Memo<bool>,
+    read_only: Prop<bool>,
     on_pick: Callback<Rotation>,
 ) -> NodeId {
     let screen = format!("{name}.screen");

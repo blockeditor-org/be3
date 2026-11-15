@@ -426,40 +426,44 @@ fn WindowChip(
             bounds={bar_bounds()}
             placement=Placement::BelowStart
             items={view! {
-                <Show
-                    condition=waiting
-                    fallback={move || view! {
-                        <MenuItem
-                            label={move || match shown.get() {
-                                true => "Hide".to_owned(),
-                                false => "Show".to_owned(),
-                            }}
-                            glyph={move || match shown.get() {
-                                true => Some(ICON_EYE_OFF),
-                                false => Some(ICON_EYE),
-                            }}
-                            row_test_id={visibility_id.clone()}
-                            on_click={move || match shown.get_untracked() {
-                                true => windows.hide(chip),
-                                false => windows.show(chip),
-                            }}
-                        />
-                    }}
-                >
-                    <MenuItem
-                        label="Open"
-                        glyph=ICON_EXTERNAL_LINK
-                        disabled={move || !openable.get()}
-                        row_test_id={open_id.clone()}
-                        on_click={move || workspace.open_placeholder(tab)}
-                    />
-                    <MenuItem
-                        label="Dismiss"
-                        glyph=ICON_X
-                        row_test_id={dismiss_id.clone()}
-                        on_click={move || windows.close(chip)}
-                    />
-                </Show>
+                {match waiting {
+                    true => view! {
+                        <>
+                            <MenuItem
+                                label="Open"
+                                glyph=ICON_EXTERNAL_LINK
+                                disabled={move || !openable.get()}
+                                row_test_id={open_id}
+                                on_click={move || workspace.open_placeholder(tab)}
+                            />
+                            <MenuItem
+                                label="Dismiss"
+                                glyph=ICON_X
+                                row_test_id={dismiss_id}
+                                on_click={move || windows.close(chip)}
+                            />
+                        </>
+                    },
+                    false => view! {
+                        <>
+                            <MenuItem
+                                label={move || match shown.get() {
+                                    true => "Hide".to_owned(),
+                                    false => "Show".to_owned(),
+                                }}
+                                glyph={move || match shown.get() {
+                                    true => Some(ICON_EYE_OFF),
+                                    false => Some(ICON_EYE),
+                                }}
+                                row_test_id={visibility_id}
+                                on_click={move || match shown.get_untracked() {
+                                    true => windows.hide(chip),
+                                    false => windows.show(chip),
+                                }}
+                            />
+                        </>
+                    },
+                }}
                 <ForEach keys={targets}>|target: u32|
                     <MenuItem
                         label={format!("Move to display {}", target + 1)}
@@ -468,14 +472,19 @@ fn WindowChip(
                         on_click={move || windows.move_to(chip, target)}
                     />
                 </ForEach>
-                <Show condition={!waiting && !display}>
-                    <MenuItem
-                        label="Close"
-                        glyph=ICON_X
-                        row_test_id={close_id.clone()}
-                        on_click={move || windows.close(chip)}
-                    />
-                </Show>
+                {match waiting || display {
+                    true => view! { <></> },
+                    false => view! {
+                        <>
+                            <MenuItem
+                                label="Close"
+                                glyph=ICON_X
+                                row_test_id={close_id}
+                                on_click={move || windows.close(chip)}
+                            />
+                        </>
+                    },
+                }}
             }}
         >
             <unstyled::Button

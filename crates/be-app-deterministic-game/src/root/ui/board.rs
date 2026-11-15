@@ -480,10 +480,10 @@ fn FlightItem(id: ItemId, motion: Motion) -> CanvasItem {
     };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={format!("game.flight.{}", id.0)}
         >

@@ -220,6 +220,7 @@ pub(crate) fn SelectionDock(
 pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let scale = state.editor().scale();
+    let readout = create_memo(move || format!("{:.0}%", scale.get() * 100.0));
     let reset = actions.zoom_reset.clone();
     let content = Render::new(move |()| {
         let reset = reset.clone();
@@ -234,7 +235,7 @@ pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
                     action={actions.zoom_out.clone()}
                 />
                 <Button
-                    label={move || format!("{:.0}%", scale.get() * 100.0)}
+                    label={readout}
                     variant=ButtonVariant::Ghost
                     @test_id={"infinite-canvas.pill.zoom"}
                     on_click={move || {

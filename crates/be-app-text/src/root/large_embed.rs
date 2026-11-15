@@ -32,27 +32,10 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     let editable = create_memo(move || {
         available && child.get().interaction == Some(InteractionMode::Preview) && !focused.get()
     });
-    let has_icon = embed.icon.is_some();
     let icon = embed.icon;
     let label = embed.label.clone();
     let automatic = embed.automatic;
     let deleted = embed.deleted;
-
-    let icon_row = move || {
-        let glyph = icon;
-        view! {
-            <Text align=TextAlign::Center>
-                <Icon glyph={glyph} />
-            </Text>
-        }
-    };
-    let unavailable_row = move || {
-        view! {
-            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
-                "Block unavailable"
-            </Text>
-        }
-    };
     view! {
         <Frame
             fill=ColorRole::Surface
@@ -68,17 +51,21 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                     padding={Padding::horizontal(TITLE_PADDING)}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
-                        <Show condition={has_icon} then={icon_row} />
+                        {icon.map(|glyph| view! {
+                            <Text align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
+                        })}
                         <ListItem grow=1.0>
                             <Text size=TextSize::Lg italic={automatic} overflow=Overflow::Ellipsis>
                                 {label}
                             </Text>
                         </ListItem>
-                        <Show condition={deleted}>
+                        {deleted.then(|| view! {
                             <Text size=TextSize::Sm color=TextColor::Muted>
                                 "In Recently Deleted"
                             </Text>
-                        </Show>
+                        })}
                         <Show condition={editable}>
                             <Button
                                 label="Edit"
@@ -92,8 +79,8 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                         </Show>
                     </List>
                 </Frame>
-                <Show condition={available} fallback={unavailable_row}>
-                    <ListItem grow=1.0>
+                {match available {
+                    true => view! { <ListItem grow=1.0>
                         <ChildBlock
                             editor={state.editor}
                             block={Some(target)}
@@ -113,8 +100,15 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                                 confirm_focus(state, key, next.active);
                             }}
                         />
-                    </ListItem>
-                </Show>
+                    </ListItem> },
+                    false => view! {
+                        <ListItem>
+                            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                                "Block unavailable"
+                            </Text>
+                        </ListItem>
+                    },
+                }}
             </List>
         </Frame>
     }
