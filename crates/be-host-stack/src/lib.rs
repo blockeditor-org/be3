@@ -1305,6 +1305,7 @@ pub fn create(
             size: 0,
             tree_size: 0,
         });
+        shared.graph.made(block);
     });
     send(Command::Create {
         block,
