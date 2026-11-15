@@ -8,6 +8,7 @@ use be_sdk_beui::{HostDisplay, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{Size, effective, mode_label, rate_label, rates, size_label, size_of, sizes};
 use super::ui::Settings;
+use crate::custom::unlisted;
 use beui::Extent;
 
 #[component]
@@ -108,6 +109,9 @@ pub(super) fn ScreenSection(
         )
     });
     let selected_scale = create_memo(move || Some(chosen_scale.get()));
+    let custom_scale = unlisted(chosen_scale, |percent| {
+        DisplaySettings::SCREEN_SCALES.contains(percent)
+    });
     let set_scale = settings.setter(&scale);
     let used = DisplaySettings::used_setting(&id);
     let used_row = settings.row(&used);
@@ -310,6 +314,9 @@ pub(super) fn ScreenSection(
                             <ChoiceOption value=None label={inherited_scale_label} />
                             <ForEach keys={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
+                            </ForEach>
+                            <ForEach keys={custom_scale}>|percent: u32|
+                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
                             </ForEach>
                         }}
                         selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {

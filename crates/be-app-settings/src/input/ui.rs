@@ -14,6 +14,7 @@ use be_sdk_beui::{
 
 use super::remapper::RemapperSetting;
 use beui::Extent;
+use crate::custom::unlisted;
 
 const VALUE_WIDTH: f32 = 64.0;
 
@@ -454,6 +455,8 @@ fn DisplayChoice(
     let selected = create_memo(move || {
         Some(effective.with(|effective| effective.display(&device).map(str::to_owned)))
     });
+    let stored = create_memo(move || selected.get().flatten());
+    let custom = unlisted(stored, move |id| name_of(id).is_some());
     view! {
         <LayeredSettingsRow
             setting={row}
@@ -470,6 +473,9 @@ fn DisplayChoice(
                         <ChoiceOption value=None label={automatic} />
                         <ForEach keys={shown}>|display: (String, String)|
                             <ChoiceOption value={Some(display.0)} label={display.1} />
+                        </ForEach>
+                        <ForEach keys={custom}>|id: String|
+                            <ChoiceOption value={Some(id.clone())} label={format!("Custom ({id})")} />
                         </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<Option<String>>| {

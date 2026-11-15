@@ -5,6 +5,7 @@ use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
 use be_type_settings::EditorSettings;
 use beui::Extent;
+use crate::custom::unlisted;
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq)]
@@ -104,6 +105,7 @@ fn DefaultEditor(
         choices.with(|choices| choices.editors.iter().map(|(id, _)| *id).collect::<Vec<Uuid>>())
     });
     let selected = create_memo(move || Some(chosen.get()));
+    let custom = unlisted(chosen, move |id| ids.with(|ids| ids.contains(id)));
     let name = create_memo(move || choices.with(|choices| choices.name.clone()));
     let read_only = editor.read_only();
     view! {
@@ -134,6 +136,9 @@ fn DefaultEditor(
                                 <ChoiceOption value={Some(id)} label={label} />
                             }
                         }</ForEach>
+                        <ForEach keys={custom}>|id: Uuid|
+                            <ChoiceOption value={Some(id)} label={format!("Custom ({id})")} />
+                        </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<Option<Uuid>>| {
                         if let Some(chosen) = chosen {

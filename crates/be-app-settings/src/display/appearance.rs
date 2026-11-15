@@ -5,6 +5,7 @@ use be_sdk_beui::beui::{NodeId, ThemeKind};
 use be_sdk_beui::{Editor, LayeredSettingsRow, PreferenceSourcesWatch};
 
 use super::ui::Settings;
+use crate::custom::unlisted;
 use beui::Extent;
 
 #[component]
@@ -37,6 +38,9 @@ pub(super) fn AppearanceSection(
         )
     });
     let selected_scale = create_memo(move || Some(chosen_scale.get()));
+    let custom_scale = unlisted(chosen_scale, |percent| {
+        DisplaySettings::SCALES.contains(percent)
+    });
     let scale_row = settings.row(&scale);
     let set_scale = settings.setter(&scale);
     let keyboard = DisplaySettings::keyboard_setting();
@@ -51,6 +55,9 @@ pub(super) fn AppearanceSection(
         )
     });
     let selected_keyboard = create_memo(move || Some(chosen_keyboard.get()));
+    let custom_keyboard = unlisted(chosen_keyboard, |percent| {
+        DisplaySettings::KEYBOARD_HEIGHTS.contains(percent)
+    });
     let keyboard_row = settings.row(&keyboard);
     let set_keyboard = settings.setter(&keyboard);
     view! {
@@ -108,6 +115,9 @@ pub(super) fn AppearanceSection(
                             <ForEach keys={DisplaySettings::SCALES.to_vec()}>|percent: u32|
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
                             </ForEach>
+                            <ForEach keys={custom_scale}>|percent: u32|
+                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
+                            </ForEach>
                         }}
                         selected={Binding::new(selected_scale, move |chosen: Option<Option<u32>>| {
                             if let Some(percent) = chosen {
@@ -137,6 +147,9 @@ pub(super) fn AppearanceSection(
                                 keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
                             >|percent: u32|
                                 <ChoiceOption value={Some(percent)} label={format!("{percent}%")} />
+                            </ForEach>
+                            <ForEach keys={custom_keyboard}>|percent: u32|
+                                <ChoiceOption value={Some(percent)} label={format!("Custom ({percent}%)")} />
                             </ForEach>
                         }}
                         selected={Binding::new(selected_keyboard, move |chosen: Option<Option<u32>>| {

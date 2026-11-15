@@ -90,3 +90,14 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   change, keeping only what the connection was told that the graph cannot
   answer, and a server test shows its memory per connection does not grow with
   a folder's references.
+
+## 12. Settings
+
+- **Typed organization policies.** Each row of the organization's and the
+  offline policies (be-app-settings `src/root/organization.rs`) is a `Policy`
+  whose select binds a position into a fixed table of labels, read and written
+  through `get` and `set` closures that index parallel arrays of values. Done:
+  a policy's select binds the policy's own value (`Allowance`, `WhoMay`, days,
+  a quota and so on), each option naming its value beside its label, with no
+  position or parallel array left, and the organization's settings tests still
+  pass.

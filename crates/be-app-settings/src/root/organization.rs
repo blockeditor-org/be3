@@ -35,12 +35,13 @@ struct Policy<R> {
     label: &'static str,
     description: &'static str,
     options: &'static [&'static str],
-    get: fn(&R) -> usize,
+    /// The option the stored value is, or `None` for a value none of them is.
+    get: fn(&R) -> Option<usize>,
     set: fn(usize) -> Edit,
 }
 
-fn index_of<T: PartialEq>(all: &[T], value: &T) -> usize {
-    all.iter().position(|held| held == value).unwrap_or(0)
+fn index_of<T: PartialEq>(all: &[T], value: &T) -> Option<usize> {
+    all.iter().position(|held| held == value)
 }
 
 const POLICIES: [Policy<OrganizationPolicies>; 4] = [
@@ -286,7 +287,7 @@ where
                     .ok()
             })
             .unwrap_or_default();
-        Some(get(&held))
+        get(&held)
     });
     let choose = Callback::new(move |chosen: Option<usize>| {
         if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
