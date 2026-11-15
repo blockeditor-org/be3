@@ -38,6 +38,13 @@ interface types {
         theirs: commit-id,
     }
 
+    /// A remote head that seals this session's order through `through`, made
+    /// on the replica's local head.
+    record resume-sealed {
+        commit: commit-id,
+        through: u64,
+    }
+
     /// How a replica's local head relates to the remote one.
     variant resume {
         empty,
@@ -45,6 +52,10 @@ interface types {
         fast-forward(commit-id),
         publish(commit-id),
         merge(resume-merge),
+        /// The remote head is a seal of this session made on the local one:
+        /// news of the seal, taken once the replica applied as far, not a
+        /// head to merge, which would count what both hold twice.
+        sealed(resume-sealed),
     }
 
     /// The plain form a type has outside the host.

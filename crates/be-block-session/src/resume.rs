@@ -20,6 +20,12 @@ pub enum Resume {
         ours: CommitId,
         theirs: CommitId,
     },
+    /// A seal of the session's order through `through`, made on the local head: the host tells
+    /// this from a fast-forward by the commit's `sealed_through`.
+    Sealed {
+        commit: CommitId,
+        through: u64,
+    },
 }
 
 #[cfg(feature = "store")]

@@ -1278,7 +1278,6 @@ where
             return self.job_while_unreadable(job);
         }
         if local {
-            eprintln!("DEBUG job number={} own_through={} doubtful_through={} stale={} taken_before={} origin={} epoch={} loaded={}", self.edit_number(), self.own_through, self.doubtful_through, self.stale_through, self.taken_before, self.origin, self.epoch, self.loaded);
         }
         // Given again after a reopening, and the order holds it already: it is not made twice.
         if local && self.edit_number() <= self.own_through {
@@ -1998,6 +1997,10 @@ where
         }
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
+            Resume::Sealed { commit, through } => {
+                self.heard_seal = Some((commit, through));
+                self.take_heard_seal();
+            }
             // Nothing unsealed: the order takes the head as it is, applying again what it
             // numbered since the seal.
             Resume::FastForward { to } if !unsealed => {
@@ -2399,7 +2402,6 @@ where
 
     fn apply_entry(&mut self, op: SessionOp) {
         let mine = op.id.origin == self.origin;
-        eprintln!("DEBUG entry seq={} origin={} mine={mine} through={:?}", op.sequence, op.id.origin, Submitted::decode(&op.payload).map(|s| s.through));
         self.ordered_bytes += ordered_bytes(&op);
         // Another's edit counts from when it arrived; this replica's own from when it was made.
         if !mine {

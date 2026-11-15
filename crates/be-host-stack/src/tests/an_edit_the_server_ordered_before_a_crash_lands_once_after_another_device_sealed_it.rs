@@ -23,8 +23,6 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
     outside.until("heard the edit the server ordered", |seen| {
         seen.count == Some(3)
     });
-    outside.claim();
-    outside.seal();
     wait_until("kept the edits not heard ordered", |shared| {
         shared
             .peer
@@ -32,6 +30,8 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
             .and_then(|peer| peer.open_edits(block))
             .is_some_and(|(_, edits)| edits.len() >= 2)
     });
+    outside.claim();
+    outside.seal();
 
     crash();
     platform::wait_for_stopped();
@@ -41,10 +41,12 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 7);
     wait_until("had the edit the server lacked ordered", |shared| {
-        shared.owing > 0
+        shared.undurable == 0
     });
-    flush_and_send();
     assert_eq!(count_of(block), Some(7));
+    // The other device holds the lease, and seals what the order holds.
+    outside.until("heard the edit sent again", |seen| seen.count == Some(7));
+    outside.seal();
     let saved = runtime().block_on(async {
         harness
             .outside_peer()

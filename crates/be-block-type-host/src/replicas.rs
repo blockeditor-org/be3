@@ -2242,8 +2242,22 @@ impl<H: Host> Replicas<H> {
                 Reconciled::Done => return Ok(peer.known_remote_head(block)),
                 Reconciled::Merge { base, ours, theirs } => (base, ours, theirs),
             };
+            // Two seals of one session's order made on the base: the one sealed further holds
+            // what the other does, so it is the merge, not the sum of both over the base,
+            // which would count what both hold twice.
+            let base_side = match (peer.sealed_on(ours), peer.sealed_on(theirs)) {
+                (Some((on_ours, ours_through)), Some((on_theirs, theirs_through)))
+                    if on_ours == base && on_theirs == base =>
+                {
+                    match ours_through.sequence >= theirs_through.sequence {
+                        true => Some(theirs),
+                        false => Some(ours),
+                    }
+                }
+                _ => base,
+            };
             let mut manifests = Vec::new();
-            for commit in [base, Some(ours), Some(theirs)] {
+            for commit in [base_side, Some(ours), Some(theirs)] {
                 manifests.push(match commit {
                     Some(commit) => Some(peer.load_commit(commit).await?.manifest),
                     None => None,
@@ -2928,6 +2942,10 @@ impl<H: Host> Replicas<H> {
                 let (client, session, journal) =
                     peer.connection().join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
+                // The head may be a seal of the journal (`journal_for`), which needs the commit.
+                if let Some(head) = head {
+                    peer.fetch_history(head).await?;
+                }
                 let journal = match journal {
                     Some(journal) => Some(journal),
                     None => started_from_mirror(&peer, block, tag, client, &session, head).await,
@@ -3747,11 +3765,9 @@ impl<H: Host> Replicas<H> {
                         if let Some(local) = local {
                             peer.fetch_history(local).await?;
                         }
-                        Ok::<_, ClientError>(be_block_session::resume(
-                            peer.commits(),
-                            local,
-                            remote,
-                        )?)
+                        let resumed =
+                            be_block_session::resume(peer.commits(), local, remote)?;
+                        Ok::<_, ClientError>(sealed_here(&peer, local, resumed))
                     }
                     .await
                     .map_err(|error| error.to_string());
@@ -3897,6 +3913,10 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         let tag = tag.ok_or(ClientError::Unexpected)?;
         let (client, session, journal) = peer.connection().join_session(block, tag).await?;
         let head = peer.remote_head(block).await?;
+        // The head may be a seal of the journal (`journal_for`), which needs the commit here.
+        if let Some(head) = head {
+            peer.fetch_history(head).await?;
+        }
         let journal = match journal {
             Some(journal) => Some(journal),
             None => started_from_mirror(&peer, block, tag, client, &session, head).await,
@@ -4146,6 +4166,27 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     let mut sealed = peer.sealed_journal(block)?;
     sealed.entries.clear();
     Some(sealed)
+}
+
+/// A fast-forward to a seal of this session made on `local`, the commit the replica is on: its
+/// news (`Resume::Sealed`), which the replica takes once it applied as far, not a head to merge,
+/// which would count what both hold twice.
+fn sealed_here<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    local: Option<CommitId>,
+    resume: be_block_session::Resume,
+) -> be_block_session::Resume {
+    if let be_block_session::Resume::FastForward { to } = resume
+        && let Some((parent, sealed)) = peer.sealed_on(to)
+        && parent.is_some()
+        && parent == local
+    {
+        return be_block_session::Resume::Sealed {
+            commit: to,
+            through: sealed.sequence,
+        };
+    }
+    resume
 }
 
 /// The last number of the order `journal` holds: its last entry's, or its base's.
