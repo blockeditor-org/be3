@@ -98,6 +98,12 @@ downloads = {
         "size_bytes": 155976,
         "version": "0.11.1",
     },
+    "aes-kw-0.3.1": {
+        "name": "aes-kw",
+        "sha256": "41ac571010bd60765c56085a4f1d412012a9be2663b1a2f2b19b49318653fd0d",
+        "size_bytes": 16747,
+        "version": "0.3.1",
+    },
     "ahash-0.8.12": {
         "name": "ahash",
         "sha256": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
@@ -217,6 +223,12 @@ downloads = {
         "sha256": "db4c94f57a570fce5d381be3289b3f79aef6332d72948fe82ab5772e423ccf92",
         "size_bytes": 83471,
         "version": "1.9.4",
+    },
+    "argon2-0.5.3": {
+        "name": "argon2",
+        "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
+        "size_bytes": 28795,
+        "version": "0.5.3",
     },
     "arrayref-0.3.9": {
         "name": "arrayref",
@@ -422,6 +434,12 @@ downloads = {
         "size_bytes": 10594,
         "version": "1.0.0",
     },
+    "base64-0.21.7": {
+        "name": "base64",
+        "sha256": "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567",
+        "size_bytes": 82576,
+        "version": "0.21.7",
+    },
     "base64-0.22.1": {
         "name": "base64",
         "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
@@ -493,6 +511,12 @@ downloads = {
         "sha256": "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a",
         "size_bytes": 50766,
         "version": "2.12.1",
+    },
+    "blake2-0.10.6": {
+        "name": "blake2",
+        "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
+        "size_bytes": 47234,
+        "version": "0.10.6",
     },
     "block-buffer-0.10.4": {
         "name": "block-buffer",
@@ -1088,11 +1112,29 @@ downloads = {
         "size_bytes": 15449,
         "version": "0.2.2",
     },
+    "crypto-glue-0.2.2": {
+        "name": "crypto-glue",
+        "sha256": "a2199036d1ea8b42f94ec872d69dc641ec8b603ef12f9da7874cf8bfef419cb7",
+        "size_bytes": 40396,
+        "version": "0.2.2",
+    },
+    "crypto-primes-0.7.2": {
+        "name": "crypto-primes",
+        "sha256": "3633a51a39c69ebbaa4feaa694bd83d241e4093901c84a0963b19d9bb3f0cf8f",
+        "size_bytes": 191278,
+        "version": "0.7.2",
+    },
     "ctr-0.10.1": {
         "name": "ctr",
         "sha256": "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21",
         "size_bytes": 20379,
         "version": "0.10.1",
+    },
+    "cts-0.7.0": {
+        "name": "cts",
+        "sha256": "e6ae47d18aa4f3701bc9b644cf9a74a45e6eace39feabeab15864728aa1e45a9",
+        "size_bytes": 13385,
+        "version": "0.7.0",
     },
     "ctutils-0.4.8": {
         "name": "ctutils",
@@ -1952,6 +1994,12 @@ downloads = {
         "size_bytes": 171163,
         "version": "0.12.4",
     },
+    "hkdf-0.13.0": {
+        "name": "hkdf",
+        "sha256": "4aaa26c720c68b866f2c96ef5c1264b3e6f473fe5d4ce61cd44bbe913e553018",
+        "size_bytes": 171610,
+        "version": "0.13.0",
+    },
     "hmac-0.12.1": {
         "name": "hmac",
         "sha256": "6c49c37c09c17a53d937dfbb742eb3a961d65a994e6bcdcf37e7399d0cc8ab5e",
@@ -2336,6 +2384,12 @@ downloads = {
         "size_bytes": 108515,
         "version": "0.3.99",
     },
+    "kbkdf-0.1.0-rc.1": {
+        "name": "kbkdf",
+        "sha256": "90ac93c9768b8d587407881c98b0c3a5d3e3049daa73408ebe5bfb1ab1cb9c84",
+        "size_bytes": 9164,
+        "version": "0.1.0-rc.1",
+    },
     "keyboard-types-0.8.3": {
         "name": "keyboard-types",
         "sha256": "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d",
@@ -2539,6 +2593,12 @@ downloads = {
         "sha256": "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98",
         "size_bytes": 17404,
         "version": "0.11.0",
+    },
+    "md5-0.8.1": {
+        "name": "md5",
+        "sha256": "7ebb8d8732c6a6df3d8f032a82911cfc747e00efb95cc46e8d0acd5b5b88570c",
+        "size_bytes": 7344,
+        "version": "0.8.1",
     },
     "memchr-2.8.3": {
         "name": "memchr",
@@ -2990,6 +3050,12 @@ downloads = {
         "size_bytes": 75265,
         "version": "0.14.0",
     },
+    "p521-0.14.0": {
+        "name": "p521",
+        "sha256": "4ad64cc32c2dc466317c12ee5853e61f159f9eab1fe7efade0395dc2e7b43449",
+        "size_bytes": 118277,
+        "version": "0.14.0",
+    },
     "parking-2.2.1": {
         "name": "parking",
         "sha256": "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba",
@@ -3007,6 +3073,12 @@ downloads = {
         "sha256": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
         "size_bytes": 34110,
         "version": "0.9.12",
+    },
+    "password-hash-0.5.0": {
+        "name": "password-hash",
+        "sha256": "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166",
+        "size_bytes": 26884,
+        "version": "0.5.0",
     },
     "path-absolutize-4.0.1": {
         "name": "path-absolutize",
@@ -3121,6 +3193,12 @@ downloads = {
         "sha256": "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
         "size_bytes": 35790,
         "version": "0.7.5",
+    },
+    "pkcs1-0.8.0": {
+        "name": "pkcs1",
+        "sha256": "6250dd7321adbe93d12b750aee0ced159fd13e77f625edcdf1cb6f83cd99f650",
+        "size_bytes": 39853,
+        "version": "0.8.0",
     },
     "pkcs12-0.2.0-pre.0": {
         "name": "pkcs12",
@@ -3398,6 +3476,12 @@ downloads = {
         "size_bytes": 99786,
         "version": "0.9.4",
     },
+    "rand_chacha-0.10.0": {
+        "name": "rand_chacha",
+        "sha256": "3e6af7f3e25ded52c41df4e0b1af2d047e45896c2f3281792ed68a1c243daedb",
+        "size_bytes": 19763,
+        "version": "0.10.0",
+    },
     "rand_chacha-0.3.1": {
         "name": "rand_chacha",
         "sha256": "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88",
@@ -3589,6 +3673,12 @@ downloads = {
         "sha256": "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb",
         "size_bytes": 56837,
         "version": "0.21.1",
+    },
+    "rsa-0.10.0-rc.19": {
+        "name": "rsa",
+        "sha256": "33405e321e16ef941ca66e254f6904c3aafd3c7ff001fb88bf11c73eb75c2b85",
+        "size_bytes": 107080,
+        "version": "0.10.0-rc.19",
     },
     "rsa-0.9.10": {
         "name": "rsa",
@@ -3817,6 +3907,12 @@ downloads = {
         "sha256": "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8",
         "size_bytes": 13427,
         "version": "0.11.19",
+    },
+    "serde_cbor_2-0.13.0": {
+        "name": "serde_cbor_2",
+        "sha256": "34aec2709de9078e077090abd848e967abab63c9fb3fdb5d4799ad359d8d482c",
+        "size_bytes": 45002,
+        "version": "0.13.0",
     },
     "serde_core-1.0.228": {
         "name": "serde_core",
@@ -5023,6 +5119,30 @@ downloads = {
         "sha256": "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb",
         "size_bytes": 18026,
         "version": "1.1.0",
+    },
+    "webauthn-attestation-ca-0.6.2": {
+        "name": "webauthn-attestation-ca",
+        "sha256": "29cf6bdd3a9dba27c82ccb27df26fe7d98d7593c0c45ddddf85166a117b50301",
+        "size_bytes": 15150,
+        "version": "0.6.2",
+    },
+    "webauthn-rs-0.6.2": {
+        "name": "webauthn-rs",
+        "sha256": "13a354e6b2ef6edc62835901fc18dd413b1370d624c8cd1aa328493bd809249b",
+        "size_bytes": 36952,
+        "version": "0.6.2",
+    },
+    "webauthn-rs-core-0.6.2": {
+        "name": "webauthn-rs-core",
+        "sha256": "6d13e555c106095051abd70415b88546a0d3757a7990e05b4659b4fba19e46ac",
+        "size_bytes": 128732,
+        "version": "0.6.2",
+    },
+    "webauthn-rs-proto-0.6.2": {
+        "name": "webauthn-rs-proto",
+        "sha256": "5555714098cd069e3c8b31e58ac14250b9ae185e949c21416bccb55ce8ac8a5c",
+        "size_bytes": 24518,
+        "version": "0.6.2",
     },
     "webpki-roots-0.26.11": {
         "name": "webpki-roots",

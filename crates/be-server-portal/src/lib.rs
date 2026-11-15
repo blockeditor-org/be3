@@ -63,13 +63,50 @@ pub struct ProviderLink {
     pub href: String,
 }
 
+/// What a passkey ceremony a page offers is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PasskeyStep {
+    /// Signing in with any passkey the browser has for this server, with no email first.
+    SignIn,
+    /// Confirming it is the signed-in account's owner with one of its passkeys.
+    Proof,
+    /// Adding a passkey to the signed-in account.
+    Add,
+}
+
+impl PasskeyStep {
+    /// Where the browser's answer is posted.
+    pub fn action(self) -> &'static str {
+        match self {
+            PasskeyStep::SignIn => "/auth/passkey/sign-in",
+            PasskeyStep::Proof => "/auth/passkey/proof",
+            PasskeyStep::Add => "/auth/passkey/add",
+        }
+    }
+
+    /// Whether the browser makes a passkey (`navigator.credentials.create`) rather than using
+    /// one (`get`).
+    pub fn creates(self) -> bool {
+        self == PasskeyStep::Add
+    }
+}
+
+/// A passkey ceremony the page began, bound to its form token.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PasskeyOffer {
+    pub step: PasskeyStep,
+    /// The `publicKey` options of the browser's call, as WebAuthn's JSON
+    /// (`PublicKeyCredential.parseRequestOptionsFromJSON` or `parseCreationOptionsFromJSON`).
+    pub options: String,
+}
+
 /// A way to sign in to the account, as the settings page lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct IdentityRow {
     pub id: String,
-    /// `email` or `oidc`, and later `passkey`.
+    /// `email`, `oidc` or `passkey`.
     pub kind: String,
-    /// The email, or the provider's name and the email it gave.
+    /// The email, the provider's name and the email it gave, or when the passkey was added.
     pub label: String,
     /// False for the account's last identity, which can't be removed.
     pub removable: bool,
@@ -174,6 +211,8 @@ pub struct Page {
     /// The provider a screen is about: the one waiting for an invite code, or the one a code
     /// to the account's email will link.
     pub provider: String,
+    /// The passkey ceremony the page offers, if the server has an RP ID and the screen has one.
+    pub passkey: Option<PasskeyOffer>,
     pub assets: String,
 }
 

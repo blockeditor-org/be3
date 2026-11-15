@@ -38,6 +38,8 @@ const SCHEMA: &str = "
         -- For a provider (`oidc`), the verified email it last gave, if it is authoritative for
         -- email.
         email           TEXT NOT NULL DEFAULT '',
+        -- For a passkey, the key and signature counter webauthn-rs checks it with (JSON).
+        credential      TEXT NOT NULL DEFAULT '',
         UNIQUE (kind, subject)
     );
     CREATE INDEX identities_account ON identities(account_id);

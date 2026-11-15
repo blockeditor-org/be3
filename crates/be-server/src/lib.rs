@@ -39,6 +39,8 @@ pub mod backup;
 pub mod blocks;
 pub mod contacts;
 #[cfg(test)]
+mod fake_authenticator;
+#[cfg(test)]
 mod fake_provider;
 mod http;
 pub mod journal;
@@ -48,6 +50,7 @@ mod notifications;
 pub mod objects;
 pub mod oidc;
 mod organization;
+mod passkeys;
 pub mod push;
 pub mod retention;
 pub mod s3;

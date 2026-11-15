@@ -732,6 +732,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -739,6 +744,11 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -748,6 +758,24 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -755,6 +783,11 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -764,6 +797,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -772,6 +810,11 @@ third_party = {
                 "deps": [
                     ":inout-0.2.5",
                 ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
+                ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
                 },
@@ -779,6 +822,11 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "getrandom",
+                    "rand_core",
                 ],
                 "named_deps": {
                     "common": ":crypto-common-0.2.2",
@@ -826,6 +874,13 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cipher-0.5.2",
                     ":cpubits-0.1.1",
@@ -895,6 +950,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "linux-arm64": {
@@ -908,6 +966,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "linux-x86_64": {
@@ -921,6 +982,25 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.8",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "macos-arm64": {
@@ -934,6 +1014,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "macos-x86_64": {
@@ -947,6 +1030,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "windows-arm64": {
@@ -960,6 +1046,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
             "windows-x86_64": {
@@ -973,6 +1062,9 @@ third_party = {
                 ],
                 "features": [
                     "aes",
+                    "alloc",
+                    "default",
+                    "getrandom",
                 ],
             },
         },
@@ -980,6 +1072,111 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.11.1",
+    },
+    "aes-kw-0.3.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "NIST 800-38F AES Key Wrap (KW) and Key Wrap with Padding (KWP) modes",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/key-wraps/tree/aes-kw",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/key-wraps",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "aes_kw",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "aes-kw",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":const-oid-0.10.2",
+                ],
+                "features": [
+                    "default",
+                    "oid",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.1",
     },
     "ahash-0.8.12": {
         "build_script": {
@@ -1919,6 +2116,138 @@ third_party = {
         ],
         "version": "1.9.4",
     },
+    "argon2-0.5.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Argon2 password hashing function with support\nfor the Argon2d, Argon2i, and Argon2id algorithmic variants\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/password-hashes/tree/master/argon2",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "argon2",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "argon2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":cpufeatures-0.2.17",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":cpufeatures-0.2.17",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":cpufeatures-0.2.17",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":blake2-0.10.6",
+                    ":cpufeatures-0.2.17",
+                    ":password-hash-0.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "password-hash",
+                    "rand",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.3",
+    },
     "arrayref-0.3.9": {
         "build_script": None,
         "env": {
@@ -2420,6 +2749,24 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-derive-0.6.0",
                     ":asn1-rs-impl-0.2.0",
@@ -3639,6 +3986,86 @@ third_party = {
         ],
         "version": "1.0.0",
     },
+    "base64-0.21.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Alice Maz <alice@alicemaz.com>:Marshall Pierce <marshall@mpierce.org>",
+            "CARGO_PKG_DESCRIPTION": "encodes and decodes base64 as bytes or utf8",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/marshallpierce/rust-base64",
+            "CARGO_PKG_RUST_VERSION": "1.48.0",
+        },
+        "library": {
+            "crate": "base64",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "base64",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.21.7",
+    },
     "base64-0.22.1": {
         "build_script": None,
         "env": {
@@ -3778,6 +4205,9 @@ third_party = {
             "linux-x86_64-html": {
                 "features": [
                     "alloc",
+                    "default",
+                    "simd-unsafe",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -4563,6 +4993,69 @@ third_party = {
         ],
         "version": "2.12.1",
     },
+    "blake2-0.10.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "BLAKE2 hash functions",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hashes",
+        },
+        "library": {
+            "crate": "blake2",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "blake2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.6",
+    },
     "block-buffer-0.10.4": {
         "build_script": None,
         "env": {
@@ -4740,6 +5233,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":hybrid-array-0.4.15",
                 ],
@@ -6074,6 +6572,15 @@ third_party = {
                     "default",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "block-padding",
+                    "default",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cipher-0.5.2",
@@ -6399,6 +6906,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "rng",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.3.0",
@@ -7454,6 +7971,21 @@ third_party = {
                     "common": ":crypto-common-0.2.2",
                 },
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
             "macos-arm64": {
                 "deps": [
                     ":block-buffer-0.12.1",
@@ -8369,7 +8901,11 @@ third_party = {
                     "db",
                 ],
             },
-            "linux-x86_64-html": {},
+            "linux-x86_64-html": {
+                "features": [
+                    "db",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "db",
@@ -11085,6 +11621,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11104,6 +11641,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11123,6 +11661,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11142,6 +11681,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11161,6 +11701,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11180,6 +11721,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11199,6 +11741,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11218,6 +11761,7 @@ third_party = {
                     ":zeroize-1.9.0",
                 ],
                 "features": [
+                    "alloc",
                     "getrandom",
                     "hybrid-array",
                     "rand_core",
@@ -11495,6 +12039,469 @@ third_party = {
         ],
         "version": "0.2.2",
     },
+    "crypto-glue-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>",
+            "CARGO_PKG_DESCRIPTION": "A facade over the RustCrypto ecosystem",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/crypto-glue/",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/crypto-glue/",
+        },
+        "library": {
+            "crate": "crypto_glue",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-glue",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":aes-kw-0.3.1",
+                    ":argon2-0.5.3",
+                    ":base64-0.23.1",
+                    ":cbc-0.2.1",
+                    ":cipher-0.5.2",
+                    ":const-oid-0.10.2",
+                    ":crypto-common-0.2.2",
+                    ":cts-0.7.0",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":ecdsa-0.17.0",
+                    ":elliptic-curve-0.14.3",
+                    ":hex-0.4.3",
+                    ":hkdf-0.13.0",
+                    ":hmac-0.13.0",
+                    ":hybrid-array-0.4.15",
+                    ":kbkdf-0.1.0-rc.1",
+                    ":md5-0.8.1",
+                    ":p256-0.14.0",
+                    ":p384-0.14.0",
+                    ":p521-0.14.0",
+                    ":pbkdf2-0.13.0",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rsa-0.10.0-rc.19",
+                    ":sec1-0.8.1",
+                    ":serde-1.0.228",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":subtle-2.6.1",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.2",
+    },
+    "crypto-primes-0.7.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Random prime number generation and primality checking library",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/entropyxyz/crypto-primes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "crypto_primes",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-primes",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":crypto-bigint-0.7.11",
+                    ":rand_core-0.10.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.2",
+    },
     "ctr-0.10.1": {
         "build_script": None,
         "env": {
@@ -11528,6 +12535,11 @@ third_party = {
                     ":cipher-0.5.2",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cipher-0.5.2",
@@ -11553,6 +12565,70 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.10.1",
+    },
+    "cts-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Generic implementation of the ciphertext stealing block modes of operation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-modes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cts",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cts",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "ctutils-0.4.8": {
         "build_script": None,
@@ -12649,11 +13725,15 @@ third_party = {
             "linux-x86_64-html": {
                 "deps": [
                     ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
                     ":pem-rfc7468-1.0.0",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "derive",
+                    "flagset",
                     "oid",
                     "pem",
                     "std",
@@ -12794,6 +13874,22 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-0.7.2",
                     ":displaydoc-0.2.6",
@@ -14282,6 +15378,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14304,6 +15401,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14326,6 +15424,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14348,6 +15447,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14370,6 +15470,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14392,6 +15493,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14414,6 +15516,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -14436,6 +15539,7 @@ third_party = {
                 "features": [
                     "algorithm",
                     "alloc",
+                    "default",
                     "der",
                     "digest",
                     "getrandom",
@@ -15349,6 +16453,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15359,7 +16464,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15380,6 +16487,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15390,7 +16498,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15411,6 +16521,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15421,7 +16532,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15442,6 +16555,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15452,7 +16566,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15473,6 +16589,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15483,7 +16600,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15504,6 +16623,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15514,7 +16634,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15535,6 +16657,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15545,7 +16668,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -15566,6 +16691,7 @@ third_party = {
                     ":digest-0.11.3",
                     ":ff-0.14.0",
                     ":group-0.14.0",
+                    ":hkdf-0.13.0",
                     ":pem-rfc7468-1.0.0",
                     ":pkcs8-0.11.0",
                     ":rand_core-0.10.1",
@@ -15576,7 +16702,9 @@ third_party = {
                 "features": [
                     "alloc",
                     "arithmetic",
+                    "default",
                     "digest",
+                    "ecdh",
                     "ff",
                     "getrandom",
                     "group",
@@ -17030,6 +18158,7 @@ third_party = {
             "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
+            "linux-x86_64-html": {},
             "macos-arm64": {},
             "macos-x86_64": {},
             "windows-arm64": {},
@@ -19925,6 +21054,7 @@ third_party = {
                     ":rand_core-0.10.1",
                 ],
                 "features": [
+                    "std",
                     "sys_rng",
                     "wasm_js",
                 ],
@@ -20025,6 +21155,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":polyval-0.7.3",
                 ],
@@ -22621,6 +23756,13 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "features": [
                     "alloc",
@@ -22943,6 +24085,71 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.12.4",
+    },
+    "hkdf-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "HMAC-based Extract-and-Expand Key Derivation Function (HKDF)",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "hkdf",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "hkdf",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hmac-0.13.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.0",
     },
     "hmac-0.12.1": {
         "build_script": None,
@@ -23529,96 +24736,112 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "windows-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":subtle-2.6.1",
                     ":typenum-1.20.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "serde",
                     "subtle",
                     "zeroize",
                 ],
@@ -26238,6 +27461,15 @@ third_party = {
                     "block-padding",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":block-padding-0.4.2",
@@ -28037,6 +29269,71 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.99",
+    },
+    "kbkdf-0.1.0-rc.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Key Derivation Using Pseudorandom Function (KBKDF)",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/KDFs/tree/master/kbkdf",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/KDFs/",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "kbkdf",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "kbkdf",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.0-rc.1",
     },
     "keyboard-types-0.8.3": {
         "build_script": None,
@@ -30296,6 +31593,78 @@ third_party = {
         ],
         "version": "0.11.0",
     },
+    "md5-0.8.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Daniel McKenna <danielmckenna93@gmail.com>:Ivan Ukhov <ivan.ukhov@gmail.com>:Kamal Ahmad <shibe@openmailbox.org>:Konstantin Stepanov <milezv@gmail.com>:Lukas Kalbertodt <lukas.kalbertodt@gmail.com>:Nathan Musoke <nathan.musoke@gmail.com>:Scott Mabin <scott@mabez.dev>:Tony Arcieri <bascule@gmail.com>:Wim de With <register@dewith.io>:Yosef Dinerstein <yosefdi@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "The package provides the MD5 hash function.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/stainless-steel/md5",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/stainless-steel/md5",
+        },
+        "library": {
+            "crate": "md5",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "md5",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.1",
+    },
     "memchr-2.8.3": {
         "build_script": None,
         "env": {
@@ -30612,6 +31981,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
                 "features": [
                     "std",
                 ],
@@ -31815,6 +33189,17 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":memchr-2.8.3",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":memchr-2.8.3",
@@ -32284,6 +33669,16 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":num-integer-0.1.47",
@@ -32629,6 +34024,7 @@ third_party = {
                 ],
                 "features": [
                     "i128",
+                    "std",
                 ],
             },
             "macos-arm64": {
@@ -34566,6 +35962,24 @@ third_party = {
                     "x962",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":asn1-rs-0.7.2",
@@ -35773,6 +37187,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35799,6 +37214,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35825,6 +37241,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35851,6 +37268,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35877,6 +37295,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35903,6 +37322,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35929,6 +37349,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -35955,6 +37376,7 @@ third_party = {
                     "arithmetic",
                     "default",
                     "digest",
+                    "ecdh",
                     "ecdsa",
                     "ecdsa-core",
                     "getrandom",
@@ -36208,6 +37630,239 @@ third_party = {
         ],
         "version": "0.14.0",
     },
+    "p521-0.14.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-521 (a.k.a. secp521r1) elliptic curve as defined in\nSP 800-186, with support for ECDH, ECDSA signing/verification, and general purpose curve arithmetic\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/elliptic-curves/tree/master/p521",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "p521",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "p521",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-1.0.0",
+                    ":elliptic-curve-0.14.3",
+                    ":primefield-0.14.0",
+                    ":primeorder-0.14.0",
+                    ":sha2-0.11.1",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "default",
+                    "digest",
+                    "ecdsa",
+                    "ecdsa-core",
+                    "getrandom",
+                    "pem",
+                    "pkcs8",
+                    "precomputed-tables",
+                    "sha512",
+                    "std",
+                ],
+                "named_deps": {
+                    "ecdsa_core": ":ecdsa-0.17.0",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.14.0",
+    },
     "parking-2.2.1": {
         "build_script": None,
         "env": {
@@ -36427,6 +38082,126 @@ third_party = {
         ],
         "version": "0.9.12",
     },
+    "password-hash-0.5.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits which describe the functionality of password hashing algorithms,\nas well as a `no_std`-friendly implementation of the PHC string format\n(a well-defined subset of the Modular Crypt Format a.k.a. MCF)\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits/tree/master/password-hash",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "password_hash",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "password-hash",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "rand_core",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.0",
+    },
     "path-absolutize-4.0.1": {
         "build_script": None,
         "env": {
@@ -36565,6 +38340,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":digest-0.11.3",
                     ":hmac-0.13.0",
@@ -37651,6 +39436,127 @@ third_party = {
         ],
         "version": "0.7.5",
     },
+    "pkcs1-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #1:\nRSA Cryptography Specifications Version 2.2 (RFC 8017)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pkcs1",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pkcs1",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pkcs1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.8.0",
+    },
     "pkcs12-0.2.0-pre.0": {
         "build_script": None,
         "env": {
@@ -37821,6 +39727,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37828,6 +39735,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "linux-arm64": {
@@ -37837,6 +39745,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37844,6 +39753,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "linux-x86_64": {
@@ -37853,6 +39763,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37860,6 +39771,25 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                    "rand_core",
                 ],
             },
             "macos-arm64": {
@@ -37869,6 +39799,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37876,6 +39807,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "macos-x86_64": {
@@ -37885,6 +39817,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37892,6 +39825,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "windows-arm64": {
@@ -37901,6 +39835,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37908,6 +39843,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
             "windows-x86_64": {
@@ -37917,6 +39853,7 @@ third_party = {
                     ":cbc-0.2.1",
                     ":der-0.8.2",
                     ":pbkdf2-0.13.0",
+                    ":rand_core-0.10.1",
                     ":scrypt-0.12.0",
                     ":sha2-0.11.1",
                     ":spki-0.8.1",
@@ -37924,6 +39861,7 @@ third_party = {
                 "features": [
                     "alloc",
                     "pbes2",
+                    "rand_core",
                 ],
             },
         },
@@ -38066,88 +40004,120 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":pkcs5-0.8.1",
+                    ":rand_core-0.10.1",
                     ":spki-0.8.1",
                 ],
                 "features": [
                     "alloc",
+                    "encryption",
                     "pem",
+                    "pkcs5",
                     "std",
                 ],
             },
@@ -38637,6 +40607,16 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cpubits-0.1.1",
                     ":cpufeatures-0.3.0",
@@ -40960,6 +42940,21 @@ third_party = {
                     "thread_rng",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":chacha20-0.10.1",
+                    ":getrandom-0.4.2",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                    "std_rng",
+                    "sys_rng",
+                    "thread_rng",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":chacha20-0.10.1",
@@ -41359,6 +43354,111 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.4",
+    },
+    "rand_chacha-0.10.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rand Project Developers:The Rust Project Developers:The CryptoCorrosion Contributors",
+            "CARGO_PKG_DESCRIPTION": "ChaCha random number generator\n",
+            "CARGO_PKG_HOMEPAGE": "https://rust-random.github.io/book",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-random/rand",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rand_chacha",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "rand_chacha",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ppv-lite86-0.2.21",
+                    ":rand_core-0.10.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.10.0",
     },
     "rand_chacha-0.3.1": {
         "build_script": None,
@@ -44333,6 +46433,201 @@ third_party = {
         ],
         "version": "0.21.1",
     },
+    "rsa-0.10.0-rc.19": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers:dignifiedquire <dignifiedquire@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust RSA implementation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/RSA",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rsa",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rsa",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":crypto-bigint-0.7.11",
+                    ":crypto-primes-0.7.2",
+                    ":digest-0.11.3",
+                    ":pkcs1-0.8.0",
+                    ":pkcs8-0.11.0",
+                    ":rand_core-0.10.1",
+                    ":sha2-0.11.1",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "encoding",
+                    "sha2",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "version": "0.10.0-rc.19",
+    },
     "rsa-0.9.10": {
         "build_script": None,
         "env": {
@@ -45004,6 +47299,11 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":nom-7.1.3",
                 ],
@@ -47312,6 +49612,12 @@ third_party = {
                     ":cipher-0.5.2",
                 ],
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -47512,6 +49818,14 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":cfg-if-1.0.4",
                     ":pbkdf2-0.13.0",
@@ -48454,6 +50768,110 @@ third_party = {
         ],
         "version": "0.11.19",
     },
+    "serde_cbor_2-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "CBOR support for Serde.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/cbor",
+            "CARGO_PKG_RUST_VERSION": "1.81",
+        },
+        "library": {
+            "crate": "serde_cbor_2",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "serde_cbor_2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":half-2.7.1",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.0",
+    },
     "serde_core-1.0.228": {
         "build_script": {
             "crate_root": "build.rs",
@@ -49174,11 +51592,13 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49186,11 +51606,13 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49198,11 +51620,13 @@ third_party = {
             },
             "linux-x86_64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49210,11 +51634,13 @@ third_party = {
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49222,11 +51648,13 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49234,11 +51662,13 @@ third_party = {
             },
             "macos-x86_64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49246,11 +51676,13 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -49258,11 +51690,13 @@ third_party = {
             },
             "windows-x86_64": {
                 "deps": [
+                    ":base64-0.22.1",
                     ":serde_core-1.0.228",
                     ":serde_with_macros-3.22.0",
                 ],
                 "features": [
                     "alloc",
+                    "base64",
                     "default",
                     "macros",
                     "std",
@@ -52483,80 +54917,120 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":sha2-0.11.1",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "fingerprint",
                     "pem",
+                    "sha2",
                     "std",
                 ],
             },
@@ -59689,6 +62163,14 @@ third_party = {
                     "common": ":crypto-common-0.2.2",
                 },
             },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ctutils-0.4.8",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
             "macos-arm64": {
                 "deps": [
                     ":ctutils-0.4.8",
@@ -65510,6 +67992,578 @@ third_party = {
         ],
         "version": "0.3.99",
     },
+    "webauthn-attestation-ca-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Attestation CA Descriptions",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_attestation_ca",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-attestation-ca",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":crypto-glue-0.2.2",
+                    ":serde-1.0.228",
+                    ":serde_with-3.22.0",
+                    ":tracing-0.1.44",
+                    ":uuid-1.29.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Framework for Rust Web Servers",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":serde-1.0.228",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-rs-core-0.6.2",
+                ],
+                "features": [
+                    "conditional-ui",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-core-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Cryptographic Operation Handling",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs-core",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":crypto-glue-0.2.2",
+                    ":der-parser-10.0.0",
+                    ":hex-0.4.3",
+                    ":nom-7.1.3",
+                    ":rand-0.10.2",
+                    ":rand_chacha-0.10.0",
+                    ":serde-1.0.228",
+                    ":serde_cbor_2-0.13.0",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":thiserror-1.0.69",
+                    ":tracing-0.1.44",
+                    ":url-2.5.8",
+                    ":uuid-1.29.1",
+                    ":webauthn-attestation-ca-0.6.2",
+                    ":webauthn-rs-proto-0.6.2",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
+    "webauthn-rs-proto-0.6.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "William Brown <william@blackhats.net.au>:Michael Farrell <micolous+git@gmail.com>:James Hodgkinson <james@terminaloutcomes.com>",
+            "CARGO_PKG_DESCRIPTION": "Webauthn Specification Bindings",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_LICENSE": "MPL-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/kanidm/webauthn-rs",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "webauthn_rs_proto",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "webauthn-rs-proto",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64-0.21.7",
+                    ":serde-1.0.228",
+                    ":serde_json-1.0.150",
+                    ":serde_with-3.22.0",
+                    ":url-2.5.8",
+                ],
+                "features": [
+                    "default",
+                    "origin",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.2",
+    },
     "webpki-roots-0.26.11": {
         "build_script": None,
         "env": {
@@ -70551,70 +73605,136 @@ third_party = {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
+                    "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "windows-arm64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":const-oid-0.10.2",
                     ":der-0.8.2",
+                    ":sha1-0.11.0",
+                    ":signature-3.0.0",
                     ":spki-0.8.1",
                 ],
                 "features": [
+                    "builder",
+                    "default",
+                    "hazmat",
                     "pem",
+                    "signature",
+                    "std",
                 ],
             },
         },
@@ -70675,6 +73795,22 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64-html": {
                 "deps": [
                     ":asn1-rs-0.7.2",
                     ":data-encoding-2.11.0",
@@ -71970,61 +75106,73 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "macos-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
@@ -72040,21 +75188,25 @@ third_party = {
             "wasi-guest": {},
             "windows-arm64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":serde-1.0.228",
                     ":zeroize_derive-1.5.0",
                 ],
                 "features": [
                     "alloc",
                     "default",
+                    "serde",
                     "zeroize_derive",
                 ],
             },
