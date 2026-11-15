@@ -1,5 +1,5 @@
 use super::*;
-use beui::styled::{ColorRole, Frame, Size, Space, Text};
+use beui::styled::{ColorRole, Frame, List, Size, Space, Text};
 use beui_macros::view;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -13,6 +13,7 @@ fn a_show_with_a_fallback_swaps_the_one_child_a_frame_holds() {
         given.set(Some(editing));
         view! {
             <Root>
+                <List spacing=Space::None>
                 <Frame @test_id="holder" fill=ColorRole::Surface padding=Space::Md>
                     <Show condition={editing} fallback={|| view! {
                         <Frame @test_id="reading" height=Size::Sm>
@@ -24,6 +25,7 @@ fn a_show_with_a_fallback_swaps_the_one_child_a_frame_holds() {
                         </Frame>
                     </Show>
                 </Frame>
+                </List>
             </Root>
         }
     });
@@ -35,7 +37,6 @@ fn a_show_with_a_fallback_swaps_the_one_child_a_frame_holds() {
     editing.set(true);
     test.frame(Vec::new());
     assert!(test.shows("editing") && !test.shows("reading"));
-    eprintln!("DEBUG holder {:?} reading {:?} editing {:?}", test.rect_of("holder"), reading, test.rect_of("editing"));
     assert!(
         test.rect_of("holder").height() > reading.height(),
         "the frame lays out the child it holds now"
