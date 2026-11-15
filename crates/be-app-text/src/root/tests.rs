@@ -27,6 +27,7 @@ mod a_text_opened_at_a_search_hit_selects_its_words;
 mod a_wide_document_is_centered_and_a_wide_table_reaches_into_the_margin;
 mod an_empty_text_given_the_keyboard_takes_the_caret;
 mod checkboxes_and_block_chips_line_up_with_their_text;
+mod checkboxes_are_drawn_when_the_text_arrives_after_the_editor;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod code_is_painted_on_its_background;
@@ -60,6 +61,10 @@ mod typing_inserts_text_into_the_document;
 mod up_and_down_step_through_the_rows_of_a_wrapped_paragraph;
 mod up_and_down_step_through_the_rows_of_wrapped_code;
 mod whitespace_markers_sit_over_real_spaces;
+mod a_fenced_block_is_highlighted_in_the_language_it_names;
+mod control_characters_take_the_room_of_their_names;
+mod the_last_line_scrolls_up_to_the_top_of_the_view;
+mod line_numbers_are_hidden_until_chosen_and_kept_in_the_view;
 
 fn editor(text: &str) -> BeuiTest<TextRoot> {
     let block = Uuid::new_v4();

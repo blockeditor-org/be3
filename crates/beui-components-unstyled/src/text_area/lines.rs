@@ -26,7 +26,7 @@ use super::rows::{
     Inline, InlineItem, Row, RowInputs, RowKey, RowOptions, SpanKind, TableColumns, build_row,
     line_range, row_key, table_columns,
 };
-use super::{Context, GeometryCell, Held, RowEntry};
+use super::{Context, GUTTER_DIGITS, GeometryCell, Held, RowEntry};
 use beui_view::types::{Align2, Extent, Sides};
 
 #[component]
@@ -38,7 +38,18 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let top = create_memo(move || Some(cx.padding.get().top));
     let bottom = create_memo(move || match cx.prose.get() {
         Some(_) => Some(cx.padding.get().bottom),
-        None => Some((cx.geometry.get().end_room - cx.padding.get().bottom).max(0.0)),
+        None => {
+            let room = (cx.geometry.get().end_room - cx.padding.get().bottom).max(0.0);
+            if !cx.scroll_past_end {
+                return Some(room);
+            }
+            // Room for all but a line of the view below the last line, so it scrolls up to the
+            // top.
+            cx.font_size.get();
+            cx.metrics.get();
+            let line = untrack(|| cx.row_estimate());
+            Some(room.max(cx.view_height.get() - line))
+        }
     });
     let align = create_memo(move || match cx.prose.get() {
         Some(prose) => Align2::new(
@@ -237,7 +248,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 TextLanguage::Markdown | TextLanguage::RichText
             )
         });
-        if !document || !cx.line_numbers || cx.prose.get().is_some() || cx.single_line {
+        if !document || cx.prose.get().is_some() || cx.single_line {
             return Margin::default();
         }
         let size = cx.font_size.get();
@@ -604,7 +615,7 @@ fn RowText(
         let color = cx.colors.get().syntax.scope(SynHlColorScope::Invisible);
         row.invisibles
             .iter()
-            .filter(|invisible| invisible.trailing || cursors.selects(invisible.source))
+            .filter(|invisible| invisible.always || cursors.selects(invisible.source))
             .map(|invisible| {
                 TextGlyph::new(
                     invisible.display.clone(),
@@ -1023,7 +1034,7 @@ fn BlockSlot(render: RenderFn<usize>, index: usize, size: Vec2) -> NodeId {
 
 #[component]
 fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
-    let number = create_memo(move || (model.get().line + 1).to_string());
+    let number = create_memo(move || gutter_number(model.get().line + 1));
     let height = create_memo(move || Some(model.get().line_height));
     let geometry = cx.geometry;
     let above = create_memo(move || {
@@ -1066,4 +1077,11 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
             </List>
         </Frame>
     }
+}
+
+/// A line's number as the gutter shows it: a number longer than the gutter has room for is cut
+/// to the digits that fit, its last ones, as the gutter's right-aligned column would clip it.
+fn gutter_number(number: usize) -> String {
+    let shown = number.to_string();
+    shown[shown.len().saturating_sub(GUTTER_DIGITS)..].to_owned()
 }

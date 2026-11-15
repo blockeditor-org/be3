@@ -4,7 +4,7 @@ use be_sdk_beui::{BlockFilter, be_sdk_ui::BlockLabel};
 use beui::Key;
 use beui::NodeId;
 use beui::icons::{
-    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HEADING, ICON_IMAGE, ICON_ITALIC, ICON_KEYBOARD_OFF,
+    ICON_BOLD, ICON_BRACKETS, ICON_CODE, ICON_HASH, ICON_HEADING, ICON_IMAGE, ICON_ITALIC, ICON_KEYBOARD_OFF,
     ICON_LINK, ICON_LIST, ICON_LIST_CHECKS, ICON_LIST_ORDERED, ICON_SETTINGS, ICON_SQUARE_PLUS,
     ICON_STRIKETHROUGH,
 };
@@ -55,6 +55,14 @@ fn menu_actions(state: State, settings: Signal<bool>) {
         .glyph(ICON_BRACKETS)
         .checked(create_memo(move || hex.get()))
         .register();
+    let line_numbers = state.line_numbers;
+    let numbers = Action::new("text.line-numbers", "Line numbers", move || {
+        state.toggle_line_numbers()
+    })
+    .glyph(ICON_HASH)
+    .checked(line_numbers)
+    .enabled(in_text)
+    .register();
     let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
@@ -66,6 +74,7 @@ fn menu_actions(state: State, settings: Signal<bool>) {
         .register();
     add_to_menu(vec![
         MenuNode::action(&hex_view),
+        MenuNode::action(&numbers),
         MenuNode::action(&insert),
         MenuNode::action(&settings),
     ]);
