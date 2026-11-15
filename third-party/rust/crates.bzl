@@ -4561,6 +4561,8 @@ third_party = {
                     ":cexpr-0.6.0",
                     ":clang-sys-1.9.1",
                     ":itertools-0.13.0",
+                    ":log-0.4.31",
+                    ":prettyplease-0.2.37",
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
                     ":regex-1.13.1",
@@ -4569,6 +4571,9 @@ third_party = {
                     ":syn-2.0.117",
                 ],
                 "features": [
+                    "default",
+                    "logging",
+                    "prettyplease",
                     "runtime",
                 ],
             },
@@ -6106,6 +6111,66 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.5.1",
+    },
+    "calendrical_calculations-0.2.4": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Calendrical calculations in Rust",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "calendrical_calculations",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "calendrical_calculations",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.4",
     },
     "calloop-0.14.4": {
         "build_script": None,
@@ -9385,6 +9450,59 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "19.2.0",
+    },
+    "core_maths-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Robert Bastian <me@robertbastian.dev",
+            "CARGO_PKG_DESCRIPTION": "Extension trait for full float functionality in `#[no_std]` backed by `libm`.",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/robertbastian/core_maths",
+        },
+        "library": {
+            "crate": "core_maths",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "core_maths",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.1",
     },
     "coreaudio-rs-0.11.3": {
         "build_script": None,
@@ -14648,6 +14766,102 @@ third_party = {
         ],
         "version": "0.11.3",
     },
+    "diplomat-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "The diplomat FFI generation macro",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "diplomat",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":diplomat_core-0.16.1",
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-3.0.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "diplomat-runtime-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "Common runtime utilities used by diplomat codegen",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat_runtime",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "diplomat-runtime",
+        "platforms": {
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
+    "diplomat_core-0.16.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Shadaj Laddad <shadaj@users.noreply.github.com>:Manish Goregaokar <manishsmail@gmail.com>:Quinn Okabayashi <QnnOkabayashi@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared utilities between Diplomat macros and code generation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-diplomat/diplomat",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "diplomat_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "diplomat_core",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":serde-1.0.228",
+                    ":smallvec-1.16.5",
+                    ":strck-1.0.0",
+                    ":syn-3.0.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.16.1",
+    },
     "directories-next-2.0.0": {
         "build_script": None,
         "env": {
@@ -19417,6 +19631,37 @@ third_party = {
         ],
         "version": "4.1.0",
     },
+    "fslock-0.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "A library to use files as locks",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/brunoczim/fslock",
+        },
+        "library": {
+            "crate": "fslock",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "fslock",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.1",
+    },
     "futures-0.3.32": {
         "build_script": None,
         "env": {
@@ -22411,6 +22656,39 @@ third_party = {
         ],
         "version": "0.10.1",
     },
+    "gzip-header-1.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "oyvindln <oyvindln@users.noreply.github.com>",
+            "CARGO_PKG_DESCRIPTION": "A crate for decoding and encoding the header part of gzip files based on the gzip header\n implementation in the flate2 crate.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/oyvindln/gzip-header",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/oyvindln/gzip-header",
+        },
+        "library": {
+            "crate": "gzip_header",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "gzip-header",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":crc32fast-1.5.0",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.1.0",
+    },
     "h2-0.4.20": {
         "build_script": None,
         "env": {
@@ -24387,6 +24665,32 @@ third_party = {
         ],
         "version": "0.13.0",
     },
+    "home-0.5.12": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Brian Anderson <andersrb@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Shared definitions of home directories.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-lang/cargo",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-lang/cargo",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "home",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "home",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.12",
+    },
     "hound-3.5.1": {
         "build_script": None,
         "env": {
@@ -25397,6 +25701,155 @@ third_party = {
         ],
         "version": "0.1.65",
     },
+    "icu_calendar-2.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Date APIs for Gregorian and non-Gregorian calendars",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_calendar",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_calendar",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_calendar_data-2.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Data for the icu_calendar crate",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_calendar_data",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_calendar_data",
+        "platforms": {
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
     "icu_collections-2.4.0": {
         "build_script": None,
         "env": {
@@ -25572,6 +26025,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -25584,6 +26038,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -25608,6 +26063,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -25620,6 +26076,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -25668,6 +26125,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -25680,9 +26138,147 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback-2.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "API for Locale Fallback algorithms",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_locale_fallback",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_locale_fallback",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback_data-2.4.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Data for the icu_locale_fallback crate",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "icu_locale_fallback_data",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "icu_locale_fallback_data",
+        "platforms": {
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -26112,6 +26708,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26119,6 +26716,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -26126,6 +26724,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26133,6 +26732,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -26154,6 +26754,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26161,6 +26762,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -26168,6 +26770,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26175,6 +26778,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -26224,6 +26828,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26231,6 +26836,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -26238,6 +26844,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26245,6 +26852,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -28815,6 +29423,67 @@ third_party = {
         ],
         "version": "1.0.18",
     },
+    "ixdtf-0.6.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Parser for Internet eXtended DateTime Format",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "ixdtf",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ixdtf",
+        "platforms": {
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.6.7",
+    },
     "jetscii-0.5.3": {
         "build_script": {
             "crate_root": "build.rs",
@@ -31055,16 +31724,40 @@ third_party = {
         "name": "litemap",
         "platforms": {
             "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -38530,6 +39223,34 @@ third_party = {
         ],
         "version": "0.5.0",
     },
+    "paste-1.0.15": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Macros for all your token pasting needs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/paste",
+            "CARGO_PKG_RUST_VERSION": "1.31",
+        },
+        "library": {
+            "crate": "paste",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "paste",
+        "platforms": {
+            "linux-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.15",
+    },
     "path-absolutize-4.0.1": {
         "build_script": None,
         "env": {
@@ -41357,17 +42078,23 @@ third_party = {
             },
             "linux-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -41381,17 +42108,23 @@ third_party = {
             },
             "macos-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -41421,17 +42154,23 @@ third_party = {
             },
             "windows-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -41624,6 +42363,43 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.1",
+    },
+    "prettyplease-0.2.37": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2021",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "David Tolnay <dtolnay@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "A minimal `syn` syntax tree pretty-printer",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dtolnay/prettyplease",
+            "CARGO_PKG_RUST_VERSION": "1.62",
+        },
+        "library": {
+            "crate": "prettyplease",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "links": "prettyplease02",
+        "name": "prettyplease",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":syn-2.0.117",
+                ],
+                "features": [
+                    "verbatim",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.37",
     },
     "primefield-0.14.0": {
         "build_script": None,
@@ -42006,6 +42782,7 @@ third_party = {
                 "features": [
                     "default",
                     "proc-macro",
+                    "span-locations",
                 ],
             },
             "macos-arm64": {
@@ -45915,6 +46692,66 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.1.0",
+    },
+    "resb-0.1.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Utilities for reading and writing ICU resource bundle files",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "resb",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "resb",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.2",
     },
     "resvg-0.48.1": {
         "build_script": None,
@@ -55483,17 +56320,41 @@ third_party = {
         "name": "stable_deref_trait",
         "platforms": {
             "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
             "wasm32": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -55643,6 +56504,37 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.1.9",
+    },
+    "strck-1.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Quinn Okabayashi <quinnokabayashi@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Checked owned and borrowed strings",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/QnnOkabayashi/strck",
+        },
+        "library": {
+            "crate": "strck",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "strck",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "ident",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.0.0",
     },
     "streaming-iterator-0.1.9": {
         "build_script": None,
@@ -56924,6 +57816,228 @@ third_party = {
         ],
         "version": "3.27.0",
     },
+    "temporal_capi-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "C interface to temporal_rs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
+        },
+        "library": {
+            "crate": "temporal_capi",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "temporal_capi",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.6",
+    },
+    "temporal_rs-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "Temporal in Rust is an implementation of the TC39 Temporal Builtin Proposal in Rust.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
+        },
+        "library": {
+            "crate": "temporal_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "temporal_rs",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.6",
+    },
     "termcolor-1.4.1": {
         "build_script": None,
         "env": {
@@ -57759,6 +58873,96 @@ third_party = {
         ],
         "version": "0.2.32",
     },
+    "timezone_provider-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "boa-dev",
+            "CARGO_PKG_DESCRIPTION": "Time zone data providers",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/boa-dev/temporal",
+            "CARGO_PKG_RUST_VERSION": "1.86.0",
+        },
+        "library": {
+            "crate": "timezone_provider",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "timezone_provider",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.6",
+    },
     "tiny-skia-0.12.0": {
         "build_script": None,
         "env": {
@@ -58034,6 +59238,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -58043,6 +59249,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -58061,6 +59269,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -58070,6 +59280,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -58106,6 +59318,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -58115,6 +59329,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -63604,6 +64820,106 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.29.1",
+    },
+    "v8-152.2.0": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "deps": [
+                ":bindgen-0.72.1",
+                ":fslock-0.2.1",
+                ":gzip-header-1.1.0",
+                ":home-0.5.12",
+                ":miniz_oxide-0.8.9",
+                ":which-6.0.3",
+            ],
+            "edition": "2024",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "the Deno authors",
+            "CARGO_PKG_DESCRIPTION": "Rust bindings to V8",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/denoland/rusty_v8",
+        },
+        "library": {
+            "crate": "v8",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "v8",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "152.2.0",
     },
     "vcpkg-0.2.15": {
         "build_script": None,
@@ -70634,6 +71950,37 @@ third_party = {
         ],
         "version": "29.0.3",
     },
+    "which-6.0.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Harry Fei <tiziyuanfang@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": 'A Rust equivalent of Unix command "which". Locate installed executable in cross platforms.',
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/harryfei/which-rs.git",
+            "CARGO_PKG_RUST_VERSION": "1.70",
+        },
+        "library": {
+            "crate": "which",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "which",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":either-1.17.0",
+                    ":home-0.5.12",
+                    ":rustix-0.38.44",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "6.0.3",
+    },
     "wiggle-48.0.1": {
         "build_script": None,
         "env": {
@@ -73388,16 +74735,46 @@ third_party = {
         "name": "writeable",
         "platforms": {
             "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "linux-x86_64-html": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasi-html": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -74777,6 +76154,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -74788,6 +76166,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -74810,6 +76189,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -74821,6 +76201,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -74865,6 +76246,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -74876,6 +76258,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -75401,6 +76784,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75409,6 +76793,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75425,6 +76810,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75433,6 +76819,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75465,6 +76852,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75473,6 +76861,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -75712,6 +77101,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75723,6 +77114,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75745,6 +77138,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75756,6 +77151,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75800,6 +77197,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75811,6 +77210,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -75857,6 +77258,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -75868,6 +77270,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -75890,6 +77293,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -75901,6 +77305,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -75945,6 +77350,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -75956,6 +77362,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -76244,6 +77651,85 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "1.0.21",
+    },
+    "zoneinfo64-0.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The ICU4X Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Working with ICU zoneinfo64.res timezone data bundles",
+            "CARGO_PKG_HOMEPAGE": "https://icu4x.unicode.org",
+            "CARGO_PKG_LICENSE": "Unicode-3.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-org/icu4x",
+            "CARGO_PKG_RUST_VERSION": "1.82",
+        },
+        "library": {
+            "crate": "zoneinfo64",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "zoneinfo64",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.3.0",
     },
     "zopfli-0.8.3": {
         "build_script": None,
