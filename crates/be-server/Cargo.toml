@@ -7,7 +7,6 @@ license.workspace = true
 [dependencies]
 base64 = "0.22"
 be-server-portal = { path = "../be-server-portal" }
-argon2 = "0.5"
 async-trait = "0.1"
 chacha20poly1305 = "0.10"
 be-block = { path = "../be-block" }

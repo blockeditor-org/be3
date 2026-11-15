@@ -6,11 +6,11 @@ async fn a_stale_proof_and_another_sessions_revocation_without_one_are_refused()
     harness.member("owner@example.com").await;
     let mut other = Browser::default();
     other
-        .login(&harness, "owner@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "owner@example.com")
         .await;
     let mut browser = Browser::default();
     browser
-        .login(&harness, "owner@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "owner@example.com")
         .await;
     let store = ServerStore::open(&harness.directory).unwrap();
     let profile = store.browser_profile(&browser.cookie).await.unwrap();
@@ -70,7 +70,7 @@ async fn a_stale_proof_and_another_sessions_revocation_without_one_are_refused()
         .id;
     let mut unproved = Browser::default();
     unproved
-        .login(&harness, "owner@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "owner@example.com")
         .await;
     let own = store
         .account_sessions(profile.account, &unproved.cookie)

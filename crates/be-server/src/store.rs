@@ -1,7 +1,7 @@
 pub mod codes;
 pub mod invite_codes;
-pub(crate) mod passwords;
 pub(crate) mod portal;
+pub(crate) mod remembered;
 
 /// A test's way to keep a store job running for as long as it likes.
 #[cfg(test)]
@@ -91,10 +91,6 @@ use std::{
 };
 pub use usage::{DEFAULT_ACCOUNT_QUOTA, DEFAULT_UPLOAD_GRACE, StorageLimits};
 
-use argon2::{
-    Argon2,
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
-};
 use be_block_commit::CommitId;
 use be_block_graph::{Access, BlockGraph, BlockNode, BlockParent, GraphError, ObjectRefs};
 use be_block_protocol::{Agent, ErrorCode, Organization, OrganizationKind, OrganizationRole};
@@ -189,7 +185,7 @@ pub struct Shared {
     reserved: std::sync::atomic::AtomicU64,
     graph_loads: std::sync::atomic::AtomicU64,
     object_refs: std::sync::Mutex<ObjectRefs>,
-    pub(crate) passwords: passwords::Passwords,
+    pub(crate) remembered: remembered::Remembered,
     server: crate::organization::ServerKey,
     policies: std::sync::Mutex<HashMap<Uuid, crate::organization::HeldPolicies>>,
     limits: StorageLimits,
@@ -246,7 +242,7 @@ impl ServerStore {
             reserved: std::sync::atomic::AtomicU64::new(floor + REVISIONS_RESERVED),
             graph_loads: std::sync::atomic::AtomicU64::new(0),
             object_refs: std::sync::Mutex::new(object_refs),
-            passwords: passwords::Passwords::default(),
+            remembered: remembered::Remembered::default(),
             server,
             policies: std::sync::Mutex::new(HashMap::new()),
             limits,
@@ -263,7 +259,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash, local_profile) VALUES (?1, ?2, ?3, '', 1)",
+                "INSERT INTO accounts (id, email, display_name, local_profile) VALUES (?1, ?2, ?3, 1)",
                 params![
                     account.to_string(),
                     format!("{account}@local.invalid"),
@@ -289,21 +285,15 @@ impl ServerStore {
         .await
     }
 
+    /// Makes an account for `email` directly, with its email identity and an app session,
+    /// as the operator's tools and tests do; people register through the portal.
     pub async fn register(
         &self,
         email: &str,
         display_name: &str,
-        password: &str,
     ) -> Result<(Profile, String), ServerError> {
         let email = normalize_email(email)?;
         let display_name = crate::limits::name("a display name", display_name)?.to_owned();
-        if password.len() < 8 {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidRequest,
-                "a password must be at least eight characters".into(),
-            ));
-        }
-        let hash = self.hash(password.to_owned(), "").await?;
         let account = Uuid::new_v4();
         self.with_database(move |_, database| {
             let existing: Option<String> = database
@@ -321,8 +311,8 @@ impl ServerStore {
             }
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)",
-                params![account.to_string(), email, display_name, hash],
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
+                params![account.to_string(), email, display_name],
             )?;
             codes::add_email_identity(&transaction, &account.to_string(), &email)?;
             let personal = personal_organization(&transaction)?;
@@ -343,99 +333,6 @@ impl ServerStore {
             ))
         })
         .await
-    }
-
-    pub async fn login_browser(
-        &self,
-        email: &str,
-        password: &str,
-        address: &str,
-    ) -> Result<(Profile, String), ServerError> {
-        let email = normalize_email(email)?;
-        if let Some(wait) = self
-            .passwords
-            .locked_out(&email, address, false, Instant::now())
-        {
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidCredentials,
-                format!(
-                    "too many failed sign-ins; try again in {} seconds",
-                    wait.as_secs().max(1)
-                ),
-            ));
-        }
-        let row: Option<(String, String, String)> = {
-            let email = email.clone();
-            self.with_database(move |_, database| {
-                Ok(database
-                    .query_row(
-                        "SELECT id, display_name, password_hash FROM accounts WHERE email = ?1",
-                        [&email],
-                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                    )
-                    .optional()?)
-            })
-            .await?
-        };
-        let hash = row
-            .as_ref()
-            .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
-        let matches = self.verify(password.to_owned(), hash, address).await?;
-        let Some((id, display_name, previous_hash)) = row.filter(|_| matches) else {
-            self.passwords.failed(&email, address, Instant::now());
-            return Err(ServerError::Refused(
-                ErrorCode::InvalidCredentials,
-                "no account matches those credentials".into(),
-            ));
-        };
-        self.passwords.succeeded(&email, address, Instant::now());
-        let account = parse_uuid(&id)?;
-        self.with_database(move |_, database| {
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let unchanged: bool = transaction.query_row(
-                "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
-                params![id, previous_hash],
-                |row| row.get(0),
-            )?;
-            if !unchanged {
-                return Err(ServerError::Refused(
-                    ErrorCode::InvalidCredentials,
-                    "Your credentials changed. Sign in again.".into(),
-                ));
-            }
-            let token = issue_token(&transaction, account)?;
-            transaction.execute(
-                "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
-                params![hash_token(&token), portal::now() + 30 * 86400],
-            )?;
-            transaction.commit()?;
-            Ok((
-                Profile {
-                    account,
-                    email,
-                    display_name,
-                },
-                token,
-            ))
-        })
-        .await
-    }
-
-    async fn hash(&self, password: String, address: &str) -> Result<String, ServerError> {
-        self.passwords
-            .run(address, move || hash_password(&password))
-            .await?
-    }
-
-    async fn verify(
-        &self,
-        password: String,
-        hash: String,
-        address: &str,
-    ) -> Result<bool, ServerError> {
-        self.passwords
-            .run(address, move || verify_password(&password, &hash))
-            .await
     }
 
     pub async fn checkpoint(&self) -> Result<(), ServerError> {
@@ -683,7 +580,7 @@ impl ServerStore {
                 ));
             }
             transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
+                "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
                 params![account.to_string(), email, name],
             )?;
             transaction.execute(
@@ -1107,29 +1004,6 @@ pub fn normalize_email(email: &str) -> Result<String, ServerError> {
         ));
     }
     Ok(email)
-}
-
-fn hash_password(password: &str) -> Result<String, ServerError> {
-    let salt = SaltString::generate(&mut OsRng);
-    Argon2::default()
-        .hash_password(password.as_bytes(), &salt)
-        .map(|hash| hash.to_string())
-        .map_err(|_| ServerError::Corrupt)
-}
-
-fn dummy_hash() -> &'static str {
-    static DUMMY: std::sync::OnceLock<String> = std::sync::OnceLock::new();
-    DUMMY.get_or_init(|| {
-        hash_password(&Uuid::new_v4().to_string()).expect("hashing a random password succeeds")
-    })
-}
-
-fn verify_password(password: &str, hash: &str) -> bool {
-    PasswordHash::new(hash).is_ok_and(|parsed| {
-        Argon2::default()
-            .verify_password(password.as_bytes(), &parsed)
-            .is_ok()
-    })
 }
 
 fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerError> {

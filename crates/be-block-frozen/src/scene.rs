@@ -24,19 +24,15 @@ pub const FRIEND_NOTE: &str = "The train leaves at nine.\n";
 pub const PENDING_UPLOAD: &[u8] = b"an upload no block holds yet";
 pub const REGISTERED_EMAIL: &str = "registered@example.com";
 pub const REGISTERED_NAME: &str = "Registered";
-pub const REGISTERED_PASSWORD: &str = "registered with an invite code";
 
 pub const OWNER_EMAIL: &str = "owner@example.com";
 pub const OWNER_NAME: &str = "Owner";
-pub const OWNER_PASSWORD: &str = "correct horse battery staple";
 
 pub const EDITOR_EMAIL: &str = "editor@example.com";
 pub const EDITOR_NAME: &str = "Editor";
-pub const EDITOR_PASSWORD: &str = "tr0ub4dor and three";
 
 pub const FRIEND_EMAIL: &str = "friend@example.com";
 pub const FRIEND_NAME: &str = "Friend";
-pub const FRIEND_PASSWORD: &str = "a friend's password";
 
 pub const INVITED_EMAIL: &str = "invited@example.com";
 

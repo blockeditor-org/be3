@@ -6,6 +6,7 @@ use be_block_content::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_keys::{InviteCode, RecoveryPhrase};
 use be_block_protocol::{KeyKind, OrganizationKind, OrganizationRole, client};
 use be_server::backup::{self, BackupKey, Directory};
+use be_server::store::codes::CodePurpose;
 use be_tool_cli::{cli, session};
 use be_type_database::{
     database::DatabaseContent,
@@ -51,38 +52,27 @@ fn csrf(page: &str) -> &str {
         .next()
         .unwrap()
 }
-fn form_value(value: &str) -> String {
-    value.bytes().map(|byte| format!("%{byte:02X}")).collect()
-}
-async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connection>, String) {
+async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
     let be_block_protocol::BrowserLogin { code, secret, .. } =
         be_block_client::call_once(&server.url, |peer| {
             client::account::begin_browser_login(peer)
         })
         .await
         .expect("browser sign-in starts");
-    let page = portal_http(server, "GET", "/auth/login", "", "").await;
-    let signed_in = portal_http(
-        server,
-        "POST",
-        "/auth/login",
+    let store = be_server::ServerStore::open(&server.directory).unwrap();
+    let entered = crate::codes::enter(
+        &store,
+        config(),
+        CodePurpose::SignIn,
+        email,
         "",
-        &format!(
-            "csrf={}&email={}&password={}",
-            csrf(&page),
-            form_value(email),
-            form_value(password)
-        ),
+        "",
+        "192.0.2.7",
     )
-    .await;
-    assert!(signed_in.starts_with("HTTP/1.1 303"), "{signed_in}");
-    let cookie = signed_in
-        .split("Set-Cookie: be3-account=")
-        .nth(1)
-        .unwrap()
-        .split(';')
-        .next()
-        .unwrap();
+    .await
+    .unwrap_or_else(|error| panic!("{email} no longer signs in by code: {error}"));
+    let cookie = entered.session.unwrap();
+    let cookie = cookie.as_str();
     let page = portal_http(server, "GET", &format!("/auth?code={code}"), cookie, "").await;
     let approved = portal_http(
         server,
@@ -101,7 +91,7 @@ async fn sign_in(server: &Running, email: &str, password: &str) -> (Arc<Connecti
     })
     .await
     else {
-        panic!("{email}'s password no longer signs in")
+        panic!("{email}'s browser sign-in was not approved")
     };
     let connection = Connection::connect(&socket(server), &be_block_client::Clock::real())
         .await
@@ -160,8 +150,8 @@ async fn check(snapshot: &Snapshot) {
     let organization = id(snapshot.organization);
     let personal = id(snapshot.personal);
 
-    let (by_password, owner_token) =
-        sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let (by_code, owner_token) =
+        sign_in(&server, scene::OWNER_EMAIL).await;
     let store = be_server::ServerStore::open(&server.directory).unwrap();
     assert!(
         store.resolve_token(snapshot.owner_token).await.is_ok(),
@@ -172,7 +162,7 @@ async fn check(snapshot: &Snapshot) {
         "{name}: the friend's session was not kept"
     );
     let Ok(be_block_protocol::RecoveryKey { public, .. }) =
-        ask(client::keys::get_recovery_key(&by_password)).await
+        ask(client::keys::get_recovery_key(&by_code)).await
     else {
         panic!("{name}: the owner's recovery key was not sent");
     };
@@ -187,7 +177,7 @@ async fn check(snapshot: &Snapshot) {
         ),
         "{name}: the owner's phrase no longer matches its recovery key"
     );
-    let Ok(organizations) = ask(client::organizations::list_organizations(&by_password)).await
+    let Ok(organizations) = ask(client::organizations::list_organizations(&by_code)).await
     else {
         panic!("{name}: the owner's organizations were not listed");
     };
@@ -433,7 +423,7 @@ async fn check(snapshot: &Snapshot) {
             .is_ok_and(|summary| summary.access.can_view())
     );
 
-    let (_, editor_token) = sign_in(&server, scene::EDITOR_EMAIL, scene::EDITOR_PASSWORD).await;
+    let (_, editor_token) = sign_in(&server, scene::EDITOR_EMAIL).await;
     let editor = peer(&server, snapshot.editor_phrase, &editor_token, organization).await;
     assert_eq!(editor.role(), OrganizationRole::Editor);
     assert!(
@@ -442,7 +432,7 @@ async fn check(snapshot: &Snapshot) {
     );
     assert_eq!(editor.keys().escrow(), latest);
 
-    let (_, friend_token) = sign_in(&server, scene::FRIEND_EMAIL, scene::FRIEND_PASSWORD).await;
+    let (_, friend_token) = sign_in(&server, scene::FRIEND_EMAIL).await;
     let friend = peer(&server, snapshot.friend_phrase, &friend_token, personal).await;
     assert_eq!(
         text(&friend, snapshot.holiday_note).await,
@@ -596,7 +586,7 @@ async fn check(snapshot: &Snapshot) {
     assert!(report.objects > 0);
     assert!(backup::verify(&restored, None).unwrap().missing.is_empty());
     let server = start(Some(restored)).await;
-    let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL).await;
     let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
     assert_eq!(text(&owner, snapshot.shopping).await, scene::SHOPPING[2]);
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
@@ -700,31 +690,19 @@ async fn check_storage(
         "{name}: the agent is no longer charged to the account that created it"
     );
 
-    let register = |email: &'static str, invite: &'static str| async move {
-        store
-            .registration_link(
-                email,
-                email,
-                scene::REGISTERED_PASSWORD,
-                invite,
-                "",
-                "192.0.2.7",
-            )
-            .await
+    let enter = |purpose, email: &'static str, invite: &'static str| async move {
+        crate::codes::enter(store, config(), purpose, email, email, invite, "192.0.2.7").await
     };
+    let register = |email, invite| enter(CodePurpose::Register, email, invite);
     assert!(
         register("again@example.com", usage.used_invite)
             .await
             .is_err(),
         "{name}: a used-up invite code registered another account"
     );
-    let link = register("unused@example.com", usage.unused_invite)
+    register("unused@example.com", usage.unused_invite)
         .await
         .unwrap_or_else(|error| panic!("{name}: the unused invite code was refused: {error}"));
-    store
-        .confirm_mail(&link.token, None, "192.0.2.7")
-        .await
-        .unwrap();
     assert!(
         register("third@example.com", usage.unused_invite)
             .await
@@ -732,12 +710,7 @@ async fn check_storage(
         "{name}: an invite code registered more accounts than it allows"
     );
     assert!(
-        store
-            .login_browser(
-                scene::REGISTERED_EMAIL,
-                scene::REGISTERED_PASSWORD,
-                "192.0.2.7"
-            )
+        enter(CodePurpose::SignIn, scene::REGISTERED_EMAIL, "")
             .await
             .is_ok(),
         "{name}: the account the used code made no longer signs in"

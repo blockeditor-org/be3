@@ -129,7 +129,6 @@ mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
 mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
 mod an_upload_is_used_once_and_its_object_goes_once_collected;
-mod anonymous_mail_requests_never_fill_the_global_cap;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
 mod block_sizes_add_up_their_subtrees_and_follow_moves;
@@ -142,18 +141,17 @@ mod changed_since_pages_what_changed_in_a_tree_and_names_what_left_it;
 mod clients_not_signed_in_hold_only_their_share;
 mod closing_a_kind_rotates_it_for_who_read_it_inside;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
+mod email_change_links_are_bounded_and_expire;
 mod email_changes_wait_for_verification_and_notify_the_old_address;
 mod every_call_states_who_may_make_it;
 mod every_graph_change_advances_a_blocks_version;
 mod every_key_is_read_a_page_at_a_time_without_one_skipped;
 mod every_member_connection_hears_how_the_graph_changes;
-mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
 mod fcm_sends_a_data_message_with_the_service_accounts_token;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod losing_every_block_inside_rotates_a_kind_open_inside;
-mod mail_links_are_bounded_per_address_and_unknown_resets_cost_the_same;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
@@ -168,10 +166,6 @@ mod only_a_manager_lets_go_of_a_blocks_settings;
 mod only_a_manager_shares_and_a_lower_grant_reduces_nothing;
 mod only_members_who_may_view_and_did_not_mute_a_block_are_notified;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
-mod password_changes_rotate_the_browser_and_revoke_other_sessions;
-mod password_hashing_refuses_past_its_queue_and_each_addresss_share;
-mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
-mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
 mod read_summaries_leaves_out_what_the_caller_may_not_know_of;
@@ -179,12 +173,9 @@ mod recovering_by_code_signs_out_every_other_session;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_by_code_makes_the_account_once_the_code_is_entered;
 mod registering_joins_the_one_personal_organization_as_an_editor;
-mod registration_checks_its_invite_code_before_hashing_the_password;
 mod registration_needs_an_invite_code_spent_when_the_account_is_made;
-mod registration_requires_verification_and_links_are_purpose_bound_and_single_use;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
-mod repeated_failed_sign_ins_lock_the_account_out;
 mod requests_sent_before_a_close_are_still_carried_out;
 mod revisions_keep_counting_up_across_a_restart;
 mod revoking_a_session_announces_only_a_change;
@@ -193,7 +184,6 @@ mod rotating_an_agents_token_revokes_every_older_one;
 mod senders_are_capped_overall_and_per_push_host;
 mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
-mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
 mod signing_keys_are_served_only_for_accounts_the_caller_knows;
 mod strangers_never_stop_the_owner_getting_a_code_from_an_address_they_signed_in_from;
 mod the_access_list_leaves_administrators_to_the_organization_line;
@@ -1394,11 +1384,10 @@ async fn fixture_account(
     directory: &std::path::Path,
     email: &str,
     name: &str,
-    password: &str,
     organization: &str,
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(directory)?;
-    let (profile, _) = store.register(email, name, password).await?;
+    let (profile, _) = store.register(email, name).await?;
     let company = store
         .create_organization(profile.account, organization)
         .await?;
@@ -1597,18 +1586,6 @@ impl Browser {
         let (code, _) = harness.mailed_code(email);
         let (status, page) = self.enter_code(harness, &code).await;
         assert_eq!(status, 303, "{page}");
-    }
-    async fn login(&mut self, harness: &Harness, email: &str, password: &str) {
-        let (status, page) = self
-            .submit(
-                harness,
-                "/auth/login",
-                "/auth/login",
-                &[("email", email), ("password", password)],
-            )
-            .await;
-        assert_eq!(status, 303, "{page}");
-        assert!(!self.cookie.is_empty());
     }
 }
 fn page_of(response: &str) -> be_server_portal::Page {

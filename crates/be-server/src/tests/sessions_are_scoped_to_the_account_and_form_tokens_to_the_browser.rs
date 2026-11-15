@@ -8,10 +8,10 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
     let mut browser = Browser::default();
     let mut stranger = Browser::default();
     browser
-        .login(&harness, "owner@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "owner@example.com")
         .await;
     stranger
-        .login(&harness, "stranger@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "stranger@example.com")
         .await;
     let store = ServerStore::open(&harness.directory).unwrap();
     let profile = store.browser_profile(&browser.cookie).await.unwrap();

@@ -1,6 +1,6 @@
 # Sign in with Apple
 
-Depends on: plans/accounts.md step 4.
+Depends on: plans/accounts.md step 3.
 
 Set aside until the user picks it up.
 

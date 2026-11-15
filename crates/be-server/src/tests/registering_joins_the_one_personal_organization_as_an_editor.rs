@@ -9,7 +9,6 @@ async fn registering_joins_the_one_personal_organization_as_an_editor() {
         &directory,
         "owner@example.com",
         "Owner",
-        "correct horse battery",
         "Company",
     )
     .await

@@ -6,7 +6,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
     let harness = Harness::start().await;
     let store = ServerStore::open(&harness.directory).unwrap();
     let (profile, _) = store
-        .register("owner@example.com", "Owner", "a good password")
+        .register("owner@example.com", "Owner")
         .await
         .unwrap();
     let organization = store.personal_organization().await.unwrap();

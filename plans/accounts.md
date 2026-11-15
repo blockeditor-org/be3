@@ -2,17 +2,16 @@
 
 Depends on: none.
 
-Today a remote account is an email and a password. The `/auth` portal verifies
-the email, an operator invite code gates registration, and be-server hashes and
-checks passwords behind a bounded queue with lockouts, slowdowns and capped mail
-links (guides/blocks/server.md, "Accounts"). The portal also changes an email
-(`email_change_link`), resets a password and lists browser sessions; changing
-a password ends every session of the account. Mail goes through
+Today a remote account signs in, registers and recovers by a code mailed to its
+email, its one identity; an operator invite code gates registration
+(guides/blocks/server.md, "Accounts"). Passwords are gone
+(decisions/accounts_have_no_passwords.md). The portal also changes an email
+(`email_change_link`) and lists browser sessions. Mail goes through
 `mail::Delivery`, whose only implementation, `LogDelivery`, writes every link to
 the server log, the hosted server's included (guides/hosting.md, "Accounts and
 the portal"). Agents and local profiles already have no password: a token is
-their only credential. This plan replaces the password with sign-in methods that
-are cheaper to run, without requiring any one of them on every device or server.
+their only credential. This plan adds sign-in methods beside the emailed code,
+without requiring any one of them on every device or server.
 
 It covers accounts on a server. A local account (plans/local_accounts.md) has no
 server, so nothing here applies to it; until that plan deletes the embedded
@@ -28,10 +27,6 @@ server, a local profile keeps its token and has no identity.
   Taking one over gets metadata and memberships, never plaintext and never a
   signature, and a new device still needs a paired device or the phrase. So an
   email-based factor is strong enough as the baseline.
-- **Passwords are the costliest part of the server's account code**: the
-  hashing pool and its per-address queue, (email, address) and per-address
-  lockouts, the per-email slowdown, remembered addresses, reset caps. Credential
-  stuffing and reuse remain a risk however well it is done.
 - **Self-hosting rules out one central login provider.** Every server is its
   own account domain, so any provider must be something the operator chooses and
   configures.
@@ -60,7 +55,7 @@ An account needs no email: one whose identities are only providers or passkeys
 is allowed, and those are its recovery. An account always keeps at least one
 identity; the last can't be removed, and an account with only one (a provider
 or a passkey alone) is nudged to add a second. An email verified by a provider
-the operator marks authoritative for email (step 4) becomes the account's
+the operator marks authoritative for email (step 3) becomes the account's
 verified email. Where an email is shown for an account today, the contact card
 and "Connect with NAME (EMAIL)?" among them, an account with no verified email
 shows only its name.
@@ -93,18 +88,16 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   the browser that began the attempt. Opened anywhere else it shows the code and
   signs nothing in, so nobody can sign a victim's browser in to an attacker's
   account (login CSRF).
-- **Mail limits strangers can't spend.** Today resets are capped at three per
-  account, which a stranger can use up to lock the owner out of recovery.
-  Instead: caps per address (an IPv6 address counted by its /64, as now, and
+- **Mail limits strangers can't spend.** Caps per address (an IPv6 address counted by its /64, as now, and
   also by its /48, so one allocation can't spread across many /64s), and a large
   per-account budget that refills quickly, counting only requests from addresses
   that never completed a sign-in for that account (a small, bounded remembered
-  addresses table, as passwords keep today). A request for an email with no
+  addresses table). A request for an email with no
   account does the same work and sends nothing, so total mail is at most the
   number of accounts times the per-account rate, and no global cap is needed
   (one reachable by anonymous traffic would lock everyone out). Registration
-  links stay capped per invite code, and the global cap stays only on
-  registration and email-change links, as now. Someone crowded out by a
+  codes are capped per invite code (and overall), and email-change links, which
+  need a signed-in account, have their own global cap. Someone crowded out by a
   stranger sharing their address signs in with a passkey or a provider, which
   send no mail.
 - **Registration enumeration.** Registering with an email that has an account
@@ -122,17 +115,14 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   the notice in the app, on its other sessions.
 - **Recovery** has its own entry in the portal, "I can't sign in", apart from
   an ordinary code sign-in. Signing in through it, or through an operator login
-  link, ends every other session by default, as a password change does today,
-  and counts as fresh proof.
+  link, ends every other session by default, and counts as fresh proof.
 - **Mail goes to the log.** Real delivery is deferred
   (plans/deferred/mail_delivery.md); `LogDelivery` stays, so the server's
   journal holds every live sign-in code and link, and whoever reads it can sign
-  in to any account with an email. That is only a little worse than today:
-  the log already holds every verification and reset link, and the operator
-  now reads it at each device's sign-in rather than only at account creation.
-  On the hosted server the operator login link (step 3) is the documented way
+  in to any account with an email.
+  On the hosted server the operator login link (step 2) is the documented way
   in.
-- **Operator links.** `be-server login-link` (step 3) makes a single-use link
+- **Operator links.** `be-server login-link` (step 2) makes a single-use link
   valid fifteen minutes, keeps only its hash, and builds it from
   `--auth-origin`. It is also the rescue for an account whose only identity was
   a provider the operator removed.
@@ -140,9 +130,9 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 ## Steps
 
 1. **What is left of identities and emailed codes.** Codes sign in, register,
-   recover and prove (guides/blocks/server.md, Accounts), beside passwords. An
-   account with no email waits for the first identity that is not one (steps 4
-   and 5): until then every account that signs in has an email identity, so
+   recover and prove (guides/blocks/server.md, Accounts). An
+   account with no email waits for the first identity that is not one (steps 3
+   and 4): until then every account that signs in has an email identity, so
    `accounts.email` stays required, and the contact card and "Connect with NAME
    (EMAIL)?" still show it. Making it optional, and showing only the name where
    there is none, comes with that step.
@@ -150,16 +140,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    `/auth` without a prefix, so a sibling subdomain could set or shadow them;
    move both to `__Host-` names with `Path=/` once development serves HTTPS or
    the plain-HTTP setup uses a cookie name of its own.
-2. **Passwords go**, once step 1 signs in by code: remove the password
-   column, `store/passwords.rs`, the hashing queue, the lockouts and slowdown,
-   the reset flow and the password settings page. `address_key` moves from
-   `passwords.rs` to `address.rs`, beside its `IpAddr` form, and the remembered
-   addresses table stays for the mail limits. `--allow-login` then gates
-   signing in by any identity, and `--allow-registration` making an account
-   by any identity, which still needs an operator invite code. No
-   migration, since no format is frozen (guides/frozen_formats.md). Done: verify
-   with the password code gone; the portal tests sign in only through codes.
-3. **Operator login link.** For any server whose mail goes to the log (every
+2. **Operator login link.** For any server whose mail goes to the log (every
    server until plans/deferred/mail_delivery.md lands),
    `be-server login-link --data-dir DATA (--email EMAIL | --account ID)`
    (beside `invite-code create`, run against the data directory while the
@@ -169,7 +150,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    server's first account needs nothing from the log either. Done: tests where
    a link signs in once and a second use and an expired one are refused, and
    one where a link for a new email makes its account.
-4. **OIDC providers.** Operator config lists providers: issuer, client id and
+3. **OIDC providers.** Operator config lists providers: issuer, client id and
    secret, and whether the provider is authoritative for email. Providers are
    single-tenant: the issuer is the tenant's own, and a multi-tenant one
    (Microsoft's `common` or `organizations`, whose discovery returns a templated
@@ -207,7 +188,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    email links nothing; a provider email matching an account links only after
    the emailed code and never makes a second account; a changed provider email
    held by another account is not taken.
-5. **Passkeys.** Register and use WebAuthn credentials in the portal with
+4. **Passkeys.** Register and use WebAuthn credentials in the portal with
    `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
    wasm, which the CSP already allows (`script-src 'self'
    'wasm-unsafe-eval'`, `connect-src 'self'`). The RP ID is the
@@ -217,7 +198,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    orphans every passkey and every provider's registered redirect URI; say so
    in guides/hosting.md. Done: tests with a software authenticator: register,
    sign in without an email, remove, and a passkey for another RP ID refused.
-6. **Invitations stop depending on email.** Today an invitation is already a
+5. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
@@ -271,7 +252,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-7. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+6. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
    redirect URIs), and the invitation lines in guides/blocks/keys.md
@@ -300,15 +281,6 @@ asking for the code when the server wants one.
 
 ## Decisions to record
 
-- Passwords are removed. They cost the hashing pool, lockouts and slowdowns,
-  and carry credential stuffing and reuse; an emailed code is enough because an
-  account holds no content keys. Rejected: keeping them as a fallback, which
-  keeps all of that machinery for no gain, since email recovery already
-  overrides any other credential and approving a device code can be phished
-  whatever signed in to the portal. Sign-in codes go to the server log until
-  mail delivery lands, which is only a little worse than today's
-  verification links there. A device with no browser signs in by
-  opening the URL on another device, so none needs one.
 - Login through a central provider only (rejected): breaks self-hosting, leaks
   metadata and makes us depend on someone else's recovery.
 - An account that is only a bare keypair (rejected): fits end-to-end encryption

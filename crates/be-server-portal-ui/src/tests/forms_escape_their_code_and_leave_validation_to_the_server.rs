@@ -9,7 +9,7 @@ fn forms_escape_their_code_and_leave_validation_to_the_server() {
     assert!(sign_in.contains("value=\"&quot;&gt;&lt;script&gt;\""));
     assert!(!sign_in.contains("<script>"));
     assert!(sign_in.contains("novalidate=\"\""));
-    assert!(sign_in.contains("<form method=\"post\" action=\"/auth/login\""));
+    assert!(!sign_in.contains("action=\"/auth/login\""));
     assert!(sign_in.contains("<input type=\"hidden\" name=\"csrf\" value=\""));
     assert!(sign_in.contains("<a href=\"/auth/register?code=%22%3E%3Cscript%3E\""));
     let registration = render(&Page {

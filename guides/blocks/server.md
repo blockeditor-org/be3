@@ -249,7 +249,7 @@ counts and records nothing: `upload-urls` did before it signed.
   An address is a client's `Services::client_address`: its peer, or the
   `X-Forwarded-For` hop nearest it when the peer is in `trusted_proxies`
   (loopback by default, `--trusted-proxy` for more). Per-address limits count
-  an IPv6 /64 as one address (`address::address_key`).
+  an IPv6 /64 as one address (`address::address_key`, `address_key_text`).
 - **No batch request.** Calls on one connection are answered in order and both
   transports send whatever is queued together, so independent requests cost one
   round trip; only a chain where each needs the last one's answer costs more.
@@ -621,7 +621,7 @@ email's budget counts only those from addresses that never signed in to its
 account, whether or not it has one, so strangers can't stop its owner nor learn
 which emails have accounts by running it out; a request for an email with no
 account leaves a row that costs the same and sends nothing. The remembered
-addresses live in the server's memory (`Passwords::known`), so a restart forgets
+addresses live in the server's memory (`store/remembered.rs`), so a restart forgets
 them and the owner's first request after one counts against the budget like a
 stranger's. The `be3-attempt` cookie is sent again with every request that uses
 it, so it lasts as long as its latest code. Registering by code refuses
@@ -630,34 +630,20 @@ an invite code that leak is small, and mailing "you already have an account"
 is the alternative if registration opens. Changing the email, removing an
 identity and ending other sessions need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
-(`sessions.proved`), which signing in by code or recovering also gives; a
-password sign-in does not. So does changing the password and signing out any
-session but the browser's own. Recovering also clears the password, since the
-account may be in someone else's hands. Removing an identity mails a notice.
+(`sessions.proved`), which signing in by code or recovering also gives.
+Removing an identity mails a notice. `--allow-login` lets anyone sign in, by
+any identity, and `--allow-registration` lets anyone make an account, by any
+identity, with an invite code.
 
-Remote accounts also still register and sign in with a password through the `/auth` portal, which
-verifies the email before creating the account; the protocol has the browser
-sign-in's one-shot `begin-browser-login` and `poll-browser-login` ("Signing
-in" above), token `Authenticate`, header authentication and `Logout`. Registering needs an
-invite code the operator made (`store/invite_codes.rs`), checked with every
-other cheap check before the password is hashed and spent when the verified
-account is made. Password hashing and checks (`store/passwords.rs`) run off the
-database lock, a few at a time, behind a bounded queue with a small share per
-address (an IPv6 address counts by its /64); past it the portal answers busy.
-Failed checks lock out an (email, address) pair after five and an address
-after twenty, doubling up to an hour; one failure is forgotten per quiet
-`FAILURE_DECAY`. An email's own count, from every address, only slows it: past
-`FREE_FAILURES_PER_EMAIL` each failure holds it for `EMAIL_SLOWDOWN`, so strangers
-together get one guess per slowdown, and never applies to a signed-in browser
-or to an address remembered for that email (one that signed in, or finished a
-registration or reset from its mail), so strangers can't stop the owner
-signing in. Failure records and remembered addresses are bounded. Mail links
-are capped per email and purpose, per address, and per invite code for
-registrations; the global cap covers only registration and email-change links,
-which need an invite code or a signed-in account, so anonymous traffic can't
-reach it (`store/portal.rs`). Resets need no global cap: at most three per
-account. A reset for an email with no account does the same work, counts
-against the address and a separate cap of its own, and sends nothing. `Be3-Gateway-Authorization` is left to a gateway in front.
+The protocol has the browser sign-in's one-shot `begin-browser-login` and
+`poll-browser-login` ("Signing in" above), token `Authenticate`, header
+authentication and `Logout`. Registering needs an invite code the operator made
+(`store/invite_codes.rs`), checked when the code is asked for and spent when it
+is entered and the account is made; one invite has at most
+`REGISTRATION_CODES_PER_INVITE` registration codes outstanding. A new email's
+verification link is capped per email, per address, and globally; only a
+signed-in account with a fresh proof asks for one, so anonymous traffic can't
+reach the cap (`store/portal.rs`). `Be3-Gateway-Authorization` is left to a gateway in front.
 
 Contact links and invitations are one table, `links`, and one set of calls
 (`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;

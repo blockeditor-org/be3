@@ -8,7 +8,7 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
     let (code, secret) = begin_session(&harness).await;
     let mut browser = Browser::default();
     browser
-        .login(&harness, "first@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "first@example.com")
         .await;
     let (status, _) = browser
         .submit(
@@ -45,7 +45,7 @@ async fn a_remembered_account_approves_a_manually_entered_code_and_can_switch_ac
             .is_err()
     );
     browser
-        .login(&harness, "second@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "second@example.com")
         .await;
     assert_eq!(
         browser

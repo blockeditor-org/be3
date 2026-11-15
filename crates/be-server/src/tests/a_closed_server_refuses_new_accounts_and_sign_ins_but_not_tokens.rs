@@ -7,7 +7,6 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
         &directory,
         "owner@example.com",
         "Owner",
-        "correct horse battery",
         "notes",
     )
     .await

@@ -218,12 +218,6 @@ downloads = {
         "size_bytes": 83471,
         "version": "1.9.4",
     },
-    "argon2-0.5.3": {
-        "name": "argon2",
-        "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
-        "size_bytes": 28795,
-        "version": "0.5.3",
-    },
     "arrayref-0.3.9": {
         "name": "arrayref",
         "sha256": "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb",
@@ -487,12 +481,6 @@ downloads = {
         "sha256": "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a",
         "size_bytes": 50766,
         "version": "2.12.1",
-    },
-    "blake2-0.10.6": {
-        "name": "blake2",
-        "sha256": "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe",
-        "size_bytes": 47234,
-        "version": "0.10.6",
     },
     "block-buffer-0.10.4": {
         "name": "block-buffer",
@@ -2839,12 +2827,6 @@ downloads = {
         "sha256": "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1",
         "size_bytes": 34110,
         "version": "0.9.12",
-    },
-    "password-hash-0.5.0": {
-        "name": "password-hash",
-        "sha256": "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166",
-        "size_bytes": 26884,
-        "version": "0.5.0",
     },
     "path-absolutize-4.0.1": {
         "name": "path-absolutize",

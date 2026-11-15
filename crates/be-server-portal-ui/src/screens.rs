@@ -17,8 +17,6 @@ pub fn title(page: &Page) -> String {
     let name = match &page.screen {
         Screen::SignIn | Screen::SignInClosed => "Sign in",
         Screen::Register | Screen::RegistrationClosed => "Create an account",
-        Screen::Forgot => "Reset your password",
-        Screen::Reset => "Choose a new password",
         Screen::Verify => "Verify your email address",
         Screen::Approve => "Approve sign-in",
         Screen::Account => "Your account",
@@ -26,8 +24,7 @@ pub fn title(page: &Page) -> String {
         Screen::Sessions => "Signed-in sessions",
         Screen::Approved => "Sign-in approved",
         Screen::Denied => "Sign-in denied",
-        Screen::CheckEmail | Screen::ResetRequested => "Check your email",
-        Screen::PasswordReset => "Password reset",
+        Screen::CheckEmail => "Check your email",
         Screen::EmailUpdated => "Email verified",
         Screen::EnterCode => "Enter your code",
         Screen::CodeElsewhere { .. } => "Your code",
@@ -225,12 +222,6 @@ fn Body(page: Shown) -> NodeId {
                 </List>
             </Card>
         },
-        Screen::Forgot => view! {
-            <Forgot page />
-        },
-        Screen::Reset => view! {
-            <Reset page />
-        },
         Screen::Verify => view! {
             <Card>
                 <List spacing=Space::Xl>
@@ -280,10 +271,6 @@ fn Body(page: Shown) -> NodeId {
             />
         },
         Screen::CheckEmail => {
-            let again = match page.read(|page| page.account.is_some()) {
-                true => "/auth/settings".to_owned(),
-                false => page.here("/auth/register"),
-            };
             view! {
                 <Card>
                     <List spacing=Space::Xl>
@@ -295,34 +282,11 @@ fn Body(page: Shown) -> NodeId {
                         <Text style=TextStyle::PARAGRAPH>
                             "Email delivery is currently recorded in the server log; ask your server operator for the message. If the link expires, submit the form again to request another."
                         </Text>
-                        <PageLink label="Request another verification link" href={again} />
+                        <PageLink label="Request another verification link" href="/auth/settings" />
                     </List>
                 </Card>
             }
         }
-        Screen::ResetRequested => view! {
-            <Message
-                glyph=ICON_MAIL
-                title="Check your email"
-                text="If an account matches that address, a reset link has been requested. Email delivery is currently recorded in the server log; ask your server operator for the message."
-            />
-        },
-        Screen::PasswordReset => view! {
-            <Card>
-                <List spacing=Space::Xl>
-                    <Heading
-                        glyph={Some(ICON_CIRCLE_CHECK)}
-                        tone=TextColor::Success
-                        title="Password reset"
-                        lead="Every session was signed out. Your encryption keys are unchanged."
-                    />
-                    <PageLink
-                        label="Sign in with your new password"
-                        href={page.here("/auth/login")}
-                    />
-                </List>
-            </Card>
-        },
         Screen::EmailUpdated => view! {
             <Card>
                 <List spacing=Space::Xl>
@@ -406,24 +370,8 @@ fn values(page: Shown) -> (Signal<String>, Signal<String>) {
     })
 }
 
-fn confirm(
-    password: Signal<String>,
-    confirmation: Signal<String>,
-    problem: String,
-) -> Memo<String> {
-    create_memo(move || {
-        let typed = confirmation.get();
-        match !typed.is_empty() && typed != password.get() {
-            true => "The passwords do not match.".to_owned(),
-            false => problem.clone(),
-        }
-    })
-}
-
 #[component]
 fn SignIn(page: Shown) -> NodeId {
-    let (email, _) = values(page);
-    let password = create_signal(String::new());
     let code = create_signal(page.code());
     let (approving, entering, registration) = page.read(|page| {
         let approving = !page.code.is_empty() && page.code_problem.is_empty();
@@ -434,11 +382,9 @@ fn SignIn(page: Shown) -> NodeId {
             "Sign in to approve the request from be-host with the code {}.",
             page.code()
         ),
-        false => {
-            "We’ll email you a code to sign in with. You can still use your password.".to_owned()
-        }
+        false => "We’ll email you a code to sign in with.".to_owned(),
     };
-    let (code_email, _) = values(page);
+    let (email, _) = values(page);
     view! {
         <List spacing=Space::Xl>
             <Card>
@@ -452,29 +398,10 @@ fn SignIn(page: Shown) -> NodeId {
                             name="email"
                             label="Email"
                             autocomplete="username"
-                            value={code_email}
+                            value={email}
                             problem={page.problem(Named::Email)}
                         />
                         <Submit label="Email me a code" />
-                    </PortalForm>
-                    <Text style=TextStyle::CAPTION>"Or sign in with your password:"</Text>
-                    <PortalForm action="/auth/login" csrf={page.csrf()} code={page.code()}>
-                        <Field
-                            kind=InputKind::Email
-                            name="email"
-                            label="Email for your password"
-                            autocomplete="username"
-                            value={email}
-                        />
-                        <Field
-                            kind=InputKind::Password
-                            name="password"
-                            label="Password"
-                            autocomplete="current-password"
-                            value={password}
-                            problem={page.problem(Named::Password)}
-                        />
-                        <Submit label="Sign in with password" variant=ButtonVariant::Secondary />
                     </PortalForm>
                     <List
                         direction=Direction::Horizontal
@@ -483,7 +410,6 @@ fn SignIn(page: Shown) -> NodeId {
                         spacing=Space::Md
                     >
                         <PageLink label="I can’t sign in" href={page.here("/auth/recover")} />
-                        <PageLink label="Forgot your password?" href={page.here("/auth/forgot")} />
                         {registration.then(|| view! {
                             <PageLink
                                 label="Create an account"
@@ -582,92 +508,6 @@ fn Register(page: Shown) -> NodeId {
 }
 
 #[component]
-fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
-    view! {
-        <List spacing=Space::Xs>
-            <Field
-                kind=InputKind::Password
-                name="confirmation"
-                label="Confirm password"
-                autocomplete="new-password"
-                value
-            />
-            <Show value={move || !problem.with(String::is_empty)}>
-                <Text size=TextSize::Sm color=TextColor::Danger>{problem}</Text>
-            </Show>
-        </List>
-    }
-}
-
-#[component]
-fn Forgot(page: Shown) -> NodeId {
-    let (email, _) = values(page);
-    view! {
-        <Card>
-            <List spacing=Space::Xl>
-                <Heading
-                    title="Reset your password"
-                    lead="Enter your account’s email address and we’ll send you a link to choose a new password."
-                />
-                <Notice text={page.general()} />
-                <PortalForm action="/auth/forgot" csrf={page.csrf()} code={page.code()}>
-                    <Field
-                        kind=InputKind::Email
-                        name="email"
-                        label="Email"
-                        autocomplete="username"
-                        value={email}
-                        problem={page.problem(Named::Email)}
-                    />
-                    <Submit label="Send reset link" />
-                </PortalForm>
-                <Text style=TextStyle::CAPTION>
-                    "This resets your sign-in password only. Encrypted data still needs your recovery phrase or another unlocked device with be-host."
-                </Text>
-                <PageLink label="Back to sign in" href={page.here("/auth/login")} />
-            </List>
-        </Card>
-    }
-}
-
-#[component]
-fn Reset(page: Shown) -> NodeId {
-    let password = create_signal(String::new());
-    let confirmation = create_signal(String::new());
-    let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
-    view! {
-        <Card>
-            <List spacing=Space::Xl>
-                <Heading
-                    glyph={Some(ICON_KEY_ROUND)}
-                    title="Choose a new password"
-                    lead="Every session will be signed out. Your encryption keys stay unchanged."
-                />
-                <Notice text={page.general()} />
-                <PortalForm
-                    action="/auth/reset"
-                    csrf={page.csrf()}
-                    code={page.code()}
-                    hidden={page.token()}
-                >
-                    <Field
-                        kind=InputKind::Password
-                        name="password"
-                        label="New password"
-                        autocomplete="new-password"
-                        hint="At least 8 characters."
-                        value={password}
-                        problem={page.problem(Named::Password)}
-                    />
-                    <ConfirmField value={confirmation} problem={mismatch} />
-                    <Submit label="Reset password" />
-                </PortalForm>
-            </List>
-        </Card>
-    }
-}
-
-#[component]
 fn Approve(page: Shown) -> NodeId {
     view! {
         <Card>
@@ -730,7 +570,7 @@ fn AccountHome(page: Shown) -> NodeId {
                         <Destination
                             glyph=ICON_KEY_ROUND
                             label="Account settings"
-                            detail="Name, email address and password"
+                            detail="Name, email address and ways to sign in"
                             href="/auth/settings"
                         />
                         <Destination
@@ -786,12 +626,8 @@ fn Section(title: String, lead: String, children: Children<ListItem>) -> NodeId 
 #[component]
 fn Settings(page: Shown) -> NodeId {
     let (email, name) = values(page);
-    let current = create_signal(String::new());
     let (identities, fresh) = page.read(|page| (page.identities.clone(), page.fresh));
     let csrf = page.csrf();
-    let password = create_signal(String::new());
-    let confirmation = create_signal(String::new());
-    let mismatch = confirm(password, confirmation, page.problem(Named::Confirmation));
     let saved = match page.read(|page| page.saved) {
         true => "Your changes were saved.".to_owned(),
         false => String::new(),
@@ -837,29 +673,6 @@ fn Settings(page: Shown) -> NodeId {
                         problem={page.problem(Named::Email)}
                     />
                     <Submit label="Send verification link" variant=ButtonVariant::Secondary />
-                </PortalForm>
-            </Section>
-            <Section title="Password" lead="Changing your password signs out every other session.">
-                <PortalForm action="/auth/settings/password" csrf={page.csrf()}>
-                    <Field
-                        kind=InputKind::Password
-                        name="current_password"
-                        label="Current password"
-                        autocomplete="current-password"
-                        value={current}
-                        problem={page.problem(Named::CurrentPassword)}
-                    />
-                    <Field
-                        kind=InputKind::Password
-                        name="password"
-                        label="New password"
-                        autocomplete="new-password"
-                        hint="At least 8 characters."
-                        value={password}
-                        problem={page.problem(Named::Password)}
-                    />
-                    <ConfirmField value={confirmation} problem={mismatch} />
-                    <Submit label="Change password" variant=ButtonVariant::Secondary />
                 </PortalForm>
             </Section>
         </List>
