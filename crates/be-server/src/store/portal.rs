@@ -87,7 +87,7 @@ impl ServerStore {
         let token = token.to_owned();
         self.with_database(move |_, database| {
             let row: Option<(String, String, String)> = database.query_row(
-                "SELECT a.id, a.email, a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?1 AND s.kind = 'browser' AND s.expires > ?2",
+                "SELECT a.id, COALESCE(a.email, ''), a.display_name FROM sessions s JOIN accounts a ON a.id = s.account_id WHERE s.token_hash = ?1 AND s.kind = 'browser' AND s.expires > ?2",
                 params![hash_token(&token), now()], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).optional()?;
             let (account, email, display_name) = row.ok_or_else(|| refused("Sign in to continue."))?;
             Ok(Profile {
@@ -215,7 +215,8 @@ impl ServerStore {
         .await
     }
 
-    /// Verifies a new email from the link mailed to it, and answers the address it replaced.
+    /// Verifies a new email from the link mailed to it, and answers the address it replaced,
+    /// empty for an account that had none.
     pub async fn confirm_mail(&self, token: &str) -> Result<String, ServerError> {
         let token = token.to_owned();
         self.with_database(move |store, database| {
@@ -232,7 +233,7 @@ impl ServerStore {
             })?;
             super::codes::unregistered(&transaction, &email)?;
             let old_email: String = transaction.query_row(
-                "SELECT email FROM accounts WHERE id = ?1",
+                "SELECT COALESCE(email, '') FROM accounts WHERE id = ?1",
                 [&account],
                 |row| row.get(0),
             )?;
@@ -240,10 +241,14 @@ impl ServerStore {
                 "UPDATE accounts SET email = ?2 WHERE id = ?1",
                 params![account, email],
             )?;
-            transaction.execute(
+            let moved = transaction.execute(
                 "UPDATE identities SET subject = ?3 WHERE account_id = ?1 AND kind = 'email' AND subject = ?2",
                 params![account, old_email, email],
             )?;
+            // An account made through a provider may have had no email to sign in with.
+            if moved == 0 {
+                super::codes::add_email_identity(&transaction, &account, &email)?;
+            }
             transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
             transaction.commit()?;
             store.sessions_changed();

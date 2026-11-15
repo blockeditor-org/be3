@@ -52,6 +52,9 @@ pub enum CodePurpose {
     Register,
     /// Proving it is you again, for an account change.
     Proof,
+    /// Signing in to the account that holds a provider's verified email, and linking that
+    /// provider to it (`providers.rs`).
+    Link,
 }
 
 impl CodePurpose {
@@ -61,6 +64,7 @@ impl CodePurpose {
             CodePurpose::Recover => "recover",
             CodePurpose::Register => "register",
             CodePurpose::Proof => "proof",
+            CodePurpose::Link => "link",
         }
     }
 
@@ -70,6 +74,7 @@ impl CodePurpose {
             "recover" => CodePurpose::Recover,
             "register" => CodePurpose::Register,
             "proof" => CodePurpose::Proof,
+            "link" => CodePurpose::Link,
             _ => return None,
         })
     }
@@ -117,9 +122,12 @@ pub struct EnteredCode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
     pub id: String,
-    /// `email`, and later `passkey` and `oidc`.
+    /// `email` or `oidc`, and later `passkey`.
     pub kind: String,
+    /// The email, or for a provider `"{issuer} {sub}"`.
     pub subject: String,
+    /// For a provider authoritative for email, the verified email it last gave; else empty.
+    pub email: String,
 }
 
 /// A fresh attempt secret for a browser's `be3-attempt` cookie.
@@ -220,11 +228,11 @@ pub(crate) fn unregistered(database: &Connection, email: &str) -> Result<(), Ser
     Ok(())
 }
 
-/// Adds an email identity to an account, as registering or verifying an email does.
-/// Makes an account with `email` as its one identity, an editor of the personal organization.
+/// Makes an account, an editor of the personal organization, with `email` as its verified
+/// email and an identity, if it has one.
 pub(crate) fn make_account(
     database: &Connection,
-    email: &str,
+    email: Option<&str>,
     name: &str,
 ) -> Result<Uuid, ServerError> {
     let account = Uuid::new_v4();
@@ -232,7 +240,9 @@ pub(crate) fn make_account(
         "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
         params![account.to_string(), email, name],
     )?;
-    add_email_identity(database, &account.to_string(), email)?;
+    if let Some(email) = email {
+        add_email_identity(database, &account.to_string(), email)?;
+    }
     let personal = personal_organization(database)?;
     database.execute(
         "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
@@ -268,6 +278,7 @@ pub(crate) fn open_browser_session(
     Ok(token)
 }
 
+/// Adds an email identity to an account, as registering or verifying an email does.
 pub(crate) fn add_email_identity(
     database: &Connection,
     account: &str,
@@ -288,6 +299,18 @@ impl ServerStore {
     pub async fn request_code(
         &self,
         request: CodeRequest<'_>,
+    ) -> Result<Option<MailedCode>, ServerError> {
+        self.request_code_with(request, String::new(), String::new())
+            .await
+    }
+
+    /// `request_code`, for a link code with the provider identity (`kind subject`) it links and
+    /// the email the provider gave.
+    pub(crate) async fn request_code_with(
+        &self,
+        request: CodeRequest<'_>,
+        identity: String,
+        identity_email: String,
     ) -> Result<Option<MailedCode>, ServerError> {
         let purpose = request.purpose;
         let email = match purpose {
@@ -343,7 +366,9 @@ impl ServerStore {
                     }
                     None
                 }
-                CodePurpose::SignIn | CodePurpose::Recover => account_of(&transaction, &email)?,
+                CodePurpose::SignIn | CodePurpose::Recover | CodePurpose::Link => {
+                    account_of(&transaction, &email)?
+                }
             };
             let sent = match purpose {
                 CodePurpose::Register => true,
@@ -368,7 +393,7 @@ impl ServerStore {
             )?;
             let code = new_code();
             transaction.execute(
-                "INSERT INTO sign_in_codes (attempt_hash, code_hash, purpose, account_id, email, display_name, invite_hash, device_code, expires, created, address, network, remembered) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                "INSERT INTO sign_in_codes (attempt_hash, code_hash, purpose, account_id, email, display_name, invite_hash, device_code, expires, created, address, network, remembered, identity, identity_email) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
                 params![
                     attempt,
                     code_hash(&attempt, &code),
@@ -383,6 +408,8 @@ impl ServerStore {
                     address,
                     network,
                     known_email,
+                    identity,
+                    identity_email,
                 ],
             )?;
             transaction.commit()?;
@@ -437,14 +464,15 @@ impl ServerStore {
             .with_database(move |store, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let now = now();
-                let row: Option<(String, String, String, String, String, String, String, i64)> = transaction
+                #[allow(clippy::type_complexity)]
+                let row: Option<(String, String, String, String, String, String, String, i64, String, String)> = transaction
                     .query_row(
-                        "SELECT code_hash, purpose, account_id, email, display_name, invite_hash, device_code, tries FROM sign_in_codes WHERE attempt_hash = ?1 AND expires > ?2",
+                        "SELECT code_hash, purpose, account_id, email, display_name, invite_hash, device_code, tries, identity, identity_email FROM sign_in_codes WHERE attempt_hash = ?1 AND expires > ?2",
                         params![attempt_hash, now],
-                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?)),
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?, row.get(9)?)),
                     )
                     .optional()?;
-                let Some((hash, purpose, account, email, name, invite, device_code, tries)) = row else {
+                let Some((hash, purpose, account, email, name, invite, device_code, tries, identity, identity_email)) = row else {
                     return Err(refused("Code: this code has expired or was replaced. Ask for a new one."));
                 };
                 if let Some(purpose) = CodePurpose::of(&purpose)
@@ -476,7 +504,12 @@ impl ServerStore {
                     CodePurpose::Register => {
                         unregistered(&transaction, &email)?;
                         invite_codes::spend(&transaction, &invite)?;
-                        make_account(&transaction, &email, &name)?
+                        make_account(&transaction, Some(&email), &name)?
+                    }
+                    CodePurpose::Link => {
+                        let account = parse_uuid(&account)?;
+                        super::providers::add_provider_identity(&transaction, account, &identity, &identity_email)?;
+                        account
                     }
                     _ => parse_uuid(&account)?,
                 };
@@ -547,7 +580,8 @@ impl ServerStore {
             true => Ok(()),
             false => Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "Confirm it is you first: ask for a code to your email.".into(),
+                "Confirm it is you first, with a code to your email or a provider you sign in with."
+                    .into(),
             )),
         }
     }
@@ -555,7 +589,7 @@ impl ServerStore {
     pub async fn identities(&self, account: Uuid) -> Result<Vec<Identity>, ServerError> {
         self.with_database(move |_, database| {
             let mut query = database.prepare(
-                "SELECT id, kind, subject FROM identities WHERE account_id = ?1 ORDER BY created, id",
+                "SELECT id, kind, subject, email FROM identities WHERE account_id = ?1 ORDER BY created, id",
             )?;
             let found = query
                 .query_map([account.to_string()], |row| {
@@ -563,6 +597,7 @@ impl ServerStore {
                         id: row.get(0)?,
                         kind: row.get(1)?,
                         subject: row.get(2)?,
+                        email: row.get(3)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -585,13 +620,14 @@ impl ServerStore {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let identity: Option<Identity> = transaction
                 .query_row(
-                    "SELECT id, kind, subject FROM identities WHERE id = ?1 AND account_id = ?2",
+                    "SELECT id, kind, subject, email FROM identities WHERE id = ?1 AND account_id = ?2",
                     params![id, account.to_string()],
                     |row| {
                         Ok(Identity {
                             id: row.get(0)?,
                             kind: row.get(1)?,
                             subject: row.get(2)?,
+                            email: row.get(3)?,
                         })
                     },
                 )

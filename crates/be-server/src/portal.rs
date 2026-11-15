@@ -4,11 +4,13 @@ use crate::{
     store::{
         AccountSession, MailLink, Profile, ServerStore,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
+        providers::{Intent, Outcome},
     },
 };
 use base64::Engine;
 use be_server_portal::{
-    Account, Asset, IdentityRow, Page, Portal, Problem, Screen, Session, SessionKind,
+    Account, Asset, IdentityRow, Page, Portal, Problem, ProviderLink, Screen, Session,
+    SessionKind,
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -37,6 +39,7 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
         CodePurpose::Recover => ("Your be3 recovery code", "get back into your account"),
         CodePurpose::Register => ("Your be3 registration code", "finish creating your account"),
         CodePurpose::Proof => ("Your be3 confirmation code", "confirm it is you"),
+        CodePurpose::Link => ("Your be3 code to add a way to sign in", "sign in and add the provider you just used"),
     };
     services.mail.send(Email {
         recipient: mail.email,
@@ -88,7 +91,16 @@ pub(crate) async fn handle(
             .map(String::as_str)
             .unwrap_or_default()
     };
-    let code = value("code").trim().to_ascii_lowercase();
+    // A provider's sign-in, begun or sent back: the provider's id, and which.
+    let oidc = path
+        .strip_prefix("/auth/oidc/")
+        .and_then(|rest| rest.split_once('/'))
+        .filter(|(_, step)| matches!(*step, "start" | "callback"));
+    // The provider's callback carries its own `code`, which is no browser sign-in's.
+    let code = match oidc {
+        Some((_, "callback")) => String::new(),
+        _ => value("code").trim().to_ascii_lowercase(),
+    };
     let profile = services.store.browser_profile(token).await.ok();
     let mut response = Response {
         status: 200,
@@ -107,6 +119,9 @@ pub(crate) async fn handle(
         return Ok(response);
     }
     let result: Result<String, ServerError> = async {
+        if let Some((provider, step)) = oidc.filter(|_| method == "GET") {
+            return provider_step(services, &mut response, provider, step, query, profile.as_ref(), token, attempt, origin, address).await;
+        }
         if method != "POST" { return Ok(String::new()); }
         services.browser_auth.consume_form(value("csrf"), token)?;
         let account = || profile.as_ref().map(|profile| profile.account).ok_or_else(|| invalid("Sign in to continue."));
@@ -140,10 +155,22 @@ pub(crate) async fn handle(
             },
             "/auth/proof" => {
                 let profile = profile.as_ref().ok_or_else(|| invalid("Sign in to continue."))?;
+                if profile.email.is_empty() {
+                    return Err(invalid("Your account has no email: confirm it is you with a provider you sign in with."));
+                }
                 let attempt = attempt_for(&mut response);
                 let mailed = services.store.request_code(CodeRequest { purpose: CodePurpose::Proof, email: &profile.email, account: Some(profile.account), display_name: "", invite: "", device_code: "", attempt: &attempt, address }).await?;
                 if let Some(mailed) = mailed { deliver_code(services, origin, mailed); }
                 response.location = Some("/auth/enter".into());
+            },
+            "/auth/oidc/register" => {
+                login_allowed()?;
+                registration_allowed()?;
+                let (session, device_code) = services.store.register_by_provider(attempt, value("invite"), value("display_name")).await?;
+                if !token.is_empty() { services.store.logout(token).await?; }
+                response.cookie = Some(session);
+                response.attempt = Some(String::new());
+                response.location = Some(link("/auth", &device_code));
             },
             "/auth/enter" => {
                 let entered = services.store.enter_code(attempt, value("email_code"), token, address, |purpose, config| match purpose {
@@ -164,7 +191,7 @@ pub(crate) async fn handle(
             "/auth/settings/identity/remove" => {
                 let account = account()?;
                 let removed = services.store.remove_identity(account, token, value("identity")).await?;
-                if let Some(profile) = profile.as_ref() { identity_notice(services, &profile.email, &removed.subject); }
+                if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_notice(services, &profile.email, &identity_label(&services.config, &removed)); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/link" => {
@@ -175,7 +202,7 @@ pub(crate) async fn handle(
             },
             "/auth/verify" => {
                 let old_email = services.store.confirm_mail(value("token")).await?;
-                services.mail.send(Email { recipient: old_email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() });
+                if !old_email.is_empty() { services.mail.send(Email { recipient: old_email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() }); }
                 response.location = Some("/auth/email-updated".into());
             },
             "/auth/code" => {
@@ -252,6 +279,13 @@ pub(crate) async fn handle(
     if path == "/auth/proof" {
         display_path = "/auth/settings".into();
     }
+    // A provider's sign-in that failed shows where it began.
+    if oidc.is_some() {
+        display_path = match profile.is_some() {
+            true => "/auth/settings".into(),
+            false => "/auth/login".into(),
+        };
+    }
     if profile.is_none() && matches!(display_path.as_str(), "/auth/settings" | "/auth/sessions") {
         response.status = 303;
         response.location = Some(link("/auth/login", &code));
@@ -321,6 +355,9 @@ pub(crate) async fn handle(
         "/auth/email-updated" => Screen::EmailUpdated,
         "/auth/recover" if !config.allow_login => Screen::SignInClosed,
         "/auth/recover" => Screen::Recover,
+        "/auth/oidc/register" if !config.allow_login => Screen::SignInClosed,
+        "/auth/oidc/register" if !config.allow_registration => Screen::RegistrationClosed,
+        "/auth/oidc/register" => Screen::ProviderRegister,
         "/auth/enter" => match &linked_code {
             Some(code) if !linked_here => Screen::CodeElsewhere { code: code.clone() },
             _ => Screen::EnterCode,
@@ -342,7 +379,8 @@ pub(crate) async fn handle(
             | "/auth/email-updated"
             | "/auth/enter"
             | "/auth/recover"
-    );
+            | "/auth/oidc/register"
+    ) || oidc.is_some();
     if !known && method == "GET" {
         response.status = 404;
     }
@@ -356,13 +394,21 @@ pub(crate) async fn handle(
     let page = Page {
         screen,
         email: field("email", |profile| &profile.email),
-        display_name: field("display_name", |profile| &profile.display_name),
+        display_name: match display_path.as_str() {
+            "/auth/oidc/register" if !fields.contains_key("display_name") => services
+                .store
+                .pending_provider(attempt)
+                .await
+                .map(|(_, name)| name)
+                .unwrap_or_default(),
+            _ => field("display_name", |profile| &profile.display_name),
+        },
         invite: fields.get("invite").cloned().unwrap_or_default(),
         account: profile.as_ref().map(|profile| Account {
             display_name: profile.display_name.clone(),
             email: profile.email.clone(),
         }),
-        code,
+        code: code.clone(),
         code_problem,
         csrf: services.browser_auth.form(token, client),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
@@ -371,14 +417,54 @@ pub(crate) async fn handle(
         identities: {
             let last = identities.len() <= 1;
             identities
-                .into_iter()
+                .iter()
                 .map(|identity| IdentityRow {
-                    label: identity.subject,
-                    kind: identity.kind,
-                    id: identity.id,
+                    label: identity_label(config, identity),
+                    kind: identity.kind.clone(),
+                    id: identity.id.clone(),
                     removable: !last,
                 })
                 .collect()
+        },
+        providers: match display_path.as_str() {
+            "/auth" | "/auth/login" | "/auth/register" if !signed_in => config
+                .providers
+                .iter()
+                .map(|provider| ProviderLink {
+                    name: provider.name.clone(),
+                    href: link(&format!("/auth/oidc/{}/start", provider.id), &code),
+                })
+                .collect(),
+            "/auth/settings" => config
+                .providers
+                .iter()
+                .filter(|provider| !linked(&identities, provider))
+                .map(|provider| ProviderLink {
+                    name: provider.name.clone(),
+                    href: format!("/auth/oidc/{}/start?intent=link", provider.id),
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
+        proof_providers: config
+            .providers
+            .iter()
+            .filter(|provider| linked(&identities, provider))
+            .map(|provider| ProviderLink {
+                name: provider.name.clone(),
+                href: format!("/auth/oidc/{}/start?intent=proof", provider.id),
+            })
+            .collect(),
+        provider: match display_path.as_str() {
+            "/auth/oidc/register" => match services.store.pending_provider(attempt).await {
+                Some((provider, _)) => provider_name(config, &provider),
+                None => String::new(),
+            },
+            "/auth/enter" => query
+                .get("linking")
+                .map(|provider| provider_name(config, provider))
+                .unwrap_or_default(),
+            _ => String::new(),
         },
         fresh,
         code_email,
@@ -389,6 +475,167 @@ pub(crate) async fn handle(
     };
     response.body = show(services, page);
     Ok(response)
+}
+
+/// The configured provider whose id is `id`, by its name; the id itself if there is none.
+fn provider_name(config: &crate::ServerConfig, id: &str) -> String {
+    config
+        .providers
+        .iter()
+        .find(|provider| provider.id == id)
+        .map_or_else(|| id.to_owned(), |provider| provider.name.clone())
+}
+
+/// Whether one of the account's identities is the provider's.
+fn linked(identities: &[codes::Identity], provider: &crate::oidc::Provider) -> bool {
+    identities.iter().any(|identity| {
+        identity.kind == "oidc" && identity.subject.starts_with(&format!("{} ", provider.issuer))
+    })
+}
+
+/// How the settings page names an identity: its email, or its provider's name and the email
+/// the provider gave.
+fn identity_label(config: &crate::ServerConfig, identity: &codes::Identity) -> String {
+    if identity.kind != "oidc" {
+        return identity.subject.clone();
+    }
+    let provider = config
+        .providers
+        .iter()
+        .find(|provider| identity.subject.starts_with(&format!("{} ", provider.issuer)))
+        .map_or_else(
+            || {
+                let issuer = identity.subject.split(' ').next().unwrap_or_default();
+                format!("A provider this server no longer has ({issuer})")
+            },
+            |provider| provider.name.clone(),
+        );
+    match identity.email.is_empty() {
+        true => provider,
+        false => format!("{provider} ({})", identity.email),
+    }
+}
+
+/// Begins a sign-in with a provider, or takes the browser back from it.
+#[allow(clippy::too_many_arguments)]
+async fn provider_step(
+    services: &Services,
+    response: &mut Response,
+    provider: &str,
+    step: &str,
+    query: &HashMap<String, String>,
+    profile: Option<&Profile>,
+    token: &str,
+    attempt: &str,
+    origin: &str,
+    address: &str,
+) -> Result<String, ServerError> {
+    let configured = services
+        .config
+        .providers
+        .iter()
+        .find(|configured| configured.id == provider)
+        .ok_or_else(|| invalid("This server has no such provider."))?;
+    let redirect = format!("{origin}{}", crate::oidc::callback_path(provider));
+    let value = |name: &str| query.get(name).map(String::as_str).unwrap_or_default();
+    match step {
+        "start" => {
+            let intent = match value("intent") {
+                "link" => Intent::Link,
+                "proof" => Intent::Proof,
+                _ => Intent::SignIn,
+            };
+            let account = match intent {
+                Intent::SignIn if !services.config.allow_login => {
+                    return Err(invalid("This server is not accepting sign-ins."));
+                }
+                Intent::SignIn => None,
+                _ => Some(profile.ok_or_else(|| invalid("Sign in to continue."))?.account),
+            };
+            if intent == Intent::Link {
+                services.store.require_fresh(token).await?;
+            }
+            // The browser's attempt binds the provider's answer to this browser.
+            let attempt = match attempt.is_empty() {
+                true => {
+                    let fresh = codes::new_attempt();
+                    response.attempt = Some(fresh.clone());
+                    fresh
+                }
+                false => attempt.to_owned(),
+            };
+            let started = services.discovery.start(configured, &redirect).await?;
+            services
+                .store
+                .begin_provider(
+                    provider,
+                    &started.state,
+                    &started.verifier,
+                    &started.nonce,
+                    &attempt,
+                    address,
+                    &value("code").trim().to_ascii_lowercase(),
+                    intent,
+                    account,
+                )
+                .await?;
+            response.location = Some(started.url);
+        }
+        _ => {
+            if !value("error").is_empty() {
+                return Err(invalid(&format!(
+                    "{} did not sign you in. Try again, or sign in another way.",
+                    configured.name
+                )));
+            }
+            let begun = services
+                .store
+                .take_provider_state(provider, value("state"), attempt)
+                .await?;
+            let verified = services
+                .discovery
+                .finish(
+                    configured,
+                    &redirect,
+                    value("code"),
+                    &begun.verifier,
+                    &begun.nonce,
+                )
+                .await?;
+            let outcome = services
+                .store
+                .provider_verified(
+                    configured,
+                    verified,
+                    begun,
+                    token,
+                    attempt,
+                    address,
+                    &services.config,
+                )
+                .await?;
+            response.location = Some(match outcome {
+                Outcome::SignedIn {
+                    session,
+                    device_code,
+                } => {
+                    if !token.is_empty() {
+                        services.store.logout(token).await?;
+                    }
+                    response.cookie = Some(session);
+                    link("/auth", &device_code)
+                }
+                Outcome::Linked => "/auth/settings?saved=1".into(),
+                Outcome::Proved => "/auth/settings?proved=1".into(),
+                Outcome::LinkByCode(mailed) => {
+                    deliver_code(services, origin, mailed);
+                    format!("/auth/enter?linking={provider}")
+                }
+                Outcome::NeedsInvite => "/auth/oidc/register".into(),
+            });
+        }
+    }
+    Ok(String::new())
 }
 
 fn session(session: AccountSession) -> Session {
