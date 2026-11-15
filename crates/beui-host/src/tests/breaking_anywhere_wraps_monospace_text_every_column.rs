@@ -21,7 +21,6 @@ fn breaking_anywhere_wraps_monospace_text_every_column() {
             style,
             hang: 0,
             anywhere,
-            least: false,
         };
         let pieces = [
             Piece::text(&text[..20], style),

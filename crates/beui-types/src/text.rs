@@ -333,7 +333,6 @@ pub struct RichOptions {
     pub style: SpanStyle,
     pub hang: usize,
     pub anywhere: bool,
-    pub least: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
