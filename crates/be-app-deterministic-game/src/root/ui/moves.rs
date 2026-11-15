@@ -11,14 +11,14 @@ use beui::{Align, Direction};
 
 const NUMBER_WIDTH: f32 = 30.0;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Cell {
     pub(crate) text: String,
     pub(crate) first: usize,
     pub(crate) last: usize,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Row {
     pub(crate) cells: Vec<Option<Cell>>,
 }
@@ -63,10 +63,7 @@ pub(crate) fn rows(table: &Table) -> Vec<Row> {
 #[component]
 pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) -> NodeId {
     let rows = create_memo(move || table.with(rows));
-    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
     let columns = create_memo(move || table.with(|table| table.columns.clone()));
-    let column_keys = create_memo(move || (0..columns.with(Vec::len)).collect::<Vec<_>>());
-    let empty = create_memo(move || rows.with(Vec::is_empty));
     let count = steps.count;
     let at_start = create_memo(move || shown.get() == 0);
     let at_end = create_memo(move || shown.get() >= count.get());
@@ -123,12 +120,14 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     </ListItem>
                 </ForEach>
             </List>
-            <Show value={empty}>
-                <Text style=TextStyle::CAPTION>"No moves yet"</Text>
-            </Show>
             <List spacing=Space::Xs2>
-                <ForEach value={keys}>|row: usize|
-                    <MoveRow row rows={rows} columns={column_keys} shown={shown} steps={steps} />
+                <ForEach
+                    value={rows}
+                    fallback={move || view! {
+                        <Text style=TextStyle::CAPTION>"No moves yet"</Text>
+                    }}
+                >|row: Row, index: ReadSignal<usize>|
+                    <MoveRow row index shown={shown} steps={steps} />
                 </ForEach>
             </List>
             <Show value={ended}>
@@ -139,22 +138,17 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
 }
 
 #[component]
-fn MoveRow(
-    row: usize,
-    rows: Memo<Vec<Row>>,
-    columns: Memo<Vec<usize>>,
-    shown: Memo<usize>,
-    steps: Steps,
-) -> NodeId {
+fn MoveRow(row: Row, index: ReadSignal<usize>, shown: Memo<usize>, steps: Steps) -> NodeId {
+    let number = create_memo(move || format!("{}", index.get() + 1));
     let muted = TextColor::Muted;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
             <ListItem length=NUMBER_WIDTH>
-                <Text size=TextSize::Sm color={muted}>{format!("{}", row + 1)}</Text>
+                <Text size=TextSize::Sm color={muted}>{number}</Text>
             </ListItem>
-            <ForEach value={columns}>|column: usize|
+            <ForEach value={row.cells}>|cell: Option<Cell>, column: ReadSignal<usize>|
                 <ListItem grow=1.0>
-                    <MoveCell row column rows={rows} shown={shown} steps={steps} />
+                    <MoveCell row={index} column cell shown={shown} steps={steps} />
                 </ListItem>
             </ForEach>
         </List>
@@ -163,42 +157,28 @@ fn MoveRow(
 
 #[component]
 fn MoveCell(
-    row: usize,
-    column: usize,
-    rows: Memo<Vec<Row>>,
+    row: ReadSignal<usize>,
+    column: ReadSignal<usize>,
+    cell: Option<Cell>,
     shown: Memo<usize>,
     steps: Steps,
 ) -> NodeId {
-    let cell = create_memo(move || {
-        rows.with(|rows| {
-            rows.get(row)
-                .and_then(|row| row.cells.get(column).cloned())
-                .flatten()
-        })
-    });
+    let span = cell.as_ref().map(|cell| (cell.first, cell.last));
     let chosen = create_memo(move || {
         let shown = shown.get();
-        cell.with(|cell| {
-            cell.as_ref()
-                .is_some_and(|cell| shown > cell.first && shown <= cell.last + 1)
-        })
+        span.is_some_and(|(first, last)| shown > first && shown <= last + 1)
     });
     let open = move || {
-        if let Some(cell) = cell.get_untracked() {
-            steps.show(cell.last + 1);
+        if let Some((_, last)) = span {
+            steps.show(last + 1);
         }
     };
+    let label = cell.map(|cell| cell.text).unwrap_or_default();
     view! {
         <ListRow
-            label={move || {
-                cell.with(|cell| {
-                    cell.as_ref()
-                        .map(|cell| cell.text.clone())
-                        .unwrap_or_default()
-                })
-            }}
+            label={label}
             selected={chosen}
-            @test_id={format!("game.history.{row}.{column}")}
+            @test_id={move || format!("game.history.{}.{}", row.get(), column.get())}
             on_click={open}
         />
     }
