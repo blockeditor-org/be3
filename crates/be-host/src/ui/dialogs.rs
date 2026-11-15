@@ -260,7 +260,6 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
             .map(|contact| contact.account)
             .collect::<Vec<Uuid>>()
     });
-    let link = create_memo(move || shown.get().link.unwrap_or_default());
     let offer = create_memo(move || shown.get().offer.unwrap_or_default());
     let offered = create_memo(move || !offer.with(String::is_empty));
     let connected = create_memo(move || shown.get().connected.unwrap_or_default());
@@ -278,10 +277,12 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
-                <Show value={move || keys.with(Vec::is_empty)}>
-                    <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
-                </Show>
-                <ForEach value={keys}>|account: Uuid| {
+                <ForEach
+                    value={keys}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
+                    }}
+                >|account: Uuid| {
                     let row = create_memo(move || {
                         shown
                             .get()
@@ -330,7 +331,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                 </Dialog>
-                <Show value={move || !link.with(String::is_empty)}>
+                <Show value={move || shown.get().link}>|link: ReadSignal<String>|
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
@@ -402,17 +403,19 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
         <Frame>
             <List spacing=Space::Md>
                 <Show
-                    value={move || created.with(Option::is_some)}
+                    value={created}
                     fallback={move || view! {
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{organization}</Text>
                             <Text style=TextStyle::CAPTION>
                                 "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                             </Text>
-                            <Show value={move || keys.with(Vec::is_empty)}>
-                                <Text style=TextStyle::CAPTION>"No agents yet."</Text>
-                            </Show>
-                            <ForEach value={keys}>|account: Uuid| {
+                            <ForEach
+                                value={keys}
+                                fallback={|| view! {
+                                    <Text style=TextStyle::CAPTION>"No agents yet."</Text>
+                                }}
+                            >|account: Uuid| {
                                 let label = create_memo(move || {
                                     shown
                                         .get()
@@ -450,7 +453,7 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
                             <ErrorText text={error} />
                         </List>
                     }}
-                >
+                >|created: ReadSignal<super::CreatedAgent>|
                     <AgentCredentials created={created} />
                 </Show>
             </List>
@@ -459,10 +462,8 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
 }
 
 #[component]
-fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
-    let field = |read: fn(&super::CreatedAgent) -> String| {
-        create_memo(move || created.get().as_ref().map(read).unwrap_or_default())
-    };
+fn AgentCredentials(created: ReadSignal<super::CreatedAgent>) -> NodeId {
+    let field = |read: fn(&super::CreatedAgent) -> String| create_memo(move || created.with(read));
     let heading = field(|created| {
         format!(
             "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value, then share a workspace or blocks with the agent.",
@@ -470,12 +471,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
         )
     });
     let proxy = create_signal(false);
-    let credentials = create_memo(move || {
-        created
-            .get()
-            .map(|created| created.bundle(proxy.get()))
-            .unwrap_or_default()
-    });
+    let credentials = create_memo(move || created.with(|created| created.bundle(proxy.get())));
     let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=Space::Sm>
@@ -561,10 +557,12 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
-                <Show value={move || keys.with(Vec::is_empty)}>
-                    <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
-                </Show>
-                <ForEach value={keys}>|block: Uuid| {
+                <ForEach
+                    value={keys}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
+                    }}
+                >|block: Uuid| {
                     let row = create_memo(move || {
                         shown
                             .get()
@@ -658,12 +656,6 @@ fn InvitePanel(
         )
     });
     let error = create_memo(move || invite.get().and_then(|invite| invite.error));
-    let link = create_memo(move || {
-        invite
-            .get()
-            .and_then(|invite| invite.link)
-            .unwrap_or_default()
-    });
     let role_index = create_memo(move || usize::from(administrator.get()));
     let description = create_memo(move || match role.get() {
         OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
@@ -688,7 +680,7 @@ fn InvitePanel(
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>
                 <ErrorText text={error} />
-                <Show value={move || !link.with(String::is_empty)}>
+                <Show value={move || invite.get().and_then(|invite| invite.link)}>|link: ReadSignal<String>|
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
