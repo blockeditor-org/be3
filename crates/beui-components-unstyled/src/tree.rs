@@ -273,7 +273,7 @@ where
     api.fill(TreeApi(state));
 
     create_effect(move || {
-        if state.focus.get().is_none() {
+        if state.focus.with(Option::is_none) {
             state.typeahead.value().borrow_mut().clear();
         }
     });
@@ -681,7 +681,7 @@ pub fn TreeRowEditor(
         />
     };
     let measured = measure(field.get());
-    let placed = create_memo(move || measured.get().is_some());
+    let placed = create_memo(move || measured.with(Option::is_some));
     create_effect(move || {
         if placed.get() {
             field.get().reveal();
@@ -716,7 +716,7 @@ where
         stray_edge(
             measure(row).get()?.rect,
             measure(scroll).get()?.rect,
-            buried.get().is_some(),
+            buried.with(Option::is_some),
         )
     });
     let pending = create_signal(None::<K>);
@@ -735,13 +735,13 @@ where
         else {
             return;
         };
-        if measure(row).get().is_none() {
+        if measure(row).with(Option::is_none) {
             return;
         }
         row.reveal();
         pending.set(None);
     });
-    let open = create_memo(move || astray.get().is_some());
+    let open = create_memo(move || astray.with(Option::is_some));
     let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
     let item = state.item;
     let label = create_memo(move || {

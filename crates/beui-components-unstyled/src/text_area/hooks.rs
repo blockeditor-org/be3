@@ -66,7 +66,7 @@ impl TextMarker {
     pub fn number(&self) -> Memo<String> {
         let (kind, label) = (self.kind, self.label);
         create_memo(move || match kind.get() {
-            MarkerKind::Number(_) if !label.get().is_empty() => label.get(),
+            MarkerKind::Number(_) if !label.with(String::is_empty) => label.get(),
             MarkerKind::Number(number) => format!("{number}."),
             _ => String::new(),
         })
@@ -79,7 +79,7 @@ impl TextMarker {
 
     pub fn written(&self) -> Memo<bool> {
         let label = self.label;
-        create_memo(move || !label.get().is_empty())
+        create_memo(move || !label.with(String::is_empty))
     }
 
     pub fn gap(&self) -> Memo<Sides> {

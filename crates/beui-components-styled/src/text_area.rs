@@ -167,9 +167,9 @@ pub fn TextArea(
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={find}>||
+            {find.then(|| view! {
                 <FindBar state={state} read_only />
-            </Show>
+            })}
             <ListItem grow=1.0>
                 <unstyled::TextContextMenu
                     state={state}

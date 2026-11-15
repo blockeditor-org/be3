@@ -69,8 +69,8 @@ pub fn SettingsSection(
 ) -> NodeId {
     let title = create_memo(move || title.get());
     let description = create_memo(move || description.get());
-    let titled = create_memo(move || !title.get().is_empty());
-    let described = create_memo(move || !description.get().is_empty());
+    let titled = create_memo(move || !title.with(String::is_empty));
+    let described = create_memo(move || !description.with(String::is_empty));
     let headed = create_memo(move || titled.get() || described.get());
     let edge = unstyled::narrower_than(EDGE_TO_EDGE_BELOW);
     let inset = create_memo(move || match edge.get() {
@@ -187,10 +187,10 @@ pub fn SettingsRow(
                             <ListItem grow=label_grow>
                                 <List justify=Justify::Center spacing=LABEL_SPACING>
                                     <Text>{label}</Text>
-                                    <Show condition={move || !description.get().is_empty()}>
+                                    <Show condition={move || !description.with(String::is_empty)}>
                                         <Text style=TextStyle::CAPTION>{description}</Text>
                                     </Show>
-                                    <Show condition={move || !note.get().is_empty()}>
+                                    <Show condition={move || !note.with(String::is_empty)}>
                                         <Text style=NOTE>{note}</Text>
                                     </Show>
                                 </List>

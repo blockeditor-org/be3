@@ -227,9 +227,7 @@ pub fn ButtonFace(
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
     let has_leading = leading.is_some();
-    let has_glyph = create_memo(move || !has_leading && !pictured.get() && glyph.get().is_some());
     let trailing = create_memo(move || trailing_glyph.get());
-    let has_trailing = create_memo(move || trailing.get().is_some());
     let justify = create_memo(move || match wide.get() || icon_only.get() {
         true => Justify::Center,
         false => Justify::Start,
@@ -266,7 +264,7 @@ pub fn ButtonFace(
                                 <Picture image />
                             </Frame>
                         </Show>
-                        <Show condition={has_glyph}>
+                        <Show condition={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}>
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
@@ -283,7 +281,7 @@ pub fn ButtonFace(
                                 </Text>
                             </ListItem>
                         </Show>
-                        <Show condition={has_trailing}>
+                        <Show condition={move || trailing.with(Option::is_some)}>
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={trailing} />
                             </Text>

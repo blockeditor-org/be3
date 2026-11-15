@@ -1502,7 +1502,7 @@ pub fn TextArea(
         let Some(query) = completion.get() else {
             return false;
         };
-        dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+        dismissed.get() != Some(query.range.start) && !completions.with(Vec::is_empty)
     });
     let highlighted = create_signal(0_usize);
     create_effect(move || match completion.get() {
@@ -1818,7 +1818,7 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
-            capture_presses={create_memo(move || !disabled.get())}
+            capture_presses={move || Area::when(!disabled.get())}
             claims={move || match cx.disabled.get() {
                 true => Vec::new(),
                 false => vec![Claim::always(Area::CaretHandles)],

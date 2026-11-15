@@ -242,7 +242,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 TextLanguage::Markdown | TextLanguage::RichText
             )
         });
-        if !document || !cx.line_numbers || cx.prose.get().is_some() || cx.single_line {
+        if !document || !cx.line_numbers || cx.prose.with(Option::is_some) || cx.single_line {
             return Margin::default();
         }
         let size = cx.font_size.get();
@@ -664,7 +664,7 @@ fn RowText(
         cx.focused.get();
         cursors.get().anchor.map(|byte| row.to_display(byte))
     });
-    let anchored = create_memo(move || anchor_at.get().is_some());
+    let anchored = create_memo(move || anchor_at.with(Option::is_some));
     let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
     let font = create_memo(move || {
         FontId::proportional(cx.font_size.get())
@@ -975,7 +975,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame @node_ref=&pill height fill=fill radius>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Show condition={move || icon.get().is_some()}>||
+                <Show condition={move || icon.with(Option::is_some)}>||
                     <Frame width={move || Extent::px(shape.get().icon_width)}>
                         <Text
                             font={move || FontId::proportional(shape.get().icon_size)}

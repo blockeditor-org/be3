@@ -122,7 +122,7 @@ pub fn ContextMenu(
     let toolbar_style = menu.toolbar();
     let has_toolbar = toolbar_style.is_some();
     let toolbar_open = create_memo(move || {
-        has_toolbar && toolbar_at.get().is_some() && !open.get() && !disabled.get()
+        has_toolbar && toolbar_at.with(Option::is_some) && !open.get() && !disabled.get()
     });
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));

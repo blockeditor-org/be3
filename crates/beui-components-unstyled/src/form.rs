@@ -48,7 +48,7 @@ pub(crate) fn Posted(
                     r#type="hidden"
                     name={name}
                     value={move || value.get()}
-                    disabled={move || disabled.get() || value.get().is_none()}
+                    disabled={move || disabled.get() || value.with(Option::is_none)}
                 />
                 {content}
             </html::Div>

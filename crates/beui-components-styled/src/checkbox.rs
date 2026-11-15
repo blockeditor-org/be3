@@ -81,7 +81,7 @@ fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
                         <Frame width=mark height=mark fill=ColorRole::OnAccent radius=Radius::Xs />
                     </Show>
                 </Frame>
-                <Show condition={move || !label.get().is_empty()}>
+                <Show condition={move || !label.with(String::is_empty)}>
                     <ListItem grow=1.0>
                         <Text
                             overflow=Overflow::Ellipsis

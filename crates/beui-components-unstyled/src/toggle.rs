@@ -67,7 +67,7 @@ pub fn Toggle(
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
-        if node.label().is_none() && !label.get().is_empty() {
+        if node.label().is_none() && !label.with(String::is_empty) {
             node.set_label(label.get());
         }
         node.set_toggled(match mixed.get() {

@@ -1076,16 +1076,14 @@ where
                     shown_in={shown_in}
                     open={floating}
                 >
-                    <List spacing=0.0>
-                        <Dynamic
-                            value={carried}
-                            fallback={|| view! {
-                                <Frame />
-                            }}
-                        >|carried: P| {
-                            preview.call(carried)
-                        }</Dynamic>
-                    </List>
+                    <Dynamic
+                        value={carried}
+                        fallback={|| view! {
+                            <Frame />
+                        }}
+                    >|carried: P| {
+                        preview.call(carried)
+                    }</Dynamic>
                 </Overlay>
             </Layers>
         </DropTarget>

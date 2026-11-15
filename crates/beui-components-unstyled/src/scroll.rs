@@ -788,7 +788,7 @@ fn Scrolling(
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
     let origin = create_signal(None::<Pos2>);
-    let marked = create_memo(move || origin.get().is_some());
+    let marked = create_memo(move || origin.with(Option::is_some));
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let marker = marker.once();

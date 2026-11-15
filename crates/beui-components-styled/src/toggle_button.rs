@@ -81,7 +81,7 @@ fn ToggleButtonFace(handle: ToggleHandle) -> NodeId {
             <FocusRing focused offset=Stroke::Focus>
                 <Frame fill={fill_color} border={border} radius=Radius::Md padding={padding}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                        <Show condition={move || glyph.get().is_some()}>
+                        <Show condition={move || glyph.with(Option::is_some)}>
                             <Text color={text_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>

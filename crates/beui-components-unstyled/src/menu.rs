@@ -340,7 +340,7 @@ pub(crate) fn MenuList(
                 title.is_some()
                     || items.items().iter().any(|item| {
                         item.is_row()
-                            && (item.glyph.get().is_some() || item.checked.get().is_some())
+                            && (item.glyph.with(Option::is_some) || item.checked.with(Option::is_some))
                     })
             })
         },
@@ -363,9 +363,9 @@ pub(crate) fn MenuList(
     let focused = create_selector(move || focus.get());
     let root_tab_stop = create_memo(move || {
         !matches!(focus.get(), Focus::Row(_) | Focus::Tile(..) | Focus::Back)
-            && page.get().is_none()
+            && page.with(Option::is_none)
     });
-    let paged = create_memo(move || page.get().is_some());
+    let paged = create_memo(move || page.with(Option::is_some));
 
     let lines = move || {
         items.build_each(

@@ -73,7 +73,7 @@ fn AccordionHeader(
                 <ListItem grow=1.0>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text size={size} color={title_color} align=TextAlign::Start>{title}</Text>
-                        <Show condition={move || !detail.get().is_empty()}>
+                        <Show condition={move || !detail.with(String::is_empty)}>
                             <ListItem grow=1.0>
                                 <Text
                                     overflow=Overflow::Ellipsis

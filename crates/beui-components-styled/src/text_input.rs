@@ -58,7 +58,7 @@ pub fn TextInput(
     let clearable = create_memo(move || clearable.get());
     let copyable = create_memo(move || copyable.get());
     let named = label.clone();
-    let copy_label = create_memo(move || match named.get().is_empty() {
+    let copy_label = create_memo(move || match named.with(String::is_empty) {
         true => "Copy".to_owned(),
         false => format!("Copy {}", named.get()),
     });
@@ -146,7 +146,7 @@ fn TextInputFrame(
                     }}
                     spacing=Space::None
                 >
-                    <Show condition={move || glyph.get().is_some()}>
+                    <Show condition={move || glyph.with(Option::is_some)}>
                         <Frame padding={Padding::ZERO.left(PADDING_HORIZONTAL)}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />

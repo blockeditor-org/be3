@@ -152,7 +152,7 @@ pub fn TextInput(
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
     let browser = CORE == Core::Html
         && !multiline
-        && untrack(|| prose.get().is_none() && !select_on_focus.get());
+        && untrack(|| prose.with(Option::is_none) && !select_on_focus.get());
     let element = store(RefCell::new(None));
     api.fill(TextInputApi(Input {
         state,

@@ -269,7 +269,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                    <Show condition={move || !lead.get().is_empty()}>
+                    <Show condition={move || !lead.with(String::is_empty)}>
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
                     <Show condition={has_glyph}>
@@ -280,7 +280,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
                                 {label}
                             </Text>
-                            <Show condition={move || !detail.get().is_empty()}>
+                            <Show condition={move || !detail.with(String::is_empty)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -292,7 +292,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={move || !shortcut.get().is_empty()}>
+                    <Show condition={move || !shortcut.with(String::is_empty)}>
                         <ListItem gap={SHORTCUT_SPACING.px()}>
                             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                                 {shortcut}
@@ -379,12 +379,12 @@ pub(crate) fn MenuTreeLead(
         _ => "Expand".to_owned(),
     });
     view! {
-        <Show condition={move || depth.get().is_some()}>
+        <Show condition={move || depth.with(Option::is_some)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Frame width />
                 <unstyled::Button
                     label
-                    disabled={move || expanded.get().is_none()}
+                    disabled={move || expanded.with(Option::is_none)}
                     tab_stop=false
                     press_focus=false
                     on_click={toggle}

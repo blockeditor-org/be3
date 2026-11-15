@@ -192,7 +192,7 @@ pub fn DialogBody(
 }
 
 fn named(id: Memo<String>, name: &'static str) -> Memo<String> {
-    create_memo(move || match id.get().is_empty() {
+    create_memo(move || match id.with(String::is_empty) {
         true => String::new(),
         false => format!("{}.{name}", id.get()),
     })
@@ -210,7 +210,7 @@ fn DialogBodyFace(
     let closable = handle.kind == DialogKind::Dialog;
     let titled = create_memo(move || !title.with(Phrase::is_empty));
     let footer = handle.footer;
-    let footed = create_memo(move || !footer.get().is_empty());
+    let footed = create_memo(move || !footer.with(unstyled::FooterOrder::is_empty));
     let bleed = create_memo(move || Bleed::dialog(titled.get(), footed.get()));
     let dismiss = handle.dismiss;
     let content = match scrolls {
