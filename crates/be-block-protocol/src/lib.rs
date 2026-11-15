@@ -354,7 +354,7 @@ impl KeySet {
 }
 
 impl SessionState {
-    pub fn is_owner(&self, client: ClientId) -> bool {
+    pub fn is_holder(&self, client: ClientId) -> bool {
         self.owner == Some(client)
     }
 }

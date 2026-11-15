@@ -41,7 +41,7 @@ crates. What is left is used:
 | be-block-model, be-lib-sequence | `Document<R>`, text and lists |
 | be-block-commit, `similar` | `MergeResult`; `similar` is the line diff under be-block-model's sequence merge (`merge_lines`) |
 | be-block-store (no `vault`), sha2, ciborium | `Part`/`PartRef`/`Hash`/`Manifest`, CBOR of the model |
-| be-block-session (no `store`) | the sequencer and `SessionMessage` the replica runs |
+| be-block-session (no `store`) | the order (`Sequencer`) and `SessionMessage` the replica runs |
 | be-block-protocol, be-block-graph | `SessionState`, `ClientId`, `RelayKind`; graph only for `Access`/`BlockParent` in the protocol, and `WORKSPACE_TYPE` |
 | be-sdk-type-api, be-wasm-ops, be-wasm-guest-abi | the protocol and the guest ABI |
 | be-lib-ui-keys, logicgame, rand | be-type-terminal and be-type-logic-grid's own needs |

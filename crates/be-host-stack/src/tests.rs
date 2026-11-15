@@ -54,6 +54,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_deleted_database_row_is_no_longer_found;
+mod a_data_directory_another_process_holds_is_refused;
 mod a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped;
 mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
@@ -83,7 +84,7 @@ mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
 mod a_push_opens_through_the_stack_running_in_its_organization;
 mod a_queued_block_the_mirror_cannot_place_is_dropped_and_counted;
 mod a_reconnected_session_hears_the_edits_of_what_it_versions;
-mod a_restore_on_a_follower_keeps_the_state_it_replaced;
+mod a_restore_on_a_peer_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
@@ -94,7 +95,7 @@ mod a_search_index_that_fails_every_write_waits_for_the_next_connection;
 mod a_search_index_write_that_fails_is_queued_again;
 mod a_second_checkout_copies_the_tree_under_the_same_local_ids;
 mod a_server_gone_silent_while_contacts_sync_holds_up_no_open_or_edit;
-mod a_session_owned_here_follows_a_peer_that_claims_it;
+mod a_lease_held_here_passes_to_a_peer_that_claims_it;
 mod a_share_made_offline_is_refused_to_the_caller_not_kept_as_an_error;
 mod a_shared_block_listed_before_its_key_is_sealed_unlocks_once_it_is;
 mod a_status_after_a_version_command_reads_nothing_the_command_read;
@@ -102,16 +103,20 @@ mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
-mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_terminal_host_takes_the_lease_of_a_session_this_peer_opened_first;
 mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_command_waiting_on_a_silent_server_holds_up_no_edit;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
+mod an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land;
+mod an_edit_submitted_just_before_a_crash_is_sent_once_and_the_next_edit_lands;
+mod an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sealed_it;
+mod an_undo_made_while_the_server_is_silent_survives_a_crash;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator;
 mod an_apps_signature_verifies_and_a_forged_one_does_not;
-mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed;
+mod an_edit_counts_as_unsaved_from_when_it_is_sent_until_the_server_holds_it;
 mod an_edit_in_a_block_opened_offline_is_lacking_until_it_is_published;
 mod an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_once;
 mod an_edit_made_across_a_takeover_is_kept;
@@ -130,7 +135,7 @@ mod an_invitation_code_opened_as_a_contact_link_is_refused;
 mod an_invite_link_joins_the_organization_and_makes_the_two_contacts;
 mod an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes;
 mod an_owed_seal_keeps_only_a_hurried_driver_waiting;
-mod an_owner_cut_off_before_it_commits_leaves_its_edits_to_the_next_owner;
+mod a_holder_cut_off_before_it_seals_leaves_its_edits_to_the_next_holder;
 mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod backing_off_waits_longer_after_each_failure_up_to_a_ceiling;
 mod blocks_moved_renamed_and_deleted_offline_reach_the_server_on_reconnect;
@@ -155,11 +160,11 @@ mod the_version_cache_keeps_only_the_trees_and_commits_used_last;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_devices_that_edit_one_note_offline_merge_once_both_reconnect;
 mod two_peers_of_one_organization_share_a_counter;
-mod typing_shows_while_a_silent_server_holds_a_seal_and_stopping_keeps_it_here;
+mod typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it;
+mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once;
 mod undo_steps_back_through_what_this_peer_did;
 mod version_history_lists_the_commits_kept_here_with_the_head_here_current;
 mod what_is_typed_is_found_through_the_workspaces_search_index;
-mod what_is_typed_while_a_seal_waits_on_a_silent_server_survives_a_crash_and_is_sent_once;
 
 struct Editor<C: LiveEdit> {
     block: Uuid,
@@ -560,8 +565,8 @@ impl Outside {
         std::sync::Arc::clone(self.session().peer())
     }
 
-    fn is_owner(&mut self) -> bool {
-        self.session().is_owner()
+    fn is_holder(&mut self) -> bool {
+        self.session().is_holder()
     }
 
     fn claim(&mut self) {
@@ -573,7 +578,7 @@ impl Outside {
         let session = session.as_mut().expect("the outside peer has not left");
         local.block_on(runtime, async {
             session.claim();
-            while !session.is_owner() {
+            while !session.is_holder() {
                 let woken = session.next().await;
                 let heard = matches!(woken, be_tool_cli::replica::Woken::Event(_));
                 session

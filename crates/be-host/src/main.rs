@@ -4250,7 +4250,6 @@ impl HostCore {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
         match Self::new(Some(self.data_dir.clone())) {
             Ok(mut fresh) => {
@@ -4272,7 +4271,6 @@ impl HostCore {
     /// Starts again from the host state the page holds, which is what its worker keeps.
     #[cfg(target_arch = "wasm32")]
     fn restart(&mut self) {
-        be_host_stack::flush();
         be_host_stack::stop();
         let host_state = std::mem::replace(&mut self.host_state, HostStateStore::placeholder());
         let workspaces = std::mem::take(&mut self.workspaces);

@@ -58,6 +58,8 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         ),
         Some(true)
     );
+    // The chat reaches the server first, so its session is the server's and stamps each message.
+    flush_and_send();
     open(chat, ChatContent::CONTENT_TYPE);
     let mut editor = Editor::<ChatContent>::attach(chat);
     editor.wait("was sent the chat", |_| true);
@@ -74,6 +76,14 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         editor.operate(send.into());
         sent.push(id);
     }
+    // As the chat editor does, it closes only once its messages are confirmed, each with the
+    // stamp of when the server took it: a close of messages as sent would not match them.
+    flush();
+    editor.wait("was shown every message stamped", |chat| {
+        chat.messages()
+            .into_iter()
+            .all(|id| chat.message(id).is_some_and(|message| message.arrival.is_some()))
+    });
     let closing = editor
         .content()
         .closing()

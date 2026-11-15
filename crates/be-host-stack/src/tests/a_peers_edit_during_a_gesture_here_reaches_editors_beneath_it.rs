@@ -5,7 +5,7 @@ fn a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it() {
     let harness = Harness::start();
     let block = Uuid::new_v4();
     let mut owner = Outside::counter(&harness, block);
-    assert!(owner.is_owner());
+    assert!(owner.is_holder());
 
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);

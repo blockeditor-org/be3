@@ -98,92 +98,105 @@ any other refusal is `Refused(Storage, ..)`.
 ## Live sessions
 
 A block being edited is in a session, which each device holds in its type
-module's replica (guides/type_modules.md); the peer only relays, seals and
-stores for it. `Peer::relay` puts a relay on the connection without waiting for
-the answer to the one before, so a pen stroke's thousands of operations cost no
-more round trips than one.
+module's replica (guides/type_modules.md); the peer only relays, submits, seals
+and stores for it. `Peer::relay` puts a relay on the connection without waiting
+for the answer to the one before, so a pen stroke's presence costs no more round
+trips than one message.
 
-The owner sequences and broadcasts. A follower applies its own edit at once,
-rebases it over operations that arrive meanwhile, and reconciles against the
-owner's echo; a replica keeps `confirmed` and `visible` (confirmed plus
-pending). Only the owner seals, at pauses (guides/type_modules.md, Peers): a
-seal writes a commit, heartbeats `clean_at`, rebases the journal, and tells
-the followers with `SessionMessage::Sealed` which commit holds which sequence
-number.
+The server orders the session (decisions/live_edits_are_ordered_by_the_server.md).
+`Connection::join_session(block, tag)` names the build of the block's type the
+connection runs; the session speaks its first participant's build
+(`SessionState::tag`) and the server refuses submissions from any other.
+`Peer::submit` seals a submission's payload with the block's key and hands it to
+the server (`submit`), which numbers it, keeps it in the block's journal and
+sends it to every participant, its author too, as `Event::Sequenced`; the answer
+comes once it is kept. Every replica applies that one order. A replica keeps
+`confirmed` (the order applied) and `visible` (confirmed plus its own edits not
+yet numbered). The lease holder seals at pauses (guides/type_modules.md, Peers):
+a seal writes a commit, heartbeats `clean_at`, trims the journal
+(`rebase-journal`) and tells the others with `SessionMessage::Sealed` which
+commit holds which sequence number.
 
-- **One edit in flight.** A follower's typing waits in the replica's `unsent`
-  queue while an edit is unconfirmed, folded by `LiveEdit::absorb_operation`
-  (`SeqOp::absorb` for a sequence), stopping before the relay size limit.
-- **`Sealed` keeps the follower's head right, and ownership depends on it.** A
-  follower that takes over carries on from the last sealed head and the old
-  numbering, accepts its pending operations as its own, and owes a seal for
-  what the old owner accepted after its last one. With the head wrong, the new
-  owner's first save is refused and resume reads its unsaved work as something
-  to fast-forward over.
-- **Ownership moves under a live owner** when a host's `Event::Claim` takes a
-  lapsed lease (a terminal host takes the block from the viewer that opened
-  it). The old owner hears it from the next `Lease` and becomes a follower;
-  what it accepted meanwhile reaches the new owner as `Accepted` from a
-  non-owner, which `Sequencer::inherit` keeps when it continues the numbering,
-  and otherwise the new owner applies it and its next seal reloads every
-  follower.
-- **Catching up.** A follower is catching up until the owner's `Snapshot`
-  arrives and resends `Catchup` to each new owner. A replica ignores
-  `Event::Claim` while catching up, and one promoted while catching up makes
-  its first seal a reload: otherwise the old owner's unsaved operations would
-  be lost.
-- **Conflicts.** A merge that conflicts first stashes the owner's unsaved side
+- **One edit in flight.** A replica's typing waits in its `unsent` queue while an
+  edit of its own is unconfirmed, folded by `LiveEdit::absorb_operation`
+  (`SeqOp::absorb` for a sequence), stopping before the submission size limit
+  (decisions/a_replica_keeps_one_edit_in_flight.md).
+- **The lease** only decides who seals and who merges a head moved from
+  elsewhere; taking it moves no state, since every replica has the order and the
+  last seal's head. A host's `Event::Claim` takes a lapsed lease (a terminal host
+  takes the block from the viewer that opened it).
+- **Conflicts.** A merge that conflicts first stashes the holder's unsaved side
   as a commit (`Command::Stash`), so the merge has both sides as parents, and
   reports a `be_block_type_host::Conflict`; be-host keeps it per block
   (`be_host_stack::conflicts`) and shows "See both versions".
-- **Incompatible messages.** A session message this build cannot decode marks
-  the session incompatible; on a follower also diverged, and a diverged session
-  refuses to edit or seal.
+- **Incompatible entries.** An entry this build cannot decode marks the session
+  incompatible; every replica of the build passes over it alike, so their copies
+  agree. A replica whose build is not the session's is diverged and refuses to
+  edit or seal.
+- **Offline**, there is no server to order: the device numbers submissions in its
+  own order over its own journal (`Refs::number_offline`, which numbers an OpId
+  once, as the server does), and the replica, which
+  holds the made-up session's lease, seals what it orders into commits the outbox
+  keeps. Before it rejoins, the host seals it, so the work reaches the session as
+  a commit that merges, not as operations.
 
 ## The journal
 
-What the owner sequenced since its last commit is kept durable in the block's
-journal, so a commit can wait for a pause. A journal is a base (a commit, or
-none for no content; the last sequence number it holds; the session state as
-of it) and entries (sequence number, lease generation, payload), all sealed
-with the block key; the server keeps it beside history, never in it
-(`be_server::journal`), and records the module tag that wrote it.
+What the order numbered since the last seal is durable in the block's journal,
+so a commit can wait for a pause. A journal is a base (a commit, or none for no
+content; the last sequence number it holds; the session state as of it, sealed
+with the block key) and entries (sequence number, the submission's id and base,
+its floor, when the server took it, and the sealed payload); the server keeps it
+beside history, never in it (`be_server::journal`), and records the build that
+wrote it. A journal starts on the block's head when the first submission
+arrives.
 
-- `Peer::append` seals entries, keeps them in the device's journal in the refs
-  database and, online, sends `sessions.append`, which relays each entry to the
-  other participants as a relay would and keeps it when the caller owns the
-  session's current generation: one call broadcasts and appends. Entries at or
-  below the last sequence number are dropped as already held.
-- `Peer::rebase_journal` starts the journal over from a base, dropping every
-  entry, and keeps the entries it is given past the base in the same write on
-  the device (online, the server gets a rebase and then an append): an owner
-  rebases after each commit, and on taking a session before it appends.
-- **A seal on its way.** The owner keeps journaling what is typed while its
-  seal waits on the server. The seal's commit records the session generation
-  and last sequence it holds (`Commit::sealed_through`); once it lands the owner
-  rebases onto it carrying what came after, and followers, who applied that
-  already, reload the seal and hear it again (`SessionMessage::Sealed` with
-  `reload`). A device that stopped after the server took the seal and before it
-  heard so opens on the commit the seal was made on, replays its own journal
-  there and takes the seal as its head, when its journal noted that seal
-  (written with the seal's commit in one refs write, dropped by the next rebase:
-  `Peer::sealing`) and holds the seal's last entry in its generation
-  (`reaches_seal`; guides/type_modules.md, Peers).
-- Joining (`Connection::join_session`) answers the journal as of joining, so a
-  replica opening on its base needs no state from the owner
-  (`be_block_type_host::Replicas` picks the server's or the device's,
-  whichever holds more). `read_contents` answers each block's journal
-  (`BlockRead::journal`, opened; offline the device's); a reader applies it
-  with `Modules::readable`, which replays it through the type when its tag is
-  the module's and its base is the head, and reads the head alone otherwise.
-  Export, `be download` and the tracker's reads go through it; `be sync` reads
-  heads alone, since it records which head it synced and what it writes to
-  disk must be that head.
-- A journal is its module tag's: an append of another tag is refused until the
-  owner rebases, and a replica of another build opens on the head alone and
-  reports the edits lost (guides/blocks/host.md, Undo). A rebase of another tag
-  that drops entries marks the journal `lost` until it moves to another commit,
-  so every device opening the block meanwhile is told too.
+- The server numbers and keeps each submission in one transaction
+  (`journal::submit`, with `be_block_session::Sequencer`), refusing one of another
+  build while the journal holds entries; a submission whose id the journal holds
+  is answered and not numbered again.
+- `Peer::rebase_journal` is the holder's seal trimming it: the journal starts from
+  the seal's commit at the sequence it holds, keeping what came after. Only the
+  current holder's trim reaches the server. A base that goes back while nothing
+  after the journal's own base was numbered (the last one out, sequence zero)
+  starts the order afresh. Entries of another build are dropped, and the journal
+  marked `lost` until it moves to another commit, so every device opening the
+  block meanwhile is told.
+- This device's journal in the refs database copies what it heard
+  (`Peer::heard_entry`, as each `Event::Sequenced` arrives), and is trimmed by
+  this device's seals, so a replica opened offline opens on the order as this
+  device last knew it; offline it also holds what the device numbered itself.
+- **A seal on its way.** The holder goes on applying the order while its seal
+  waits on the server. The seal's commit records the last sequence it holds
+  (`Commit::sealed_through`); once it lands the holder trims the journal to it. A
+  holder that stopped after the server took the seal and before it trimmed
+  leaves the journal on the commit the seal was made on: a replica opening on the
+  seal replays the journal there and takes the seal as its head when the journal
+  reaches the seal's last entry (`reaches_seal`, `journal_for`), and is answered as
+  the replica's news (`Resume::Sealed`) only when the seal counts the same restarts
+  as the journal's base (`SealedThrough::restarts`): a seal of another run of the
+  order is merged as a head.
+- **Which edits the order holds.** The journal's base names, per origin, the last
+  counter the order numbered (`wire::BaseState`), and a device keeps one origin per
+  block (`refs::OpenEdits`), so edits it gives again after the trim that dropped
+  their entries are found there and not numbered twice. The base names only the
+  `BaseState::KEPT_ORIGINS` origins numbered most recently: an accepted limit. A
+  replica opening on a full base that no longer names its origin cannot tell
+  which of the edits it submitted the order holds, so it sends none of them
+  again (those up to `opening.kept-submitted`) and tells each editor it may have
+  been sent (`UNCERTAIN_EDIT`); edits it never submitted are sent.
+- Joining (`Connection::join_session`) answers the journal as of joining, and
+  what the order numbers after reaches the connection as `Event::Sequenced`, so a
+  replica opening on the journal's base needs nothing from another client.
+  `read_contents` answers each block's journal (`BlockRead::journal`, opened;
+  offline the device's); a reader applies it with `Modules::readable`, which
+  replays it through the type when its tag is the module's and its base is the
+  head, and reads the head alone otherwise. Export, `be download` and the
+  tracker's reads go through it; `be sync` reads heads alone, since it records
+  which head it synced and what it writes to disk must be that head.
+- A replica of another build opens on the head alone, following the order from
+  its last number, and reports the edits lost (guides/blocks/host.md, Undo); its
+  holder starts the journal over.
 
 ## The refs database
 

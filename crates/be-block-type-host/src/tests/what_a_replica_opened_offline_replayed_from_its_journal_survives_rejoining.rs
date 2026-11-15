@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::FromEditor;
@@ -66,7 +66,6 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
             Instant::now(),
         );
         replicas.pump((&peer, &shared)).await;
-        modules_clock.advance(Duration::from_millis(be_sdk_type_guest::APPEND_INTERVAL));
         replicas.modules.tick_due();
         replicas.pump((&peer, &shared)).await;
         let journaled = peer

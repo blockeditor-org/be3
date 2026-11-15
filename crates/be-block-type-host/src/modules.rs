@@ -993,6 +993,11 @@ impl Modules {
                     .into_iter()
                     .map(|entry| be_sdk_type_api::JournalEntry {
                         sequence: entry.sequence,
+                        origin: entry.origin,
+                        counter: entry.counter,
+                        base: entry.base,
+                        floor: entry.floor,
+                        received: entry.received,
                         payload: entry.payload,
                     })
                     .collect(),

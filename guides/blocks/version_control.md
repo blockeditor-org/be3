@@ -84,9 +84,9 @@ on `head-moved` (a head another connection published, which `changes` tells as
 
 ## Not built yet
 
-- A snapshot takes each block's head after this peer seals what it owns, so
-  another peer's unsealed session edits are left out; a seal barrier would fix
-  that.
+- A snapshot takes each block's head after this peer seals the sessions it
+  holds the lease of, so edits the server ordered but another peer has not
+  sealed are left out; a seal barrier would fix that.
 - Conflicts resolve a block at a time by taking one side; the three sides are
   linked, not shown side by side.
 - A repository never lets go of history until it is collected itself; freeing
