@@ -52,6 +52,7 @@ mod back;
 mod back_slide;
 mod buttons;
 mod canvas;
+mod carry;
 mod choices;
 mod covering;
 mod dates;

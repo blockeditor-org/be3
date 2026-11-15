@@ -1,0 +1,9 @@
+# An item lifted by its drag is offered to the site that takes it, which shows it is over
+# it while carried and takes the drop at the release.
+clock stop
+wait 'value="Dropped nothing"'
+down '#carry.apple'
+move '#carry.basket'
+wait 'value="Over basket"'
+up '#carry.basket'
+wait 'value="Dropped apple"'
