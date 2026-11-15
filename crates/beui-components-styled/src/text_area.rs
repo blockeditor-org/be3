@@ -120,7 +120,8 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
-    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] line_numbers: Prop<bool>,
+    #[prop(default = false)] scroll_past_end: bool,
     #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
@@ -191,6 +192,7 @@ pub fn TextArea(
                         read_only
                         focused
                         line_numbers
+                        scroll_past_end
                         find
                         on_content_size
                         remote_cursors
@@ -268,18 +270,47 @@ pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
     }
 }
 
+/// What a marker is drawn as; the marker's content is built again only when this changes, so a
+/// line whose marker changes kind (a bullet given a `[ ]`, a text whose markdown arrives after
+/// its rows were built) draws the new kind.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum MarkerShape {
+    Written,
+    Bullet,
+    Number,
+    Check,
+    Void,
+}
+
 #[component]
 pub fn DocumentMarker(marker: TextMarker) -> NodeId {
+    let kind = marker.kind;
+    let written = marker.written();
+    let shape = create_memo(move || match kind.get() {
+        MarkerKind::Bullet if written.get() => MarkerShape::Written,
+        MarkerKind::Bullet => MarkerShape::Bullet,
+        MarkerKind::Number(_) => MarkerShape::Number,
+        MarkerKind::Check(_) => MarkerShape::Check,
+        MarkerKind::Void(_) => MarkerShape::Void,
+    });
+    view! {
+        <Dynamic value={shape}>|shape: MarkerShape| {
+            marker_content(marker, shape)
+        }</Dynamic>
+    }
+}
+
+fn marker_content(marker: TextMarker, shape: MarkerShape) -> NodeId {
     let style = marker.style;
-    let content = match marker.kind.get_untracked() {
-        MarkerKind::Bullet if marker.written().get_untracked() => {
+    let content = match shape {
+        MarkerShape::Written => {
             let font = create_memo(move || style.get().font);
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             view! {
                 <primitives::Text font color>{marker.label}</primitives::Text>
             }
         }
-        MarkerKind::Bullet => {
+        MarkerShape::Bullet => {
             let size = marker.bullet();
             let side = create_memo(move || Size::Custom(size.get()));
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
@@ -297,14 +328,14 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                 <Frame width=side height=side fill={fill} border=ring radius=Radius::Full />
             }
         }
-        MarkerKind::Number(_) => {
+        MarkerShape::Number => {
             let font = create_memo(move || style.get().font);
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             view! {
                 <primitives::Text font color>{marker.number()}</primitives::Text>
             }
         }
-        MarkerKind::Check(_) => {
+        MarkerShape::Check => {
             let TextMarker {
                 checked,
                 disabled,
@@ -324,7 +355,7 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
                 />
             }
         }
-        MarkerKind::Void(_) => {
+        MarkerShape::Void => {
             let gap = marker.gap();
             return view! {
                 <primitives::Frame padding=gap />

@@ -1,7 +1,7 @@
 use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
-use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
+use super::{Language, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
 use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
@@ -607,10 +607,44 @@ pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
             looks: Vec::new(),
         };
     };
+    let mut styles = styles_in(&tree, 0..source.len());
+    highlight_code(tree.block_tree().root_node(), source, &mut styles);
     MarkdownWindow {
         len: source.len(),
-        styles: styles_in(&tree, 0..source.len()),
+        styles,
         looks: looks(&tree, source),
+    }
+}
+
+/// Colors the contents of each fenced code block whose info string names a language with a
+/// highlighter (`Language::for_code_block`) as that language, leaving its font as code's.
+fn highlight_code(node: tree_sitter::Node<'_>, source: &[u8], styles: &mut [SynHlStyle]) {
+    if node.kind() == "fenced_code_block" {
+        let mut walk = node.walk();
+        let children: Vec<_> = node.children(&mut walk).collect();
+        let language = children
+            .iter()
+            .find(|child| child.kind() == "info_string")
+            .and_then(|info| std::str::from_utf8(&source[info.byte_range()]).ok())
+            .and_then(|info| info.split_whitespace().next())
+            .and_then(Language::for_code_block);
+        let content = children
+            .iter()
+            .find(|child| child.kind() == "code_fence_content");
+        if let (Some(language), Some(content)) = (language, content) {
+            let range = content.byte_range();
+            let colors = super::decorations(language, &source[range.clone()]);
+            for (style, color) in styles[range].iter_mut().zip(colors) {
+                if style.color == SynHlColorScope::MarkdownCode {
+                    style.color = color.color;
+                }
+            }
+        }
+        return;
+    }
+    let mut walk = node.walk();
+    for child in node.children(&mut walk) {
+        highlight_code(child, source, styles);
     }
 }
 

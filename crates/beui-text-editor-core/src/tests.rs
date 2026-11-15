@@ -36,6 +36,7 @@ mod ime_replace_text_swaps_a_typed_word_for_a_suggestion;
 mod ime_state_reports_the_text_around_the_selection;
 mod indentation_width_is_configured_through_operations;
 mod markdown_block_styles;
+mod markdown_code_blocks_are_highlighted_by_their_language;
 mod markdown_checkbox_toggle;
 mod markdown_formatting;
 mod markdown_formatting_toggles_off;

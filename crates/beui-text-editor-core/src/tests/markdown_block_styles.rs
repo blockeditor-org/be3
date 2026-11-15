@@ -29,5 +29,8 @@ fn markdown_block_styles() {
     );
     assert_eq!(highlight.style_at(60).family, SynHlFontFamily::Monospace);
     assert_eq!(highlight.style_at(64).family, SynHlFontFamily::Monospace);
-    assert_eq!(highlight.style_at(64).color, SynHlColorScope::MarkdownCode);
+    assert_eq!(
+        highlight.style_at(64).color,
+        crate::highlighter::decorations(crate::highlighter::Language::Zig, b"const")[0].color
+    );
 }
