@@ -1096,6 +1096,27 @@ fn spec_node(node: &DockSpecNode, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::
     }
 }
 
+/// Names each group as the declaration does (`DockDeclaredGroup`), so a group's title reaches the
+/// host as it came from it.
+fn title_groups(node: &mut api::DockNode, title: &dyn Fn(&str) -> Option<String>) {
+    match node {
+        api::DockNode::Split { first, second, .. } => {
+            title_groups(first, title);
+            title_groups(second, title);
+        }
+        api::DockNode::Pane { entries, .. } => {
+            for entry in entries {
+                if let api::DockEntry::Group { group, root } = entry {
+                    if let Some(named) = title(&group.key) {
+                        group.title = named;
+                    }
+                    title_groups(root, title);
+                }
+            }
+        }
+    }
+}
+
 fn spec_nodes(spec: &DockSpec, path: PathOf<'_>, empty: EmptyOf<'_>) -> api::DockNodes {
     api::DockNodes {
         main: spec.main.as_ref().map(|main| spec_node(main, path, empty)),
@@ -1125,7 +1146,16 @@ pub(crate) fn declaration_to_api(
     kind: &dyn Fn(&str) -> String,
 ) -> api::DockDeclaration {
     let spec = &declaration.spec;
-    let nodes = spec_nodes(spec, path, empty);
+    let mut nodes = spec_nodes(spec, path, empty);
+    let title = |key: &str| declaration.group_title(key).map(str::to_owned);
+    if let Some(main) = &mut nodes.main {
+        title_groups(main, &title);
+    }
+    for window in &mut nodes.windows {
+        if let Some(root) = &mut window.root {
+            title_groups(root, &title);
+        }
+    }
     api::DockDeclaration {
         tree: api::DockTree::flatten(&nodes, spec.focus.and_then(path)),
         tabs: declaration
