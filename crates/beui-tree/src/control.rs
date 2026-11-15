@@ -9,8 +9,8 @@ use beui_reactive::{
 };
 
 use crate::children::{
-    Branch, ChildSlot, Children, Counted, DynamicSegment, ExactlyOne, Fallback, IntoChild,
-    NestedHost, Or, SlotChild, ValueFallback,
+    Branch, ChildSlot, Children, DynamicSegment, Fallback, IntoChild, NestedHost, Or, SlotChild,
+    ValueFallback,
 };
 use crate::component::{Render, RenderFn};
 use crate::prop::{Func, Prop};
@@ -211,8 +211,7 @@ pub fn ForEach<K, C, R>(
 where
     K: Clone + Hash + Eq + 'static,
     C: SlotChild,
-    R: IntoChild<C> + Counted + 'static,
-    R::Count: ExactlyOne,
+    R: IntoChild<C> + 'static,
 {
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let built = slot.clone();
