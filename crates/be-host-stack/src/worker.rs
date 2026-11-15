@@ -661,6 +661,10 @@ pub struct Shared {
     /// a session's journal. Unlike `error`, it is about being in step with the server, so it
     /// clears once the device is connected and nothing waits to be sent (`report`).
     pub sync_error: Option<String>,
+    /// What the last drain answered of what it did not send (`Drained` other than `Created`
+    /// and `Published`), and the last error recorded, which `unsynced` names beside the
+    /// outbox they leave waiting.
+    pub last_drain: Vec<String>,
     pub module_error: Option<(Uuid, String)>,
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,
     pub pairing: Vec<PairingRequest>,
@@ -837,7 +841,7 @@ impl Shared {
                 .collect();
             let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
             reasons.push(format!(
-                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}",
+                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}; the last left [{}]; errors: {:?}, {:?}",
                 self.unsealed,
                 unsealed.join("; "),
                 self.waiting,
@@ -847,6 +851,9 @@ impl Shared {
                     true => "one under way",
                     false => "none under way",
                 },
+                self.last_drain.join(", "),
+                self.error,
+                self.sync_error,
             ));
         }
         reasons
@@ -1837,6 +1844,20 @@ async fn drain_outbox(
     }
     match peer.drain(|_| false).await {
         Ok(drained) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .last_drain = drained
+                .iter()
+                .filter(|outcome| {
+                    !matches!(
+                        outcome,
+                        be_block_client::Drained::Created { .. }
+                            | be_block_client::Drained::Published { .. }
+                    )
+                })
+                .map(|outcome| format!("{outcome:?}"))
+                .collect();
             // A block any of whose commits was refused or set aside keeps them unsent; one
             // that failed or diverged tries again.
             let refused: std::collections::HashSet<Uuid> = drained
