@@ -105,6 +105,7 @@ pub(super) async fn load_child(
     }
     .await;
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.reach_dirty.insert(source);
     if let Some(preview) = held.revision_previews.get_mut(&alias)
         && !preview.released
     {

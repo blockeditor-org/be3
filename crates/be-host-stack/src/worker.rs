@@ -675,6 +675,9 @@ pub struct Shared {
     /// Blocks whose content the worker let go of (`expire_unsent`, a discarded unsent edit),
     /// whose reach is worked out again though their node did not move.
     pub(crate) reach_dirty: HashSet<Uuid>,
+    /// How many blocks' reach was worked out, for a test to tell it is only what changed.
+    #[cfg(test)]
+    pub(crate) reach_worked_out: u64,
     pub leaving: bool,
     pub module_error: Option<(Uuid, String)>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
@@ -832,10 +835,15 @@ impl Shared {
     /// whole (`app_graph::out_of_reach`). The page reads the answer, never the peer.
     ///
     /// Offline, what this device holds of a block changes only with a commit made here, which
-    /// its replica reports as the block's head (its node moves), or as the worker lets go of
-    /// content it held (`reach_dirty`): nothing arrives without the server, and what the peer
-    /// once found held whole it keeps finding (`Peer::held_head`). So the work is proportional
-    /// to what moved, after one pass over the graph as the device goes offline.
+    /// its replica reports as the block's head (its node moves), or as the worker opens it, reads
+    /// a version of it (which can record one held, `refs.hold`) or lets go of its content: those
+    /// mark it in `reach_dirty` (`reach_may_change`). Nothing arrives without the server, and
+    /// what the peer once found held whole it keeps finding (`Peer::held_head`). So the work is
+    /// proportional to what moved, after one pass over the graph as the device goes offline.
+    ///
+    /// It runs as the worker publishes, under the lock on `Shared`, held_head calls and all:
+    /// `Seen` is copied and put under that lock so puts land in order (`seen::publish`), and
+    /// only the worker and a test take it, so nothing that must not wait waits on it.
     fn refresh_reach(&mut self) {
         let moved = match self.seen.graph.has_nodes_moved() {
             true => self.seen.graph.take_nodes_moved(),
@@ -860,6 +868,10 @@ impl Shared {
                 .collect(),
         };
         self.reach_dirty.clear();
+        #[cfg(test)]
+        {
+            self.reach_worked_out += blocks.len() as u64;
+        }
         for block in blocks {
             let lost = self
                 .seen
@@ -2066,6 +2078,17 @@ pub(super) fn expired_unsent(
         .collect()
 }
 
+/// Has `Seen::out_of_reach` worked out again for `block`, whose versions this device holds may
+/// have changed though its node did not move: a replica opened it, or a version of it was read
+/// (which can record a held version, `refs.hold`), or the worker let go of its content.
+pub(crate) fn reach_may_change(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reach_dirty
+        .insert(block);
+}
+
 /// Lets go of the unsent edits too old to keep, and their blocks' cached content: answers the
 /// blocks let go of (`Shared::reach_dirty`).
 pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) -> Vec<Uuid> {
@@ -3129,12 +3152,18 @@ async fn serve_command(
             reply(listed);
             crate::changes::wake();
         }
-        Command::ReadHead { commit, reply, .. } => {
+        Command::ReadHead {
+            block,
+            commit,
+            reply,
+        } => {
             let read = async {
                 let commit = peer.load_commit(commit).await?;
                 peer.read_manifest(&commit.manifest).await
             }
             .await;
+            // A read can leave the device holding a version of the block it did not count.
+            reach_may_change(shared, block);
             reply(read.map_err(|error| error.to_string()));
             crate::changes::wake();
         }
@@ -3311,6 +3340,7 @@ async fn apply(
             reply,
         } => {
             let result = super::revisions::run(peer, replicas, shared, block, request).await;
+            reach_may_change(shared, block);
             reply(result);
             true
         }
