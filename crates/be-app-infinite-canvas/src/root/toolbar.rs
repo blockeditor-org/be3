@@ -80,7 +80,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     let block_button = NodeRef::new();
     let add_block = move || state.open_block_picker_at(block_button);
     create_effect(move || {
-        if !open.get() && size.get_untracked() != Vec2::ZERO {
+        if !open.get() {
             size.set(Vec2::ZERO);
         }
     });

@@ -280,7 +280,6 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
         if let Some(wanted) = state
             .intrinsic_size
             .filter(|size| size.x > 0.0 && size.y > 0.0)
-            && size.get_untracked() != wanted
         {
             size.set(wanted);
         }

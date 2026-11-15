@@ -1866,7 +1866,7 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
         else {
             return;
         };
-        if measured.x > 0.0 && measured.y > 0.0 && size.get_untracked() != measured {
+        if measured.x > 0.0 && measured.y > 0.0 {
             size.set(measured);
         }
     });

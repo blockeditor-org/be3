@@ -124,6 +124,7 @@ fn show_focus(visible: bool) {
     use beui_reactive::Set;
 
     let signal = signals().visible;
+    // Compared first only to skip the flush when nothing changed.
     if signal.get_untracked() != visible {
         signal.set(visible);
         beui_reactive::flush();

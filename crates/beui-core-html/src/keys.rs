@@ -22,6 +22,7 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
             event.shift_key(),
         );
         let signal = HELD.with(|held| *held);
+        // Compared first only to skip the flush when nothing changed.
         if signal.get_untracked() != held {
             signal.set(held);
             beui_reactive::flush();
@@ -45,6 +46,7 @@ pub(crate) fn watch_modifiers(document: &web_sys::Document) -> Vec<crate::dom::L
             false,
             |_: web_sys::Event| {
                 let signal = HELD.with(|held| *held);
+                // Compared first only to skip the flush when nothing changed.
                 if signal.get_untracked() != beui_types::Modifiers::default() {
                     signal.set(beui_types::Modifiers::default());
                     beui_reactive::flush();
