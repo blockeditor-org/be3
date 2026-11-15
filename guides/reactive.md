@@ -174,8 +174,11 @@ Data that arrives later comes from one of two roots, never a
   read changes it runs again and drops (cancels) the future before. It reads
   `Err(Loading)` until the first answer, then keeps the last good answer while
   a newer one is on its way (`pending()` says so); a failure replaces it. The
-  futures run on the spawner the host installs (`spawn_with`): be-sdk-beui
-  runs them on be-sdk's executor and redraws when one answers.
+  futures run on the spawner the host installs (`spawn_with`): a program's
+  `Runner` polls them at the start of the frame after they are woken; an app
+  runs them on be-sdk's executor instead, which its host calls answer on.
+  A future spawned before any spawner takes it waits for the next one
+  installed, so a document built before its runner starts still asks.
 - `create_source::<T>()` (`OwnedSource` outside a scope): a value settled from
   outside the graph, by a host callback or a stream that keeps updating;
   whoever holds it calls `set`.
@@ -185,7 +188,10 @@ while its value is, and a memo is pending while anything it read on its last
 run is. That holds even for a memo that handles the pending value
 (`rows.with(|rows| rows.as_ref().map_or(0, Vec::len))`): it counts as pending
 until its source settles, and its readers wake when it starts or stops
-waiting, as when its value changes.
+waiting, as when its value changes. So a value and its node can disagree: a
+memo returning `Err(Loading)` of its own accord over settled inputs is not
+pending, and one returning `Ok` over a pending input is. Only the node's
+readiness holds a boundary.
 
 A read of a pending value outside a memo (in a binding, an effect, a `Prop`,
 or a snapshot in a component body) registers it with the boundary that
@@ -200,11 +206,15 @@ shows the fallback again, so a later reload updates in place.
 held that way, so `<Text>{name}</Text>` takes one directly.
 
 `<Errored fallback={...}>` shows its content, and its fallback instead while
-something read under it has failed, also after a `Loading` around it revealed.
-The fallback gets `(message, boundary)`; `boundary.reset()` runs the async
-memos made under it again, and the content, kept meanwhile, shows once nothing
-read under it has failed. A `Loading` inside it that has not revealed yet shows
-a failure as its own fallback instead.
+something read under it has failed. A failure goes to the nearest `Errored`
+above the read whether or not a `Loading` between them has revealed; only
+with no `Errored` above it does it show in the nearest unrevealed `Loading`'s
+fallback. The fallback gets `(message, boundary)`; `boundary.reset()` runs
+again the async memos made under it and the failed ones the failures read
+under it came from (through any memos between), and the content, kept
+meanwhile, shows once nothing read under it has failed. A `Loading` that
+revealed before the failure does not hide the content again while the retry
+is on its way.
 
 Traps:
 
@@ -218,7 +228,9 @@ Traps:
   its root, or it holds the boundary for ever.
 - A boundary waits only for what is read under it, never for what was made or
   called there: a body that must hold its `<Loaded>` until a value arrives
-  reads it, even if only as a snapshot (`let _ = layout.get_untracked();`).
+  reads it, through the node that uses it.
+- A callback (`on_touched`, a button's `on_click`) is no read: it runs later,
+  outside the scope, so what it reads holds nothing back.
 
 ## Blocks
 

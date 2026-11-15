@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::runtime::in_memo;
-use crate::signal::{Tracked, track};
+use crate::signal::{Node, Tracked, track};
 use crate::{
     Get, Memo, Stored, Trigger, create_memo, create_trigger, on_cleanup, provide_context, store,
     use_context,
@@ -26,7 +26,7 @@ type Probe = Rc<dyn Fn() -> Ready<()>>;
 /// long as a scope that read it lives.
 #[derive(Default)]
 struct Waits {
-    probes: RefCell<Vec<(u64, Probe)>>,
+    probes: RefCell<Vec<(u64, Probe, Rc<dyn Tracked>)>>,
     by_node: RefCell<HashMap<usize, (u64, usize)>>,
     next: Cell<u64>,
     revealed: Cell<bool>,
@@ -37,19 +37,28 @@ impl Waits {
         self.probes
             .borrow()
             .iter()
-            .map(|(_, probe)| Rc::clone(probe))
+            .map(|(_, probe, _)| Rc::clone(probe))
             .collect()
     }
 
-    fn add(&self, probe: Probe) -> u64 {
+    fn nodes(&self) -> Vec<Rc<dyn Tracked>> {
+        self.probes
+            .borrow()
+            .iter()
+            .map(|(_, _, node)| Rc::clone(node))
+            .collect()
+    }
+
+    fn add(&self, node: Rc<dyn Tracked>) -> u64 {
         let id = self.next.get();
         self.next.set(id + 1);
-        self.probes.borrow_mut().push((id, probe));
+        let probe = probe_of(Rc::clone(&node));
+        self.probes.borrow_mut().push((id, probe, node));
         id
     }
 
     fn remove(&self, id: u64) {
-        self.probes.borrow_mut().retain(|(held, _)| *held != id);
+        self.probes.borrow_mut().retain(|(held, _, _)| *held != id);
     }
 }
 
@@ -81,7 +90,7 @@ fn wait_on(waits: Stored<Waits>, changed: Trigger, node: Rc<dyn Tracked>) {
                 false
             }
             None => {
-                let id = waits.add(probe_of(node));
+                let id = waits.add(node);
                 by_node.insert(key, (id, 1));
                 true
             }
@@ -171,16 +180,46 @@ impl Boundary {
     }
 }
 
+thread_local! {
+    /// How to ask each live async memo again, by the address of its value's node, so a reset
+    /// can reach the async memos a failure read under it came from.
+    static RETRIES: RefCell<HashMap<usize, Rc<dyn Fn()>>> = RefCell::default();
+}
+
+fn node_key(node: &Node) -> usize {
+    node as *const Node as usize
+}
+
+/// Asks again the async memos `node`'s failure came from: `node` itself if it is one, else
+/// those behind the failed memos it was computed from.
+fn retry_failed(node: &Node, seen: &mut Vec<usize>) {
+    let key = node_key(node);
+    if seen.contains(&key) || !matches!(node.readiness(), Some(Pending::Failed(_))) {
+        return;
+    }
+    seen.push(key);
+    if let Some(retry) = RETRIES.with(|retries| retries.borrow().get(&key).cloned()) {
+        retry();
+        return;
+    }
+    let producer = node.producer.borrow().upgrade();
+    if let Some(producer) = producer {
+        let dependencies = producer.dependencies.borrow().clone();
+        for (dependency, _, _) in dependencies {
+            retry_failed(dependency.source(), seen);
+        }
+    }
+}
+
 /// What an `Errored` component provides: it collects the failed values read under it, and
-/// the async memos made under it, which `reset` runs again.
+/// the async memos made under it; `reset` runs those again, and the failed async memos the
+/// failures read under it came from.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ErrorBoundary {
     changed: Trigger,
     waits: Stored<Waits>,
     refreshes: Stored<RefCell<Vec<Rc<dyn Fn()>>>>,
     state: Memo<Option<String>>,
-    /// The `Loading` around it, so a read can tell which of the two is nearer.
-    inside: Option<Boundary>,
 }
 
 impl ErrorBoundary {
@@ -202,7 +241,6 @@ impl ErrorBoundary {
             waits,
             refreshes: store(RefCell::new(Vec::new())),
             state,
-            inside: Boundary::nearest(),
         };
         provide_context(boundary);
         boundary
@@ -213,15 +251,28 @@ impl ErrorBoundary {
         self.state.get()
     }
 
-    /// Runs the async memos made under it again, so what failed is asked for once more.
+    /// Runs the async memos made under it again, and the failed ones a failure read under it
+    /// came from, so what failed is asked for once more.
     pub fn reset(&self) {
         let refreshes = self.refreshes.with(|refreshes| refreshes.borrow().clone());
+        let failed = self.waits.with(Waits::nodes);
         for refresh in refreshes {
             refresh();
         }
+        let mut seen = Vec::new();
+        for node in failed {
+            retry_failed(node.source(), &mut seen);
+        }
     }
 
-    pub(crate) fn hold_refresh(refresh: Rc<dyn Fn()>) {
+    /// Lets a reset ask the async memo whose value is `node` again: the `Errored` it is made
+    /// under, and any a failure of it is read under.
+    pub(crate) fn hold_refresh(node: &Node, refresh: Rc<dyn Fn()>) {
+        let key = node_key(node);
+        RETRIES.with(|retries| retries.borrow_mut().insert(key, Rc::clone(&refresh)));
+        on_cleanup(move || {
+            RETRIES.with(|retries| retries.borrow_mut().remove(&key));
+        });
         let Some(boundary) = use_context::<Self>() else {
             return;
         };
@@ -244,8 +295,8 @@ impl ErrorBoundary {
 
 /// Registers a read of `node`, which is pending, with the boundary that handles it: a value
 /// still loading holds the nearest `Loading` that has not revealed; a failed one goes to the
-/// nearest `Errored`, unless a `Loading` nearer than it has not revealed yet, which shows it
-/// as its fallback. Reads inside a memo register nothing: the memo is pending in turn.
+/// nearest `Errored`, wherever the `Loading`s are, or with none above it to the nearest
+/// `Loading` that has not revealed, which shows it as its fallback. Reads inside a memo register nothing: the memo is pending in turn.
 pub(crate) fn note_read(node: Rc<dyn Tracked>) {
     if in_memo() {
         return;
@@ -260,15 +311,10 @@ pub(crate) fn note_read(node: Rc<dyn Tracked>) {
             }
         }
         Pending::Failed(_) => {
-            let loading = Boundary::nearest();
-            let errored = use_context::<ErrorBoundary>();
-            let errored_nearer = errored.is_some_and(|errored| errored.inside == loading);
-            match (errored, loading) {
-                (_, Some(loading)) if !errored_nearer && loading.waiting() => {
-                    loading.wait_on(node)
-                }
-                (Some(errored), _) => errored.wait_on(node),
-                _ => {}
+            if let Some(errored) = use_context::<ErrorBoundary>() {
+                errored.wait_on(node);
+            } else if let Some(boundary) = Boundary::current() {
+                boundary.wait_on(node);
             }
         }
     }

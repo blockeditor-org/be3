@@ -31,7 +31,14 @@ plays no part after that.
   entanglement), so one settled state follows the other. Writes made outside
   any transition land at once, as today, and also apply in the fork.
 - A failure inside a transition goes to the nearest `Errored` once it commits,
-  like any failure read.
+  like any failure read. Read before it commits, it is held with the
+  transition's other answers: the view keeps the committed state and no
+  `Errored` shows it yet.
+- An `Errored` reset while a transition is open asks its failed async memos
+  again outside the transition, as today. A failure the transition read
+  under that `Errored` and still holds goes to it at the commit if the
+  transition's own re-run fails again; the reset does not drop the held
+  failure, since the transition re-runs its async memos itself.
 
 What it needs in beui-reactive: a version of each signal per open
 transition, computations that run against a transition's versions, and a

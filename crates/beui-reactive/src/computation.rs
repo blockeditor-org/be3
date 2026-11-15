@@ -213,23 +213,8 @@ impl Computation {
 
     fn refresh_inner(self: &Rc<Self>) {
         if self.state.get() == State::Check {
-            let dependencies = self.dependencies.borrow().clone();
-            for (source, version, _) in dependencies {
-                let source = source.source();
-                if source.freed.get() {
-                    continue;
-                }
-                let producer = source.producer.borrow().upgrade();
-                if let Some(producer) = producer {
-                    producer.refresh();
-                }
-                if source.version.get() != version {
-                    self.state.set(State::Dirty);
-                    break;
-                }
-            }
-            if self.state.get() == State::Check {
-                self.state.set(State::Clean);
+            self.settle_check();
+            if self.state.get() == State::Clean {
                 return;
             }
         }
@@ -292,6 +277,27 @@ impl Computation {
         if self.is_spent() {
             self.dispose();
         }
+    }
+
+    /// Settles a `Check` without running: brings the memos it read up to date, and is `Dirty`
+    /// if one of them changed, else `Clean`.
+    fn settle_check(&self) {
+        let dependencies = self.dependencies.borrow().clone();
+        for (source, version, _) in dependencies {
+            let source = source.source();
+            if source.freed.get() {
+                continue;
+            }
+            let producer = source.producer.borrow().upgrade();
+            if let Some(producer) = producer {
+                producer.refresh();
+            }
+            if source.version.get() != version {
+                self.state.set(State::Dirty);
+                return;
+            }
+        }
+        self.state.set(State::Clean);
     }
 
     pub(crate) fn reads_freed(&self) -> bool {
@@ -452,10 +458,17 @@ impl Effect {
             .is_none_or(|computation| computation.is_disposed())
     }
 
-    /// Whether something it read was written since its last run, so it will run again.
+    /// Whether something it read changed since its last run, so it will run again. One that
+    /// may have (a memo it read was woken) brings those memos up to date to tell, without
+    /// running.
     pub(crate) fn is_due(&self) -> bool {
-        self.computation()
-            .is_some_and(|computation| computation.state.get() == State::Dirty)
+        let Some(computation) = self.computation() else {
+            return false;
+        };
+        if computation.state.get() == State::Check {
+            computation.settle_check();
+        }
+        computation.state.get() == State::Dirty
     }
 }
 
