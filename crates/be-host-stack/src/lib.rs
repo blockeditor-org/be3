@@ -96,6 +96,7 @@ impl Config {
 pub struct Content {
     pub content_type: Uuid,
     /// Behind an `Arc`, so copying a `Seen` to hand it over copies no open block's content.
+    #[serde(with = "seen::bytes")]
     bytes: Arc<Vec<u8>>,
     pub revision: u64,
 }
@@ -991,7 +992,9 @@ pub fn remove_contact(account: Uuid) {
 }
 
 pub fn escrow_warning() -> Option<String> {
-    with_seen(|shared| shared.escrow_warning.clone()).flatten().map(seen::Words::into_owned)
+    with_seen(|shared| shared.escrow_warning.clone())
+        .flatten()
+        .map(seen::Words::into_owned)
 }
 
 pub fn status() -> Status {

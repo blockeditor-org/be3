@@ -152,19 +152,66 @@ mod due {
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+    /// Nanoseconds from now, negative for a moment already past: a held clock stands still
+    /// behind the real one, so what is due on it is often in the past.
     pub(super) fn serialize<S: Serializer>(
         due: &Option<Instant>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        due.map(|due| due.saturating_duration_since(Instant::now()))
-            .serialize(serializer)
+        let now = Instant::now();
+        due.map(|due| match due.checked_duration_since(now) {
+            Some(ahead) => ahead.as_nanos() as i128,
+            None => -(now.duration_since(due).as_nanos() as i128),
+        })
+        .serialize(serializer)
     }
 
     pub(super) fn deserialize<'de, D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Option<Instant>, D::Error> {
-        Ok(Option::<Duration>::deserialize(deserializer)?.map(|from_now| Instant::now() + from_now))
+        let Some(from_now) = Option::<i128>::deserialize(deserializer)? else {
+            return Ok(None);
+        };
+        let now = Instant::now();
+        let span = Duration::from_nanos(from_now.unsigned_abs().min(u64::MAX as u128) as u64);
+        let due = if from_now < 0 {
+            now.checked_sub(span)
+        } else {
+            now.checked_add(span)
+        };
+        due.map(Some)
+            .ok_or_else(|| serde::de::Error::custom("a due moment this clock cannot hold"))
     }
+}
+
+/// Bytes behind an `Arc`, encoded as bytes rather than as a sequence of numbers.
+pub(crate) mod bytes {
+    use std::sync::Arc;
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub(crate) fn serialize<S: Serializer>(
+        bytes: &Arc<Vec<u8>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_bytes(bytes)
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Arc<Vec<u8>>, D::Error> {
+        Ok(Arc::new(
+            serde_bytes::ByteBuf::deserialize(deserializer)?.into_vec(),
+        ))
+    }
+}
+
+/// What an import staged for a block, shown until its replica has it (`Edit::ShowStaged`).
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+pub struct Staged {
+    pub content_type: Uuid,
+    #[serde(with = "bytes")]
+    pub bytes: Arc<Vec<u8>>,
 }
 
 /// An editor's frame the worker queued, numbered so the page can say which it took
@@ -173,6 +220,7 @@ mod due {
 pub struct Frame {
     pub number: u64,
     pub block: Uuid,
+    #[serde(with = "bytes")]
     pub bytes: Arc<Vec<u8>>,
 }
 
@@ -259,7 +307,7 @@ pub struct Seen {
     /// busy reason that names what queued commands wait behind.
     pub step: Option<Words>,
     pub previewed: Part<HashSet<Uuid>>,
-    pub staged: Part<imbl::HashMap<Uuid, (Uuid, Arc<Vec<u8>>)>>,
+    pub staged: Part<imbl::HashMap<Uuid, Staged>>,
     pub unreadable: Part<imbl::HashMap<Uuid, String>>,
     pub waiting: usize,
     /// What the outbox held when `waiting` was counted, for `unsynced` to name.
@@ -531,8 +579,13 @@ impl Edit {
                 content_type,
                 bytes,
             } => {
-                seen.staged
-                    .insert(*block, (*content_type, Arc::clone(bytes)));
+                seen.staged.insert(
+                    *block,
+                    Staged {
+                        content_type: *content_type,
+                        bytes: Arc::clone(bytes),
+                    },
+                );
             }
             Edit::ShowStaged(block) => {
                 if seen.blocks.contains_key(block) {
@@ -541,8 +594,8 @@ impl Edit {
                 let Some(content) = seen
                     .staged
                     .get(block)
-                    .filter(|(content_type, _)| crate::is_known(*content_type))
-                    .map(|(content_type, bytes)| Content::new(*content_type, bytes.to_vec()))
+                    .filter(|staged| crate::is_known(staged.content_type))
+                    .map(|staged| Content::new(staged.content_type, staged.bytes.to_vec()))
                 else {
                     return Vec::new();
                 };
