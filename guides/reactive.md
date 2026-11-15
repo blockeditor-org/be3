@@ -57,10 +57,10 @@ disposed later in the same flush; one still alive that reads it panics.
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
 | An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
-| State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that a change to its source's inputs resets; never a signal seeded with `get_untracked` and an effect copying into it |
+| State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that resets when its source returns something new, when effects next run (not at the write); never a signal seeded with `get_untracked` and an effect copying into it |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
 | A side effect, or work that needs the tree built around it (moving focus) | `create_effect`: queued, runs at the end of the entry |
-| A side effect woken only by named inputs, or one that needs their last value | `create_effect_on(deps, run)`: `run` is untracked and gets `(&value, Option<&previous>)`; `create_effect_on_change` skips the first run and gets `&previous`. Never a `StoredCell` of the last value beside an effect |
+| A side effect woken only by named inputs, or one that needs their last value | `create_effect_on(deps, run)`: `run` is untracked and gets `(&value, Option<&previous>)`; `create_effect_on_change` reads its deps at creation, skips the first run (a change before the first flush still runs it) and gets `&previous`. Either may run with `value == previous` when the deps changed and changed back before it ran (while paused). Never a `StoredCell` of the last value beside an effect |
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |

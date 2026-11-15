@@ -52,16 +52,18 @@ pub fn create_memo<T: PartialEq + 'static, M>(mut compute: impl Compute<T, M> + 
     }
 }
 
-/// What `create_memo` takes: a closure computing the value, `FnMut() -> T`, or one given
-/// the value it computed last, `FnMut(Option<&T>) -> T`. `M` only tells the two apart.
+/// What `create_memo` and `create_linked_signal` take: a closure computing the value,
+/// `FnMut() -> T`, or one given the value it computed last, `FnMut(Option<&T>) -> T`. `M`
+/// only tells the two apart. The argument must be annotated (`|previous: Option<&T>|`): an
+/// unannotated `|previous|` fails to infer its type.
 pub trait Compute<T, M> {
     fn compute(&mut self, previous: Option<&T>) -> T;
 }
 
-/// Marks a memo closure that takes no arguments.
+#[doc(hidden)]
 pub struct Fresh;
 
-/// Marks a memo closure that takes the value it computed last.
+#[doc(hidden)]
 pub struct FromPrevious;
 
 impl<T, F: FnMut() -> T> Compute<T, Fresh> for F {

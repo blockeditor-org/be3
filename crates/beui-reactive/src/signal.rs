@@ -146,8 +146,9 @@ pub(crate) struct Value<T> {
     pub(crate) value: RefCell<T>,
 }
 
-/// Reading a reactive value. Implemented by signals, memos, stores, `Prop` and `Binding`,
-/// so a helper that only reads can take `impl Get<T>`.
+/// Reading a reactive value. Implemented by signals, memos, `Reader`, stores, `Prop` and
+/// `Binding`, so a helper that only reads can take `impl Get<T>`; a field or prop that keeps
+/// something to read later holds a `Reader<T>`.
 ///
 /// The tracked reads (`get`, `with`) panic in debug builds inside a component body, which
 /// runs once and would never rerun on the change (`component_body`).
