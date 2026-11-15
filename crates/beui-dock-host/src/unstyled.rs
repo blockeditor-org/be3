@@ -3391,7 +3391,7 @@ fn TabMenu(
                 <MenuItem
                     label="Pop out into a window"
                     disabled={stuck}
-                    row_test_id="dock.tab.pop-out"
+                    @test_id="dock.tab.pop-out"
                     on_click={move || float.call(())}
                 />
                 <MenuItem label={group_label} disabled={alone} on_click={move || group.call(())} />
@@ -3481,7 +3481,7 @@ fn GripMenu(
                     <MenuItem
                         label="Locked"
                         checked={lock}
-                        row_test_id="dock.pane.locked"
+                        @test_id="dock.pane.locked"
                         on_click={move || toggle_lock.call(())}
                     />
                 </Show>

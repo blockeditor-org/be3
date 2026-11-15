@@ -252,7 +252,7 @@ fn TrayEntry(
     let checked = create_memo(move || entry.with(|entry| checked(entry.item.toggle)));
     let disabled = create_memo(move || entry.with(|entry| !entry.item.enabled));
     let children = create_memo(move || entry.with(|entry| entry.children.clone()));
-    let row_test_id = format!("{prefix}.{id}");
+    let row_id = format!("{prefix}.{id}");
     view! {
         <MenuItem
             label
@@ -260,7 +260,7 @@ fn TrayEntry(
             radio
             disabled
             separated
-            row_test_id
+            @test_id={row_id}
             on_click={move || chosen.call(id)}
         >
             <TrayEntries entries={children} chosen prefix />

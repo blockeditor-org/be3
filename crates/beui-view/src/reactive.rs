@@ -40,10 +40,31 @@ pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
 
-pub fn test_id<T: NamesNode, M1>(built: T, value: impl IntoPropWith<String, M1>) -> T::Named {
-    let (named, node) = built.name_node();
-    bind_test_id(node, value.into_prop_with());
-    named
+/// What `@test_id` names: a node, control flow that builds at most one (`NamesNode`),
+/// and a value child (`ChoiceOption`, `MenuItem`) whose parent binds the id on the row it
+/// builds for it.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `@test_id` has nothing to name",
+    label = "a run of children has no node of its own: put `@test_id` on a tag inside each row, or on a tag around the run"
+)]
+pub trait TakesTestId: Sized {
+    type Named;
+
+    fn take_test_id(self, test_id: Prop<String>) -> Self::Named;
+}
+
+impl<T: NamesNode> TakesTestId for T {
+    type Named = T::Named;
+
+    fn take_test_id(self, test_id: Prop<String>) -> T::Named {
+        let (named, node) = self.name_node();
+        bind_test_id(node, test_id);
+        named
+    }
+}
+
+pub fn test_id<T: TakesTestId, M1>(built: T, value: impl IntoPropWith<String, M1>) -> T::Named {
+    built.take_test_id(value.into_prop_with())
 }
 
 pub fn node_ref<T: NamesNode>(built: T, reference: &NodeRef) -> T::Named {

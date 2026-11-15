@@ -431,13 +431,13 @@ fn WindowChip(
                                 label="Open"
                                 glyph=ICON_EXTERNAL_LINK
                                 disabled={move || !openable.get()}
-                                row_test_id={open_id}
+                                @test_id={open_id}
                                 on_click={move || workspace.open_placeholder(tab)}
                             />
                             <MenuItem
                                 label="Dismiss"
                                 glyph=ICON_X
-                                row_test_id={dismiss_id}
+                                @test_id={dismiss_id}
                                 on_click={move || windows.close(chip)}
                             />
                         </>
@@ -453,7 +453,7 @@ fn WindowChip(
                                     true => Some(ICON_EYE_OFF),
                                     false => Some(ICON_EYE),
                                 }}
-                                row_test_id={visibility_id}
+                                @test_id={visibility_id}
                                 on_click={move || match shown.get_untracked() {
                                     true => windows.hide(chip),
                                     false => windows.show(chip),
@@ -466,7 +466,7 @@ fn WindowChip(
                     <MenuItem
                         label={format!("Move to display {}", target + 1)}
                         glyph=ICON_MONITOR
-                        row_test_id={format!("{display_prefix}.display.{target}")}
+                        @test_id={format!("{display_prefix}.display.{target}")}
                         on_click={move || windows.move_to(chip, target)}
                     />
                 </ForEach>
@@ -474,7 +474,7 @@ fn WindowChip(
                     <MenuItem
                         label="Close"
                         glyph=ICON_X
-                        row_test_id={close_id}
+                        @test_id={close_id}
                         on_click={move || windows.close(chip)}
                     />
                 })}

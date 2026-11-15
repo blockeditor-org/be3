@@ -19,7 +19,7 @@ fn the_menu_key_opens_a_tree_rows_menu_beneath_the_row() {
                     items: view! {
                         <unstyled::MenuItem
                             label="Rename"
-                            row_test_id={"tree.menu.rename".to_owned()}
+                            @test_id={"tree.menu.rename".to_owned()}
                         />
                         <unstyled::MenuItem label="Delete" />
                     },

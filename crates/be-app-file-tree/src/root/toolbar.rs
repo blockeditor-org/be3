@@ -187,7 +187,7 @@ fn NewButton(adding: Adding) -> NodeId {
                                     format!("New in {}…", row.get().map(|row| row.label).unwrap_or_default())
                                 }}
                                 glyph=ICON_FILE_PLUS
-                                row_test_id={format!("file-tree.new-in.{id}")}
+                                @test_id={format!("file-tree.new-in.{id}")}
                                 on_click={move || add_into(id)}
                             />
                         }
@@ -196,7 +196,7 @@ fn NewButton(adding: Adding) -> NodeId {
                         label="New workspace"
                         glyph=ICON_BOXES
                         separated=true
-                        row_test_id={"file-tree.new-workspace".to_owned()}
+                        @test_id={"file-tree.new-workspace".to_owned()}
                         on_click={new_workspace}
                     />
                 }}

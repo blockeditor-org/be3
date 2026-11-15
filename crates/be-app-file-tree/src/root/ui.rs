@@ -662,7 +662,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             label="Open with"
             glyph=ICON_MOVE
             disabled={move || keys.with(Vec::is_empty)}
-            row_test_id={"file-tree.open-with".to_owned()}
+            @test_id={"file-tree.open-with".to_owned()}
         >
             <ForEach value={keys}>|chosen: Uuid|
                 <MenuItem
@@ -675,7 +675,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
                                 .unwrap_or_default()
                         })
                     }}
-                    row_test_id={format!("file-tree.open-with.{chosen}")}
+                    @test_id={format!("file-tree.open-with.{chosen}")}
                     on_click={move || {
                         if let Some((id, block_type)) = block.get_untracked() {
                             editor.host().open_block_with(id, block_type, chosen);
@@ -712,7 +712,7 @@ pub(crate) fn ExportAs(
             label="Export as"
             glyph=ICON_DOWNLOAD
             disabled={move || keys.with(Vec::is_empty)}
-            row_test_id={row_test_id}
+            @test_id={row_test_id}
         >
             <ForEach value={keys}>|format: ExportFormat| {
                 let label = move || {
@@ -731,7 +731,7 @@ pub(crate) fn ExportAs(
                 view! {
                     <MenuItem
                         label={label}
-                        row_test_id={named}
+                        @test_id={named}
                         on_click={move || {
                             if let Some((id, _)) = block.get_untracked() {
                                 exporter.export(Export { id, format });

@@ -171,7 +171,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                                 glyph=ICON_TRASH
                                                 danger=true
                                                 disabled={delete_off}
-                                                row_test_id={"database-view.detail.delete".to_owned()}
+                                                @test_id={"database-view.detail.delete".to_owned()}
                                                 on_click={remove}
                                             />
                                         }}

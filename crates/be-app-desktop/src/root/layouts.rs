@@ -116,7 +116,7 @@ fn LayoutItem(layouts: Layouts, index: u32) -> MenuItem {
             label={name}
             checked={move || listed.with(|listed| listed.active == index)}
             radio=true
-            row_test_id={format!("desktop.layout.{index}")}
+            @test_id={format!("desktop.layout.{index}")}
             on_click={move || layouts.switch(index)}
         />
     }

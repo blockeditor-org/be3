@@ -33,6 +33,16 @@ pub struct ChoiceOption<T> {
     value: T,
     label: Memo<String>,
     posted: Memo<String>,
+    test_id: Option<Prop<String>>,
+}
+
+impl<T> TakesTestId for ChoiceOption<T> {
+    type Named = Self;
+
+    fn take_test_id(mut self, test_id: Prop<String>) -> Self {
+        self.test_id = Some(test_id);
+        self
+    }
 }
 
 impl<T> ChoiceOption<T> {
@@ -48,6 +58,11 @@ impl<T> ChoiceOption<T> {
     /// `<option>`'s `value` does.
     pub fn posted(&self) -> Memo<String> {
         self.posted
+    }
+
+    /// The id `@test_id` gave the option, which its control binds on the row it builds.
+    pub fn test_id(&self) -> Option<Prop<String>> {
+        self.test_id.clone()
     }
 }
 
@@ -72,6 +87,7 @@ where
                 .filter(|posted| !posted.is_empty())
                 .unwrap_or_else(|| label.get())
         }),
+        test_id: None,
     }
 }
 
@@ -245,6 +261,9 @@ where
                 })
             }</unstyled::Button>
         };
+        if let Some(test_id) = built.test_id() {
+            bind_test_id(button, test_id);
+        }
         let node = match item {
             Some(item) => item.call(ChoiceItem {
                 value: built.value.clone(),

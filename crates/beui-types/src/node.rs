@@ -169,18 +169,19 @@ impl From<NodeId> for Children<NodeId> {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
-    label = "put `@test_id` or `@node_ref` on a tag that builds a node, inside this one or around it"
+    message = "a `{Self}` is no node for `@node_ref` or `@test_id` to name",
+    label = "put the modifier on a tag that builds a node, inside this one or around it; `@test_id` also names a value child its parent builds a row for"
 )]
 pub trait BuildsNode {
     fn built_node(&self) -> NodeId;
 }
 
-/// What `@test_id` and `@node_ref` name: a node, or control flow that builds at most one,
-/// which then becomes a host node (`create_host`) wherever it goes, even among a run.
+/// What `@node_ref` names (and `@test_id`, through beui-view's `TakesTestId`): a node, or
+/// control flow that builds at most one, which then becomes a host node (`create_host`)
+/// wherever it goes, even among a run.
 #[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
-    label = "a run of children has no node of its own: put `@test_id` or `@node_ref` on a tag inside each row, or on a tag around the run"
+    message = "a `{Self}` is no node for `@node_ref` or `@test_id` to name",
+    label = "a run of children has no node of its own: put the modifier on a tag inside each row, or on a tag around the run; `@test_id` also names a value child its parent builds a row for"
 )]
 pub trait NamesNode {
     type Named;

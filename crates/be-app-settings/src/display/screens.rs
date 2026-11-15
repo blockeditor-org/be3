@@ -272,7 +272,7 @@ pub(super) fn ScreenSection(
                         label="Use the fastest rate"
                         glyph=ICON_ROTATE_CCW
                         disabled={move || !slower.get() || read_only.get()}
-                        row_test_id={format!("display.{connector}.refresh.reset")}
+                        @test_id={format!("display.{connector}.refresh.reset")}
                         on_click={move || set.call(fastest.get_untracked())}
                     />
                 }}
