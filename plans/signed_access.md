@@ -176,9 +176,15 @@ signed").
 - **Forks.** A server that shows different devices different histories, with
   a revoked member's help, can read what a device it keeps on the old branch
   writes, and that device keeps accepting records the old key signs after a
-  retirement it never sees. The fix, not planned yet, is fork detection:
-  signed log heads carried in sessions, relays and commits, so two devices
-  that meet compare what they were shown.
+  retirement it never sees. The same server can also fork a live session's
+  order, numbering a block's operations differently for different
+  participants (decisions/live_edits_are_ordered_by_the_server.md), so their
+  copies part. The fix, not planned yet, is fork detection: signed log heads
+  carried in sessions, relays and commits, so two devices that meet compare
+  what they were shown. The heads carried cover the session order too: each
+  seal names the last sequence it holds and a digest of the order up to it,
+  signed by the holder, and a participant that applied a different order
+  through that sequence reports the fork.
 - A reader below Edit checks a sealer on a proof path, which can hide a later
   revocation of the sealer. That only lets a revoked editor hand a reader a
   key, and a reader below Edit never seals or wraps with it.
