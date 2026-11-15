@@ -2327,7 +2327,6 @@ impl<H: Host> Replicas<H> {
     /// elsewhere (`Peer::learn`) may answer only after the message arrived. Once a search for its
     /// key has answered, a message still sealed with it is let go and recorded.
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
-        eprintln!("DEBUG heard {:?}", std::mem::discriminant(event));
         let block = match event {
             Event::SessionChanged { block, .. }
             | Event::Relayed { block, .. }
@@ -2338,7 +2337,6 @@ impl<H: Host> Replicas<H> {
             _ => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
-            eprintln!("DEBUG heard while unsealing {block}");
             waiting.push_back(event.clone());
             return;
         }
@@ -2409,7 +2407,6 @@ impl<H: Host> Replicas<H> {
                 self.replay(replica, replayed);
             }
             Event::Sequenced { block, entry } => {
-                eprintln!("DEBUG sequenced {block} seq={} origin={} counter={} base={} floor={}", entry.sequence, entry.origin, entry.counter, entry.base, entry.floor);
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
@@ -3039,7 +3036,6 @@ impl<H: Host> Replicas<H> {
         let Some(open) = self.open.get_mut(&replica) else {
             return false;
         };
-        eprintln!("DEBUG status {} head={:?} owner={} clean={} journaled={} owes={} taken={} jt={} st={} epoch={}/{} made_up={} joining={}", open.block, status.head, status.owner, status.clean, status.journaled, status.owes_seal, status.taken, status.journaled_taken, status.sealed_taken, status.epoch, open.epoch, open.made_up, open.joining);
         let (block, content_type) = (open.block, open.content_type);
         // Made before the replica was opened again: it says nothing of this opening.
         if status.epoch != open.epoch {
@@ -3328,7 +3324,6 @@ impl<H: Host> Replicas<H> {
                     payload: submission.payload,
                 };
                 let online = !made_up && peer.is_attached();
-                eprintln!("DEBUG submit {block} online={online} made_up={made_up} id={:?} base={} barrier={}", submission.id, submission.base, submission.barrier);
                 let submitted = peer
                     .submit(block, tag, submission, online, announcements)
                     .await;
@@ -3349,7 +3344,6 @@ impl<H: Host> Replicas<H> {
                                     be_sdk_type_api::host::Submitted::Held
                                 }
                                 Err(error) => {
-                                    eprintln!("DEBUG submit failed: {error}");
                                     let failed = be_sdk_type_api::host::Submitted::Failed(
                                         error.to_string(),
                                     );
