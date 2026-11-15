@@ -842,10 +842,12 @@ fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show value={move || rows.with(Vec::is_empty)}>
-                <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
-            </Show>
-            <ForEach value={rows}>|(label, value): (&'static str, String)|
+            <ForEach
+                value={rows}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
+                }}
+            >|(label, value): (&'static str, String)|
                 <LabeledRow label={label.to_owned()} value />
             </ForEach>
         </List>

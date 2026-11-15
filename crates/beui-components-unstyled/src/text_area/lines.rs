@@ -204,7 +204,6 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let padding = create_memo(move || cx.padding.get());
     let block = create_memo(move || model.get().block);
     let renders = cx.block.is_some();
-    let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
     let block_ref = NodeRef::new();
     let row = NodeRef::new();
     let text = GeometryCell::default();
@@ -231,7 +230,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         <List spacing=0.0>
             <RowText cx model text wrap=true on_bounds=bounds />
             <Dynamic
-                value={shown_block}
+                value={move || block.get().filter(|_| renders).map(|(index, _)| index)}
                 fallback=()
             >|index: usize| {
                 let render = cx.block.expect("a block is only shown when the area renders them");
@@ -696,7 +695,7 @@ fn RowText(
             glyphs={glyphs}
             carets={carets}
         >
-            <ForEach value={keys}>|(key, _): (PieceKey, usize)|
+            <ForEach value={keys}>|key: PieceKey|
                 <RowPiece cx model={model} key />
             </ForEach>
             <Show value={anchored}>
@@ -777,12 +776,11 @@ enum PieceKey {
     Inline(usize, InlineKind),
 }
 
-fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
-    let mut seen: HashMap<PieceKey, usize> = HashMap::default();
+fn piece_keys(row: &Row) -> Vec<PieceKey> {
     row.spans
         .iter()
         .map(|span| {
-            let key = match span.kind {
+            match span.kind {
                 SpanKind::Text => {
                     let style = span.style;
                     PieceKey::Text {
@@ -810,10 +808,7 @@ fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
                         .get(index)
                         .map_or(InlineKind::Quote, InlineKind::of),
                 ),
-            };
-            let repeat = seen.entry(key.clone()).or_default();
-            *repeat += 1;
-            (key, *repeat - 1)
+            }
         })
         .collect()
 }
@@ -986,17 +981,14 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let radius = create_memo(move || shape.get().radius);
     let selected = create_memo(move || {
         cx.state.cursors().get();
-        let Some(index) = index.get() else {
-            return false;
-        };
-        let Some(widget) = cx.widgets.get().get(index).cloned() else {
-            return false;
-        };
+        let index = index.get()?;
+        let widget = cx.widgets.get().get(index).cloned()?;
         let ranges = cx.state.selection_ranges();
-        cx.selected_widget.is_some()
+        (cx.selected_widget.is_some()
             && ranges.len() == 1
             && ranges[0] == widget.range
-            && !widget.block()
+            && !widget.block())
+        .then_some(index)
     });
     let pill = NodeRef::new();
     view! {
@@ -1014,13 +1006,12 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                     </Frame>
                 </Show>
                 <Text font={font} color={color} vertical_align=TextAlign::Center>{label}</Text>
-                <Show value={selected}>|| {
+                <Show value={selected}>|index: ReadSignal<usize>| {
                     let render = cx
                         .selected_widget
                         .expect("a widget only offers a popup when the area was given one");
-                    let index = index.get_untracked().unwrap_or_default();
                     view! {
-                        <WidgetPopup anchor={pill} render index />
+                        <WidgetPopup anchor={pill} render index={index.get_untracked()} />
                     }
                 }</Show>
             </List>

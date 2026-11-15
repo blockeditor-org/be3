@@ -14,7 +14,7 @@ use beui_view::types::Placement;
 
 use super::{Context, TextAreaState};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Completion {
     pub label: String,
     pub insert: String,
@@ -42,8 +42,8 @@ impl Completer {
 }
 
 pub struct CompletionRowHandle {
-    pub index: usize,
-    pub completion: Memo<Option<Completion>>,
+    pub index: ReadSignal<usize>,
+    pub completion: Completion,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
 }
@@ -79,7 +79,6 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let anchor = NodeRef::new();
     anchor.fill(cx.anchor);
     let items = cx.completions;
-    let keys = create_memo(move || (0..items.get().len()).collect::<Vec<usize>>());
     let CompletionMenu { row, panel } = menu;
     let layer = cx.completion_layer;
     view! {
@@ -94,8 +93,8 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
         >
             {panel.call(view! {
                 <List spacing=0.0>
-                    <ForEach value={keys}>|index: usize|
-                        <CompletionRow cx index row />
+                    <ForEach value={items}>|completion: Completion, index: ReadSignal<usize>|
+                        <CompletionRow cx completion index row />
                     </ForEach>
                 </List>
             })}
@@ -104,11 +103,14 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
 }
 
 #[component]
-fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) -> NodeId {
-    let items = cx.completions;
-    let completion = create_memo(move || items.get().get(index).cloned());
+fn CompletionRow(
+    cx: Context,
+    completion: Completion,
+    index: ReadSignal<usize>,
+    row: RenderFn<CompletionRowHandle>,
+) -> NodeId {
     let highlighted = cx.highlighted;
-    let highlighted = create_memo(move || highlighted.get() == index);
+    let highlighted = create_memo(move || highlighted.get() == index.get());
     let hovered = create_signal(false);
     let content = row.call(CompletionRowHandle {
         index,
@@ -118,13 +120,13 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     });
     view! {
         <Interactive
-            @test_id={format!("text.completion.{index}")}
+            @test_id={move || format!("text.completion.{}", index.get())}
             cursor=CursorIcon::PointingHand
-            on_click={move || cx.complete(index)}
+            on_click={move || cx.complete(index.get_untracked())}
             on_hover_change={move |inside: bool| {
                 hovered.set(inside);
                 if inside {
-                    cx.highlighted.set(index);
+                    cx.highlighted.set(index.get_untracked());
                 }
             }}
             children={Some(content)}
