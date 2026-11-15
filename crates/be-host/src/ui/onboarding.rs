@@ -17,7 +17,6 @@ use beui::{Align, Direction};
 pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
     let message = create_memo(move || view.error.get().message);
     let pending = create_memo(move || view.error.get().pending);
-    let asking = create_memo(move || pending.get().is_some());
     let title = create_memo(move || match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => "Delete client database?".to_owned(),
         #[cfg(not(target_arch = "wasm32"))]
@@ -85,7 +84,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                 />
             </List>
             <Dialog
-                open={asking}
+                open={move || pending.get().is_some()}
                 kind=DialogKind::Alert
                 title={title}
                 actions={vec![
@@ -152,10 +151,8 @@ pub(super) fn AddAccountDialog(
             display_name.set(String::new());
         });
     });
-    let choosing = create_memo(move || selection.get().is_none() && !pending.get());
     let editing = create_memo(move || selection.get().is_some() && !pending.get());
     let local = create_memo(move || selection.get() == Some(1));
-    let custom = create_memo(move || selection.get() == Some(2));
     let remote = create_memo(move || selection.get().is_some() && !local.get());
     let gateway_required = create_memo(move || {
         selection.get() == Some(0) && default.get().is_some_and(|server| server.gateway_required)
@@ -189,7 +186,6 @@ pub(super) fn AddAccountDialog(
                 _ => false,
             }
     });
-    let not_ready = create_memo(move || !ready.get());
     let submit_label = create_memo(move || {
         if local.get() {
             "Create account"
@@ -236,15 +232,7 @@ pub(super) fn AddAccountDialog(
             String::new()
         }
     });
-    let primary_disabled = create_memo(move || !waiting.get() && not_ready.get());
-    let default_address = create_memo(move || {
-        default
-            .get()
-            .map(|server| server.api_url)
-            .unwrap_or_default()
-    });
-    let is_default = create_memo(move || selection.get() == Some(0));
-    let show_gateway = create_memo(move || remote.get() && platform::SENDS_HEADERS);
+    let primary_disabled = create_memo(move || !waiting.get() && !ready.get());
     let connecting = create_memo(move || pending.get() && !waiting.get());
     view! {
         <Dialog
@@ -277,7 +265,7 @@ pub(super) fn AddAccountDialog(
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
             <List spacing=Space::Xl2>
-                <Show condition={choosing}>
+                <Show condition={move || selection.get().is_none() && !pending.get()}>
                     <List spacing=Space::Lg>
                         <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
                         <Frame
@@ -290,7 +278,12 @@ pub(super) fn AddAccountDialog(
                                 <Show condition={has_default}>
                                     <ActionRow
                                         label={default_name}
-                                        detail={default_address}
+                                        detail={move || {
+                                            default
+                                                .get()
+                                                .map(|server| server.api_url)
+                                                .unwrap_or_default()
+                                        }}
                                         glyph=ICON_CLOUD
                                         @test_id="account.default"
                                         on_click={move || selection.set(Some(0))}
@@ -335,13 +328,13 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                         </Show>
-                        <Show condition={is_default}>
+                        <Show condition={move || selection.get() == Some(0)}>
                             <List spacing=Space::Xs>
                                 <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                         </Show>
-                        <Show condition={custom}>
+                        <Show condition={move || selection.get() == Some(2)}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
@@ -353,7 +346,7 @@ pub(super) fn AddAccountDialog(
                                 />
                             </List>
                         </Show>
-                        <Show condition={show_gateway}>
+                        <Show condition={move || remote.get() && platform::SENDS_HEADERS}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>{gateway_label}</Text>
                                 <TextInput
@@ -444,7 +437,7 @@ pub(super) fn AddAccountDialog(
                 <Show condition={connecting}>
                     <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                 </Show>
-                <Show condition={create_memo(move || error.get().is_some())}>
+                <Show condition={move || error.get().is_some()}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -464,7 +457,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
             .map(|(id, _)| id)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || keys.get().is_empty());
     let state = create_memo(move || organizations.get().state);
     let error = create_memo(move || organizations.get().error);
     let created = create_memo(move || organizations.get().created);
@@ -483,7 +475,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     arrow=false
                     items={view! {
                         <MenuItem
-                            label={create_memo(move || be_host_accounts_ui::leave_label(account.get().local).to_owned())}
+                            label={move || be_host_accounts_ui::leave_label(account.get().local).to_owned()}
                             on_click={|| send(UiCommand::LogOutCurrent)}
                         />
                     }}
@@ -541,7 +533,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Show condition={empty}>
+            <Show condition={move || keys.get().is_empty()}>
                 <Card>
                     <OrganizationsPlaceholder state />
                 </Card>
@@ -563,8 +555,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
 #[component]
 fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     let joining = create_memo(move || view.organizations.get().joining);
-    let asking = create_memo(move || joining.get().is_some());
-    let pasting = create_memo(move || !asking.get());
     let title = create_memo(move || {
         joining
             .get()
@@ -586,7 +576,32 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     };
     view! {
         <List spacing=Space::Md @test_id={"host.join"}>
-            <Show condition={asking}>
+            <Show
+                condition={move || joining.get().is_some()}
+                fallback={move || view! {
+                    <List spacing=Space::Md>
+                        <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <TextInput
+                                    value={link}
+                                    label="Invite link"
+                                    placeholder="https://…/#invite/…"
+                                    @test_id={"host.join.link"}
+                                    on_submit={move |_value: String| open()}
+                                />
+                            </ListItem>
+                            <Button
+                                label="Open"
+                                variant=ButtonVariant::Secondary
+                                disabled={cannot}
+                                @test_id={"host.join.open"}
+                                on_click={open}
+                            />
+                        </List>
+                    </List>
+                }}
+            >
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <ListItem grow=1.0>
@@ -610,29 +625,6 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                         />
                     </List>
                 </Card>
-            </Show>
-            <Show condition={pasting}>
-                <List spacing=Space::Md>
-                    <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <ListItem grow=1.0>
-                            <TextInput
-                                value={link}
-                                label="Invite link"
-                                placeholder="https://…/#invite/…"
-                                @test_id={"host.join.link"}
-                                on_submit={move |_value: String| open()}
-                            />
-                        </ListItem>
-                        <Button
-                            label="Open"
-                            variant=ButtonVariant::Secondary
-                            disabled={cannot}
-                            @test_id={"host.join.open"}
-                            on_click={open}
-                        />
-                    </List>
-                </List>
             </Show>
         </List>
     }
@@ -662,8 +654,6 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
     let title = create_memo(move || status.get().organization);
     let every_type = create_memo(move || status.get().every_session_type);
     let session_type = create_memo(move || status.get().session_type);
-    let new_label =
-        create_memo(move || format!("New {} session", session_type_name(session_type.get())));
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
@@ -745,7 +735,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 }
             }</ForEach>
             <SplitButton
-                label={new_label}
+                label={move || format!("New {} session", session_type_name(session_type.get()))}
                 glyph=ICON_PLUS
                 variant=ButtonVariant::Secondary
                 menu_label="New session of another type"
@@ -779,17 +769,14 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
 
 #[component]
 fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
-    let loaded = create_memo(move || state.get() == OrganizationsState::Loaded);
-    let failed = create_memo(move || state.get() == OrganizationsState::Failed);
-    let loading = create_memo(move || state.get() == OrganizationsState::Loading);
     view! {
         <List spacing=Space::None>
-            <Show condition={loaded}>
+            <Show condition={move || state.get() == OrganizationsState::Loaded}>
                 <Text style=TextStyle::CAPTION>
                     "You do not have any organizations yet. Create one below."
                 </Text>
             </Show>
-            <Show condition={failed}>
+            <Show condition={move || state.get() == OrganizationsState::Failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
@@ -799,7 +786,7 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
                     />
                 </List>
             </Show>
-            <Show condition={loading}>
+            <Show condition={move || state.get() == OrganizationsState::Loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
@@ -870,7 +857,7 @@ pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
         >
             <List spacing=Space::Xl2>
                 <Text style=TextStyle::PARAGRAPH>{message}</Text>
-                <Show condition={create_memo(move || error.get().is_some())}>
+                <Show condition={move || error.get().is_some()}>
                     <ErrorText text={error} />
                 </Show>
             </List>

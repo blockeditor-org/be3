@@ -20,7 +20,7 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
             view! {
                 <styled::ContextMenu
                     items
-                    open_at={Prop::dynamic(move || open_at.get())}
+                    open_at
                     on_close={move || open_at.set(None)}
                 >
                     <styled::Frame />

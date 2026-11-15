@@ -558,7 +558,6 @@ fn Register(page: Shown) -> NodeId {
 
 #[component]
 fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
-    let shown = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=Space::Xs>
             <Field
@@ -568,7 +567,7 @@ fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
                 autocomplete="new-password"
                 value
             />
-            <Show condition={shown}>
+            <Show condition={move || !problem.get().is_empty()}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{problem}</Text>
             </Show>
         </List>

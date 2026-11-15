@@ -39,7 +39,6 @@ pub fn Field(
         true => problem.clone(),
         false => String::new(),
     });
-    let has_problem = create_memo(move || !shown.get().is_empty());
     let has_hint = !hint.is_empty();
     let hint = fixed(hint);
     let label = fixed(label);
@@ -49,7 +48,7 @@ pub fn Field(
             <ListItem grow=1.0>
                 <TextInput value label={label} kind name autocomplete />
             </ListItem>
-            <Show condition={has_problem}>
+            <Show condition={move || !shown.get().is_empty()}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{shown}</Text>
             </Show>
             <Show condition={has_hint}>

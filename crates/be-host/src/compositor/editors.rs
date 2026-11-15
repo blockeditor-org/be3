@@ -850,7 +850,6 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
             .and_then(|comparison| comparison.error)
             .unwrap_or_default()
     });
-    let failed = create_memo(move || !error.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -880,7 +879,7 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show condition={failed}>
+                <Show condition={move || !error.get().is_empty()}>
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -911,11 +910,6 @@ fn ConflictSide(
         Some((comparison.block, preview))
     });
     let block = create_memo(move || shown.get().map(|(block, _)| block));
-    let ready = create_memo(move || {
-        shown
-            .get()
-            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
-    });
     view! {
         <List @test_id={side_id} spacing=Space::Md>
             <Text style=TextStyle::HEADING>{title}</Text>
@@ -925,32 +919,34 @@ fn ConflictSide(
                 border={Border::DEFAULT}
                 radius=Radius::Md
             >
-                <Layers>
-                    <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
-                        match shown.and_then(|(_, preview)| preview) {
-                            None => view! {
-                                <Frame align=beui::Align::Center>
-                                    <Progress width=INLINE_PROGRESS_WIDTH />
-                                </Frame>
-                            },
-                            Some(Err(error)) => view! {
-                                <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
-                                    <Text color=TextColor::Muted>{error}</Text>
-                                </Frame>
-                            },
-                            Some(Ok(preview)) => view! {
-                                <ConflictPreview preview />
-                            },
-                        }
-                    }</Dynamic>
-                </Layers>
+                <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
+                    match shown.and_then(|(_, preview)| preview) {
+                        None => view! {
+                            <Frame align=beui::Align::Center>
+                                <Progress width=INLINE_PROGRESS_WIDTH />
+                            </Frame>
+                        },
+                        Some(Err(error)) => view! {
+                            <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
+                                <Text color=TextColor::Muted>{error}</Text>
+                            </Frame>
+                        },
+                        Some(Ok(preview)) => view! {
+                            <ConflictPreview preview />
+                        },
+                    }
+                }</Dynamic>
             </Frame>
             <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     @test_id={format!("{side_id}.keep")}
                     label="Use this version"
                     variant=ButtonVariant::Secondary
-                    disabled={create_memo(move || !ready.get())}
+                    disabled={move || {
+                        !shown
+                            .get()
+                            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
+                    }}
                     on_click={move || {
                         if let Some(block) = block.get_untracked() {
                             be_host_stack::conflicts::keep(block, side);
@@ -1292,15 +1288,15 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
     });
     view! {
         <Layers>
-            <Dynamic value={shown}>|shown: Option<be_host_desktop::programs::Shown>| {
+            <Dynamic value={shown} fallback={|| view! { <Frame /> }}>|shown: be_host_desktop::programs::Shown| {
                 match shown {
-                    Some(be_host_desktop::programs::Shown::Window(window)) => view! {
+                    be_host_desktop::programs::Shown::Window(window) => view! {
                         <PlacedWindow window={window} focus />
                     },
-                    Some(be_host_desktop::programs::Shown::Closed(name)) => view! {
+                    be_host_desktop::programs::Shown::Closed(name) => view! {
                         <ProgramClosed name block />
                     },
-                    Some(be_host_desktop::programs::Shown::Failed(problem)) => view! {
+                    be_host_desktop::programs::Shown::Failed(problem) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: problem,
@@ -1309,7 +1305,7 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
                             }}
                         />
                     },
-                    Some(be_host_desktop::programs::Shown::Opening(name)) => view! {
+                    be_host_desktop::programs::Shown::Opening(name) => view! {
                         <Notice
                             item={HostItem::Notice {
                                 text: format!("Opening in {name}…"),
@@ -1317,9 +1313,6 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
                                 icon: Some(beui::icons::ICON_APP_WINDOW),
                             }}
                         />
-                    },
-                    None => view! {
-                        <Frame />
                     },
                 }
             }</Dynamic>
@@ -2202,12 +2195,12 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
         <AppView
             editor={hosted.editor}
             region={hosted.region}
-            frame={Prop::dynamic(move || {
+            frame={move || {
                 frame.map(|frame| FrameSpec {
                     dialog: dialog.get(),
                     ..frame
                 })
-            })}
+            }}
             child_view
         />
     }

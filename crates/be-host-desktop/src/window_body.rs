@@ -146,7 +146,6 @@ pub fn WindowBody(
             waited.set(false);
         }
     });
-    let banner = create_memo(move || !responding.get() && !waited.get());
     let cramped_text = create_memo(move || match name.get().is_empty() {
         true => "Too small for this window".to_owned(),
         false => format!("Too small for {}", name.get()),
@@ -173,7 +172,7 @@ pub fn WindowBody(
                     </Frame>
                 </Frame>
             </Show>
-            <Show condition={banner}>
+            <Show condition={move || !responding.get() && !waited.get()}>
                 <Frame align={Align2::new(Align::Center, Align::Start)}>
                     <NotResponding name on_wait={move || waited.set(true)} on_force_close />
                 </Frame>

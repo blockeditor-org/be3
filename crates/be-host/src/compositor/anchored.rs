@@ -433,7 +433,7 @@ fn AnchoredView(mount: u64, id: ViewId, shown: Memo<Vec<Shown>>) -> NodeId {
         <Layers>
             <Drawing draw={scrim_draw} />
             <AnchoredChildren keys={below} />
-            <Drawing draw={Prop::dynamic(move || draw_gpu(pixels.get()))} />
+            <Drawing draw={move || draw_gpu(pixels.get())} />
             <AnchoredChildren keys={above} />
         </Layers>
     }

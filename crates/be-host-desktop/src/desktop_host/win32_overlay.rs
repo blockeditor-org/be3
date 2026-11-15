@@ -52,10 +52,6 @@ fn OffScreenPart(part: Memo<Rect>, labelled: bool) -> NodeId {
 
 #[component]
 pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
-    let dim = create_memo(move || match secure.get() {
-        true => ColorRole::Dim,
-        false => ColorRole::None,
-    });
     let keys = create_memo(move || (0..off_screen.with(Vec::len)).collect::<Vec<usize>>());
     let content = create_memo(|| HostItem::Notice {
         text: SECURE_DESKTOP.to_owned(),
@@ -72,7 +68,10 @@ pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
                     <OffScreenPart part labelled={index == 0} />
                 }
             }</ForEach>
-            <Frame fill={dim} />
+            <Frame fill={move || match secure.get() {
+                true => ColorRole::Dim,
+                false => ColorRole::None,
+            }} />
             <Show condition={secure}>
                 <Frame align=Align::Center padding={Padding::all(Space::Md)}>
                     <Frame
