@@ -52,7 +52,7 @@ Each says whether a server account offline has the same gap.
 2. **Version control.** Filled for server accounts offline: every operation runs against the
    device's store and waits in the outbox, and a branch someone else moved meanwhile merges as
    the repository's divergence, keeping both commits (guides/blocks/version_control.md,
-   Operations). Fork, pull and push are not tested offline yet.
+   Operations).
 3. **Making the account, its organization and its roots.** The server makes a local profile
    (`create-local-profile`), puts it in the personal organization and answers the roots and
    settings a host looks for at sign-in. A local account makes its ids, roots and settings on the
@@ -79,8 +79,8 @@ Each says whether a server account offline has the same gap.
 
 ## Steps
 
-1. Fill the gaps server accounts share (6 where it applies, and fork, pull and push offline from
-   2), moving logic from the server into the client.
+1. Fill the gaps server accounts share (6 where it applies), moving logic from the server into
+   the client.
 2. A peer with no server: its local head is final, and its account, roots and settings are made
    on the device.
 3. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
