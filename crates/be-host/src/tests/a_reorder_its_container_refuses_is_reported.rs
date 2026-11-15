@@ -15,7 +15,7 @@ fn a_reorder_its_container_refuses_is_reported() {
     make(notes, text, BlockParent::Root, "Notes", TextBlock::of("notes").encode());
     make(child, text, BlockParent::Root, "Child", TextBlock::of("child").encode());
     synced();
-    known(&[text]);
+    let _apps = known(&[text]);
     let mut core = core();
     core.block_types.insert(notes, text);
 

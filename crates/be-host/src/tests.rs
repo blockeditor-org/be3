@@ -10,7 +10,10 @@ mod restore_puts_a_block_back_in_unfiled_and_falls_back_to_it;
 mod unlinking_into_a_container_that_cannot_replace_a_child_ends_with_a_notice;
 
 /// The manifests of text, which takes a replaced child and nothing else, and folder, which
-/// takes every child change, in place of the apps a unit test does not stage.
+/// takes every child change, in place of the apps a unit test does not stage. Their block types
+/// and `children` are copied from crates/be-app-text/manifest.json and
+/// crates/be-app-workspace/manifest.json, without the editors and modules those name, which a
+/// unit test has none of: keep them as those say.
 const MANIFESTS: [(&str, &str); 2] = [
     (
         "text.json",
@@ -32,16 +35,17 @@ const MANIFESTS: [(&str, &str); 2] = [
 ];
 
 /// Waits until the running stack knows each of `types`, as a core needs before it changes a
-/// block of one, with the text and folder manifests (`MANIFESTS`) found.
+/// block of one, with the text and folder manifests (`MANIFESTS`) found while the answer is held.
 #[track_caller]
-fn known(types: &[Uuid]) {
-    be_host_stack::discovery::install_for_testing(&MANIFESTS);
+fn known(types: &[Uuid]) -> be_host_stack::discovery::InstalledForTesting {
+    let installed = be_host_stack::discovery::install_for_testing(&MANIFESTS);
     be_host_stack::wait_until("the block types are known", |_| {
         types
             .iter()
             .all(|block_type| be_host_stack::is_known(*block_type))
             .then_some(())
     });
+    installed
 }
 
 /// Waits until the running stack has sent all it made to the server: a text made here and not
@@ -98,6 +102,7 @@ fn awaited(core: &HostCore) -> Vec<be_host_stack::ChildChanged> {
 /// (`pending`), after a few passes that answer nothing.
 #[track_caller]
 fn settle(core: &mut HostCore) {
+    let mut idle = false;
     for _ in 0..16 {
         core.process_pending_copies();
         core.process_pending_transfers();
@@ -108,11 +113,20 @@ fn settle(core: &mut HostCore) {
         {
             return;
         }
-        // What a pass queued for the next (a block put back after a refusal) runs then.
+        // What a pass queued for the next (a block put back after a refusal) runs then; a pass
+        // after that with nothing sent waits for the stack to move (a type or an editor that
+        // is not ready yet).
         let awaited = awaited(core);
         if awaited.is_empty() {
+            if std::mem::replace(&mut idle, true) {
+                let seen = progressed();
+                be_host_stack::wait_until("the stack moved on", |shared| {
+                    (shared.progressed != seen).then_some(())
+                });
+            }
             continue;
         }
+        idle = false;
         be_host_stack::wait_until("the containers' types answered", |_| {
             awaited
                 .iter()
@@ -167,6 +181,10 @@ fn pending(core: &HostCore) -> String {
 
 /// Whether a refusal containing `text` was shown. Notices are the process's, and a target's tests
 /// share a process: `text` names what only its own test does.
+fn progressed() -> u64 {
+    be_host_stack::wait_until("read the stack", |shared| Some(shared.progressed))
+}
+
 fn refused(text: &str) -> bool {
     notices::shown()
         .iter()
