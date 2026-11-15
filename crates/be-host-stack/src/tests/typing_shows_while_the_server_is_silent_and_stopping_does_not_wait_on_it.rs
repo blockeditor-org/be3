@@ -34,6 +34,8 @@ fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 7);
+    // The kept edits are submitted again and owed a seal once the server ordered them.
+    wait_until("had the kept edits ordered", |shared| shared.owing > 0);
     flush_and_send();
     let saved = runtime().block_on(async {
         harness
