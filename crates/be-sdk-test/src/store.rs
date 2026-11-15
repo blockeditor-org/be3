@@ -485,8 +485,8 @@ impl Inner {
                     .and_then(|held| held.replica)
                 {
                     self.on_replica(replica, |replica, host| {
-            replica.sequenced(host, vec![entry]);
-        });
+                        replica.sequenced(host, vec![entry]);
+                    });
                 }
             }
             Call::RebaseJournal { reply, base, .. } => {
@@ -725,15 +725,17 @@ impl Inner {
         let now = self.now as i64;
         let order = match block.and_then(|block| self.blocks.get_mut(&block)) {
             Some(held) => &mut held.order,
-            None => return be_sdk_type_guest::api::JournalEntry {
-                sequence: 0,
-                origin: submission.origin,
-                counter: submission.counter,
-                base: submission.base,
-                floor: 0,
-                received: None,
-                payload: submission.payload,
-            },
+            None => {
+                return be_sdk_type_guest::api::JournalEntry {
+                    sequence: 0,
+                    origin: submission.origin,
+                    counter: submission.counter,
+                    base: submission.base,
+                    floor: 0,
+                    received: None,
+                    payload: submission.payload,
+                };
+            }
         };
         let op = order.number(
             be_block_session::Submission {

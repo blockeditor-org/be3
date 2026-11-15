@@ -12,7 +12,11 @@ fn an_edit_is_lacking_until_the_server_holds_it() {
     sim.stalled_submits = true;
     sim.operate(0, 1, add("alone"));
     sim.settle();
-    assert_eq!(sim.lacking(0, 1), 1, "the server lacks it until it numbers it");
+    assert_eq!(
+        sim.lacking(0, 1),
+        1,
+        "the server lacks it until it numbers it"
+    );
     sim.unstall();
     assert_eq!(sim.lacking(0, 1), 0);
 

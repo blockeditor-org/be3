@@ -128,7 +128,11 @@ impl Sequencer {
 /// sequence, and it reaches the seal's last entry. `entries` are each entry's sequence, in
 /// order. A journal with no entry through the seal holds nothing of it, unless its base is the
 /// seal's sequence.
-pub fn reaches_seal(base_sequence: u64, entries: impl IntoIterator<Item = u64>, through: u64) -> bool {
+pub fn reaches_seal(
+    base_sequence: u64,
+    entries: impl IntoIterator<Item = u64>,
+    through: u64,
+) -> bool {
     base_sequence <= through
         && (base_sequence == through || entries.into_iter().any(|sequence| sequence == through))
 }

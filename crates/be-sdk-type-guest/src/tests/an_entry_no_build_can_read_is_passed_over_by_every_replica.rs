@@ -21,7 +21,11 @@ fn an_entry_no_build_can_read_is_passed_over_by_every_replica() {
     sim.operate(1, 1, add("after"));
     sim.settle();
     for device in 0..2 {
-        assert_eq!(texts(&sim.content(device)), ["kept", "after"], "device {device}");
+        assert_eq!(
+            texts(&sim.content(device)),
+            ["kept", "after"],
+            "device {device}"
+        );
     }
     sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(texts(&sim.head_content()), ["kept", "after"]);

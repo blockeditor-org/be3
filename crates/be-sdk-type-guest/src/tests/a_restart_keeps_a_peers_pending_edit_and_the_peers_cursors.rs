@@ -40,13 +40,11 @@ fn a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors() {
     let restarted = sim.head;
     assert!(restarted.is_some());
     assert!(
-        sim.journal
-            .as_ref()
-            .is_some_and(|journal| {
-                journal.base.commit == restarted
-                    && crate::wire::BaseState::decode(&journal.base.state)
-                        .is_some_and(|state| state.content.len() < 8)
-            }),
+        sim.journal.as_ref().is_some_and(|journal| {
+            journal.base.commit == restarted
+                && crate::wire::BaseState::decode(&journal.base.state)
+                    .is_some_and(|state| state.content.len() < 8)
+        }),
         "the holder reloaded from the commit and dropped its tombstones"
     );
     for device in 0..2 {

@@ -59,7 +59,11 @@ fn a_block_this_account_lost_is_forgotten_once_what_was_set_aside_is_discarded()
 
     let unsent = refs.take_unsent(block).unwrap().expect("set aside");
     assert_eq!(unsent.refused, None, "for lost access");
-    assert_eq!(refs.forget(&gone).unwrap(), 0, "its local edits still keep it");
+    assert_eq!(
+        refs.forget(&gone).unwrap(),
+        0,
+        "its local edits still keep it"
+    );
     refs.drop_local_edits(block).unwrap();
     assert!(refs.discarded(block));
     assert!(

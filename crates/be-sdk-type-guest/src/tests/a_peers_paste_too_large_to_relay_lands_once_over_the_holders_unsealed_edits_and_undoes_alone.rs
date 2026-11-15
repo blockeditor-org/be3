@@ -4,8 +4,7 @@ use super::*;
 /// part its bytes were put as: the owner sequences it among its own unsealed edits, every
 /// replica reads the part and applies it where it was made, and undo takes back the paste.
 #[test]
-fn a_peers_paste_too_large_to_relay_lands_once_over_the_holders_unsealed_edits_and_undoes_alone()
-{
+fn a_peers_paste_too_large_to_relay_lands_once_over_the_holders_unsealed_edits_and_undoes_alone() {
     let mut sim = Sim::<ProseContent>::new(3, prose_with_undo_module);
     sim.publish_elsewhere(&prose_of("start\n"));
     for device in 0..3 {

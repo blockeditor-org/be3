@@ -41,7 +41,15 @@ async fn kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_
     guest.keep_sealed_open_edits(block, sealed.clone());
 
     let (read, edits) = guest.open_edits(block).expect("the row is read");
-    assert_eq!((read.origin, read.given_up, read.submitted_through, read.restarts), (7, 2, 3, 1));
+    assert_eq!(
+        (
+            read.origin,
+            read.given_up,
+            read.submitted_through,
+            read.restarts
+        ),
+        (7, 2, 3, 1)
+    );
     assert!(matches!(edits, Err(ClientError::Locked(_))), "{edits:?}");
     assert_eq!(
         guest.sealed_open_edits(block),

@@ -65,8 +65,13 @@ fn refs(config: &Config) -> Result<be_block_client::RefsDb, String> {
 /// The refs database in `root`, which one process holds at a time: the hosts of this process
 /// share it, and another process using `root` is refused (guides/blocks/host.md).
 pub fn refs_in(root: &std::path::Path) -> Result<be_block_client::RefsDb, String> {
-    static OPEN: Mutex<Vec<(std::path::PathBuf, be_block_client::RefsDb, Option<std::fs::File>)>> =
-        Mutex::new(Vec::new());
+    static OPEN: Mutex<
+        Vec<(
+            std::path::PathBuf,
+            be_block_client::RefsDb,
+            Option<std::fs::File>,
+        )>,
+    > = Mutex::new(Vec::new());
     let path = root.join("be-refs.sqlite3");
     let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
     if let Some((_, refs, _)) = open.iter().find(|(held, ..)| *held == path) {

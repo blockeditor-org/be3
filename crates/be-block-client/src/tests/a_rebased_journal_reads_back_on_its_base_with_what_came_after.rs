@@ -70,6 +70,9 @@ fn a_rebased_journal_reads_back_on_its_base_with_what_came_after() {
             },
         )
         .unwrap();
-    assert_eq!(offline.sequence, 4, "offline, the order goes on from what it heard");
+    assert_eq!(
+        offline.sequence, 4,
+        "offline, the order goes on from what it heard"
+    );
     assert_eq!(offline.received, None);
 }

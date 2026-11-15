@@ -35,12 +35,13 @@ async fn seal(
 ) -> CommitId {
     let mut content = base();
     content.set(0, text);
-    let write = Write::encoded(Sections::CONTENT_TYPE, content.parts(), parent)
-        .sealed_through(Some(SealedThrough {
+    let write = Write::encoded(Sections::CONTENT_TYPE, content.parts(), parent).sealed_through(
+        Some(SealedThrough {
             sequence: through,
             offline: true,
             restarts: 0,
-        }));
+        }),
+    );
     match peer.seal(block, write).await.expect("the seal is kept") {
         Sealed::Sealed(commit) => commit,
         Sealed::Unchanged(_) => panic!("the content changed"),
@@ -68,7 +69,10 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
         let sealed = seal(&peer, block, parent, "sealed", 3).await;
         let (journal, kept, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, false, Some(sealed));
-        assert_eq!(load_at, parent, "it loads on the commit the seal was made on");
+        assert_eq!(
+            load_at, parent,
+            "it loads on the commit the seal was made on"
+        );
         assert_eq!(
             sealed_head.map(|head| (head.commit, head.through)),
             Some((sealed, 3))
@@ -87,13 +91,20 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
         );
 
         // A journal with no entries through the seal holds nothing of it.
-        let past = JournalBase { sequence: 4, ..base };
+        let past = JournalBase {
+            sequence: 4,
+            ..base
+        };
         peer.rebase_journal(block, 0, tag(), past, false, false)
             .await
             .expect("the journal starts past what it numbered");
         let empty = seal(&peer, block, parent, "empty", 5).await;
         let (_, _, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, false, Some(empty));
-        assert_eq!((load_at, sealed_head), (Some(empty), None), "the base alone");
+        assert_eq!(
+            (load_at, sealed_head),
+            (Some(empty), None),
+            "the base alone"
+        );
     });
 }

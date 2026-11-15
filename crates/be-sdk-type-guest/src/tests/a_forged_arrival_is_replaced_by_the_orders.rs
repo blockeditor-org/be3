@@ -11,10 +11,14 @@ fn a_forged_arrival_is_replaced_by_the_orders() {
         sim.open(device);
         sim.attach(device, 1, true);
     }
-    sim.operate(1, 1, Note {
-        stamp: Some(1),
-        padding: Vec::new(),
-    });
+    sim.operate(
+        1,
+        1,
+        Note {
+            stamp: Some(1),
+            padding: Vec::new(),
+        },
+    );
     sim.settle();
     assert_eq!(
         sim.errors
@@ -49,6 +53,10 @@ fn a_forged_arrival_is_replaced_by_the_orders() {
         .encode(),
     );
     for device in 0..2 {
-        assert_eq!(entries(&mut sim, device), vec![Some(now)], "device {device}");
+        assert_eq!(
+            entries(&mut sim, device),
+            vec![Some(now)],
+            "device {device}"
+        );
     }
 }

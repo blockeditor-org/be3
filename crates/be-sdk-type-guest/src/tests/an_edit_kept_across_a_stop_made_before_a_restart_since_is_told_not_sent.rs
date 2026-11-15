@@ -49,7 +49,11 @@ fn an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent() {
     sim.send_from_editor(1, 1, kept);
     sim.settle();
     sim.follow_lacking(1, 1);
-    assert_eq!(prose(&sim.content(1)), "start\n", "the kept edit was not applied");
+    assert_eq!(
+        prose(&sim.content(1)),
+        "start\n",
+        "the kept edit was not applied"
+    );
     assert_eq!(sim.lacking(1, 1), 1, "its editor is told it was not sent");
     assert!(
         sim.errors

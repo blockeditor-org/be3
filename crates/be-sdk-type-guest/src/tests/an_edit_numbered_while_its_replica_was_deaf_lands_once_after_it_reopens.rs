@@ -36,7 +36,11 @@ fn an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens() {
     sim.settle();
     sim.advance(crate::QUIET_INTERVAL);
     for device in 0..2 {
-        assert_eq!(texts(&sim.content(device)), ["start", "mine"], "device {device}");
+        assert_eq!(
+            texts(&sim.content(device)),
+            ["start", "mine"],
+            "device {device}"
+        );
     }
     assert_eq!(texts(sim.mirror(1, 1)), ["start", "mine"]);
     assert_eq!(texts(&sim.head_content()), ["start", "mine"]);

@@ -2199,19 +2199,17 @@ impl<S: ObjectStore> Peer<S> {
         let id = self.commits.put(key, &commit)?;
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
         self.commits.vault().store().sync()?;
-        self.refs.push_publish(
-            Pending {
-                block,
-                commit: id,
-                expected,
-                parents,
-                chunks,
-                time,
-                pinned,
-                references: listed.clone(),
-                metadata: sealed.clone(),
-            },
-        )?;
+        self.refs.push_publish(Pending {
+            block,
+            commit: id,
+            expected,
+            parents,
+            chunks,
+            time,
+            pinned,
+            references: listed.clone(),
+            metadata: sealed.clone(),
+        })?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)
         {
