@@ -1223,16 +1223,29 @@ fn LoadSliders() -> NodeId {
 #[sample]
 #[component]
 fn SlowGreeting() -> NodeId {
-    let answer = create_source::<String>();
-    let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
-    let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
-    let fallback = |pending: Pending| match pending {
-        Pending::Loading => view! {
-            <Progress width=PROGRESS_WIDTH label="Waiting" />
-        },
-        Pending::Failed(error) => view! {
+    let server = Server::default();
+    let greeting = create_async_memo({
+        let server = server.clone();
+        move || server.ask()
+    });
+    let arrive = {
+        let server = server.clone();
+        move || server.answer(Ok("Hello, the data is here".to_owned()))
+    };
+    let fail = move || server.answer(Err("The server said no".to_owned()));
+    let waiting = |_: Pending| view! {
+        <Progress width=PROGRESS_WIDTH label="Waiting" />
+    };
+    let failed = |(error, errored): (String, ErrorBoundary)| view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION>{error}</Text>
-        },
+            <Button
+                label="Retry"
+                variant=ButtonVariant::Secondary
+                on_click={move || errored.reset()}
+                @test_id="demo.loading.retry"
+            />
+        </List>
     };
     view! {
         <List spacing=SECTION_SPACING>
@@ -1243,15 +1256,59 @@ fn SlowGreeting() -> NodeId {
                     on_click={arrive}
                     @test_id="demo.loading.arrive"
                 />
-                <Button label="Fail" variant=ButtonVariant::Secondary on_click={fail} />
+                <Button
+                    label="Fail"
+                    variant=ButtonVariant::Secondary
+                    on_click={fail}
+                    @test_id="demo.loading.fail"
+                />
             </List>
-            <Loading fallback>|| {
-                let greeting = create_memo(move || answer.get());
+            <Errored fallback={failed}>|| {
                 view! {
-                    <Text @test_id="demo.loading.content">{greeting}</Text>
+                    <Loading fallback={waiting}>|| {
+                        let shown = create_memo(move || greeting.get());
+                        view! {
+                            <Text @test_id="demo.loading.content">{shown}</Text>
+                        }
+                    }</Loading>
                 }
-            }</Loading>
+            }</Errored>
         </List>
+    }
+}
+
+/// Stands in for a server for `SlowGreeting`: each question waits until a button answers it.
+#[derive(Clone, Default)]
+struct Server(Rc<std::cell::RefCell<Asked>>);
+
+#[derive(Default)]
+struct Asked {
+    answer: Option<Result<String, String>>,
+    waker: Option<std::task::Waker>,
+}
+
+impl Server {
+    fn ask(&self) -> impl std::future::Future<Output = Ready<String>> + use<> {
+        *self.0.borrow_mut() = Asked::default();
+        let asked = Rc::clone(&self.0);
+        std::future::poll_fn(move |context| {
+            let mut asked = asked.borrow_mut();
+            match asked.answer.take() {
+                Some(answer) => std::task::Poll::Ready(answer.map_err(Pending::Failed)),
+                None => {
+                    asked.waker = Some(context.waker().clone());
+                    std::task::Poll::Pending
+                }
+            }
+        })
+    }
+
+    fn answer(&self, answer: Result<String, String>) {
+        let mut asked = self.0.borrow_mut();
+        asked.answer = Some(answer);
+        if let Some(waker) = asked.waker.take() {
+            waker.wake();
+        }
     }
 }
 

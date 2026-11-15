@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::future::Future;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -16,27 +16,53 @@ use crate::trigger::{Trigger, create_trigger};
 /// A future the host's executor runs for an async memo.
 pub type LocalFuture = Pin<Box<dyn Future<Output = ()>>>;
 
+/// Hands a future to an executor, or back if that executor is gone.
+type Spawner = dyn Fn(LocalFuture) -> Result<(), LocalFuture>;
+
 thread_local! {
-    static SPAWNER: RefCell<Option<Rc<dyn Fn(LocalFuture)>>> = const { RefCell::new(None) };
+    static SPAWNER: RefCell<Option<Rc<Spawner>>> = const { RefCell::new(None) };
+    /// Futures spawned while no spawner could take them, handed to the next installed.
+    static UNSPAWNED: RefCell<Vec<LocalFuture>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Installs what runs the futures of async memos on this thread, as `wake_with` installs the
 /// waker: beui-reactive has no executor of its own. The host's app framework installs one
 /// (be-sdk-beui runs them on be-sdk's executor). A future it is handed may finish without
 /// being polled again once its memo drops it: cancelling is done here, not by the executor.
-pub fn spawn_with(spawn: impl Fn(LocalFuture) + 'static) {
+/// `spawn` hands a future back once its executor is gone (a program's runner that stopped),
+/// and futures spawned while no spawner takes them wait for the next one installed.
+pub fn spawn_with(spawn: impl Fn(LocalFuture) -> Result<(), LocalFuture> + 'static) {
     SPAWNER.with(|spawner| spawner.replace(Some(Rc::new(spawn))));
+    for future in UNSPAWNED.with(|unspawned| std::mem::take(&mut *unspawned.borrow_mut())) {
+        hand_over(future);
+    }
+}
+
+fn hand_over(future: LocalFuture) {
+    let spawner = SPAWNER.with(|spawner| spawner.borrow().clone());
+    let unspawned = match spawner {
+        Some(spawner) => spawner(future).err(),
+        None => Some(future),
+    };
+    if let Some(future) = unspawned {
+        UNSPAWNED.with(|unspawned| unspawned.borrow_mut().push(future));
+    }
 }
 
 /// A future its async memo can drop before it finishes.
 struct Running {
     future: RefCell<Option<LocalFuture>>,
     waker: RefCell<Option<Waker>>,
+    /// Cancelled while it was being polled: the poll drops it once it returns.
+    cancelled: Cell<bool>,
 }
 
 impl Running {
     fn cancel(&self) {
-        drop(self.future.borrow_mut().take());
+        self.cancelled.set(true);
+        if let Ok(mut future) = self.future.try_borrow_mut() {
+            drop(future.take());
+        }
         if let Some(waker) = self.waker.borrow_mut().take() {
             waker.wake();
         }
@@ -47,18 +73,20 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
     let running = Rc::new(Running {
         future: RefCell::new(Some(Box::pin(future))),
         waker: RefCell::new(None),
+        cancelled: Cell::new(false),
     });
     let polled = Rc::clone(&running);
-    let spawner = SPAWNER
-        .with(|spawner| spawner.borrow().clone())
-        .expect("an async memo needs a spawner: the host installs one with `spawn_with`");
-    spawner(Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+    hand_over(Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
         let mut held = polled.future.borrow_mut();
         let Some(future) = held.as_mut() else {
             return Poll::Ready(());
         };
         match future.as_mut().poll(context) {
             Poll::Ready(()) => {
+                *held = None;
+                Poll::Ready(())
+            }
+            Poll::Pending if polled.cancelled.get() => {
                 *held = None;
                 Poll::Ready(())
             }
@@ -142,7 +170,7 @@ where
         pending,
         rerun,
     };
-    ErrorBoundary::hold_refresh(std::rc::Rc::new(move || memo.refresh()));
+    value.with_node(|node| ErrorBoundary::hold_refresh(node, std::rc::Rc::new(move || memo.refresh())));
     memo
 }
 

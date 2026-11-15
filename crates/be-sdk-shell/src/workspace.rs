@@ -752,12 +752,11 @@ impl Workspace {
         self.ready.set(true);
     }
 
-    /// Called inside the shell's `Loaded`, makes it wait until the session's view block is
-    /// read, so the layout is back before the shell first shows: the `Workspace` itself is made
-    /// outside the boundary, so its own reads of the view state hold nothing. The read here,
-    /// untracked so a later save rebuilds nothing, registers with the boundary while the view
-    /// block is loading.
-    pub fn wait_for_layout(&self) {
+    /// Reads the saved layout where the shell's `Loaded` sees it, holding that boundary until
+    /// the session's view block is read, so the layout is back before the shell first shows.
+    /// The `Workspace` is made outside the boundary, so its own reads hold nothing. Untracked,
+    /// so a later save rebuilds nothing.
+    pub fn hold_for_saved_layout(&self) {
         let _ = self.editor.view_state::<SavedLayout>().get_untracked();
     }
 
