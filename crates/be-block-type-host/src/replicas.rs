@@ -30,7 +30,7 @@ use crate::{
     modules::{self as types, Heard, Modules},
 };
 
-pub const HOST_EDITOR: EditorId = u64::MAX;
+pub use be_sdk_type_api::HOST_EDITOR;
 
 pub const OFFLINE_CLIENT: ClientId = 0;
 

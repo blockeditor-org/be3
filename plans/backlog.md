@@ -170,18 +170,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   and a host test at phone size that opens a document from the files and
   shows each frame between.
 
-## 17. Undo
-
-- **The host's own setup is undoable.** be-host makes a new organization's
-  settings profile and session view through `be_host_stack::operate`, the path a
-  person's own settings changes take, so those edits are this device's to undo.
-  On a server they are cleared from undo by the rejoin as the device connects; a
-  local account never rejoins, so its settings show Undo enabled from the start
-  (the paintings of `a_settings_page_and_the_settings_list_show_the_same_block_side_by_side`
-  and others). Done: the host's setup edits are not undoable, shown by a host
-  test where a new local account's settings offer no Undo.
-
-## 18. Keys
+## 17. Keys
 
 - **Commits sealed before a rotation.** A commit made offline is sealed under
   the key the device held when it wrote it. If the block's keys rotate

@@ -549,7 +549,9 @@ of the parent (`Shared::log_dropped`), which a host test's failure shows in the 
 ## Undo
 
 Undo lives in the block's replica, the one place that sees every edit from this
-device, whichever editor made it. A type registered with `undo` keeps
+device, whichever editor made it. The host's own edits (`be_host_stack::operate`, which it
+makes as `HOST_EDITOR`, setting up a new organization's settings say) are no one's to
+undo: the replica keeps no step of them. A type registered with `undo` keeps
 `be_block_content::history::History` (`HISTORY_STEPS` deep): steps sent within 750 ms
 of the last, by the frame-clock time each relayed frame is stamped with, may
 absorb into one, and `be_host_stack::undo`/`redo` send `Change::Undo`/`Redo`.

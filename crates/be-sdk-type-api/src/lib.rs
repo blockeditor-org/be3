@@ -34,6 +34,10 @@ pub use types::*;
 
 pub type ReplicaId = OpId;
 
+/// The editor the host acts as for edits of its own (setting up a new organization's settings,
+/// say): not a person's editing, so a replica keeps none of them in its undo history.
+pub const HOST_EDITOR: EditorId = u64::MAX;
+
 impl From<be_block_store::PartRef> for PartRef {
     fn from(part: be_block_store::PartRef) -> Self {
         let node = |node: be_block_store::NodeRef| NodeRef {
