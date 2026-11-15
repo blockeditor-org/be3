@@ -24,7 +24,7 @@ use std::{
     ops::{Deref, DerefMut},
     sync::{
         Arc, PoisonError,
-        atomic::{AtomicPtr, Ordering},
+        atomic::{AtomicPtr, AtomicUsize, Ordering},
     },
 };
 
@@ -859,9 +859,22 @@ const CHECK_EVERY: u64 = 64;
 
 /// The updates the worker handed over and the page has not taken, in bytes, as they will travel
 /// to a page whose memory the worker does not share: a lock-free stack the worker pushes each
-/// onto and the page takes all of at once, so neither ever waits on the other.
+/// onto and the page takes all of at once, so neither ever waits on the other. A page that runs
+/// no frames (a hidden tab) takes nothing, so past `HELD_UPDATES` updates or `HELD_BYTES` bytes
+/// the worker puts its whole `Seen` in their place in one swap (`publish`, `replace`): a whole
+/// `Seen` is a valid next update whatever the page took.
 #[derive(Default)]
-pub(crate) struct Handover(AtomicPtr<Link>);
+pub(crate) struct Handover {
+    head: AtomicPtr<Link>,
+    /// How many updates, and how many bytes of them, were put since the last take.
+    held: AtomicUsize,
+    held_bytes: AtomicUsize,
+}
+
+/// How many updates the handover holds before the worker gathers them into one (`Handover`).
+const HELD_UPDATES: usize = 64;
+/// How many bytes of updates the handover holds before the worker gathers them into one.
+const HELD_BYTES: usize = 4 << 20;
 
 struct Link {
     bytes: Vec<u8>,
@@ -870,18 +883,20 @@ struct Link {
 
 impl Handover {
     pub(crate) fn put(&self, bytes: Vec<u8>) {
+        self.held.fetch_add(1, Ordering::AcqRel);
+        self.held_bytes.fetch_add(bytes.len(), Ordering::AcqRel);
         let link = Box::into_raw(Box::new(Link {
             bytes,
             next: std::ptr::null_mut(),
         }));
-        let mut head = self.0.load(Ordering::Acquire);
+        let mut head = self.head.load(Ordering::Acquire);
         loop {
             // `link` came from `Box::into_raw` above and is not in the stack yet, so only this
             // thread reaches it.
             // unsafe(memory)
             unsafe { (*link).next = head };
             match self
-                .0
+                .head
                 .compare_exchange_weak(head, link, Ordering::AcqRel, Ordering::Acquire)
             {
                 Ok(_) => return,
@@ -890,9 +905,51 @@ impl Handover {
         }
     }
 
+    /// Puts `bytes`, a whole `Seen`, in place of every update the page has not taken, in one
+    /// swap: the page takes either those or this, never neither. Only one thread puts at a time
+    /// (`publish` holds the lock on `Shared`), so no put lands in between.
+    fn replace(&self, bytes: Vec<u8>) {
+        self.held.store(1, Ordering::Release);
+        self.held_bytes.store(bytes.len(), Ordering::Release);
+        let link = Box::into_raw(Box::new(Link {
+            bytes,
+            next: std::ptr::null_mut(),
+        }));
+        let mut old = self.head.swap(link, Ordering::AcqRel);
+        while !old.is_null() {
+            // As in `take`: each link came from `Box::into_raw` in `put`, and the swap took the
+            // whole stack out, so nothing else reaches it.
+            // unsafe(memory)
+            let held = unsafe { Box::from_raw(old) };
+            old = held.next;
+        }
+    }
+
+    /// Whether the updates not taken are past what the handover holds (`HELD_UPDATES`).
+    fn crowded(&self) -> bool {
+        self.held.load(Ordering::Acquire) >= HELD_UPDATES
+            || self.held_bytes.load(Ordering::Acquire) >= HELD_BYTES
+    }
+
+    /// How many updates the handover holds, for a test.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        let mut link = self.head.load(Ordering::Acquire);
+        let mut held = 0;
+        while !link.is_null() {
+            held += 1;
+            // Only the test's thread takes while it counts, so no link goes meanwhile.
+            // unsafe(memory)
+            link = unsafe { (*link).next };
+        }
+        held
+    }
+
     /// The updates handed over since the last take, oldest first.
     pub(crate) fn take(&self) -> Vec<Vec<u8>> {
-        let mut link = self.0.swap(std::ptr::null_mut(), Ordering::AcqRel);
+        let mut link = self.head.swap(std::ptr::null_mut(), Ordering::AcqRel);
+        self.held.store(0, Ordering::Release);
+        self.held_bytes.store(0, Ordering::Release);
         let mut taken = Vec::new();
         while !link.is_null() {
             // Each link came from `Box::into_raw` in `put`, and the swap took the whole stack out,
@@ -918,8 +975,12 @@ impl Drop for Handover {
 /// so updates land in the order the state they copy changed.
 pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
     shared.refresh_seen();
+    // The page has not taken what the handover holds: the worker hands over the whole `Seen` in
+    // its place.
+    let crowded = handover.crowded();
     let update = match &shared.handed {
         None => Update::Whole(shared.seen.clone()),
+        Some(_) if crowded => Update::Whole(shared.seen.clone()),
         Some(last) => match crate::diff::Diff::diff(last, &shared.seen) {
             Some(delta) => Update::Changed(delta),
             None => return,
@@ -936,7 +997,11 @@ pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
         #[cfg(debug_assertions)]
         check,
     };
-    handover.put(postcard::to_stdvec(&handed).expect("an update encodes"));
+    let bytes = postcard::to_stdvec(&handed).expect("an update encodes");
+    match crowded {
+        true => handover.replace(bytes),
+        false => handover.put(bytes),
+    }
     shared.handed = Some(shared.seen.clone());
 }
 

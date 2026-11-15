@@ -213,96 +213,171 @@ impl Diff for Graph {
     type Delta = GraphDelta;
 
     fn diff(old: &Self, new: &Self) -> Option<GraphDelta> {
+        // Every field named, so a new one fails to compile until it is placed in the delta or
+        // left with the worker.
+        let Graph {
+            revision,
+            nodes,
+            wants,
+            listings,
+            unlisted,
+            heard,
+            floor,
+            pending,
+            unpublished,
+            nodes_moved: _,
+            #[cfg(test)]
+                copied_on_write: _,
+            derived,
+            referenced,
+            reported,
+            placing,
+            placed_recently: _,
+            dropped: _,
+            unlisted_held: _,
+        } = new;
         let delta = GraphDelta {
-            revision: changed(&old.revision, &new.revision),
-            nodes: Diff::diff(&old.nodes, &new.nodes),
-            wants: changed(&old.wants, &new.wants),
-            listings: Diff::diff(&old.listings, &new.listings),
-            unlisted: changed(&old.unlisted, &new.unlisted),
-            heard: Diff::diff(&old.heard, &new.heard),
-            floor: changed(&old.floor, &new.floor),
-            pending: Diff::diff(&old.pending, &new.pending),
-            unpublished: Diff::diff(&old.unpublished, &new.unpublished),
-            derived: Diff::diff(&old.derived, &new.derived),
-            referenced: Diff::diff(&old.referenced, &new.referenced),
-            reported: Diff::diff(&old.reported, &new.reported),
-            placing: changed(&old.placing, &new.placing),
+            revision: changed(&old.revision, revision),
+            nodes: Diff::diff(&old.nodes, nodes),
+            wants: changed(&old.wants, wants),
+            listings: Diff::diff(&old.listings, listings),
+            unlisted: changed(&old.unlisted, unlisted),
+            heard: Diff::diff(&old.heard, heard),
+            floor: changed(&old.floor, floor),
+            pending: Diff::diff(&old.pending, pending),
+            unpublished: Diff::diff(&old.unpublished, unpublished),
+            derived: Diff::diff(&old.derived, derived),
+            referenced: Diff::diff(&old.referenced, referenced),
+            reported: Diff::diff(&old.reported, reported),
+            placing: changed(&old.placing, placing),
         };
-        let changed = delta.revision.is_some()
-            || delta.nodes.is_some()
-            || delta.wants.is_some()
-            || delta.listings.is_some()
-            || delta.unlisted.is_some()
-            || delta.heard.is_some()
-            || delta.floor.is_some()
-            || delta.pending.is_some()
-            || delta.unpublished.is_some()
-            || delta.derived.is_some()
-            || delta.referenced.is_some()
-            || delta.reported.is_some()
-            || delta.placing.is_some();
+        let GraphDelta {
+            revision,
+            nodes,
+            wants,
+            listings,
+            unlisted,
+            heard,
+            floor,
+            pending,
+            unpublished,
+            derived,
+            referenced,
+            reported,
+            placing,
+        } = &delta;
+        let changed = revision.is_some()
+            || nodes.is_some()
+            || wants.is_some()
+            || listings.is_some()
+            || unlisted.is_some()
+            || heard.is_some()
+            || floor.is_some()
+            || pending.is_some()
+            || unpublished.is_some()
+            || derived.is_some()
+            || referenced.is_some()
+            || reported.is_some()
+            || placing.is_some();
         changed.then_some(delta)
     }
 
     fn apply(&mut self, delta: GraphDelta) {
-        if let Some(revision) = delta.revision {
+        let GraphDelta {
+            revision,
+            nodes,
+            wants,
+            listings,
+            unlisted,
+            heard,
+            floor,
+            pending,
+            unpublished,
+            derived,
+            referenced,
+            reported,
+            placing,
+        } = delta;
+        if let Some(revision) = revision {
             self.revision = revision;
         }
-        if let Some(nodes) = delta.nodes {
+        if let Some(nodes) = nodes {
             self.nodes.apply(nodes);
         }
-        if let Some(wants) = delta.wants {
+        if let Some(wants) = wants {
             self.wants = wants;
         }
-        if let Some(listings) = delta.listings {
+        if let Some(listings) = listings {
             self.listings.apply(listings);
         }
-        if let Some(unlisted) = delta.unlisted {
+        if let Some(unlisted) = unlisted {
             self.unlisted = unlisted;
         }
-        if let Some(heard) = delta.heard {
+        if let Some(heard) = heard {
             self.heard.apply(heard);
         }
-        if let Some(floor) = delta.floor {
+        if let Some(floor) = floor {
             self.floor = floor;
         }
-        if let Some(pending) = delta.pending {
+        if let Some(pending) = pending {
             self.pending.apply(pending);
         }
-        if let Some(unpublished) = delta.unpublished {
+        if let Some(unpublished) = unpublished {
             self.unpublished.apply(unpublished);
         }
-        if let Some(derived) = delta.derived {
+        if let Some(derived) = derived {
             self.derived.apply(derived);
         }
-        if let Some(referenced) = delta.referenced {
+        if let Some(referenced) = referenced {
             self.referenced.apply(referenced);
         }
-        if let Some(reported) = delta.reported {
+        if let Some(reported) = reported {
             self.reported.apply(reported);
         }
-        if let Some(placing) = delta.placing {
+        if let Some(placing) = placing {
             self.placing = placing;
         }
     }
 }
 
-/// Equal in what the page reads of it (`GraphDelta`).
+/// Equal in what the page reads of it (`GraphDelta`), which the debug check of the updates
+/// compares (`seen::Handed::check`).
 impl PartialEq for Graph {
     fn eq(&self, other: &Self) -> bool {
-        self.revision == other.revision
-            && self.nodes == other.nodes
-            && self.wants == other.wants
-            && self.listings == other.listings
-            && self.unlisted == other.unlisted
-            && self.heard == other.heard
-            && self.floor == other.floor
-            && self.pending == other.pending
-            && self.unpublished == other.unpublished
-            && self.derived == other.derived
-            && self.referenced == other.referenced
-            && self.reported == other.reported
-            && self.placing == other.placing
+        let Graph {
+            revision,
+            nodes,
+            wants,
+            listings,
+            unlisted,
+            heard,
+            floor,
+            pending,
+            unpublished,
+            nodes_moved: _,
+            #[cfg(test)]
+                copied_on_write: _,
+            derived,
+            referenced,
+            reported,
+            placing,
+            placed_recently: _,
+            dropped: _,
+            unlisted_held: _,
+        } = self;
+        *revision == other.revision
+            && *nodes == other.nodes
+            && *wants == other.wants
+            && *listings == other.listings
+            && *unlisted == other.unlisted
+            && *heard == other.heard
+            && *floor == other.floor
+            && *pending == other.pending
+            && *unpublished == other.unpublished
+            && *derived == other.derived
+            && *referenced == other.referenced
+            && *reported == other.reported
+            && *placing == other.placing
     }
 }
 

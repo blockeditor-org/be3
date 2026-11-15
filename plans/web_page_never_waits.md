@@ -73,6 +73,11 @@ a thread that runs beside it.
    then applies the messages once, at the start of a frame (be-host's frame and each app
    runtime's), rather than taking the newest `Seen` on every read as it does now, so every
    read in a frame reads one snapshot.
+   An update sends whole what is not a persistent map, and a map's changed entry whole: an open
+   block's `Content` on each of its edits, the outbox and the owing lists on each change, and
+   an editor's queued frames. Send content as its edit (the block's own operations or a byte
+   delta), or keep a value's `Arc` identity across updates so one the worker did not replace
+   is never sent again.
    `Seen` holds three stand-ins for what it carries of the worker's, kept apart only while
    another change (#686) rewrites the files they come from: `Owed` for be-block-type-host
    `replicas.rs`'s `Owing`, `Unsent` for be-block-client `refs.rs`'s `UnsentBlock`, and
