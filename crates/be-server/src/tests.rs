@@ -762,7 +762,10 @@ impl TestClient {
                 )
             })
             .await;
-        assert!(response.is_ok(), "setting the recovery key failed: {response:?}");
+        assert!(
+            response.is_ok(),
+            "setting the recovery key failed: {response:?}"
+        );
         account
     }
 
@@ -775,11 +778,13 @@ impl TestClient {
             be_block_keys::LogKind::Block,
             block.into_bytes(),
         )
-            .encode()
+        .encode()
     }
 
     async fn organization(&mut self, name: &str) -> Uuid {
-        let account = self.account.expect("a client makes an organization once signed in");
+        let account = self
+            .account
+            .expect("a client makes an organization once signed in");
         let response = self
             .call(|peer| {
                 let (id, root) = organization_root(account);

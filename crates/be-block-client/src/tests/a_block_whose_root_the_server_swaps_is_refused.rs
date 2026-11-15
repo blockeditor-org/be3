@@ -48,7 +48,11 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         .execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
              VALUES (?1, ?2, ?3, 'data', 9, 0)",
-            rusqlite::params![organization.to_string(), relabelled.to_string(), team.to_string()],
+            rusqlite::params![
+                organization.to_string(),
+                relabelled.to_string(),
+                team.to_string()
+            ],
         )
         .unwrap();
     database
@@ -113,7 +117,11 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         .execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
              VALUES (?1, ?2, ?3, 'data', 8, 0)",
-            rusqlite::params![organization.to_string(), other.to_string(), note.to_string()],
+            rusqlite::params![
+                organization.to_string(),
+                other.to_string(),
+                note.to_string()
+            ],
         )
         .unwrap();
     database

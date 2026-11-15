@@ -33,13 +33,11 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
             "owner@example.com",
         )
         .seal_own(&phrase.secret()),
-        owner
-            .peer()
-            .keys()
-            .escrow()
-            .map_or_else(Vec::new, |escrow| {
-                be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-            }),
+        be_block_client::contacts::seal_pin(
+            &phrase.secret(),
+            organization,
+            &owner.peer().keys().pins(),
+        ),
         None,
     ))
     .await

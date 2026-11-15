@@ -490,8 +490,10 @@ impl ServerStore {
 
     /// The organization's access log, root first (`get-organization-log`).
     pub async fn organization_log(&self, organization: Uuid) -> Result<Vec<Vec<u8>>, ServerError> {
-        self.with_database(move |_, database| crate::access::organization_log(&database, organization))
-            .await
+        self.with_database(move |_, database| {
+            crate::access::organization_log(&database, organization)
+        })
+        .await
     }
 
     pub async fn personal_organization(&self) -> Result<Uuid, ServerError> {

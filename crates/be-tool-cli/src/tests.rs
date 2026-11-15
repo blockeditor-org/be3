@@ -140,9 +140,11 @@ async fn agent(
                 "owner@example.com",
             )
             .seal_own(&phrase.secret()),
-            peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-                be_block_client::contacts::seal_pin(&phrase.secret(), organization, &escrow)
-            }),
+            be_block_client::contacts::seal_pin(
+                &phrase.secret(),
+                organization,
+                &peer.keys().pins(),
+            ),
             bound_to,
         ))
         .await

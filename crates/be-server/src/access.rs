@@ -13,7 +13,10 @@ fn refused(message: &str) -> ServerError {
 }
 
 /// `account`'s keys as the server holds them.
-fn identity_of(connection: &Connection, account: Uuid) -> Result<Option<PublicIdentity>, ServerError> {
+fn identity_of(
+    connection: &Connection,
+    account: Uuid,
+) -> Result<Option<PublicIdentity>, ServerError> {
     let row = connection
         .prepare_cached("SELECT public, signing FROM recovery_keys WHERE account_id = ?1")?
         .query_row([account.to_string()], |row| {
@@ -82,13 +85,13 @@ pub(crate) fn log_of(
          ORDER BY position",
     )?;
     let entries = statement
-        .query_map(params![organization.to_string(), block.to_string()], |row| {
-            row.get::<_, Vec<u8>>(0)
-        })?
+        .query_map(
+            params![organization.to_string(), block.to_string()],
+            |row| row.get::<_, Vec<u8>>(0),
+        )?
         .collect::<Result<_, _>>()?;
     Ok(entries)
 }
-
 
 /// Stores `root` as the first entry of a new company organization's log, once it checks
 /// (`checked_root`).
@@ -98,7 +101,13 @@ pub(crate) fn store_organization_root(
     organization: Uuid,
     root: &[u8],
 ) -> Result<(), ServerError> {
-    let entry = checked_root(connection, account, LogKind::Organization, organization, root)?;
+    let entry = checked_root(
+        connection,
+        account,
+        LogKind::Organization,
+        organization,
+        root,
+    )?;
     connection.execute(
         "INSERT INTO organization_log (organization_id, position, entry) VALUES (?1, 0, ?2)",
         params![organization.to_string(), entry.encode()],
@@ -115,7 +124,9 @@ pub(crate) fn organization_log(
         "SELECT entry FROM organization_log WHERE organization_id = ?1 ORDER BY position",
     )?;
     let entries = statement
-        .query_map(params![organization.to_string()], |row| row.get::<_, Vec<u8>>(0))?
+        .query_map(params![organization.to_string()], |row| {
+            row.get::<_, Vec<u8>>(0)
+        })?
         .collect::<Result<_, _>>()?;
     Ok(entries)
 }

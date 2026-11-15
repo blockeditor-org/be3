@@ -144,7 +144,10 @@ pub enum ClientError {
     /// this device pinned (plans/signed_access.md).
     Forged(uuid::Uuid),
     Unexpected,
-    Incompatible { ours: String, theirs: String },
+    Incompatible {
+        ours: String,
+        theirs: String,
+    },
     NoBuild(String),
 }
 
@@ -172,9 +175,9 @@ impl fmt::Display for ClientError {
             Self::Locked(_) => formatter.write_str(
                 "this block is locked: its key has not been shared with this account yet",
             ),
-            Self::Forged(_) => formatter.write_str(
-                "the server served access records its members did not sign",
-            ),
+            Self::Forged(_) => {
+                formatter.write_str("the server served access records its members did not sign")
+            }
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(
                 formatter,

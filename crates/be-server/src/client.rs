@@ -1235,7 +1235,10 @@ impl Client {
                 let log = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.organization_log(identity.organization).await
+                    connection
+                        .store
+                        .organization_log(identity.organization)
+                        .await
                 }
                 .await;
                 self.reply(reply, log);

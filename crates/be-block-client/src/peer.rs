@@ -647,7 +647,10 @@ impl<S: ObjectStore> Peer<S> {
     /// account pinned (`KeyBook::organization_root`): from making the organization or the
     /// invitation it joined by. The personal organization has none.
     pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Entry>, ClientError> {
-        let served = crate::ask(client::organizations::get_organization_log(&self.connection())).await?;
+        let served = crate::ask(client::organizations::get_organization_log(
+            &self.connection(),
+        ))
+        .await?;
         let organization = self.organization;
         let Some(pinned) = self.keys.organization_root() else {
             return match served.is_empty() {
@@ -655,7 +658,12 @@ impl<S: ObjectStore> Peer<S> {
                 false => Err(ClientError::Locked(organization)),
             };
         };
-        checked_log(be_block_keys::LogKind::Organization, organization, pinned, &served)
+        checked_log(
+            be_block_keys::LogKind::Organization,
+            organization,
+            pinned,
+            &served,
+        )
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {

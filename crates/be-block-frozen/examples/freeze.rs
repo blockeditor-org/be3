@@ -363,7 +363,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner.keys().identity(),
         &owner_card,
         organization,
-        owner.keys().escrow().as_ref(),
+        &owner.keys().pins(),
     )
     .await
     .map_err(text)?;
@@ -404,7 +404,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner.keys().identity(),
         &owner_card,
         organization,
-        owner.keys().escrow().as_ref(),
+        &owner.keys().pins(),
     )
     .await
     .map_err(text)?;
@@ -421,9 +421,11 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         agent_public.0,
         agent_phrase.secret().signing().0,
         owner_card.seal_own(&agent_phrase.secret()),
-        owner.keys().escrow().map_or_else(Vec::new, |escrow| {
-            be_block_client::contacts::seal_pin(&agent_phrase.secret(), organization, &escrow)
-        }),
+        be_block_client::contacts::seal_pin(
+            &agent_phrase.secret(),
+            organization,
+            &owner.keys().pins(),
+        ),
         None,
     ))
     .await?;

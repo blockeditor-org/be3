@@ -118,7 +118,9 @@ pub async fn register_identity(
     connection: &Arc<Connection>,
     identity: &RecoverySecret,
 ) -> Result<(), ClientError> {
-    let public = crate::ask(client::keys::get_recovery_key(connection)).await?.public;
+    let public = crate::ask(client::keys::get_recovery_key(connection))
+        .await?
+        .public;
     if public.is_some() {
         return Ok(());
     }

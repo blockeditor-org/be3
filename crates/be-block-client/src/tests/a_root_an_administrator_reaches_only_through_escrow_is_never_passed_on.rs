@@ -37,7 +37,11 @@ async fn a_root_an_administrator_reaches_only_through_escrow_is_never_passed_on(
         .execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
              VALUES (?1, ?2, ?3, 'scope', 9, 0)",
-            rusqlite::params![organization.to_string(), planted.to_string(), team.to_string()],
+            rusqlite::params![
+                organization.to_string(),
+                planted.to_string(),
+                team.to_string()
+            ],
         )
         .unwrap();
     database

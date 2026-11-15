@@ -22,7 +22,12 @@ async fn an_organization_whose_root_the_server_swaps_is_refused() {
         "a member pins the root from the invitation"
     );
     assert_eq!(
-        harness.second(&member).await.organization_log().await.unwrap(),
+        harness
+            .second(&member)
+            .await
+            .organization_log()
+            .await
+            .unwrap(),
         made,
         "and keeps it on every device, sealed to itself"
     );

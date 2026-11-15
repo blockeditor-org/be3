@@ -27,7 +27,9 @@ async fn one_connection_carries_sign_in_and_account_requests() {
     keys(url.clone(), session.token.clone()).await.unwrap();
     let me = Me {
         account: session.account,
-        identity: be_block_keys::RecoveryPhrase::generate().secret().to_bytes(),
+        identity: be_block_keys::RecoveryPhrase::generate()
+            .secret()
+            .to_bytes(),
         display_name: "Local".to_owned(),
         email: String::new(),
     };

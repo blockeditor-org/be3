@@ -63,7 +63,12 @@ struct Signed<'a> {
     signer: [u8; 16],
 }
 
-fn signed(log: [u8; 16], previous: Option<EntryHash>, record: &Record, signer: [u8; 16]) -> Vec<u8> {
+fn signed(
+    log: [u8; 16],
+    previous: Option<EntryHash>,
+    record: &Record,
+    signer: [u8; 16],
+) -> Vec<u8> {
     let signed = Signed {
         log,
         previous,
@@ -183,7 +188,9 @@ impl CarriedKey {
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, KeyError> {
-        let (head, root) = bytes.split_at_checked(Self::BARE).ok_or(KeyError::Corrupt)?;
+        let (head, root) = bytes
+            .split_at_checked(Self::BARE)
+            .ok_or(KeyError::Corrupt)?;
         let (key, rest) = head.split_at(32);
         let (block, flag) = rest.split_at(16);
         let root = match (flag, root.len()) {
