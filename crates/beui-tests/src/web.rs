@@ -4,6 +4,7 @@ use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::Fixture;
 
+mod hosts;
 mod live;
 
 #[wasm_bindgen]

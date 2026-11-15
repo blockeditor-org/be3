@@ -524,8 +524,8 @@ fn InteractiveFixture() -> NodeId {
 }
 
 /// Control flow in slots that take one node, held by a host node: it is placed as its child
-/// would be (a share of a row, a grid span), and swaps while its child is focused, pressed or
-/// dragged.
+/// would be (a share of a row, a shrunk share, a grid span), and swaps while its child is
+/// pressed (and so captures the pointer and takes focus), dragged or hovered.
 #[component]
 fn HostFixture() -> NodeId {
     let swapped = create_signal(false);
@@ -534,51 +534,57 @@ fn HostFixture() -> NodeId {
         swapped.set(!swapped.get_untracked());
         swaps.set(swaps.get_untracked() + 1);
     };
+    let hovered = create_signal(false);
     let plain = view! {
         <Frame height=20.0 fill={BLUE} />
     };
     let hosted: NodeId = into_child(view! {
-        <Show
-            condition={swapped}
-            fallback={move || view! {
-                <Interactive
-                    @test_id="host.first"
-                    focusable=true
-                    on_key={move |press: KeyPress| {
-                        if press.pressed && press.key == Key::Enter {
-                            swap();
-                        }
-                        false
-                    }}
-                    on_press={move |_: beui::PointerPress| swap()}
-                >
-                    <Frame height=20.0 fill={GREEN} />
-                </Interactive>
-            }}
-        >
-            <Interactive @test_id="host.second" on_drag={move |_: beui::PointerPress| swap()}>
+        <Show condition={swapped} fallback={move || view! {
+            <Interactive
+                @test_id="host.first"
+                focusable=true
+                on_press={move |_: beui::PointerPress| swap()}
+            >
+                <Frame height=20.0 fill={GREEN} />
+            </Interactive>
+        }}>
+            <Interactive
+                @test_id="host.second"
+                on_drag={move |_: beui::PointerPress| swap()}
+            >
                 <Frame height=20.0 fill={AMBER} />
             </Interactive>
+        </Show>
+    });
+    let shrunk_plain = view! {
+        <Frame width=200.0 height=20.0 fill={BLUE} />
+    };
+    let shrunk_hosted: NodeId = into_child(view! {
+        <Show condition={swapped} fallback={|| view! { <Frame width=200.0 height=20.0 fill={GREEN} /> }}>
+            <Frame width=200.0 height=20.0 fill={AMBER} />
         </Show>
     });
     let cell_plain = view! {
         <Frame height=20.0 fill={BLUE} />
     };
     let cell_hosted: NodeId = into_child(view! {
-        <Show
-            condition={swapped}
-            fallback={|| view! {
+        <Show condition={hovered} fallback={move || view! {
+            <Interactive
+                @test_id="host.cell"
+                on_hover_change={move |over: bool| if over { hovered.set(true) }}
+            >
                 <Frame height=20.0 fill={GREEN} />
-            }}
-        >
-            <Frame height=20.0 fill={AMBER} />
+            </Interactive>
+        }}>
+            <Frame @test_id="host.hovered" height=20.0 fill={AMBER} />
         </Show>
     });
-    let rects = [plain, hosted, cell_plain, cell_hosted].map(measured_rect);
+    let rects = [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted].map(measured_rect);
     let report = create_memo(move || {
-        let [plain, hosted, cell_plain, cell_hosted] = rects.map(|rect| size(rect.get()));
+        let [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted] =
+            rects.map(|rect| size(rect.get()));
         format!(
-            "Row {plain} {hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
+            "Row {plain} {hosted} Shrunk {shrunk_plain} {shrunk_hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
             swaps.get()
         )
     });
@@ -588,6 +594,12 @@ fn HostFixture() -> NodeId {
                 <List direction=Direction::Horizontal spacing=10.0>
                     <ListItem grow=1.0>{plain}</ListItem>
                     <ListItem grow=2.0>{hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem shrink=1.0>{shrunk_plain}</ListItem>
+                    <ListItem shrink=1.0>{shrunk_hosted}</ListItem>
                 </List>
             </Frame>
             <Frame width=300.0>
