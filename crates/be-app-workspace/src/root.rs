@@ -19,8 +19,8 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
-    WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows, WindowDialog,
+    Workspace, WorkspaceDialogs,
 };
 use beui::{Align, Key};
 use uuid::Uuid;

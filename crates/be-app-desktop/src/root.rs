@@ -29,8 +29,7 @@ use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
-    BlockTab, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace,
-    WorkspaceDialogs,
+    BlockTab, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace, WorkspaceDialogs,
 };
 use uuid::Uuid;
 

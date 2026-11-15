@@ -294,4 +294,3 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
         />
     }
 }
-

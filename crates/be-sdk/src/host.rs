@@ -1917,21 +1917,23 @@ impl EditorHost {
     pub fn paste_blocks(&self, blocks: &[Uuid], parent: BlockParent) -> Asked<Vec<Pasted>> {
         let blocks = blocks.iter().map(|block| block.into_bytes()).collect();
         let host = self.clone();
-        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(move |pasted| {
-            pasted
-                .unwrap_or_else(|failure| {
-                    host.report_failure(format!("The blocks could not be pasted: {failure}"));
-                    Vec::new()
-                })
-                .into_iter()
-                .map(|pasted| Pasted {
-                    block: Uuid::from_bytes(pasted.block_id),
-                    block_type: Uuid::from_bytes(pasted.block_type),
-                    moved: pasted.moved,
-                    cut_from: pasted.cut_from.map(Uuid::from_bytes),
-                })
-                .collect()
-        })
+        Asked::of(self.ask(|| host_services::paste_blocks(blocks, parent.encode()))).map(
+            move |pasted| {
+                pasted
+                    .unwrap_or_else(|failure| {
+                        host.report_failure(format!("The blocks could not be pasted: {failure}"));
+                        Vec::new()
+                    })
+                    .into_iter()
+                    .map(|pasted| Pasted {
+                        block: Uuid::from_bytes(pasted.block_id),
+                        block_type: Uuid::from_bytes(pasted.block_type),
+                        moved: pasted.moved,
+                        cut_from: pasted.cut_from.map(Uuid::from_bytes),
+                    })
+                    .collect()
+            },
+        )
     }
 
     pub fn copy_blocks(
