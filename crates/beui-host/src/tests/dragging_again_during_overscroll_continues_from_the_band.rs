@@ -11,7 +11,7 @@ fn dragging_again_during_overscroll_continues_from_the_band() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(40)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />

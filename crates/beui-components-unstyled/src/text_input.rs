@@ -21,6 +21,7 @@ use crate::TextAreaGeometry;
 use crate::TextAreaLook;
 use crate::TextAreaState;
 use crate::form::Posted;
+use crate::scroll::ScrollStyle;
 use crate::menu_popup::MenuStyle;
 use crate::text_menu::TextContextMenu;
 use beui_macros::{component, view};
@@ -55,6 +56,8 @@ pub struct TextInputStyle {
     pub prose: Prop<Option<Prose>>,
     pub geometry: Prop<TextAreaGeometry>,
     pub menu: Option<MenuStyle>,
+    /// The look of the scroll a multi-line field's text moves in.
+    pub scroll: ScrollStyle,
 }
 
 /// The kind of a single-line field: the `<input type>` on the HTML core.
@@ -142,6 +145,7 @@ pub fn TextInput(
         prose,
         geometry,
         menu,
+        scroll,
     } = style;
     let initial = value.get_untracked();
     let state = plain_text(&initial);
@@ -325,6 +329,7 @@ pub fn TextInput(
                 remote_selection_alpha: 0,
             }}
             look={TextAreaLook::plain(geometry)}
+            scroll
             placeholder
             password={masked}
             focused

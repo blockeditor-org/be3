@@ -16,7 +16,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <List spacing=0.0>
                             <Frame height=HEADER>
                                 <Frame />

@@ -13,16 +13,6 @@ pub const MINIMUM_VELOCITY: f32 = 5.0;
 
 pub use beui_view::reactive::Spring;
 
-pub const SCROLL_SPRING: Spring = Spring {
-    stiffness: 180.0,
-    damping: 26.832_815,
-};
-
-pub const WINDOW_SPRING: Spring = Spring {
-    stiffness: 400.0,
-    damping: 38.0,
-};
-
 fn reach(dimension: f32) -> f32 {
     dimension.max(1.0) * RUBBER_BAND_FACTOR
 }
@@ -47,15 +37,15 @@ pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, sprin
     }
 }
 
-pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32) -> f32 {
+pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) -> f32 {
     let mut elapsed = elapsed;
     if *stretch * *velocity > 0.0 {
-        let frequency = SCROLL_SPRING.stiffness.sqrt();
+        let frequency = spring.stiffness.sqrt();
         let peak = (velocity.abs() / frequency).atan2(stretch.abs()) / frequency;
         if elapsed < peak {
             let outwards = Spring {
                 damping: 0.0,
-                ..SCROLL_SPRING
+                ..spring
             };
             outwards.advance(stretch, velocity, elapsed);
             return 0.0;
@@ -68,7 +58,7 @@ pub fn bounce(stretch: &mut f32, velocity: &mut f32, elapsed: f32) -> f32 {
         elapsed -= peak;
     }
     let from = *stretch;
-    SCROLL_SPRING.advance(stretch, velocity, elapsed);
+    spring.advance(stretch, velocity, elapsed);
     if *stretch * from < 0.0 {
         *stretch = 0.0;
         return std::mem::take(velocity);

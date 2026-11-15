@@ -69,7 +69,7 @@ pub fn Select(
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     list_height: Prop<f32>,
     spacing: f32,
     trigger: Render<SelectTriggerHandle>,

@@ -8,7 +8,7 @@ use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Padding, Size, Space, Stroke, Movement};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollStyle};
 use beui_view::primitives::Spacer;
@@ -138,7 +138,7 @@ pub fn Scroll(
 
 pub fn scroll_style() -> ScrollStyle {
     let theme = use_theme();
-    ScrollStyle::new(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
+    ScrollStyle::new(Movement::Rubber.spring()).bar(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,

@@ -84,7 +84,7 @@ pub fn Toasts(
     spacing: Prop<f32>,
     #[prop(default = String::from("Notifications"))] label: Prop<String>,
     #[prop(default = TOAST_LIMIT)] limit: Prop<usize>,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,

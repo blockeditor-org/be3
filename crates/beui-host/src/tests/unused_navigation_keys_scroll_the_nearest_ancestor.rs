@@ -10,7 +10,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
     let (scroll, tabs, slider) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build_node(move || {
         view! {
-            <Scroll @node_ref=&scroll>
+            <Scroll @node_ref=&scroll style={plain_scroll()}>
                 <Tabs
                     @node_ref=&tabs
                     options={view! {

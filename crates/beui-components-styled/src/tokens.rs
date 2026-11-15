@@ -1,4 +1,5 @@
 use beui_view::reactive::into_prop_via;
+use beui_view::reactive::{Easing, Spring};
 use beui_view::types::Corners;
 use beui_view::types::{Extent, Sides};
 
@@ -313,6 +314,73 @@ impl CornerSet {
 impl Default for CornerSet {
     fn default() -> Self {
         Self::ALL
+    }
+}
+
+/// What a motion is for: the look of something moving, which the unstyled
+/// layer takes as an `Easing` (a motion that runs for a set time) or a `Spring`
+/// (one that carries the speed it was let go at). Each movement has one look in
+/// both forms; a component asks for the form its motion runs on. How long a
+/// motion takes is behaviour and stays with the component. `Motion::Instant`
+/// still lands every movement at once.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Movement {
+    /// Something landing where layout puts it: a dropped item, dock panes and
+    /// bars moving, a sidebar opening, a sheet or page returning after a drag.
+    Settle,
+    /// Something arriving: a sheet rising, a page sliding in.
+    Enter,
+    /// Something going away: a page sliding out.
+    Leave,
+    /// Scrolled content pulled past its end springing back.
+    Rubber,
+    /// A window or sheet pulled past where it rests springing back.
+    Pull,
+}
+
+impl Movement {
+    pub const ALL: [Movement; 5] = [
+        Movement::Settle,
+        Movement::Enter,
+        Movement::Leave,
+        Movement::Rubber,
+        Movement::Pull,
+    ];
+
+    pub const fn easing(self) -> Easing {
+        match self {
+            Movement::Settle | Movement::Enter | Movement::Rubber | Movement::Pull => {
+                Easing::OutCubic
+            }
+            Movement::Leave => Easing::OutQuad,
+        }
+    }
+
+    pub const fn spring(self) -> Spring {
+        match self {
+            Movement::Settle | Movement::Enter | Movement::Leave => Spring {
+                stiffness: 420.0,
+                damping: 32.0,
+            },
+            Movement::Rubber => Spring {
+                stiffness: 180.0,
+                damping: 26.832_815,
+            },
+            Movement::Pull => Spring {
+                stiffness: 400.0,
+                damping: 38.0,
+            },
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Movement::Settle => "settle",
+            Movement::Enter => "enter",
+            Movement::Leave => "leave",
+            Movement::Rubber => "rubber",
+            Movement::Pull => "pull",
+        }
     }
 }
 

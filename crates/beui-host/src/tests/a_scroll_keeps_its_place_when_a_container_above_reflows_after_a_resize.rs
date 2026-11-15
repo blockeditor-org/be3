@@ -12,7 +12,7 @@ fn a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize() {
         let rows = rows.clone();
         move || {
             view! {
-                <Scroll @node_ref=&scroll>
+                <Scroll @node_ref=&scroll style={plain_scroll()}>
                     <List spacing=0.0>
                         <Text>
                             "A paragraph above the rows wraps onto more lines as the scroll narrows, \

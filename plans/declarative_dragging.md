@@ -127,7 +127,7 @@ pub struct DragFrame { pub item: Rect, pub chosen: Option<CandidateId>, pub floa
 Evaluating a spec is pure, `(spec, DragPoint, last frame) -> DragFrame`, so it is tested without a
 core. Stickiness and `Thrown`'s velocity are the only state carried between frames. The unstyled
 engine takes reaches, radii and throw speeds as values, with defaults: they are behaviour, like
-the drag threshold (plans/motion_tokens.md), and the builders (`closest(..).when_far(floating())`)
+the drag threshold (decisions/beui_unstyled_layer_has_no_appearance_defaults.md), and the builders (`closest(..).when_far(floating())`)
 use those defaults unless given others. `Free`
 replaces Dragology's `vary`: every continuous drag in the repo is the pointer minus the grab offset,
 clamped or quantised, so there is no optimiser until a drag needs one.
@@ -161,7 +161,7 @@ What stays below unstyled, and what changes there:
 - **Leaves `beui-types`:** `Take`, `Target`, `DragSource` and their callback aliases are deleted;
   `EdgeScroller` and `EDGE_BAND`, edge-scroll policy used only by the board and `Scroll` (and
   re-exported by `beui_view::drag`), move to unstyled, the band staying a behaviour
-  default (plans/motion_tokens.md).
+  default (decisions/beui_unstyled_layer_has_no_appearance_defaults.md).
 
 ### A reorderable list, written directly
 

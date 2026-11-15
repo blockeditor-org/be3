@@ -7,7 +7,7 @@ use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use super::fling::Fling;
-use super::rubber_band::{MINIMUM_VELOCITY, bounce, rubber_band};
+use super::rubber_band::{MINIMUM_VELOCITY, Spring, bounce, rubber_band};
 use super::watched::Watched;
 use crate::drag_board::drag_board;
 use crate::gestures::{self, AUTOSCROLL_DEAD_ZONE};
@@ -55,12 +55,14 @@ pub struct ScrollHandle {
     pub on_engage: Callback<bool>,
 }
 
-/// How a scroll's own parts look: its bar, how far its edges fade, the
-/// marker an autoscroll (a middle-button press) shows where it started, and the
-/// browser's bar on the HTML core. A scroll inside a component (a text area, a
-/// list) takes the same look as a plain one, marker and all.
-#[derive(Clone, Copy, Default)]
+/// How a scroll's own parts look: the spring its content springs back on when
+/// pulled past an end, its bar, how far its edges fade, the marker an
+/// autoscroll (a middle-button press) shows where it started, and the browser's
+/// bar on the HTML core. A scroll inside a component (a text area, a list)
+/// takes the same look as a plain one, marker and all.
+#[derive(Clone, Copy)]
 pub struct ScrollStyle {
+    rubber: Spring,
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
     marker: Option<RenderFn<Memo<Direction>, NodeId>>,
     fade: f32,
@@ -68,12 +70,23 @@ pub struct ScrollStyle {
 }
 
 impl ScrollStyle {
-    pub fn new(width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
+    /// A scroll whose overscroll springs back on `rubber`, with no bar, fade or
+    /// marker.
+    pub fn new(rubber: Spring) -> Self {
         Self {
-            bar: Some((width, RenderFn::new(bar))),
+            rubber,
+            bar: None,
             marker: None,
             fade: 0.0,
             browser: None,
+        }
+    }
+
+    /// The bar drawn along the scroll, `width` across.
+    pub fn bar(self, width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
+        Self {
+            bar: Some((width, RenderFn::new(bar))),
+            ..self
         }
     }
 
@@ -174,6 +187,7 @@ impl Reveal {
 }
 
 struct Momentum {
+    rubber: Spring,
     stretch: f32,
     drag: Option<f32>,
     dragging: bool,
@@ -183,8 +197,9 @@ struct Momentum {
 }
 
 impl Momentum {
-    fn new() -> Self {
+    fn new(rubber: Spring) -> Self {
         Self {
+            rubber,
             stretch: 0.0,
             drag: None,
             dragging: false,
@@ -269,7 +284,7 @@ impl Momentum {
             return;
         }
         if self.stretch != 0.0 {
-            let back = bounce(&mut self.stretch, &mut self.velocity, elapsed);
+            let back = bounce(&mut self.stretch, &mut self.velocity, elapsed, self.rubber);
             if self.stretch == 0.0 {
                 self.velocity = back;
                 self.coast();
@@ -697,7 +712,7 @@ fn Scrolling(
         node: node.first_offset_within(),
         reported: reported.read_only(),
         direction,
-        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),
@@ -965,7 +980,7 @@ pub fn Scroll(
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = None)] focus_ring: Prop<Option<Outline>>,
-    #[prop(default = ScrollStyle::default())] style: ScrollStyle,
+    style: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     children: Children<ListItem>,
 ) -> NodeId {
@@ -1222,7 +1237,7 @@ fn BrowserScroll(
         node: None,
         reported: reported.read_only(),
         direction,
-        momentum: Watched::new(Momentum::new(), Momentum::coasting),
+        momentum: Watched::new(Momentum::new(style.rubber), Momentum::coasting),
         animation: Cell::default(),
         autoscrolling: Cell::default(),
         autoscrolled: Cell::new(now()),

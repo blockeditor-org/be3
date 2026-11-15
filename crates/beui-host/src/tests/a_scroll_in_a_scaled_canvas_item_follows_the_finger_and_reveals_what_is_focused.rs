@@ -17,7 +17,7 @@ fn a_scroll_in_a_scaled_canvas_item_follows_the_finger_and_reveals_what_is_focus
             view! {
                 <Canvas view={Some(CanvasView::new(pos2(10.0, 10.0), SCALE))}>
                     <CanvasItem x=0.0 y=0.0 width=200.0 height=120.0 scales=true>
-                        <Scroll @node_ref=&scroll>
+                        <Scroll @node_ref=&scroll style={plain_scroll()}>
                             <ForEach keys={indices(buttons.len())}>|index: usize|
                                 <LabelledButton
                                     @node_ref={&buttons[index]}

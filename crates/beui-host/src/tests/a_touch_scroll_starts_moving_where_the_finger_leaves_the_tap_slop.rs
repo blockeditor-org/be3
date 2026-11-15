@@ -12,7 +12,7 @@ fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                         </ForEach>

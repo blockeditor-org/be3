@@ -7,7 +7,7 @@ fn a_scroll_with_nothing_to_scroll_is_not_a_tab_stop() {
     let _root = crate::reactive::RootScope::new();
     let document = build_node(move || {
         view! {
-            <Scroll>
+            <Scroll style={plain_scroll()}>
                 <Text color=Color32::WHITE>"Short"</Text>
             </Scroll>
         }

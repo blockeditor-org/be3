@@ -11,7 +11,7 @@ fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @test_id="strip" direction=Direction::Horizontal>
+                    <Scroll @test_id="strip" direction=Direction::Horizontal style={plain_scroll()}>
                         <ForEach keys={indices(20)}>|index: usize|
                             <Frame width=120.0>
                                 <Text color=Color32::WHITE>{format!("Card {index}")}</Text>

@@ -7,7 +7,8 @@ use be_sdk_api::{
 };
 use beui::animation::{Animation, create_animation, motion};
 use beui::reactive::*;
-use beui::unstyled::rubber_band::{Band, WINDOW_SPRING};
+use beui::styled::Movement;
+use beui::unstyled::rubber_band::Band;
 use beui::{
     Forwarded, ForwardedInput, NodeId, PointerId, PointerPhase, Pos2, Rect, Vec2, pos2, vec2,
 };
@@ -203,7 +204,7 @@ struct Spring {
 
 impl Spring {
     fn new() -> Self {
-        let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+        let band = store(RefCell::new(Band::new(Movement::Pull.spring())));
         let settling = create_signal(None::<FloatedKey>);
         let origin = StoredCell::new(Pos2::ZERO);
         let animation = create_animation(
@@ -833,7 +834,7 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             })
         })
     };
-    let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
+    let band = store(RefCell::new(Band::new(Movement::Pull.spring())));
     let overshoot = create_signal(Vec2::ZERO);
     let key = store(key);
     let place = move |origin: Pos2| {

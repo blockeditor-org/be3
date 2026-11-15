@@ -52,7 +52,7 @@ pub fn TimeList(
     #[prop(default = 1)] max_columns: usize,
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     option: RenderFn<TimeOptionHandle>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);

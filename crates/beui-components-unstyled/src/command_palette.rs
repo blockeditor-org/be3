@@ -118,7 +118,7 @@ pub fn CommandPalette(
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,
-    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
+    scroll: ScrollStyle,
     row: RenderFn<CommandRowHandle>,
     #[prop(children)] panel: Option<RenderFn<NodeId>>,
 ) -> NodeId {

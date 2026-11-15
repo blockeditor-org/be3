@@ -14,7 +14,7 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(100)}>|_: usize|
                             <Interactive
                                 capture_presses=true

@@ -8,7 +8,7 @@ fn a_driver_paints_a_target_a_scroll_cuts_once_it_has_revealed_it() {
     let document = build_node(|| {
         view! {
             <Frame height=100.0>
-                <Scroll>
+                <Scroll style={plain_scroll()}>
                     <List spacing=0.0>
                         <ForEach keys={indices(12)}>|index: usize|
                             <Frame

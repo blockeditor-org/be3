@@ -26,7 +26,7 @@ use super::{
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
     DockChromeHandle, DockConfig, DockGripHandle, DockHighlightHandle, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
-    DockTabHandle, DockTabKeys,
+    DockCurves, DockTabHandle, DockTabKeys,
 };
 use beui_components_unstyled::menu_popup::MenuStyle;
 pub use manager::{DockArea, DockWindowActions, holding_area};
@@ -567,6 +567,7 @@ struct HostStyle {
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_beak: f32,
+    curves: DockCurves,
     dialog_radius: f32,
     dialog_scrim: Prop<Color>,
     window_border: f32,
@@ -668,6 +669,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         switch,
         dialog_chrome,
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,
@@ -847,6 +849,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 dialog,
                 dialog_chrome,
                 dialog_beak,
+                curves,
                 dialog_radius,
                 dialog_scrim: create_memo(move || dialog_scrim.get()),
                 window_border,
@@ -952,6 +955,7 @@ pub fn DockHost(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     #[prop(default = 0.0)] dialog_beak: f32,
+    curves: DockCurves,
     #[prop(default = 0.0)] dialog_radius: f32,
     #[prop(default = Color::TRANSPARENT)] dialog_scrim: Prop<Color>,
     #[prop(default = 0.0)] window_border: f32,
@@ -996,6 +1000,7 @@ pub fn DockHost(
         switch,
         dialog_chrome,
         dialog_beak,
+        curves,
         dialog_radius,
         dialog_scrim,
         window_border,

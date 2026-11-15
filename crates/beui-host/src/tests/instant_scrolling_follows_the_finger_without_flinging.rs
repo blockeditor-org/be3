@@ -11,7 +11,7 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
         view! {
             <List spacing=0.0>
                 <ListItem grow=1.0>
-                    <Scroll @node_ref=&scroll>
+                    <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <ForEach keys={indices(400)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />

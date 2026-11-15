@@ -31,7 +31,18 @@ struct State {
     direction: f32,
 }
 
+/// How a back slide's motions look: the easing a page slides in on (`enter`),
+/// carries on off the edge on (`leave`), and eases back to rest on when a
+/// gesture is cancelled (`settle`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct SlideCurves {
+    pub enter: Easing,
+    pub leave: Easing,
+    pub settle: Easing,
+}
+
 struct Slide {
+    curves: SlideCurves,
     state: RefCell<State>,
     animation: Cell<Option<Animation>>,
     shift: Signal<Vec2>,
@@ -189,12 +200,12 @@ impl Slide {
         let (position, next) = match phase {
             Phase::Still | Phase::Dragging => return None,
             Phase::Returning { from } => {
-                let progress = tween(elapsed, RETURN_SECONDS, Easing::OutCubic);
+                let progress = tween(elapsed, RETURN_SECONDS, self.curves.settle);
                 let next = if progress >= 1.0 { Phase::Still } else { phase };
                 (from * (1.0 - progress), next)
             }
             Phase::Leaving { from } => {
-                let progress = tween(elapsed, LEAVE_SECONDS, Easing::OutQuad);
+                let progress = tween(elapsed, LEAVE_SECONDS, self.curves.leave);
                 if progress >= 1.0 {
                     self.place(1.0);
                     self.gone();
@@ -203,7 +214,7 @@ impl Slide {
                 (from + (1.0 - from) * progress, phase)
             }
             Phase::Entering => {
-                let progress = tween(elapsed, ENTER_SECONDS, Easing::OutCubic);
+                let progress = tween(elapsed, ENTER_SECONDS, self.curves.enter);
                 let next = if progress >= 1.0 { Phase::Still } else { phase };
                 (ENTER_SHARE * (1.0 - progress), next)
             }
@@ -235,6 +246,7 @@ impl Slide {
 /// `on_gone` once it's off.
 #[component]
 pub fn BackSlide(
+    curves: SlideCurves,
     #[prop(default = true)] enabled: Prop<bool>,
     #[prop(default = true)] enters: bool,
     #[prop(default = Callback::default())] on_back: Callback<()>,
@@ -251,6 +263,7 @@ pub fn BackSlide(
     let shade = create_memo(move || shade.get().scale_alpha(cover.get()));
     let revealing = create_signal(false);
     let slide = store(Slide {
+        curves,
         state: RefCell::new(State {
             phase: Phase::Still,
             position: 0.0,

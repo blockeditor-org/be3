@@ -52,7 +52,6 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     };
     let theme = use_theme();
     let page = theme.background;
-    let shade = theme.scrim_soft;
     view! {
         <List spacing=Space::None>
             <Show
@@ -61,7 +60,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                     <ListItem grow=1.0>
                         <BackSlide
                             on_back={back}
-                            shade={shade}
+                            shade=ColorRole::ScrimSoft
                             behind={move || view! {
                                 <Portal node={Some(sidebar)} />
                             }}
