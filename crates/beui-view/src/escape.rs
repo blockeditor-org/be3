@@ -1,4 +1,4 @@
-use crate::reactive::{Child, IntoProp, NodeId};
+use crate::reactive::{Child, IntoPropWith, NodeId};
 use crate::types::{Color, FontId};
 
 pub use beui_html;
@@ -10,8 +10,8 @@ impl Escape {
         crate::core::escape::embed(&self.0, child)
     }
 
-    pub fn style(&self, property: &'static str, value: impl IntoProp<Option<String>>) {
-        crate::core::escape::style(&self.0, property, value.into_prop());
+    pub fn style<M1>(&self, property: &'static str, value: impl IntoPropWith<Option<String>, M1>) {
+        crate::core::escape::style(&self.0, property, value.into_prop_with());
     }
 
     pub fn color(color: Color) -> String {

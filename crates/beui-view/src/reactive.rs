@@ -30,7 +30,7 @@ pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::clipboard::formats;
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput, KeyReveal};
 pub use crate::types::layer::OverlayAnchor;
-pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
+pub use crate::types::node::{BuildsNode, ImeCursor, NamesNode, NodeId, NodeRef, create_host};
 pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
 pub use crate::types::{Clip, ClipItem};
 
@@ -40,14 +40,16 @@ pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
 
-pub fn test_id<T: BuildsNode>(built: T, value: impl IntoProp<String>) -> T {
-    bind_test_id(built.built_node(), value.into_prop());
-    built
+pub fn test_id<T: NamesNode, M1>(built: T, value: impl IntoPropWith<String, M1>) -> T::Named {
+    let (named, node) = built.name_node();
+    bind_test_id(node, value.into_prop_with());
+    named
 }
 
-pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
-    reference.fill(built.built_node());
-    built
+pub fn node_ref<T: NamesNode>(built: T, reference: &NodeRef) -> T::Named {
+    let (named, node) = built.name_node();
+    reference.fill(node);
+    named
 }
 
 /// Owned by the reactive scope that created it; calling it after that scope is gone does
@@ -118,8 +120,8 @@ pub fn accessibility_reference(node: NodeId) -> accesskit::NodeId {
     crate::core::tree::accessibility_reference(node)
 }
 
-pub fn component_accessibility(node: impl IntoProp<accesskit::Node>) {
-    crate::core::tree::component_accessibility(node);
+pub fn component_accessibility<M1>(node: impl IntoPropWith<accesskit::Node, M1>) {
+    crate::core::tree::component_accessibility(node.into_prop_with());
 }
 
 pub fn bind(node: NodeId, effect: impl FnMut() + 'static) {
@@ -188,8 +190,8 @@ pub fn focus_takes_text() -> bool {
     core::focus_takes_text()
 }
 
-pub fn focus_ring(focused: impl IntoProp<bool>) -> Memo<bool> {
-    core::focus_ring(focused.into_prop())
+pub fn focus_ring<M1>(focused: impl IntoPropWith<bool, M1>) -> Memo<bool> {
+    core::focus_ring(focused.into_prop_with())
 }
 
 pub fn focus_visible() -> bool {
@@ -200,27 +202,30 @@ pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     core::holds_focus(node)
 }
 
-pub fn focus_outline(
-    focused: impl IntoProp<bool>,
-    color: impl IntoProp<Color>,
+pub fn focus_outline<M1, M2>(
+    focused: impl IntoPropWith<bool, M1>,
+    color: impl IntoPropWith<Color, M2>,
     width: f32,
     offset: f32,
 ) -> Memo<Option<Outline>> {
     let ring = focus_ring(focused);
-    let color = color.into_prop();
+    let color = color.into_prop_with();
     create_memo(move || {
         ring.get()
             .then(|| Outline::new(color.get(), width).offset(offset))
     })
 }
 
-pub fn keep_clear(node: NodeId, rects: impl IntoProp<Vec<crate::types::Rect>>) {
-    core::keep_clear(node, rects.into_prop());
+pub fn keep_clear<M1>(node: NodeId, rects: impl IntoPropWith<Vec<crate::types::Rect>, M1>) {
+    core::keep_clear(node, rects.into_prop_with());
 }
 
 /// Keeps `node` above embeds painted before it: see `AboveEmbeds`.
-pub fn above_embeds(node: NodeId, above: impl IntoProp<Option<crate::types::AboveEmbeds>>) {
-    core::above_embeds(node, above.into_prop());
+pub fn above_embeds<M1>(
+    node: NodeId,
+    above: impl IntoPropWith<Option<crate::types::AboveEmbeds>, M1>,
+) {
+    core::above_embeds(node, above.into_prop_with());
 }
 
 pub fn window_point(pos: Pos2, from: WindowId, to: WindowId) -> Option<Pos2> {
@@ -234,8 +239,8 @@ pub fn to_host(window: WindowId) -> Option<crate::types::HostTransform> {
     core::to_host(window)
 }
 
-pub fn arrow_focus(row: NodeRef, direction: impl IntoProp<Direction>) {
-    core::arrow_focus(row, direction.into_prop());
+pub fn arrow_focus<M1>(row: NodeRef, direction: impl IntoPropWith<Direction, M1>) {
+    core::arrow_focus(row, direction.into_prop_with());
 }
 
 pub fn held_modifiers() -> ReadSignal<Modifiers> {
@@ -251,8 +256,8 @@ pub fn on_key(
     core::on_key(at, phase, reveal, handler);
 }
 
-pub fn on_back(enabled: impl IntoProp<bool>, handler: impl Fn(BackGesture) + 'static) {
-    core::on_back(enabled.into_prop(), handler);
+pub fn on_back<M1>(enabled: impl IntoPropWith<bool, M1>, handler: impl Fn(BackGesture) + 'static) {
+    core::on_back(enabled.into_prop_with(), handler);
 }
 
 pub fn on_finger_tap(tap: impl Fn(usize) -> bool + 'static) {

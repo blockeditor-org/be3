@@ -158,7 +158,14 @@ mod web {
                 true => self.viewport,
                 false => clip,
             };
-            let rect = rect_of(element, self.ratio);
+            // A host node has no box of its own: it stands where the child it holds is, and
+            // holding none it has no box at all.
+            let Some(rect) = crate::document::boxed(about.node)
+                .and_then(crate::dom::element)
+                .map(|boxed| rect_of(&boxed, self.ratio))
+            else {
+                return;
+            };
             let focused = self.focused.as_ref() == Some(dom);
             let text = about
                 .kinds

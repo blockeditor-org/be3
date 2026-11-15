@@ -64,6 +64,7 @@ mod fields;
 mod floating;
 mod focus;
 mod frame;
+mod host;
 mod interactive;
 mod list;
 mod long_menus;

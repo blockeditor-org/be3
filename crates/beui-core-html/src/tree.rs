@@ -4,8 +4,8 @@ use std::rc::Rc;
 
 use beui_html::Node;
 use beui_tree::reactive::{
-    ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
-    SlotHost, SlotId, create_effect, create_signal, current_component,
+    ComponentContext, Get, IntoProp, IntoSlotHost, LazyChild, Prop, ReadSignal, ScopeContext, Set,
+    Signal, SlotHost, SlotId, create_effect, create_signal, current_component,
 };
 pub use beui_types::node::BuildsNode;
 use beui_types::node::{CoreHooks, install_core_hooks};
@@ -109,7 +109,43 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref: document::fill_ref,
         finish_component,
+        create_host,
     });
+}
+
+/// A host node (`create_host`): a `display: contents` element holding the one child control
+/// flow swaps, passing its placed styles on to that child, so a fraction width or a grid span
+/// set on the host reaches what it holds.
+fn create_host(child: LazyChild<NodeId>) -> NodeId {
+    let host = document::create("Host", "div");
+    document::make_host(host);
+    let slot: Rc<dyn SlotHost<NodeId>> = Rc::new(HostSlot {
+        host,
+        inner: node_host(host),
+    });
+    child.mount_in(slot);
+    host
+}
+
+struct HostSlot {
+    host: NodeId,
+    inner: Rc<dyn SlotHost<NodeId>>,
+}
+
+impl SlotHost<NodeId> for HostSlot {
+    fn append(&self, stored: NodeId) {
+        document::set_host_child(self.host, Some(stored));
+        self.inner.append(stored);
+    }
+
+    fn open(&self) -> SlotId {
+        self.inner.open()
+    }
+
+    fn fill(&self, slot: SlotId, items: Vec<NodeId>) {
+        document::set_host_child(self.host, items.first().copied());
+        self.inner.fill(slot, items);
+    }
 }
 
 pub trait ParentKind: beui_types::tree::ParentKind {

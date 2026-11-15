@@ -1,7 +1,7 @@
 use beui_reactive::{Get, Set, Signal, check_tracked_read, create_signal, untrack};
 
 use crate::callback::{Callback, IntoCallback};
-use crate::prop::{Getter, IntoProp, Prop};
+use crate::prop::{Getter, IntoProp, IntoPropWith, Prop};
 
 /// State a component both shows and changes (a toggle's `checked`), instead of a prop and an
 /// `on_change`. The caller picks the owner: leave it out (the component's own signal), pass
@@ -33,9 +33,9 @@ impl<T> Clone for Binding<T> {
 impl<T> Copy for Binding<T> {}
 
 impl<T: Clone + 'static> Binding<T> {
-    pub fn new(read: impl IntoProp<T>, write: impl IntoCallback<T, ()>) -> Self {
+    pub fn new<M>(read: impl IntoPropWith<T, M>, write: impl IntoCallback<T, ()>) -> Self {
         let write = write.into_callback();
-        match read.into_prop() {
+        match read.into_prop_with() {
             Prop::Static(value) => {
                 let signal = create_signal(value);
                 Self(Source::Derived(

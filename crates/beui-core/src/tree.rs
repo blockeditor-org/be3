@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use std::rc::Weak;
 
+use beui_tree::reactive::LazyChild;
 use beui_tree::reactive::{
     ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
     SlotHost, SlotId, create_effect, create_signal, current_component, on_cleanup,
@@ -134,7 +135,16 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref,
         finish_component,
+        create_host,
     });
+}
+
+/// A bare frame: it sizes to its child, draws nothing and swaps the child in place. Not a
+/// one-child `Layers`, which does not pass scroll anchoring through to what it holds.
+fn create_host(child: LazyChild<NodeId>) -> NodeId {
+    let frame = with_document(|document| document.create_host_frame());
+    child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
+    frame.id()
 }
 
 #[diagnostic::on_unimplemented(

@@ -40,9 +40,7 @@ fn check_compact_rows(inset: f32) {
                                 built.update(|built| built.push(index));
                             });
                             view! {
-                                <Frame
-                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                                >
+                                <Frame padding={move || Sides::symmetric(0.0, padding.get())}>
                                     <Frame />
                                 </Frame>
                             }

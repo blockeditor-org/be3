@@ -78,6 +78,9 @@ pub fn Fixture(name: String) -> Root {
         "interactive" => view! {
             <InteractiveFixture />
         },
+        "host" => view! {
+            <HostFixture />
+        },
         "offset" => view! {
             <OffsetFixture />
         },
@@ -235,9 +238,12 @@ fn Button(id: &'static str, label: &'static str, on_click: Callback<()>) -> Node
 #[component]
 fn FrameFixture() -> NodeId {
     let wide = create_signal(false);
-    let width = create_memo(move || Extent::px(if wide.get() { 100.0 } else { 50.0 }));
     let inner = view! {
-        <Frame width={width} height=20.0 fill={GREEN} />
+        <Frame
+            width={move || Extent::px(if wide.get() { 100.0 } else { 50.0 })}
+            height=20.0
+            fill={GREEN}
+        />
     };
     let outer = view! {
         <Frame
@@ -513,6 +519,164 @@ fn InteractiveFixture() -> NodeId {
                 <Frame width=160.0 height=30.0 fill={GREEN} />
             </Interactive>
             <Text color={INK}>{text}</Text>
+        </List>
+    }
+}
+
+/// Control flow in slots that take one node, held by a host node: it is placed as its child
+/// would be (a share of a row, a shrunk share, a grid span), and swaps while its child is
+/// pressed (and so captures the pointer and takes focus), dragged or hovered.
+#[component]
+fn HostFixture() -> NodeId {
+    let swapped = create_signal(false);
+    let swaps = create_signal(0_u32);
+    let swap = move || {
+        swapped.set(!swapped.get_untracked());
+        swaps.set(swaps.get_untracked() + 1);
+    };
+    let hovered = create_signal(false);
+    let plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let hosted: NodeId = into_child(view! {
+        <Show
+            condition={swapped}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.first"
+                    focusable=true
+                    on_press={move |_: beui::PointerPress| swap()}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Interactive @test_id="host.second" on_drag={move |_: beui::PointerPress| swap()}>
+                <Frame height=20.0 fill={AMBER} />
+            </Interactive>
+        </Show>
+    });
+    let shrunk_plain = view! {
+        <Frame width=200.0 height=20.0 fill={BLUE} />
+    };
+    let shrunk_hosted: NodeId = into_child(view! {
+        <Show
+            condition={swapped}
+            fallback={|| view! {
+                <Frame width=200.0 height=20.0 fill={GREEN} />
+            }}
+        >
+            <Frame width=200.0 height=20.0 fill={AMBER} />
+        </Show>
+    });
+    let cell_plain = view! {
+        <Frame height=20.0 fill={BLUE} />
+    };
+    let cell_hosted: NodeId = into_child(view! {
+        <Show
+            condition={hovered}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.cell"
+                    on_hover_change={move |over: bool| if over { hovered.set(true) }}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Frame @test_id="host.hovered" height=20.0 fill={AMBER} />
+        </Show>
+    });
+    let wrapped = view! {
+        <Interactive
+            @test_id="host.wrapped"
+            focusable=true
+            on_press={move |_: beui::PointerPress| swap()}
+        >
+            <Show
+                condition={swapped}
+                fallback={|| view! {
+                    <Frame width=40.0 height=20.0 fill={GREEN} />
+                }}
+            >
+                <Frame width=60.0 height=20.0 fill={AMBER} />
+            </Show>
+        </Interactive>
+    };
+    let wrapped_rect = measured_rect(wrapped);
+    let wrapped_report = create_memo(move || format!("Wrapped {}", size(wrapped_rect.get())));
+    let named = NodeRef::new();
+    let named_focused = create_signal(false);
+    let focus_report = create_memo(move || match named_focused.get() {
+        true => "Named host focused".to_owned(),
+        false => "Named host not focused".to_owned(),
+    });
+    let rects = [
+        plain,
+        hosted,
+        shrunk_plain,
+        shrunk_hosted,
+        cell_plain,
+        cell_hosted,
+    ]
+    .map(measured_rect);
+    let report = create_memo(move || {
+        let [
+            plain,
+            hosted,
+            shrunk_plain,
+            shrunk_hosted,
+            cell_plain,
+            cell_hosted,
+        ] = rects.map(|rect| size(rect.get()));
+        format!(
+            "Row {plain} {hosted} Shrunk {shrunk_plain} {shrunk_hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
+            swaps.get()
+        )
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem grow=1.0>{plain}</ListItem>
+                    <ListItem grow=2.0>{hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <ListItem shrink=1.0>{shrunk_plain}</ListItem>
+                    <ListItem shrink=1.0>{shrunk_hosted}</ListItem>
+                </List>
+            </Frame>
+            <Frame width=300.0>
+                <Grid columns={vec![beui::Track::Fraction(1.0); 3]}>
+                    <GridCell>{cell_plain}</GridCell>
+                    <GridCell span=2>{cell_hosted}</GridCell>
+                </Grid>
+            </Frame>
+            <Text color={INK}>{report}</Text>
+            <Show
+                @test_id="host.named"
+                @node_ref=&named
+                condition={swapped}
+                fallback={move || view! {
+                    <Interactive focusable=true on_focus_change={named_focused}>
+                        <Frame width=40.0 height=20.0 fill={GREEN} />
+                    </Interactive>
+                }}
+            >
+                <Interactive focusable=true>
+                    <Frame width=40.0 height=20.0 fill={AMBER} />
+                </Interactive>
+            </Show>
+            <Button
+                id="host.focus"
+                label="Focus the named host"
+                on_click={move || set_focus(Some(named.get()))}
+            />
+            <Text color={INK}>{focus_report}</Text>
+            <Frame align={Align2::all(Align::Start)}>{wrapped}</Frame>
+            <Text color={INK}>{wrapped_report}</Text>
         </List>
     }
 }
