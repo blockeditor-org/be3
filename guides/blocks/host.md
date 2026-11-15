@@ -172,7 +172,8 @@ the connection a stopping stack closed.
   carry each recent origin's highest `through` (`wire::BaseState`, sealed with
   the rest of the base). Kept edits made before a restart the order had since
   (`opening.kept-restart`, against the base's last restart) are dropped, each
-  told to its editor as not sent.
+  told to its editor as not sent: a restart, the last one out leaving included,
+  makes every edit kept from before it fail visibly.
 - **A lost entry.** The host tracks the last number of the order it heard per
   open block (`Open::heard_through`); an entry past the next makes the replica
   rejoin and open again on the server's journal.

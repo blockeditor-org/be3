@@ -455,6 +455,7 @@ impl Module {
                 doubtful_through: opening.doubtful_through,
                 kept_restart: opening.kept_restart,
                 kept_through: opening.kept_through,
+                kept_submitted: opening.kept_submitted,
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),
@@ -666,9 +667,10 @@ impl Module {
                 merging,
                 content,
                 sealed_through,
+                restarts,
             } => {
                 let pending = ops::with_parent(replica, || {
-                    host::publish(expected, merging, content, sealed_through)
+                    host::publish(expected, merging, content, sealed_through, restarts)
                 });
                 self.answer_later(replica, pending, move |result| {
                     Input::Head(match result.and_then(|published| published) {

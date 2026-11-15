@@ -172,7 +172,19 @@ arrives.
   holder that stopped after the server took the seal and before it trimmed
   leaves the journal on the commit the seal was made on: a replica opening on the
   seal replays the journal there and takes the seal as its head when the journal
-  reaches the seal's last entry (`reaches_seal`, `journal_for`).
+  reaches the seal's last entry (`reaches_seal`, `journal_for`), and is answered as
+  the replica's news (`Resume::Sealed`) only when the seal counts the same restarts
+  as the journal's base (`SealedThrough::restarts`): a seal of another run of the
+  order is merged as a head.
+- **Which edits the order holds.** The journal's base names, per origin, the last
+  counter the order numbered (`wire::BaseState`), and a device keeps one origin per
+  block (`refs::OpenEdits`), so edits it gives again after the trim that dropped
+  their entries are found there and not numbered twice. The base names only the
+  `BaseState::KEPT_ORIGINS` origins numbered most recently: an accepted limit. A
+  replica opening on a full base that no longer names its origin cannot tell
+  which of the edits it submitted the order holds, so it sends none of them
+  again (those up to `opening.kept-submitted`) and tells each editor it may have
+  been sent (`UNCERTAIN_EDIT`); edits it never submitted are sent.
 - Joining (`Connection::join_session`) answers the journal as of joining, and
   what the order numbers after reaches the connection as `Event::Sequenced`, so a
   replica opening on the journal's base needs nothing from another client.

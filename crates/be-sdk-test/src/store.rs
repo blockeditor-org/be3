@@ -593,6 +593,7 @@ impl Inner {
                 doubtful_through: 0,
                 kept_restart: 0,
                 kept_through: 0,
+                kept_submitted: 0,
                 head,
                 session: session(),
                 journal: None,

@@ -25,6 +25,7 @@ pub enum Resume {
     Sealed {
         commit: CommitId,
         through: u64,
+        restarts: u64,
     },
 }
 

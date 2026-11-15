@@ -20,8 +20,9 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
-        /// The last sequence of the order a seal holds.
+        /// The last sequence of the order a seal holds, and the run of the order it is in.
         sealed_through: Option<u64>,
+        restarts: u64,
     },
     Stash {
         replica: ReplicaId,

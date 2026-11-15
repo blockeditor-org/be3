@@ -84,6 +84,8 @@ mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
+mod a_seal_counted_in_another_run_of_the_order_is_merged_not_taken_as_news;
+mod an_edit_whose_origin_aged_out_of_the_base_fails_as_possibly_sent;
 mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
@@ -322,7 +324,10 @@ struct Stored {
     parents: Vec<CommitId>,
     bytes: Vec<u8>,
     manifest: be_block_store::Manifest,
-    sealed_through: Option<u64>,
+    /// How far the order reaches, and how many restarts it holds, where a replica sealed it.
+    sealed_through: Option<(u64, u64)>,
+    /// Whether the order it was sealed through was numbered on its device alone.
+    sealed_offline: bool,
 }
 
 const SEALING: Uuid = Uuid::from_u128(0x5ea1);
@@ -387,6 +392,7 @@ fn opening(
         doubtful_through: 0,
         kept_restart: 0,
         kept_through: 0,
+        kept_submitted: 0,
         head,
         session,
         journal: None,
@@ -451,6 +457,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     /// had applied and the number of the last kept edit (`opening.kept-restart`,
     /// `opening.kept-through`).
     kept_opening: Option<(u64, u64)>,
+    /// What the next `reopen` is told the host submitted for the device's origin
+    /// (`opening.kept-submitted`).
+    kept_submitted: u64,
     /// Submissions are numbered as a device offline numbers them: in its own order, which the
     /// server lacks, answered as kept and heard by the device alone.
     offline_submits: bool,
@@ -530,6 +539,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             resumed: vec![0; devices],
             stalled_submits: false,
             kept_opening: None,
+            kept_submitted: 0,
             offline_submits: false,
             order: Sequencer::starting(0),
             offline_order: None,
@@ -613,8 +623,11 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             Some((commit, parent, stored.sealed_through?))
         });
         match (journal, sealed) {
-            (Some(journal), Some((commit, parent, through)))
+            (Some(journal), Some((commit, parent, (through, restarts))))
                 if journal.base.commit == parent
+                    && crate::wire::BaseState::decode(&journal.base.state)
+                        .map_or(0, |state| state.restarts)
+                        == restarts
                     && be_block_session::reaches_seal(
                         journal.base.sequence,
                         journal.entries.iter().map(|entry| entry.sequence),
@@ -651,8 +664,13 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         held.clock = None;
         held.sleeping.clear();
         held.released = false;
-        held.origin = held.origin.max(client << 32) + 1;
-        held.taken_before = 0;
+        // As a host keeps one origin per device and block, opening again goes on numbering
+        // after what the order holds of the device's edits.
+        if held.origin == 0 {
+            held.origin = (client << 32) + 1;
+        } else {
+            held.taken_before += held.status.journaled_taken;
+        }
         let may_edit = self.devices[device].may_edit;
         let tag = Hash::from_bytes(self.devices[device].tag.0);
         self.lease.join(client, may_edit, tag, self.now as i64);
@@ -703,6 +721,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             tag: self.devices[device].tag,
             origin: self.devices[device].origin,
             taken_before: self.devices[device].taken_before,
+            kept_submitted: std::mem::take(&mut self.kept_submitted),
             journal,
             sealed_head,
             epoch: self.devices[device].status.epoch + 1,
@@ -871,6 +890,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 bytes,
                 manifest,
                 sealed_through: None,
+                sealed_offline: false,
             },
         );
         id
@@ -998,6 +1018,19 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             (Some(local), Some(remote)) if local == remote => Resume::UpToDate,
             (Some(local), Some(remote)) => {
                 if self.ancestors(remote).contains(&local) {
+                    // As the host: a seal of this session made on the commit the replica is
+                    // on is its news, not a head to merge.
+                    let stored = &self.commits[&remote];
+                    if stored.parents == [local]
+                        && !stored.sealed_offline
+                        && let Some((through, restarts)) = stored.sealed_through
+                    {
+                        return Resume::Sealed {
+                            commit: remote,
+                            through,
+                            restarts,
+                        };
+                    }
                     return Resume::FastForward { to: remote };
                 }
                 let ours = self.ancestors(local);
@@ -1091,6 +1124,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 merging,
                 content,
                 sealed_through,
+                restarts,
             } if !self.stalled => {
                 if self.fail_publishes > 0 {
                     self.fail_publishes -= 1;
@@ -1128,7 +1162,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     .collect();
                 let head = self.commit(manifest, parents);
                 if let Some(stored) = self.commits.get_mut(&head) {
-                    stored.sealed_through = sealed_through;
+                    stored.sealed_through = sealed_through.map(|through| (through, restarts));
+                    stored.sealed_offline = self.offline_order.is_some();
                 }
                 self.head = Some(head);
                 self.publishes += 1;

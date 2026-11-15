@@ -1203,6 +1203,7 @@ impl<H: Host> Replicas<H> {
         // origin, so those the server's order holds are found there. Before joining, those it
         // may hold only show (`opening.doubtful-through`).
         let (recovered, recovered_edits) = peer.open_edits(block).unzip();
+        let recovered_any = recovered.is_some();
         let origin = recovered
             .as_ref()
             .map_or_else(|| Uuid::new_v4().as_u64_pair().0, |recovered| recovered.origin);
@@ -1256,6 +1257,7 @@ impl<H: Host> Replicas<H> {
             },
             kept_restart,
             kept_through: given_up + replay.len() as u64,
+            kept_submitted: submitted_through,
             head,
             session: session.clone(),
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -1327,7 +1329,8 @@ impl<H: Host> Replicas<H> {
                 kept_restart,
                 kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
-                edits_changed: false,
+                // A block opened for the first time on this device keeps its origin at once.
+                edits_changed: !recovered_any,
                 reporting: None,
                 held: None,
                 publish_error: None,
@@ -1490,6 +1493,7 @@ impl<H: Host> Replicas<H> {
             doubtful_through: 0,
             kept_restart: open.kept_restart,
             kept_through: open.kept_through,
+            kept_submitted: open.submitted_through,
             head,
             session,
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -2930,8 +2934,7 @@ impl<H: Host> Replicas<H> {
                 let head = peer.remote_head(block).await?;
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
-                    // Only to tell a seal: a head it cannot read yet is opened as before.
-                    let _ = peer.fetch_history(head).await;
+                    fetched_for_join(&peer, head).await?;
                 }
                 let journal = match journal {
                     Some(journal) => Some(journal),
@@ -3089,6 +3092,7 @@ impl<H: Host> Replicas<H> {
                 },
                 kept_restart: open.kept_restart,
                 kept_through: open.kept_through,
+                kept_submitted: open.submitted_through,
                 head,
                 session: open.session.clone(),
                 lost_edits: false,
@@ -3631,6 +3635,7 @@ impl<H: Host> Replicas<H> {
                 merging,
                 content,
                 sealed_through,
+                restarts,
             } => {
                 let Some(open) = self.open.get_mut(&replica) else {
                     return false;
@@ -3668,6 +3673,7 @@ impl<H: Host> Replicas<H> {
                             .map(|sequence| be_block_commit::SealedThrough {
                                 sequence,
                                 offline: made_up,
+                                restarts,
                             }),
                     );
                     if let Some(merging) = merging {
@@ -3905,8 +3911,7 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         let head = peer.remote_head(block).await?;
         // The head may be a seal of the journal (`journal_for`), which needs the commit here.
         if let Some(head) = head {
-            // Only to tell a seal: a head it cannot read yet (no key) is opened as before.
-            let _ = peer.fetch_history(head).await;
+            fetched_for_join(&peer, head).await?;
         }
         let journal = match journal {
             Some(journal) => Some(journal),
@@ -4084,7 +4089,11 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
     }
     let sealed = head.and_then(|commit| {
         let (parent, sealed) = peer.sealed_on(commit)?;
+        // A seal of another run of the order counts its sequences there.
+        let restarts = be_sdk_type_guest::wire::BaseState::decode(&journal.base.state)
+            .map_or(0, |state| state.restarts);
         let reaches = journal.base.commit == parent
+            && sealed.restarts == restarts
             && be_block_session::reaches_seal(
                 journal.base.sequence,
                 journal.entries.iter().map(|entry| entry.sequence),
@@ -4159,6 +4168,19 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     Some(sealed)
 }
 
+/// Fetches `head`'s history, so `journal_for` can tell a seal of the journal from a head to
+/// merge. A head whose key this device lacks yet is opened as before, unread; any other failure
+/// fails the join, which is tried again, rather than take a seal for a head to merge.
+async fn fetched_for_join<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    head: CommitId,
+) -> Result<(), ClientError> {
+    match peer.fetch_history(head).await {
+        Ok(()) | Err(ClientError::Locked(_)) => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 /// A fast-forward to a seal of this session made on `local`, the commit the replica is on: its
 /// news (`Resume::Sealed`), which the replica takes once it applied as far, not a head to merge,
 /// which would count what both hold twice.
@@ -4176,6 +4198,7 @@ fn sealed_here<S: be_block_store::ObjectStore>(
         return be_block_session::Resume::Sealed {
             commit: to,
             through: sealed.sequence,
+            restarts: sealed.restarts,
         };
     }
     resume

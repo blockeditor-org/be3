@@ -369,9 +369,10 @@ struct JournalHead {
     order: be_block_session::Sequencer,
 }
 
-/// An open block's local edits no journal holds yet, as the host gave them its replica: kept so
-/// a replica opened after the host stopped is given them again, as one opened again in the same
-/// run is (guides/blocks/host.md, "Opening again").
+/// A block's replica origin on this device and its local edits no journal holds yet, as the
+/// host gave them its replica: kept so every replica of the block on this device submits as one
+/// origin, whose count goes on, and one opened after the host stopped is given them again, as
+/// one opened again in the same run is (guides/blocks/host.md, "Opening again").
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OpenEdits {
     /// The replica's origin, which its submissions name.
@@ -1183,33 +1184,16 @@ impl Refs {
         self.state.lock().unwrap().open_edits.get(&block).cloned()
     }
 
-    /// Keeps `edits` as `block`'s, or forgets them when they hold no edit.
+    /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
+    /// later replica of the block on this device goes on with.
     pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<(), StoreError> {
         let mut state = self.state.lock().unwrap();
-        let value = match edits.edits.is_empty() {
-            true => {
-                if state.open_edits.remove(&block).is_none() {
-                    return Ok(());
-                }
-                None
-            }
-            false => {
-                if state.open_edits.get(&block) == Some(&edits) {
-                    return Ok(());
-                }
-                state.open_edits.insert(block, edits.clone());
-                Some(edits)
-            }
-        };
+        if state.open_edits.get(&block) == Some(&edits) {
+            return Ok(());
+        }
+        state.open_edits.insert(block, edits.clone());
         drop(state);
-        self.write(vec![match value {
-            Some(edits) => row(Table::OpenEdits, block.as_bytes().to_vec(), &edits),
-            None => Row {
-                table: Table::OpenEdits,
-                key: block.as_bytes().to_vec(),
-                value: None,
-            },
-        }])
+        self.write(vec![row(Table::OpenEdits, block.as_bytes().to_vec(), &edits)])
     }
 
     /// The blocks the search indexer let go (`let_go`).

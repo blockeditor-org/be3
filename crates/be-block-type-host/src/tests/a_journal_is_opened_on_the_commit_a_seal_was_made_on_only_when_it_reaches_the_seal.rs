@@ -39,6 +39,7 @@ async fn seal(
         .sealed_through(Some(SealedThrough {
             sequence: through,
             offline: true,
+            restarts: 0,
         }));
     match peer.seal(block, write).await.expect("the seal is kept") {
         Sealed::Sealed(commit) => commit,

@@ -43,6 +43,8 @@ interface types {
     record resume-sealed {
         commit: commit-id,
         through: u64,
+        /// The run of the order it seals (`status.restarts`).
+        restarts: u64,
     }
 
     /// How a replica's local head relates to the remote one.

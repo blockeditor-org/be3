@@ -71,6 +71,8 @@ pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const LOG_LIMIT: usize = 65_536;
 const DIVERGED: &str = "the session runs a different version of this block's type";
 const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
+pub(crate) const UNCERTAIN_EDIT: &str = "an edit kept while this device was away may have \
+     been sent already and was not sent again: the session no longer records whether it landed";
 pub(crate) const STALE_EDIT: &str = "an edit kept while this device was away was not sent: the session \
      started over from its saved content meanwhile, so what the edit changed is gone";
 
@@ -90,6 +92,7 @@ pub(crate) struct Opened {
     pub(crate) doubtful_through: u64,
     pub(crate) kept_restart: u64,
     pub(crate) kept_through: u64,
+    pub(crate) kept_submitted: u64,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
@@ -608,6 +611,12 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     kept_restart: u64,
     kept_through: u64,
     stale_through: u64,
+    /// The last local edit the host submitted for this origin (`opening.kept-submitted`), and
+    /// how far a base that no longer names the origin leaves its edits possibly sent.
+    kept_submitted: u64,
+    uncertain_through: u64,
+    /// Whether a base this replica took was full and did not name its origin: aged out of it.
+    aged_out: bool,
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
@@ -858,6 +867,9 @@ where
             kept_restart: opened.kept_restart,
             kept_through: opened.kept_through,
             stale_through: 0,
+            kept_submitted: opened.kept_submitted,
+            uncertain_through: 0,
+            aged_out: false,
             replacing_from: None,
             epoch: opened.epoch,
             beaten: None,
@@ -1208,6 +1220,12 @@ where
     fn adopt_base_state(&mut self, bytes: &[u8], at_most: u64) -> Option<Vec<u8>> {
         let state = crate::wire::BaseState::decode(bytes)?;
         self.restarts = self.restarts.max(state.restarts);
+        let full = state.origins.len() >= crate::wire::BaseState::KEPT_ORIGINS;
+        self.aged_out = full
+            && !state
+                .origins
+                .iter()
+                .any(|(origin, ..)| *origin == self.origin);
         for (origin, through, at) in state.origins {
             self.note_origin(origin, through, at.min(at_most));
             if origin == self.origin {
@@ -1282,7 +1300,10 @@ where
             return self.job_already_ordered(job);
         }
         if local && self.edit_number() <= self.stale_through {
-            return self.job_stale(job);
+            return self.job_stale(job, STALE_EDIT);
+        }
+        if local && self.edit_number() <= self.uncertain_through {
+            return self.job_stale(job, UNCERTAIN_EDIT);
         }
         // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
         // the edit it was made on, and given again with it once the replica joins.
@@ -1304,7 +1325,7 @@ where
     /// A local edit kept across a stop and made before a restart of the order since: what it
     /// was made on is gone, so it is dropped, its editor told it was not sent, and a change
     /// answered as not made.
-    fn job_stale(&mut self, job: Job<C>) {
+    fn job_stale(&mut self, job: Job<C>, why: &str) {
         match job {
             Job::Input(Input::Message {
                 from: Endpoint::Editor(editor),
@@ -1314,7 +1335,7 @@ where
                 Some(FromEditor::Operate(operation)) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
                     self.lacking.add_dropped(operation);
-                    self.error(STALE_EDIT);
+                    self.error(why);
                 }
                 Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
                 Some(message) => self.handle_editor(editor, message),
@@ -1960,6 +1981,7 @@ where
             merging,
             content,
             sealed_through,
+            restarts: self.restarts,
         });
         self.waiting = Some(Wait::Publish { token, then });
     }
@@ -1985,6 +2007,13 @@ where
             Ok(resume) => resume,
             Err(error) => return self.error(error),
         };
+        // A seal of another run of the order counts its sequences there: a head to merge.
+        let resume = match resume {
+            Resume::Sealed {
+                commit, restarts, ..
+            } if restarts != self.restarts => Resume::FastForward { to: commit },
+            resume => resume,
+        };
         let unsealed = self.has_unsealed_work();
         // A resume that needs no merge settles any merge that was failing.
         if !matches!(resume, Resume::Merge { .. })
@@ -1995,10 +2024,13 @@ where
         }
         match resume {
             Resume::Empty | Resume::UpToDate | Resume::Publish { .. } => {}
-            Resume::Sealed { commit, through } => {
+            Resume::Sealed {
+                commit, through, ..
+            } => {
                 self.heard_seal = Some((commit, through));
                 self.take_heard_seal();
             }
+
             // Nothing unsealed: the order takes the head as it is, applying again what it
             // numbered since the seal.
             Resume::FastForward { to } if !unsealed => {
@@ -2284,6 +2316,11 @@ where
         // they were made on is gone.
         if self.restarts > self.kept_restart {
             self.stale_through = self.kept_through;
+        }
+        // The order's base names only its most recent origins: one aged out of it may hold what
+        // this origin submitted though no entry says so. Sent again, it could land twice.
+        if self.aged_out && self.kept_submitted > self.own_through {
+            self.uncertain_through = self.kept_submitted;
         }
         self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());

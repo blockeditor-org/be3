@@ -38,6 +38,11 @@ interface replicas {
         /// those edits are dropped, each told to its editor as not sent.
         kept-restart: u64,
         kept-through: u64,
+        /// The last local edit the host submitted to the server for this
+        /// block's origin, which the server may hold: when the order's base no
+        /// longer names the origin (only the most recent are kept), those not
+        /// seen in the order fail as possibly sent rather than be sent again.
+        kept-submitted: u64,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,

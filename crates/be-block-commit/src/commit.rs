@@ -113,6 +113,8 @@ pub struct SealedThrough {
     /// Sealed from this device's own order, numbered offline, not the server's: its sequence
     /// counts in that order alone.
     pub offline: bool,
+    /// How many times the session had started over: `sequence` counts in that run alone.
+    pub restarts: u64,
 }
 
 impl Commit {

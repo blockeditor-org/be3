@@ -59,6 +59,9 @@ interface host {
         merging: option<merging>,
         content: written,
         sealed-through: option<u64>,
+        /// How many times the session had started over (`status.restarts`): a
+        /// seal's sequence counts in that run of the order alone.
+        restarts: u64,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
