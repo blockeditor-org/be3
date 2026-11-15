@@ -3518,7 +3518,18 @@ async fn apply(
                     Ok(restored) => (Ok(!restored.is_empty()), restored),
                     Err(error) => (Err(error), Vec::new()),
                 },
-                false => (peer.discard_unsent(block), Vec::new()),
+                false => {
+                    let lost = peer
+                        .unsent()
+                        .iter()
+                        .any(|unsent| unsent.block == block && unsent.refused.is_none());
+                    let discarded = peer.discard_unsent(block);
+                    if lost && discarded.is_ok() {
+                        replicas.stop_keeping(block);
+                        let _ = peer.forget_cached(block);
+                    }
+                    (discarded, Vec::new())
+                }
             };
             if restore {
                 tasks.sync(peer, shared);

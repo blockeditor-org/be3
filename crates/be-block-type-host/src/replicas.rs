@@ -561,6 +561,9 @@ struct Open {
     /// How far `submitted_through` reached when this device last kept the replica's edits: a
     /// submission past it waits until they are kept again (`Call::Submit`).
     kept_submitted_through: u64,
+    /// Whether this device keeps its local edits (`refs::OpenEdits`): not once they were
+    /// discarded with the block's unsent edits (`Replicas::stop_keeping`).
+    keeps_edits: bool,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
     /// `opening.kept-through`), told every opening.
     kept_restart: u64,
@@ -1441,6 +1444,7 @@ impl<H: Host> Replicas<H> {
                 given_up,
                 submitted_through,
                 kept_submitted_through: submitted_through,
+                keeps_edits: true,
                 kept_restart,
                 kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
@@ -1868,6 +1872,16 @@ impl<H: Host> Replicas<H> {
         }
     }
 
+    /// The block's local edits were discarded with its unsent edits (`Peer::discard_unsent`):
+    /// its open replica keeps none of them on this device from now on.
+    pub fn stop_keeping(&mut self, block: Uuid) {
+        if let Some(replica) = self.blocks.get(&block).copied()
+            && let Some(open) = self.open.get_mut(&replica)
+        {
+            open.keeps_edits = false;
+        }
+    }
+
     pub fn unlock(&mut self, shared: &Arc<Mutex<H>>) -> Vec<Uuid> {
         self.searched.clear();
         let mut closed = Vec::new();
@@ -2090,7 +2104,7 @@ impl<H: Host> Replicas<H> {
             return;
         }
         for open in self.open.values_mut() {
-            if !std::mem::take(&mut open.edits_changed) {
+            if !std::mem::take(&mut open.edits_changed) || !open.keeps_edits {
                 continue;
             }
             let (kept, edits) = kept_edits(open);
@@ -3504,8 +3518,10 @@ impl<H: Host> Replicas<H> {
         );
         // Kept on the device only as far as nothing holds them: none, once it ended clean.
         open.reported_clean(held);
-        let (kept, edits) = kept_edits(&open);
-        let _ = peer.keep_open_edits(open.block, kept, edits).await;
+        if open.keeps_edits {
+            let (kept, edits) = kept_edits(&open);
+            let _ = peer.keep_open_edits(open.block, kept, edits).await;
+        }
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
@@ -3632,6 +3648,7 @@ impl<H: Host> Replicas<H> {
                 // Written ahead: once the server may hold an edit, a crash must not lose that
                 // it was submitted, or the edits given again would be numbered anew.
                 if let Some(open) = self.open.get_mut(&replica)
+                    && open.keeps_edits
                     && open.submitted_through > open.kept_submitted_through
                 {
                     let (kept, edits) = kept_edits(open);

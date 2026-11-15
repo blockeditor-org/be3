@@ -20,6 +20,7 @@ fn an_organizations_unsent_edits_are_discarded_once_the_grace_period_passes() {
         since: wall.now(),
         offerable: true,
         refused: None,
+        kept_edits: 0,
         name: None,
     };
     let unsent = [
