@@ -2857,7 +2857,10 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
         identity,
         &me,
         peer.organization(),
-        peer.keys().escrow().as_ref(),
+        &be_block_client::contacts::Pinned {
+            root: peer.keys().organization_root(),
+            escrow: peer.keys().escrow(),
+        },
     )
     .await?;
     crate::own_invitation(&config.server_url, peer.account(), &code);
@@ -2893,9 +2896,14 @@ async fn create_agent(
         public.0,
         secret.signing().0,
         me.seal_own(&secret),
-        peer.keys().escrow().map_or_else(Vec::new, |escrow| {
-            be_block_client::contacts::seal_pin(&secret, organization, &escrow)
-        }),
+        be_block_client::contacts::seal_pin(
+            &secret,
+            organization,
+            &be_block_client::contacts::Pinned {
+                root: peer.keys().organization_root(),
+                escrow: peer.keys().escrow(),
+            },
+        ),
         bound_to,
     ))
     .await?;

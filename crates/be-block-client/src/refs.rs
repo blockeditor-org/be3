@@ -199,7 +199,7 @@ pub(crate) struct Session {
     pub role: OrganizationRole,
     pub kind: OrganizationKind,
     pub escrows: Vec<EscrowKey>,
-    pub pinned: Option<EscrowKey>,
+    pub pinned: crate::contacts::Pinned,
     pub server: Option<be_block_protocol::ServerAccount>,
     /// The server's clock less this device's, as last measured (`Peer::server_now`), for
     /// stamping commits offline after a restart.
@@ -233,6 +233,9 @@ pub struct Creation {
     pub key: Uuid,
     pub keys: KeySet,
     pub owner_only: bool,
+    /// The root of the block's access log, made with it (`be_block_keys::Entry::root`).
+    #[serde(with = "serde_bytes")]
+    pub root: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

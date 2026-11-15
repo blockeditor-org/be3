@@ -141,8 +141,10 @@ impl ServerKey {
                     }
                 }
             };
-            if let Some(bytes) = plain.and_then(|plain| <[u8; 32]>::try_from(plain).ok()) {
-                ring.insert(key, ContentKey::from_bytes(bytes));
+            if let Some(carried) =
+                plain.and_then(|plain| be_block_keys::CarriedKey::decode(&plain).ok())
+            {
+                ring.insert(key, ContentKey::from_bytes(carried.key));
                 return Ok(true);
             }
         }
@@ -206,11 +208,18 @@ impl ServerKey {
                 continue;
             }
             let plain = ring.get(row.id).ok_or(ServerError::Corrupt)?;
+            // The server vouches for no root (decisions/the_server_never_vouches_for_an_identity.md),
+            // so it carries none.
+            let carried = be_block_keys::CarriedKey {
+                key: *plain.as_bytes(),
+                block: settings.into_bytes(),
+                root: None,
+            };
             let sealed = self.secret.seal_for(
                 self.account.into_bytes(),
                 &to,
                 row.id.as_bytes(),
-                plain.as_bytes(),
+                &carried.encode(),
             );
             connection.execute(
                 "INSERT OR REPLACE INTO wrapped_keys

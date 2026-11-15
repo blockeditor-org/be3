@@ -48,6 +48,7 @@ impl TestClient {
         let hash = Hash::of(b"an object");
         let commit = CommitId::from_hash(hash);
         let sealed = || b"sealed".to_vec();
+        let root = self.account.map_or_else(Vec::new, |_| self.root(other));
         let mut answers = vec![
             (
                 "ping",
@@ -88,7 +89,17 @@ impl TestClient {
             ),
             (
                 "create-organization",
-                answered(client::organizations::create_organization(peer, "mine".into()).await),
+                answered({
+                    let (id, root) = organization_root(self.account.unwrap_or_default());
+                    client::organizations::create_organization(
+                        peer,
+                        id,
+                        "mine".into(),
+                        root,
+                        Vec::new(),
+                    )
+                    .await
+                }),
             ),
             (
                 "create-link (invitation)",
@@ -230,6 +241,7 @@ impl TestClient {
                             wrapped: Vec::new(),
                         },
                         false,
+                        root,
                     )
                     .await,
                 ),
@@ -284,8 +296,16 @@ impl TestClient {
                 answered(client::blocks::unlist(peer, Listing::Children(BlockParent::Root)).await),
             ),
             (
+                "get-organization-log",
+                answered(client::organizations::get_organization_log(peer).await),
+            ),
+            (
                 "list-history",
                 answered(client::blocks::list_history(peer, block).await),
+            ),
+            (
+                "get-access-log",
+                answered(client::blocks::get_access_log(peer, block).await),
             ),
             (
                 "changed-since",
@@ -572,6 +592,7 @@ async fn every_call_states_who_may_make_it() {
     assert_eq!(knower.personal().await, organization);
     let referrer = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = knower.root(referrer);
     let response = knower
         .call(|peer| {
             client::blocks::create_block(
@@ -587,6 +608,7 @@ async fn every_call_states_who_may_make_it() {
                     wrapped: Vec::new(),
                 },
                 false,
+                root,
             )
         })
         .await;
@@ -602,6 +624,7 @@ async fn every_call_states_who_may_make_it() {
         "read-contents",
         "set-parent",
         "list-history",
+        "get-access-log",
         "changed-since",
         "list-access",
         "set-access",

@@ -33,7 +33,8 @@ pub struct GrantOffer {
     pub block: Uuid,
     pub access: Access,
     pub key: Uuid,
-    pub secret: [u8; 32],
+    /// The scope key as it travels (`be_block_keys::CarriedKey`), with the block and its root.
+    pub secret: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -57,15 +58,93 @@ pub fn card(
     }
 }
 
-pub fn seal_pin(identity: &RecoverySecret, organization: Uuid, escrow: &EscrowKey) -> Vec<u8> {
-    identity.seal_pin(organization.into_bytes(), &escrow.encode())
+/// What an account pins for a company organization from somewhere the server cannot write
+/// (making it, an invitation, an agent's maker), sealed to itself (`seal_pin`): the hash of the
+/// organization's access log root and its escrow key.
+#[derive(Clone, Debug, Default, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+pub struct Pinned {
+    pub root: Option<be_block_keys::EntryHash>,
+    pub escrow: Option<EscrowKey>,
 }
 
-pub fn open_pin(identity: &RecoverySecret, organization: Uuid, sealed: &[u8]) -> Option<EscrowKey> {
+impl Pinned {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a pin always encodes")
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.root.is_none() && self.escrow.is_none()
+    }
+}
+
+/// Makes a company organization with this account as its administrator, rooting its access
+/// log at the account's keys (plans/signed_access.md) and pinning that root for it. The server
+/// takes a root only as the caller's current keys, so they are registered first when the
+/// server holds none yet.
+pub async fn create_organization(
+    connection: &Arc<Connection>,
+    identity: &RecoverySecret,
+    account: Uuid,
+    name: String,
+) -> Result<be_block_protocol::Organization, ClientError> {
+    register_identity(connection, identity).await?;
+    let id = Uuid::new_v4();
+    let root = be_block_keys::Entry::root(
+        identity,
+        account.into_bytes(),
+        be_block_keys::LogKind::Organization,
+        id.into_bytes(),
+    );
+    let pinned = Pinned {
+        root: Some(root.hash()),
+        escrow: None,
+    };
+    crate::ask(client::organizations::create_organization(
+        connection,
+        id,
+        name,
+        root.encode(),
+        seal_pin(identity, id, &pinned),
+    ))
+    .await
+}
+
+/// Registers `identity` as the account's keys when the server holds none yet.
+pub async fn register_identity(
+    connection: &Arc<Connection>,
+    identity: &RecoverySecret,
+) -> Result<(), ClientError> {
+    let public = crate::ask(client::keys::get_recovery_key(connection)).await?.public;
+    if public.is_some() {
+        return Ok(());
+    }
+    crate::ask(client::keys::set_recovery_key(
+        connection,
+        identity.public().0,
+        identity.signing().0,
+        Vec::new(),
+        Vec::new(),
+        Vec::new(),
+    ))
+    .await
+}
+
+pub fn seal_pin(identity: &RecoverySecret, organization: Uuid, pinned: &Pinned) -> Vec<u8> {
+    match pinned.is_empty() {
+        true => Vec::new(),
+        false => identity.seal_pin(organization.into_bytes(), &pinned.encode()),
+    }
+}
+
+pub fn open_pin(identity: &RecoverySecret, organization: Uuid, sealed: &[u8]) -> Option<Pinned> {
     if sealed.is_empty() {
         return None;
     }
-    EscrowKey::decode(&identity.open_pin(organization.into_bytes(), sealed).ok()?)
+    Pinned::decode(&identity.open_pin(organization.into_bytes(), sealed).ok()?)
 }
 
 fn link_id(code: &InviteCode) -> Uuid {
@@ -362,7 +441,7 @@ pub async fn accept_link(
             let opened = code
                 .open_escrow(invitation.organization.into_bytes(), &invitation.escrow)
                 .ok()
-                .and_then(|bytes| EscrowKey::decode(&bytes))
+                .and_then(|bytes| Pinned::decode(&bytes))
                 .ok_or_else(tampered)?;
             seal_pin(identity, invitation.organization, &opened)
         }
@@ -443,12 +522,13 @@ pub async fn invite(
     identity: &RecoverySecret,
     me: &ContactCard,
     organization: Uuid,
-    escrow: Option<&EscrowKey>,
+    pinned: &Pinned,
 ) -> Result<InviteCode, ClientError> {
     let code = InviteCode::generate();
-    let escrow = escrow.map_or_else(Vec::new, |escrow| {
-        code.seal_escrow(organization.into_bytes(), &escrow.encode())
-    });
+    let escrow = match pinned.is_empty() {
+        true => Vec::new(),
+        false => code.seal_escrow(organization.into_bytes(), &pinned.encode()),
+    };
     client::contacts::create_link(
         connection,
         link_id(&code),

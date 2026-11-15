@@ -42,8 +42,22 @@ interface organizations {
 
     list-organizations: async func() -> result<list<organization>, error>;
 
-    /// Makes a company organization with the caller as its administrator.
-    create-organization: async func(name: string) -> result<organization, error>;
+    /// Makes company organization `id`, chosen by the caller, with the caller
+    /// as its administrator. `root` is the root of its access log
+    /// (`be_block_keys::Entry::root`), signed by the caller with its current
+    /// keys (plans/signed_access.md); `pinned` is what the caller pins for it,
+    /// sealed to itself, as `pin-escrow` keeps it.
+    create-organization: async func(
+        id: organization-id,
+        name: string,
+        root: list<u8>,
+        pinned: list<u8>,
+    ) -> result<organization, error>;
+
+    /// The opened organization's access log, root first, each entry as
+    /// `be_block_keys::Entry::encode` wrote it. Empty for the personal
+    /// organization, which has none.
+    get-organization-log: async func() -> result<list<list<u8>>, error>;
 
     /// Makes `organization` the one every later block, key and member call
     /// of this connection works in, and starts over what the connection

@@ -231,17 +231,18 @@ pub async fn organizations(
     Ok(ask(client::organizations::list_organizations(&connection)).await?)
 }
 
+/// Makes a company organization as `me`, who signs the root of its access log.
 pub async fn create_organization(
     server_url: String,
     token: String,
+    me: Me,
     name: String,
 ) -> Result<Organization, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    Ok(ask(client::organizations::create_organization(
-        &connection,
-        name,
-    ))
-    .await?)
+    Ok(
+        be_block_client::contacts::create_organization(&connection, &me.secret(), me.account, name)
+            .await?,
+    )
 }
 
 #[derive(Clone, Debug)]

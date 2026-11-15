@@ -1,3 +1,4 @@
+mod access;
 mod address;
 mod browser_auth;
 mod changes;

@@ -26,14 +26,14 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
     let harness = Harness::start().await;
     let mut owner = harness.client().await;
     let me = owner.register("owner@example.com").await;
-    with_signing_key(&mut owner, [1; 32]).await;
     let organization = owner.organization("team").await;
     let block = owner.create_block(BlockParent::Root).await;
     let (agent, _) = owner.block_agent(organization, block).await.unwrap();
+    with_signing_key(&mut owner, [1; 32]).await;
     let mut stranger = harness.client().await;
     let stranger_account = stranger.register("stranger@example.com").await;
-    with_signing_key(&mut stranger, [9; 32]).await;
     stranger.organization("elsewhere").await;
+    with_signing_key(&mut stranger, [9; 32]).await;
     let mut expected = vec![
         SigningKey {
             account: me,
@@ -41,7 +41,7 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
         },
         SigningKey {
             account: agent,
-            key: [8; 32],
+            key: test_secret(agent).signing().0,
         },
     ];
     expected.sort_by_key(|key| key.account);

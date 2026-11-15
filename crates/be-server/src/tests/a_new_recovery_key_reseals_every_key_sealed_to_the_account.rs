@@ -17,14 +17,20 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     let mut owner = harness.client().await;
     let account = owner.register("owner@example.com").await;
     let organization = owner.organization("notes").await;
-    assert_eq!(recovery(&mut owner).await, (None, Vec::new()));
+    assert_eq!(
+        recovery(&mut owner).await,
+        (Some(test_secret(account).public().0), Vec::new())
+    );
 
+    let first = be_block_keys::RecoveryPhrase::generate().secret();
+    let identity = first.identity();
+    remember_secret(account, first);
     let response = owner
         .call(|peer| {
             client::keys::set_recovery_key(
                 peer,
-                [1; 32],
-                [1; 32],
+                identity.public.0,
+                identity.signing.0,
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
@@ -34,7 +40,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     assert!(matches!(response, Ok(())), "{response:?}");
     let workspace = owner.scope_root(account, BlockParent::Root).await;
     let (public, sealed) = recovery(&mut owner).await;
-    assert_eq!(public, Some([1; 32]));
+    assert_eq!(public, Some(identity.public.0));
     assert_eq!(
         sealed,
         vec![SealedKey {
@@ -83,7 +89,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         matches!(refused, Err(_)),
         "a new recovery key left a key sealed to the old one: {refused:?}"
     );
-    assert_eq!(recovery(&mut owner).await.0, Some([1; 32]));
+    assert_eq!(recovery(&mut owner).await.0, Some(identity.public.0));
 
     let response = owner
         .call(|peer| {

@@ -21,15 +21,14 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
     let (profile, _) = store.create_local_profile("Owner").await.unwrap();
     let account = profile.account;
     refused(
-        store.create_organization(account, &long).await,
+        signed_organization(&store, account, &long).await,
         ErrorCode::InvalidRequest,
     );
 
     let organizations: Vec<Uuid> = {
         let mut made = Vec::new();
         for index in 0..MAX_ORGANIZATIONS_PER_ACCOUNT {
-            let organization = store
-                .create_organization(account, &format!("Company {index}"))
+            let organization = signed_organization(&store, account, &format!("Company {index}"))
                 .await
                 .unwrap();
             made.push(organization.id);
@@ -37,7 +36,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
         made
     };
     refused(
-        store.create_organization(account, "One too many").await,
+        signed_organization(&store, account, "One too many").await,
         ErrorCode::OverQuota,
     );
     let organization = organizations[0];
@@ -212,6 +211,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             Uuid::new_v4(),
             KeySet::default(),
             false,
+            Vec::new(),
         )
     };
     refused(

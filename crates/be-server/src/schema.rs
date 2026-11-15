@@ -115,6 +115,15 @@ const SCHEMA: &str = "
         change_sequence INTEGER NOT NULL DEFAULT 0
     );
 
+    -- A company organization's access log (plans/signed_access.md), in order,
+    -- as access_log keeps a block's.
+    CREATE TABLE organization_log (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, position)
+    );
+
     CREATE TABLE memberships (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -187,6 +196,18 @@ const SCHEMA: &str = "
         owner_only      INTEGER NOT NULL DEFAULT 0,
         changed         INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, id)
+    );
+
+    -- Each block's access log (plans/signed_access.md), in order: entries as
+    -- be_block_keys::Entry::encode wrote them, each checked as devices check it.
+    CREATE TABLE access_log (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, block_id, position),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
     );
 
     CREATE INDEX blocks_changed

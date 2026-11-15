@@ -213,14 +213,26 @@ instead.
 ## Order of work
 
 1. **Audit.** Done: the table above.
-2. **Roots and retirement.** Block and organization roots, the root pinned from
-   the creating device, sealed grants and links and the invitation, and
-   retirement entries on a new phrase. Done: a test where a forging server
-   swaps a block's root and the device refuses it; one where an account takes
-   a new phrase and a record signed with the old key after it is refused.
+2. **Roots and retirement.** Block roots, pinned from the creating device and
+   from every key (`CarriedKey`), and organization roots, pinned from making
+   the organization, the invitation and an agent's maker, are built
+   (guides/blocks/keys.md, "Access logs"). Left: retirement entries on a new
+   phrase. Done: a test where an account takes a new phrase and a record
+   signed with the old key after it is refused. A root carried only by a key opened through escrow is not pinned
+   (anyone can seal to the escrow key); step 3 decides how an administrator
+   checks a log it reaches only through escrow. Agents' blocks and records are
+   rooted at the agent's own keys, which its maker makes and holds no copy of,
+   so only the agent (or a later owner record) retires or transfers them.
 3. **Signed grants and administrators.** Records, logs, proof paths, the
    server's checks and the devices', sealing to grantees who are not contacts,
-   and key epochs bound to log heads. Done: a test where the server lists a
+   and key epochs bound to log heads. Before any decision acts on a pin:
+   authenticate escrow wraps (sealed by their sender, as `seal_for` is,
+   rather than anonymously) or give administrators another check of a root
+   they reach only through escrow, which today pins nothing; and take a pin
+   only from a sender the log entitles to seal the key (today any verified
+   contact can plant a block's first pin). Decide too whether a block's agent
+   may read its organization's log: `bound_may` lets it today, since a
+   terminal host opens its organization as `Peer::attach` does. Done: a test where the server lists a
    contact as granted with no record and no key reaches them; one where the
    server withholds a revocation from a device and that device seals the new
    epoch to nobody until it has the log up to the epoch's head; one where a
