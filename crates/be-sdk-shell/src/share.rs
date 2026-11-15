@@ -2,12 +2,10 @@ use be_sdk_beui::beui::reactive::{Pending, Ready};
 use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, Failure};
 use uuid::Uuid;
 
-pub(crate) const GRANTABLE: [AccessLevel; 4] = [
-    AccessLevel::Manage,
-    AccessLevel::Edit,
-    AccessLevel::View,
-    AccessLevel::KnowExists,
-];
+/// What the share dialog offers. `KnowExists` is not among them: a reference
+/// gives it, and a grant of it is never what a person sharing means.
+pub(crate) const GRANTABLE: [AccessLevel; 3] =
+    [AccessLevel::Manage, AccessLevel::Edit, AccessLevel::View];
 
 const MAX_SUGGESTIONS: usize = 6;
 
@@ -31,11 +29,18 @@ pub(crate) struct Member {
 }
 
 impl Member {
+    /// The levels this member's row offers: those the dialog grants, at or
+    /// above what they inherit, and the one they hold if the dialog doesn't
+    /// grant it (a `KnowExists` made by another route), so the row shows it.
     pub(crate) fn choices(&self) -> Vec<AccessLevel> {
-        GRANTABLE
+        let mut choices: Vec<AccessLevel> = GRANTABLE
             .into_iter()
             .filter(|level| *level >= self.inherited)
-            .collect()
+            .collect();
+        if self.access > AccessLevel::None && !choices.contains(&self.access) {
+            choices.push(self.access);
+        }
+        choices
     }
 
     pub(crate) fn choose(&self, access: AccessLevel) -> Option<AccessLevel> {
