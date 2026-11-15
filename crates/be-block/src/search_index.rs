@@ -49,8 +49,13 @@ const MERGES_PER_PASS: usize = 2;
 
 /// The most bytes of parts one merge reads as a batch is written. Segments whose merge would
 /// read more are left for a pass while the device is idle (`SearchIndexContent::merges_over`),
-/// which compacts without the cap.
+/// which compacts up to `IDLE_MERGE_BYTES`.
 pub const MERGE_BYTES: u64 = 8 << 20;
+
+/// The most bytes of parts one merge reads in a pass while the device is idle. A merge reads
+/// its segments whole into memory, so even then it is capped, until the pass waits for the
+/// device to be idle and on power (plans/backlog.md, "Search").
+pub const IDLE_MERGE_BYTES: u64 = 128 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
@@ -106,7 +111,7 @@ impl SearchIndexContent {
     }
 
     /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`, none reading more than
-    /// `bytes`: `MERGE_BYTES` as a batch is written, no cap while the device is idle) and
+    /// `bytes`: `MERGE_BYTES` as a batch is written, `IDLE_MERGE_BYTES` while the device is idle) and
     /// forgets the retired segments and removed blocks recorded longer than `REMEMBERED` before
     /// `now` (milliseconds): what the device that writes a batch does with it, so the segments a
     /// query reads stay few.

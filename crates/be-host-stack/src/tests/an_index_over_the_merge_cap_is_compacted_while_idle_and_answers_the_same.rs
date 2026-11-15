@@ -20,6 +20,20 @@ fn found(text: &str) -> Vec<Uuid> {
     })
 }
 
+/// Waits until a search for `text` answers exactly `blocks`, as one written elsewhere arrives.
+fn finds(text: &str, blocks: &[Uuid]) {
+    let ask = SearchAsk {
+        text: text.to_owned(),
+        within: None,
+    };
+    want_searches(Owner::Host, vec![ask.clone()]);
+    crate::wait_until(|shared| {
+        let answer = shared.search.answer(&ask)?;
+        let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
+        (answer.complete && found == blocks).then_some(())
+    });
+}
+
 fn note(workspace: Uuid, text: &str) -> Uuid {
     let block = Uuid::new_v4();
     create(
@@ -101,19 +115,39 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
         .flatten()
         .expect("the host has a peer");
     let runtime = runtime();
-    let before = runtime.block_on(crate::search::segment_count(&peer, index));
+    let written = runtime.block_on(crate::search::segment_count(&peer, index));
     assert!(
-        before >= notes.len(),
-        "no batch's compaction merged over the cap: {before} segments"
+        written >= notes.len(),
+        "no batch's compaction merged over the cap: {written} segments"
     );
 
-    // Idle, the host merges what the cap left, a commit at a time, until nothing is over it.
+    // Another device writes the index's last batch: this one leaves the index to it, idle or
+    // not, so the two never make the same merges.
+    let ours = peer.known_remote_head(index);
+    let other = Device::online(&harness);
+    other.merge_bytes.set(1);
+    let grapes = other.index_note(workspace, index, "grapes");
+    finds("grapes", &[grapes]);
+    crate::wait_until(|_| (peer.known_remote_head(index) != ours).then_some(()));
     crate::with_shared_mut(|shared| shared.search.hold_idle = false);
     send(Command::Sync);
+    flush();
+    settled();
+    assert_eq!(
+        crate::with_shared(|shared| shared.search.idle_compactions),
+        Some(0),
+        "the device that did not write the last batch compacted"
+    );
+    let before = runtime.block_on(crate::search::segment_count(&peer, index));
+    assert!(before > notes.len(), "{before} segments");
+
+    // Once this device writes a batch, idle, it merges what the cap left, a commit at a time,
+    // until nothing is over it.
+    type_text(notes[0], 0, "grapefruit ");
+    flush();
     crate::wait_until(|shared| {
-        let head = peer.local_head(index);
         (shared.search.idle_compactions > 0
-            && shared.search.compacted_at(index) == Some(head)
+            && shared.search.idle_done(&peer)
             && shared.waiting == 0)
             .then_some(())
     });
@@ -128,4 +162,12 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
         assert_eq!(found(&format!("{word} ")), [*note], "{word} is found as before");
     }
     assert_eq!(found("figs "), all);
+    assert_eq!(found("grapefruit "), [notes[0]]);
+    // The other device's note never joined the workspace's children, so the mirror comes to
+    // show it detached and search hides it; the merged index still holds it.
+    let held = runtime.block_on(crate::search::entries(&peer, index, grapes));
+    assert!(
+        held.iter().any(|entry| !entry.is_removed()),
+        "the merge kept the other device's note"
+    );
 }

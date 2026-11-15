@@ -978,6 +978,8 @@ struct Device {
     url: String,
     config: Box<dyn Fn() -> be_block_client::PeerConfig>,
     peer: std::cell::RefCell<std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>>>,
+    /// The cap its batches' compaction merges under (`search::write`).
+    merge_bytes: std::cell::Cell<u64>,
 }
 
 impl Device {
@@ -1027,6 +1029,7 @@ impl Device {
             url,
             config: Box::new(config),
             peer: std::cell::RefCell::new(std::sync::Arc::new(peer)),
+            merge_bytes: std::cell::Cell::new(be_block::search_index::MERGE_BYTES),
         }
     }
 
@@ -1111,7 +1114,7 @@ impl Device {
                         peer.as_ref(),
                         index,
                         batch.clone(),
-                        be_block::search_index::MERGE_BYTES,
+                        self.merge_bytes.get(),
                     )
                     .await,
                     Ok(Some(Vec::new())),

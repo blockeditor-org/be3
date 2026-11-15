@@ -14,8 +14,9 @@
 //! shows the error (`Searching::write_failed`).
 //!
 //! **Compacting while idle.** A batch's write compacts a few segments with it, none whose merge
-//! reads more than `MERGE_BYTES`; the merges that cap leaves are made while the host is idle
-//! (`compact_idle_indexes`), one index at a time.
+//! reads more than `MERGE_BYTES`; the merges that cap leaves, up to `IDLE_MERGE_BYTES`, are made
+//! while the host is idle (`compact_idle_indexes`) by the device that wrote the index's last
+//! batch, one index at a time.
 //!
 //! **Searching.** `want` names the searches an owner shows. A search runs in a task over the
 //! index of every root the account views in the open organization (`run`), reading only the
@@ -30,7 +31,7 @@ use std::{
     time::Duration,
 };
 
-use be_block::search_index::{AsyncRead, MERGE_BYTES, SearchIndexContent};
+use be_block::search_index::{AsyncRead, IDLE_MERGE_BYTES, MERGE_BYTES, SearchIndexContent};
 use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
@@ -236,9 +237,10 @@ pub struct Searching {
     /// Writes a test makes fail before they start (`Unwritten::Failed`).
     #[cfg(test)]
     pub(crate) fail_writes: u32,
-    /// By index: its local head when the idle pass last found no merge over the cap there, or
-    /// failed, so it looks again only once the index moves (`compact_idle_indexes`).
-    compacted: HashMap<Uuid, Option<CommitId>>,
+    /// By index: the head this device's last write to it left, while it may be the index's
+    /// newest, for the idle pass (`compact_idle_indexes`), and whether that pass has looked at
+    /// it already. Only the device that wrote an index's last batch compacts it while idle.
+    last_written: HashMap<Uuid, LastWritten>,
     /// The cap a test gives a batch's compaction in place of `MERGE_BYTES`.
     #[cfg(test)]
     pub(crate) merge_bytes: Option<u64>,
@@ -392,10 +394,31 @@ impl Searching {
         MERGE_BYTES
     }
 
-    /// The local head an idle pass last left `index` at with nothing more to merge.
+    /// Notes that this device's write left `index` at `head`, for the idle pass.
+    fn last_wrote(&mut self, index: Uuid, head: Option<CommitId>) {
+        match head {
+            Some(head) => {
+                self.last_written.insert(
+                    index,
+                    LastWritten {
+                        head,
+                        looked: false,
+                    },
+                );
+            }
+            None => {
+                self.last_written.remove(&index);
+            }
+        }
+    }
+
+    /// Whether the idle pass has nothing left to do: every index this device wrote last has
+    /// been looked at, or was moved on by another device.
     #[cfg(test)]
-    pub(crate) fn compacted_at(&self, index: Uuid) -> Option<Option<CommitId>> {
-        self.compacted.get(&index).copied()
+    pub(crate) fn idle_done<S: ObjectStore>(&self, peer: &Peer<S>) -> bool {
+        self.last_written
+            .iter()
+            .all(|(index, last)| last.looked || !is_newest(peer, *index, last.head))
     }
 
     fn wanted(&self) -> impl Iterator<Item = &SearchAsk> {
@@ -722,12 +745,14 @@ impl Searching {
         self.moving.iter().map(|moving| moving.index)
     }
 
-    /// A batch or settle was written to `index`: the next one given back waits the shortest
-    /// delay, and failures count from none.
-    pub(crate) fn wrote(&mut self, index: Uuid) {
+    /// A batch or settle was written to `index`, leaving it at `head` here: the next one given
+    /// back waits the shortest delay, failures count from none, and the idle pass may look at
+    /// the index (`last_written`).
+    pub(crate) fn wrote(&mut self, index: Uuid, head: Option<CommitId>) {
         self.moved.remove(&index);
         self.write_failures.remove(&index);
         self.set_aside.remove(&index);
+        self.last_wrote(index, head);
     }
 
     /// A batch of `blocks` could not be written to `index` at `now` (`Unwritten::Failed`):
@@ -808,6 +833,22 @@ impl Searching {
             }
         }
     }
+}
+
+/// Whether `head` is the index's newest here: its local head, and the server's as far as this
+/// device knows, so no other device wrote it since.
+fn is_newest<S: ObjectStore>(peer: &Peer<S>, index: Uuid, head: CommitId) -> bool {
+    peer.local_head(index) == Some(head)
+        && peer
+            .known_remote_head(index)
+            .is_none_or(|remote| remote == head)
+}
+
+/// The head this device's last write to an index left (`Searching::last_written`).
+struct LastWritten {
+    head: CommitId,
+    /// The idle pass found nothing over the cap there, or failed: it waits for the next write.
+    looked: bool,
 }
 
 /// What is set aside for an index whose writes kept failing (`Searching::failing`).
@@ -939,11 +980,14 @@ pub(crate) async fn step(
 }
 
 /// While the host is idle (nothing queued, written, made or caught up for search, no search
-/// running, no command waiting, nothing in the outbox, no module working), compacts the first
-/// index this device may write whose compaction leaves a merge over `MERGE_BYTES`, without the
-/// cap, in a task. It counts as a batch being written, so a batch for that index waits for it
-/// and the host is busy until it is sealed and sent; the next idle round makes the next merge.
-/// An index is looked at again only once its local head moves.
+/// running, no command waiting, nothing in the outbox, no module working), compacts an index
+/// whose compaction leaves a merge over `MERGE_BYTES`, with merges up to `IDLE_MERGE_BYTES`, in
+/// a task. Only an index whose newest head here is the one this device's last write left
+/// (`Searching::last_written`) is looked at: the device that wrote the last batch compacts, so
+/// two devices never make the same merge, and nothing is loaded for an index no write here
+/// moved. Each such head is looked at once. The pass counts as a batch being written, so a
+/// batch for that index waits for it and the host is busy until it is sealed and sent; its
+/// commit is a write too, so the next idle round makes the next merge.
 fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     #[cfg(test)]
@@ -960,18 +1004,25 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     if !idle {
         return;
     }
+    // An index another device wrote since, or that a merge moved, is no longer this device's
+    // to compact.
+    held.search
+        .last_written
+        .retain(|index, last| is_newest(peer, *index, last.head));
     let state = &*held;
     let due = state
-        .graph
-        .nodes()
-        .filter(|node| {
-            node.parent == Some(BlockParent::Root) && node.access.can_edit() && !node.locked
+        .search
+        .last_written
+        .iter()
+        .filter(|(index, last)| {
+            !last.looked
+                && state
+                    .graph
+                    .get(**index)
+                    .is_some_and(|node| node.access.can_edit() && !node.locked)
         })
-        .filter_map(|node| index_of(&state.graph, &state.search.named, node.id))
-        .map(|index| (index, peer.local_head(index)))
-        .find(|(index, head)| {
-            head.is_some() && state.search.compacted.get(index) != Some(head)
-        });
+        .map(|(index, last)| (*index, last.head))
+        .min_by_key(|(index, _)| *index);
     let Some((index, head)) = due else {
         return;
     };
@@ -979,7 +1030,7 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     let cap = held.search.merge_bytes();
     let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
     tasks.spawn(async move {
-        let compacted = compact_past(&peer, index, cap).await;
+        let compacted = compact_past(&peer, index, head, cap).await;
         // Sent before it stops counting as busy, as a batch is.
         tasks_held.sync(&peer, &shared);
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
@@ -990,14 +1041,20 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
                 {
                     held.search.idle_compactions += 1;
                 }
+                held.search.last_wrote(index, peer.local_head(index));
             }
-            Ok(false) => {
-                held.search.compacted.insert(index, head);
-            }
-            // Looked at again once the index moves: an idle pass is never urgent.
-            Err(error) => {
-                eprintln!("be-host: compacting the search index {index} while idle failed: {error}");
-                held.search.compacted.insert(index, head);
+            // Looked at again after this device's next write: an idle pass is never urgent.
+            Ok(false) | Err(_) => {
+                if let Err(error) = compacted {
+                    eprintln!(
+                        "be-host: compacting the search index {index} while idle failed: {error}"
+                    );
+                }
+                if let Some(last) = held.search.last_written.get_mut(&index)
+                    && last.head == head
+                {
+                    last.looked = true;
+                }
             }
         }
         held.progressed += 1;
@@ -1209,7 +1266,7 @@ async fn index(
                 match written {
                     // Every answer is read again, whichever index it read.
                     Ok(Some(needs_text)) => {
-                        held.search.wrote(index);
+                        held.search.wrote(index, peer.local_head(index));
                         for block in &put_blocks {
                             held.search.caught.remove(block);
                         }
@@ -1966,7 +2023,7 @@ fn settle_indexes(
                 Ok(Some(needs_text)) => {
                     #[cfg(test)]
                     held.search.settled_at.insert(index, settle.sequence);
-                    held.search.wrote(index);
+                    held.search.wrote(index, peer.local_head(index));
                     held.search.answers.clear();
                     held.search.reread(
                         needs_text
@@ -2223,32 +2280,14 @@ pub async fn write<S: ObjectStore>(
     .map(Some)
 }
 
-/// Compacts the index's newest head without a cap when a batch's compaction, capped at `cap`
-/// (`MERGE_BYTES`), would leave a merge over it, and seals the commit into the outbox; answers
-/// whether it did. A head the server let go of is tried again on its newer one, as `write`
-/// does.
+/// Compacts the index at `head`, this device's last write to it, when a batch's compaction,
+/// capped at `cap` (`MERGE_BYTES`), would leave a merge over it: with merges up to
+/// `IDLE_MERGE_BYTES`, sealing the commit into the outbox. Answers whether it did; not when the
+/// merges left are over that cap too.
 pub async fn compact_past<S: ObjectStore>(
     peer: &Peer<S>,
     index: Uuid,
-    cap: u64,
-) -> Result<bool, Unwritten> {
-    let Some(head) = head_of(peer, index).await else {
-        return Ok(false);
-    };
-    let now = be_block_commit::now_milliseconds();
-    on_newer_heads(
-        head,
-        |head| compact_past_at(peer, index, head, now, cap),
-        || server_head(peer, index),
-    )
-    .await
-}
-
-async fn compact_past_at<S: ObjectStore>(
-    peer: &Peer<S>,
-    index: Uuid,
     head: CommitId,
-    now: i64,
     cap: u64,
 ) -> Result<bool, Unwritten> {
     let commit = peer.load_commit(head).await?;
@@ -2262,13 +2301,22 @@ async fn compact_past_at<S: ObjectStore>(
         peer,
         gone: std::cell::Cell::new(false),
     };
+    let before = content.index().parts();
     content
-        .compact(&parts, Uuid::new_v4().into_bytes(), now, u64::MAX)
+        .compact(
+            &parts,
+            Uuid::new_v4().into_bytes(),
+            be_block_commit::now_milliseconds(),
+            IDLE_MERGE_BYTES,
+        )
         .await
         .map_err(|error| match parts.gone.get() {
             true => Unwritten::Moved(error.to_string()),
             false => Unwritten::Failed(error.to_string()),
         })?;
+    if content.index().parts() == before {
+        return Ok(false);
+    }
     seal_index(peer, index, head, &content).await?;
     Ok(true)
 }
