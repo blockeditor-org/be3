@@ -20,6 +20,7 @@ mod items;
 mod latest;
 mod merge;
 mod parts;
+mod ranked;
 mod rebase;
 pub mod references;
 pub mod schema;
@@ -37,6 +38,7 @@ pub use grid::{Bounds, Cell, Cells, Grid, Paint};
 pub use history::Step;
 pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
+pub use ranked::{Ranked, RankedMap};
 pub use parts::{DocumentPart, PART, SPLICE, read as read_stored};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
@@ -117,6 +119,7 @@ pub enum Value {
     Text(#[serde(with = "text_bytes")] Sequence<u8>),
     Rich(marks::Rich),
     Series(Sequence<Vec<u8>>),
+    Ranked(BTreeMap<Vec<u8>, Ranked>),
 }
 
 /// A text's bytes as one byte string rather than byte by byte, which postcard writes the
@@ -297,6 +300,13 @@ pub enum Change {
         field: u16,
         op: SeqOp<Vec<u8>>,
     },
+    /// A `RankedMap` write, which takes effect only above what is held (`Ranked`).
+    Rank {
+        object: ObjectId,
+        field: u16,
+        key: Vec<u8>,
+        ranked: Ranked,
+    },
 }
 
 impl Change {
@@ -456,7 +466,8 @@ impl<R: Model> Document<R> {
             | Change::SetIf { object, field, .. }
             | Change::Put { object, field, .. }
             | Change::PutIf { object, field, .. }
-            | Change::Stamp { object, field, .. } => {
+            | Change::Stamp { object, field, .. }
+            | Change::Rank { object, field, .. } => {
                 index.refresh_field(&self.tree, *object, *field)
             }
             Change::Series {

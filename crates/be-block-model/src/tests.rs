@@ -2,7 +2,7 @@ use crate::Series;
 use crate::marks::{Expand, Name, Scope, Seed, Value as MarkValue};
 use crate::{
     Anchor, Bounds, Change, Count, Document, Edit, Grid, Latest, LatestMap, List, Map, Model,
-    ObjectId, Paint, RichText, SeqOp, Stamp, Text, Touched,
+    ObjectId, Paint, RankedMap, RichText, SeqOp, Stamp, Text, Touched,
 };
 
 mod a_block_ref_appended_to_a_series_is_found_and_dropped_with_it;
@@ -79,6 +79,7 @@ mod formatting_and_typing_at_once_converge_in_either_order;
 mod grids_merge_cell_by_cell_and_keep_coordinates_across_a_resize;
 mod inserting_touches_the_list_and_everything_inserted;
 mod latest_map_keys_merge_to_their_later_write_and_a_later_removal_wins;
+mod ranked_map_keys_keep_their_highest_rank_live_and_in_a_merge;
 mod latest_values_merge_to_the_later_write_without_a_conflict;
 mod list_ids_survive_saving_and_a_repeated_id_gets_a_fresh_one;
 mod map_entries_merge_key_by_key;
@@ -303,6 +304,7 @@ fn pixel(document: &Document<Picture>, x: i32, y: i32) -> Option<u8> {
 struct View {
     scroll: Latest<u32>,
     state: LatestMap<String, u32>,
+    ranked: RankedMap<String, u32>,
 }
 
 fn stamp(time: u64, origin: u128) -> Stamp {

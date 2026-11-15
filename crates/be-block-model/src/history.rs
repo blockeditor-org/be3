@@ -226,6 +226,9 @@ fn slot(change: &Change) -> Option<(ObjectId, u16, Option<&[u8]>)> {
         | Change::Series { object, field, .. } => Some((*object, *field, None)),
         Change::Stamp {
             object, field, key, ..
+        }
+        | Change::Rank {
+            object, field, key, ..
         } => Some((*object, *field, Some(key))),
         _ => register(change),
     }

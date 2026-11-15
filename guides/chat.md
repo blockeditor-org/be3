@@ -26,27 +26,28 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
-- **Records chain**: edits and reactions are kept at `Counted { slot, seq }`:
-  an edit slot is a message and an author (`EditSlot`; only the message's
-  author's counts), a reaction slot its `ReactionKey`. Each record signs its
-  count (`seq`, one past the highest written for the slot) and the key of the
-  record it replaces (`previous`; `MessageEdit::key`, `Reaction::key`, hashes
-  of the record's fields that need no chat id), and writing it removes the
-  slot's earlier live records (`put_counted`). A slot's `Head` is its live
-  record with the highest count, which takes that key's count, so a record
-  moved to another count or author fails its signature; a removed key counted
-  past the head means the latest was cut (`Head::cut`). A count of
-  `MAX_SEQ` (2^32) or more is junk that cuts the slot and is never its head;
-  a next count stops at `MAX_SEQ - 1`, so made-up keys never overflow it, and
-  a slot that reached that count shows as cut for good, since a record put
-  back over another at one count leaves no trace. So a
-  record put back is not the latest unless the later ones are removed, which
-  shows. Two devices writing one count share its key and the later stamp keeps
-  one, either genuine; a device's next record counts past a cut, which heals
-  it. A reaction taken back stays a signed record (`Reaction::kept` false),
-  not a removed key; `Deletion::after` is signed too. Removed keys stay in the
-  `LatestMap` for good, so the header grows by a key and stamp per record
-  replaced (plans/authorship.md).
+- **Records chain**: edits and reactions are `RankedMap`s
+  (guides/blocks/content_types.md) with one record per slot: an edit slot is
+  a message and an author (`EditSlot`; only the message's author's counts), a
+  reaction slot its `ReactionKey`. Each record signs its count (`seq`, one past
+  the slot's rank) and the key of the record it replaces (`previous`;
+  `MessageEdit::key`, `Reaction::key`, hashes of the record's fields that need
+  no chat id), and is written ranked by that count. So a record put back
+  counts lower and never takes a later one's place, and a later record from
+  another device always does, whichever stamps later; two devices writing one
+  count keep the later stamp, either genuine. A slot's `Head` is its record,
+  taking the slot's author, so one filed under another author fails its
+  signature. Its history was altered (`Head::cut`) when it holds a removal, or
+  a record whose count is not its rank (put above the latest, the only way to
+  replace it), or its rank reached `MAX_SEQ - 1` (2^32 - 1), which no author
+  reaches and where a record put back over another at one rank leaves no
+  trace. A next count saturates, so a made-up rank never overflows it and the
+  author's records still land; a record past a removal outranks it and heals
+  the slot. A reaction taken back stays a signed record (`Reaction::kept`
+  false), not a removal; a deletion removes the message's edits and reactions
+  a rank above them; `Deletion::after` is signed too. The header holds one
+  entry per slot. Only a commit rewriting the whole state lowers a rank: a
+  whole rollback (plans/authorship.md).
 - Sending and deleting are not undoable; an edit by anyone but the message's
   author is ignored. Deleting removes the message with its edit and reactions
   and records the `Deletion`; the message stays in version history.

@@ -1,6 +1,6 @@
 use super::*;
-use be_sdk_beui::be_block_content::be_block_model::LatestMap;
-use be_type_chat::{ChatHeader, Counted, Deletion, EditSlot, MessageEdit, Reaction};
+use be_sdk_beui::be_block_content::be_block_model::RankedMap;
+use be_type_chat::{ChatHeader, Deletion, EditSlot, MessageEdit, Reaction};
 
 fn sign(account: Uuid, bytes: &[u8]) -> Signature {
     Signature(be_sdk_test::signature(account, bytes))
@@ -34,37 +34,28 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     let second = edit_by(&chat, lunch, "Lunch at two?", MORNING + 31 * MINUTE, ROSA);
     chat.arrive(chat.content().put_edit(lunch, &second));
     assert_eq!(chat.row(lunch), "Member 7e1a 09:00 edited Lunch at two?");
-    // Someone with Edit puts her first edit back: her second, counted past it, is still the
-    // latest.
+    // Someone with Edit puts her first edit back: it counts lower than her second, so it
+    // changes nothing.
     chat.arrive(chat.content().put_edit(lunch, &first));
     assert_eq!(chat.row(lunch), "Member 7e1a 09:00 edited Lunch at two?");
-    // Someone with Edit makes up a later edit of hers and removes it: her latest still shows,
-    // and the chain around it was altered, which no signature of hers can say was not.
-    let made_up = Counted {
-        slot: EditSlot {
-            message: lunch,
-            author: ROSA,
-        },
-        seq: 99,
+    // They rank her second higher than it counts, as if she had edited since: it still shows,
+    // and its history was altered, which no signature of hers can say was not.
+    let slot = EditSlot {
+        message: lunch,
+        author: ROSA,
     };
-    let edits = || -> LatestMap<Counted<EditSlot>, MessageEdit> {
-        chat.content()
-            .header()
-            .field(ObjectId::ROOT, ChatHeader::EDITS)
-    };
-    let write = ChatHeader::EDITS.put(
+    let edits: RankedMap<EditSlot, MessageEdit> = chat
+        .content()
+        .header()
+        .field(ObjectId::ROOT, ChatHeader::EDITS);
+    let raised = ChatHeader::EDITS.rank(
         ObjectId::ROOT,
-        &made_up,
+        &slot,
+        99,
         Some(&second),
-        edits().next(&made_up, 98, sam),
+        edits.next(&slot, 99, sam),
     );
-    let removal = ChatHeader::EDITS.put(
-        ObjectId::ROOT,
-        &made_up,
-        None,
-        edits().next(&made_up, 99, sam),
-    );
-    chat.arrive([write, removal].into_iter().collect());
+    chat.arrive([raised].into_iter().collect());
     assert_eq!(
         chat.row(lunch),
         "Member 7e1a 09:00 edited history altered Lunch at two?"
