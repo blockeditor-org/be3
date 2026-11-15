@@ -180,6 +180,12 @@ impl IntoSegment<NodeId> for NodeId {
     }
 }
 
+impl IntoSegment<NodeId> for Option<NodeId> {
+    fn into_segment(self) -> ChildSegment<NodeId> {
+        ChildSegment::Many(self.into_iter().collect())
+    }
+}
+
 impl From<NodeId> for Children<NodeId> {
     fn from(node: NodeId) -> Self {
         Self::from(ChildSegment::One(node))

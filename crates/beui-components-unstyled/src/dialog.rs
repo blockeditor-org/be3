@@ -83,20 +83,20 @@ impl DialogAction {
         Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 
-    pub fn disabled(mut self, disabled: impl IntoProp<bool>) -> Self {
-        let disabled = disabled.into_prop();
+    pub fn disabled<M>(mut self, disabled: impl IntoPropWith<bool, M>) -> Self {
+        let disabled = disabled.into_prop_with();
         self.disabled = create_memo(move || disabled.get());
         self
     }
 
-    pub fn busy(mut self, busy: impl IntoProp<bool>) -> Self {
-        let busy = busy.into_prop();
+    pub fn busy<M>(mut self, busy: impl IntoPropWith<bool, M>) -> Self {
+        let busy = busy.into_prop_with();
         self.busy = create_memo(move || busy.get());
         self
     }
 
-    pub fn shown(mut self, shown: impl IntoProp<bool>) -> Self {
-        let shown = shown.into_prop();
+    pub fn shown<M>(mut self, shown: impl IntoPropWith<bool, M>) -> Self {
+        let shown = shown.into_prop_with();
         self.shown = create_memo(move || shown.get());
         self
     }

@@ -21,7 +21,9 @@ same `view!`.
 return a lazy form whose type says how many children it builds, read from what
 the branches build: `OneOf<C>` (exactly one: a `Show` with a `fallback` whose
 branches each build one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>`
-(a `Show` without a `fallback`), or a run, `DynamicSegment<C>` (several
+(a `Show` without a `fallback`, or a `Dynamic` whose render returns an
+`Option`, as `|item| item.map(|item| view! {..})`, which builds nothing on
+`None`), or a run, `DynamicSegment<C>` (several
 children, `ForEach`). Among a parent's run every form fills its place with no
 node of its own, so a hidden `Show` takes no room and no spacing. In a slot
 that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
