@@ -15,11 +15,10 @@ pub(super) fn DockCompactView(dock: State, tree: Tree) -> NodeId {
     let stage = create_memo(move || state.with(|state| state.stage_of(tree)));
     let gathered = create_memo(move || state.with(|state| !state.gathered_tabs(tree).is_empty()));
     let folded = create_memo(move || gathered.get() && state.with(|state| state.is_folded(tree)));
-    let arranged = create_memo(move || (portrait.get(), folded.get(), stage.get(), gathered.get()));
     let built = view! {
         <List spacing=0.0>
             <Dynamic
-                value={arranged}
+                value={move || (portrait.get(), folded.get(), stage.get(), gathered.get())}
             >|(portrait, folded, stage, gathered): (bool, bool, Option<LeafId>, bool)| {
                 let dock = dock;
                 let stage = match stage {

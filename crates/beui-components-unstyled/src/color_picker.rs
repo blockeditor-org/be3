@@ -365,13 +365,12 @@ pub fn Swatches(
         .iter()
         .map(|swatch| format_hex(*swatch, false))
         .collect();
-    let indices: Vec<usize> = (0..swatches.len()).collect();
     let picked = swatches.clone();
     view! {
         <Choice
             options={view! {
-                <ForEach value={indices}>|index: usize|
-                    <ChoiceOption label={labels[index].clone()} />
+                <ForEach value={labels}>|label: String|
+                    <ChoiceOption label />
                 </ForEach>
             }}
             selected={Binding::new(chosen, move |index: Option<usize>| {

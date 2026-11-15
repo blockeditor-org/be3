@@ -20,12 +20,10 @@ pub fn Banner(
     #[prop(default = String::from("Dismiss"))] dismiss_label: Prop<String>,
     on_dismiss: Callback<()>,
 ) -> NodeId {
-    let message = create_memo(move || message.get());
-    let text = create_memo(move || message.get().unwrap_or_default());
     let id = id.get_untracked();
     view! {
         <List spacing=Space::None>
-            <Show value={move || message.with(Option::is_some)}>
+            <Show value={message}>|text: ReadSignal<String>|
                 <BannerBar
                     text
                     id={id.clone()}
@@ -39,7 +37,7 @@ pub fn Banner(
 
 #[component]
 fn BannerBar(
-    text: Memo<String>,
+    text: ReadSignal<String>,
     id: String,
     dismiss_label: Prop<String>,
     on_dismiss: Callback<()>,

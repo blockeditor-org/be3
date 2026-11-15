@@ -2258,19 +2258,12 @@ fn DockStack(dock: State) -> NodeId {
                         <DockAway dock gone />
                     </ListItem>
                 </Show>
-                <Dynamic value={staged}>|staged: Option<Tree>| {
+                <Dynamic value={staged} fallback=()>|tree: Tree| {
                     let dock = dock;
-                    match staged {
-                        Some(tree) => view! {
-                            <ListItem grow=1.0>
-                                <DockCompactView dock tree />
-                            </ListItem>
-                        },
-                        None => view! {
-                            <ListItem length=0.0>
-                                <List spacing=0.0 />
-                            </ListItem>
-                        },
+                    view! {
+                        <ListItem grow=1.0>
+                            <DockCompactView dock tree />
+                        </ListItem>
                     }
                 }</Dynamic>
                 {switcher}
@@ -2938,12 +2931,10 @@ fn DockPaneGrip(
 #[component]
 fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
     let state = dock.state;
-    let group =
-        create_memo(move || state.with(|state| state.active_entry(leaf).and_then(Entry::group)));
     view! {
         <List spacing=0.0>
             <Dynamic
-                value={group}
+                value={move || state.with(|state| state.active_entry(leaf).and_then(Entry::group))}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <DockTabBody dock leaf />
@@ -3855,9 +3846,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let hoisted = state.with_untracked(|state| state.leaves(surface).first().copied());
     let sidebar_width = dock.sidebar_width(hoisted);
     let icons_only = dock.icons_only(hoisted);
-    let vertical = create_memo(move || {
-        hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
-    });
     let menu = dock.leaf_menu(hoisted);
     let closable = dock.all_closable(move |state| state.leaves(surface));
     let overlay = NodeRef::new();
@@ -4001,7 +3989,9 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     }}
                                                 >
                                                     <List spacing=0.0>
-                                                        <Dynamic value={vertical}>|vertical: bool| {
+                                                        <Dynamic value={move || {
+                                                            hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
+                                                        }}>|vertical: bool| {
                                                             let dock = dock;
                                                             let grip_face = dock.grip.call(DockGripHandle {
                                                                 floating: true,

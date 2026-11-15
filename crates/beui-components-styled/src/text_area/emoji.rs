@@ -50,8 +50,6 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         highlighted,
         ..
     } = handle;
-    let emoji = create_memo(move || completion.get().map(|item| item.insert).unwrap_or_default());
-    let label = create_memo(move || completion.get().map(|item| item.label).unwrap_or_default());
     let fill = create_memo(move || match highlighted.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::None,
@@ -60,9 +58,9 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         <Frame fill={fill} radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Xs2)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame width=EMOJI_COLUMN>
-                    <Text size=TextSize::Lg align=TextAlign::Center>{emoji}</Text>
+                    <Text size=TextSize::Lg align=TextAlign::Center>{completion.insert}</Text>
                 </Frame>
-                <Text size=TextSize::Sm color=TextColor::Muted>{label}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted>{completion.label}</Text>
             </List>
         </Frame>
     }

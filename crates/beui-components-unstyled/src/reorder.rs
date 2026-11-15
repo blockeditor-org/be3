@@ -1024,9 +1024,6 @@ where
     .into_prop()
     .map(OverlayAnchor::Point);
     let shown_in = create_memo(move || floating_at.get().map(|point| point.window));
-    let carried = create_memo(move || {
-        lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.payload.clone()))
-    });
     let accepting = Func::new(move |payload: P| {
         state.with(|state| {
             state.lifted.with_untracked(Option::is_some)
@@ -1077,7 +1074,9 @@ where
                     open={floating}
                 >
                     <Dynamic
-                        value={carried}
+                        value={move || {
+                            lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.payload.clone()))
+                        }}
                         fallback={|| view! {
                             <Frame />
                         }}

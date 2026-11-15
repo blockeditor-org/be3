@@ -17,7 +17,7 @@ const CELL_SPACING: Space = Space::Lg;
 const CAPTION_SPACING: Space = Space::Xs2;
 const COLUMN_TITLE: TextStyle = TextStyle::CAPTION.bold();
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TableColumn {
     pub title: String,
     pub caption: String,
@@ -46,11 +46,10 @@ pub fn Table(
 ) -> NodeId {
     let heading = create_memo(move || TableColumn::new(heading.get()));
     let columns = create_memo(move || columns.get());
-    let indices = create_memo(move || (0..columns.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <unstyled::Table label>
             <List spacing=Space::None>
-                <TableHeader heading={heading} columns={columns} indices={indices} />
+                <TableHeader heading={heading} columns={columns} />
                 {children}
             </List>
         </unstyled::Table>
@@ -61,21 +60,15 @@ pub fn Table(
 fn TableHeader(
     heading: Memo<TableColumn>,
     columns: Memo<Vec<TableColumn>>,
-    indices: Memo<Vec<usize>>,
 ) -> NodeId {
     view! {
         <unstyled::TableRow>
             <Frame padding=CELL_PADDING>
                 <List direction=Direction::Horizontal spacing=CELL_SPACING>
                     <ColumnHeading weight=LABEL_WEIGHT column={heading} />
-                    <ForEach value={indices}>|index: usize| {
-                        let column = create_memo(move || {
-                            columns.with(|columns| columns.get(index).cloned().unwrap_or_default())
-                        });
-                        view! {
-                            <ColumnHeading weight=CELL_WEIGHT column={column} />
-                        }
-                    }</ForEach>
+                    <ForEach value={columns}>|column: TableColumn|
+                        <ColumnHeading weight=CELL_WEIGHT column />
+                    </ForEach>
                 </List>
             </Frame>
         </unstyled::TableRow>
@@ -83,7 +76,8 @@ fn TableHeader(
 }
 
 #[component]
-fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListItem {
+fn ColumnHeading(weight: f32, column: Prop<TableColumn>) -> ListItem {
+    let column = create_memo(move || column.get());
     let title = create_memo(move || column.with(|column| column.title.clone()));
     let caption = create_memo(move || column.with(|column| column.caption.clone()));
     let label = create_memo(move || spoken(&title.get(), &caption.get()));

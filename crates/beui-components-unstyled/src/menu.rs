@@ -366,7 +366,6 @@ pub(crate) fn MenuList(
         !matches!(focus.get(), Focus::Row(_) | Focus::Tile(..) | Focus::Back)
             && page.with(Option::is_none)
     });
-    let paged = create_memo(move || page.with(Option::is_some));
 
     let lines = move || {
         items.build_each(
@@ -418,7 +417,7 @@ pub(crate) fn MenuList(
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
             <Show
-                value={paged}
+                value={page}
                 fallback={move || {
                     let title_test_id = title_test_id.clone();
                     let lines = lines();
@@ -437,16 +436,20 @@ pub(crate) fn MenuList(
                         </List>
                     }
                 }}
-            >
-                <MenuPage state={state} row={row} panel={panel} />
+            >|index: ReadSignal<usize>|
+                <MenuPage state={state} index={index.get_untracked()} row={row} panel={panel} />
             </Show>
         </List>
     }
 }
 
 #[component]
-fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<NodeId>) -> NodeId {
-    let index = state.page.get_untracked().unwrap_or_default();
+fn MenuPage(
+    state: State,
+    index: usize,
+    row: RenderFn<MenuRowHandle>,
+    panel: RenderFn<NodeId>,
+) -> NodeId {
     let item = state.rows.value().borrow()[index].item.clone();
     let leave = MenuParent(Some(Callback::new(move |()| {
         state.page.set(None);
