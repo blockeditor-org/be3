@@ -2383,8 +2383,20 @@ impl<S: ObjectStore> Peer<S> {
             .await
     }
 
+    /// The block's history the server keeps, or offline the part of it this device holds
+    /// (`history_held`).
     pub async fn history(&self, block: Uuid) -> Result<Vec<HistoryEntry>, ClientError> {
-        Ok(client::blocks::list_history(&self.connection(), block).await??)
+        let listed = match self.is_attached() {
+            true => client::blocks::list_history(&self.connection(), block)
+                .await
+                .map_err(ClientError::from)
+                .and_then(|listed| listed.map_err(ClientError::from)),
+            false => Err(ClientError::Disconnected("offline".into())),
+        };
+        match listed {
+            Err(error) if offline::unreachable(&error) => self.history_held(block),
+            listed => listed,
+        }
     }
 
     /// One page of what changed after the sequence `since` in `root`'s tree, from `after`
