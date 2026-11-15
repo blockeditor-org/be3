@@ -1,7 +1,7 @@
 // Signs the web host on a page into an account on the page's own be-server, as a person
 // would through the portal, making the account the first time: what web-drive.mjs's
 // dev-sign-in and web-host-test.mjs do. serverLog is the server's log, where a development
-// server writes the link that verifies a new account's email, and invite an invite code
+// server writes the codes it emails, and invite an invite code
 // (`be-server invite-code create`), which registering needs. The account is dev@localhost,
 // named Dev, unless `account` names another ({ name, email }).
 
@@ -41,39 +41,49 @@ async function approve(portal, url, serverLog, invite, { name, email }) {
     await portal.goto(url);
     const another = portal.getByText("Use another account", { exact: true });
     if (await another.count()) await another.click();
-    await portal.getByLabel("Email", { exact: true }).fill(email);
-    await portal.getByLabel("Password", { exact: true }).fill("dev-password");
-    await portal.getByRole("button", { name: "Sign in", exact: true }).click();
-    const unknown = portal.getByText(/no account matches those credentials/i);
-    await unknown.or(portal.getByRole("button", { name: "Approve sign-in", exact: true })).first().waitFor();
-    if (await unknown.count()) {
-        await portal.getByRole("link", { name: "Create an account", exact: true }).click();
+    // The portal emails a code, which a development server writes to its log. An address with
+    // no account is sent none, so the account is made: registering emails a code too.
+    let code = await emailedCode(serverLog, email, async () => {
+        await portal.getByLabel("Email", { exact: true }).fill(email);
+        await portal.getByRole("button", { name: "Email me a code", exact: true }).click();
+        await portal.getByText("Enter your code", { exact: true }).first().waitFor();
+    });
+    if (!code) {
         if (!invite) throw new Error("Registering needs an invite code, and none was given.");
-        await portal.getByLabel("Invite code", { exact: true }).fill(invite);
-        // Filled once: typing that lands before the page hydrates must still reach it.
-        const fields = [
-            [portal.getByLabel("Display name", { exact: true }), name],
-            [portal.getByLabel("Email", { exact: true }), email],
-            [portal.locator('[name="password"]'), "dev-password"],
-            [portal.getByLabel("Confirm password", { exact: true }), "dev-password"],
-        ];
-        for (const [field, value] of fields) await field.fill(value);
-        for (const [field, value] of fields) {
-            const held = await field.inputValue();
-            if (held !== value) throw new Error(`a registration field holds ${JSON.stringify(held)}, not what was typed`);
-        }
-        await portal.getByRole("button", { name: "Create account", exact: true }).click();
-        await portal.getByText("Check your email", { exact: true }).first().waitFor();
-        // The link the server logged last, for this address.
-        const links = (await readFile(serverLog, "utf8"))
-            .split("\n")
-            .filter((line) => line.includes(email))
-            .join("\n")
-            .match(/http:\/\/[^\s]+\/auth\/verify\?token=[a-f0-9]+/g);
-        if (!links?.length) throw new Error("The development server did not log a verification link.");
-        await portal.goto(links.at(-1));
-        await portal.getByRole("button", { name: "Verify email", exact: true }).click();
+        await portal.goto(url);
+        await portal.getByRole("link", { name: "Create an account", exact: true }).click();
+        code = await emailedCode(serverLog, email, async () => {
+            // Filled once: typing that lands before the page hydrates must still reach it.
+            const fields = [
+                [portal.getByLabel("Invite code", { exact: true }), invite],
+                [portal.getByLabel("Display name", { exact: true }), name],
+                [portal.getByLabel("Email", { exact: true }), email],
+            ];
+            for (const [field, value] of fields) await field.fill(value);
+            for (const [field, value] of fields) {
+                const held = await field.inputValue();
+                if (held !== value) throw new Error(`a registration field holds ${JSON.stringify(held)}, not what was typed`);
+            }
+            await portal.getByRole("button", { name: "Email me a code", exact: true }).click();
+            await portal.getByText("Enter your code", { exact: true }).first().waitFor();
+        });
+        if (!code) throw new Error("The development server did not log a registration code.");
     }
+    await portal.getByLabel("Code", { exact: true }).fill(code);
+    await portal.getByRole("button", { name: "Continue", exact: true }).click();
     await portal.getByRole("button", { name: "Approve sign-in", exact: true }).click();
     await portal.getByText("Sign-in approved", { exact: true }).first().waitFor();
+}
+
+// The code the server logged for `email` while `ask` ran, or none: the server writes the
+// message before it answers the request that asked for it.
+async function emailedCode(serverLog, email, ask) {
+    const codes = async () =>
+        (await readFile(serverLog, "utf8"))
+            .split("\n")
+            .filter((line) => line.includes(email))
+            .flatMap((line) => [...line.matchAll(/Your code is ([A-Za-z0-9-]+)\./g)].map((found) => found[1]));
+    const before = (await codes()).length;
+    await ask();
+    return (await codes()).slice(before).at(-1);
 }
