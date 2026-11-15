@@ -54,8 +54,8 @@ configured_once(
     visibility = ["//third-party/rust:"],
 )
 
-# The library for the platform being built, unpacked; the build script copies
-# it to the name it links it by.
+# The library for the platform being built (DEFAULT is the host, linux_x86_64),
+# unpacked; the build script copies it to the name it links it by.
 genrule(
     name = "library",
     cmd = select(

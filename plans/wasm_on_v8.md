@@ -47,7 +47,10 @@ section where the module declares a larger one), trap backtraces and `BE3_PERF_M
    outside OUT_DIR. rusty_v8 publishes nothing for Android: `scripts/internal/build-rusty-v8-android.sh`
    builds both files on a person's machine, and once they are hosted, `android_arm64` and
    `android_arm64_binding` in third-party/v8/BUCK name them. Until then Android builds are
-   broken: the user chose to regress Android rather than keep wasmtime beside V8.
+   broken: the user chose to regress Android rather than keep wasmtime beside V8. That includes
+   the build helper's `android` product and a deploy that keeps its `android` input on. Once the
+   pins are filled, remove android_arm64 from `_UNBUILDABLE` in buck/dev/broad.bxl and the notes
+   in guides/running/android.md and guides/build_server.md.
 3. **be-wasm-host on V8.** Its public API stays (`Host`, `App`, `Runnable`, `Interrupter`,
    `Stored`). One isolate per guest thread. Libraries compiled once and shared between isolates
    as `CompiledWasmModule`. The gpu and transport imports as fast-API functions generated from
