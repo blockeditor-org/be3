@@ -3056,10 +3056,13 @@ dependencies = [
  "be-wasm-guest-host",
  "be-wasm-ops",
  "bytes",
+ "getrandom 0.3.4",
  "rustc-demangle",
  "tokio",
  "uuid",
  "v8",
+ "wasm-encoder 0.257.1",
+ "wasmparser 0.257.1",
  "wasmtime",
  "wasmtime-wasi",
  "wat",
@@ -11655,8 +11658,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d92fc335fb6d48f46bda1d8b26b69e28320c15ac3272208333833d6e217e2b4a"
 dependencies = [
  "bitflags 2.12.1",
+ "hashbrown 0.17.1",
  "indexmap 2.14.0",
  "semver",
+ "serde",
 ]
 
 [[package]]
@@ -11711,7 +11716,6 @@ dependencies = [
  "wasmtime-internal-unwinder",
  "wasmtime-internal-versioned-export-macros",
  "wasmtime-internal-winch",
- "wat",
  "windows-sys 0.61.2",
 ]
 
