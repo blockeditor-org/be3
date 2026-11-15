@@ -257,7 +257,7 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
             @test_id={link_id}
         >
             <Show
-                condition={move || target.get().is_some()}
+                value={move || target.get().is_some()}
                 fallback={|| view! {
                     <NoAccess />
                 }}
@@ -314,7 +314,7 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
                 " "
                 {name}
             </Text>
-            <Show condition={made}>
+            <Show value={made}>
                 <Text size=TextSize::Xs color=TextColor::Muted>"New"</Text>
             </Show>
         </List>
@@ -579,12 +579,12 @@ pub fn Chat(editor: Editor) -> NodeId {
                 >
                     <Frame padding={Padding::all(Space::Xl)}>
                         <List spacing=Space::Md>
-                            <Show condition={empty}>
+                            <Show value={empty}>
                                 <Text style=TextStyle::CAPTION>
                                     "No messages yet. Say hello below."
                                 </Text>
                             </Show>
-                            <Show condition={has_older}>
+                            <Show value={has_older}>
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
@@ -598,15 +598,15 @@ pub fn Chat(editor: Editor) -> NodeId {
                                         @test_id={"chat.older"}
                                         on_click={move || older.load()}
                                     />
-                                    <Show condition={older_failed}>
+                                    <Show value={older_failed}>
                                         <Text style=TextStyle::CAPTION>
                                             "Could not read the earlier messages"
                                         </Text>
                                     </Show>
                                 </List>
                             </Show>
-                            <ForEach keys={older_ids} view={older_message_rows} />
-                            <ForEach keys={ids} view={message_rows} />
+                            <ForEach value={older_ids} view={older_message_rows} />
+                            <ForEach value={ids} view={message_rows} />
                         </List>
                     </Frame>
                 </Scroll>
@@ -614,7 +614,7 @@ pub fn Chat(editor: Editor) -> NodeId {
             <Separator />
             <Frame padding={Padding::all(Space::Lg)}>
                 <List spacing=Space::Sm>
-                    <Show condition={has_unread}>
+                    <Show value={has_unread}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Button
                                 label={move || match unread.get().unwrap_or_default() {
@@ -629,7 +629,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </List>
                     </Show>
-                    <Show condition={has_reply}>
+                    <Show value={has_reply}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::CAPTION>{reply_label}</Text>
@@ -645,7 +645,7 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </List>
                     </Show>
-                    <Show condition={editing}>
+                    <Show value={editing}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::CAPTION>"Editing a message"</Text>
@@ -664,16 +664,16 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </List>
                     </Show>
-                    <Show condition={has_attaching}>
+                    <Show value={has_attaching}>
                         <List spacing=Space::Xs>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=Space::Sm
                             >
-                                <ForEach keys={attaching_ids} view={attaching_chip} />
+                                <ForEach value={attaching_ids} view={attaching_chip} />
                             </List>
-                            <Show condition={makes_children}>
+                            <Show value={makes_children}>
                                 <Text style=TextStyle::CAPTION>
                                     "What is made here is part of the chat: everyone in it can open it."
                                 </Text>
@@ -1533,7 +1533,7 @@ fn MessageRow(
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Text weight=Weight::Bold>{author}</Text>
                             <Text style=TextStyle::CAPTION>{time}</Text>
-                            <Show condition={late}>
+                            <Show value={late}>
                                 <Text
                                     style=TextStyle::CAPTION
                                     @test_id={format!("chat.message.{id}.arrived")}
@@ -1541,12 +1541,12 @@ fn MessageRow(
                                     {arrived}
                                 </Text>
                             </Show>
-                            <Show condition={edited}>
+                            <Show value={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>
-                            <Show condition={sending}>
+                            <Show value={sending}>
                                 <Show
-                                    condition={failed}
+                                    value={failed}
                                     fallback={move || view! {
                                         <Text
                                             style=TextStyle::CAPTION
@@ -1585,22 +1585,22 @@ fn MessageRow(
                                     </List>
                                 </Show>
                             </Show>
-                            <Show condition={unverified}>
+                            <Show value={unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
                             </Show>
-                            <Show condition={changed}>
+                            <Show value={changed}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Warning>
                                     "key changed"
                                 </Text>
                             </Show>
-                            <Show condition={forged}>
+                            <Show value={forged}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Danger>
                                     "forged"
                                 </Text>
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={actionable}>
+                    <Show value={actionable}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Button
                                 label="Reply"
@@ -1631,9 +1631,9 @@ fn MessageRow(
                             />
                         </List>
                     </Show>
-                    <Show condition={mine}>
+                    <Show value={mine}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                            <Show condition={has_body}>
+                            <Show value={has_body}>
                                 <Button
                                     label="Edit"
                                     glyph=ICON_PENCIL
@@ -1666,7 +1666,7 @@ fn MessageRow(
                         </List>
                     </Show>
                 </List>
-                <Show condition={replies}>
+                <Show value={replies}>
                     <Frame
                         fill=ColorRole::Shade
                         radius=Radius::Sm
@@ -1675,7 +1675,7 @@ fn MessageRow(
                         <Text style=TextStyle::CAPTION>{quote}</Text>
                     </Frame>
                 </Show>
-                <Show condition={has_body}>
+                <Show value={has_body}>
                     <Text
                         italic={deleted}
                         color={move || match deleted.get() {
@@ -1686,24 +1686,24 @@ fn MessageRow(
                         {body}
                     </Text>
                 </Show>
-                <Show condition={has_attachments}>
+                <Show value={has_attachments}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-                        <ForEach keys={attachment_ids} view={attachment_chip} />
+                        <ForEach value={attachment_ids} view={attachment_chip} />
                     </List>
                 </Show>
-                <Show condition={reacted}>
+                <Show value={reacted}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center
                         spacing=Space::Sm
                         wrap=true
                     >
-                        <ForEach keys={reactions} view={reaction_chips} />
+                        <ForEach value={reactions} view={reaction_chips} />
                     </List>
                 </Show>
-                <Show condition={picking}>
+                <Show value={picking}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                        <ForEach keys={picks} view={picker} />
+                        <ForEach value={picks} view={picker} />
                     </List>
                 </Show>
             </List>

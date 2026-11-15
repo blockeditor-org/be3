@@ -409,7 +409,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
                 <Frame fill=code radius=CODE_BLOCK_RADIUS corners padding=inner>{text}</Frame>
             </Frame>
             <TableLines line color=border rule=RULE_WIDTH />
-            <Show condition={opens}>
+            <Show value={opens}>
                 <Frame padding=corner align={Align2::new(Align::End, Align::Start)}>
                     <List direction=Direction::Horizontal spacing=COPY_INSET align=Align::Center>
                         <Text size=TextSize::Xs color=TextColor::Muted>{language}</Text>
@@ -429,7 +429,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
             </Show>
             <Frame padding=bars>
                 <List direction=Direction::Horizontal spacing=Space::None>
-                    <ForEach keys={quotes}>|bar: QuoteBar|
+                    <ForEach value={quotes}>|bar: QuoteBar|
                         <Frame width padding=room>
                             <Frame
                                 fill=ColorRole::Accent

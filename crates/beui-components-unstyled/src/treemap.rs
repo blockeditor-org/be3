@@ -204,7 +204,7 @@ where
     }));
     let canvas = view! {
         <Canvas arrangement>
-            <ForEach keys>|key: TreemapTileKey<K>| {
+            <ForEach value={keys}>|key: TreemapTileKey<K>| {
                 let tile_id = match &key {
                     TreemapTileKey::Item(key) => format!("{tile_test_id}.{key}"),
                     TreemapTileKey::Rest => format!("{tile_test_id}.rest"),

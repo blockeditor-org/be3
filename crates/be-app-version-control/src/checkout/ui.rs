@@ -179,13 +179,13 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     block={repository}
                                     @test_id={"checkout.repository"}
                                 />
-                                <Show condition={move || !note.with(String::is_empty)}>
+                                <Show value={move || !note.with(String::is_empty)}>
                                     <Text style=TextStyle::CAPTION @test_id={"checkout.note"}>
                                         {note}
                                     </Text>
                                 </Show>
                             </List>
-                            <Show condition={behind}>
+                            <Show value={behind}>
                                 <Card>
                                     <List
                                         direction=Direction::Horizontal
@@ -208,14 +208,14 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     </List>
                                 </Card>
                             </Show>
-                            <Show condition={move || !conflicts.with(Vec::is_empty)}>
+                            <Show value={move || !conflicts.with(Vec::is_empty)}>
                                 <Card>
                                     <List spacing=Space::Lg>
                                         <Text style=TextStyle::HEADING>"Clashing edits"</Text>
                                         <Text style=TextStyle::CAPTION>
                                             "These blocks were changed in two ways at once. Choose a version for each, or edit it and keep it as it is. You can keep working and save changes before you decide."
                                         </Text>
-                                        <ForEach keys={conflicts} view={conflict_rows} />
+                                        <ForEach value={conflicts} view={conflict_rows} />
                                     </List>
                                 </Card>
                             </Show>
@@ -225,9 +225,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     <Text style=TextStyle::CAPTION>
                                         "Your edits are kept here as you make them. Describe them and save to start a new change on top."
                                     </Text>
-                                    <Show condition={unchanged}>
+                                    <Show value={unchanged}>
                                         <Show
-                                            condition={combining}
+                                            value={combining}
                                             fallback={|| view! {
                                                 <Text style=TextStyle::CAPTION>
                                                     "Nothing has changed since the last saved change."
@@ -239,7 +239,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                             </Text>
                                         </Show>
                                     </Show>
-                                    <ForEach keys={changes} view={change_rows} />
+                                    <ForEach value={changes} view={change_rows} />
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center
@@ -271,7 +271,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             <Card>
                                 <List spacing=Space::Md>
                                     <Text style=TextStyle::HEADING>"Branches"</Text>
-                                    <ForEach keys={branches} view={branch_rows} />
+                                    <ForEach value={branches} view={branch_rows} />
                                     <List
                                         direction=Direction::Horizontal
                                         align=Align::Center

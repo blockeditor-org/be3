@@ -16,7 +16,7 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
                     <Dialog open=true title="Tall" width={Size::Custom(300.0)} on_dismiss={|| {}}>
                         <List spacing=8.0>
                             <Frame @node_ref=&first height=80.0 />
-                            <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_line: usize|
+                            <ForEach value={(0..8).collect::<Vec<usize>>()}>|_line: usize|
                                 <Frame height=80.0 />
                             </ForEach>
                             <Frame @node_ref=&last height=80.0 />

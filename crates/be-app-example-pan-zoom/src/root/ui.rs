@@ -112,7 +112,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="pan_zoom" size={SplitSize::First(SIDEBAR_WIDTH)}>
-                <Show condition={move || chrome.get() && open.get()}>
+                <Show value={move || chrome.get() && open.get()}>
                     <DockPane id="sidebar" locked=true>
                         <DockTab id=CARDS_TAB title="Cards" on_close={move || open.set(false)}>
                             <Sidebar editor selected />
@@ -125,7 +125,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=ZOOM
                     parent=STAGE
@@ -134,7 +134,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                     <ZoomBar editor fitting />
                 </DockBar>
             </Show>
-            <Show condition={move || chrome.get() && !open.get()}>
+            <Show value={move || chrome.get() && !open.get()}>
                 <DockBar
                     id=REOPEN
                     parent=STAGE
@@ -222,7 +222,7 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
                             {chosen}
                         </Text>
                         <List spacing=Space::Xs>
-                            <ForEach keys={card_indices()}>|index: usize|
+                            <ForEach value={card_indices()}>|index: usize|
                                 <FocusRow index editor={editor} selected={selected} />
                             </ForEach>
                         </List>
@@ -255,7 +255,7 @@ fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
     let scale = editor.scale();
     view! {
         <Canvas view={editor.canvas()} @test_id={"pan_zoom.stage"}>
-            <ForEach keys={card_indices()}>|index: usize|
+            <ForEach value={card_indices()}>|index: usize|
                 <CardView index scale={scale} selected={selected} />
             </ForEach>
         </Canvas>

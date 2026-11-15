@@ -14,7 +14,7 @@ fn SharedTools(id: u64, tools: usize, pressed: Signal<Vec<u64>>) -> NodeId {
                 <Frame @test_id={format!("grip.{id}")}>
                     <dock::styled::DockBarGrip />
                 </Frame>
-                <ForEach keys={(0..tools).collect::<Vec<_>>()}>|tool: usize|
+                <ForEach value={(0..tools).collect::<Vec<_>>()}>|tool: usize|
                     <Interactive
                         on_press={move |_: PointerPress| pressed.update(|pressed| pressed.push(id))}
                     >

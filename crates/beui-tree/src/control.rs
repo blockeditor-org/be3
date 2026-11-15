@@ -33,7 +33,7 @@ fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>
 
 type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 
-/// Shows `then` while `condition` holds, and `fallback`, if given, while it does not. By
+/// Shows `then` while `value` holds, and `fallback`, if given, while it does not. By
 /// default a branch is built each time it is shown and dropped when it is not. With
 /// `keep_alive` each is built once, the first time it shows, and kept while hidden, paused,
 /// so nothing in it runs until it shows again.
@@ -43,7 +43,7 @@ type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 /// `fallback`, one that takes an optional child (`Option<Child>`).
 #[component]
 pub fn Show<C, B, F>(
-    condition: Prop<bool>,
+    value: Prop<bool>,
     #[prop(default = false)] keep_alive: bool,
     fallback: F,
     #[prop(children)] then: RenderFn<(), B>,
@@ -58,8 +58,8 @@ where
     let fallback = fallback.into_render();
     <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(
         move |slot: ChildSlot<C>| match keep_alive {
-            false => show(condition, [fallback, Some(then)], slot),
-            true => keep(condition, [fallback, Some(then)], slot),
+            false => show(value, [fallback, Some(then)], slot),
+            true => keep(value, [fallback, Some(then)], slot),
         },
     ))
 }
@@ -221,7 +221,7 @@ where
 
 #[component]
 pub fn ForEach<K, C, R>(
-    keys: Prop<Vec<K>>,
+    value: Prop<Vec<K>>,
     #[prop(children)] view: RenderFn<K, R>,
 ) -> DynamicSegment<C>
 where
@@ -235,7 +235,7 @@ where
             built.store(view.call(key).into_child())
         }));
         create_binding(move || {
-            let keys = keys.get();
+            let keys = value.get();
             rows.value().map(keys).commit(|items, _| slot.fill(items));
         });
     })

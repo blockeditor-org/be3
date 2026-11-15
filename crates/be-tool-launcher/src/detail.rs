@@ -104,7 +104,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             </ListItem>
                         </List>
                         <Show
-                            condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
+                            value={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
                         >
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
@@ -130,7 +130,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         </List>
                         <Notes model={model} pull_request={pull_request} timeline={timeline} />
                         <Separator />
-                        <Show condition={loading}>
+                        <Show value={loading}>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
@@ -140,7 +140,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
                         </Show>
-                        <Show condition={move || !error.with(String::is_empty)}>
+                        <Show value={move || !error.with(String::is_empty)}>
                             <Text color=TextColor::Danger>{error}</Text>
                         </Show>
                     </List>
@@ -151,7 +151,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                             padding={Padding::horizontal(PADDING).top(Space::Md).bottom(PADDING)}
                         >
                             <List spacing=Space::None>
-                                <ForEach keys>|index: usize| {
+                                <ForEach value={keys}>|index: usize| {
                                     let entry = create_memo(move || entries.get().get(index).cloned());
                                     view! {
                                         <TimelineEntry model={model} entry />
@@ -268,7 +268,7 @@ fn CommentCard(
                     <Frame padding=CARD_PADDING>
                         <List spacing=Space::Md>
                             <Blocks model={model} blocks={body} />
-                            <ForEach keys={inline_keys}>|index: usize| {
+                            <ForEach value={inline_keys}>|index: usize| {
                                 let comment = inline[index].clone();
                                 view! {
                                     <InlineCommentView model={model} comment />
@@ -356,7 +356,7 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
     let keys: Vec<usize> = (0..blocks.len()).collect();
     view! {
         <List spacing=Space::Md>
-            <ForEach keys>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let block = blocks[index].clone();
                 view! {
                     <BlockView model={model} block />
@@ -413,7 +413,7 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
                 column_spacing=Space::Md
                 row_spacing=Space::Md
             >
-                <ForEach keys>|(row, column): (usize, usize)| {
+                <ForEach value={keys}>|(row, column): (usize, usize)| {
                     let blocks = rows[row].get(column).cloned().unwrap_or_default();
                     view! {
                         <Blocks model={model} blocks />
@@ -497,7 +497,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     accessibility.set_label(format!("Enlarge {described}"));
     view! {
         <List spacing=Space::Xs>
-            <Show condition={waiting}>|| {
+            <Show value={waiting}>|| {
                 let described = described.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=Size::Sm label="Loading an image" />
@@ -505,7 +505,7 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
                     </List>
                 }
             }</Show>
-            <Show condition={failed}>
+            <Show value={failed}>
                 <Link label={missing.clone()} on_click={open.clone()} />
             </Show>
             <Pressable on_click={enlarge} accessibility>

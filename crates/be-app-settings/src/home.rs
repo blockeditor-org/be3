@@ -49,10 +49,10 @@ fn HomeView(editor: Editor) -> NodeId {
                 title="Landing page"
                 description="Opens first when someone opens the workspace. Make one from a block's menu in Files."
             >
-                <Show condition={move || landing.with(Vec::is_empty)}>
+                <Show value={move || landing.with(Vec::is_empty)}>
                     <SettingsRow label="None" compact=true />
                 </Show>
-                <ForEach keys={landing}>|block: Uuid|
+                <ForEach value={landing}>|block: Uuid|
                     <Placed editor={editor} block={block} place=Place::Landing />
                 </ForEach>
             </SettingsSection>
@@ -60,10 +60,10 @@ fn HomeView(editor: Editor) -> NodeId {
                 title="Pinned"
                 description="Shown first in the workspace in Files. Pin one from a block's menu."
             >
-                <Show condition={move || pinned.with(Vec::is_empty)}>
+                <Show value={move || pinned.with(Vec::is_empty)}>
                     <SettingsRow label="Nothing is pinned" compact=true />
                 </Show>
-                <ForEach keys={pinned}>|block: Uuid|
+                <ForEach value={pinned}>|block: Uuid|
                     <Placed editor={editor} block={block} place=Place::Pinned />
                 </ForEach>
             </SettingsSection>
@@ -71,10 +71,10 @@ fn HomeView(editor: Editor) -> NodeId {
                 title="Templates"
                 description="New from template, in the new-block menu, copies one of these with what is inside it."
             >
-                <Show condition={move || templates.with(Vec::is_empty)}>
+                <Show value={move || templates.with(Vec::is_empty)}>
                     <SettingsRow label="No templates" compact=true />
                 </Show>
-                <ForEach keys={templates}>|block: Uuid|
+                <ForEach value={templates}>|block: Uuid|
                     <Placed editor={editor} block={block} place=Place::Template />
                 </ForEach>
             </SettingsSection>

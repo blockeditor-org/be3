@@ -2011,7 +2011,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     <Frame padding=inset>
                         <List spacing=0.0>
                             <Show
-                                condition={stacks}
+                                value={stacks}
                                 fallback={move || view! {
                                     <ListItem grow=1.0>
                                         <DockTiles dock />
@@ -2234,15 +2234,15 @@ fn DockStack(dock: State) -> NodeId {
             on_back={move || dock.go_back()}
         >
             <List spacing=0.0>
-                <Show condition={barred}>
+                <Show value={barred}>
                     <Portal node={bar} />
                 </Show>
-                <Show condition={vacant}>
+                <Show value={vacant}>
                     <ListItem grow=1.0>
                         <EmptyPane dock leaf={state.with_untracked(vacant_leaf)} />
                     </ListItem>
                 </Show>
-                <Show condition={here}>
+                <Show value={here}>
                     <ListItem grow=1.0>
                         <DockBarred
                             dock
@@ -2253,7 +2253,7 @@ fn DockStack(dock: State) -> NodeId {
                         </DockBarred>
                     </ListItem>
                 </Show>
-                <Show condition={left}>
+                <Show value={left}>
                     <ListItem grow=1.0>
                         <DockAway dock gone />
                     </ListItem>
@@ -2475,7 +2475,7 @@ fn DockTiles(dock: State) -> NodeId {
                             </ListItem>
                         }
                     }</Dynamic>
-                    <ForEach keys={windows}>|surface: SurfaceId| {
+                    <ForEach value={windows}>|surface: SurfaceId| {
                         let dock = dock;
                         view! {
                             <DockWindowView dock surface />
@@ -2554,7 +2554,7 @@ fn DockChrome(dock: State, parts: ChromeParts) -> NodeId {
     };
     let content = view! {
         <List direction spacing=0.0>
-            <Show condition={bar_shown}>
+            <Show value={bar_shown}>
                 <ListItem length={sidebar_length(vertical, sidebar_width)}>
                     <Portal node={bar} />
                 </ListItem>
@@ -2590,7 +2590,7 @@ fn DockTreeView(dock: State, tree: Tree) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show
-                condition={staged}
+                value={staged}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <DockTreeCanvas dock tree />
@@ -2670,7 +2670,7 @@ fn DockTreeCanvas(
     });
     let built = view! {
         <Canvas @node_ref=&canvas arrangement>
-            <ForEach keys={leaves}>|leaf: LeafId| {
+            <ForEach value={leaves}>|leaf: LeafId| {
                 let dock = dock;
                 let hoisted = hoisted == Some(leaf);
                 view! {
@@ -2679,7 +2679,7 @@ fn DockTreeCanvas(
                     </CanvasItem>
                 }
             }</ForEach>
-            <ForEach keys={splits}>|split: SplitId| {
+            <ForEach value={splits}>|split: SplitId| {
                 let dock = dock;
                 view! {
                     <CanvasItem arranged={split_key(split)}>
@@ -2687,7 +2687,7 @@ fn DockTreeCanvas(
                     </CanvasItem>
                 }
             }</ForEach>
-            <Show condition={marked_surface.is_some()}>
+            <Show value={marked_surface.is_some()}>
                 <DockDropMarker
                     dock={dock}
                     surface={marked_surface.unwrap_or_else(|| unreachable!())}
@@ -2765,7 +2765,7 @@ fn DockDropMarker(
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 {match refused {
                     true => dock.refused.call(()),
@@ -2973,7 +2973,7 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show
-                condition={occupied}
+                value={occupied}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <EmptyPane dock leaf />
@@ -3025,14 +3025,14 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
     let occupied = create_memo(move || shown.with(Option::is_some) && gone.with(Option::is_none));
     view! {
         <List spacing=0.0>
-            <Show condition={occupied}>
+            <Show value={occupied}>
                 <ListItem grow=1.0>
                     <DockBarred dock leaf holder={BarHolder::Tab { tab: shown, stacked: false }}>
                         <Portal node={panel} />
                     </DockBarred>
                 </ListItem>
             </Show>
-            <Show condition={left}>
+            <Show value={left}>
                 <ListItem grow=1.0>
                     <DockAway dock gone />
                 </ListItem>
@@ -3101,7 +3101,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                 <Choice
                     @node_ref=&tab_list
                     options={view! {
-                        <ForEach keys={order}>|entry: Entry| {
+                        <ForEach value={order}>|entry: Entry| {
                             let dock = dock;
                             let label = create_memo(move || dock.entry_title(entry));
                             view! {
@@ -3392,7 +3392,7 @@ fn TabMenu(
                         on_click={move || ungroup.call(())}
                     />
                 })}
-                <Show condition={offered}>
+                <Show value={offered}>
                     <MenuItem
                         label={fullscreen_label}
                         on_click={move || toggle_fullscreen.call(())}
@@ -3461,7 +3461,7 @@ fn GripMenu(
                     disabled={move || !closable.get()}
                     on_click={move || close.call(())}
                 />
-                <Show condition={lockable}>
+                <Show value={lockable}>
                     <MenuItem
                         label="Locked"
                         checked={lock}
@@ -4117,7 +4117,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         </Canvas>
                                     </Frame>
                                 </CanvasItem>
-                                <ForEach keys={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
+                                <ForEach value={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
                                     let dock = dock;
                                     let handle_rect = create_memo(move || grip.rect(upright, size.get(), dock.window_border));
                                     let x = create_memo(move || handle_rect.get().min.x);

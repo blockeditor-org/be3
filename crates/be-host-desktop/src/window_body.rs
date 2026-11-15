@@ -159,7 +159,7 @@ pub fn WindowBody(
                 <Frame fill=ColorRole::Background />
             </primitives::Frame>
             <Frame fade_edges={fade}>{children}</Frame>
-            <Show condition={cramped}>
+            <Show value={cramped}>
                 <Frame align=Align2::CENTER>
                     <Frame
                         fill=ColorRole::Surface
@@ -172,7 +172,7 @@ pub fn WindowBody(
                     </Frame>
                 </Frame>
             </Show>
-            <Show condition={move || !responding.get() && !waited.get()}>
+            <Show value={move || !responding.get() && !waited.get()}>
                 <Frame align={Align2::new(Align::Center, Align::Start)}>
                     <NotResponding name on_wait={move || waited.set(true)} on_force_close />
                 </Frame>

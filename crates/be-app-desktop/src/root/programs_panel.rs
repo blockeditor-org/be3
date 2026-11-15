@@ -219,12 +219,12 @@ fn ProgramsPanelContent(
     };
     view! {
         <List spacing=SECTION_SPACING @test_id={"desktop.apps.panel"}>
-            <Show condition={launches}>
+            <Show value={launches}>
                 <ProgramSearch programs={programs_panel.programs} focused={shown} close />
             </Show>
             <SessionRows programs_panel close />
             <Separator />
-            <Show condition={hidden}>
+            <Show value={hidden}>
                 <ListRow
                     @test_id={"desktop.apps.bars"}
                     label="Show this display's bars"
@@ -266,7 +266,7 @@ fn SessionRows(programs_panel: ProgramsPanel, close: Callback<()>) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION>"Sessions"</Text>
-            <ForEach keys={keys}>|block: Uuid|
+            <ForEach value={keys}>|block: Uuid|
                 <SessionRow programs_panel block close />
             </ForEach>
             <ListRow

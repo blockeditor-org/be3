@@ -185,7 +185,7 @@ pub fn TerminalView(
                             }}
                         >
                             <Show
-                                condition={wheel}
+                                value={wheel}
                                 fallback={move || view! {
                                     <VirtualList
                                         keys
@@ -255,7 +255,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
     });
     view! {
         <Text style=TEXT color={move || TextColor::Custom(foreground.get().into())} overflow carets>
-            <ForEach keys={pieces}>|(_, piece): (usize, Piece)|
+            <ForEach value={pieces}>|(_, piece): (usize, Piece)|
                 <TerminalPiece piece />
             </ForEach>
         </Text>

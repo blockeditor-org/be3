@@ -225,7 +225,7 @@ fn PolicyRows(rows: Vec<Row>, locked: Memo<bool>) -> NodeId {
     let keys: Vec<usize> = (0..rows.len()).collect();
     view! {
         <List spacing=Space::None>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let row = rows[index].clone();
                 view! {
                     <PolicyRow
@@ -326,7 +326,7 @@ fn PolicyRow(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={options}>|label: String|
+                        <ForEach value={options}>|label: String|
                             <ChoiceOption label={label} />
                         </ForEach>
                     }}
@@ -358,10 +358,10 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <SettingsSection title="Offline" description={OFFLINE_ABOUT}>
-                <Show condition={move || workspaces.with(Vec::is_empty)}>
+                <Show value={move || workspaces.with(Vec::is_empty)}>
                     <SettingsRow label="No workspaces yet" compact=true />
                 </Show>
-                <ForEach keys={workspaces}>|workspace: Uuid| {
+                <ForEach value={workspaces}>|workspace: Uuid| {
                     let setting = keep_setting(workspace);
                     let personal = create_memo(move || editor.organization_settings().is_none());
                     let choice = create_memo(move || {

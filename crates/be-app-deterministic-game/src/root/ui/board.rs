@@ -330,10 +330,10 @@ pub(crate) fn Stage(
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Canvas view={canvas} @node_ref={&content}>
-                            <ForEach keys={item_keys}>|id: ItemId|
+                            <ForEach value={item_keys}>|id: ItemId|
                                 <TableItem id layout={layout} play={play} hidden={hidden} />
                             </ForEach>
-                            <ForEach keys={spot_keys}>|spot: Spot|
+                            <ForEach value={spot_keys}>|spot: Spot|
                                 <SpotItem spot layout={layout} play={play} />
                             </ForEach>
                             <CanvasItem
@@ -350,7 +350,7 @@ pub(crate) fn Stage(
                     <HandBar hand bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>
-                    <ForEach keys={motion.flying}>|id: ItemId|
+                    <ForEach value={motion.flying}>|id: ItemId|
                         <FlightItem id motion={motion} />
                     </ForEach>
                     <CanvasItem

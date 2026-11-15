@@ -20,7 +20,7 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
                     selected=0
                 />
                 <Slider @node_ref=&slider value=0.5 />
-                <ForEach keys={indices(20)}>|_: usize|
+                <ForEach value={indices(20)}>|_: usize|
                     <Text color=Color32::WHITE>"Content"</Text>
                 </ForEach>
             </Scroll>

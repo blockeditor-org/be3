@@ -18,7 +18,7 @@ fn Rows(keys: Vec<u32>) -> NodeId {
     create_binding(move || with_document(|document| document.set_list_spacing(list, spacing.get())));
     view! {
         <List spacing=0.0>
-            <ForEach keys>{move |key: u32| view! { <Row key /> }}</ForEach>
+            <ForEach value={keys}>{move |key: u32| view! { <Row key /> }}</ForEach>
         </List>
     }
 }

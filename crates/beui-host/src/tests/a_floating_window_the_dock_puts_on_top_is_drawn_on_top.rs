@@ -57,7 +57,7 @@ fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
                             <Frame />
                         }}
                     />
-                    <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                    <ForEach value={vec![1u64, 2, 3]}>|id: u64|
                         <Program id />
                     </ForEach>
                 </dock::Docking>

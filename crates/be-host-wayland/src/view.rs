@@ -157,7 +157,7 @@ pub fn WindowView(
                     <Frame fill={dim} />
                 </Layers>
             </Interactive>
-            <ForEach keys={openings}>|_: Option<(u32, u32)>| {
+            <ForEach value={openings}>|_: Option<(u32, u32)>| {
                 let placement = WindowPlacement::Over {
                     window: parent,
                     at: at.get_untracked(),

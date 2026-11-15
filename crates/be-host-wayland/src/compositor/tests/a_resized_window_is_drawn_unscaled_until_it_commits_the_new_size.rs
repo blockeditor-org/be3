@@ -17,7 +17,7 @@ fn Pane(windows: Windows) -> NodeId {
     let height = create_memo(move || Size::Custom(size.get().y));
     view! {
         <List spacing=Space::None>
-            <ForEach keys={ids}>|id: WindowId|
+            <ForEach value={ids}>|id: WindowId|
                 <Frame width=width height=height>
                     <WindowView windows id />
                 </Frame>

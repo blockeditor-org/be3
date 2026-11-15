@@ -42,7 +42,7 @@ pub(super) fn Timeline(
         <List spacing=Space::None>
             <List direction=Direction::Horizontal spacing=Space::None>
                 <Frame width={Size::Custom(GUTTER)} />
-                <ForEach keys={columns}>|day: i64|
+                <ForEach value={columns}>|day: i64|
                     <ListItem grow=1.0>
                         <DayHeader day={day} />
                     </ListItem>
@@ -109,7 +109,7 @@ fn Grid(
         <Frame height={Size::Custom(CONTENT_HEIGHT)}>
             <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
                 <Canvas>
-                    <ForEach keys={hours}>|hour: u8| {
+                    <ForEach value={hours}>|hour: u8| {
                         let top = f32::from(hour) * HOUR_HEIGHT;
                         view! {
                             <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
@@ -117,7 +117,7 @@ fn Grid(
                             </CanvasItem>
                         }
                     }</ForEach>
-                    <ForEach keys={hours}>|hour: u8| {
+                    <ForEach value={hours}>|hour: u8| {
                         let top = f32::from(hour) * HOUR_HEIGHT + 2.0;
                         let label = match hour < 24 {
                             true => format!("{hour:02}:00"),
@@ -129,7 +129,7 @@ fn Grid(
                             </CanvasItem>
                         }
                     }</ForEach>
-                    <ForEach keys={rules}>|index: usize| {
+                    <ForEach value={rules}>|index: usize| {
                         let x = create_memo(move || GUTTER + index as f32 * column_width.get());
                         view! {
                             <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
@@ -137,7 +137,7 @@ fn Grid(
                             </CanvasItem>
                         }
                     }</ForEach>
-                    <ForEach keys={keys}>|key: (usize, i64)| {
+                    <ForEach value={keys}>|key: (usize, i64)| {
                         let item = create_memo(move || {
                             placed.with(|placed| placed.iter().find(|item| item.key == key).cloned())
                         });

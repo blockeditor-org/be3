@@ -11,7 +11,7 @@ fn a_kept_alive_child_shown_again_keeps_the_sizing_it_was_last_given() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show keep_alive=true condition={shown}>
+                <Show keep_alive=true value={shown}>
                     <ListItem length=height>
                         <Frame @node_ref=&child />
                     </ListItem>

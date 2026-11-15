@@ -64,7 +64,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         <List spacing=Space::None>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Show condition={backward}>
+                    <Show value={backward}>
                         <Button
                             icon_only=true
                             @test_id={"dock.back"}
@@ -77,7 +77,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
                             <Show
-                                condition={titled}
+                                value={titled}
                                 fallback={move || view! {
                                     <Frame padding={Padding::horizontal(TITLE_PADDING)}>
                                         <DockTitle title icon noticed opens=false />
@@ -160,7 +160,7 @@ fn DockTitle(
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
-            <Show condition={move || icon.with(Option::is_some)}>
+            <Show value={move || icon.with(Option::is_some)}>
                 <Text color=TextColor::Accent align=TextAlign::Center>
                     <Icon glyph={icon} />
                 </Text>
@@ -168,7 +168,7 @@ fn DockTitle(
             <ListItem shrink=1.0>
                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
             </ListItem>
-            <Show condition={opens}>
+            <Show value={opens}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_CHEVRON_DOWN />
                 </Text>
@@ -233,7 +233,7 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                 </Frame>
                 <Frame padding=SHEET_PADDING>
                     <List spacing=CARD_SPACING>
-                        <Show condition={none}>
+                        <Show value={none}>
                             <Text style=TextStyle::CAPTION>"Nothing else is open."</Text>
                         </Show>
                         <Grid
@@ -241,16 +241,16 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                             column_spacing=CARD_SPACING
                             row_spacing=CARD_SPACING
                         >
-                            <ForEach keys={tabs}>|tab: TabId|
+                            <ForEach value={tabs}>|tab: TabId|
                                 <DockSwitcherCard handle={card.call(tab)} />
                             </ForEach>
                         </Grid>
                     </List>
                 </Frame>
-                <Show condition={rowed}>
+                <Show value={rowed}>
                     <Frame padding=SHEET_PADDING>
                         <List spacing=Space::None>
-                            <ForEach keys={fixed}>|tab: TabId|
+                            <ForEach value={fixed}>|tab: TabId|
                                 <DockSwitcherRow handle={card.call(tab)} />
                             </ForEach>
                         </List>
@@ -331,7 +331,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </ListRow>
                 </ListItem>
                 <List spacing=Space::None>
-                    <Show condition={closable}>
+                    <Show value={closable}>
                         <Button
                             icon_only=true
                             @test_id={close_id.clone()}
@@ -341,7 +341,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                             on_click={close}
                         />
                     </Show>
-                    <Show condition={offered}>
+                    <Show value={offered}>
                         <MenuButton
                             icon_only=true
                             variant=ButtonVariant::Ghost

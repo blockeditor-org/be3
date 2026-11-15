@@ -47,10 +47,10 @@ pub(crate) fn SelectionTools(
             @test_id={"infinite-canvas.selection-bar"}
         >
             <List direction={direction} align=Align::Center spacing=Space::Xs>
-                <Show condition={prototyping}>
+                <Show value={prototyping}>
                     <StylePopover state={state} />
                 </Show>
-                <Show condition={lining}>|| {
+                <Show value={lining}>|| {
                     let bind_lines = bind_lines.clone(); view! {
                         <ToggleButton
                             icon_only=true
@@ -59,9 +59,9 @@ pub(crate) fn SelectionTools(
                         />
                     }
                 }</Show>
-                <Show condition={colored}>
+                <Show value={colored}>
                     <List direction={direction} align=Align::Center spacing=Space::Xs2>
-                        <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                        <ForEach value={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = STROKES[index];
                             view! {
                                 <Swatch
@@ -75,7 +75,7 @@ pub(crate) fn SelectionTools(
                         }</ForEach>
                     </List>
                 </Show>
-                <Show condition={chosen}>|| {
+                <Show value={chosen}>|| {
                     let actions = actions.clone(); view! {
                         <List direction={direction} align=Align::Center spacing=Space::Xs>
                             <Button
@@ -91,7 +91,7 @@ pub(crate) fn SelectionTools(
                         </List>
                     }
                 }</Show>
-                <Show condition={embedded}>|| {
+                <Show value={embedded}>|| {
                     let open = open.clone(); view! {
                         <Button
                             icon_only=true
@@ -101,7 +101,7 @@ pub(crate) fn SelectionTools(
                         />
                     }
                 }</Show>
-                <Show condition={inspectable}>
+                <Show value={inspectable}>
                     <Button
                         icon_only=true
                         glyph=ICON_SLIDERS_HORIZONTAL

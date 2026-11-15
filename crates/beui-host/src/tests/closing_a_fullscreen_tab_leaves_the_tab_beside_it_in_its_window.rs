@@ -29,7 +29,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
                             rect={Rect::from_min_size(pos2(100.0, 80.0), vec2(360.0, 240.0))}
                         >
                             <DockPane id="program">
-                                <ForEach keys>|id: u64|
+                                <ForEach value={keys}>|id: u64|
                                     <DockTab id title={format!("Tab {id}")}>
                                         <Panel id />
                                     </DockTab>

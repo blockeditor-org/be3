@@ -40,7 +40,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
         view! {
             <List spacing=0.0>
                 <Portal node={shown} />
-                <Show condition={kept}>
+                <Show value={kept}>
                     <Control name="removable" heard=Rc::clone(&removable) />
                 </Show>
             </List>

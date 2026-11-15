@@ -20,7 +20,7 @@ fn an_anchored_view_left_empty_keeps_a_finite_place() {
                     open=true
                 >
                     <styled::Layers>
-                        <Show condition={filled}>||
+                        <Show value={filled}>||
                             <styled::Button label="Row" on_click={|| {}} />
                         </Show>
                     </styled::Layers>

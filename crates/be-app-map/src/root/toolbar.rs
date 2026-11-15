@@ -63,7 +63,7 @@ pub(crate) fn MapToolbar(state: MapState, fitting: Fitting) -> NodeId {
                 @test_id={"map.reload"}
                 on_click={move || state.reload_tiles()}
             />
-            <Show condition={move || error.with(Option::is_some)}>
+            <Show value={move || error.with(Option::is_some)}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </DockBarSurface>

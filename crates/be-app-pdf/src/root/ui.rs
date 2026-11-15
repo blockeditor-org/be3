@@ -114,7 +114,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show
-                condition={chrome}
+                value={chrome}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <Viewer editor content shown />
@@ -249,7 +249,7 @@ fn DetailsPanel(details: Details) -> NodeId {
                 @test_id={"pdf.replace"}
                 on_click={move || choose.call(())}
             />
-            <Show condition={refused}>
+            <Show value={refused}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
             </Show>
         </List>
@@ -294,7 +294,7 @@ fn PageCanvas(
                     >
                         <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                     </CanvasItem>
-                    <ForEach keys={keys}>|index: usize| {
+                    <ForEach value={keys}>|index: usize| {
                         let tile = create_memo(move || {
                             shown.with(|shown| shown.tiles.get(index).cloned())
                         });
@@ -326,7 +326,7 @@ fn PageCanvas(
                     }</ForEach>
                 </Canvas>
             </ListItem>
-            <Show condition={failed}>
+            <Show value={failed}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
                     {reason}
                 </Text>

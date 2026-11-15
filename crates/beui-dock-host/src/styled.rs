@@ -246,7 +246,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show
-                condition={icons_only}
+                value={icons_only}
                 fallback={move || view! {
                     <DockTabChrome
                         title
@@ -353,10 +353,10 @@ fn DockIconTab(
             >
                 <List align=Align::Center spacing=Space::None>
                     <Show
-                        condition={move || !grouped && picture.with(Option::is_some)}
+                        value={move || !grouped && picture.with(Option::is_some)}
                         fallback={move || view! {
                             <Show
-                                condition={move || glyph.with(Option::is_some)}
+                                value={move || glyph.with(Option::is_some)}
                                 fallback={move || view! {
                                     <Text color={label} align=TextAlign::Center>{initial}</Text>
                                 }}
@@ -420,19 +420,19 @@ fn DockTabChrome(
                     </Text>
                 })}
                 <Show
-                    condition={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}
+                    value={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}
                 >
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
-                <Show condition={shows_picture}>
+                <Show value={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
                 <ListItem grow=title_grow shrink=title_shrink>
                     <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                 </ListItem>
-                <Show condition={waiting}>
+                <Show value={waiting}>
                     <Frame
                         @test_id={waiting_test_id.clone()}
                         width=WAITING_DOT
@@ -441,7 +441,7 @@ fn DockTabChrome(
                         fill=ColorRole::Accent
                     />
                 </Show>
-                <Show condition={closable}>
+                <Show value={closable}>
                     <Button
                         icon_only=true
                         @test_id={close_test_id.clone()}
@@ -574,7 +574,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             align=Align::Center
                             spacing=TAB_SPACING
                         >
-                            <Show condition={move || icon.with(Option::is_some)}>
+                            <Show value={move || icon.with(Option::is_some)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -586,7 +586,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             <ListItem grow=1.0>
                                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                             </ListItem>
-                            <Show condition={closable}>
+                            <Show value={closable}>
                                 <Button
                                     icon_only=true
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
@@ -759,7 +759,7 @@ fn DockSideBar(
                                 spacing=BAR_SPACING
                             >
                                 {grip}
-                                <Show condition={move || !icons_only.get()}>|| {
+                                <Show value={move || !icons_only.get()}>|| {
                                     let test_prefix = narrow.clone(); view! {
                                         <List
                                             direction=Direction::Horizontal
@@ -786,7 +786,7 @@ fn DockSideBar(
                                     {titled.then(|| view! {
                                         <Text overflow=Overflow::Ellipsis>{title}</Text>
                                     })}
-                                    <Show condition={icons_only}>|| {
+                                    <Show value={icons_only}>|| {
                                         let test_prefix = column.clone(); view! {
                                             <List align=Align::Center spacing=BAR_SPACING>
                                                 <DockMenu
@@ -869,7 +869,7 @@ fn DockClose(
     test_prefix: String,
 ) -> DynamicSegment<ListItem> {
     view! {
-        <Show condition={closable}>
+        <Show value={closable}>
             <Button
                 icon_only=true
                 @test_id={format!("{test_prefix}.close")}
@@ -985,7 +985,7 @@ fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
-            <Show condition={grouping}>
+            <Show value={grouping}>
                 <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
                     <Frame
                         fill=ColorRole::Accent
@@ -1038,7 +1038,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
                 })}
-                <Show condition={move || !grouped && icon.with(Option::is_some)}>
+                <Show value={move || !grouped && icon.with(Option::is_some)}>
                     <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>

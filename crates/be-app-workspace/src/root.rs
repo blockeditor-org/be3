@@ -206,22 +206,22 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
                                         <EmptyPanel />
                                     }}
                                 >
-                                    <ForEach keys={block_tabs}>|tab: TabId|
+                                    <ForEach value={block_tabs}>|tab: TabId|
                                         <WorkspaceBlockTab shell tab />
                                     </ForEach>
-                                    <ForEach keys={tabbed}>|tab: TabId|
+                                    <ForEach value={tabbed}>|tab: TabId|
                                         <ProgramTab workspace tab />
                                     </ForEach>
                                 </DockPane>
                             </DockSplit>
-                            <ForEach keys={panels}>|panel: HostPanel|
+                            <ForEach value={panels}>|panel: HostPanel|
                                 <PanelWindow workspace panel />
                             </ForEach>
-                            <ForEach keys={floating}>|tab: TabId|
+                            <ForEach value={floating}>|tab: TabId|
                                 <ProgramWindow workspace tab />
                             </ForEach>
                             <ForEach
-                                keys={dialog_windows}
+                                value={dialog_windows}
                             >|(window, parent): (HostWindowId, HostWindowId)|
                                 <WindowDialog workspace window parent />
                             </ForEach>

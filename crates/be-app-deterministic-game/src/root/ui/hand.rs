@@ -60,7 +60,7 @@ pub(crate) fn HandBar(
     let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
     let built = view! {
         <Layers>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Frame
                     height={Size::Custom(BAR_HEIGHT)}
                     fill=ColorRole::Surface
@@ -68,7 +68,7 @@ pub(crate) fn HandBar(
                     @test_id={"game.hand"}
                 >
                     <Canvas view={screen}>
-                        <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
+                        <ForEach value={keys}>|(id, spot): (ItemId, Spot)|
                             <HandItem id spot hand={hand} bar={rect} play={play} hidden={hidden} />
                         </ForEach>
                     </Canvas>

@@ -37,7 +37,7 @@ pub fn Kanban(data: Data) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show
-                    condition={ready}
+                    value={ready}
                     fallback={|| view! {
                         <Frame padding=PADDING>
                             <Text style=TextStyle::CAPTION>
@@ -50,7 +50,7 @@ pub fn Kanban(data: Data) -> NodeId {
                         <Scroll direction=Direction::Horizontal>
                             <Frame padding=PADDING>
                                 <List direction=Direction::Horizontal spacing=COLUMN_SPACING>
-                                    <ForEach keys={columns}>|key: GroupKey|
+                                    <ForEach value={columns}>|key: GroupKey|
                                         <Column data={data} key={key} />
                                     </ForEach>
                                 </List>
@@ -76,7 +76,7 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Show
-                condition={folded}
+                value={folded}
                 fallback={move || view! {
                     <OpenColumn data={data} group={group} key={key} />
                 }}
@@ -246,7 +246,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                                 />
                             </List>
                         </Frame>
-                        <Show condition={landing_shown}>
+                        <Show value={landing_shown}>
                             <Frame
                                 height={move || Length::Size(Size::Custom(landing.get().unwrap_or(0.0)))}
                             />

@@ -19,7 +19,7 @@ fn a_grid_in_a_scroll_lays_out_only_the_cells_near_the_view() {
                     <ListItem grow=1.0>
                         <Offset>
                             <Grid columns={vec![Track::Fraction(1.0); 2]}>
-                                <ForEach keys={indices(CELLS)}>|index: usize| {
+                                <ForEach value={indices(CELLS)}>|index: usize| {
                                     let (cell, inside) = (cells[index], insides[index]);
                                     view! {
                                         <Frame @node_ref=&cell height=CELL_HEIGHT>

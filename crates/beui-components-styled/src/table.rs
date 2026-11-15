@@ -68,7 +68,7 @@ fn TableHeader(
             <Frame padding=CELL_PADDING>
                 <List direction=Direction::Horizontal spacing=CELL_SPACING>
                     <ColumnHeading weight=LABEL_WEIGHT column={heading} />
-                    <ForEach keys={indices}>|index: usize| {
+                    <ForEach value={indices}>|index: usize| {
                         let column = create_memo(move || {
                             columns.with(|columns| columns.get(index).cloned().unwrap_or_default())
                         });
@@ -92,7 +92,7 @@ fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListItem {
             <unstyled::TableColumnHeader label={label}>
                 <List spacing=Space::None>
                     <Text style=COLUMN_TITLE>{title}</Text>
-                    <Show condition={move || !caption.with(String::is_empty)}>
+                    <Show value={move || !caption.with(String::is_empty)}>
                         <Text style=TextStyle::CAPTION>{caption}</Text>
                     </Show>
                 </List>
@@ -146,7 +146,7 @@ pub fn TableCell(
             <unstyled::TableCell label={label}>
                 <List spacing=CAPTION_SPACING>
                     <Text color={color}>{text}</Text>
-                    <Show condition={move || !caption.with(String::is_empty)}>
+                    <Show value={move || !caption.with(String::is_empty)}>
                         <Text style=TextStyle::CAPTION>{caption}</Text>
                     </Show>
                 </List>

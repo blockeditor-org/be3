@@ -106,7 +106,7 @@ pub fn Anchored(
                     shown: dropped,
                 }))}
             />
-            <Show condition={sheet_built}>|| {
+            <Show value={sheet_built}>|| {
                 style.sheet.call(AnchoredSheetHandle {
                     open: raised,
                     on_close: Callback::new(move |()| on_dismiss.call(())),

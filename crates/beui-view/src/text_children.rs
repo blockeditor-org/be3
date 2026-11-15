@@ -244,7 +244,7 @@ impl IntoSegment<TextChild> for Memo<Phrase> {
         let keys: Memo<Vec<usize>> =
             create_memo(move || phrase.with(|phrase| (0..phrase.runs().len()).collect()));
         let runs: DynamicSegment<TextChild> = view! {
-            <ForEach keys={keys}>|index: usize| { Span::of_run(phrase, index) }</ForEach>
+            <ForEach value={keys}>|index: usize| { Span::of_run(phrase, index) }</ForEach>
         };
         ChildSegment::Dynamic(runs)
     }

@@ -1319,7 +1319,7 @@ where
         Some(
             view! {
                 <Show
-                    condition={declared}
+                    value={declared}
                     fallback={|| view! {
                         <Frame />
                     }}

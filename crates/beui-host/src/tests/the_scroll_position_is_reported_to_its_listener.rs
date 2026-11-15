@@ -12,7 +12,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
                 <ListItem grow=1.0>
                     <Offset on_change={move |position| reported.set(Some(position))}>
                         <List spacing=0.0>
-                            <ForEach keys={indices(100)}>|index: usize|
+                            <ForEach value={indices(100)}>|index: usize|
                                 <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
                             </ForEach>
                         </List>

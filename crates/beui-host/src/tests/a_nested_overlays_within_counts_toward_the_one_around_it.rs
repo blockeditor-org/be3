@@ -27,7 +27,7 @@ fn a_nested_overlays_within_counts_toward_the_one_around_it() {
         provide_context(outer);
         view! {
             <List spacing=0.0>
-                <Show condition={mounted}>
+                <Show value={mounted}>
                     <Inner inner open />
                 </Show>
             </List>

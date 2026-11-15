@@ -169,7 +169,7 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                     disabled={move || !rights.get().is_some_and(|r| r.4)}
                     on_click={move || act(BlockAction::Share)}
                 />
-                <Show condition={unlinkable}>
+                <Show value={unlinkable}>
                     <ActionRow
                         @test_id={"workspace.details.unlink"}
                         label="Unlink"
@@ -177,7 +177,7 @@ fn DetailsBody(workspace: Workspace, sheet: Signal<PhoneSheet>, tab: TabId) -> N
                         on_click={move || act(BlockAction::Unlink)}
                     />
                 </Show>
-                <Show condition={offers_delete}>
+                <Show value={offers_delete}>
                     <ActionRow
                         @test_id={"workspace.details.delete"}
                         label={move || match rights.get().is_some_and(|r| r.3) {
@@ -222,14 +222,14 @@ fn RelatedBlocks(
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={move || !ids.with(Vec::is_empty)}>|| {
+            <Show value={move || !ids.with(Vec::is_empty)}>|| {
                 let title = title.clone(); view! {
                     <Frame padding={Padding::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION>{title}</Text>
                     </Frame>
                 }
             }</Show>
-            <ForEach keys={ids}>|id: Uuid| {
+            <ForEach value={ids}>|id: Uuid| {
                 let reference = create_memo(move || {
                     refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
                 });

@@ -14,7 +14,7 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
                         <Frame height=200.0>
                             <PanZoomStage />
                         </Frame>
-                        <ForEach keys={indices(20)}>|index: usize|
+                        <ForEach value={indices(20)}>|index: usize|
                             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                                 {format!("Row {index}")}
                             </Text>

@@ -30,7 +30,7 @@ pub fn StoragePage(editor: Editor) -> NodeId {
                 <List spacing=SECTION_SPACING>
                     <Text style=TextStyle::HEADING>"Storage"</Text>
                     <Show
-                        condition={move || usage.with(Option::is_some)}
+                        value={move || usage.with(Option::is_some)}
                         fallback={|| view! {
                             <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">
                                 {NO_SERVER}
@@ -79,7 +79,7 @@ fn Usage(usage: Memo<Option<AccountStorage>>) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Text @test_id="settings.storage.used">{summary}</Text>
-            <Show condition={move || quota.with(Option::is_some)}>
+            <Show value={move || quota.with(Option::is_some)}>
                 <Progress
                     value={share}
                     label="Storage used"
@@ -89,12 +89,12 @@ fn Usage(usage: Memo<Option<AccountStorage>>) -> NodeId {
                     }}
                 />
             </Show>
-            <Show condition={full}>
+            <Show value={full}>
                 <Text color=TextColor::Danger>
                     "The quota is full: new uploads are refused until something is deleted."
                 </Text>
             </Show>
-            <Show condition={move || pending.get() > 0}>
+            <Show value={move || pending.get() > 0}>
                 <Text style=TextStyle::CAPTION>{pending_label}</Text>
             </Show>
         </List>

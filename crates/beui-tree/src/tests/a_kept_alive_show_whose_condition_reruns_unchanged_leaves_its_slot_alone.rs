@@ -11,7 +11,7 @@ fn a_kept_alive_show_whose_condition_reruns_unchanged_leaves_its_slot_alone() {
             <Element tag="div">
                 <Show
                     keep_alive=true
-                    condition={move || count.get() > 0}
+                    value={move || count.get() > 0}
                     fallback={|| view! {
                         <Element tag="i" text="none" />
                     }}

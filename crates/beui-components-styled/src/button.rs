@@ -255,23 +255,23 @@ pub fn ButtonFace(
                         justify={justify}
                         spacing=GLYPH_SPACING
                     >
-                        <Show condition={busy}>
+                        <Show value={busy}>
                             <Progress width=INLINE_PROGRESS_WIDTH />
                         </Show>
                         {leading}
-                        <Show condition={pictured}>
+                        <Show value={pictured}>
                             <Frame width=picture height=picture>
                                 <Picture image />
                             </Frame>
                         </Show>
                         <Show
-                            condition={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}
+                            value={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}
                         >
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
                         </Show>
-                        <Show condition={move || !icon_only.get()}>
+                        <Show value={move || !icon_only.get()}>
                             <ListItem shrink=1.0>
                                 <Text
                                     size=text
@@ -283,7 +283,7 @@ pub fn ButtonFace(
                                 </Text>
                             </ListItem>
                         </Show>
-                        <Show condition={move || trailing_glyph.with(Option::is_some)}>
+                        <Show value={move || trailing_glyph.with(Option::is_some)}>
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={trailing_glyph} />
                             </Text>

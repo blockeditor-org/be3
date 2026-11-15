@@ -12,7 +12,7 @@ fn Hosted(shown: Signal<bool>) -> NodeId {
         <List spacing=4.0>
             <Frame width=80.0>
                 <Show
-                    condition={shown}
+                    value={shown}
                     fallback={|| view! {
                         <Text>"hidden"</Text>
                     }}
@@ -21,7 +21,7 @@ fn Hosted(shown: Signal<bool>) -> NodeId {
                 </Show>
             </Frame>
             <Interactive>
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Text>"badge"</Text>
                 </Show>
             </Interactive>

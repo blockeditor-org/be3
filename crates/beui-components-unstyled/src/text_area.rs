@@ -1711,7 +1711,7 @@ pub fn TextArea(
         <Frame @node_ref=&outer>
             <List spacing=0.0>
                 <Show
-                    condition={single_line}
+                    value={single_line}
                     fallback={move || view! {
                         <ListItem grow=1.0>
                             <Canvas width={width} height={height}>
@@ -1739,7 +1739,7 @@ pub fn TextArea(
                         <Editing field={field} />
                     </ListItem>
                 </Show>
-                <Show condition={menu}>|| {
+                <Show value={menu}>|| {
                     let menu = completion_menu
                         .expect("a completion menu is only shown when the area was given one");
                     view! {

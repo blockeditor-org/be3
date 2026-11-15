@@ -380,7 +380,7 @@ fn EditCounter() -> NodeId {
                 "Edit is pinned to the pane's bar as an icon, and Reset with its label. \
                  A pane too narrow for the label moves Reset into the bar's menu."
             </Text>
-            <Show condition={moved}>
+            <Show value={moved}>
                 <Text style=TextStyle::CAPTION>
                     "Drag this tab somewhere else: the count comes with it."
                 </Text>
@@ -573,7 +573,7 @@ fn TypeScale() -> NodeId {
 fn TextSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextSize::ALL.to_vec()}>|size: TextSize|
+            <ForEach value={TextSize::ALL.to_vec()}>|size: TextSize|
                 <Text size>
                     <Icon glyph=ICON_TYPE />
                     {format!("{} {}", size.name(), size.px())}
@@ -588,7 +588,7 @@ fn TextSizes() -> NodeId {
 fn TextColors() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextColor::ROLES.to_vec()}>|color: TextColor|
+            <ForEach value={TextColor::ROLES.to_vec()}>|color: TextColor|
                 <Text color>{format!("The {} role", color.name())}</Text>
             </ForEach>
             <Text>
@@ -1409,7 +1409,7 @@ fn FruitSelect() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
+                    <ForEach value={FRUITS.to_vec()}>|label: &'static str|
                         <ChoiceOption label />
                     </ForEach>
                 }}
@@ -1420,7 +1420,7 @@ fn FruitSelect() -> NodeId {
             <Text style=TextStyle::CAPTION>{fruit_text}</Text>
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
+                    <ForEach value={FRUITS.to_vec()}>|label: &'static str|
                         <ChoiceOption label />
                     </ForEach>
                 }}
@@ -1493,7 +1493,7 @@ fn ShapeTiles() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING @test_id="demo.choices.tiles">
             <List direction=Direction::Horizontal spacing=Space::Xs>
-                <ForEach keys={(0..SHAPES.len()).collect::<Vec<usize>>()}>|index: usize|
+                <ForEach value={(0..SHAPES.len()).collect::<Vec<usize>>()}>|index: usize|
                     <TileButton
                         label={SHAPES[index].0.to_owned()}
                         radio=true
@@ -1726,7 +1726,7 @@ fn InkSwatches() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <ForEach keys={(0..INKS.len()).collect::<Vec<usize>>()}>|index: usize|
+                <ForEach value={(0..INKS.len()).collect::<Vec<usize>>()}>|index: usize|
                     <SwatchButton
                         color={INKS[index].1}
                         label={INKS[index].0.to_owned()}
@@ -2352,7 +2352,7 @@ fn NewBlockMenu() -> NodeId {
                             page=true
                             row_test_id="demo.new.location"
                         >
-                            <ForEach keys={shown}>|folder: usize|
+                            <ForEach value={shown}>|folder: usize|
                                 <FolderRow folder location expanded />
                             </ForEach>
                         </MenuItem>
@@ -2385,7 +2385,7 @@ fn NewBlockMenu() -> NodeId {
                             page=true
                             row_test_id="demo.new.more"
                         >
-                            <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
+                            <ForEach value={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
                                 <MenuItem
                                     label={MORE_BLOCKS[kind]}
                                     on_click={move || add(MORE_BLOCKS[kind])}
@@ -2515,7 +2515,7 @@ fn NewSlideMenu() -> NodeId {
                         <MenuCaption label="New slide" />
                         <MenuGrid columns=2>
                             <ForEach
-                                keys={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
+                                value={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
                             >|layout: usize|
                                 <MenuItem
                                     label={SLIDE_LAYOUTS[layout].0}
@@ -2649,7 +2649,7 @@ fn FailedImport() -> NodeId {
     view! {
         <List spacing=Space::Md>
             <Banner message={failure} id="demo.banner" on_dismiss={move || failure.set(None)} />
-            <Show condition={move || failure.with(Option::is_none)}>
+            <Show value={move || failure.with(Option::is_none)}>
                 <Button
                     label="Import again"
                     @test_id="demo.banner.again"
@@ -2997,7 +2997,7 @@ fn LongSheet() -> NodeId {
             <Text style=TextStyle::CAPTION>{picked}</Text>
             <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=60).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             glyph=ICON_PENCIL
@@ -3326,7 +3326,7 @@ fn FittedScroll() -> NodeId {
                 radius=Radius::Md
             >
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
-                    <ForEach keys={rows}>|index: usize|
+                    <ForEach value={rows}>|index: usize|
                         <Frame
                             padding={Padding::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
                         >
@@ -3527,7 +3527,7 @@ fn ScrollRowFace(
                 <ListItem grow=1.0>
                     <Text>{label}</Text>
                 </ListItem>
-                <Show condition={timings}>
+                <Show value={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
                         {timing}
                     </Text>
@@ -3948,7 +3948,7 @@ fn Pictures() -> NodeId {
     let image = sunset();
     view! {
         <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-            <ForEach keys={(0..RADII.len()).collect::<Vec<_>>()}>|index: usize| {
+            <ForEach value={(0..RADII.len()).collect::<Vec<_>>()}>|index: usize| {
                 let image = image.clone();
                 view! {
                     <List spacing=Space::Xs>
@@ -3968,7 +3968,7 @@ fn Pictures() -> NodeId {
 fn SpacedMarks() -> NodeId {
     view! {
         <List @test_id="demo.layout.spacers" spacing=Space::Xs>
-            <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+            <ForEach value={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     <Frame
                         width=Size::Xs
@@ -4027,7 +4027,7 @@ fn sprung(movement: Movement) -> Vec<f32> {
 fn Movements() -> NodeId {
     view! {
         <List @test_id="demo.layout.movements" spacing=Space::Md>
-            <ForEach keys={Movement::ALL.to_vec()}>|movement: Movement|
+            <ForEach value={Movement::ALL.to_vec()}>|movement: Movement|
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                     <Frame width={Size::Custom(56.0)}>
                         <Text style=TextStyle::CAPTION>{movement.name()}</Text>
@@ -4048,7 +4048,7 @@ fn MovementPlot(points: Vec<f32>) -> NodeId {
     view! {
         <Frame fill=ColorRole::Shade radius=Radius::Sm padding=Space::Xs>
             <List direction=Direction::Horizontal spacing=Space::Xs2>
-                <ForEach keys={(0..points.len()).collect::<Vec<_>>()}>|index: usize| {
+                <ForEach value={(0..points.len()).collect::<Vec<_>>()}>|index: usize| {
                     let y = (1.2 - points[index]) / 1.4 * room;
                     view! {
                         <Frame
@@ -4095,7 +4095,7 @@ fn FrameTokens() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={ColorRole::ROLES.to_vec()}>|role: ColorRole|
+                <ForEach value={ColorRole::ROLES.to_vec()}>|role: ColorRole|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(88.0)}
@@ -4109,7 +4109,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Xl2}
@@ -4122,7 +4122,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..Space::ALL.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame fill=ColorRole::Surface border=Border::DEFAULT radius=Radius::Sm>
                             <Frame padding={Space::ALL[index]}>
@@ -4134,7 +4134,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true align=Align::End spacing=ROW_SPACING>
-                <ForEach keys={(0..7).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..7).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::ALL[index]}
@@ -4147,7 +4147,7 @@ fn FrameTokens() -> NodeId {
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
                     <List spacing=Space::Xs>
                         <Frame
                             width={Size::Custom(88.0)}
@@ -4250,7 +4250,7 @@ fn PlanetTable() -> NodeId {
                 columns={vec![TableColumn::new("Year"), TableColumn::new("Moons").caption("Known")]}
             >
                 <ForEach
-                    keys={PLANETS.to_vec()}
+                    value={PLANETS.to_vec()}
                 >|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
                     <TableRow
                         label={name.to_owned()}
@@ -4408,7 +4408,7 @@ fn NestedScroll() -> NodeId {
                     <Scroll>
                         <List spacing=Space::Xs>
                             <ForEach
-                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                                value={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                             >|line: usize|
                                 <Text>{format!("Line {line}")}</Text>
                             </ForEach>
@@ -4430,7 +4430,7 @@ fn BleedingScroll() -> NodeId {
                     <Scroll bleed=Bleed::CARD>
                         <List spacing=Space::Md>
                             <ForEach
-                                keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                                value={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
                             >|topic: usize|
                                 <Checkbox label={format!("Topic {topic}")} checked=false />
                             </ForEach>
@@ -4808,7 +4808,7 @@ fn ReorderTabs() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTab, ReorderTab>|
                 <List direction=Direction::Horizontal spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|tab: ReorderTab|
+                    <ForEach value={reorder.order}>|tab: ReorderTab|
                         <ReorderItem reorder item=tab>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.tab.{}", tab.0)}
@@ -4846,7 +4846,7 @@ fn ReorderTasks() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTask, ReorderTask>|
                 <List spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|task: ReorderTask|
+                    <ForEach value={reorder.order}>|task: ReorderTask|
                         <ReorderItem reorder item=task>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.task.{}", task.0)}
@@ -4905,7 +4905,7 @@ fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeI
                 })}
             >|reorder: ReorderHandle<ReorderCard, ReorderCard>|
                 <List spacing=Space::Xs>
-                    <ForEach keys={reorder.order}>|card: ReorderCard|
+                    <ForEach value={reorder.order}>|card: ReorderCard|
                         <ReorderItem reorder item=card>|_: ReorderItemHandle|
                             <Frame @test_id={format!("demo.reorder.card.{}", card.0)}>
                                 <ReorderChip label={REORDER_TASKS[card.0].to_owned()} />
@@ -5057,7 +5057,7 @@ fn BarsStage(layout: DockingLayout<u64>) -> NodeId {
                      room until the button below shows it again. Bars floating over the whole \
                      dock and popped-out bars stay above its floating windows."
                         </Text>
-                        <Show condition={hidden}>
+                        <Show value={hidden}>
                             <Button
                                 @test_id="bars.show"
                                 label="Show hidden bars"
@@ -5119,7 +5119,7 @@ fn DemoToolBar(name: &'static str, tools: Vec<(&'static str, Glyph)>) -> NodeId 
             <Frame @test_id={grip}>
                 <DockBarGrip />
             </Frame>
-            <ForEach keys={tools}>|(label, glyph): (&'static str, Glyph)|
+            <ForEach value={tools}>|(label, glyph): (&'static str, Glyph)|
                 <Button
                     @test_id={format!("bars.tool.{}", label.to_lowercase())}
                     label
@@ -5217,7 +5217,7 @@ pub(crate) fn WindowManagerPage() -> NodeId {
                                 <Frame @test_id="wm.desk" />
                             }}
                         ></DockPane>
-                        <ForEach keys={open}>|id: u64| {
+                        <ForEach value={open}>|id: u64| {
                             let (_, title, group, at) = DESK_WINDOWS[id as usize - 1];
                             view! {
                                 <DockWindow

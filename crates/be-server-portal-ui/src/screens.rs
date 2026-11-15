@@ -566,7 +566,7 @@ fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
                 autocomplete="new-password"
                 value
             />
-            <Show condition={move || !problem.with(String::is_empty)}>
+            <Show value={move || !problem.with(String::is_empty)}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{problem}</Text>
             </Show>
         </List>
@@ -852,7 +852,7 @@ fn Sessions(page: Shown) -> NodeId {
             <Notice text={page.general()} />
             <Card>
                 <List spacing=Space::Lg>
-                    <ForEach keys={sessions}>|session: Session|
+                    <ForEach value={sessions}>|session: Session|
                         <SessionRow session csrf={csrf.clone()} />
                     </ForEach>
                 </List>

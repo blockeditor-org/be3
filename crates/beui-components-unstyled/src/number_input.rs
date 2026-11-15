@@ -229,7 +229,7 @@ pub fn NumberInput(
         <List spacing=0.0>
             <Show
                 keep_alive=true
-                condition={editing}
+                value={editing}
                 fallback={move || view! {
                     <Interactive
                         focusable=true

@@ -80,7 +80,7 @@ them, as they do outside any component.
 Use them as `<A::View editor />`. A component method takes no `self`.
 
 **Props.** A `Prop<T>` prop takes a `T`, a signal or memo of one, or a closure
-returning one, which it reads as a getter: `condition={move || !hex.get()}`.
+returning one, which it reads as a getter: `value={move || !hex.get()}`.
 Pass a derived value as a closure. Make a memo instead when its output changes
 less often than its inputs (a boolean from a scroll offset or a long list), so
 what reads it is not woken for nothing, or when it is costly and read in
@@ -90,7 +90,7 @@ returns the prop's own type: the conversions a prop type adds with
 not to closures. Every builder method and function that takes a prop takes
 `impl IntoPropWith<T, M>`, never `impl IntoProp<T>`, so it takes a closure too. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
 clone a non-`Copy` prop in a block head:
-`<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
+`<Show value={shown}>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.
 
 **Ownership.** A node belongs to the scope it was built in and leaves the tree

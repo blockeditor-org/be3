@@ -1197,12 +1197,12 @@ pub(crate) fn AppView(
                 <Notices loading failure id={crash_id.clone()} />
                 <ViewChildren state rect nodes={children} below=false />
                 <Drawing draw={marks} />
-                <Show condition={shows_desktop}>||
+                <Show value={shows_desktop}>||
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
                 </Show>
                 <Scrims state />
                 <Drawing draw={floating} />
-                <Show condition={blocked}>||
+                <Show value={blocked}>||
                     <Interactive press_focus=false on_forward={|_: ForwardedInput| {}} />
                 </Show>
                 {windows}
@@ -1258,7 +1258,7 @@ fn Scrims(state: Memo<PlacedView>) -> NodeId {
     let count = create_memo(move || state.with(|view| (0..view.scrims.len()).collect::<Vec<_>>()));
     view! {
         <Canvas>
-            <ForEach keys={count}>|index: usize| {
+            <ForEach value={count}>|index: usize| {
                 let scrim = create_memo(move || {
                     state.with(|view| {
                         view.scrims.get(index).map(|scrim| beui::layer::Scrim {
@@ -1324,7 +1324,7 @@ fn DesktopWindows(editor: ViewEditor, state: Memo<PlacedView>, rect: Memo<Rect>)
     let editor = store(editor);
     view! {
         <Canvas>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     app: editor.app_id().to_owned(),
@@ -1375,7 +1375,7 @@ fn OverlaidWindows(editor: ViewEditor, region: View, nodes: ChildNodes) -> NodeI
     let editor = store(editor);
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let editor = editor.with(Clone::clone);
                 let key = super::desktop::FloatedKey {
                     app: editor.app_id().to_owned(),
@@ -1481,7 +1481,7 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
     };
     view! {
         <Layers>
-            <ForEach keys={keys}>|window: ViewId| {
+            <ForEach value={keys}>|window: ViewId| {
                 let id = WindowId::next();
                 hosted.with(|hosted| hosted.borrow_mut().insert(window, id));
                 on_cleanup(move || {
@@ -1525,7 +1525,7 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
                                     child_view
                                     on_focus={Callback::new(|()| {})}
                                 />
-                                <Show condition={move || handle.is_window()}>||
+                                <Show value={move || handle.is_window()}>||
                                     <AnchoredViews />
                                 </Show>
                             </Layers>
@@ -1892,9 +1892,9 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     view! {
         <Frame align=Align::Center>
             <Show
-                condition={move || failure.with(Option::is_some)}
+                value={move || failure.with(Option::is_some)}
                 fallback={move || view! {
-                    <Show condition={loading}>
+                    <Show value={loading}>
                         <HostItemFace content={loading_item} />
                     </Show>
                 }}
@@ -1930,7 +1930,7 @@ fn ViewChildren(
     });
     view! {
         <Canvas>
-            <ForEach keys={keys}>|key: ChildId| {
+            <ForEach value={keys}>|key: ChildId| {
                 let child = create_memo(move || {
                     state.with(|view| {
                         view.children.iter().find(|child| child.child == key).cloned()

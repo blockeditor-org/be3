@@ -18,7 +18,7 @@ fn a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it() {
         };
         view! {
             <Holder tag="div">
-                <Show condition={editing} fallback={reading}>||
+                <Show value={editing} fallback={reading}>||
                     <Element tag="textarea" text="editing" />
                 </Show>
             </Holder>

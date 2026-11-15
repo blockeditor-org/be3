@@ -19,7 +19,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll style={plain_scroll()}>
-                        <ForEach keys={(0..20).collect::<Vec<i64>>()}>|row: i64|
+                        <ForEach value={(0..20).collect::<Vec<i64>>()}>|row: i64|
                             <Interactive
                                 on_hover_change={move |next: bool| {
                                     over.update(|count| match next {

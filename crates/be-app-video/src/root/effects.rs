@@ -17,7 +17,7 @@ pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     view! {
         <List spacing=Space::Md>
             <Show
-                condition={chosen}
+                value={chosen}
                 fallback={|| view! {
                     <Text style=TextStyle::CAPTION>"Select a clip to see its effects."</Text>
                 }}
@@ -108,7 +108,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text>"Attached to"</Text>
                 <Text style=TextStyle::CAPTION color={parent_color}>{parent_name}</Text>
-                <Show condition={hanging}>
+                <Show value={hanging}>
                     <Button
                         icon_only=true
                         glyph=ICON_UNLINK
@@ -124,7 +124,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                     />
                 </Show>
             </List>
-            <Show condition={hanging}>
+            <Show value={hanging}>
                 <NumberInput
                     value={Binding::new(offset, move |value: f64| {
                         let Some(mut clip) = clip.get_untracked() else {
@@ -141,10 +141,10 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 />
             </Show>
             <Text>"Effect stack"</Text>
-            <Show condition={bare}>
+            <Show value={bare}>
                 <Text style=TextStyle::CAPTION color={bare_color}>"No effects yet."</Text>
             </Show>
-            <ForEach keys={effect_ids}>|id: Uuid|
+            <ForEach value={effect_ids}>|id: Uuid|
                 <EffectRow effects id />
             </ForEach>
         </List>

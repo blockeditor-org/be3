@@ -217,7 +217,7 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
+                            <ForEach value={DeviceClass::ALL.to_vec()}>|class: DeviceClass|
                                 <ChoiceOption label={class.name().to_owned()} />
                             </ForEach>
                         }}
@@ -250,7 +250,7 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
                 heading="Setting"
                 columns={vec![TableColumn::new("Your devices"), TableColumn::new("This device")]}
             >
-                <ForEach keys={rows}>|key: String| {
+                <ForEach value={rows}>|key: String| {
                     let name = setup.cell(key.clone(), |cell| cell.default.name().to_owned());
                     let everywhere = setup.cell(key.clone(), |cell| cell.default.every_device(cell.every));
                     let here = setup.cell(key.clone(), |cell| cell.default.kept(cell.own).unwrap_or_default());

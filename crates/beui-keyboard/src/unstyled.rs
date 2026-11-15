@@ -178,7 +178,7 @@ fn KeyRows(
     let rows: Vec<usize> = (0..layout.rows.len()).collect();
     view! {
         <List spacing=0.0>
-            <ForEach keys={rows}>|row: usize|
+            <ForEach value={rows}>|row: usize|
                 <ListItem grow={layout.rows[row].height}>
                     <KeyRow layout row keyboard cap />
                 </ListItem>
@@ -213,7 +213,7 @@ fn KeyRow(
     let layer = keyboard.layer();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={cells}>|cell: Cell| {
+            <ForEach value={cells}>|cell: Cell| {
                 match cell {
                     Cell::Gap(column) => view! {
                         <ListItem grow={keys[column].shift}>

@@ -54,24 +54,24 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     view! {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
-            <Show condition={move || bar.get() || offered.get()}>
+            <Show value={move || bar.get() || offered.get()}>
                 <SettingsSection
                     title={move || match offered.get() {
                         true => "Screens".to_owned(),
                         false => "Desktop bar".to_owned(),
                     }}
                 >
-                    <Show condition={none}>
+                    <Show value={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
-                    <Show condition={arranged}>
+                    <Show value={arranged}>
                         <ArrangementRow
                             settings={settings}
                             displays={displays}
                             read_only={read_only}
                         />
                     </Show>
-                    <Show condition={rotate_shown}>
+                    <Show value={rotate_shown}>
                         <LayeredSettingsRow
                             setting={in_bar_row}
                             label="Rotate button in the bar"
@@ -89,7 +89,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             />
                         </LayeredSettingsRow>
                     </Show>
-                    <Show condition={bar}>
+                    <Show value={bar}>
                         <LayeredSettingsRow
                             setting={keyboard_row}
                             label="Keyboard button in the bar"
@@ -109,7 +109,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                     </Show>
                 </SettingsSection>
             </Show>
-            <ForEach keys={ids}>|id: String|
+            <ForEach value={ids}>|id: String|
                 <ScreenSection
                     id={id}
                     settings={settings}
@@ -117,7 +117,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                     read_only={read_only}
                 />
             </ForEach>
-            <Show condition={power}>
+            <Show value={power}>
                 <PowerSection settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />

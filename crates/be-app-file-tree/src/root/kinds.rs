@@ -37,7 +37,7 @@ pub(crate) fn TagsMenu(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     };
     view! {
         <MenuItem label="Tags" glyph=ICON_TAG row_test_id={"file-tree.tags".to_owned()}>
-            <ForEach keys={keys}>|tag: Uuid| {
+            <ForEach value={keys}>|tag: Uuid| {
                 let found = editor.watch_blocks(BlockQuery::Block(tag));
                 let colors = use_choice_colors();
                 let info = create_memo(move || found.get().ok().and_then(|found| found.into_iter().next()));
@@ -114,7 +114,7 @@ pub(crate) fn OpensIn(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             glyph=ICON_APP_WINDOW
             row_test_id={"file-tree.opens-in".to_owned()}
         >
-            <ForEach keys={keys}>|chosen: Uuid| {
+            <ForEach value={keys}>|chosen: Uuid| {
                 let label = move || match chosen.is_nil() {
                     true => "Your default editor".to_owned(),
                     false => editors.with(|editors| {

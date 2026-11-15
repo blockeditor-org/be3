@@ -35,13 +35,13 @@ pub(super) fn MonthGrid(
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
-                <ForEach keys={names}>|name: &'static str|
+                <ForEach value={names}>|name: &'static str|
                     <ListItem grow=1.0>
                         <Text align=TextAlign::Center>{name}</Text>
                     </ListItem>
                 </ForEach>
             </List>
-            <ForEach keys={weeks}>|start: i64|
+            <ForEach value={weeks}>|start: i64|
                 <ListItem grow=1.0>
                     <MonthWeek
                         start={start}
@@ -67,7 +67,7 @@ fn MonthWeek(
     let days = create_memo(move || (0..7).map(|offset| start + offset).collect::<Vec<i64>>());
     view! {
         <List direction=Direction::Horizontal spacing=CELL_SPACING>
-            <ForEach keys={days}>|day: i64|
+            <ForEach value={days}>|day: i64|
                 <ListItem grow=1.0>
                     <MonthCell
                         day={day}
@@ -137,7 +137,7 @@ fn MonthCell(
                         {date.day.to_string()}
                     </Text>
                 </ListRow>
-                <ForEach keys={shown}>|row: usize| {
+                <ForEach value={shown}>|row: usize| {
                     let title = create_memo(move || {
                         day_events.with(|events| {
                             events

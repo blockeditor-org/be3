@@ -154,7 +154,7 @@ pub fn ChoiceMark(
     view! {
         <Frame width=mark height=mark>
             <Show
-                condition={move || glyph.get().is_some()}
+                value={move || glyph.get().is_some()}
                 fallback={move || view! {
                     <Frame align=Align::Center>
                         <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />

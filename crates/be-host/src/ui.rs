@@ -462,7 +462,7 @@ pub(crate) fn Displays(view: HostUiStore) -> NodeId {
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Show
-            condition={windowed}
+            value={windowed}
             fallback={move || view! {
                 <Layers>
                     <Root view />
@@ -477,7 +477,7 @@ pub(crate) fn Displays(view: HostUiStore) -> NodeId {
             });
             view! {
                 <Layers>
-                    <ForEach keys={keys}>|id: String|
+                    <ForEach value={keys}>|id: String|
                         <DisplayWindow view id />
                     </ForEach>
                 </Layers>
@@ -533,7 +533,7 @@ fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
                 <beui::styled::Root>
                     <Layers>
                         <Show
-                            condition={primary}
+                            value={primary}
                             fallback={move || view! {
                                 <SecondaryDisplay view index />
                             }}
@@ -559,7 +559,7 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
         <Frame @node_ref=&area>
             <List spacing=Space::None>
                 <Show
-                    condition={move || {
+                    value={move || {
                         screen.get() == Screen::Organization
                             && !presenting.get()
                             && shell.with(Option::is_some)

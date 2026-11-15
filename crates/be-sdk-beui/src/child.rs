@@ -344,7 +344,7 @@ fn PreviewPicture(
     view! {
         <Layers>
             <Drawing draw={move || draw_gpu(drawing.get())} />
-            <Show condition={move || preview.get() == ChildPreview::Label}>
+            <Show value={move || preview.get() == ChildPreview::Label}>
                 <PreviewLabel editor={editor} target={target} />
             </Show>
         </Layers>
@@ -366,7 +366,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
             align=Align2::CENTER
         >
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={move || glyph.with(Option::is_some)}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>

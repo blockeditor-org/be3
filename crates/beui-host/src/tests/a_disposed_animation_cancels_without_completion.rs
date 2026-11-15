@@ -12,7 +12,7 @@ fn a_disposed_animation_cancels_without_completion() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>|| {
+                <Show value={shown}>|| {
                     let animation = create_animation(|_| true, move || finished.set(true));
                     saved.set(Some(animation));
                     animation.start();

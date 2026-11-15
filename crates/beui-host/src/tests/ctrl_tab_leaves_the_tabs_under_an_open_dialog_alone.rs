@@ -18,7 +18,7 @@ fn ctrl_tab_leaves_the_tabs_under_an_open_dialog_alone() {
                     <dock_host::styled::DockHost @node_ref=&dock>
                         <dock::Docking layout>
                             <DockPane id="tabs">
-                                <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                                <ForEach value={vec![1u64, 2, 3]}>|id: u64|
                                     <DockTab
                                         id
                                         title={format!("Tab {id}")}

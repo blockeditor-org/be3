@@ -332,11 +332,11 @@ pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) ->
     let watched = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Layers>
-            <ForEach keys={keys}>|(mount, id): (u64, ViewId)|
+            <ForEach value={keys}>|(mount, id): (u64, ViewId)|
                 <AnchoredView mount id shown />
             </ForEach>
             <Interactive hit_area={hit_area} on_forward={on_forward} press_focus=false />
-            <Show condition={watched}>||
+            <Show value={watched}>||
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=0.0 height=0.0>
                         <Interactive
@@ -449,7 +449,7 @@ pub(crate) fn closed_with(region: &beui_reactive::ScopeContext) -> Option<beui_r
 fn AnchoredChildren(keys: Memo<Vec<(u64, ChildId)>>) -> NodeId {
     view! {
         <Canvas>
-            <ForEach keys={keys}>|key: (u64, ChildId)| {
+            <ForEach value={keys}>|key: (u64, ChildId)| {
                 let (mount, id) = key;
                 let held = owner(mount);
                 let child = create_memo(move || {

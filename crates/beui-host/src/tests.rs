@@ -2107,7 +2107,7 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) ->
                     on_close={move || closed.update(|closed| *closed += 1)}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
+                        <ForEach value={indices(SHEET_ROWS)}>|_: usize|
                             <Frame height=SHEET_ROW_HEIGHT />
                         </ForEach>
                     </List>
@@ -2141,7 +2141,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>
                     <dock::DockPane id="tabs">
-                        <ForEach keys={open}>|id: u64|
+                        <ForEach value={open}>|id: u64|
                             <dock::DockTab
                                 id
                                 title={format!("Tab {id}")}
@@ -2206,7 +2206,7 @@ pub(crate) fn nested_dock() -> (Document, NestedDock) {
                             </DockTab>
                         </DockPane>
                         <DockPane id="main">
-                            <ForEach keys={hosts}>|id: u64|
+                            <ForEach value={hosts}>|id: u64|
                                 <DockTab
                                     id
                                     title="Nested"
@@ -2516,7 +2516,7 @@ pub(crate) fn toolbar_of<const N: usize>(
         handle.set(Some(nodes));
         view! {
             <List spacing=8.0>
-                <ForEach keys={indices(N)}>|index: usize| { nodes[index] }</ForEach>
+                <ForEach value={indices(N)}>|index: usize| { nodes[index] }</ForEach>
             </List>
         }
     });
@@ -2670,7 +2670,7 @@ fn nested() -> Document {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
-        <ForEach keys={indices(count)}>|index: usize|
+        <ForEach value={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                 {format!("Row {index}")}
             </Text>
@@ -2794,7 +2794,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
             <dock_host::styled::DockHost @node_ref=&dock>
                 <dock::Docking layout>
                     <dock::DockPane id="tabs">
-                        <ForEach keys={tabs.clone()}>|id: u64|
+                        <ForEach value={tabs.clone()}>|id: u64|
                             <dock::DockTab id title={format!("Tab {id}")}>
                                 <FocusPanel
                                     name={format!("content.{id}")}
@@ -2807,7 +2807,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                             </dock::DockTab>
                         </ForEach>
                     </dock::DockPane>
-                    <ForEach keys>|(id, parent): (u64, u64)| {
+                    <ForEach value={keys}>|(id, parent): (u64, u64)| {
                         let modal = crate::reactive::create_memo(move || {
                             listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
                         });
@@ -3158,7 +3158,7 @@ pub(crate) fn gliding_rows(
     build_node(move || {
         view! {
             <List spacing=0.0>
-                <ForEach keys={order}>|key: u64|
+                <ForEach value={order}>|key: u64|
                     <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
                         <Frame
                             @test_id={format!("row.{key}")}
@@ -3184,7 +3184,7 @@ pub(crate) fn scrolled_gliding_rows(
             <Frame height={2.0 * GLIDE_ROW}>
                 <Offset offset={scrolled}>
                     <List spacing=0.0>
-                        <ForEach keys={order}>|key: u64|
+                        <ForEach value={order}>|key: u64|
                             <unstyled::Glide @test_id={format!("slot.{key}")} arm={arm}>
                                 <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
                             </unstyled::Glide>
@@ -3221,7 +3221,7 @@ pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
                 })}
             >|reorder: ReorderHandle<usize, usize>|
                 <List direction=Direction::Horizontal spacing=4.0>
-                    <ForEach keys={reorder.order}>|key: usize|
+                    <ForEach value={reorder.order}>|key: usize|
                         <ReorderItem reorder item=key>|_: ReorderItemHandle|
                             <Frame
                                 @test_id={format!("tab.{key}")}
@@ -3324,7 +3324,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                         }}
                     >|reorder: ReorderHandle<u32, u32>|
                         <List spacing=0.0>
-                            <ForEach keys={reorder.order}>|key: u32|
+                            <ForEach value={reorder.order}>|key: u32|
                                 <ReorderItem reorder item=key>|_: ReorderItemHandle|
                                     <Interactive focusable=true>
                                         <Frame
@@ -3342,7 +3342,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
         };
         view! {
             <List direction=Direction::Horizontal spacing=20.0>
-                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     column(index)
                 }</ForEach>
             </List>
@@ -3385,7 +3385,7 @@ pub(crate) fn bar_dock(placement: dock::DockBarPlacement, bare: bool) -> (Docume
                 <dock::Docking layout focus=1u64>
                     <DockSplit id="root" size={SplitSize::Fraction(0.6)}>
                         <DockPane id="stage" bare>
-                            <ForEach keys={shown}>|id: u64|
+                            <ForEach value={shown}>|id: u64|
                                 <DockTab id title={format!("Tab {id}")}>
                                     <Frame @test_id={format!("content.{id}")} />
                                 </DockTab>
@@ -3561,7 +3561,7 @@ fn menu() -> Menu {
         view! {
             <List spacing=0.0>
                 <Frame height=ROW />
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Interactive on_hover_change={hovered} on_pointed_change={pointed}>
                         <Frame height=ROW />
                     </Interactive>

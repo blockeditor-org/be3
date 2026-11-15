@@ -321,10 +321,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=Space::Md>
-                <Show condition={move || error.with(Option::is_some)}>
+                <Show value={move || error.with(Option::is_some)}>
                     <Text style=TextStyle::CAPTION>{error_text}</Text>
                 </Show>
-                <Show condition={loading}>
+                <Show value={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Progress width=INLINE_PROGRESS_WIDTH />
                         <Text style=TextStyle::CAPTION>"Loading members…"</Text>
@@ -337,15 +337,15 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     @test_id={"share.query"}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
-                <Show condition={move || suggestions.with(Option::is_some)}>
+                <Show value={move || suggestions.with(Option::is_some)}>
                     <Card>
                         <List spacing=Space::Xs>
                             <Show
-                                condition={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}
+                                value={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}
                             >
                                 <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
                             </Show>
-                            <ForEach keys={suggestion_keys}>|id: Uuid| {
+                            <ForEach value={suggestion_keys}>|id: Uuid| {
                                 let person = create_memo(move || {
                                     suggestions
                                         .get()
@@ -360,10 +360,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                     </Card>
                 </Show>
-                <Show condition={move || pending_keys.with(|keys| !keys.is_empty())}>
+                <Show value={move || pending_keys.with(|keys| !keys.is_empty())}>
                     <List spacing=Space::Md>
                         <List direction=Direction::Horizontal spacing=Space::Sm wrap=true>
-                            <ForEach keys={pending_keys}>|id: Uuid| {
+                            <ForEach value={pending_keys}>|id: Uuid| {
                                 let name = create_memo(move || {
                                     pending
                                         .get()
@@ -425,7 +425,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         on_click={move || act.call(ShareAction::InviteNew)}
                     />
                 </List>
-                <Show condition={move || invite_link.with(|link| !link.is_empty())}>
+                <Show value={move || invite_link.with(|link| !link.is_empty())}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION @test_id={"share.invite.help"}>
                             "Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
@@ -438,7 +438,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         />
                     </List>
                 </Show>
-                <Show condition={move || inside.with(Option::is_some)}>
+                <Show value={move || inside.with(Option::is_some)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_TRIANGLE_ALERT />
@@ -449,7 +449,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </List>
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
-                <Show condition={company}>
+                <Show value={company}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_LOCK />
@@ -463,10 +463,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </Show>
                 <Frame height=MEMBERS_HEIGHT>
                     <Scroll>
-                        <Show condition={nobody}>
+                        <Show value={nobody}>
                             <Text style=TextStyle::CAPTION>"Nobody can open this block yet."</Text>
                         </Show>
-                        <ForEach keys={member_keys}>|id: Uuid| {
+                        <ForEach value={member_keys}>|id: Uuid| {
                             let member = create_memo(move || {
                                 members.get().into_iter().find(|member| member.id == id)
                             });
@@ -551,7 +551,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 <Text size=TextSize::Lg>{name}</Text>
                             </List>
                             <Text style=TextStyle::CAPTION>{email}</Text>
-                            <Show condition={is_fixed}>
+                            <Show value={is_fixed}>
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
@@ -563,13 +563,13 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     <Text style=TextStyle::CAPTION>{fixed_text}</Text>
                                 </List>
                             </Show>
-                            <Show condition={move || note.with(Option::is_some)}>
+                            <Show value={move || note.with(Option::is_some)}>
                                 <Text style=TextStyle::CAPTION>{note_text}</Text>
                             </Show>
                         </List>
                     </ListItem>
                     <Show
-                        condition={is_fixed}
+                        value={is_fixed}
                         fallback={move || view! {
                             <Select
                                 selected={Binding::new(selected, move |index: Option<usize>| {
@@ -585,7 +585,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 })}
                                 label="Access"
                                 options={view! {
-                                    <ForEach keys={choices}>|level: AccessLevel|
+                                    <ForEach value={choices}>|level: AccessLevel|
                                         <ChoiceOption label={level.label()} />
                                     </ForEach>
                                 }}
@@ -600,7 +600,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         />
                     </Show>
                     <Show
-                        condition={move || member.with(|member| member.as_ref().is_some_and(|member| member.removable))}
+                        value={move || member.with(|member| member.as_ref().is_some_and(|member| member.removable))}
                     >
                         <Button
                             icon_only=true

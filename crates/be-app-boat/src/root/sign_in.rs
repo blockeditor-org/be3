@@ -182,7 +182,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             </Text>
                         </List>
                     </Step>
-                    <Show condition={has_problem}>
+                    <Show value={has_problem}>
                         <Text color=TextColor::Danger @test_id="boat.sign-in.problem">
                             {problem_text}
                         </Text>
@@ -196,7 +196,7 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             @test_id="boat.sign-in.connect"
                             on_click={move || connect()}
                         />
-                        <Show condition={replacing}>
+                        <Show value={replacing}>
                             <Button
                                 label="Cancel"
                                 @test_id="boat.sign-in.cancel"

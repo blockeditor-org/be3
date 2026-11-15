@@ -80,7 +80,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
-                <Show condition={move || glyph.with(Option::is_some)}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>

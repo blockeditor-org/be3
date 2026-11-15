@@ -45,10 +45,10 @@ fn PrefixesView(editor: Editor) -> NodeId {
                 title="Database prefixes"
                 description="The prefix in front of each row id, and the databases here that use it. A row id resolves through this list; a prefix two databases share names neither."
             >
-                <Show condition={move || prefixes.with(Vec::is_empty)}>
+                <Show value={move || prefixes.with(Vec::is_empty)}>
                     <SettingsRow label="No database here has a prefix yet." compact=true />
                 </Show>
-                <ForEach keys={prefixes}>|prefix: String| {
+                <ForEach value={prefixes}>|prefix: String| {
                     let databases = create_memo({
                         let prefix = prefix.clone();
                         move || {
@@ -68,7 +68,7 @@ fn PrefixesView(editor: Editor) -> NodeId {
                     view! {
                         <SettingsRow label={prefix.clone()} description={note}>
                             <List spacing=Space::Xs2>
-                                <ForEach keys={databases}>|database: Uuid|
+                                <ForEach value={databases}>|database: Uuid|
                                     <DatabaseName editor={editor} database={database} />
                                 </ForEach>
                             </List>

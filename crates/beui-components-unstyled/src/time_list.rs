@@ -111,7 +111,7 @@ pub fn TimeList(
             <ListItem grow=1.0>
                 <unstyled::Scroll offset={shown} style={scroll}>
                     <List spacing>
-                        <ForEach keys={rows}>|row: usize|
+                        <ForEach value={rows}>|row: usize|
                             <TimeRow state={state} row spacing hour_cycle face={option} />
                         </ForEach>
                     </List>
@@ -143,7 +143,7 @@ fn TimeRow(
     });
     view! {
         <List direction=Direction::Horizontal spacing>
-            <ForEach keys={cells}>|minutes: u32|
+            <ForEach value={cells}>|minutes: u32|
                 <ListItem grow=1.0>
                     <TimeOption state={state} minutes hour_cycle face={face} />
                 </ListItem>

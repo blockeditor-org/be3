@@ -10,7 +10,7 @@ fn an_indeterminate_progress_hidden_by_a_show_stops_asking_for_frames() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Progress />
                 </Show>
             </List>

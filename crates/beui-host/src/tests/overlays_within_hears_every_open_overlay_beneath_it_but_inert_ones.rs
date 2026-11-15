@@ -16,7 +16,7 @@ fn overlays_within_hears_every_open_overlay_beneath_it_but_inert_ones() {
         provide_context(within);
         view! {
             <List spacing=0.0>
-                <Show condition={mounted}>
+                <Show value={mounted}>
                     <List spacing=0.0>
                         <Overlay
                             anchor=OverlayAnchor::Point(pos2(10.0, 10.0))

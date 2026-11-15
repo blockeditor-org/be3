@@ -14,7 +14,7 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
                 @node_ref=&tabs
                 options={view! {
                     <unstyled::ChoiceOption label="List" />
-                    <Show condition={extra}>
+                    <Show value={extra}>
                         <unstyled::ChoiceOption label="Load" />
                     </Show>
                     <unstyled::ChoiceOption label="Name" />

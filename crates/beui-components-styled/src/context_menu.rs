@@ -260,7 +260,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     view! {
         <List spacing=MENU_PADDING>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <Frame
@@ -270,10 +270,10 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                    <Show condition={move || !lead.with(String::is_empty)}>
+                    <Show value={move || !lead.with(String::is_empty)}>
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
-                    <Show condition={has_glyph}>
+                    <Show value={has_glyph}>
                         <GlyphSlot glyph color={icon_color} />
                     </Show>
                     <ListItem grow=1.0>
@@ -281,7 +281,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
                                 {label}
                             </Text>
-                            <Show condition={move || !detail.with(String::is_empty)}>
+                            <Show value={move || !detail.with(String::is_empty)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -293,14 +293,14 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={move || !shortcut.with(String::is_empty)}>
+                    <Show value={move || !shortcut.with(String::is_empty)}>
                         <ListItem gap={SHORTCUT_SPACING.px()}>
                             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                                 {shortcut}
                             </Text>
                         </ListItem>
                     </Show>
-                    <Show condition={has_submenu}>
+                    <Show value={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
                         </Text>
@@ -380,7 +380,7 @@ pub(crate) fn MenuTreeLead(
         _ => "Expand".to_owned(),
     });
     view! {
-        <Show condition={move || depth.with(Option::is_some)}>
+        <Show value={move || depth.with(Option::is_some)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Frame width />
                 <unstyled::Button
@@ -408,7 +408,7 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: Space, spacing: Space) -> Nod
     } = handle;
     view! {
         <List spacing>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <Frame padding={Padding::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
@@ -523,7 +523,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
     });
     view! {
         <List spacing=SHEET_SEPARATOR_SPACING>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Separator />
             </Show>
             <RowFace

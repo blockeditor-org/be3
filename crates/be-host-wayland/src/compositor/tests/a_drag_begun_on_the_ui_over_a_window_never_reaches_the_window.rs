@@ -38,7 +38,7 @@ fn Covered(windows: Windows) -> NodeId {
                 <Frame width={Size::Custom(SCREEN.x)} height={Size::Custom(SCREEN.y)} />
             </Interactive>
             <List spacing=Space::None>
-                <ForEach keys={ids}>|id: WindowId|
+                <ForEach value={ids}>|id: WindowId|
                     <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                         <WindowView windows id occluders={vec![tab()]} />
                     </Frame>

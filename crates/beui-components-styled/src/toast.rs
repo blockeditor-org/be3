@@ -247,7 +247,7 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, act: Callback<String>) -> No
             justify=Justify::End
             spacing=SPACING
         >
-            <ForEach keys={actions}>|action: ToastAction| {
+            <ForEach value={actions}>|action: ToastAction| {
                 let key = action.key.clone();
                 view! {
                     <Button

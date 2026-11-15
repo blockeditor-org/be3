@@ -35,7 +35,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List @node_ref=&scope spacing=Space::None>
             <Show
-                condition={loaded}
+                value={loaded}
                 fallback={|| view! {
                     <ListItem grow=1.0>
                         <LoadingPane label="Loading the grid" />
@@ -61,7 +61,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
     view! {
         <Docking layout focus={Some(STAGE)}>
             <DockSplit id="grid" size={SplitSize::First(HOTBAR_WIDTH)}>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="hotbar" locked=true>
                         <DockTab id=HOTBAR title="Components">
                             <HotbarPane session={session} />
@@ -74,7 +74,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                             <GridCanvas session={session} />
                         </DockTab>
                     </DockPane>
-                    <Show condition={chrome}>
+                    <Show value={chrome}>
                         <DockPane id="panels" locked=true>
                             <DockTab id=PANELS title="Simulation">
                                 <PanelsPane session={session} />
@@ -83,7 +83,7 @@ fn GridDock(session: Session, chrome: ReadSignal<bool>) -> NodeId {
                     </Show>
                 </DockSplit>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=TOOLS
                     parent=STAGE
@@ -237,13 +237,13 @@ fn GridTools(session: Session) -> NodeId {
                 @test_id={"logic-grid.compile"}
                 on_click={compile}
             />
-            <Show condition={move || challenge.with(|challenge| !challenge.is_empty())}>
+            <Show value={move || challenge.with(|challenge| !challenge.is_empty())}>
                 <Text>{challenge}</Text>
             </Show>
-            <Show condition={misplaced}>
+            <Show value={misplaced}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{problem_text}</Text>
             </Show>
-            <Show condition={move || compile_error.with(|error| !error.is_empty())}>
+            <Show value={move || compile_error.with(|error| !error.is_empty())}>
                 <Text
                     style=TextStyle::CAPTION
                     color=TextColor::Danger
@@ -387,7 +387,7 @@ fn GridCanvas(session: Session) -> NodeId {
                     </CanvasItem>
                     <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                         <Canvas view={shown}>
-                            <ForEach keys={label_keys}>|key: LabelKey| {
+                            <ForEach value={label_keys}>|key: LabelKey| {
                                 let label = create_memo(move || {
                                     labels.with(|labels| {
                                         labels.iter().find(|label| label.key == key).cloned()

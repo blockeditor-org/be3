@@ -22,7 +22,7 @@ pub fn ErrorText(text: Memo<Option<String>>) -> NodeId {
     let content = create_memo(move || text.get().unwrap_or_default());
     view! {
         <List spacing=Space::None>
-            <Show condition={move || text.get().is_some()}>
+            <Show value={move || text.get().is_some()}>
                 <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{content}</Text>
             </Show>
         </List>
@@ -65,7 +65,7 @@ pub fn AccountsScreen(
         <Column>
             <Text style=TextStyle::TITLE>"be-host"</Text>
             <Text style=TextStyle::CAPTION>"Choose an account to continue."</Text>
-            <ForEach keys={keys}>|key: String| {
+            <ForEach value={keys}>|key: String| {
                 let account = create_memo(move || {
                     accounts
                         .get()
@@ -77,7 +77,7 @@ pub fn AccountsScreen(
                     <AccountCard account on_open on_choose_organization on_log_out />
                 }
             }</ForEach>
-            <Show condition={move || accounts.get().is_empty()}>
+            <Show value={move || accounts.get().is_empty()}>
                 <Card>
                     <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
                 </Card>
@@ -167,7 +167,7 @@ pub fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     let seen_by = create_memo(move || administrators_note(&account.get().companies));
     view! {
         <List spacing=Space::Xs2>
-            <Show condition={move || !email.get().is_empty()}>
+            <Show value={move || !email.get().is_empty()}>
                 <Text style=TextStyle::CAPTION>{email}</Text>
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
@@ -176,7 +176,7 @@ pub fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
                 </Text>
                 <Text style=TextStyle::CAPTION>{server}</Text>
             </List>
-            <Show condition={move || !seen_by.get().is_empty()}>
+            <Show value={move || !seen_by.get().is_empty()}>
                 <Text style=TextStyle::CAPTION>{seen_by}</Text>
             </Show>
         </List>

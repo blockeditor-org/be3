@@ -251,7 +251,7 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
                 <TabBar bar={move || bar.call(())} own=true />
-                <Show keep_alive=true condition={move || !previewing.get()}>
+                <Show keep_alive=true value={move || !previewing.get()}>
                     <Dynamic value={content}>|content: Content| {
                         match content {
                             Content::Denied => view! {
@@ -279,7 +279,7 @@ pub(crate) fn BlockPanel(
                         }
                     }</Dynamic>
                 </Show>
-                <Show condition={previewing}>
+                <Show value={previewing}>
                     <ListItem grow=1.0>
                         <ChildBlock
                             editor

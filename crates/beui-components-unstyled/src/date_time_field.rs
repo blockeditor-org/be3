@@ -239,7 +239,7 @@ pub fn DateTimeField(
     let items: Vec<usize> = (0..count).collect();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={items}>|index: usize| {
+            <ForEach value={items}>|index: usize| {
                 let order = state.order.value();
                 let segment_kind = order[index];
                 let prefix = match index {

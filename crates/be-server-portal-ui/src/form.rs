@@ -48,7 +48,7 @@ pub fn Field(
             <ListItem grow=1.0>
                 <TextInput value label={label} kind name autocomplete />
             </ListItem>
-            <Show condition={move || !shown.with(String::is_empty)}>
+            <Show value={move || !shown.with(String::is_empty)}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{shown}</Text>
             </Show>
             {has_hint.then(|| view! {

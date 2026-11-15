@@ -98,7 +98,7 @@ fn Listed(title: Signal<String>, rows: Signal<Vec<u32>>) -> Node {
         <Element tag="main" @attr={("title", title)}>
             <Text value={title} />
             <html::Ul>
-                <ForEach keys={rows}>|row: u32|
+                <ForEach value={rows}>|row: u32|
                     <html::Li>{row.to_string()}</html::Li>
                 </ForEach>
             </html::Ul>
@@ -159,7 +159,7 @@ fn Sectioned(title: Signal<String>, rows: Signal<Vec<u32>>, shown: Signal<bool>)
     view! {
         <Element tag="section">
             <Listed title={title} rows={rows} />
-            <Show condition={shown}>
+            <Show value={shown}>
                 <html::P>"shown"</html::P>
             </Show>
         </Element>

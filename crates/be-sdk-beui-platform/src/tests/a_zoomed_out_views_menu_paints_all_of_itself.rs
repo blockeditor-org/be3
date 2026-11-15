@@ -10,7 +10,7 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
         &EditorHost::default(),
         Windowed::new(move |_| {
             let items = view! {
-                <ForEach keys={(0..2).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..2).collect::<Vec<usize>>()}>|index: usize| {
                     let label = format!("Item {index}");
                     view! {
                         <beui::unstyled::MenuItem label on_click={|| {}} />

@@ -27,7 +27,7 @@ pub fn ViewHeader(data: Data) -> NodeId {
             view! {
                 <List spacing=Space::None>
                     <Show
-                        condition={narrow}
+                        value={narrow}
                         fallback={move || view! {
                             <WideHeader data={data} />
                         }}
@@ -154,7 +154,7 @@ fn ViewTabs(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <ForEach keys={keys}>|view: Uuid| {
+            <ForEach value={keys}>|view: Uuid| {
                 let name = create_memo(move || {
                     data.views.with(|views| {
                         views.iter().find(|(id, _)| *id == view).map(|(_, name)| name.clone()).unwrap_or_default()

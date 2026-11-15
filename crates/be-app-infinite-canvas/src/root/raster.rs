@@ -553,11 +553,11 @@ pub(crate) fn RasterPanel(state: CanvasState) -> NodeId {
         <List spacing=SPACING @test_id={"infinite-canvas.raster"}>
             <BrushSection state={state} />
             <ColorSection state={state} />
-            <Show condition={layer}>
+            <Show value={layer}>
                 <LayerSection state={state} />
             </Show>
             <PixelSection />
-            <Show condition={move || !narrow.get()}>
+            <Show value={move || !narrow.get()}>
                 <List spacing=SPACING>
                     <Separator />
                     <ShortcutsSection raster=true />
@@ -668,7 +668,7 @@ fn ColorSection(state: CanvasState) -> NodeId {
                     </ListItem>
                 </List>
                 <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
-                    <ForEach keys={swatches}>|index: usize| {
+                    <ForEach value={swatches}>|index: usize| {
                         let swatch = create_memo(move || {
                             palette.with(|palette| palette.get(index).copied().unwrap_or_default())
                         });
@@ -867,10 +867,10 @@ pub(crate) fn RasterDialogs(state: CanvasState) -> NodeId {
                         </ListItem>
                     </List>
                     <Text style=TextStyle::CAPTION>"Anchor"</Text>
-                    <ForEach keys={rows}>|row: usize|
+                    <ForEach value={rows}>|row: usize|
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
-                    <Show condition={cropping}>
+                    <Show value={cropping}>
                         <Text style=TextStyle::CAPTION color=TextColor::Warning>
                             "Shrinking crops the pixels outside the anchored region."
                         </Text>
@@ -901,7 +901,7 @@ fn AnchorRow(tools: RasterTools, row: usize) -> NodeId {
     let entries = (0..3).map(|column| row * 3 + column).collect::<Vec<_>>();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <ForEach keys={entries}>|index: usize| {
+            <ForEach value={entries}>|index: usize| {
                 let (anchor, glyph, label) = ANCHORS[index];
                 let chosen = tools.resize_anchor;
                 let pressed = create_memo(move || chosen.get() == anchor);

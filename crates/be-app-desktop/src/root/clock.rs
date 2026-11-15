@@ -61,7 +61,7 @@ pub(crate) fn ClockButton(
             leading={view! {
                 <List direction align=Align::Center spacing=COUNT_SPACING>
                     <Show
-                        condition={move || direction.get() == Direction::Horizontal}
+                        value={move || direction.get() == Direction::Horizontal}
                         fallback={move || view! {
                             <List align=Align::Center spacing=Space::None>
                                 <Text>{hours}</Text>
@@ -71,7 +71,7 @@ pub(crate) fn ClockButton(
                     >
                         <Text>{clock}</Text>
                     </Show>
-                    <Show condition={move || count.get() > 0}>
+                    <Show value={move || count.get() > 0}>
                         <Frame
                             fill=ColorRole::Accent
                             radius=Radius::Full
@@ -124,7 +124,7 @@ fn ClockPanel(
             spacing=SPACING
         >
             <DesktopCalendar workspace={workspace} popover={popover} />
-            <Show condition={offered}>
+            <Show value={offered}>
                 <Frame
                     width={move || match beside.get() {
                         true => Length::Size(HISTORY),

@@ -23,7 +23,7 @@ pub(super) fn Panels(session: Session) -> NodeId {
     let challenged = create_memo(move || session.read(|model| model.challenge.is_some()));
     view! {
         <List spacing=SPACING>
-            <Show condition={challenged}>
+            <Show value={challenged}>
                 <Accordion title="Challenge" open={challenge_open}>
                     <ChallengePanel session={session} />
                 </Accordion>
@@ -71,10 +71,10 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
     let empty = create_memo(move || keys.with(Vec::is_empty));
     view! {
         <List spacing=Space::Xs>
-            <Show condition={empty}>
+            <Show value={empty}>
                 <Text style=TextStyle::CAPTION>"None"</Text>
             </Show>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let label = create_memo(move || {
                     rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
                 });
@@ -124,7 +124,7 @@ fn MetricsPanel(session: Session) -> NodeId {
     });
     view! {
         <List spacing=SPACING>
-            <Show condition={move || error.with(Option::is_some)}>
+            <Show value={move || error.with(Option::is_some)}>
                 <Problem
                     content={move || format!("Cannot compile: {}", error.get().unwrap_or_default())}
                 />
@@ -378,21 +378,21 @@ fn SimulationPanel(session: Session) -> NodeId {
                 />
                 <Spacer />
             </List>
-            <Show condition={failed}>
+            <Show value={failed}>
                 <Problem content={problem} />
             </Show>
-            <Show condition={idle}>
+            <Show value={idle}>
                 <Text style=TextStyle::CAPTION>
                     "Run a step to compile and execute the circuit."
                 </Text>
             </Show>
-            <Show condition={compiled}>
+            <Show value={compiled}>
                 <List spacing=SPACING>
                     <Rows rows={summary} />
                     <Separator />
                     <Text>"Call stack"</Text>
                     <List spacing=Space::Xs2>
-                        <ForEach keys={frames}>|index: usize| {
+                        <ForEach value={frames}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().frames.get(index).cloned()
                             });
@@ -416,11 +416,11 @@ fn SimulationPanel(session: Session) -> NodeId {
                     </List>
                     <Separator />
                     <Text>"Instructions"</Text>
-                    <Show condition={no_instructions}>
+                    <Show value={no_instructions}>
                         <Text style=TextStyle::CAPTION>"No instructions"</Text>
                     </Show>
                     <List spacing=Space::Xs2>
-                        <ForEach keys={instructions}>|index: usize| {
+                        <ForEach value={instructions}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().instructions.get(index).cloned()
                             });
@@ -431,11 +431,11 @@ fn SimulationPanel(session: Session) -> NodeId {
                     </List>
                     <Separator />
                     <Text>"Inputs"</Text>
-                    <Show condition={no_inputs}>
+                    <Show value={no_inputs}>
                         <Text style=TextStyle::CAPTION>"None"</Text>
                     </Show>
                     <List spacing=Space::Xs>
-                        <ForEach keys={inputs}>|index: usize| {
+                        <ForEach value={inputs}>|index: usize| {
                             let row = create_memo(move || {
                                 shown.get().inputs.get(index).cloned()
                             });
@@ -479,7 +479,7 @@ fn InstructionRow(
                 <ListItem grow=1.0>
                     <Text style=TextStyle::CODE>{text}</Text>
                 </ListItem>
-                <Show condition={calls}>
+                <Show value={calls}>
                     <Button
                         label="Target"
                         variant=ButtonVariant::Secondary
@@ -505,10 +505,10 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Center spacing=Space::Xs>
             <Text style=TextStyle::CAPTION>{label}</Text>
-            <Show condition={deleted}>
+            <Show value={deleted}>
                 <Text style=TextStyle::CAPTION>"deleted"</Text>
             </Show>
-            <ForEach keys={bits}>|bit: u32| {
+            <ForEach value={bits}>|bit: u32| {
                 let state = create_memo(move || {
                     row.get()
                         .and_then(|row| row.1)
@@ -624,7 +624,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                 <Button label="Reset" variant=ButtonVariant::Secondary on_click={reset} />
             </List>
             <Show
-                condition={move || error.with(Option::is_none)}
+                value={move || error.with(Option::is_none)}
                 fallback={move || view! {
                     <Problem
                         content={move || format!("Cannot run: {}", error.get().unwrap_or_default())}
@@ -638,7 +638,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                     <Scroll direction=Direction::Horizontal>
                         <List spacing=Space::Xs2>
                             <TableRow cells={header} />
-                            <ForEach keys={ticks}>|tick: usize| {
+                            <ForEach value={ticks}>|tick: usize| {
                                 let row = create_memo(move || {
                                     shown
                                         .get()
@@ -661,7 +661,7 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
     let keys = create_memo(move || (0..cells.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let text = create_memo(move || {
                     cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
                 });
@@ -685,7 +685,7 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
     view! {
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=Space::None>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let cell = create_memo(move || {
                         row.get().and_then(|row| row.0.get(index).cloned())
                     });
@@ -830,10 +830,10 @@ fn DebuggerPanel(session: Session) -> NodeId {
             <Rows rows={summary} />
             <Separator />
             <Text>"Validation errors"</Text>
-            <Show condition={valid}>
+            <Show value={valid}>
                 <Text style=TextStyle::CAPTION>"No validation errors"</Text>
             </Show>
-            <ForEach keys={error_keys}>|index: usize| {
+            <ForEach value={error_keys}>|index: usize| {
                 let text = create_memo(move || {
                     errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
                 });
@@ -843,10 +843,10 @@ fn DebuggerPanel(session: Session) -> NodeId {
             }</ForEach>
             <Separator />
             <Text>"Entities"</Text>
-            <Show condition={empty}>
+            <Show value={empty}>
                 <Text style=TextStyle::CAPTION>"No entities"</Text>
             </Show>
-            <ForEach keys={entity_keys}>|entity: DebugEntity| {
+            <ForEach value={entity_keys}>|entity: DebugEntity| {
                 let row = create_memo(move || {
                     entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
                 });
@@ -957,7 +957,7 @@ fn GraphPanel(session: Session) -> NodeId {
         <List spacing=SPACING>
             <Rows rows={counts} />
             <Show
-                condition={empty}
+                value={empty}
                 fallback={move || view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
@@ -1052,7 +1052,7 @@ pub(super) fn StorageDialog(session: Session) -> NodeId {
             on_dismiss={dismiss}
         >
             <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
-                <ForEach keys={bits}>|bit: u32| {
+                <ForEach value={bits}>|bit: u32| {
                     let label = create_memo(move || {
                         let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);
                         format!("Bit {bit}: {state}")

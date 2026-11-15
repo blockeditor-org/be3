@@ -1354,7 +1354,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     });
     view! {
         <Layers>
-            <Show condition={move || state.with(|state| !state.available || state.error.is_some())}>
+            <Show value={move || state.with(|state| !state.available || state.error.is_some())}>
                 <Frame padding=PANEL_PADDING>
                     <List spacing=PANEL_SPACING>
                         <Text style=TextStyle::CAPTION>{message}</Text>

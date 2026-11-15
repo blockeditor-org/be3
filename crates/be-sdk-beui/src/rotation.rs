@@ -79,7 +79,7 @@ pub fn RotationPicker(
     });
     view! {
         <List direction=Direction::Horizontal wrap=true spacing=ITEM_SPACING align=Align::Start>
-            <ForEach keys={Rotation::ALL.to_vec()}>|rotation: Rotation|
+            <ForEach value={Rotation::ALL.to_vec()}>|rotation: Rotation|
                 <RotationTile
                     rotation={rotation}
                     name={tile_test_id(&test_id, rotation)}
@@ -138,7 +138,7 @@ fn RotationTile(
                     </Frame>
                 </TileButton>
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{label}</Text>
-                <Show condition={now}>
+                <Show value={now}>
                     <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
                 </Show>
             </List>
