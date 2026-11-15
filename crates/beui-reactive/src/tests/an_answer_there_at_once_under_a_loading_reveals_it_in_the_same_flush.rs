@@ -15,5 +15,9 @@ fn an_answer_there_at_once_under_a_loading_reveals_it_in_the_same_flush() {
         });
         loading
     });
-    assert_eq!(loading.state(), Ok(()), "nothing it read is pending, with no flush between");
+    assert_eq!(
+        loading.state(),
+        Ok(()),
+        "nothing it read is pending, with no flush between"
+    );
 }
