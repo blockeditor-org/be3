@@ -5,7 +5,7 @@ mod a_move_into_a_container_whose_type_refuses_it_puts_the_block_back;
 mod a_reorder_its_container_refuses_is_reported;
 mod an_editor_closes_only_itself_and_the_children_it_placed;
 mod an_unlink_the_containers_type_makes_places_the_copy_in_it;
-mod an_unlink_the_containers_type_refuses_places_the_copy_nowhere;
+mod an_unlink_the_containers_type_refuses_makes_no_copy;
 mod restore_puts_a_block_back_in_unfiled_and_falls_back_to_it;
 mod unlinking_into_a_container_that_cannot_replace_a_child_ends_with_a_notice;
 
@@ -148,7 +148,6 @@ fn pending(core: &HostCore) -> String {
     let copies = core.pending_copies.iter().map(|copy| {
         match copy.stage {
             CopyStage::Duplicate => "a copy to duplicate",
-            CopyStage::Replace { .. } => "a copy to replace",
             CopyStage::Replacing { .. } => "a copy replacing",
         }
         .to_owned()

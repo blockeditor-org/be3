@@ -43,7 +43,8 @@ fn a_chat_with_a_closed_segment_is_neither_duplicated_nor_exported() {
     wait_until("heard the chat join the graph", |shared| {
         shared.graph.get(block).is_some()
     });
-    let (copy, _) = duplicate(block).expect("the chat is in the graph");
+    let copy = Uuid::now_v7();
+    duplicate(block, copy).expect("the chat is in the graph");
     wait_until("the copy was refused", |shared| {
         shared
             .error
