@@ -40,7 +40,6 @@ pub(crate) struct State {
 
     pub embeds: Signal<Vec<ResolvedEmbed>>,
     pub hex_view: Signal<bool>,
-    pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
     /// Set once the text has first been read from its block, with the caret at its start.
     pub loaded: Signal<bool>,
@@ -78,7 +77,6 @@ impl State {
         let dependencies = client.watch(BlockQuery::References(block_id));
         let embeds = create_signal(Vec::new());
         let hex_view = create_signal(false);
-        let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
         let peers = editor.peers::<TextCursor>();
         let visible = editor.presence_visible();
@@ -104,7 +102,6 @@ impl State {
             focused_embed,
             embeds,
             hex_view,
-            typing,
             hex_insert_mode,
             loaded: create_signal(false),
             position_restored: create_signal(false),
