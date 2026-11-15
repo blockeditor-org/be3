@@ -1,6 +1,6 @@
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, CountOne, Counted, Get, IntoChild,
-    IntoProp, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
+    IntoPropWith, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
 };
 
 use crate::layout::Sizing;
@@ -34,10 +34,10 @@ impl<P: ParentKind> Clone for PlacedItem<P> {
 }
 
 impl<P: ParentKind> Placed<P> {
-    pub fn new(node: NodeId, data: impl IntoProp<P::Data>) -> Self {
+    pub fn new<M>(node: NodeId, data: impl IntoPropWith<P::Data, M>) -> Self {
         Self {
             node,
-            data: data.into_prop(),
+            data: data.into_prop_with(),
         }
     }
 }

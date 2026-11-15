@@ -153,7 +153,7 @@ pub struct ByClosureLifted;
 /// A `Prop<V>` whose `V` is a type parameter of its component takes only these, since its type
 /// comes from the other props: `Dynamic` and `Keyed` with a `fallback` take an `Option`.
 #[diagnostic::on_unimplemented(
-    message = "with a `fallback`, `value` must be an `Option`; pass `Some(..)`, or leave the fallback out",
+    message = "this prop's type comes from the component's other props, so a value is not lifted into an `Option`: pass `Some(..)` (for a `Dynamic` or `Keyed`, a `fallback` makes `value` an `Option`)",
     label = "this is not an `Option`"
 )]
 pub trait Exact {}
