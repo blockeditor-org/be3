@@ -76,29 +76,25 @@ struct Proof {
 #[derive(Clone, Debug, PartialEq)]
 enum Record {
     Message(ObjectId, Message),
-    /// An edit, and whether it was replaced (`ChatContent::replaced`): shown again, it was put
-    /// back.
-    Edit(ObjectId, MessageEdit, Message, bool),
+    /// The head of the message's author's edits (`ChatContent::edit_head`).
+    Edit(ObjectId, MessageEdit, Message),
     Deletion(ObjectId, Deletion),
-    /// A reaction record, and whether it was replaced.
-    Reaction(ReactionKey, Reaction, bool),
-    /// A record removed outright, which no signature can cover.
+    /// The head of a reaction's records (`ChatContent::reaction_heads`).
+    Reaction(ReactionKey, Reaction),
+    /// A record removed outright or a chain's latest record cut (`Head::cut`), which no
+    /// signature can cover.
     Removed,
 }
 
 impl Record {
-    /// The bytes its author signed, or none for a record that is forged whatever its
-    /// signature: a removal, or an edit put back after it was replaced.
+    /// The bytes its author signed, or none for a removal, which is forged whatever its
+    /// signature.
     fn signed_bytes(&self, chat: Uuid) -> Option<Vec<u8>> {
         match self {
             Self::Message(id, message) => Some(message.signed_bytes(chat, *id)),
-            Self::Edit(id, edit, sent, replaced) => {
-                (!replaced).then(|| edit.signed_bytes(chat, *id, sent.hash(chat, *id)))
-            }
+            Self::Edit(id, edit, sent) => Some(edit.signed_bytes(chat, *id, sent.hash(chat, *id))),
             Self::Deletion(id, deletion) => Some(deletion.signed_bytes(chat, *id)),
-            Self::Reaction(key, reaction, replaced) => {
-                (!replaced).then(|| key.signed_bytes(chat, reaction))
-            }
+            Self::Reaction(key, reaction) => Some(key.signed_bytes(chat, reaction)),
             Self::Removed => None,
         }
     }
@@ -1249,39 +1245,36 @@ fn proofs(content: &ChatContent, message: &Shown) -> Vec<Proof> {
         record: Record::Message(message.id, sent.clone()),
         signature: sent.signature.0.clone(),
     }];
-    // An edit or deletion record removed outright is no record its author signed.
-    if content.edit_removed(message.id, sent.author) || content.deletion_removed(message.id) {
+    let removed = |author: Uuid| Proof {
+        author,
+        signature: Vec::new(),
+        record: Record::Removed,
+    };
+    // A cut edit or a removed deletion is no record its author signed.
+    let edit = content.edit_head(message.id, sent.author);
+    if edit.cut || content.deletion_removed(message.id) {
+        proofs.push(removed(sent.author));
+    }
+    // Checked against the message's author whoever the record names, so an edit someone else
+    // put in the author's place is forged.
+    if let Some(edit) = edit.record {
         proofs.push(Proof {
             author: sent.author,
-            signature: Vec::new(),
-            record: Record::Removed,
-        });
-    }
-    if let Some(edit) = content.edit_by(message.id, sent.author) {
-        let replaced = content.replaced(edit.key(message.id));
-        proofs.push(Proof {
-            author: edit.author,
             signature: edit.signature.0.clone(),
-            record: Record::Edit(message.id, edit, sent.clone(), replaced),
+            record: Record::Edit(message.id, edit, sent.clone()),
         });
     }
-    for (key, reaction) in content.reaction_records(message.id) {
-        proofs.push(match reaction {
-            Some(reaction) => Proof {
+    for (key, head) in content.reaction_heads(message.id) {
+        if head.cut {
+            proofs.push(removed(key.author));
+        }
+        if let Some(reaction) = head.record {
+            proofs.push(Proof {
                 author: key.author,
                 signature: reaction.signature.0.clone(),
-                record: Record::Reaction(
-                    key.clone(),
-                    reaction.clone(),
-                    content.replaced(reaction.key(&key)),
-                ),
-            },
-            None => Proof {
-                author: key.author,
-                signature: Vec::new(),
-                record: Record::Removed,
-            },
-        });
+                record: Record::Reaction(key, reaction),
+            });
+        }
     }
     proofs
 }
