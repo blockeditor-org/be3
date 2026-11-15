@@ -5,7 +5,8 @@ use super::*;
 /// until the device keeps it, as it may edit the block again, rather than going out unkept,
 /// and survives a crash to land once.
 #[test]
-fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash() {
+fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash()
+{
     let harness = Harness::relayed();
     let sharer = Someone::register(
         &harness.directory.join("server"),
@@ -78,8 +79,7 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
     });
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits and closed the block", |held| {
-        !held.unsent.iter().any(|unsent| unsent.block == block)
-            && !held.blocks.contains_key(&block)
+        !held.unsent.iter().any(|unsent| unsent.block == block) && !held.blocks.contains_key(&block)
     });
     runtime
         .block_on(peer.grant(block, harness.account, be_block_graph::Access::Edit))
@@ -94,7 +94,9 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
             .get(block)
             .is_some_and(|node| node.access.can_edit())
     });
-    wait_until("had the edit held by the server", |held| held.undurable == 0);
+    wait_until("had the edit held by the server", |held| {
+        held.undurable == 0
+    });
 
     crash();
     platform::wait_for_stopped();

@@ -19,7 +19,11 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
     let mut on_phone = phone.connection().subscribe();
     let mut on_laptop = laptop.connection().subscribe();
     phone.connection().join_session(block, BUILD).await.unwrap();
-    laptop.connection().join_session(block, BUILD).await.unwrap();
+    laptop
+        .connection()
+        .join_session(block, BUILD)
+        .await
+        .unwrap();
 
     let submission = Submission {
         id: OpId {
@@ -46,7 +50,10 @@ async fn a_submission_reaches_every_participant_numbered_and_sealed() {
             }
         };
         assert_eq!(entry.sequence, 1);
-        assert_ne!(entry.payload, b"an edit", "the entry crossed the server sealed");
+        assert_ne!(
+            entry.payload, b"an edit",
+            "the entry crossed the server sealed"
+        );
         peer.heard_entry(block, BUILD, entry.clone()).unwrap();
         assert_eq!(peer.open_entry(entry).unwrap().payload, b"an edit");
     }

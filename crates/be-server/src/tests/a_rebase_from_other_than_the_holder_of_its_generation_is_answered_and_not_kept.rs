@@ -23,7 +23,10 @@ async fn a_rebase_from_other_than_the_holder_of_its_generation_is_answered_and_n
         sequence: 0,
         state: Vec::new(),
     };
-    phone.submit(block, 7, 1, 0, b"an edit".to_vec()).await.unwrap();
+    phone
+        .submit(block, 7, 1, 0, b"an edit".to_vec())
+        .await
+        .unwrap();
 
     let answered = phone.rebase_journal(block, generation + 1, base).await;
     assert!(

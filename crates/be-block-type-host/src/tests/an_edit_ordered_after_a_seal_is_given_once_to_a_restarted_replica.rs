@@ -74,7 +74,10 @@ fn an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica() {
             step(&peer, &shared, &mut replicas).await;
         }
         let status = replicas.status(block).expect("the counter is open");
-        assert_eq!(status.sealed_taken, 1, "the seal holds the first edit alone");
+        assert_eq!(
+            status.sealed_taken, 1,
+            "the seal holds the first edit alone"
+        );
         assert_eq!(
             replicas.replayed_edits(block),
             1,

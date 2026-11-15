@@ -48,7 +48,9 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Submitted::Offline(self.open_entry(entry)?));
         }
         self.refs.add_announcements(block, Until::Submitted, made)?;
-        Ok(Submitted::Server(self.connection().submit(block, submission)))
+        Ok(Submitted::Server(
+            self.connection().submit(block, submission),
+        ))
     }
 
     /// The server numbered the submissions holding the announcements `keys` name.
@@ -62,7 +64,12 @@ impl<S: ObjectStore> Peer<S> {
 
     /// Keeps an entry the server's order numbered (sealed, as it arrived) in this device's
     /// journal, so a replica opened offline later opens on what this device heard.
-    pub fn heard_entry(&self, block: Uuid, tag: Hash, entry: JournalEntry) -> Result<(), ClientError> {
+    pub fn heard_entry(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        entry: JournalEntry,
+    ) -> Result<(), ClientError> {
         Ok(self.refs.append_journal(block, tag, vec![entry])?)
     }
 
@@ -140,10 +147,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn open_edits(
         &self,
         block: Uuid,
-    ) -> Option<(
-        crate::OpenEdits,
-        Result<Vec<crate::KeptEdit>, ClientError>,
-    )> {
+    ) -> Option<(crate::OpenEdits, Result<Vec<crate::KeptEdit>, ClientError>)> {
         let kept = self.refs.open_edits(block)?;
         let edits = kept
             .edits

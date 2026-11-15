@@ -48,7 +48,11 @@ fn an_edit_whose_origin_aged_out_of_the_base_fails_as_possibly_sent() {
     }
     assert_eq!(count(&sim.head_content()), total, "the edit landed once");
     assert_eq!(count(&sim.content(1)), total);
-    assert_eq!(sim.lacking(1, 1), 1, "its editor is told it may have been sent");
+    assert_eq!(
+        sim.lacking(1, 1),
+        1,
+        "its editor is told it may have been sent"
+    );
     assert!(
         sim.errors
             .iter()

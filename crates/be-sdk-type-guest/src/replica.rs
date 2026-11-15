@@ -370,9 +370,7 @@ enum AfterPublish {
         state: Vec<u8>,
     },
     /// The holder merged a head moved from elsewhere: the order then reloads it.
-    Merged {
-        through: u64,
-    },
+    Merged { through: u64 },
 }
 
 enum AfterStash<C> {
@@ -1271,7 +1269,6 @@ where
         });
     }
 
-
     /// Counts a local edit as taken as its job runs (`taken`).
     fn take(&mut self, job: &Job<C>) -> bool {
         let local = matches!(
@@ -1311,8 +1308,8 @@ where
         }
         // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
         // the edit it was made on, and given again with it once the replica joins.
-        self.doubtful_now = local
-            && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some());
+        self.doubtful_now =
+            local && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some());
         match job {
             Job::Input(input) => self.handle(input),
             Job::Heard { from, message, .. } => self.heard(from, message),
@@ -1546,7 +1543,11 @@ where
             self.sealed_state = self.confirmed.session_state();
         }
         self.sealed = sequence;
-        while self.log.front().is_some_and(|logged| logged.sequence <= sequence) {
+        while self
+            .log
+            .front()
+            .is_some_and(|logged| logged.sequence <= sequence)
+        {
             self.log.pop_front();
         }
         while self
@@ -1684,7 +1685,12 @@ where
                 let theirs = next();
                 let ours = self.confirmed.clone();
                 let through = self.applied;
-                self.merging(MergeThen::FastForward { to, through }, ancestor, ours, theirs);
+                self.merging(
+                    MergeThen::FastForward { to, through },
+                    ancestor,
+                    ours,
+                    theirs,
+                );
             }
             Then::Merge {
                 base,
@@ -1889,12 +1895,7 @@ where
             MergeThen::FastForward { to, through } => match result {
                 MergeResult::Clean(value) => {
                     let content = self.written(&value);
-                    self.publish(
-                        Some(to),
-                        None,
-                        content,
-                        AfterPublish::Merged { through },
-                    );
+                    self.publish(Some(to), None, content, AfterPublish::Merged { through });
                 }
                 MergeResult::Conflicted { value, conflicts } => {
                     let content = self.written(&self.confirmed);
@@ -2000,7 +2001,6 @@ where
         });
         self.waiting = Some(Wait::Stash { token, then });
     }
-
 
     fn answer_resume(&mut self, token: Token, result: Result<Resume, String>) {
         if !matches!(&self.waiting, Some(Wait::Resume { token: waiting }) if *waiting == token) {
@@ -2377,7 +2377,12 @@ where
                     }
                     Entry::Operation(_) => {}
                     Entry::Reload { restart: true, .. } => self.restarts += 1,
-                    Entry::Keep { commit } | Entry::Reload { commit, head: false, .. } => {
+                    Entry::Keep { commit }
+                    | Entry::Reload {
+                        commit,
+                        head: false,
+                        ..
+                    } => {
                         if !self.keep.contains(&commit) {
                             self.keep.push(commit);
                         }
@@ -2414,7 +2419,11 @@ where
     /// Whether the session speaks this build: one that does not refuses to edit or seal, and
     /// the server refuses its submissions.
     fn check_build(&mut self) {
-        if self.state.tag.is_some_and(|tag| *tag.as_bytes() != self.tag.0) {
+        if self
+            .state
+            .tag
+            .is_some_and(|tag| *tag.as_bytes() != self.tag.0)
+        {
             self.incompatible = true;
             self.diverged = true;
         }
@@ -2525,7 +2534,9 @@ where
     fn apply_operation(&mut self, op: SessionOp, mine: bool, payload: Payload) {
         let id = op.id;
         let sequence = op.sequence;
-        let readable = payload.part().is_none_or(|part| part.length() <= LARGEST_PART);
+        let readable = payload
+            .part()
+            .is_none_or(|part| part.length() <= LARGEST_PART);
         let operation = match op.base >= op.floor && readable {
             true => self.stamped(&payload, op.received),
             false => None,
@@ -2724,7 +2735,10 @@ where
     }
 
     fn is_clean(&self) -> bool {
-        self.pending.is_empty() && self.unsent.is_empty() && self.doubtful.is_empty() && !self.owes()
+        self.pending.is_empty()
+            && self.unsent.is_empty()
+            && self.doubtful.is_empty()
+            && !self.owes()
     }
 
     /// Whether the holder owes a seal: the order went past its last seal, or a stash waits to
@@ -2748,7 +2762,12 @@ where
     }
 
     fn unsettled(&self) -> u64 {
-        self.in_flight + self.unsent.iter().map(|(_, _, weight, _)| weight).sum::<u64>()
+        self.in_flight
+            + self
+                .unsent
+                .iter()
+                .map(|(_, _, weight, _)| weight)
+                .sum::<u64>()
     }
 
     fn cover_if_settled(&mut self) {
@@ -2813,7 +2832,6 @@ where
         self.visible = visible;
         self.journal(Journaled::Replaced, None);
     }
-
 
     fn edit(&mut self, mut operation: C::Op, origin: Option<EditorId>) -> bool {
         self.active = true;
@@ -3496,7 +3514,6 @@ where
         }
     }
 
-
     fn report(&mut self) {
         let clean = self.loaded && self.is_clean();
         let unconfirmed =
@@ -3610,7 +3627,6 @@ where
         self.send(None, message);
     }
 
-
     fn send(&mut self, to: Option<ClientId>, message: &SessionMessage) {
         self.out.push(Effect::Send {
             replica: self.id,
@@ -3696,7 +3712,6 @@ where
             generation: self.state.generation,
         });
     }
-
 
     /// A head landed: the holder reconciles with it. Any other replica leaves that to the
     /// holder, which hears of every head too.
@@ -3842,7 +3857,6 @@ thread_local! {
 fn restart_limit() -> usize {
     RESTART_LIMIT.with(std::cell::Cell::get)
 }
-
 
 /// The bytes an entry adds to what the order holds since the last seal: its own, and those of
 /// the part it names, which no commit holds either.

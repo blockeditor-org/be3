@@ -20,7 +20,10 @@ fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
         status().connected,
         "the edits showed only once the connection was given up"
     );
-    assert!(status().unsaved > 0, "what the server has not ordered is unsaved");
+    assert!(
+        status().unsaved > 0,
+        "what the server has not ordered is unsaved"
+    );
 
     let (stopped, stopping) = std::sync::mpsc::channel();
     std::thread::spawn(move || {

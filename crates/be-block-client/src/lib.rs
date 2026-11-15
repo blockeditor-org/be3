@@ -146,7 +146,10 @@ pub enum ClientError {
     /// (`Refs::keep_open_edits`).
     Discarded(uuid::Uuid),
     Unexpected,
-    Incompatible { ours: String, theirs: String },
+    Incompatible {
+        ours: String,
+        theirs: String,
+    },
     NoBuild(String),
 }
 

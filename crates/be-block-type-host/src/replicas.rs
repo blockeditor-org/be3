@@ -201,7 +201,10 @@ pub enum Answered {
     ),
     Stash(Reply<Result<CommitId, String>>, Result<CommitId, String>),
     Resume(Reply<Result<Resume, String>>, Result<Resume, String>),
-    Submit(Reply<be_sdk_type_api::host::Submitted>, be_sdk_type_api::host::Submitted),
+    Submit(
+        Reply<be_sdk_type_api::host::Submitted>,
+        be_sdk_type_api::host::Submitted,
+    ),
 }
 
 impl Answered {
@@ -1132,8 +1135,7 @@ impl<H: Host> Replicas<H> {
                     reset::<H>(peer, block, &kind).await?;
                 }
                 let tag = tag.ok_or(ClientError::Unexpected)?;
-                let (client, session, journal) =
-                    peer.connection().join_session(block, tag).await?;
+                let (client, session, journal) = peer.connection().join_session(block, tag).await?;
                 // Reading the head lists the block, so `changes` tells its next ones.
                 let head = peer.remote_head(block).await?;
                 let journal = journal.and_then(|journal| peer.open_journal(journal).ok());
@@ -1249,16 +1251,15 @@ impl<H: Host> Replicas<H> {
             None => (None, None),
         };
         let recovered_any = recovered.is_some();
-        let origin = recovered
-            .as_ref()
-            .map_or_else(|| Uuid::new_v4().as_u64_pair().0, |recovered| recovered.origin);
+        let origin = recovered.as_ref().map_or_else(
+            || Uuid::new_v4().as_u64_pair().0,
+            |recovered| recovered.origin,
+        );
         let given_up = recovered.as_ref().map_or(0, |recovered| recovered.given_up);
         let submitted_through = recovered
             .as_ref()
             .map_or(0, |recovered| recovered.submitted_through);
-        let kept_restart = recovered
-            .as_ref()
-            .map_or(0, |recovered| recovered.restarts);
+        let kept_restart = recovered.as_ref().map_or(0, |recovered| recovered.restarts);
         let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
         let opening_journal = journal.clone().filter(|_| !before_join);
         let replay: Vec<Replayed> = recovered_edits
@@ -1794,7 +1795,9 @@ impl<H: Host> Replicas<H> {
             H::report(
                 shared,
                 Some(block),
-                format!("{count} set-aside edits of this block can now be read; they were not sent"),
+                format!(
+                    "{count} set-aside edits of this block can now be read; they were not sent"
+                ),
             );
         }
     }
@@ -2606,7 +2609,10 @@ impl<H: Host> Replicas<H> {
                         _ => open.heard_through = Some(entry.sequence),
                     }
                 }
-                let tag = self.open.get(&replica).map(|open| self.modules.tag(open.module));
+                let tag = self
+                    .open
+                    .get(&replica)
+                    .map(|open| self.modules.tag(open.module));
                 let Some(tag) = tag else {
                     return;
                 };
@@ -2999,8 +3005,7 @@ impl<H: Host> Replicas<H> {
         let io = self.io.clone();
         H::spawn(async move {
             let joined = async {
-                let (client, session, journal) =
-                    peer.connection().join_session(block, tag).await?;
+                let (client, session, journal) = peer.connection().join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
@@ -3581,9 +3586,8 @@ impl<H: Host> Replicas<H> {
                                     be_sdk_type_api::host::Submitted::Held
                                 }
                                 Err(error) => {
-                                    let failed = be_sdk_type_api::host::Submitted::Failed(
-                                        error.to_string(),
-                                    );
+                                    let failed =
+                                        be_sdk_type_api::host::Submitted::Failed(error.to_string());
                                     if !unreachable(&error) {
                                         H::record_sync(&shared, error);
                                     }
@@ -3597,9 +3601,12 @@ impl<H: Host> Replicas<H> {
                     // Numbered in this device's own order: the replica hears it at once.
                     Ok(be_block_client::peer::Submitted::Offline(entry)) => {
                         let entry = api_entry(entry);
-                        self.replay(replica, Replayed::Sequenced {
-                            entries: vec![entry],
-                        });
+                        self.replay(
+                            replica,
+                            Replayed::Sequenced {
+                                entries: vec![entry],
+                            },
+                        );
                         self.modules.call(module, |connection| {
                             reply.send(connection, &be_sdk_type_api::host::Submitted::Kept)
                         });
@@ -3754,14 +3761,13 @@ impl<H: Host> Replicas<H> {
                         expected,
                     )
                     .described(content.references, content.derived)
-                    .sealed_through(
-                        sealed_through
-                            .map(|sequence| be_block_commit::SealedThrough {
-                                sequence,
-                                offline: made_up,
-                                restarts,
-                            }),
-                    );
+                    .sealed_through(sealed_through.map(|sequence| {
+                        be_block_commit::SealedThrough {
+                            sequence,
+                            offline: made_up,
+                            restarts,
+                        }
+                    }));
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
                     }
@@ -3847,8 +3853,7 @@ impl<H: Host> Replicas<H> {
                         if let Some(local) = local {
                             peer.fetch_history(local).await?;
                         }
-                        let resumed =
-                            be_block_session::resume(peer.commits(), local, remote)?;
+                        let resumed = be_block_session::resume(peer.commits(), local, remote)?;
                         Ok::<_, ClientError>(sealed_here(&peer, local, resumed))
                     }
                     .await
@@ -4205,7 +4210,11 @@ pub fn journal_for<S: be_block_store::ObjectStore>(
 /// Starts this device's copy of the order afresh at `head` when the server holds no journal,
 /// so what it hears next is not kept beside an order that ended. A journal holding what only
 /// this device numbered is left for the replica opened on it to seal.
-fn mirror_afresh<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid, head: Option<CommitId>) {
+fn mirror_afresh<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    head: Option<CommitId>,
+) {
     let Some(mut mirror) = peer.sealed_journal(block) else {
         return;
     };
@@ -4406,7 +4415,13 @@ fn reopening<S: be_block_store::ObjectStore>(
         None => {}
     }
     open.reported_clean(open.journaled_taken);
-    journal_for(peer, open.block, server.map(|(_, opened)| opened), online, head)
+    journal_for(
+        peer,
+        open.block,
+        server.map(|(_, opened)| opened),
+        online,
+        head,
+    )
 }
 
 /// Whether edits of the block made with another build were lost: `journal` holds some this

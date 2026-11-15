@@ -4,7 +4,8 @@ use super::*;
 /// the journal: how far the order holds its edits is known exactly, so the edits it submitted
 /// after, which never reached the server, are sent again rather than told they may have been.
 #[test]
-fn edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_names_no_longer_their_origin() {
+fn edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_names_no_longer_their_origin()
+ {
     let others = crate::wire::BaseState::KEPT_ORIGINS + 4;
     let mut sim = Sim::<CounterContent>::new(others + 2, counter_module);
     for device in 0..2 {
@@ -52,7 +53,11 @@ fn edits_after_an_own_entry_the_journal_holds_are_sent_again_though_the_base_nam
         sim.advance(crate::QUIET_INTERVAL);
         sim.settle();
     }
-    assert_eq!(count(&sim.head_content()), before + 1110, "each edit landed once");
+    assert_eq!(
+        count(&sim.head_content()),
+        before + 1110,
+        "each edit landed once"
+    );
     assert_eq!(count(&sim.content(1)), before + 1110);
     assert!(sim.errors.is_empty(), "{:?}", sim.errors);
 }

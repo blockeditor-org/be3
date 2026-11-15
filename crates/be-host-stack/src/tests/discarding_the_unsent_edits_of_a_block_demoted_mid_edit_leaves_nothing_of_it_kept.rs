@@ -105,7 +105,9 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
                     .ok()
                     .flatten()
                     .is_none_or(|journal| journal.entries.is_empty())
-                && peer.forget_cached(block).is_ok_and(|forgotten| forgotten >= 1)
+                && peer
+                    .forget_cached(block)
+                    .is_ok_and(|forgotten| forgotten >= 1)
         })
     });
 }

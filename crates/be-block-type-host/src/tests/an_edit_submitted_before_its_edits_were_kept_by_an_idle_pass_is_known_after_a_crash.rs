@@ -56,12 +56,18 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
         let mut mirror =
             attach_mirror::<TextContent>(&peer, &shared, &mut replicas, block, editor).await;
         type_at_start(&mut replicas, block, editor, &mut mirror, "a");
-        step_until(&peer, &shared, &mut replicas, "kept the first edit as held", |peer| {
-            heard_entries(peer, block) >= 1
-                && peer
-                    .open_edits(block)
-                    .is_some_and(|(kept, _)| kept.given_up >= 1)
-        })
+        step_until(
+            &peer,
+            &shared,
+            &mut replicas,
+            "kept the first edit as held",
+            |peer| {
+                heard_entries(peer, block) >= 1
+                    && peer
+                        .open_edits(block)
+                        .is_some_and(|(kept, _)| kept.given_up >= 1)
+            },
+        )
         .await;
 
         replicas.hold_kept_edits = true;
@@ -69,9 +75,13 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
         for typed in ["b", "d"] {
             let before = heard_entries(&peer, block);
             type_at_start(&mut replicas, block, editor, &mut mirror, typed);
-            step_until(&peer, &shared, &mut replicas, "heard the edit ordered", |peer| {
-                heard_entries(peer, block) > before
-            })
+            step_until(
+                &peer,
+                &shared,
+                &mut replicas,
+                "heard the edit ordered",
+                |peer| heard_entries(peer, block) > before,
+            )
             .await;
             receive_frames(&shared, editor, &mut mirror);
         }
@@ -90,9 +100,13 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
             attach_mirror::<TextContent>(&peer, &shared, &mut replicas, block, editor).await;
         let before = heard_entries(&peer, block);
         type_at_start(&mut replicas, block, editor, &mut mirror, "c");
-        step_until(&peer, &shared, &mut replicas, "heard the edit typed after ordered", |peer| {
-            heard_entries(peer, block) > before
-        })
+        step_until(
+            &peer,
+            &shared,
+            &mut replicas,
+            "heard the edit typed after ordered",
+            |peer| heard_entries(peer, block) > before,
+        )
         .await;
         let bytes = replicas
             .content((&peer, &shared), block)

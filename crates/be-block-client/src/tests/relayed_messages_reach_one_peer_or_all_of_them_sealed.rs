@@ -42,8 +42,16 @@ async fn relayed_messages_reach_one_peer_or_all_of_them_sealed() {
     let mut on_laptop = laptop.connection().subscribe();
     let mut on_tablet = tablet.connection().subscribe();
     let (phone_id, ..) = phone.connection().join_session(block, BUILD).await.unwrap();
-    let (laptop_id, ..) = laptop.connection().join_session(block, BUILD).await.unwrap();
-    tablet.connection().join_session(block, BUILD).await.unwrap();
+    let (laptop_id, ..) = laptop
+        .connection()
+        .join_session(block, BUILD)
+        .await
+        .unwrap();
+    tablet
+        .connection()
+        .join_session(block, BUILD)
+        .await
+        .unwrap();
 
     let to_laptop = phone
         .relay(block, Some(laptop_id), RelayKind::Peer, b"to the laptop")

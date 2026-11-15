@@ -80,9 +80,10 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
     // stamp of when the server took it: a close of messages as sent would not match them.
     flush();
     editor.wait("was shown every message stamped", |chat| {
-        chat.messages()
-            .into_iter()
-            .all(|id| chat.message(id).is_some_and(|message| message.arrival.is_some()))
+        chat.messages().into_iter().all(|id| {
+            chat.message(id)
+                .is_some_and(|message| message.arrival.is_some())
+        })
     });
     let closing = editor
         .content()

@@ -43,7 +43,11 @@ async fn kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent() {
         guest.keep_sealed_open_edits(block, sealed.clone());
         guest.set_aside_open_edits(block).unwrap();
     }
-    assert_eq!(guest.set_aside_of(block).len(), crate::SetAside::KEPT, "the newest are kept");
+    assert_eq!(
+        guest.set_aside_of(block).len(),
+        crate::SetAside::KEPT,
+        "the newest are kept"
+    );
     assert!(guest.open_edits(block).is_none(), "a replica opens afresh");
     assert!(guest.read_set_aside().is_empty(), "they do not read yet");
 
@@ -75,5 +79,8 @@ async fn kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent() {
     );
 
     guest.forget_cached(block).unwrap();
-    assert!(guest.set_aside_of(block).is_empty(), "forgetting the block drops them");
+    assert!(
+        guest.set_aside_of(block).is_empty(),
+        "forgetting the block drops them"
+    );
 }

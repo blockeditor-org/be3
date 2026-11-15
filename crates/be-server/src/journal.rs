@@ -267,17 +267,16 @@ pub fn rebase(
         false => base.sequence as i64,
     };
     let dropped: bool = other
-        && transaction
-            .query_row(
-                "SELECT EXISTS (SELECT 1 FROM journal_entries
+        && transaction.query_row(
+            "SELECT EXISTS (SELECT 1 FROM journal_entries
                  WHERE organization_id = ?1 AND block_id = ?2 AND sequence > ?3)",
-                params![
-                    org,
-                    id,
-                    before.as_ref().map_or(0, |head| head.base.sequence) as i64
-                ],
-                |row| row.get(0),
-            )?;
+            params![
+                org,
+                id,
+                before.as_ref().map_or(0, |head| head.base.sequence) as i64
+            ],
+            |row| row.get(0),
+        )?;
     let lost = dropped
         || before
             .as_ref()

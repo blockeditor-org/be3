@@ -18,8 +18,13 @@ async fn a_submission_from_a_build_the_session_does_not_speak_is_refused() {
         .unwrap();
     assert_eq!(state.tag, Some(TYPE_BUILD));
 
-    let refused = laptop.submit(block, 2, 1, 0, b"another build's".to_vec()).await;
+    let refused = laptop
+        .submit(block, 2, 1, 0, b"another build's".to_vec())
+        .await;
     assert!(refused.is_err(), "{refused:?}");
-    phone.submit(block, 1, 1, 0, b"this build's".to_vec()).await.unwrap();
+    phone
+        .submit(block, 1, 1, 0, b"this build's".to_vec())
+        .await
+        .unwrap();
     assert_eq!(phone.sequenced(block).await.sequence, 1);
 }
