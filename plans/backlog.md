@@ -21,14 +21,6 @@ Fixed items are removed as they land.
   move what is shown there. Done: the HTML list keeps its anchor row in place
   itself where `overflow-anchor` is missing, shown by a test on the HTML core.
 
-- **What a refused child change leaves.** A text made here and not yet on the
-  server refuses an unlink of a reference in it, as an offline replica edits as
-  `OFFLINE_CLIENT` (0), the sequences' `LOADED`; and the copy a refused unlink
-  made shows in Recently Deleted. Both are step 1 of
-  plans/replace_reports_its_outcome.md, the first after #686. Done: an unlink
-  in a text not yet on the server is made, and a refused one leaves nothing in
-  Recently Deleted, each shown by a test.
-
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,

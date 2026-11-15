@@ -788,6 +788,9 @@ struct PendingTransfer {
     /// What the block is called as it is queued, for a refusal to name: the graph can let it go
     /// once its source does.
     name: String,
+    /// Where the block sat in a source block, after which sibling (none: first), as it was
+    /// queued: a block put back after a refusal goes back there when the source keeps an order.
+    was_after: Option<Option<Uuid>>,
 }
 
 #[derive(Clone)]
@@ -2172,6 +2175,7 @@ impl HostCore {
             stage: TransferStage::AddDestination,
             putting_back: false,
             name: name_of(child, "that block"),
+            was_after: None,
         });
     }
 
@@ -2220,6 +2224,10 @@ impl HostCore {
             stage: TransferStage::DeleteSource,
             putting_back: false,
             name: name_of(child, "that block"),
+            was_after: match source {
+                SidebarDragSource::Block(source) => sibling_before(source, child),
+                _ => None,
+            },
         });
     }
 
@@ -2351,6 +2359,7 @@ impl HostCore {
             stage: TransferStage::DeleteSource,
             putting_back: false,
             name: name_of(child, "that block"),
+            was_after: None,
         });
     }
 
@@ -2429,6 +2438,14 @@ impl HostCore {
                 }
             }
 
+            // A block put back goes where it sat, when its source keeps an order: adding put
+            // it last.
+            if transfer.putting_back
+                && let (Some(after), Some(source)) = (transfer.was_after, transfer.destination)
+                && self.keeps_order(source)
+            {
+                self.queue_reorder(transfer.child, source, after);
+            }
             if let Some(parent) = transfer.parent_after {
                 self.set_block_parent(transfer.child, parent);
             }
@@ -2436,6 +2453,14 @@ impl HostCore {
                 be_host_stack::placing(transfer.child, false);
             }
         }
+    }
+
+    /// Whether `block`'s type keeps an order of its children (its manifest's
+    /// `children.reorder`).
+    fn keeps_order(&self, block: Uuid) -> bool {
+        self.block_type_of(block)
+            .and_then(be_host_stack::discovery::block_type)
+            .is_some_and(|block_type| block_type.children.reorder)
     }
 
     /// A container's type refused a transfer's change: out of its source (`into` false) or into
@@ -2454,6 +2479,7 @@ impl HostCore {
                         stage: TransferStage::AddDestination,
                         putting_back: true,
                         name: transfer.name.clone(),
+                        was_after: transfer.was_after,
                     });
                 }
                 Some(SidebarDragSource::Root) => {
@@ -2466,6 +2492,9 @@ impl HostCore {
             }
         }
         if transfer.putting_back {
+            if let Some(source) = transfer.destination {
+                refuse_put_back(source, &transfer.name);
+            }
             return;
         }
         let container = match (into, transfer.destination, transfer.source) {
@@ -4424,6 +4453,22 @@ fn refuse_transfer(container: Uuid, child: &str, into: bool) {
         true => format!("{container} can't hold {child}, so it stays where it was."),
         false => format!("{container} can't let go of {child}, so it stays where it was."),
     });
+}
+
+/// The sibling `child` follows in `container`'s content (none: it is first), or none when the
+/// container does not hold it.
+fn sibling_before(container: Uuid, child: Uuid) -> Option<Option<Uuid>> {
+    let contents = be_host_stack::node(container)?.contents();
+    let at = contents.iter().position(|held| *held == child)?;
+    Some(at.checked_sub(1).map(|before| contents[before]))
+}
+
+/// A source that let a block go refused to take it back after its destination refused it.
+fn refuse_put_back(source: Uuid, child: &str) {
+    let source = name_of(source, "Its folder");
+    notices::refuse(format!(
+        "{source} couldn't take {child} back either."
+    ));
 }
 
 /// A container's type refused to put `child` somewhere else in its order.
