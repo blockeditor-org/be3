@@ -1,4 +1,4 @@
-use beui_reactive::{Get, Reader, Set, Signal, create_signal};
+use beui_reactive::{Get, Reader, Set, Signal, Trackable, create_signal};
 
 use crate::callback::{Callback, IntoCallback};
 use crate::prop::{IntoProp, IntoPropWith, Prop};
@@ -150,5 +150,17 @@ impl<T: Clone + PartialEq + 'static> IntoCallback<T, ()> for Binding<T> {
             Source::Signal(signal) => Callback::from(signal),
             Source::Derived(..) => Callback::new(move |value| self.set(value)),
         }
+    }
+}
+
+impl<T: 'static> From<Binding<T>> for Trackable {
+    fn from(binding: Binding<T>) -> Self {
+        Trackable::new(move || binding.track())
+    }
+}
+
+impl<T: 'static> From<Binding<T>> for Option<Trackable> {
+    fn from(binding: Binding<T>) -> Self {
+        Some(binding.into())
     }
 }

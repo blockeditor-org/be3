@@ -801,10 +801,8 @@ impl State {
                 .get(&leaf)
                 .and_then(|bar| bar.tabs.try_get());
             for tab in tabs.map(|tabs| tabs.children()).unwrap_or_default() {
-                for rect in [Some(tab), drawn_child(tab)].into_iter().flatten() {
-                    if let Some(rect) = tracked_rect(rect) {
-                        bar = bar.without(rect);
-                    }
+                if let Some(rect) = tracked_rect(drawn_child(tab).unwrap_or(tab)) {
+                    bar = bar.without(rect);
                 }
             }
         }
@@ -821,14 +819,11 @@ impl State {
         else {
             return Vec::new();
         };
-        // A tab still gliding into place is drawn off its laid-out rect: both are the tab.
+        // Where each tab is drawn: one still gliding into place is drawn off its laid-out
+        // rect, which then shows nothing.
         node.children()
             .into_iter()
-            .filter_map(|tab| {
-                let laid = measure(tab).get_untracked()?.rect;
-                let drawn = drawn_child(tab).and_then(|drawn| measure(drawn).get_untracked());
-                Some(drawn.map_or(laid, |drawn| laid.union(drawn.rect)))
-            })
+            .filter_map(|tab| Some(measure(drawn_child(tab).unwrap_or(tab)).get_untracked()?.rect))
             .collect()
     }
 

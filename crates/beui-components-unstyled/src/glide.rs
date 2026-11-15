@@ -67,9 +67,7 @@ impl GlideApi {
         else {
             return;
         };
-        if self.shown.get_untracked() != displacement {
-            self.shown.set(displacement);
-        }
+        self.shown.set(displacement);
     }
 
     fn start(self) {
@@ -255,9 +253,10 @@ pub fn Glide(
     node
 }
 
-/// The node holding a `Glide`'s child where it is drawn, given the node the `Glide` returned:
-/// measure it to hit-test what a person sees, since a gliding child is drawn off the place
-/// layout gave the glide.
+/// The node holding a `Glide`'s child where it is drawn: measure it to hit-test what a
+/// person sees, since a gliding child is drawn off the place layout gave the glide. `glide`
+/// must be the node a `Glide` returned (a `ReorderItem`'s root is one); for any other node
+/// the answer means nothing.
 pub fn drawn_child(glide: NodeId) -> Option<NodeId> {
     let inner = *glide.children().first()?;
     inner.children().first().copied()
