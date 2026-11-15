@@ -12,13 +12,10 @@ async fn signing_keys(client: &mut TestClient, accounts: Vec<Uuid>) -> Vec<Signi
     keys
 }
 
-async fn with_signing_key(client: &mut TestClient, key: [u8; 32]) {
-    let response = client
-        .call(move |peer| {
-            client::keys::set_recovery_key(peer, key, key, Vec::new(), Vec::new(), Vec::new())
-        })
-        .await;
-    assert!(matches!(response, Ok(())), "{response:?}");
+/// Moves `account` to a new phrase, retiring its old keys in every log it signed in, and
+/// answers the new signing key.
+async fn with_new_phrase(client: &mut TestClient, account: Uuid) -> [u8; 32] {
+    client.new_phrase(account).await.signing().0
 }
 
 #[tokio::test]
@@ -29,15 +26,15 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
     let organization = owner.organization("team").await;
     let block = owner.create_block(BlockParent::Root).await;
     let (agent, _) = owner.block_agent(organization, block).await.unwrap();
-    with_signing_key(&mut owner, [1; 32]).await;
+    let owner_key = with_new_phrase(&mut owner, me).await;
     let mut stranger = harness.client().await;
     let stranger_account = stranger.register("stranger@example.com").await;
     stranger.organization("elsewhere").await;
-    with_signing_key(&mut stranger, [9; 32]).await;
+    with_new_phrase(&mut stranger, stranger_account).await;
     let mut expected = vec![
         SigningKey {
             account: me,
-            key: [1; 32],
+            key: owner_key,
         },
         SigningKey {
             account: agent,
@@ -64,7 +61,7 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
         signing_keys(&mut stranger, vec![me]).await,
         vec![SigningKey {
             account: me,
-            key: [1; 32],
+            key: owner_key,
         }],
         "every account is a member of the personal organization"
     );

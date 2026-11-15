@@ -131,6 +131,7 @@ pub async fn register_identity(
         Vec::new(),
         Vec::new(),
         Vec::new(),
+        Vec::new(),
     ))
     .await
 }
@@ -268,6 +269,9 @@ pub struct NewIdentity {
     pub sealed: Vec<SealedKey>,
     pub own: Vec<OwnSealed>,
     pub changes: Vec<KeyChange>,
+    /// An entry retiring the old keys for the new ones in each access log the account signed
+    /// in (plans/signed_access.md, "A new recovery phrase").
+    pub retirements: Vec<be_block_protocol::Retirement>,
 }
 
 pub fn new_identity(
@@ -276,6 +280,7 @@ pub fn new_identity(
     fresh: &RecoverySecret,
     held: Vec<SealedKey>,
     own: Vec<OwnSealed>,
+    logs: Vec<be_block_protocol::SignedLog>,
 ) -> Option<NewIdentity> {
     let me = Party {
         account: account.into_bytes(),
@@ -338,10 +343,30 @@ pub fn new_identity(
             sealed: old.seal_key_change(account.into_bytes(), party, fresh.identity()),
         })
         .collect();
+    let retirements = logs
+        .into_iter()
+        .map(|log| {
+            let head = log.head.try_into().ok()?;
+            let entry = be_block_keys::Entry::retirement(
+                old,
+                fresh,
+                account.into_bytes(),
+                log.log.into_bytes(),
+                head,
+            );
+            Some(be_block_protocol::Retirement {
+                organization: log.organization,
+                kind: log.kind,
+                log: log.log,
+                entry: entry.encode(),
+            })
+        })
+        .collect::<Option<Vec<_>>>()?;
     Some(NewIdentity {
         sealed,
         own,
         changes,
+        retirements,
     })
 }
 

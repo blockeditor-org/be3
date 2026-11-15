@@ -4,9 +4,32 @@ package be3:server@0.1.0;
 /// own recovery key.
 interface keys {
     use types.{
-        account-id, block-id, error, escrow-key, key-change, key-id, key-set, own-sealed,
-        public-key, sealed-key,
+        account-id, block-id, error, escrow-key, key-change, key-id, key-set, organization-id,
+        own-sealed, public-key, sealed-key,
     };
+
+    /// What an access log is the log of (plans/signed_access.md).
+    enum log-kind {
+        block,
+        organization,
+    }
+
+    /// An access log the account holds a signed record in, at its head now.
+    record signed-log {
+        organization: organization-id,
+        kind: log-kind,
+        /// The block, or for an organization's own log the organization.
+        log: block-id,
+        head: list<u8>,
+    }
+
+    /// An entry retiring the account's old keys, for one of its signed logs.
+    record retirement {
+        organization: organization-id,
+        kind: log-kind,
+        log: block-id,
+        entry: list<u8>,
+    }
 
     /// An account's signing key as the server has it, which nothing verified
     /// (plans/authorship.md).
@@ -19,6 +42,9 @@ interface keys {
         public: option<public-key>,
         sealed: list<sealed-key>,
         %own: list<own-sealed>,
+        /// Every access log the account signed a record in, which a new key
+        /// must retire the old one in (`set-recovery-key`).
+        logs: list<signed-log>,
     }
 
     /// A scope or escrow key not yet sealed to an account that should hold
@@ -60,14 +86,16 @@ interface keys {
     get-recovery-key: async func() -> result<recovery-key, error>;
 
     /// Moves the account to a new recovery key and the signing key derived
-    /// with it, with everything sealed to the old one sealed again and a key
-    /// change for each contact.
+    /// with it, with everything sealed to the old one sealed again, a key
+    /// change for each contact, and an entry retiring the old keys in every
+    /// access log the account signed in (`be_block_keys::Entry::retirement`).
     set-recovery-key: async func(
         public: public-key,
         signing: public-key,
         sealed: list<sealed-key>,
         %own: list<own-sealed>,
         changes: list<key-change>,
+        retirements: list<retirement>,
     ) -> result<_, error>;
 
     /// The signing keys of those of `accounts` that are the caller, its

@@ -78,7 +78,9 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             ],
         )
         .unwrap();
-    let RecoveryKey { sealed, own, .. } =
+    let RecoveryKey {
+        sealed, own, logs, ..
+    } =
         crate::ask(client::keys::get_recovery_key(&owner.connection()))
             .await
             .expect("the server answers with the recovery key");
@@ -90,6 +92,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         &fresh,
         sealed,
         own,
+        logs,
     )
     .expect("the old phrase opens everything sealed to the owner");
     assert_eq!(resealed.changes.len(), 2, "one change per verified contact");
@@ -100,6 +103,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         resealed.sealed,
         resealed.own,
         resealed.changes,
+        resealed.retirements,
     ))
     .await
     .unwrap();

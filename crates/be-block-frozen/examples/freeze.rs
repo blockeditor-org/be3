@@ -767,14 +767,16 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let fresh = RecoveryPhrase::generate();
-    let be_block_protocol::RecoveryKey { sealed, own, .. } =
-        ask(client::keys::get_recovery_key(&friend.connection())).await?;
+    let be_block_protocol::RecoveryKey {
+        sealed, own, logs, ..
+    } = ask(client::keys::get_recovery_key(&friend.connection())).await?;
     let resealed = be_block_client::contacts::new_identity(
         friend.account(),
         friend.keys().identity(),
         &fresh.secret(),
         sealed,
         own,
+        logs,
     )
     .ok_or("the friend's old phrase did not open what was sealed to it")?;
     ask(client::keys::set_recovery_key(
@@ -784,6 +786,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         resealed.sealed,
         resealed.own,
         resealed.changes,
+        resealed.retirements,
     ))
     .await?;
 
