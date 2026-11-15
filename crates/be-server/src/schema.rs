@@ -24,8 +24,39 @@ const SCHEMA: &str = "
         kind            TEXT NOT NULL DEFAULT 'legacy',
         public_id       TEXT NOT NULL DEFAULT '',
         created         INTEGER NOT NULL DEFAULT 0,
-        expires         INTEGER NOT NULL DEFAULT 0
+        expires         INTEGER NOT NULL DEFAULT 0,
+        proved          INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE identities (
+        id              TEXT PRIMARY KEY,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL,
+        subject         TEXT NOT NULL,
+        created         INTEGER NOT NULL,
+        UNIQUE (kind, subject)
+    );
+    CREATE INDEX identities_account ON identities(account_id);
+
+    CREATE TABLE sign_in_codes (
+        attempt_hash    TEXT PRIMARY KEY,
+        code_hash       TEXT NOT NULL,
+        purpose         TEXT NOT NULL,
+        account_id      TEXT NOT NULL DEFAULT '',
+        email           TEXT NOT NULL,
+        display_name    TEXT NOT NULL DEFAULT '',
+        invite_hash     TEXT NOT NULL DEFAULT '',
+        device_code     TEXT NOT NULL DEFAULT '',
+        tries           INTEGER NOT NULL DEFAULT 0,
+        expires         INTEGER NOT NULL,
+        created         INTEGER NOT NULL,
+        address         TEXT NOT NULL,
+        network         TEXT NOT NULL,
+        remembered      INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX sign_in_codes_address ON sign_in_codes(address, created);
+    CREATE INDEX sign_in_codes_network ON sign_in_codes(network, created);
+    CREATE INDEX sign_in_codes_account ON sign_in_codes(account_id, created);
 
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,

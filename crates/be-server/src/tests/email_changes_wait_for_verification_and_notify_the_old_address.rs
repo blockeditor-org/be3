@@ -2,6 +2,7 @@ use super::*;
 
 #[tokio::test]
 async fn email_changes_wait_for_verification_and_notify_the_old_address() {
+    // Changing the email needs a fresh proof: a password sign-in is not one.
     let harness = Harness::start().await;
     harness.member("before@example.com").await;
     let mut browser = Browser::default();
@@ -26,25 +27,20 @@ async fn email_changes_wait_for_verification_and_notify_the_old_address() {
                 &harness,
                 "/auth/settings",
                 "/auth/settings/email",
-                &[
-                    ("email", "after@example.com"),
-                    ("current_password", "wrong")
-                ]
+                &[("email", "after@example.com")]
             )
             .await
             .0,
         400
     );
+    browser.prove(&harness, "before@example.com").await;
     assert_eq!(
         browser
             .submit(
                 &harness,
                 "/auth/settings",
                 "/auth/settings/email",
-                &[
-                    ("email", "after@example.com"),
-                    ("current_password", "correct horse battery")
-                ]
+                &[("email", "after@example.com")]
             )
             .await
             .0,

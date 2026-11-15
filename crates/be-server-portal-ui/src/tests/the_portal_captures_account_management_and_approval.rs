@@ -3,9 +3,21 @@ use super::*;
 #[test]
 fn the_portal_captures_account_management_and_approval() {
     painting(signed_in(Screen::Account), [390, 844]).snapshot("portal_account.browser");
-    painting(signed_in(Screen::Settings), [1100, 1400]).snapshot("portal_settings.browser");
+    let identities = vec![IdentityRow {
+        id: "snapshot-identity".into(),
+        kind: "email".into(),
+        label: "alex@example.com".into(),
+        removable: false,
+    }];
+    let settings = Page {
+        identities: identities.clone(),
+        ..signed_in(Screen::Settings)
+    };
+    painting(settings, [1100, 1600]).snapshot("portal_settings.browser");
     let settings = Page {
         saved: true,
+        fresh: true,
+        identities,
         ..signed_in(Screen::Settings)
     };
     painting(settings, [390, 1600]).snapshot("portal_settings_phone.browser");

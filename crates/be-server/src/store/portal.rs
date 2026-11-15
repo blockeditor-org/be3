@@ -139,7 +139,28 @@ impl ServerStore {
         .await
     }
 
-    pub async fn revoke_session(&self, account: Uuid, id: &str) -> Result<(), ServerError> {
+    /// Ends one of the account's sessions. Ending any but `browser`'s own needs a fresh proof
+    /// from it.
+    pub async fn revoke_session(
+        &self,
+        account: Uuid,
+        id: &str,
+        browser: &str,
+    ) -> Result<(), ServerError> {
+        let own = {
+            let (id, browser) = (id.to_owned(), hash_token(browser));
+            self.with_database(move |_, database| {
+                Ok(database.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND public_id = ?2 AND token_hash = ?3)",
+                    params![account.to_string(), id, browser],
+                    |row| row.get::<_, bool>(0),
+                )?)
+            })
+            .await?
+        };
+        if !own {
+            self.require_fresh(browser).await?;
+        }
         let id = id.to_owned();
         let deleted = self
             .with_database(move |_, database| {
@@ -155,11 +176,13 @@ impl ServerStore {
         Ok(())
     }
 
+    /// Ends every session of the account but `current`, after a fresh proof from it.
     pub async fn revoke_other_sessions(
         &self,
         account: Uuid,
         current: &str,
     ) -> Result<(), ServerError> {
+        self.require_fresh(current).await?;
         let current = hash_token(current);
         let deleted = self
             .with_database(move |_, database| {
@@ -232,6 +255,7 @@ impl ServerStore {
         address: &str,
     ) -> Result<String, ServerError> {
         validate_password(password)?;
+        self.require_fresh(browser_token).await?;
         let previous_hash = self.check_password(account, current, address).await?;
         let hash = self.hash(password.into(), address).await?;
         let browser_token = browser_token.to_owned();
@@ -318,22 +342,24 @@ impl ServerStore {
         .await
     }
 
+    /// A link to verify a new email for the account, after a fresh proof
+    /// (`codes::FRESH_PROOF`) from the browser asking.
     pub async fn email_change_link(
         &self,
         account: Uuid,
         email: &str,
-        password: &str,
+        browser: &str,
         address: &str,
     ) -> Result<MailLink, ServerError> {
         let email = normalize_email(email)?;
         let address = passwords::address_key(address);
-        {
-            let (email, address) = (email.clone(), address.clone());
-            self.with_database(move |_, database| may_send(database, "email", &email, &address))
-                .await?;
-        }
-        let previous_hash = self.check_password(account, password, &address).await?;
+        self.require_fresh(browser).await?;
         self.with_database(move |_, database| {
+            let previous_hash: String = database.query_row(
+                "SELECT password_hash FROM accounts WHERE id = ?1",
+                [account.to_string()],
+                |row| row.get(0),
+            )?;
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let link = mail_link(
                 &transaction,
@@ -455,6 +481,7 @@ impl ServerStore {
                     invite_codes::spend(&transaction, &invite)?;
                     let account = Uuid::new_v4();
                     transaction.execute("INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)", params![account.to_string(), email, name, hash])?;
+                    codes::add_email_identity(&transaction, &account.to_string(), &email)?;
                     let personal = personal_organization(&transaction)?;
                     transaction.execute("INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')", params![personal.to_string(), account.to_string()])?;
                     Some(account)
@@ -486,6 +513,10 @@ impl ServerStore {
                     transaction.execute(
                         "UPDATE accounts SET email = ?2 WHERE id = ?1",
                         params![account, email],
+                    )?;
+                    transaction.execute(
+                        "UPDATE identities SET subject = ?3 WHERE account_id = ?1 AND kind = 'email' AND subject = ?2",
+                        params![account, old_email.as_deref().unwrap_or_default(), email],
                     )?;
                     transaction.execute("DELETE FROM account_mail WHERE account_id = ?1 AND purpose IN ('email', 'reset')", [&account])?;
                     None

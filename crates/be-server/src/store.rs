@@ -1,3 +1,4 @@
+pub mod codes;
 pub mod invite_codes;
 pub(crate) mod passwords;
 pub(crate) mod portal;
@@ -323,6 +324,7 @@ impl ServerStore {
                 "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, ?4)",
                 params![account.to_string(), email, display_name, hash],
             )?;
+            codes::add_email_identity(&transaction, &account.to_string(), &email)?;
             let personal = personal_organization(&transaction)?;
             transaction.execute(
                 "INSERT OR IGNORE INTO memberships (organization_id, account_id, role)
