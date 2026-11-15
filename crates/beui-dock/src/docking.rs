@@ -1318,14 +1318,12 @@ where
         };
         Some(view! {
             <Layers>
-                <Dynamic value={declared}>|_: bool| {
-                    match found.with_untracked(|found| found.empty(&key)) {
-                        Some(empty) => empty.call(()),
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
+                <Show condition={declared} fallback={|| view! { <Frame /> }}>|| {
+                    found
+                        .with_untracked(|found| found.empty(&key))
+                        .expect("the empty view is only shown while it is declared")
+                        .call(())
+                }</Show>
             </Layers>
         })
     });

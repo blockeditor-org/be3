@@ -18,11 +18,15 @@ pub fn DockBarSurface(
     children: Children<ListItem>,
 ) -> NodeId {
     let bar = use_dock_bar();
-    let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
-    let band = create_memo(move || bar.is_some_and(|bar| bar.placement().is_beside()));
     let surface = bar.map_or_else(NodeRef::new, |bar| bar.surface());
     view! {
-        <ToolPill @node_ref=&surface direction={direction} band={band} spacing={spacing} children />
+        <ToolPill
+            @node_ref=&surface
+            direction={move || bar.map_or(Direction::Horizontal, |bar| bar.direction())}
+            band={move || bar.is_some_and(|bar| bar.placement().is_beside())}
+            spacing={spacing}
+            children
+        />
     }
 }
 
@@ -38,10 +42,6 @@ pub fn DockBarGrip(
     };
     let pressed = StoredCell::new(None::<PointerPress>);
     let moved = StoredCell::new(false);
-    let glyph = create_memo(move || match control.direction() {
-        Direction::Horizontal => ICON_GRIP_VERTICAL,
-        Direction::Vertical => ICON_GRIP_HORIZONTAL,
-    });
     let menu = control.menu();
     let open = create_signal(false);
     view! {
@@ -74,7 +74,12 @@ pub fn DockBarGrip(
             <MenuButton
                 @test_id={format!("dock.bar.{}.grip", control.bar().value())}
                 label="Move toolbar"
-                glyph={create_memo(move || Some(glyph.get()))}
+                glyph={move || {
+                    Some(match control.direction() {
+                        Direction::Horizontal => ICON_GRIP_VERTICAL,
+                        Direction::Vertical => ICON_GRIP_HORIZONTAL,
+                    })
+                }}
                 icon_only=true
                 arrow=false
                 variant=ButtonVariant::Ghost

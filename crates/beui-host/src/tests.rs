@@ -1129,7 +1129,7 @@ use beui_macros::{component, view};
 fn BackTo(
     #[prop(default = true)] enabled: Prop<bool>,
     on_gesture: Callback<beui::BackGesture>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     on_back(enabled, move |gesture| on_gesture.call(gesture));
     children
