@@ -830,7 +830,7 @@ fn piece_keys(row: &Row) -> Vec<PieceKey> {
 
 #[component]
 fn RowPiece(cx: Context, model: Memo<Rc<Row>>, key: PieceKey) -> TextChild {
-    match key {
+    let piece: TextChild = match key {
         PieceKey::Text {
             text,
             font: (size, family, bold, italic),
@@ -876,7 +876,8 @@ fn RowPiece(cx: Context, model: Memo<Rc<Row>>, key: PieceKey) -> TextChild {
             }
             .into_child()
         }
-    }
+    };
+    piece
 }
 
 fn inline_text(model: Memo<Rc<Row>>, item: usize) -> Memo<Option<Rc<str>>> {

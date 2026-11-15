@@ -141,7 +141,7 @@ pub(super) fn ProgramSearch(
         <List spacing=Space::Sm>
             <SearchList
                 items
-                score
+                score={score as fn(&PaletteItem, &str) -> Option<u32>}
                 query
                 highlighted={programs.highlighted}
                 columns={move || match searching.get() {

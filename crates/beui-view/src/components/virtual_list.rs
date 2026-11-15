@@ -47,7 +47,7 @@ pub fn VirtualList<K, H>(
     #[prop(default = None)] anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     #[prop(default = None)] handle: Option<ForEachRef<K, NodeId>>,
-    #[prop(children)] item: RenderFn<H>,
+    #[prop(children)] item: RenderFn<H, NodeId>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,

@@ -1,5 +1,5 @@
 use crate::reactive::{
-    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp,
+    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild,
     IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
 use crate::reactive::{DynamicSegment, ForEach, create_memo};
@@ -167,7 +167,7 @@ macro_rules! text_child_from {
         $(
             impl IntoChild<TextChild> for $ty {
                 fn into_child(self) -> TextChild {
-                    TextChild::Span(Span::plain(self.into_prop()))
+                    TextChild::Span(Span::plain(beui_tree::reactive::IntoPropWith::<String, _>::into_prop_with(self)))
                 }
             }
 
@@ -179,7 +179,7 @@ macro_rules! text_child_from {
 
             impl IntoSegment<SpanText> for $ty {
                 fn into_segment(self) -> ChildSegment<SpanText> {
-                    ChildSegment::One(SpanText(self.into_prop()))
+                    ChildSegment::One(SpanText(beui_tree::reactive::IntoPropWith::<String, _>::into_prop_with(self)))
                 }
             }
         )*

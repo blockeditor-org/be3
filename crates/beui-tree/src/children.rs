@@ -900,6 +900,8 @@ macro_rules! child_type {
             }
         }
 
+        $crate::one_child_slot!(<$($generic $(: $bound)?),*> $ty);
+
         impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::Counted for $ty {
             type Count = $crate::reactive::CountOne;
         }
@@ -907,6 +909,12 @@ macro_rules! child_type {
         impl<$($generic: 'static $(+ $bound)?),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
             fn from(child: $ty) -> Self {
                 Self::from($crate::reactive::ChildSegment::One(child))
+            }
+        }
+
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoPropValue<$crate::reactive::Children<$ty>, $crate::reactive::Val<$crate::reactive::ByInto>> for $ty {
+            fn into_prop_value(self) -> $crate::reactive::Children<$ty> {
+                $crate::reactive::Children::from($crate::reactive::ChildSegment::One(self))
             }
         }
     };
@@ -992,9 +1000,10 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
     }
 }
 
-impl<T: SlotChild> IntoChild<Children<T>> for Children<T> {
+/// Anything that fills a run fills a `Children` built at once (a render prop's).
+impl<T: SlotChild, H: IntoSegment<T>> IntoChild<Children<T>> for H {
     fn into_child(self) -> Children<T> {
-        self
+        Children(vec![self.into_segment()])
     }
 }
 
@@ -1159,11 +1168,6 @@ impl<H: ChildValue> Unwrapped for H {
     }
 }
 
-impl<T, H: IntoChild<T>> IntoChild<T> for SingleChild<H> {
-    fn into_child(self) -> T {
-        self.0.into_child()
-    }
-}
 
 impl<T: SlotChild, H: IntoSegment<T>> IntoSegment<T> for SingleChild<H> {
     fn into_segment(self) -> ChildSegment<T> {
@@ -1200,6 +1204,13 @@ pub trait OneChild<T> {
 impl<T, H: IntoChild<T>> OneChild<T> for SingleChild<H> {
     fn one_child(self) -> T {
         self.0.into_child()
+    }
+}
+
+/// Several roots, where a render builds a `Children` at once.
+impl<T: SlotChild, const N: usize> OneChild<Children<T>> for [ChildSegment<T>; N] {
+    fn one_child(self) -> Children<T> {
+        Children(Vec::from(self))
     }
 }
 

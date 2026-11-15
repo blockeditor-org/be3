@@ -132,6 +132,8 @@ impl ChildValue for NodeId {
     }
 }
 
+beui_tree::one_child_slot!(<> NodeId);
+
 impl SlotChild for NodeId {
     type Stored = NodeId;
     type Node = NodeId;
