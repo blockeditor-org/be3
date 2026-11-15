@@ -188,6 +188,11 @@ impl ServerStore {
                 email: String::new(),
                 created: now(),
             };
+            super::account_notices::claim_identity_add(
+                &transaction,
+                account,
+                &crate::passkeys::label(identity.created, &identity.subject),
+            )?;
             transaction.execute(
                 "INSERT INTO identities (id, account_id, kind, subject, created, credential) VALUES (?1, ?2, 'passkey', ?3, ?4, ?5)",
                 params![identity.id, account.to_string(), identity.subject, identity.created, credential],

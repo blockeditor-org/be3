@@ -639,17 +639,23 @@ signing in by code, provider or passkey, or recovering, also gives.
 Removing an identity, adding a provider (from the settings page or by a link
 code) or a passkey, and a provider moving the account's email each mail the
 account's email, the old one for a move. Every account is also told of an
-identity added or removed on its devices (`store/account_notices.rs`,
+identity added or removed, or its email changing, on its devices
+(`store/account_notices.rs`,
 `account-notices`, `dismiss-account-notice` and `account-notices-changed`,
 which every connection of the account hears; be-host reads them on sign-in, so
-they show with no organization open), and the portal's settings page lists the
-last thirty days of changes, which nothing hides. Whoever a notice warns about
+they show with no organization open; one made while no device is signed in
+arrives at its next sign-in, and while an organization is open its stack follows
+changes as they come), and the portal's settings page lists the last thirty
+days of changes, which nothing hides. While mail goes only to the server's log,
+these are how an account hears of a change. Whoever a notice warns about
 may hold a session too, so in its first `NOTICE_HOLD` (a week) a dismissal
 hides it only on the device that dismissed it; after, one dismisses it for all.
 An account keeps `MAX_ACCOUNT_NOTICES`, letting go only of those dismissed or
-past their hold, and changes its ways to sign in at most
-`IDENTITY_CHANGES_PER_DAY` (20) times a day, so nobody pushes a fresh notice
-out by changing more. The portal's cookies are
+past their hold, and adds a way to sign in at most `IDENTITY_CHANGES_PER_DAY`
+(20) times a day, counted in the transaction that adds it
+(`claim_identity_add`), so nobody pushes a fresh notice out by adding more.
+Removals are never capped, so the owner can always remove what an intruder
+added. The portal's cookies are
 `__Host-be3-account` and `__Host-be3-attempt` over HTTPS (Secure, `Path=/`, so
 no sibling subdomain can set or shadow them) and the bare names scoped to
 `/auth` over plain HTTP, which only a server on this machine serves

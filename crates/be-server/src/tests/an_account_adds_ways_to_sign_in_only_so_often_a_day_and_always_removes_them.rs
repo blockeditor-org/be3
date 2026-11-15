@@ -2,7 +2,7 @@ use super::*;
 use crate::store::account_notices::{IDENTITY_CHANGES_PER_DAY, MAX_ACCOUNT_NOTICES};
 
 #[tokio::test]
-async fn an_account_changes_its_ways_to_sign_in_only_so_often_a_day() {
+async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_them() {
     let harness = Harness::start().await;
     harness.member("ada@example.com").await;
     let mut ada = Browser::at_localhost(&harness);
@@ -14,14 +14,14 @@ async fn an_account_changes_its_ways_to_sign_in_only_so_often_a_day() {
         .unwrap()
         .account;
     ada.add_passkey(&harness).await;
-    // A day's changes made, and as many fresh notices as the account keeps: the next change is
-    // refused, so none of those notices can be pushed out by changing more.
+    // A day's additions made, and as many fresh notices as the account keeps: the next addition
+    // is refused, so none of those notices can be pushed out by adding more.
     let database = metadata_database(&harness.directory);
     for _ in 1..IDENTITY_CHANGES_PER_DAY {
         database
             .execute(
-                "INSERT INTO identity_changes (account_id, added, label, created)
-                 VALUES (?1, 1, 'Passkey', unixepoch())",
+                "INSERT INTO identity_changes (account_id, kind, label, created)
+                 VALUES (?1, 'added', 'Passkey', unixepoch())",
                 [account.to_string()],
             )
             .unwrap();
@@ -42,22 +42,7 @@ async fn an_account_changes_its_ways_to_sign_in_only_so_often_a_day() {
         })
         .await;
     assert_eq!(status, 400, "{response}");
-    assert!(response.contains("changed too often today"), "{response}");
-    let id = page_of(&ada.get(&harness, "/auth/settings").await)
-        .identities
-        .into_iter()
-        .find(|identity| identity.kind == "passkey")
-        .unwrap()
-        .id;
-    let (status, response) = ada
-        .submit(
-            &harness,
-            "/auth/settings",
-            "/auth/settings/identity/remove",
-            &[("identity", &id)],
-        )
-        .await;
-    assert_eq!(status, 400, "{response}");
+    assert!(response.contains("were added today"), "{response}");
     // Past the bound, a notice in its first week is never let go of.
     let held: i64 = database
         .query_row(
@@ -67,10 +52,14 @@ async fn an_account_changes_its_ways_to_sign_in_only_so_often_a_day() {
         )
         .unwrap();
     assert_eq!(held, MAX_ACCOUNT_NOTICES);
-    // A day on, it changes again.
-    database
-        .execute("UPDATE identity_changes SET created = created - 86400", [])
-        .unwrap();
+    // A removal is never capped: the owner always removes what an intruder added, and it is
+    // still told and listed.
+    let id = page_of(&ada.get(&harness, "/auth/settings").await)
+        .identities
+        .into_iter()
+        .find(|identity| identity.kind == "passkey")
+        .unwrap()
+        .id;
     let (status, response) = ada
         .submit(
             &harness,
@@ -88,4 +77,11 @@ async fn an_account_changes_its_ways_to_sign_in_only_so_often_a_day() {
         )
         .unwrap();
     assert_eq!(held, MAX_ACCOUNT_NOTICES + 1, "none in its first week went");
+    let changes = page_of(&ada.get(&harness, "/auth/settings").await).identity_changes;
+    assert!(changes[0].text.starts_with("Removed Passkey added "), "{changes:?}");
+    // A day on, it adds again.
+    database
+        .execute("UPDATE identity_changes SET created = created - 86400", [])
+        .unwrap();
+    ada.add_passkey(&harness).await;
 }

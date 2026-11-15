@@ -374,6 +374,8 @@ impl ServerStore {
                 let account = begun
                     .account
                     .ok_or_else(|| refused("Sign in to continue."))?;
+                // The provider's name, as the account's notice and history name it.
+                let name = provider.name.clone();
                 let browser = hash_token(browser);
                 self.with_database(move |store, database| {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -390,6 +392,7 @@ impl ServerStore {
                         ));
                     }
                     add_provider_identity(&transaction, account, &subject, &email)?;
+                    super::account_notices::claim_identity_add(&transaction, account, &name)?;
                     transaction.commit()?;
                     store.sessions_changed();
                     Ok(Outcome::Linked)

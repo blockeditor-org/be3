@@ -4,6 +4,7 @@ use crate::{
     passkeys,
     store::{
         AccountSession, MailLink, Profile, ServerStore,
+        account_notices::ChangeKind,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
         providers::{self, Intent, Outcome},
     },
@@ -57,23 +58,31 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
     });
 }
 
-/// Tells the account that a way to sign in was added or removed: on its devices and in the
-/// settings page's history (`store/account_notices.rs`), and by mail when it has an email.
+/// Tells the account its ways to sign in changed: on its devices and in the settings page's
+/// history (`store/account_notices.rs`), and by mail to `email` when it is not empty. While mail
+/// goes only to the server's log, the history and the notices are how the account hears of it.
+/// `recorded` says the history row was already written where the change was made
+/// (`claim_identity_add`).
 async fn tell_identity(
     services: &Services,
     account: uuid::Uuid,
     email: &str,
-    added: bool,
+    kind: ChangeKind,
     label: &str,
+    recorded: bool,
 ) {
-    let (subject, text) = match added {
-        true => (
+    let (subject, text) = match kind {
+        ChangeKind::Added => (
             "A way to sign in to your be3 account was added",
             format!("{label} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
         ),
-        false => (
+        ChangeKind::Removed => (
             "A way to sign in to your be3 account was removed",
             format!("{label} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
+        ),
+        ChangeKind::Email => (
+            "Your be3 email address changed",
+            format!("Your account's email changed to {label}. If this was not you, sign in and check your account, or contact your server operator."),
         ),
     };
     if !email.is_empty() {
@@ -85,7 +94,7 @@ async fn tell_identity(
     }
     if services
         .store
-        .identity_changed(account, added, label.to_owned(), text)
+        .identity_changed(account, kind, label.to_owned(), text, recorded)
         .await
         .is_ok()
     {
@@ -95,16 +104,6 @@ async fn tell_identity(
             .send_account(account, 0, None, &crate::watch::Push::AccountNoticesChanged)
             .await;
     }
-}
-
-/// Tells the account that a way to sign in was removed.
-async fn identity_notice(services: &Services, account: uuid::Uuid, email: &str, removed: &str) {
-    tell_identity(services, account, email, false, removed).await;
-}
-
-/// Tells the account that a way to sign in was added.
-async fn identity_added_notice(services: &Services, account: uuid::Uuid, email: &str, added: &str) {
-    tell_identity(services, account, email, true, added).await;
 }
 
 /// Tells an account's old email that the account's email changed.
@@ -247,7 +246,7 @@ pub(crate) async fn handle(
                     _ => config.allow_login,
                 }, services.config.clone()).await?;
                 response.attempt = Some(String::new());
-                if let Some(linked) = &entered.linked { identity_added_notice(services, entered.account, &entered.email, &provider_identity_label(&services.config, linked)).await; }
+                if let Some(linked) = &entered.linked { tell_identity(services, entered.account, &entered.email, ChangeKind::Added, &provider_identity_label(&services.config, linked), false).await; }
                 match entered.session {
                     Some(session) => {
                         if !token.is_empty() { services.store.logout(token).await?; }
@@ -259,9 +258,8 @@ pub(crate) async fn handle(
             },
             "/auth/settings/identity/remove" => {
                 let account = account()?;
-                services.store.identity_change_room(account).await?;
                 let removed = services.store.remove_identity(account, token, value("identity"), issuers(&services.config), passkeys::rp_id(origin)).await?;
-                if let Some(profile) = profile.as_ref() { identity_notice(services, profile.account, &profile.email, &identity_label(&services.config, &removed)).await; }
+                if let Some(profile) = profile.as_ref() { tell_identity(services, profile.account, &profile.email, ChangeKind::Removed, &identity_label(&services.config, &removed), false).await; }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/passkey/sign-in" => {
@@ -295,12 +293,12 @@ pub(crate) async fn handle(
                 let Some(passkeys::Ceremony::Add { account: began, state }) = ceremony else { return Err(invalid("Open your account settings and try again.")) };
                 if began != account { return Err(invalid("Open your account settings and try again.")); }
                 services.store.require_fresh(token).await?;
-                services.store.identity_change_room(account).await?;
+                services.store.identity_add_room(account).await?;
                 let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
                 let credential: webauthn_rs::prelude::RegisterPublicKeyCredential = passkeys::answer(value("credential"))?;
                 let passkey = relying_party.finish_passkey_registration(&credential, &state).map_err(passkeys::not_accepted)?;
                 let added = services.store.add_passkey(&passkeys::rp_id(origin).unwrap_or_default(), account, token, passkey).await?;
-                if let Some(profile) = profile.as_ref() { identity_added_notice(services, profile.account, &profile.email, &identity_label(&services.config, &added)).await; }
+                if let Some(profile) = profile.as_ref() { tell_identity(services, profile.account, &profile.email, ChangeKind::Added, &identity_label(&services.config, &added), true).await; }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/link" => {
@@ -310,8 +308,10 @@ pub(crate) async fn handle(
                 response.location = Some("/auth".into());
             },
             "/auth/verify" => {
-                let old_email = services.store.confirm_mail(value("token")).await?;
+                let (account, old_email, new_email) = services.store.confirm_mail(value("token")).await?;
                 if !old_email.is_empty() { email_moved_notice(services, old_email); }
+                // The old address was mailed above; the new one verified it, and needs no mail.
+                tell_identity(services, account, "", ChangeKind::Email, &new_email, false).await;
                 response.location = Some("/auth/email-updated".into());
             },
             "/auth/code" => {
@@ -647,11 +647,11 @@ pub(crate) async fn handle(
                 .await?
                 .into_iter()
                 .map(|change| IdentityChange {
-                    text: format!(
-                        "{} {}",
-                        if change.added { "Added" } else { "Removed" },
-                        change.label
-                    ),
+                    text: match change.kind {
+                        ChangeKind::Added => format!("Added {}", change.label),
+                        ChangeKind::Removed => format!("Removed {}", change.label),
+                        ChangeKind::Email => format!("Email changed to {}", change.label),
+                    },
                     when: passkeys::utc_minute(change.created),
                 })
                 .collect(),
@@ -775,7 +775,7 @@ async fn provider_step(
             }
             if let (Intent::Link, Some(account)) = (intent, account) {
                 services.store.require_fresh(token).await?;
-                services.store.identity_change_room(account).await?;
+                services.store.identity_add_room(account).await?;
             }
             // Before the provider is called, so strangers can't make the server call it more.
             services.store.provider_room(address).await?;
@@ -844,6 +844,17 @@ async fn provider_step(
                 } => {
                     if let Some(old) = moved_from {
                         email_moved_notice(services, old);
+                        if let Ok(profile) = services.store.browser_profile(&session).await {
+                            tell_identity(
+                                services,
+                                profile.account,
+                                "",
+                                ChangeKind::Email,
+                                &profile.email,
+                                false,
+                            )
+                            .await;
+                        }
                     }
                     if !token.is_empty() {
                         services.store.logout(token).await?;
@@ -857,8 +868,15 @@ async fn provider_step(
                             &services.config,
                             &format!("{} ", configured.issuer),
                         );
-                        identity_added_notice(services, profile.account, &profile.email, &added)
-                            .await;
+                        tell_identity(
+                            services,
+                            profile.account,
+                            &profile.email,
+                            ChangeKind::Added,
+                            &added,
+                            true,
+                        )
+                        .await;
                     }
                     "/auth/settings?saved=1".into()
                 }

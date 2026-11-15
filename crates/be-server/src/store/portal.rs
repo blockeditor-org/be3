@@ -217,7 +217,9 @@ impl ServerStore {
 
     /// Verifies a new email from the link mailed to it, and answers the address it replaced,
     /// empty for an account that had none.
-    pub async fn confirm_mail(&self, token: &str) -> Result<String, ServerError> {
+    /// Confirms an email change by its link's token; answers the account, its old email (empty
+    /// for none) and its new one.
+    pub async fn confirm_mail(&self, token: &str) -> Result<(Uuid, String, String), ServerError> {
         let token = token.to_owned();
         self.with_database(move |store, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -252,7 +254,7 @@ impl ServerStore {
             transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
             transaction.commit()?;
             store.sessions_changed();
-            Ok(old_email)
+            Ok((super::parse_uuid(&account)?, old_email, email))
         })
         .await
     }

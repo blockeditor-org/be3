@@ -108,12 +108,13 @@ const SCHEMA: &str = "
     );
     CREATE INDEX account_notices_account ON account_notices(account_id, id);
 
-    -- Ways to sign in added to or removed from an account, kept `IDENTITY_HISTORY` for the
-    -- portal's settings page and to cap how many change a day.
+    -- Ways to sign in added to or removed from an account, and its email changing (`kind`:
+    -- `added`, `removed`, `email`), kept `IDENTITY_HISTORY` for the portal's settings page and
+    -- to cap how many are added a day.
     CREATE TABLE identity_changes (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-        added           INTEGER NOT NULL,
+        kind            TEXT NOT NULL,
         label           TEXT NOT NULL,
         created         INTEGER NOT NULL
     );
