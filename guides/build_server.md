@@ -163,7 +163,8 @@ native builds. Its doc comments (`Host`, `Builds`) cover the rules.
 - `POST /build/products/PRODUCT/COMMIT` asks for a build and answers its status as JSON
   (`queued` with `position`, `running`, `succeeded` with `manifest`, `failed` with `error`); `GET`
   reads it without asking. `GET .../log?from=N` streams the build's log from byte N.
-- Products (crates/be-tool-build-helper/src/products.rs): `android` and `launcher-android`
+- Products (crates/be-tool-build-helper/src/products.rs; `android` fails until third-party/v8/BUCK
+  pins a V8 for Android, plans/wasm_on_v8.md): `android` and `launcher-android`
   (`:android-dist`, signed with CI's key), and `native-PLATFORM` and `beui-demo-PLATFORM`, release
   builds for the six Linux, macOS and Windows platforms.
 - Only commits on a branch of the repository are built (422 otherwise), so a fork's code never

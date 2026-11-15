@@ -9,7 +9,9 @@
 # Needs: Linux on x86_64 (the NDK V8 downloads is linux-x86_64's); git, curl,
 # unzip, python3; rustup; Clang 21 or newer with libclang for bindgen
 # (LIBCLANG_PATH, e.g. /usr/lib/llvm-21/lib). V8's build downloads the rest:
-# NDK r26c, Chromium's clang, gn and ninja, android_platform and catapult.
+# NDK r26c, Chromium's clang, gn and ninja, android_platform and catapult. With
+# LIBCLANG_PATH set, V8 may compile with that Clang rather than Chromium's,
+# which the other platforms' prebuilts were built with; either works.
 #
 # Usage: scripts/internal/build-rusty-v8-android.sh WORK_DIRECTORY
 # It prints the two files to upload and the sha256 and size of each.

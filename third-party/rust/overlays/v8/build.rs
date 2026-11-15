@@ -29,6 +29,7 @@ fn main() {
     if windows {
         println!("cargo:rustc-link-lib=dylib=winmm");
         println!("cargo:rustc-link-lib=dylib=dbghelp");
+        // msvcprt as nothing here sets crt-static; with it, libcpmt.
         println!("cargo:rustc-link-lib=dylib=msvcprt");
     }
 }
