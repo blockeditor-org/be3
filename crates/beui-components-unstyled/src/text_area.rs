@@ -43,7 +43,6 @@ use beui_view::types::{CursorIcon, ImeEvent, ImeText, Key, KeyPress, PointerPres
 use beui_view::types::{HANDLE_RADIUS, handle_center, toolbar_anchor};
 use beui_view::types::{Pos2, Rect, Vec2};
 
-use beui_text_editor_core::ListMarker;
 use beui_text_editor_core::TextFragment;
 use completion::{Completions, Query, query};
 use lines::{Lines, SingleLine};
@@ -1021,10 +1020,6 @@ fn hold(cx: &Context, press: PointerPress) {
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
     if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
-            Inline::Marker(ListMarker::Check(_)) => {
-                cx.state.set_selecting(false);
-                return;
-            }
             Inline::Widget(index) => {
                 let Some(widget) = cx.widgets.get_untracked().get(index).cloned() else {
                     return;
@@ -1900,19 +1895,11 @@ fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> Node
     built
 }
 
+/// The area's own cursor. A checkbox marker's hook draws its own control, which shows its
+/// pointing hand and takes its clicks over exactly its rect; the rest of the marker's column is
+/// text, so it is not treated as part of the checkbox here.
 fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
-    let pointing = matches!(
-        cx.inline_at(pos),
-        Some((
-            _,
-            _,
-            InlineItem {
-                inline: Inline::Marker(ListMarker::Check(_)),
-                ..
-            }
-        ))
-    ) || cx.gutter_arrow_at(pos).is_some();
-    match pointing {
+    match cx.gutter_arrow_at(pos).is_some() {
         true => CursorIcon::PointingHand,
         false => CursorIcon::Text,
     }
