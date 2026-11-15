@@ -17,7 +17,13 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
 
     let again = Entry::retirement(&old, &thief, account, block, retired.hash());
     assert!(
-        check_log(LogKind::Block, block, pinned, &[root.clone(), retired.clone(), again]).is_err(),
+        check_log(
+            LogKind::Block,
+            block,
+            pinned,
+            &[root.clone(), retired.clone(), again]
+        )
+        .is_err(),
         "the old key retired the account again after its retirement"
     );
     let unendorsed = Entry::retirement(&thief, &thief, account, block, pinned);
@@ -27,7 +33,13 @@ fn a_retired_key_signs_nothing_after_its_retirement() {
     );
     let onward = Entry::retirement(&new, &thief, account, block, retired.hash());
     assert!(
-        check_log(LogKind::Block, block, pinned, &[root.clone(), retired.clone(), onward]).is_ok(),
+        check_log(
+            LogKind::Block,
+            block,
+            pinned,
+            &[root.clone(), retired.clone(), onward]
+        )
+        .is_ok(),
         "the new key retires in turn"
     );
     let misplaced = Entry::retirement(&old, &new, account, block, [0; 32]);

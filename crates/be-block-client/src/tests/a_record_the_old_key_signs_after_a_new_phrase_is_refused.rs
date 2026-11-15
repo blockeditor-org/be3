@@ -48,7 +48,11 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
 
     let laptop = harness.second(&member).await;
     let retired = laptop.access_log(team).await.unwrap();
-    assert_eq!(retired.len(), 2, "the workspace's log is its root and the retirement");
+    assert_eq!(
+        retired.len(),
+        2,
+        "the workspace's log is its root and the retirement"
+    );
     assert_eq!(laptop.organization_log().await.unwrap().len(), 2);
 
     // Whoever holds the old phrase retires the account again, to keys of their own.
@@ -85,7 +89,11 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         .execute(
             "INSERT INTO organization_log (organization_id, position, entry, signer)
              VALUES (?1, 2, ?2, ?3)",
-            rusqlite::params![organization.to_string(), again.encode(), owner.account().to_string()],
+            rusqlite::params![
+                organization.to_string(),
+                again.encode(),
+                owner.account().to_string()
+            ],
         )
         .unwrap();
     drop(database);

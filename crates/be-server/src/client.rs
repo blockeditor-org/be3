@@ -2443,7 +2443,15 @@ impl Client {
                     let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                     connection
                         .store
-                        .set_recovery_key(account, public, signing, sealed, own, changes, retirements)
+                        .set_recovery_key(
+                            account,
+                            public,
+                            signing,
+                            sealed,
+                            own,
+                            changes,
+                            retirements,
+                        )
                         .await?;
                     connection.contacts_changed(&told).await;
                     Ok(())

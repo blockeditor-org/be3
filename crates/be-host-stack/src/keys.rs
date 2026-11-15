@@ -178,7 +178,10 @@ impl KeyState {
                 )
             })
             .unwrap_or_default();
-        let resealed = match (held.is_empty() && own.is_empty() && logs.is_empty(), identity) {
+        let resealed = match (
+            held.is_empty() && own.is_empty() && logs.is_empty(),
+            identity,
+        ) {
             (true, _) => Some(be_block_client::contacts::NewIdentity {
                 sealed: Vec::new(),
                 own: Vec::new(),

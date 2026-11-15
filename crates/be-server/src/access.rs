@@ -2,8 +2,8 @@
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
 use be_block_keys::{Entry, LogKind, PublicIdentity, Record, RecoveryPublic, SigningPublic};
-use be_block_protocol::{Retirement, SignedLog};
 use be_block_protocol::ErrorCode;
+use be_block_protocol::{Retirement, SignedLog};
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
 
@@ -118,7 +118,11 @@ pub(crate) fn store_organization_root(
     connection.execute(
         "INSERT INTO organization_log (organization_id, position, entry, signer)
          VALUES (?1, 0, ?2, ?3)",
-        params![organization.to_string(), entry.encode(), account.to_string()],
+        params![
+            organization.to_string(),
+            entry.encode(),
+            account.to_string()
+        ],
     )?;
     Ok(())
 }
@@ -188,7 +192,10 @@ pub(crate) fn signed_logs(
     let organizations: Vec<(String, String)> = statement
         .query_map([account.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<_, _>>()?;
-    for (kind, rows) in [(LogKind::Block, blocks), (LogKind::Organization, organizations)] {
+    for (kind, rows) in [
+        (LogKind::Block, blocks),
+        (LogKind::Organization, organizations),
+    ] {
         for (organization, log) in rows {
             let organization = crate::store::parse_uuid(&organization)?;
             let log = crate::store::parse_uuid(&log)?;
@@ -233,10 +240,15 @@ pub(crate) fn append_retirements(
     for log in &needed {
         let retirement = given
             .get(&(log.organization, log.kind, log.log))
-            .ok_or_else(|| refused("a new recovery key retires the old one in every log it signed in"))?;
+            .ok_or_else(|| {
+                refused("a new recovery key retires the old one in every log it signed in")
+            })?;
         let kind = log_kind(log.kind);
         let mut entries = entries(connection, kind, log.organization, log.log)?;
-        let pinned = entries.first().map(Entry::hash).ok_or(ServerError::Corrupt)?;
+        let pinned = entries
+            .first()
+            .map(Entry::hash)
+            .ok_or(ServerError::Corrupt)?;
         let entry = Entry::decode(&retirement.entry)
             .map_err(|_| refused("the retirement does not read"))?;
         let retires = matches!(
@@ -245,7 +257,9 @@ pub(crate) fn append_retirements(
                 if retired.account == account.into_bytes() && retired.new == *new
         );
         if !retires {
-            return Err(refused("a retirement retires the account's keys for its new ones"));
+            return Err(refused(
+                "a retirement retires the account's keys for its new ones",
+            ));
         }
         let position = entries.len();
         entries.push(entry.clone());

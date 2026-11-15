@@ -80,10 +80,9 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         .unwrap();
     let RecoveryKey {
         sealed, own, logs, ..
-    } =
-        crate::ask(client::keys::get_recovery_key(&owner.connection()))
-            .await
-            .expect("the server answers with the recovery key");
+    } = crate::ask(client::keys::get_recovery_key(&owner.connection()))
+        .await
+        .expect("the server answers with the recovery key");
     let block = Uuid::new_v4();
     let before = owner.sign_authored(block, b"before");
     let resealed = crate::contacts::new_identity(
