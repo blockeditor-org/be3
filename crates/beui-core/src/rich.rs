@@ -897,14 +897,16 @@ impl RichLayout {
                 line.edge = options.wrap_width;
                 top += line.height;
                 let Some((_, reach, limit, ink)) = broke else {
-                    if from != start || total - origin > wrap {
+                    if line.width > options.wrap_width {
                         line.width = line.width.min(inked - origin + indent);
                     }
                     line.reach = inked - origin + indent - WRAP_SLACK;
                     lines.push(line);
                     break;
                 };
-                line.width = line.width.min(ink + indent);
+                if line.width > options.wrap_width {
+                    line.width = line.width.min(ink + indent);
+                }
                 line.reach = reach + indent - WRAP_SLACK;
                 line.limit = limit + indent - WRAP_SLACK;
                 lines.push(line);
@@ -1022,10 +1024,7 @@ impl RichLayout {
         let Some(line) = self.lines.get(self.line_of(index)) else {
             return Rect::ZERO;
         };
-        let x = match index > line.hung {
-            true => line.x_of(index).min(line.edge - width),
-            false => line.x_of(index),
-        };
+        let x = line.x_of(index).min(line.edge - width);
         Rect::from_min_size(pos2(x, line.top), vec2(width, line.height))
     }
 
