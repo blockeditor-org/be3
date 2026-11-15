@@ -98,4 +98,20 @@ fn edits_deeper_than_the_merge_base_walk_are_merged_over_the_head_the_command_re
         Some("Oh\nhello\n"),
         "the line added elsewhere is merged with what the switch wrote"
     );
+    // The other device's side reaches its head and a commit a level for `MERGE_BASE_DEPTH`
+    // levels, this side at most as many, and the walk goes no further, though their history
+    // goes on past it.
+    let walked = crate::version::WALKED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let depth = crate::version::MERGE_BASE_DEPTH;
+    assert!(
+        matches!(
+            walked[..],
+            [(be_block_commit::MergeBase::TooDeep, reached)]
+                if reached > depth && reached <= 2 * (depth + 1)
+        ),
+        "the walk stopped at its depth: {walked:?}"
+    );
 }
