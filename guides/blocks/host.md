@@ -76,22 +76,30 @@ The worker's state is `Shared` (`worker.rs`); the part of it the host's synchron
 `lib.rs` read (the graph mirror, open blocks' content, histories and descriptions, version
 statuses, status counts, contacts, pairing, conflicts, search answers, editors' frames) is its
 `seen: Seen` (`seen.rs`), and `Shared` derefs to it. The host never locks `Shared`: the
-worker hands `Seen` over as a whole value, an `Arc<Seen>` swapped into a one-value atomic
-slot (`Handover`), which the host swaps out as it reads. Neither side waits on the other, as
-the web's page must not (plans/web_page_never_waits.md). The large parts are `Part`s, an
-`Arc` the worker copies on its next write, so a hand-over copies pointers. The maps in them
-are persistent (`imbl`), and the graph's nodes are `Arc<Node>`, so that write copies the
-path to what it changes, not the part: a head a replica reports, or one another device
-published, copies one node of the graph however large it is (the graph's
-`a_head_change_copies_one_node_not_the_graph_a_seen_shares` and the stack's
-`a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one` count it). A write that
-would change nothing must not be made: reaching a `Part` mutably copies it, so hot paths ask
-first (`Graph::reports`, `refers`, `derives`, `wanted`) and write only on a change.
+worker hands `Seen` over in bytes (postcard), the whole of it first and then each time what
+changed since the last (`seen::Update`, `diff.rs`), onto a lock-free stack (`Handover`) the
+host takes every update from as it reads, and applies in order to its copy. Neither side
+waits on the other, as the web's page must not (plans/web_page_never_waits.md). The large
+parts are `Part`s, an `Arc` the worker's last handed-over copy (`Shared::handed`) shares until
+the worker writes it. The maps in them are persistent and ordered (`imbl::OrdMap`), and the
+graph's nodes are `Arc<Node>`, so that write copies the path to what it changes, not the
+part, and what changed is found by walking the two versions' trees, skipping every subtree
+they still share: a head a replica reports, or one another device published, copies and
+hands over one node of the graph however large it is (the graph's
+`a_head_change_copies_one_node_not_the_graph_a_seen_shares` and
+`a_head_change_hands_over_one_node_not_the_graph`, and the stack's
+`a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one`). Anything else goes whole
+when it is not equal to what was handed over; what only the worker reads (the graph's moved
+nodes and logs) stays behind. A debug build's update carries the whole `Seen` now and then
+(each time in be-host-stack's tests), which the host asserts its copy equals, so a field the
+diff misses cannot drift apart unnoticed. A write that would change nothing must not be made:
+reaching a `Part` mutably copies it, so hot paths ask first (`Graph::reports`, `refers`,
+`derives`, `wanted`) and write only on a change.
 
 The worker publishes at the end of each pass and before the host hears anything from the
 worker thread: `changes::post`, `changes::wake` and a reply to a host call (every reply
 goes through `seen::after_publish`, a flush's answer too) are held thread-locally and go out from a task that publishes once the worker yields. So a
-read changes when its `Seen` lands, never before the host is told, and a test that heard a
+read changes when its update lands, never before the host is told, and a test that heard a
 reply reads what the worker did before it. `wait_until`, and a test's change to `Shared`,
 publish too.
 

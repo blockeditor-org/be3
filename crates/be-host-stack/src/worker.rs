@@ -704,6 +704,11 @@ pub(super) const PEER_MESSAGE_LIMIT: usize = 4096;
 #[derive(Default)]
 pub struct Shared {
     pub seen: crate::Seen,
+    /// The last `Seen` the worker handed over, which the next update says what changed since
+    /// (`seen::publish`); `None` until the first, which goes whole.
+    pub(crate) handed: Option<crate::Seen>,
+    /// How many updates the worker handed over, for a debug build to check one now and then.
+    pub(crate) updates: u64,
     pub presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub presence_revision: u64,
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
@@ -923,7 +928,7 @@ impl Shared {
     fn refresh_reach(&mut self) {
         let moved = match self.seen.graph.has_nodes_moved() {
             true => self.seen.graph.take_nodes_moved(),
-            false => imbl::HashSet::new(),
+            false => imbl::OrdSet::new(),
         };
         // A local account holds everything it has: nothing of it is out of reach.
         let Some(peer) = self
@@ -933,14 +938,14 @@ impl Shared {
         else {
             if self.reach_offline {
                 self.reach_offline = false;
-                self.seen.out_of_reach = imbl::HashSet::new();
+                self.seen.out_of_reach = imbl::OrdSet::new();
             }
             self.reach_dirty.clear();
             return;
         };
         let blocks: Vec<Uuid> = match std::mem::replace(&mut self.reach_offline, true) {
             false => {
-                self.seen.out_of_reach = imbl::HashSet::new();
+                self.seen.out_of_reach = imbl::OrdSet::new();
                 self.seen.graph.nodes().map(|node| node.id).collect()
             }
             true => moved

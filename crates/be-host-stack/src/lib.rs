@@ -15,6 +15,7 @@ pub mod authorship;
 mod changes;
 pub mod conflicts;
 pub mod device_push;
+mod diff;
 pub mod discovery;
 mod graph;
 pub mod invite_link;
@@ -101,7 +102,7 @@ impl Config {
     }
 }
 
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Content {
     pub content_type: Uuid,
     /// Behind an `Arc`, so copying a `Seen` to hand it over copies no open block's content.
@@ -249,10 +250,12 @@ struct Stack {
     /// The blocks whose version status each owner shows (`want_versions`).
     versioned: std::collections::HashMap<Owner, Vec<Uuid>>,
     tried: std::collections::HashSet<Uuid>,
-    /// Where the worker hands over each `Seen` it publishes.
+    /// Where the worker hands over what changed in its `Seen` (`seen::Update`).
     handover: Arc<seen::Handover>,
-    /// What the page reads: the last `Seen` taken from `handover`, with the page's edits the
-    /// worker had not applied by then laid over it again.
+    /// The worker's `Seen` as of the last update taken from `handover`.
+    base: Seen,
+    /// What the page reads: `base`, with the page's edits the worker had not applied by then
+    /// laid over it again.
     view: Arc<Seen>,
     /// The page's edits the worker had not applied by `view`'s `Seen`, numbered.
     edits: Vec<(u64, Vec<Edit>)>,
@@ -275,24 +278,46 @@ struct Stack {
 }
 
 impl Stack {
-    /// Takes the `Seen` the worker last handed over, if it has not been taken.
+    /// Applies the updates the worker handed over since the last take.
     fn catch_up(&mut self) {
-        let Some(seen) = self.handover.take() else {
+        let handed = self.handover.take();
+        if handed.is_empty() {
             return;
-        };
-        self.edits
-            .retain(|(number, _)| *number > seen.edits_applied);
-        self.view = seen;
-        if !self.edits.is_empty() {
-            // The page heard of these edits as it made them: laying them over a newer `Seen`
-            // tells it nothing again.
-            let view = Arc::make_mut(&mut self.view);
-            changes::quietly(|| {
-                for edit in self.edits.iter().flat_map(|(_, edits)| edits) {
-                    edit.apply(view);
-                }
-            });
         }
+        for bytes in handed {
+            // The worker encoded it from a `Handed`: bytes that do not decode are a bug.
+            let handed: seen::Handed =
+                postcard::from_bytes(&bytes).expect("the worker's update decodes");
+            match handed.update {
+                seen::Update::Whole(seen) => self.base = seen,
+                seen::Update::Changed(delta) => diff::Diff::apply(&mut self.base, delta),
+            }
+            #[cfg(debug_assertions)]
+            if let Some(mut check) = handed.check {
+                // A moment travels as an offset from now, so the two copies read it back a
+                // moment apart.
+                if let (Some(checked), Some(made)) = (check.modules_due, self.base.modules_due)
+                    && checked.max(made) - checked.min(made) < std::time::Duration::from_secs(1)
+                {
+                    check.modules_due = self.base.modules_due;
+                }
+                assert!(
+                    self.base == check,
+                    "what the page made of the worker's updates is not the worker's Seen"
+                );
+            }
+        }
+        self.edits
+            .retain(|(number, _)| *number > self.base.edits_applied);
+        let mut view = self.base.clone();
+        // The page heard of these edits as it made them: laying them over a newer `Seen` tells
+        // it nothing again.
+        changes::quietly(|| {
+            for edit in self.edits.iter().flat_map(|(_, edits)| edits) {
+                edit.apply(&mut view);
+            }
+        });
+        self.view = Arc::new(view);
     }
 
     fn view(&mut self) -> Arc<Seen> {
@@ -360,6 +385,7 @@ pub fn start(config: Config) {
         versioned: std::collections::HashMap::new(),
         tried: std::collections::HashSet::new(),
         handover,
+        base: Seen::default(),
         view: seen,
         edits: Vec::new(),
         edited: 0,
