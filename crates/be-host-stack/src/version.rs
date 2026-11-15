@@ -2117,9 +2117,13 @@ async fn relist(
             }
             None => None,
         };
+        // A child change can be a sequence edit (a block URL rewritten in text), whose ids are
+        // the client's: this process's own random client keeps them apart from every other
+        // device's, where a fixed one would collide.
+        let client = be_block_content::be_block_model::local_client();
         let bytes = context
             .replicas
-            .apply(ctx, content_type, current, 0, change.clone())
+            .apply(ctx, content_type, current, client, change.clone())
             .await?
             .ok_or("That place cannot hold another block.")?;
         let description = context
