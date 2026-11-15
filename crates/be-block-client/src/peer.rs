@@ -311,6 +311,9 @@ pub struct Peer<S: ObjectStore> {
     /// The server's clock as measured when the session opened, which commits are stamped by
     /// (`commit_time`, `server_now`).
     server_clock: Mutex<ServerClock>,
+    /// A local account's peer (`Peer::local`), which has no server: what it makes is final as
+    /// it is made.
+    local: bool,
 }
 
 /// What this device knows of the server's clock (`Peer::server_now`).
@@ -376,6 +379,45 @@ impl<S: ObjectStore> Peer<S> {
         Ok(peer)
     }
 
+    /// A local account's peer, which has no server (plans/local_accounts.md): its organization
+    /// is made on this device the first time, with this account its one member, and what it
+    /// makes is final as it is made. A commit is the block's head once it is sealed, as the
+    /// server would take it, compared with the head it went on (`send_pending`), and creations,
+    /// moves and definitions are settled as they are kept (`settle_locally`), so nothing waits
+    /// to be sent. Listings answer from what the device holds (`Refs::local_listing`), and
+    /// everything that needs a server, sharing above all, is refused as offline.
+    pub fn local(
+        config: PeerConfig,
+        account: Uuid,
+        organization: Uuid,
+        store: S,
+    ) -> Result<Self, ClientError> {
+        let config = PeerConfig {
+            url: String::new(),
+            ..config
+        };
+        let mut peer = Self::assemble(Connection::offline(), account, organization, config, store)?;
+        peer.local = true;
+        if peer.refs.session().is_none() {
+            peer.refs.set_session(Session {
+                role: OrganizationRole::Editor,
+                kind: OrganizationKind::Personal,
+                escrows: Vec::new(),
+                pinned: None,
+                server: None,
+                server_offset: None,
+            })?;
+        }
+        *peer.session.lock().unwrap() = (OrganizationRole::Editor, OrganizationKind::Personal);
+        peer.settle_locally()?;
+        Ok(peer)
+    }
+
+    /// Whether this is a local account's peer, with no server (`Peer::local`).
+    pub fn is_local(&self) -> bool {
+        self.local
+    }
+
     fn assemble(
         connection: Arc<Connection>,
         account: Uuid,
@@ -428,6 +470,7 @@ impl<S: ObjectStore> Peer<S> {
                 anchor: None,
                 offset: session.as_ref().and_then(|session| session.server_offset),
             }),
+            local: false,
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -1550,8 +1593,11 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// The blocks of `listing`, which this connection follows from then on (`unlist` stops
-    /// it); offline, what this device last heard.
+    /// it); offline, what this device last heard, and for a local account what it holds.
     pub async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ClientError> {
+        if self.local {
+            return Ok(self.refs.current(self.refs.local_listing(listing)));
+        }
         if let Some(block) = about(listing)
             && self.refs.creating(block)
         {
@@ -1980,7 +2026,7 @@ impl<S: ObjectStore> Peer<S> {
             Sealed::Unchanged(head) => return Ok(Saved::Unchanged(head)),
             Sealed::Sealed(commit) => commit,
         };
-        if !self.is_attached() {
+        if !self.is_attached() && !self.local {
             return Ok(Saved::Kept(commit));
         }
         let saved = match self.publish_sealed(block, commit).await {
@@ -2146,6 +2192,17 @@ impl<S: ObjectStore> Peer<S> {
         let Some((sequence, pending)) = self.pending_publish(block, commit) else {
             return Err(ClientError::MissingObject(commit.hash()));
         };
+        // With no server, what waits ahead of it is settled first, in order, and it is taken
+        // if it goes on the head the block has then, or else refused as the server would.
+        if self.local {
+            self.settle_locally()?;
+            return Ok(match self.pending_publish(block, commit) {
+                None => Saved::Published(commit),
+                Some(_) => Saved::Rejected {
+                    head: self.known_remote_head(block),
+                },
+            });
+        }
         // A creation, move or definition of the block waits in the outbox, or a commit of it
         // sealed before this one that this one does not build on (a definition's commit on the
         // same head): the drain sends them in order, and the server refuses this one as stale
@@ -2168,6 +2225,9 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
+        if self.local {
+            return self.publish_locally(pending);
+        }
         let Pending {
             block,
             commit: id,
