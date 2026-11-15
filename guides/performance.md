@@ -255,6 +255,8 @@ faster by more threads is no cheaper there, and one that waits idle costs little
   started. bash's `time` misses a browser's processes, which are reparented and never reaped.
 - **Per test in a crate:** run its `:test-harness` here with `RUSTC_BOOTSTRAP=1 HARNESS -Z
   unstable-options --report-time`.
+- **A cached test** keeps its output, `run-test` line included, so `./scripts/test //crates/x:test`
+  reads what each of a crate's test targets cost without running them again.
 
 ### What it cost in November 2026
 
@@ -281,6 +283,18 @@ was never the cost.
 
 Since then the web host tests draw a smaller page (a quarter less) and are thorough tests, which
 verify leaves out (guides/buck2.md, What verify builds); the C under host builds is optimised.
+
+### What a commit reruns
+
+Over the 300 commits to November 15, 2026, a commit that edits a crate's library reruns about 486
+CPU s of tests on average (each target's CPU from its cached output, times the share of commits
+that rebuild it). Two thirds of that is the host tests: all 136 run be-host, which 192 of 244
+such commits rebuild (through beui, the dock, the block stack and the server, all of which they
+exercise), and they cost about 416 CPU s a run. Next come beui-host (42 s a run, rerun by 115),
+be-host-stack (26 s, 174), infinite-canvas (28 s, 148), be-block-client (58 s, 59), beui-demo
+and the desktop app. A host test costs at least about 0.9 CPU s on the build server, the start
+and stop of be-host with the base apps; most of that is the apps' start in wasmtime (module
+deserialization and type registration), not signing in or the embedded server.
 
 ### Rules
 
