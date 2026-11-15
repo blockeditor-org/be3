@@ -1408,13 +1408,9 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
         placement.is_beside() && placement.edge() == edge
     });
     let concealed = create_memo(move || matches!(holder, BarHolder::Dock) && dock.conceals(edge));
-    let shown = create_memo(move || match bars.with(Vec::is_empty) || concealed.get() {
-        true => Vec::new(),
-        false => vec![edge],
-    });
     let band = view! {
         <List direction={across(edge)} spacing=0.0>
-            <ForEach value={shown}>|edge: DockEdge| {
+            <Show value={move || !bars.with(Vec::is_empty) && !concealed.get()}>|| {
                 let dock = dock;
                 let ends = create_signal([0.0_f32; 2]);
                 let body = view! {
@@ -1443,7 +1439,7 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
                     </Layers>
                 };
                 dock.bar_band.call(DockBarBandHandle { edge, body })
-            }</ForEach>
+            }</Show>
         </List>
     };
     if let BarHolder::Tab { .. } = holder {

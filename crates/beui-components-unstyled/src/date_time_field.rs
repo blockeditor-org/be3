@@ -151,7 +151,6 @@ pub fn DateTimeField(
     on_open: Callback<DateSegment>,
 ) -> NodeId {
     let order = segments(parts, hour_cycle);
-    let count = order.len();
     let first = order[0];
     let initial = value.get_untracked();
     let values = create_signal(split(initial, hour_cycle));
@@ -236,20 +235,20 @@ pub fn DateTimeField(
         node
     }));
 
-    let items: Vec<usize> = (0..count).collect();
+    let order = state.order.value();
+    let segments: Vec<(DateSegment, String)> = order
+        .iter()
+        .enumerate()
+        .map(|(index, &kind)| match index {
+            0 => (kind, String::new()),
+            _ => (kind, separator(order[index - 1], kind)),
+        })
+        .collect();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach value={items}>|index: usize| {
-                let order = state.order.value();
-                let segment_kind = order[index];
-                let prefix = match index {
-                    0 => String::new(),
-                    _ => separator(order[index - 1], segment_kind),
-                };
-                view! {
-                    <SegmentView state segment=segment_kind prefix literal face={segment} />
-                }
-            }</ForEach>
+            <ForEach value={segments}>|(kind, prefix): (DateSegment, String)|
+                <SegmentView state segment=kind prefix literal face={segment} />
+            </ForEach>
         </List>
     }
 }

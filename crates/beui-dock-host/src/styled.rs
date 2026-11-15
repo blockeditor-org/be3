@@ -960,29 +960,25 @@ fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
 #[component]
 fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
     let DockHighlightHandle { group_with } = handle;
-    let grouping = create_memo(move || group_with.with(Option::is_some));
-    let label = create_memo(move || {
-        group_with
-            .get()
-            .map(|title| format!("Group with {title}"))
-            .unwrap_or_default()
-    });
     view! {
         <Layers>
             <Frame fill=ColorRole::Accent radius=Radius::Md opacity=DROP_OPACITY />
             <Frame @test_id={"dock.drop"} border={Border::FOCUS} radius=Radius::Md />
-            <Show value={grouping}>
-                <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
-                    <Frame
-                        fill=ColorRole::Accent
-                        radius=Radius::Md
-                        padding=DROP_LABEL_PADDING
-                        @test_id="dock.drop.label"
-                    >
-                        <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
+            <Show value={group_with}>|title: ReadSignal<String>| {
+                let label = create_memo(move || format!("Group with {}", title.get()));
+                view! {
+                    <Frame align=Align2::CENTER padding=DROP_LABEL_MARGIN>
+                        <Frame
+                            fill=ColorRole::Accent
+                            radius=Radius::Md
+                            padding=DROP_LABEL_PADDING
+                            @test_id="dock.drop.label"
+                        >
+                            <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
+                        </Frame>
                     </Frame>
-                </Frame>
-            </Show>
+                }
+            }</Show>
         </Layers>
     }
 }

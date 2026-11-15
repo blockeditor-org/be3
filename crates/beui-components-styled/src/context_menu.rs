@@ -11,7 +11,7 @@ use crate::scroll::autoscroll_marker;
 use crate::sheet::AnchoredSheet;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::theme::SCROLL_FADE;
-use crate::tokens::{Padding, Size, Space};
+use crate::tokens::{Length, Padding, Size, Space};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuStyle, ScrollStyle, SheetWhen,
@@ -367,9 +367,7 @@ pub(crate) fn MenuTreeLead(
     chevron: Size,
 ) -> DynamicSegment<ListItem> {
     let indent = indent.px();
-    let depth = create_memo(move || depth.get());
     let expanded = create_memo(move || expanded.get());
-    let width = create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent));
     let glyph = create_memo(move || match expanded.get() {
         Some(true) => Some(ICON_CHEVRON_DOWN),
         Some(false) => Some(ICON_CHEVRON_RIGHT),
@@ -380,9 +378,9 @@ pub(crate) fn MenuTreeLead(
         _ => "Expand".to_owned(),
     });
     view! {
-        <Show value={move || depth.with(Option::is_some)}>
+        <Show value={depth}>|depth: ReadSignal<usize>|
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-                <Frame width />
+                <Frame width={move || Length::Size(Size::Custom(depth.get() as f32 * indent))} />
                 <unstyled::Button
                     label
                     disabled={move || expanded.with(Option::is_none)}

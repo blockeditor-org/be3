@@ -71,14 +71,6 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
         naturals.set(vec![None; count]);
         stage.set(Stage::Probe(0).settle(count));
     });
-    let staged = create_memo(move || {
-        let stage = stage.get().settle(count.get());
-        let at = match stage {
-            Stage::Probe(at) | Stage::Show(at) => at,
-        };
-        nodes.get().get(at).map(|node| (stage, *node))
-    });
-    let keys = create_memo(move || staged.get().into_iter().collect::<Vec<_>>());
     let claim = create_memo(move || {
         let first = naturals.with(|naturals| naturals.first().copied().flatten());
         Extent::at_most(first.unwrap_or(0.0))
@@ -112,7 +104,16 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
     view! {
         <Layers>
             {sizer}
-            <ForEach value={keys}>|(stage, node): (Stage, NodeId)| {
+            <Dynamic
+                value={move || {
+                    let stage = stage.get().settle(count.get());
+                    let at = match stage {
+                        Stage::Probe(at) | Stage::Show(at) => at,
+                    };
+                    nodes.get().get(at).map(|node| (stage, *node))
+                }}
+                fallback=()
+            >|(stage, node): (Stage, NodeId)| {
                 let shown = view! {
                     <Portal node={Some(node)} />
                 };
@@ -146,7 +147,7 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
                         </List>
                     </Frame>
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }

@@ -1428,12 +1428,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
         highlighted,
         ..
     } = handle;
-    let label = create_memo(move || {
-        completion
-            .get()
-            .map(|item| format!("{} {}", item.insert, item.label))
-            .unwrap_or_default()
-    });
+    let label = format!("{} {}", completion.insert, completion.label);
     let fill = create_memo(move || match highlighted.get() {
         true => ColorRole::Hover,
         false => ColorRole::None,

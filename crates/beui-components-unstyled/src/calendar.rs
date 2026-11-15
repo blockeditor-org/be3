@@ -205,55 +205,54 @@ pub fn Calendar(
 
     let grid_start =
         create_memo(move || active.get().first_of_month().start_of_week(first_weekday));
-    let days_shown = create_memo(move || mode.get() == CalendarMode::Days);
-    let months_shown = create_memo(move || mode.get() == CalendarMode::Months);
-    let years_shown = create_memo(move || mode.get() == CalendarMode::Years);
     view! {
         <List spacing>
             {header_node}
-            <Show value={days_shown}>||
-                <CalendarGrid label=label spacing>
-                    <List direction=Direction::Horizontal spacing>
-                        <ForEach value={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
-                            <ListItem grow=1.0>
-                                <CalendarWeekday
-                                    weekday={first_weekday.offset(column as u32)}
-                                    face={weekday}
-                                />
-                            </ListItem>
+            <Match value={mode}>
+                <Case is={CalendarMode::Days}>
+                    <CalendarGrid label=label spacing>
+                        <List direction=Direction::Horizontal spacing>
+                            <ForEach value={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
+                                <ListItem grow=1.0>
+                                    <CalendarWeekday
+                                        weekday={first_weekday.offset(column as u32)}
+                                        face={weekday}
+                                    />
+                                </ListItem>
+                            </ForEach>
+                        </List>
+                        <ForEach value={(0..WEEKS).collect::<Vec<_>>()}>|week: usize|
+                            <CalendarWeek
+                                state={state}
+                                week
+                                grid_start={grid_start}
+                                spacing
+                                day={cell}
+                            />
                         </ForEach>
-                    </List>
-                    <ForEach value={(0..WEEKS).collect::<Vec<_>>()}>|week: usize|
-                        <CalendarWeek
-                            state={state}
-                            week
-                            grid_start={grid_start}
-                            spacing
-                            day={cell}
-                        />
-                    </ForEach>
-                </CalendarGrid>
-            </Show>
-            <Show value={months_shown}>||
-                <CalendarGrid label=label spacing>
-                    <ForEach value={(0..MONTH_ROWS).collect::<Vec<_>>()}>|row: usize|
-                        <CalendarMonthRow state={state} row spacing month={cell} />
-                    </ForEach>
-                </CalendarGrid>
-            </Show>
-            <Show value={years_shown}>||
-                <CalendarGrid label spacing>
-                    <ForEach value={(0..YEAR_ROWS).collect::<Vec<_>>()}>|row: usize|
-                        <CalendarYearRow
-                            state={state}
-                            row
-                            first_year={first_year}
-                            spacing
-                            year={cell}
-                        />
-                    </ForEach>
-                </CalendarGrid>
-            </Show>
+                    </CalendarGrid>
+                </Case>
+                <Case is={CalendarMode::Months}>
+                    <CalendarGrid label=label spacing>
+                        <ForEach value={(0..MONTH_ROWS).collect::<Vec<_>>()}>|row: usize|
+                            <CalendarMonthRow state={state} row spacing month={cell} />
+                        </ForEach>
+                    </CalendarGrid>
+                </Case>
+                <Case is={CalendarMode::Years}>
+                    <CalendarGrid label spacing>
+                        <ForEach value={(0..YEAR_ROWS).collect::<Vec<_>>()}>|row: usize|
+                            <CalendarYearRow
+                                state={state}
+                                row
+                                first_year={first_year}
+                                spacing
+                                year={cell}
+                            />
+                        </ForEach>
+                    </CalendarGrid>
+                </Case>
+            </Match>
         </List>
     }
 }
