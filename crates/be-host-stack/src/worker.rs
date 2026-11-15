@@ -659,11 +659,12 @@ pub struct Shared {
     pub connection: Option<Arc<be_block_client::connection::Connection>>,
     /// The workspace's peer, which knows what content this device holds.
     pub peer: Option<Arc<Peer<Store>>>,
-    /// Offline, each node's head as `Seen::out_of_reach` was worked out for it, and whether it
-    /// was out of reach then: worked out again only for a node whose head moved.
-    pub(crate) reach: HashMap<Uuid, (CommitId, bool)>,
-    /// The graph revision and connection `Seen::out_of_reach` was worked out at.
-    pub(crate) reach_at: Option<(u64, bool)>,
+    /// Whether `Seen::out_of_reach` was worked out offline, for every node: from then on only
+    /// for the nodes that moved (`Graph::take_nodes_moved`) and those in `reach_dirty`.
+    pub(crate) reach_offline: bool,
+    /// Blocks whose content the worker let go of (`expire_unsent`, a discarded unsent edit),
+    /// whose reach is worked out again though their node did not move.
+    pub(crate) reach_dirty: HashSet<Uuid>,
     pub leaving: bool,
     pub module_error: Option<(Uuid, String)>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
@@ -819,33 +820,48 @@ impl Shared {
     /// Works out which blocks are out of reach (`Seen::out_of_reach`) when the graph or the
     /// connection moved since: offline, a node with a head this device holds no version of
     /// whole (`app_graph::out_of_reach`). The page reads the answer, never the peer.
+    ///
+    /// Offline, what this device holds of a block changes only with a commit made here, which
+    /// its replica reports as the block's head (its node moves), or as the worker lets go of
+    /// content it held (`reach_dirty`): nothing arrives without the server, and what the peer
+    /// once found held whole it keeps finding (`Peer::held_head`). So the work is proportional
+    /// to what moved, after one pass over the graph as the device goes offline.
     fn refresh_reach(&mut self) {
-        let key = (self.seen.graph.revision, self.seen.connected);
-        if self.reach_at == Some(key) {
-            return;
-        }
-        self.reach_at = Some(key);
-        let peer = self.peer.as_ref().filter(|_| !self.seen.connected);
-        let mut reach = HashMap::new();
-        let mut out = HashSet::new();
-        if let Some(peer) = peer {
-            for node in self.seen.graph.nodes() {
-                let Some(head) = node.head else {
-                    continue;
-                };
-                let lost = match self.reach.get(&node.id) {
-                    Some((known, lost)) if *known == head => *lost,
-                    _ => super::app_graph::out_of_reach(peer, node),
-                };
-                reach.insert(node.id, (head, lost));
-                if lost {
-                    out.insert(node.id);
-                }
+        let moved = match self.seen.graph.has_nodes_moved() {
+            true => self.seen.graph.take_nodes_moved(),
+            false => imbl::HashSet::new(),
+        };
+        let Some(peer) = self.peer.clone().filter(|_| !self.seen.connected) else {
+            if self.reach_offline {
+                self.reach_offline = false;
+                self.seen.out_of_reach = imbl::HashSet::new();
             }
-        }
-        self.reach = reach;
-        if *self.seen.out_of_reach != out {
-            self.seen.out_of_reach = crate::Part::new(out);
+            self.reach_dirty.clear();
+            return;
+        };
+        let blocks: Vec<Uuid> = match std::mem::replace(&mut self.reach_offline, true) {
+            false => {
+                self.seen.out_of_reach = imbl::HashSet::new();
+                self.seen.graph.nodes().map(|node| node.id).collect()
+            }
+            true => moved
+                .into_iter()
+                .chain(self.reach_dirty.iter().copied())
+                .collect(),
+        };
+        self.reach_dirty.clear();
+        for block in blocks {
+            let lost = self
+                .seen
+                .graph
+                .get(block)
+                .is_some_and(|node| super::app_graph::out_of_reach(&peer, node));
+            if lost != self.seen.out_of_reach.contains(&block) {
+                match lost {
+                    true => self.seen.out_of_reach.insert(block),
+                    false => self.seen.out_of_reach.remove(&block),
+                };
+            }
         }
     }
 
@@ -2040,13 +2056,17 @@ pub(super) fn expired_unsent(
         .collect()
 }
 
-pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
+/// Lets go of the unsent edits too old to keep, and their blocks' cached content: answers the
+/// blocks let go of (`Shared::reach_dirty`).
+pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) -> Vec<Uuid> {
     let company = peer.kind() == be_block_protocol::OrganizationKind::Company;
     let choice = crate::offline_choice::choice(Uuid::nil());
-    for block in expired_unsent(&peer.unsent(), company, &choice, now) {
-        let _ = peer.discard_unsent(block);
-        let _ = peer.forget_cached(block);
+    let expired = expired_unsent(&peer.unsent(), company, &choice, now);
+    for block in &expired {
+        let _ = peer.discard_unsent(*block);
+        let _ = peer.forget_cached(*block);
     }
+    expired
 }
 
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
@@ -2055,10 +2075,11 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .wall
         .now();
-    expire_unsent(peer, now);
+    let expired = expire_unsent(peer, now);
     let counts = peer.pending();
     let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.reach_dirty.extend(expired);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
     held.outbox = outbox;
@@ -3175,6 +3196,7 @@ async fn apply(
                 tasks.sync(peer, shared);
             }
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.reach_dirty.insert(block);
             if let Err(error) = done {
                 held.error = Some(error.to_string());
             }
