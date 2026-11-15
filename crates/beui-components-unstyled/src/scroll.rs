@@ -857,10 +857,9 @@ fn Scrolling(
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
-    let outset = create_memo(move || -bleed.get());
     let (grow, shrink) = content_grow_and_shrink(fit);
     view! {
-        <Frame padding={outset}>
+        <Frame padding={move || -bleed.get()}>
             <Layers>
                 <Interactive
                     focusable=true
@@ -972,7 +971,6 @@ pub fn Scroll(
     }
     let fade = scrollbar.fade();
     let faded = create_signal(None::<ScrollPosition>);
-    let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -991,7 +989,7 @@ pub fn Scroll(
             marker
             on_change={on_change}
         >|report: Callback<ScrollPosition>|
-            <Frame fade_edges={edges}>
+            <Frame fade_edges={move || fade_edges(direction.get(), faded.get(), fade)}>
                 <Offset
                     offset
                     direction={direction}

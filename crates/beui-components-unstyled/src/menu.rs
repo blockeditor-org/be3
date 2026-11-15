@@ -365,7 +365,6 @@ pub(crate) fn MenuList(
         !matches!(focus.get(), Focus::Row(_) | Focus::Tile(..) | Focus::Back)
             && page.get().is_none()
     });
-    let showing_own = create_memo(move || page.get().is_none());
     let paged = create_memo(move || page.get().is_some());
 
     let lines = move || {
@@ -417,7 +416,7 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
-            <Show condition={showing_own}>|| {
+            <Show condition={paged} fallback={move || {
                 let title_test_id = title_test_id.clone();
                 let lines = lines();
                 view! {
@@ -434,8 +433,7 @@ pub(crate) fn MenuList(
                         {lines}
                     </List>
                 }
-            }</Show>
-            <Show condition={paged}>
+            }}>
                 <MenuPage state={state} row={row} panel={panel} />
             </Show>
         </List>
@@ -716,7 +714,6 @@ fn MenuRow(
         let children = children.clone();
         move || !children.is_empty()
     });
-    let cascade = create_memo(move || cascades && has_children.get());
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
         watch_hover(state, at, handle.pointed);
@@ -750,7 +747,7 @@ fn MenuRow(
                 }}
                 on_key={move |press: KeyPress| key(state, at, press)}
             />
-            <Show condition={cascade}>|| {
+            <Show condition={move || cascades && has_children.get()}>|| {
                 let children = children.clone();
                 let leave = MenuParent(Some(Callback::new(move |()| {
                     open.set(false);

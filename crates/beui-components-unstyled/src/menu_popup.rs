@@ -136,7 +136,7 @@ pub fn MenuPopup(
                         spacing
                         row
                         panel
-                        active={create_memo(move || shown.get() && focusing.get())}
+                        active={move || shown.get() && focusing.get()}
                         bounds
                         on_select={choose}
                     />

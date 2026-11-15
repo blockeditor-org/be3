@@ -218,7 +218,7 @@ pub fn CommandPalette(
     };
     view! {
         <Modal
-            open={create_memo(move || open.get())}
+            open={move || open.get()}
             scrim
             motion=ModalMotion::Still
             shown_in

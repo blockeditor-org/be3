@@ -110,14 +110,13 @@ pub fn ContextMenu(
         requested_focusing.set(open_at_focuses);
         requested.set(true);
     });
-    let shown = create_memo(move || open.get());
     let sheet = match selection {
         true => SheetWhen::Never,
         false => SheetWhen::Touched,
     };
     let mut ever_open = false;
     let built = create_memo(move || {
-        ever_open |= shown.get();
+        ever_open |= open.get();
         ever_open
     });
     let toolbar_style = menu.toolbar();
@@ -179,7 +178,7 @@ pub fn ContextMenu(
                         anchor
                         placement
                         bounds
-                        open={shown}
+                        open={open}
                         sheet
                         focusing
                         on_dismiss={move || {

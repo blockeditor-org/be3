@@ -1077,13 +1077,8 @@ where
                     open={floating}
                 >
                     <List spacing=0.0>
-                        <Dynamic value={carried}>|carried: Option<P>| {
-                            match carried {
-                                Some(carried) => preview.call(carried),
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
+                        <Dynamic value={carried} fallback={|| view! { <Frame /> }}>|carried: P| {
+                            preview.call(carried)
                         }</Dynamic>
                     </List>
                 </Overlay>
@@ -1231,13 +1226,6 @@ where
             on_click.call(());
         }
     };
-    let across = create_memo(move || match draggable.get() {
-        true => TouchDrags::Along(match direction.get() {
-            Direction::Horizontal => Direction::Vertical,
-            Direction::Vertical => Direction::Horizontal,
-        }),
-        false => TouchDrags::None,
-    });
     let long_press = state.with(|state| state.long_press);
     let on_long_press = match long_press {
         Prop::Static(false) => Callback::empty(),
@@ -1249,7 +1237,13 @@ where
             <Interactive
                 cursor
                 capture_presses
-                touch_drags={across}
+                touch_drags={move || match draggable.get() {
+        true => TouchDrags::Along(match direction.get() {
+            Direction::Horizontal => Direction::Vertical,
+            Direction::Vertical => Direction::Horizontal,
+        }),
+        false => TouchDrags::None,
+    }}
                 on_press={pressed}
                 on_drag={move |press: PointerPress| moved(state, DragPoint::of(press))}
                 on_long_press_drag={on_long_press}

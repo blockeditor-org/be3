@@ -36,7 +36,6 @@ pub fn MenuButton(
     #[prop(default = false)] open: Binding<bool>,
 ) -> NodeId {
     let button = NodeRef::new();
-    let shown = create_memo(move || open.get());
     let disabled = create_memo(move || disabled.get());
     let mut trigger_node = view! {
         <PopupTrigger
@@ -108,7 +107,7 @@ pub fn MenuButton(
                 placement
                 bounds
                 trigger={button}
-                open={shown}
+                open={move || open.get()}
                 on_dismiss={move || open.set(false)}
             />
         </List>

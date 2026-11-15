@@ -110,10 +110,6 @@ pub fn Toggle(
     };
     let key_toggle = toggle_checked.clone();
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
-    let cursor = create_memo(move || match disabled.get() {
-        true => CursorIcon::Default,
-        false => CursorIcon::PointingHand,
-    });
 
     api.fill(ToggleApi(checked));
 
@@ -126,7 +122,10 @@ pub fn Toggle(
             on_focus_change={focused}
             on_activate_change={key_active}
             on_activate={key_toggle}
-            cursor
+            cursor={move || match disabled.get() {
+        true => CursorIcon::Default,
+        false => CursorIcon::PointingHand,
+    }}
             key_active
             on_click={toggle_checked}
             on_hover_change={hovered}

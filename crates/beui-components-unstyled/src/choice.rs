@@ -129,14 +129,18 @@ pub fn Choice(
         direction,
     };
     api.fill(ChoiceApi(state));
-    let option_shrink = create_memo(move || match shrink.get() {
-        true => 1.0,
-        false => 0.0,
-    });
     let buttons = options.build_keyed(move |built: Rc<ChoiceOption>, index: ReadSignal<usize>| {
         let label = built.label;
         let is_selected = create_memo(move || selection.is_selected(&Some(index.get())));
-        let accessibility = create_memo(move || {
+        let id = option_id(&built);
+        let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
+        let focus_here = focused.memo(Some(id));
+        let button = view! {
+            <unstyled::Button
+                cursor
+                tab_stop={tab_stop}
+                focused={focus_here}
+                accessibility={move || {
             let mut node = Node::new(match kind {
                 ChoiceKind::Tabs => Role::Tab,
                 ChoiceKind::Radio => Role::RadioButton,
@@ -150,16 +154,7 @@ pub fn Choice(
                 node.set_selected(is_selected.get());
             }
             node
-        });
-        let id = option_id(&built);
-        let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
-        let focus_here = focused.memo(Some(id));
-        let button = view! {
-            <unstyled::Button
-                cursor
-                tab_stop={tab_stop}
-                focused={focus_here}
-                accessibility
+        }}
                 on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
                 on_click={move || select(state, Some(index.get_untracked()))}
                 on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
@@ -179,7 +174,10 @@ pub fn Choice(
             None => button,
         };
         view! {
-            <ListItem shrink=option_shrink>{node}</ListItem>
+            <ListItem shrink={move || match shrink.get() {
+        true => 1.0,
+        false => 0.0,
+    }}>{node}</ListItem>
         }
     });
 
