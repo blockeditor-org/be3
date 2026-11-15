@@ -176,6 +176,21 @@ fn install(apps: Apps) {
         .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(apps));
 }
 
+/// Puts these manifests, `(source, document)`, in place of the apps found, for a test whose host
+/// stages none. Fails on one discovery would refuse.
+#[cfg(any(test, feature = "testing"))]
+pub fn install_for_testing(manifests: &[(&str, &str)]) {
+    let mut apps = Apps::default();
+    for (source, document) in manifests {
+        apps.add(source, document);
+    }
+    apps.settle();
+    assert!(apps.errors.is_empty(), "{:?}", apps.errors);
+    *APPS
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(apps));
+}
+
 pub fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
     apps().types.get(&content_type).cloned()
 }

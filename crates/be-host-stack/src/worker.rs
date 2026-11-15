@@ -114,6 +114,7 @@ pub(super) enum Command {
         block: Uuid,
         content_type: Uuid,
         change: be_sdk_type_api::ChildChange,
+        reply: crate::ChildReply,
     },
     FromFile {
         block: Uuid,
@@ -3310,14 +3311,18 @@ async fn apply(
             block,
             content_type,
             change,
+            reply,
         } => {
             if !replicas.is_open(block) {
                 wanted.open.entry(block).or_insert(content_type);
                 want_open(shared, &wanted.blocks());
                 open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             }
-            let change = Change::Child(change);
-            replicas.change_later(block, change);
+            // The type's answer is awaited beside the loop, which goes on with other commands.
+            match replicas.change_answered(block, Change::Child(change)) {
+                Some(made) => tasks.spawn(async move { reply.answer(made.await) }),
+                None => reply.answer(false),
+            }
             false
         }
         Command::FromFile {

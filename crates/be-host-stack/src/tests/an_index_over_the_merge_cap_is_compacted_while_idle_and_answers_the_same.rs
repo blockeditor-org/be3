@@ -44,14 +44,11 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
         Some(TextBlock::of("").encode()),
         false,
     );
-    assert_eq!(
-        change_child(
+    assert!(made(change_child(
             workspace,
             WorkspaceContent::CONTENT_TYPE,
             ChildChange::Add(block)
-        ),
-        Some(true)
-    );
+        )));
     open(block, TextContent::CONTENT_TYPE);
     type_text(block, 0, text);
     flush();

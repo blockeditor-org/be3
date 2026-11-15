@@ -52,14 +52,11 @@ fn a_deleted_database_row_is_no_longer_found() {
         Some(database.encode()),
         false,
     );
-    assert_eq!(
-        change_child(
+    assert!(made(change_child(
             workspace,
             WorkspaceContent::CONTENT_TYPE,
             ChildChange::Add(block)
-        ),
-        Some(true)
-    );
+        )));
     open(block, DatabaseContent::CONTENT_TYPE);
     flush();
     finds("plumber", &[block]);

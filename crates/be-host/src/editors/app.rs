@@ -439,11 +439,14 @@ impl AppEditor {
         self.block_type
     }
 
-    pub(crate) fn add_child(&self, child: Uuid) -> Option<bool> {
+    /// Adds `child` to the block's content through its type: none while the type is not known
+    /// yet, otherwise what the type answers (`be_host_stack::ChildChanged`). So do
+    /// `delete_child`, `replace_child` and `reorder_child`.
+    pub(crate) fn add_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Add(child))
     }
 
-    pub(crate) fn delete_child(&self, child: Uuid) -> Option<bool> {
+    pub(crate) fn delete_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Delete(child))
     }
 
@@ -457,21 +460,26 @@ impl AppEditor {
         )
     }
 
-    /// Puts `new` in place of the child `old`: none while the type is not known yet, false when
-    /// the type or the block refuses it.
-    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
+    /// Puts `new` in place of the child `old`, refused at once by a type whose manifest does not
+    /// take it.
+    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<be_host_stack::ChildChanged> {
         if !self.takes_replace()? {
-            return Some(false);
+            return Some(be_host_stack::ChildChanged::refused());
         }
         self.change_child(be_block_content::ChildChange::Replace { old, new })
     }
 
-    pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
+    /// Moves `child` after `after`, refused at once by a type whose manifest keeps no order.
+    pub(crate) fn reorder_child(
+        &self,
+        child: Uuid,
+        after: Option<Uuid>,
+    ) -> Option<be_host_stack::ChildChanged> {
         if !be_host_stack::discovery::block_type(self.block_type)?
             .children
             .reorder
         {
-            return Some(false);
+            return Some(be_host_stack::ChildChanged::refused());
         }
         self.change_child(be_block_content::ChildChange::Reorder {
             block: child,
@@ -479,7 +487,10 @@ impl AppEditor {
         })
     }
 
-    fn change_child(&self, change: be_block_content::ChildChange) -> Option<bool> {
+    fn change_child(
+        &self,
+        change: be_block_content::ChildChange,
+    ) -> Option<be_host_stack::ChildChanged> {
         be_host_stack::change_child(self.id, self.block_type, change)
     }
 

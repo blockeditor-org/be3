@@ -97,6 +97,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -182,6 +184,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -267,6 +271,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -342,6 +348,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -417,6 +425,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -531,6 +541,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },
@@ -606,6 +618,8 @@ write_package_value("be3.cargo", {
             "test_deps": [
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-sdk-test:be-sdk-test",
+                "//crates/be-type-text:be-type-text",
+                "//crates/be-type-workspace:be-type-workspace",
             ],
             "test_features": [],
         },

@@ -48,14 +48,11 @@ fn a_block_is_indexed_by_the_name_its_commit_carries() {
         Some(TextBlock::of("").encode()),
         false,
     );
-    assert_eq!(
-        change_child(
+    assert!(made(change_child(
             workspace,
             WorkspaceContent::CONTENT_TYPE,
             ChildChange::Add(note)
-        ),
-        Some(true)
-    );
+        )));
     open(note, TextContent::CONTENT_TYPE);
     type_text(note, 0, "socks");
     flush();
