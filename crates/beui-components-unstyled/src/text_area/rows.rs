@@ -29,6 +29,8 @@ const NEWLINE_MARKER: &str = "\u{23ce}";
 const NEWLINE_SLOT: &str = "mm";
 const ELLIPSIS: &str = "...";
 const CONTROL_NAME_EM: f32 = 0.7;
+/// Set either side of a control character's name, so it does not run into the text.
+const CONTROL_SPACE: char = '\u{2009}';
 const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -437,7 +439,7 @@ fn invisibles_of(
         let shown = row.display.get(display.clone()).unwrap_or_default();
         let control = control_marker(*byte).is_some();
         let real = match control {
-            true => shown == glyph,
+            true => shown.trim_matches(CONTROL_SPACE) == glyph,
             false => shown.as_bytes() == [*byte],
         };
         let Some(span) = row
@@ -898,8 +900,8 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         let byte = bytes[index];
         if let Some(glyph) = control_marker(byte).filter(|_| invisibles) {
-            // The marker drawn over it (`invisibles_of`) is laid out in its place, unseen, so
-            // the row makes room for it.
+            // The marker drawn over it (`invisibles_of`) is laid out in its place, unseen, with
+            // a thin space on each side, so the row makes room for it apart from the text.
             let unseen = SpanStyle {
                 font: control_font(base.font),
                 color: Color::TRANSPARENT,
@@ -907,7 +909,8 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 strikethrough: false,
                 ..base
             };
-            builder.push(glyph, index..index + 1, false, unseen, SpanKind::Text);
+            let room = format!("{CONTROL_SPACE}{glyph}{CONTROL_SPACE}");
+            builder.push(&room, index..index + 1, false, unseen, SpanKind::Text);
             builder.leaf(style_at(index));
             index += 1;
             continue;

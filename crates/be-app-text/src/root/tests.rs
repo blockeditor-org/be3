@@ -15,7 +15,8 @@ use crate::root::state::LINE_NUMBERS;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
-
+mod a_bullet_a_peer_makes_a_task_draws_a_checkbox;
+mod a_bullet_typed_into_a_task_draws_a_checkbox;
 mod a_fenced_block_is_highlighted_in_the_language_it_names;
 mod a_hit_on_a_word_selects_it_whole_and_never_inside_another;
 mod a_line_number_too_long_for_the_gutter_is_cut_to_its_last_digits;
@@ -33,7 +34,6 @@ mod a_text_opened_at_a_search_hit_selects_its_words;
 mod a_wide_document_is_centered_and_a_wide_table_reaches_into_the_margin;
 mod an_empty_text_given_the_keyboard_takes_the_caret;
 mod checkboxes_and_block_chips_line_up_with_their_text;
-mod checkboxes_are_drawn_when_the_text_arrives_after_the_editor;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod code_is_painted_on_its_background;

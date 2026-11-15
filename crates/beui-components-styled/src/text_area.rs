@@ -270,50 +270,18 @@ pub fn DocumentLeaf(leaf: TextLeaf) -> Span {
     }
 }
 
-/// What a marker is drawn as; the marker's content is built again only when this changes, so a
-/// line whose marker changes kind (a bullet given a `[ ]`, a text whose markdown arrives after
-/// its rows were built) draws the new kind.
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum MarkerShape {
-    Written,
-    Bullet,
-    Number,
-    Check,
-    Void,
-}
-
 #[component]
 pub fn DocumentMarker(marker: TextMarker) -> NodeId {
-    let kind = marker.kind;
-    let written = marker.written();
-    let shape = create_memo(move || match kind.get() {
-        MarkerKind::Bullet if written.get() => MarkerShape::Written,
-        MarkerKind::Bullet => MarkerShape::Bullet,
-        MarkerKind::Number(_) => MarkerShape::Number,
-        MarkerKind::Check(_) => MarkerShape::Check,
-        MarkerKind::Void(_) => MarkerShape::Void,
-    });
-    view! {
-        <List spacing=Space::None>
-            <Dynamic value={shape}>|shape: MarkerShape|
-                <MarkerContent marker shape />
-            </Dynamic>
-        </List>
-    }
-}
-
-#[component]
-fn MarkerContent(marker: TextMarker, shape: MarkerShape) -> NodeId {
     let style = marker.style;
-    let content = match shape {
-        MarkerShape::Written => {
+    let content = match marker.kind.get_untracked() {
+        MarkerKind::Bullet if marker.written().get_untracked() => {
             let font = create_memo(move || style.get().font);
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             view! {
                 <primitives::Text font color>{marker.label}</primitives::Text>
             }
         }
-        MarkerShape::Bullet => {
+        MarkerKind::Bullet => {
             let size = marker.bullet();
             let side = create_memo(move || Size::Custom(size.get()));
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
@@ -331,14 +299,14 @@ fn MarkerContent(marker: TextMarker, shape: MarkerShape) -> NodeId {
                 <Frame width=side height=side fill={fill} border=ring radius=Radius::Full />
             }
         }
-        MarkerShape::Number => {
+        MarkerKind::Number(_) => {
             let font = create_memo(move || style.get().font);
             let color = create_memo(move || style.get().color.scale_alpha(NUMBER_ALPHA));
             view! {
                 <primitives::Text font color>{marker.number()}</primitives::Text>
             }
         }
-        MarkerShape::Check => {
+        MarkerKind::Check(_) => {
             let TextMarker {
                 checked,
                 disabled,
@@ -358,7 +326,7 @@ fn MarkerContent(marker: TextMarker, shape: MarkerShape) -> NodeId {
                 />
             }
         }
-        MarkerShape::Void => {
+        MarkerKind::Void(_) => {
             let gap = marker.gap();
             return view! {
                 <primitives::Frame padding=gap />

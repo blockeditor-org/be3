@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use beui_macros::{component, view};
 
-use beui_text_editor_core::{SynHlColorScope, SynHlStyle, TextLanguage};
+use beui_text_editor_core::{ListMarker, SynHlColorScope, SynHlStyle, TextLanguage};
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
@@ -254,10 +254,12 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         let size = cx.font_size.get();
         let padding = cx.padding.get();
         let width = cx.view_width.get() - cx.gutter.get() - padding.left - padding.right;
+        // Beside the gutter, markers do not hang into a margin of their own: the gutter is the
+        // room at the text's side.
         Margin::centered(
             width,
             size,
-            cx.view_width.get() >= size * MARGIN_MIN_WIDTH_EM,
+            cx.gutter.get() == 0.0 && cx.view_width.get() >= size * MARGIN_MIN_WIDTH_EM,
         )
     });
     let wrapped = cx.line.call(TextLine {
@@ -723,19 +725,35 @@ fn RowText(
     shown
 }
 
+/// What an inline item is, as its piece is keyed: an item that changes this is built anew, so a
+/// render hook may choose its content once (`TextMarker::kind`).
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 enum InlineKind {
-    Marker,
+    Marker(MarkerPiece),
     Quote,
     Widget,
     Run,
     Void,
 }
 
+/// A list marker's kind, without what a marker of that kind follows reactively (its number,
+/// whether it is checked): a bullet edited into a task, or a bullet whose written label comes or
+/// goes, gets a new piece.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum MarkerPiece {
+    Bullet { written: bool },
+    Number,
+    Check,
+}
+
 impl InlineKind {
-    fn of(inline: Inline) -> Self {
-        match inline {
-            Inline::Marker(_) => Self::Marker,
+    fn of(item: &InlineItem) -> Self {
+        match item.inline {
+            Inline::Marker(ListMarker::Bullet) => Self::Marker(MarkerPiece::Bullet {
+                written: !item.label.is_empty(),
+            }),
+            Inline::Marker(ListMarker::Number(_)) => Self::Marker(MarkerPiece::Number),
+            Inline::Marker(ListMarker::Check(_)) => Self::Marker(MarkerPiece::Check),
             Inline::Quote => Self::Quote,
             Inline::Widget(_) => Self::Widget,
             Inline::Run => Self::Run,
@@ -789,7 +807,7 @@ fn piece_keys(row: &Row) -> Vec<(PieceKey, usize)> {
                     index,
                     row.inline
                         .get(index)
-                        .map_or(InlineKind::Quote, |item| InlineKind::of(item.inline)),
+                        .map_or(InlineKind::Quote, InlineKind::of),
                 ),
             };
             let repeat = seen.entry(key.clone()).or_default();
@@ -865,7 +883,7 @@ fn inline_text(model: Memo<Rc<Row>>, item: usize) -> Memo<Option<Rc<str>>> {
 fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize, kind: InlineKind) -> NodeId {
     let item = create_memo(move || model.get().inline.get(index).cloned());
     match kind {
-        InlineKind::Marker | InlineKind::Void => cx.marker.call(marker(cx, model, item)),
+        InlineKind::Marker(_) | InlineKind::Void => cx.marker.call(marker(cx, model, item)),
         InlineKind::Quote => view! {
             <Frame />
         },

@@ -3,7 +3,7 @@ use crate::highlighter::{Language, decorations};
 
 #[test]
 fn markdown_code_blocks_are_highlighted_by_their_language() {
-    let source = b"```rs\nfn main() {}\n```\n\n```TOML\nkey = \"value\"\n```\n\n```text\nfn main() {}\n```\n";
+    let source = b"```rust,ignore\nfn main() {}\n```\n\n```TOML\nkey = \"value\"\n```\n\n```text\nfn main() {}\n```\n";
     let mut tester = EditorTester::with_language(source, TextLanguage::Markdown);
     let highlight = tester.editor.highlight();
     let at = |needle: &[u8], from: usize| {
