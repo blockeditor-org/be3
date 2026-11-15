@@ -879,6 +879,8 @@ pub(crate) struct Handover {
     /// updates while no frame does (`taking_updates`).
     handed: std::sync::atomic::AtomicU64,
     woken: futures_util::task::AtomicWaker,
+    /// The stack stopped (`close`).
+    closed: std::sync::atomic::AtomicBool,
     /// Frames take the updates (`take_updates_in_frame`), so a test's thread that takes them
     /// for a test that runs none stops.
     frames_take: std::sync::atomic::AtomicBool,
@@ -948,14 +950,17 @@ impl Handover {
         self.handed.load(Ordering::Acquire)
     }
 
-    /// Ready once more than `handed` updates were put.
+    /// Ready once more than `handed` updates were put, or the handover closed. It holds one
+    /// waker, so one task awaits it at a time (`taking_updates`' pump).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) async fn handed_past(&self, handed: u64) {
+        let past = || self.handed() > handed || self.closed.load(Ordering::Acquire);
         std::future::poll_fn(|context| {
-            if self.handed() > handed {
+            if past() {
                 return std::task::Poll::Ready(());
             }
             self.woken.register(context.waker());
-            match self.handed() > handed {
+            match past() {
                 true => std::task::Poll::Ready(()),
                 false => std::task::Poll::Pending,
             }
@@ -998,11 +1003,15 @@ impl Handover {
     }
 
     /// Ends every wait on the handover: the stack stopped.
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn close(&self) {
-        let (count, put) = &self.put;
-        count.lock().unwrap_or_else(PoisonError::into_inner).1 = true;
-        put.notify_all();
+        self.closed.store(true, Ordering::Release);
+        self.woken.wake();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (count, put) = &self.put;
+            count.lock().unwrap_or_else(PoisonError::into_inner).1 = true;
+            put.notify_all();
+        }
     }
 
     /// Puts `bytes`, a whole `Seen`, in place of every update the page has not taken, in one
