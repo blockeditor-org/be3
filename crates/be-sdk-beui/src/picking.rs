@@ -113,24 +113,15 @@ impl Picking {
 #[component]
 pub(crate) fn Pickers(editor: Editor) -> NodeId {
     let picking = editor.picking();
-    let keys = create_memo(move || {
-        picking
-            .with(|picking| picking.as_ref().map(Picking::serial))
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     view! {
         <Layers>
-            <ForEach value={keys}>|serial: u64| {
-                match picking.get_untracked().filter(|picking| picking.serial() == serial) {
-                    Some(picking) => view! {
-                        <PickerPopover editor picking />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <Keyed
+                value={picking}
+                key={|picking: &Picking| picking.serial()}
+                fallback=()
+            >|picking: ReadSignal<Picking>|
+                <PickerPopover editor picking={picking.get_untracked()} />
+            </Keyed>
             <Popovers editor />
         </Layers>
     }

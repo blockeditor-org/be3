@@ -189,7 +189,6 @@ pub(crate) fn ReferenceMenu(
         })
     });
     let indices = create_memo(move || refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>()));
-    let nothing = create_memo(move || refs.with(|refs| refs.list.is_empty()));
     let nothing_label = create_memo(move || match refs.with(|refs| refs.state.clone()) {
         Ok(()) => empty.clone(),
         Err(Pending::Loading) => "Loading…".to_owned(),
@@ -202,10 +201,12 @@ pub(crate) fn ReferenceMenu(
             @test_id={named}
             label={label}
             items={view! {
-                <Show value={nothing}>
-                    <MenuItem label={nothing_label} disabled=true />
-                </Show>
-                <ForEach value={indices}>|index: usize| {
+                <ForEach
+                    value={indices}
+                    fallback={move || view! {
+                        <MenuItem label={nothing_label} disabled=true />
+                    }}
+                >|index: usize| {
                     let reference = create_memo(move || {
                         refs.with(|refs| refs.list.get(index).cloned())
                     });

@@ -246,24 +246,15 @@ pub(crate) struct Popped {
 #[component]
 pub(crate) fn Popovers(editor: Editor) -> NodeId {
     let popped = editor.popped();
-    let keys = create_memo(move || {
-        popped
-            .with(|popped| popped.map(|popped| popped.serial))
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     view! {
         <Layers>
-            <ForEach value={keys}>|serial: u64| {
-                match popped.get_untracked().filter(|popped| popped.serial == serial) {
-                    Some(popped) => view! {
-                        <PoppedChild editor popped />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</ForEach>
+            <Keyed
+                value={popped}
+                key={|popped: &Popped| popped.serial}
+                fallback=()
+            >|popped: ReadSignal<Popped>|
+                <PoppedChild editor popped={popped.get_untracked()} />
+            </Keyed>
         </Layers>
     }
 }
