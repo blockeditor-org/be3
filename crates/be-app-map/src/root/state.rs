@@ -234,8 +234,8 @@ impl MapState {
     }
 
     pub(crate) fn camera(&self) -> Option<CanvasView> {
-        let _ = self.editor.canvas().get();
-        let _ = self.anchor.get();
+        self.editor.canvas().track();
+        self.anchor.track();
         self.anchored_camera()
     }
 
@@ -271,9 +271,9 @@ impl MapState {
     }
 
     pub(crate) fn visible(&self) -> Rect {
-        let _ = self.editor.canvas().get();
-        let _ = self.editor.placed().get();
-        let _ = self.anchor.get();
+        self.editor.canvas().track();
+        self.editor.placed().track();
+        self.anchor.track();
         let screen = self.screen_rect();
         Rect::from_min_max(self.unscreen(screen.min), self.unscreen(screen.max))
     }
@@ -382,15 +382,9 @@ impl MapState {
         let inner = self.inner.value();
         let (waker, woken) = self.editor.woken();
         *inner.waker.borrow_mut() = waker;
-        create_effect(move || {
-            woken.track();
-            untrack(|| self.collect_tiles());
-        });
+        create_effect_on(move || woken.track(), move |_, _| self.collect_tiles());
         let drag = self.editor.drag();
-        create_effect(move || {
-            let drag = drag.get();
-            untrack(|| self.take_drag(drag));
-        });
+        create_effect_on(move || drag.get(), move |drag, _| self.take_drag(*drag));
         let files = self.editor.files();
         create_effect(move || {
             let drop = files.get();
@@ -402,30 +396,31 @@ impl MapState {
         let world = self.editor.world();
         let placed = self.editor.placed();
         let canvas = self.editor.canvas();
-        create_effect(move || {
-            world.with(|_| ());
-            placed.with(|_| ());
-            canvas.with(|_| ());
-            untrack(|| self.settle_anchor());
-        });
-        let world = self.editor.world();
-        let placed = self.editor.placed();
-        let canvas = self.editor.canvas();
-        create_effect(move || {
-            world.with(|_| ());
-            placed.with(|_| ());
-            canvas.with(|_| ());
-            self.anchor.with(|_| ());
-            self.preview_region.with(|_| ());
-            self.fit_requested.with(|_| ());
-            untrack(|| self.settle_view());
-        });
+        create_effect_on(
+            move || {
+                world.track();
+                placed.track();
+                canvas.track();
+            },
+            move |_, _| self.settle_anchor(),
+        );
+        create_effect_on(
+            move || {
+                world.track();
+                placed.track();
+                canvas.track();
+                self.anchor.track();
+                self.preview_region.track();
+                self.fit_requested.track();
+            },
+            move |_, _| self.settle_view(),
+        );
     }
 
     fn settle_view(&self) {
         let inner = self.inner.value();
         let view = self.view();
-        let visible = untrack(|| self.visible());
+        let visible = self.visible();
         let region = view.region(visible);
         self.visible_region.set(region);
         inner.view_center.set(view.coordinate(visible.center()));

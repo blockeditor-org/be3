@@ -23,7 +23,7 @@ pub(super) fn received_at(received: u64) -> String {
 #[component]
 pub(crate) fn NotificationList(
     notifications: DesktopNotifications,
-    listed: Memo<Vec<Listed>>,
+    listed: ReadSignal<Vec<Listed>>,
     height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
@@ -68,7 +68,7 @@ pub(crate) fn NotificationList(
 #[component]
 fn NotificationRows(
     notifications: DesktopNotifications,
-    listed: Memo<Vec<Listed>>,
+    listed: ReadSignal<Vec<Listed>>,
     height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {

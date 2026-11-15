@@ -79,20 +79,21 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let target_drag = state.drag;
     let host_drag = state.editor().drag();
     let target = create_memo(move || {
-        let _ = rows.get();
-        let video = state.video()?;
-        let rows: Vec<ClipRow> = timeline::lane_rows(&video);
-        let content = content.get();
-        let scale = pixels_per_frame.get();
-        if let Some(drag) = target_drag.get() {
-            let at = pointer.get()?;
-            return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
-        }
-        let dragged = host_drag
-            .get()
-            .filter(|drag| drag.block_id != state.block_id())?;
-        let at = dragged.position - placed.get_untracked().min.to_vec2() + offset.get_untracked();
-        timeline::drop_target_at(&video, &rows, content, scale, at, None)
+        edit.with(|video| {
+            let rows: Vec<ClipRow> = timeline::lane_rows(video);
+            let content = content.get();
+            let scale = pixels_per_frame.get();
+            if let Some(drag) = target_drag.get() {
+                let at = pointer.get()?;
+                return timeline::drop_target_at(video, &rows, content, scale, at, Some(&drag));
+            }
+            let dragged = host_drag
+                .get()
+                .filter(|drag| drag.block_id != state.block_id())?;
+            let at =
+                dragged.position - placed.get_untracked().min.to_vec2() + offset.get_untracked();
+            timeline::drop_target_at(video, &rows, content, scale, at, None)
+        })
     });
 
     let landing_drag = state.editor().drag();
