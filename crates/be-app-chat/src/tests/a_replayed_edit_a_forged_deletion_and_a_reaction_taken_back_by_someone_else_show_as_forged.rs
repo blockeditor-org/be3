@@ -38,23 +38,31 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
     // latest.
     chat.arrive(chat.content().put_edit(lunch, &first));
     assert_eq!(chat.row(lunch), "Member 7e1a 09:00 edited Lunch at two?");
-    // Removing her second as well brings the first back, signed by her, but her latest was cut.
-    let slot = Counted {
+    // Someone with Edit makes up a later edit of hers and removes it: her latest still shows,
+    // and the chain around it was altered, which no signature of hers can say was not.
+    let made_up = Counted {
         slot: EditSlot {
             message: lunch,
             author: ROSA,
         },
-        seq: second.seq,
+        seq: 99,
     };
-    let edits: LatestMap<Counted<EditSlot>, MessageEdit> = chat
-        .content()
-        .header()
-        .field(ObjectId::ROOT, ChatHeader::EDITS);
-    let removal = ChatHeader::EDITS.put(ObjectId::ROOT, &slot, None, edits.next(&slot, 99, sam));
-    chat.arrive([removal].into_iter().collect());
+    let edits = || -> LatestMap<Counted<EditSlot>, MessageEdit> {
+        chat.content()
+            .header()
+            .field(ObjectId::ROOT, ChatHeader::EDITS)
+    };
+    let write = ChatHeader::EDITS.put(
+        ObjectId::ROOT,
+        &made_up,
+        Some(&second),
+        edits().next(&made_up, 98, sam),
+    );
+    let removal = ChatHeader::EDITS.put(ObjectId::ROOT, &made_up, None, edits().next(&made_up, 99, sam));
+    chat.arrive([write, removal].into_iter().collect());
     assert_eq!(
         chat.row(lunch),
-        "Member 7e1a 09:00 edited forged Lunch at one?"
+        "Member 7e1a 09:00 edited history altered Lunch at two?"
     );
 
     // Rosa deletes a message herself: it goes without a trace.

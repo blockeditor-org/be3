@@ -34,8 +34,10 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   of the record's fields that need no chat id), and writing it removes the
   slot's earlier live records (`put_counted`). A slot's `Head` is its live
   record with the highest count, which takes that key's count, so a record
-  moved to another count fails its signature; a removed key counted past the
-  head means the latest was cut (`Head::cut`), which shows as forged. So a
+  moved to another count or author fails its signature; a removed key counted
+  past the head means the latest was cut (`Head::cut`). A count past
+  `MAX_SEQ` (2^32) is junk that cuts the slot and is never its head, and a
+  next count stops at `MAX_SEQ`, so made-up keys never overflow it. So a
   record put back is not the latest unless the later ones are removed, which
   shows. Two devices writing one count share its key and the later stamp keeps
   one, either genuine; a device's next record counts past a cut, which heals
@@ -210,11 +212,13 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 - **Authorship.** It signs each message, edit, deletion and reaction record
   (kept or taken back) through the host's `sign` before writing it, and marks
   a message whose records `verify` does not answer verified: "not verified",
-  "key changed" or "forged" (guides/blocks/keys.md, "Signing what a person
-  writes"). A message is forged when any of its records is: an edit or
-  reaction chain whose latest was cut, a deletion removed outright (written,
-  now empty), or a record signed by anyone but who it names (an edit is checked
-  against the message's author, whoever it names). A deletion is asked about once when it appears (`forged_deletions`);
+  "key changed", "history altered" or "forged" (guides/blocks/keys.md,
+  "Signing what a person writes"). A message is forged when a record's
+  signature is not its author's (an edit is checked against the message's
+  author, whoever it names). Its history is altered when an edit or reaction
+  chain was cut or its deletion removed outright (written, now empty): a
+  removal is signed by nobody, so anyone with Edit can fake one, and it says
+  nothing against the records shown (`Trust::Altered`). A deletion is asked about once when it appears (`forged_deletions`);
   a forged one keeps a muted, italic "Message deleted" row in the message's
   place (after `Deletion::after` among the recent messages, where it was in a
   closed segment read back), while a signed one leaves none. A recent message

@@ -87,8 +87,8 @@ enum Record {
 }
 
 impl Record {
-    /// The bytes its author signed, or none for a removal, which is forged whatever its
-    /// signature.
+    /// The bytes its author signed, or none for a removal, which no signature covers
+    /// (`Trust::Altered`).
     fn signed_bytes(&self, chat: Uuid) -> Option<Vec<u8>> {
         match self {
             Self::Message(id, message) => Some(message.signed_bytes(chat, *id)),
@@ -1471,18 +1471,29 @@ fn submit(
     composer.draft.set(String::new());
 }
 
-/// The least a row's records are trusted: one forged record makes the message forged.
-fn least(signers: impl IntoIterator<Item = Signer>) -> Signer {
-    let rank = |signer: &Signer| match signer {
-        Signer::Verified => 0,
-        Signer::Unverified => 1,
-        Signer::Changed => 2,
-        Signer::Bad => 3,
-    };
-    signers
-        .into_iter()
-        .max_by_key(rank)
-        .unwrap_or(Signer::Verified)
+/// How far a row's records are trusted, from most to least.
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+enum Trust {
+    Verified,
+    Unverified,
+    Changed,
+    /// A record was removed or a chain's latest cut (`Record::Removed`): someone changed the
+    /// history around the author's records, which says nothing against any record shown (a
+    /// removal is signed by nobody, so anyone with Edit can fake one).
+    Altered,
+    /// A record's signature is not its author's.
+    Forged,
+}
+
+impl From<Signer> for Trust {
+    fn from(signer: Signer) -> Self {
+        match signer {
+            Signer::Verified => Self::Verified,
+            Signer::Unverified => Self::Unverified,
+            Signer::Changed => Self::Changed,
+            Signer::Bad => Self::Forged,
+        }
+    }
 }
 
 /// Reacts to `message`, or takes `me`'s reaction back, as a record signed once the host signed
@@ -1560,25 +1571,26 @@ fn MessageRow(
         let chat = signing.get();
         let host = editor.host();
         async move {
-            let mut found = Vec::new();
+            // The least a row's records are trusted: one forged record makes it forged.
+            let mut least = Trust::Verified;
             for proof in proofs {
                 let Some(bytes) = proof.record.signed_bytes(chat) else {
-                    found.push(Signer::Bad);
+                    least = least.max(Trust::Altered);
                     continue;
                 };
                 let verified = host.verify(proof.author, bytes, proof.signature).await;
-                found.push(
-                    verified
-                        .and_then(Result::ok)
-                        .ok_or(be_sdk_beui::beui::reactive::Pending::Loading)?,
-                );
+                let signer = verified
+                    .and_then(Result::ok)
+                    .ok_or(be_sdk_beui::beui::reactive::Pending::Loading)?;
+                least = least.max(Trust::from(signer));
             }
-            Ok(least(found))
+            Ok(least)
         }
     });
-    let unverified = create_memo(move || signer.get() == Ok(Signer::Unverified));
-    let changed = create_memo(move || signer.get() == Ok(Signer::Changed));
-    let forged = create_memo(move || signer.get() == Ok(Signer::Bad));
+    let unverified = create_memo(move || signer.get() == Ok(Trust::Unverified));
+    let changed = create_memo(move || signer.get() == Ok(Trust::Changed));
+    let altered = create_memo(move || signer.get() == Ok(Trust::Altered));
+    let forged = create_memo(move || signer.get() == Ok(Trust::Forged));
     let author = create_memo(move || row.with(|row| row.author.clone()));
     let time = create_memo(move || row.with(|row| row.time.clone()));
     let arrived = create_memo(move || row.with(|row| row.arrived.clone().unwrap_or_default()));
@@ -1780,6 +1792,11 @@ fn MessageRow(
                             <Show value={changed}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Warning>
                                     "key changed"
+                                </Text>
+                            </Show>
+                            <Show value={altered}>
+                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
+                                    "history altered"
                                 </Text>
                             </Show>
                             <Show value={forged}>

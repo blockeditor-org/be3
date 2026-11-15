@@ -82,6 +82,28 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let head = moved.edit_of(lunch).expect("the moved record is the latest");
     assert_eq!((head.body.as_str(), head.seq), ("lunch at one?", 7));
     assert_ne!(head.key(lunch), once.key(lunch));
+    // A removal is signed by nobody: one made up past the head marks the slot cut while its
+    // genuine latest still shows, which the editor tells as altered history, not forgery.
+    let made_up = edit_at(&edit_at(&chat, &at(999), Some(&twice)), &at(999), None);
+    let head = made_up.edit_head(lunch, ADA);
+    assert!(head.cut);
+    assert_eq!(head.record.as_ref(), Some(&twice));
+    // A count past any an author reaches is junk: it cuts the slot and is never the head, and the
+    // author's next edit still counts and shows.
+    let junk = edit_at(&edit_at(&chat, &at(u64::MAX), Some(&once)), &at(u64::MAX), None);
+    let head = junk.edit_head(lunch, ADA);
+    assert!(head.cut);
+    assert_eq!(head.record.as_ref(), Some(&twice));
+    let after = junk.next_edit(lunch, ADA, 13, "lunch at four?");
+    assert_eq!(after.seq, 3);
+    let after = edited(&junk, [junk.put_edit(lunch, &after)]);
+    assert_eq!(after.body(lunch).as_deref(), Some("lunch at four?"));
+    // A record filed under another author takes that author, which its signature does not cover.
+    let bos = chat.next_edit(lunch, BO, 9, "Bo says three");
+    let filed = edit_at(&chat, &at(3), Some(&bos));
+    let head = filed.edit_of(lunch).expect("the filed record is the latest");
+    assert_eq!((head.author, head.seq), (ADA, 3));
+    assert_ne!(head.key(lunch), bos.key(lunch));
     // Someone else's edit is kept in their own slot, and changes nothing.
     let by_bo = edited(&chat, [chat.edit(lunch, BO, 9, "Bo says three")]);
     assert_eq!(by_bo.body(lunch).as_deref(), Some("lunch at two?"));

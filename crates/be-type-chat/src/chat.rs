@@ -997,49 +997,62 @@ fn stamp_time(time: i64) -> u64 {
     u64::try_from(time).unwrap_or(0)
 }
 
-/// A record whose count (`Counted::seq`) its signature covers.
-trait CountedRecord: Clone {
-    fn set_seq(&mut self, seq: u64);
+/// A record kept at a `Counted` key of slot `S`, whose signature covers what the key says.
+trait CountedRecord<S>: Clone {
+    /// Takes what its key says: its count, and its slot's author where it names one.
+    fn take_key(&mut self, slot: &S, seq: u64);
 }
 
-impl CountedRecord for MessageEdit {
-    fn set_seq(&mut self, seq: u64) {
+impl CountedRecord<EditSlot> for MessageEdit {
+    fn take_key(&mut self, slot: &EditSlot, seq: u64) {
+        self.author = slot.author;
         self.seq = seq;
     }
 }
 
-impl CountedRecord for Reaction {
-    fn set_seq(&mut self, seq: u64) {
+/// A reaction's slot (its `ReactionKey`) is what its signature names already.
+impl CountedRecord<ReactionKey> for Reaction {
+    fn take_key(&mut self, _slot: &ReactionKey, seq: u64) {
         self.seq = seq;
     }
 }
 
-/// The head of `slot` (`Head`). Its record takes the count of the key it is kept at, so one
-/// moved to another count no longer matches its signature.
-fn head<S: Ord + Clone, V: CountedRecord>(map: &LatestMap<Counted<S>, V>, slot: &S) -> Head<V> {
+/// The head of `slot` (`Head`). Its record takes what the key it is kept at says, so one filed
+/// under another author or count no longer matches its signature.
+fn head<S: Ord + Clone, V: CountedRecord<S>>(map: &LatestMap<Counted<S>, V>, slot: &S) -> Head<V> {
     let mut live = None;
     let mut removed = None;
+    let mut junk = false;
     for (key, record) in map.written_range(slot_range(slot)) {
         match record {
+            _ if key.seq > MAX_SEQ => junk = true,
             Some(record) => live = Some((key.seq, record)),
             None => removed = Some(key.seq),
         }
     }
-    let cut = removed.is_some_and(|removed| live.is_none_or(|(seq, _)| removed > seq));
+    let cut = junk || removed.is_some_and(|removed| live.is_none_or(|(seq, _)| removed > seq));
     let record = live.map(|(seq, record)| {
         let mut record = record.clone();
-        record.set_seq(seq);
+        record.take_key(slot, seq);
         record
     });
     Head { record, cut }
 }
 
+/// The highest count a record takes: keys are not signed, so anyone with Edit can write one
+/// counted past it, which `head` takes for a cut rather than a record, and which no count
+/// overflows on.
+const MAX_SEQ: u64 = 1 << 32;
+
 /// The count of the next record of `slot`: one past the highest written, removed or not, so a
-/// chain goes on past a record someone else cut.
+/// chain goes on past a record someone else cut. At `MAX_SEQ` it stays there, so its author's
+/// records overwrite each other at that key rather than go unshown.
 fn next_seq<S: Ord + Clone, V>(map: &LatestMap<Counted<S>, V>, slot: &S) -> u64 {
     map.written_range(slot_range(slot))
+        .map(|(key, _)| key.seq)
+        .filter(|seq| *seq <= MAX_SEQ)
         .last()
-        .map_or(1, |(key, _)| key.seq + 1)
+        .map_or(1, |seq| (seq + 1).min(MAX_SEQ))
 }
 
 /// Every count of `slot`.
