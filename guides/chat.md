@@ -218,7 +218,8 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   author, whoever it names). Its history is altered when an edit or reaction
   chain was cut or its deletion removed outright (written, now empty): a
   removal is signed by nobody, so anyone with Edit can fake one, and it says
-  nothing against the records shown (`Trust::Altered`). A deletion is asked about once when it appears (`forged_deletions`);
+  nothing against the records shown (`Trust::Altered`). A deletion is asked
+  about once when it appears (`forged_deletions`);
   a forged one keeps a muted, italic "Message deleted" row in the message's
   place (after `Deletion::after` among the recent messages, where it was in a
   closed segment read back), while a signed one leaves none. A recent message
