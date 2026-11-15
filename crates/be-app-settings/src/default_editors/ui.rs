@@ -45,12 +45,12 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
                     fallback={|| view! {
                         <SettingsRow label="Every block type has one editor." />
                     }}
-                >|block_type: Uuid|
+                >|block_type: Uuid, index: ReadSignal<usize>|
                     <DefaultEditor
                         editor={editor}
                         settings={settings}
                         block_type={block_type}
-                        separated={move || types.with(|types| types.first() != Some(&block_type))}
+                        separated={move || index.get() != 0}
                     />
                 </ForEach>
             </SettingsSection>
