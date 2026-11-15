@@ -9,6 +9,7 @@ async fn email_changes_wait_for_verification_and_notify_the_old_address() {
     browser
         .sign_in_by_code(&harness, "before@example.com")
         .await;
+    harness.stale_proofs();
     assert_eq!(
         browser
             .submit(

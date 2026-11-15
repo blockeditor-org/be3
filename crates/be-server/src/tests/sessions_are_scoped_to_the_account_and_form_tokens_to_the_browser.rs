@@ -7,9 +7,7 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
     harness.member("stranger@example.com").await;
     let mut browser = Browser::default();
     let mut stranger = Browser::default();
-    browser
-        .sign_in_by_code(&harness, "owner@example.com")
-        .await;
+    browser.sign_in_by_code(&harness, "owner@example.com").await;
     stranger
         .sign_in_by_code(&harness, "stranger@example.com")
         .await;

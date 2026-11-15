@@ -5,10 +5,7 @@ use crate::store::MAX_AGENTS_PER_CREATOR;
 async fn an_account_creates_a_bounded_number_of_agents() {
     let harness = Harness::start().await;
     let store = ServerStore::open(&harness.directory).unwrap();
-    let (profile, _) = store
-        .register("owner@example.com", "Owner")
-        .await
-        .unwrap();
+    let (profile, _) = store.register("owner@example.com", "Owner").await.unwrap();
     let organization = store.personal_organization().await.unwrap();
     let mut agents = Vec::new();
     for index in 0..MAX_AGENTS_PER_CREATOR {

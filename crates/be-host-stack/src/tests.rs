@@ -852,7 +852,11 @@ struct Someone {
 impl Someone {
     fn register(data: &std::path::Path, _url: &str, email: &str, name: &str) -> Self {
         let (profile, token) = runtime()
-            .block_on(be_server::ServerStore::open(data).unwrap().register(email, name))
+            .block_on(
+                be_server::ServerStore::open(data)
+                    .unwrap()
+                    .register(email, name),
+            )
             .unwrap();
         let session = crate::accounts::Session {
             account: profile.account,

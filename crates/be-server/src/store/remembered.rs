@@ -52,9 +52,4 @@ impl Remembered {
             .get(email)
             .is_some_and(|addresses| addresses.iter().any(|(found, _)| *found == address))
     }
-
-    #[cfg(test)]
-    pub(crate) fn known_emails(&self) -> usize {
-        self.known.lock().unwrap().len()
-    }
 }

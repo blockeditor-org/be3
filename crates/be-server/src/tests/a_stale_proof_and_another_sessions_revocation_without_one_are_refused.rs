@@ -5,13 +5,11 @@ async fn a_stale_proof_and_another_sessions_revocation_without_one_are_refused()
     let harness = Harness::start().await;
     harness.member("owner@example.com").await;
     let mut other = Browser::default();
-    other
-        .sign_in_by_code(&harness, "owner@example.com")
-        .await;
+    other.sign_in_by_code(&harness, "owner@example.com").await;
     let mut browser = Browser::default();
-    browser
-        .sign_in_by_code(&harness, "owner@example.com")
-        .await;
+    browser.sign_in_by_code(&harness, "owner@example.com").await;
+    // Signing in by code is a proof; these tests need it gone stale.
+    harness.stale_proofs();
     let store = ServerStore::open(&harness.directory).unwrap();
     let profile = store.browser_profile(&browser.cookie).await.unwrap();
     let sessions = store
@@ -72,6 +70,7 @@ async fn a_stale_proof_and_another_sessions_revocation_without_one_are_refused()
     unproved
         .sign_in_by_code(&harness, "owner@example.com")
         .await;
+    harness.stale_proofs();
     let own = store
         .account_sessions(profile.account, &unproved.cookie)
         .await

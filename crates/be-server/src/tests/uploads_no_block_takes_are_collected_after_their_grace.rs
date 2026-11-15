@@ -5,7 +5,7 @@ async fn uploads_no_block_takes_are_collected_after_their_grace() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
     let (profile, _) = ServerStore::open(&directory)
         .unwrap()
-        .register("uploader@example.com", "Uploader", "correct horse battery")
+        .register("uploader@example.com", "Uploader")
         .await
         .unwrap();
     let lasting = ServerStore::open(&directory).unwrap();
