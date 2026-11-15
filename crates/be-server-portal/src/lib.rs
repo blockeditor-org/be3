@@ -20,6 +20,15 @@ pub enum Screen {
     ResetRequested,
     PasswordReset,
     EmailUpdated,
+    /// Asks for the code mailed for the browser's attempt.
+    EnterCode,
+    /// The mail's link, opened in a browser that didn't ask for the code: it shows the code
+    /// and signs nothing in.
+    CodeElsewhere {
+        code: String,
+    },
+    /// "I can't sign in": a code to the account's email that ends every other session.
+    Recover,
     NotFound,
     Message {
         title: String,
@@ -47,6 +56,17 @@ pub struct Session {
     pub current: bool,
 }
 
+/// A way to sign in to the account, as the settings page lists it.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct IdentityRow {
+    pub id: String,
+    /// `email`, and later `passkey` and `oidc`.
+    pub kind: String,
+    pub label: String,
+    /// False for the account's last identity, which can't be removed.
+    pub removable: bool,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Field {
     Email,
@@ -55,16 +75,18 @@ pub enum Field {
     Confirmation,
     CurrentPassword,
     Invite,
+    EmailCode,
 }
 
 impl Field {
-    pub const ALL: [Field; 6] = [
+    pub const ALL: [Field; 7] = [
         Field::Email,
         Field::DisplayName,
         Field::Password,
         Field::Confirmation,
         Field::CurrentPassword,
         Field::Invite,
+        Field::EmailCode,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -75,6 +97,7 @@ impl Field {
             Field::Confirmation => "confirmation",
             Field::CurrentPassword => "current_password",
             Field::Invite => "invite",
+            Field::EmailCode => "email_code",
         }
     }
 
@@ -86,6 +109,7 @@ impl Field {
             Field::Confirmation => "Password confirmation:",
             Field::CurrentPassword => "Current password:",
             Field::Invite => "Invite code:",
+            Field::EmailCode => "Code:",
         }
     }
 }
@@ -136,6 +160,14 @@ pub struct Page {
     pub invite: String,
     pub mail_token: String,
     pub sessions: Vec<Session>,
+    /// The account's ways to sign in, on the settings page.
+    pub identities: Vec<IdentityRow>,
+    /// Whether this browser proved it is the owner recently enough for account changes.
+    pub fresh: bool,
+    /// Where the browser's pending code went.
+    pub code_email: String,
+    /// A code the mail's link filled in, in the browser that asked for it.
+    pub email_code: String,
     pub saved: bool,
     pub allow_registration: bool,
     pub assets: String,

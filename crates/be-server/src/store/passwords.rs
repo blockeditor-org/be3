@@ -292,7 +292,7 @@ impl Passwords {
         addresses.push((address, now));
     }
 
-    fn known(&self, email: &str, address: &str) -> bool {
+    pub(crate) fn known(&self, email: &str, address: &str) -> bool {
         let address = address_key(address);
         self.known
             .lock()

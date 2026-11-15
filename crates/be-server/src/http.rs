@@ -438,6 +438,15 @@ async fn serve_auth(
         .find(|(key, _)| *key == "be3-account")
         .map(|(_, value)| value)
         .unwrap_or_default();
+    let attempt = head
+        .cookie
+        .as_deref()
+        .unwrap_or_default()
+        .split(';')
+        .filter_map(|part| part.trim().split_once('='))
+        .find(|(key, _)| *key == "be3-attempt")
+        .map(|(_, value)| value)
+        .unwrap_or_default();
     let result = crate::portal::handle(
         services,
         &head.method,
@@ -445,6 +454,7 @@ async fn serve_auth(
         &query,
         &fields,
         token,
+        attempt,
         &origin,
         client,
     )
@@ -455,6 +465,9 @@ async fn serve_auth(
     }
     if let Some(cookie) = result.cookie {
         extras.push_str(&format!("Set-Cookie: be3-account={cookie}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if cookie.is_empty() { 0 } else { 30 * 86400 }, if origin.starts_with("https://") { "; Secure" } else { "" }));
+    }
+    if let Some(attempt) = result.attempt {
+        extras.push_str(&format!("Set-Cookie: be3-attempt={attempt}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if attempt.is_empty() { 0 } else { crate::store::codes::CODE_LIFETIME }, if origin.starts_with("https://") { "; Secure" } else { "" }));
     }
     let (content_type, body, page_headers) = match result.body {
         crate::portal::Body::Html(html) => (

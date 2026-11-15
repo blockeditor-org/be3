@@ -588,7 +588,28 @@ changes an app session calls it.
 
 ### Accounts
 
-Remote accounts register and sign in through the `/auth` portal, which
+An account signs in with any of its **identities** (`identities`: an `email`
+now; passkeys and providers in plans/accounts.md), never its last removed.
+The portal signs in, registers and recovers ("I can't sign in", which ends
+every other session) by a code mailed to the email (`store/codes.rs`): eight
+letters with no look-alikes, good for ten minutes and five wrong tries, and
+belonging to one attempt whose secret the asking browser holds in the
+`be3-attempt` cookie, so it works nowhere else; a new request for the attempt
+ends its older code. The mail's link (`/auth/enter?attempt=&email_code=`) fills
+the code in only in that browser, and elsewhere shows it and signs nothing in.
+Requests are capped per address (an IPv6 /64) and per network (a /48), and an
+account's budget counts only those from addresses that never signed in to it,
+so strangers can't stop its owner; a request for an email with no account
+leaves a row that costs the same and sends nothing. Registering by code refuses
+an email that has an account, which tells a stranger it is registered: behind
+an invite code that leak is small, and mailing "you already have an account"
+is the alternative if registration opens. Changing the email, removing an
+identity and ending other sessions need a **fresh proof**
+(`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
+(`sessions.proved`), which signing in by code or recovering also gives; a
+password sign-in does not. Removing an identity mails a notice.
+
+Remote accounts also still register and sign in with a password through the `/auth` portal, which
 verifies the email before creating the account; the protocol has the browser
 sign-in's one-shot `begin-browser-login` and `poll-browser-login` ("Signing
 in" above), token `Authenticate`, header authentication and `Logout`. Registering needs an

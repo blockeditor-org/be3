@@ -9,6 +9,14 @@ async fn revoking_a_session_announces_only_a_change() {
         .await
         .unwrap();
     let browser = store.browser_session(profile.account).await.unwrap();
+    // Ending the other sessions needs a fresh proof.
+    assert!(
+        store
+            .revoke_other_sessions(profile.account, &browser)
+            .await
+            .is_err()
+    );
+    prove(&store, profile.account, "owner@example.com", &browser).await;
     // The first removes the app session registering made; the second has
     // nothing left to remove.
     store

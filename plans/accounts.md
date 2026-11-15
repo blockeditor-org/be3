@@ -139,20 +139,13 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
 ## Steps
 
-1. **Identities and emailed codes, beside passwords.** Add identities: an
-   account id, and identities of the kinds above; email stays a verified
-   attribute for contact and recovery, and an account may have none. Add
-   sign-in and registration by emailed code through the portal, following the rules above, while password sign-in
-   still works. The portal's settings page lists identities, to add and remove
-   (never the last); its sessions page stays and lists app sessions too. Tests
-   read codes from a capturing `Delivery` (as `tests.rs` already has one), or
-   from the portal's JSON `Page` that a server without a `Portal` answers.
-   Done: tests where a code signs in only the browser that asked for it; a link
-   opened in another browser shows the code and signs nothing in; a sixth wrong
-   try, an expired code and a superseded code are each refused; requests from a
-   stranger's addresses never stop the owner getting a code from an address
-   they signed in from; an email with no account sends nothing; an email change
-   without fresh proof is refused and with it mails the old address.
+1. **What is left of identities and emailed codes.** Codes sign in, register,
+   recover and prove (guides/blocks/server.md, Accounts), beside passwords. An
+   account with no email waits for the first identity that is not one (steps 4
+   and 5): until then every account that signs in has an email identity, so
+   `accounts.email` stays required, and the contact card and "Connect with NAME
+   (EMAIL)?" still show it. Making it optional, and showing only the name where
+   there is none, comes with that step.
 2. **Passwords go**, once step 1 signs in by code: remove the password
    column, `store/passwords.rs`, the hashing queue, the lockouts and slowdown,
    the reset flow and the password settings page. `address_key` moves from

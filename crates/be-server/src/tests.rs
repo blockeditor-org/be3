@@ -38,6 +38,9 @@ mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
+mod a_code_is_refused_after_five_wrong_tries_once_expired_and_once_replaced;
+mod a_code_signs_in_only_the_browser_that_asked_for_it;
+mod a_codes_link_opened_in_another_browser_shows_the_code_and_signs_nothing_in;
 mod a_commit_from_the_far_future_is_refused;
 mod a_connection_hears_only_of_the_blocks_it_listed;
 mod a_connection_holds_a_bounded_number_of_listings;
@@ -109,6 +112,7 @@ mod an_agent_stores_against_its_creators_quota;
 mod an_agents_creator_removes_it_as_a_member_and_key_work_is_told;
 mod an_editor_changes_the_prefixes_and_tags_but_no_other_kind;
 mod an_editor_sees_only_the_blocks_it_made_or_was_given;
+mod an_email_with_no_account_is_answered_the_same_and_sent_nothing;
 mod an_endpoint_its_push_service_says_is_gone_is_dropped;
 mod an_endpoint_on_a_host_taken_off_the_list_is_dropped_at_send;
 mod an_endpoint_that_keeps_failing_for_a_day_is_dropped;
@@ -167,7 +171,9 @@ mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod publishing_prunes_the_commit_it_replaces_but_keeps_bookmarks_and_merge_parents;
 mod read_summaries_leaves_out_what_the_caller_may_not_know_of;
+mod recovering_by_code_signs_out_every_other_session;
 mod references_keep_the_order_their_block_lists_them_in;
+mod registering_by_code_makes_the_account_once_the_code_is_entered;
 mod registering_joins_the_one_personal_organization_as_an_editor;
 mod registration_checks_its_invite_code_before_hashing_the_password;
 mod registration_needs_an_invite_code_spent_when_the_account_is_made;
@@ -185,6 +191,7 @@ mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
 mod sign_in_failures_lock_a_pair_before_an_address_or_an_email_and_decay;
 mod signing_keys_are_served_only_for_accounts_the_caller_knows;
+mod strangers_never_stop_the_owner_getting_a_code_from_an_address_they_signed_in_from;
 mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
@@ -1378,6 +1385,30 @@ async fn fixture_account(
     Ok((profile.account, company.id))
 }
 
+/// Proves the browser session is the account's owner, as the portal's code to its email does.
+async fn prove(store: &ServerStore, account: Uuid, email: &str, browser: &str) {
+    use crate::store::codes::{self, CodePurpose, CodeRequest};
+    let attempt = codes::new_attempt();
+    let mailed = store
+        .request_code(CodeRequest {
+            purpose: CodePurpose::Proof,
+            email,
+            account: Some(account),
+            display_name: "",
+            invite: "",
+            device_code: "",
+            attempt: &attempt,
+            address: "127.0.0.1",
+        })
+        .await
+        .unwrap()
+        .unwrap();
+    store
+        .enter_code(&attempt, &mailed.code, browser, "127.0.0.1")
+        .await
+        .unwrap();
+}
+
 #[derive(Default)]
 struct CapturedMail(std::sync::Mutex<Vec<mail::Email>>);
 impl mail::Delivery for CapturedMail {
@@ -1391,6 +1422,42 @@ impl Harness {
         crate::store::invite_codes::create(&self.directory, None, None)
             .unwrap()
             .0
+    }
+
+    /// The code and the link's attempt in the latest code mailed to `email`.
+    fn mailed_code(&self, email: &str) -> (String, String) {
+        let messages = self.mail.0.lock().unwrap();
+        let body = &messages
+            .iter()
+            .rev()
+            .find(|message| message.recipient == email && message.body.starts_with("Your code is "))
+            .unwrap()
+            .body;
+        let code = body["Your code is ".len()..]
+            .split('.')
+            .next()
+            .unwrap()
+            .to_owned();
+        let attempt = body
+            .split("attempt=")
+            .nth(1)
+            .unwrap()
+            .split('&')
+            .next()
+            .unwrap()
+            .to_owned();
+        (code, attempt)
+    }
+
+    /// How many messages went to `email`.
+    fn mails_to(&self, email: &str) -> usize {
+        self.mail
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|message| message.recipient == email)
+            .count()
     }
 
     fn mail_token(&self, email: &str) -> String {
@@ -1414,6 +1481,8 @@ impl Harness {
 #[derive(Default)]
 struct Browser {
     cookie: String,
+    /// The `be3-attempt` cookie of a pending code.
+    attempt: String,
 }
 impl Browser {
     async fn request(
@@ -1425,12 +1494,15 @@ impl Browser {
     ) -> (u16, String) {
         let address = harness.address;
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
-        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, body.len()).as_bytes()).await.unwrap();
+        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={}; be3-attempt={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, self.attempt, body.len()).as_bytes()).await.unwrap();
         let mut bytes = Vec::new();
         stream.read_to_end(&mut bytes).await.unwrap();
         let response = String::from_utf8(bytes).unwrap();
         if let Some(cookie) = response.split("Set-Cookie: be3-account=").nth(1) {
             self.cookie = cookie.split(';').next().unwrap().into();
+        }
+        if let Some(attempt) = response.split("Set-Cookie: be3-attempt=").nth(1) {
+            self.attempt = attempt.split(';').next().unwrap().into();
         }
         (
             response.split_whitespace().nth(1).unwrap().parse().unwrap(),
@@ -1460,6 +1532,44 @@ impl Browser {
                 .join("&")
         );
         self.request(harness, "POST", action, &body).await
+    }
+    /// Asks for a sign-in code for `email` from the sign-in page.
+    async fn ask_code(&mut self, harness: &Harness, email: &str) -> (u16, String) {
+        self.submit(
+            harness,
+            "/auth/login",
+            "/auth/code/send",
+            &[("email", email)],
+        )
+        .await
+    }
+    /// Enters a code on the page that asks for it.
+    async fn enter_code(&mut self, harness: &Harness, code: &str) -> (u16, String) {
+        self.submit(
+            harness,
+            "/auth/enter",
+            "/auth/enter",
+            &[("email_code", code)],
+        )
+        .await
+    }
+    /// Signs in with a code mailed to `email`.
+    async fn sign_in_by_code(&mut self, harness: &Harness, email: &str) {
+        assert_eq!(self.ask_code(harness, email).await.0, 303);
+        let (code, _) = harness.mailed_code(email);
+        let (status, page) = self.enter_code(harness, &code).await;
+        assert_eq!(status, 303, "{page}");
+        assert!(!self.cookie.is_empty());
+    }
+    /// Proves it is the account's owner with a code to its email.
+    async fn prove(&mut self, harness: &Harness, email: &str) {
+        let (status, page) = self
+            .submit(harness, "/auth/settings", "/auth/proof", &[])
+            .await;
+        assert_eq!(status, 303, "{page}");
+        let (code, _) = harness.mailed_code(email);
+        let (status, page) = self.enter_code(harness, &code).await;
+        assert_eq!(status, 303, "{page}");
     }
     async fn login(&mut self, harness: &Harness, email: &str, password: &str) {
         let (status, page) = self

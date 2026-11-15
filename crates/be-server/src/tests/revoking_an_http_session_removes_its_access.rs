@@ -19,6 +19,7 @@ async fn revoking_an_http_session_removes_its_access() {
     browser
         .login(&harness, "http-revoke@example.com", "correct horse battery")
         .await;
+    browser.prove(&harness, "http-revoke@example.com").await;
     assert_eq!(
         browser
             .submit(&harness, "/auth/sessions", "/auth/sessions/others", &[])
