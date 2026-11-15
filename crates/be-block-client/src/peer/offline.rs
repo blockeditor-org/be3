@@ -146,6 +146,39 @@ impl<S: ObjectStore> Peer<S> {
         Ok(())
     }
 
+    /// The block's history as far as this device holds it, from the server's head as last heard
+    /// back through every parent it has: what `history` answers offline. A commit it never
+    /// fetched ends the walk there.
+    pub(super) fn history_held(
+        &self,
+        block: Uuid,
+    ) -> Result<Vec<be_block_protocol::HistoryEntry>, ClientError> {
+        let head = self
+            .known_remote_head(block)
+            .or_else(|| self.refs.summary(block).and_then(|summary| summary.head));
+        let mut entries = Vec::new();
+        let mut seen = HashSet::new();
+        let mut frontier: Vec<CommitId> = head.into_iter().collect();
+        while let Some(id) = frontier.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            let Some(commit) = self.commits.try_get(id)? else {
+                continue;
+            };
+            frontier.extend(commit.parents.iter().copied());
+            entries.push(be_block_protocol::HistoryEntry {
+                commit: id,
+                parents: commit.parents,
+                time: commit.time,
+                pinned: matches!(commit.kind, be_block_commit::CommitKind::Bookmark(_)),
+                head: Some(id) == head,
+            });
+        }
+        entries.sort_by_key(|entry| (entry.time, entry.commit));
+        Ok(entries)
+    }
+
     pub(super) fn define_locally(
         &self,
         mut summary: BlockSummary,
