@@ -2,6 +2,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use super::*;
 
+mod a_block_this_account_lost_is_forgotten_once_what_was_set_aside_is_discarded;
 mod every_record_reads_back_with_each_option_none_and_some;
 mod what_search_let_go_is_kept_across_a_reopen;
 
