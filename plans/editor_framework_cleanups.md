@@ -59,9 +59,7 @@ its replica like any other change.
 5. Remove the `on_replace_child` paragraph from `guides/apps/editor.md` (Presence), which also
    describes it wrongly, and say in guides/type_modules.md or guides/blocks/content_types.md that
    a type whose references live in its content implements `child_edit` `Replace`.
-6. Rename the menu item: "Unlink" reads as "remove the link", but it makes an independent copy in
-   place. Label it "Make a copy here" and rename `BlockAction::Unlink`, `BlockCommand::Unlink`,
-   `unlink_block` and the `unlink` permission to match (no saved data uses these names).
+   Keep the name "Unlink" for the menu item and the action.
 
 **Done when** unlinking a reference inside a text block works with the text editor closed and open,
 no app registers anything for it, and `replace-child` is gone from the app protocol.
