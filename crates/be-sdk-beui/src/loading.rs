@@ -7,6 +7,16 @@ use beui::styled::*;
 
 const GRACE: Duration = Duration::from_millis(300);
 
+/// What the host answered `asked`, as an async memo reads it: a failure is `Failed`, and a
+/// question the host dropped (it closed) is still loading.
+pub async fn answer<T>(asked: be_sdk::Asked<Result<T, be_sdk::Failure>>) -> Ready<T> {
+    match asked.await {
+        Some(Ok(answer)) => Ok(answer),
+        Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
+        None => Err(Pending::Loading),
+    }
+}
+
 #[component]
 pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> NodeId {
     let label = create_memo(move || label.get());
