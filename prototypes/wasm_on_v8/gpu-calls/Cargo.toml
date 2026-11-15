@@ -1,0 +1,18 @@
+[package]
+name = "v8-gpu-calls"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+v8 = "=152.2.0"
+wat = "1"
+wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }
+be-wasm-gpu-host = { path = "../../../crates/be-wasm-gpu-host" }
+be-wasm-gpu-abi = { path = "../../../crates/be-wasm-gpu-abi", features = ["wgpu"] }
+be-wasm-ops = { path = "../../../crates/be-wasm-ops" }
+
+[profile.release]
+debug = "line-tables-only"
