@@ -33,8 +33,6 @@ found one held past std's short spin:
 - be-host-stack `replies.rs`'s `WAITING`, what each reply's number calls back: the page adds
   to it and the worker takes from it as it answers. It becomes the page's alone once answers
   travel to the page in the message that hands it the `Seen` (step 1).
-- be-host-stack `lib.rs`'s `OWN_INVITATIONS`, which the worker writes as invitations are made
-  or listed and the page reads; it belongs in `Seen`.
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
 - wasi-libc's `malloc`, which locks the one heap the page and the worker share.
 
@@ -63,9 +61,8 @@ a thread that runs beside it.
 1. Give the host's worker (`web/be-worker.js`, which runs the stacks and keeps the host's
    files, be-host's `host_files`) its own memory, serialize `Seen` and commands (the protocol
    crates' own encodings), and stop binding the page's files channel: a file call on the page
-   then fails loudly. Two remain to check then, which should never run on the web's page:
-   be-host-runtime `input.rs`'s `read_path` (a dropped file with a path and no bytes) and
-   `fonts.rs`'s fallback reads (no system fonts on the web today). The host state's first answer and its `Write`s, and the organization
+   then fails loudly. be-host-runtime's two file reads on the page, `input.rs`'s `read_path`
+   and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer and its `Write`s, and the organization
    lists, become messages too. The stack's commands are bytes already, and replies numbers
    answered with bytes (guides/blocks/host.md, "What the page reads"). The handed-over `Seen` then
    becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker

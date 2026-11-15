@@ -54,8 +54,16 @@ fn read_dropped(file: beui::DroppedFile) -> Option<ClipFile> {
     Some(ClipFile { name, data })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 fn read_path(path: &std::path::Path) -> Option<Vec<u8>> {
     std::fs::read(path).ok()
+}
+
+/// A browser hands a dropped file's bytes over, and the web's page reads no files
+/// (plans/web_page_never_waits.md).
+#[cfg(target_arch = "wasm32")]
+fn read_path(_path: &std::path::Path) -> Option<Vec<u8>> {
+    None
 }
 
 pub(super) struct InputForwarder {

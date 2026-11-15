@@ -245,6 +245,9 @@ pub struct Frame {
     pub bytes: Arc<Vec<u8>>,
 }
 
+/// An invitation code made or listed here, with the server and account whose own it is.
+pub type OwnInvitation = (String, Uuid, be_block_keys::InviteCode);
+
 /// What the page's synchronous API reads: the part of the worker's `Shared` it hands over.
 #[derive(Clone, Default, serde::Deserialize, serde::Serialize)]
 pub struct Seen {
@@ -300,6 +303,8 @@ pub struct Seen {
     pub conflicts: Part<imbl::HashMap<Uuid, Vec<Conflict>>>,
     pub pairing: Vec<PairingRequest>,
     pub contacts: Part<Vec<be_block_client::Contact>>,
+    /// Invitation codes this stack's account made or listed (`crate::is_own_invitation`).
+    pub own_invitations: Part<Vec<OwnInvitation>>,
     /// The account's storage, while an editor watches it (`watch_storage`).
     pub storage: Option<be_block_protocol::AccountStorage>,
     pub escrow_warning: Option<Words>,
