@@ -99,6 +99,12 @@ An animated close belongs to the overlay, not its owner: the content calls
 its exit finishes. The owner just writes `open` false. `ModalSheet` and `Modal`
 leave this way.
 
+Whatever an overlay is opened from can hear whether any is open beneath it:
+provide an `OverlaysWithin` and read `any()`. Every `Overlay` built under it
+counts while it is open and not `Inert`, and stops counting when it closes or
+goes away with its opener. A dock bar's hidden band stays out this way while a
+menu or panel from the bar is up (guides/beui/docking.md, hidden bands).
+
 ## Policies
 
 Each layer has one `LayerPolicy`:
