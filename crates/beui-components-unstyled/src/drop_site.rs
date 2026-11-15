@@ -1,0 +1,166 @@
+//! A place that takes dropped items, typed: what it accepts, the places a carried item can
+//! land in it, and what committing a drop does. Its `over` is the place chosen in it while an
+//! item is carried; it draws that, and writes nothing until `commit`.
+
+#[cfg(test)]
+mod tests;
+
+use std::any::Any;
+use std::rc::Rc;
+
+use beui_view::drag::{After, Candidate, DragSpec, Space};
+use beui_view::reactive::*;
+use beui_view::types::{Direction, Pos2, Rect};
+
+use crate::drag_board::{Board, Erased, Site, drag_board};
+
+/// A site's handle: the place chosen in it while an item is carried, else `None`.
+pub struct DropSiteHandle<D: 'static> {
+    pub over: ReadSignal<Option<D>>,
+}
+
+impl<D> Clone for DropSiteHandle<D> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<D> Copy for DropSiteHandle<D> {}
+
+/// Makes the current component a drop site on the tree's board, for as long as its scope
+/// lives: `accepts` says which payloads it takes, `spec` gives the places a carried one can
+/// land in it (read once, at the lift, from the layout then), and `commit` does the drop.
+pub fn use_drop_site<P, D>(
+    accepts: Func<P, bool>,
+    spec: Func<P, DragSpec<D>>,
+    commit: Callback<(P, D)>,
+) -> DropSiteHandle<D>
+where
+    P: Clone + 'static,
+    D: Clone + 'static,
+{
+    drop_site_on(&drag_board(), accepts, spec, commit)
+}
+
+pub(crate) fn drop_site_on<P, D>(
+    board: &Rc<Board>,
+    accepts: Func<P, bool>,
+    spec: Func<P, DragSpec<D>>,
+    commit: Callback<(P, D)>,
+) -> DropSiteHandle<D>
+where
+    P: Clone + 'static,
+    D: Clone + 'static,
+{
+    let over = create_signal(None::<D>);
+    let typed = |payload: &dyn Any| payload.downcast_ref::<P>().cloned();
+    let id = board.add_site(Site {
+        id: 0,
+        accepts: Rc::new(move |payload| typed(payload).is_some_and(|payload| accepts.call(payload))),
+        spec: Rc::new(move |payload| match typed(payload) {
+            Some(payload) => spec
+                .call(payload)
+                .map(Rc::new(|drop: D| Rc::new(drop) as Erased)),
+            None => DragSpec::Floating,
+        }),
+        over: Rc::new(move |drop: Option<Erased>| {
+            let drop = drop.and_then(|drop| drop.downcast_ref::<D>().cloned());
+            over.update(|over| *over = drop);
+        }),
+        commit: Rc::new(move |payload: Erased, drop: Erased| {
+            if let (Some(payload), Some(drop)) =
+                (payload.downcast_ref::<P>(), drop.downcast_ref::<D>())
+            {
+                commit.call((payload.clone(), drop.clone()));
+            }
+        }),
+    });
+    let board = Rc::clone(board);
+    on_cleanup(move || board.remove_site(id));
+    DropSiteHandle {
+        over: over.read_only(),
+    }
+}
+
+/// The payload carried on the tree's board, if it is a `P`; tracked.
+pub fn carrying<P: Clone + 'static>() -> Option<P> {
+    drag_board()
+        .carried()
+        .and_then(|payload| payload.downcast_ref::<P>().cloned())
+}
+
+/// Whether `key` is what is carried; a row draws itself as the gap while it is.
+pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
+    create_memo(move || carrying::<K>().is_some_and(|carried| carried == key))
+}
+
+/// The places a carried row can land among `rows`, along `direction`, each named by the
+/// row it would come after: read now from where the rows are laid out, relative to `list`
+/// (the node they sit in), so a scroll or a moving window carries them along. A row lands at
+/// the start of a row it passes going up, and at the end of one it passes going down, as the
+/// rows between close up behind it; rows of any length rest exactly.
+pub fn slots_in<K>(
+    list: NodeRef,
+    rows: ForEachRef<K, NodeId>,
+    carried: &K,
+    direction: Direction,
+) -> Vec<Candidate<After<K>>>
+where
+    K: Clone + PartialEq + 'static,
+{
+    slots_with(&*beui_view::drag::space(), list, rows, carried, direction)
+}
+
+pub(crate) fn slots_with<K>(
+    space: &dyn Space,
+    list: NodeRef,
+    rows: ForEachRef<K, NodeId>,
+    carried: &K,
+    direction: Direction,
+) -> Vec<Candidate<After<K>>>
+where
+    K: Clone + PartialEq + 'static,
+{
+    let Some((origin, scale)) = list.try_get().and_then(|list| space.placed(list)) else {
+        return Vec::new();
+    };
+    let keys = untrack(|| rows.keys());
+    let rect_of = |key: &K| {
+        let node = *rows.nodes_of(key).first()?;
+        let (rect, _) = space.placed(node)?;
+        Some(rect)
+    };
+    let Some(home) = keys.iter().position(|key| key == carried) else {
+        return Vec::new();
+    };
+    let Some(own) = rect_of(carried) else {
+        return Vec::new();
+    };
+    let along = |pos: Pos2| direction.main(pos.to_vec2());
+    let length = direction.main(own.size());
+    let rest: Vec<&K> = keys.iter().filter(|key| *key != carried).collect();
+    let mut slots = Vec::with_capacity(keys.len());
+    for (at, key) in keys.iter().enumerate() {
+        let Some(rect) = rect_of(key) else {
+            continue;
+        };
+        // Where the carried row starts when it lands at `at`: the start of the row there going
+        // up, the end of it less its own length going down.
+        let start = match at <= home {
+            true => along(rect.min),
+            false => along(rect.max) - length,
+        };
+        let min = match direction {
+            Direction::Vertical => Pos2::new(own.min.x, start),
+            Direction::Horizontal => Pos2::new(start, own.min.y),
+        };
+        let window = Rect::from_min_size(min, own.size());
+        let rest_in_list = Rect::from_min_size(
+            Pos2::ZERO + (window.min - origin.min) / scale,
+            window.size() / scale,
+        );
+        let after = at.checked_sub(1).map(|before| rest[before].clone());
+        slots.push(Candidate::new(After(after), rest_in_list, list));
+    }
+    slots
+}
