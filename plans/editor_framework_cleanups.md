@@ -2,7 +2,7 @@
 
 Depends on: none.
 
-Reading `crates/be-app-text/src/root.rs` (`TextEditor`) turned up five places where an app works
+Reading `crates/be-app-text/src/root.rs` (`TextEditor`) turned up places where an app works
 around something the framework should do. Each part below stands alone and can land as its own
 pull request, except that part 3's sweep and part 4's sweep touch the same lines and are best done
 together (part 3, step 4). None of them changes `editor.content(&node_ref)`: that is deliberately
@@ -63,86 +63,6 @@ its replica like any other change.
 
 **Done when** unlinking a reference inside a text block works with the text editor closed and open,
 no app registers anything for it, and `replace-child` is gone from the app protocol.
-
-## 2. Typed, reactive view state, saved on every change
-
-**Today.** View state is a `LatestMap<String, ViewState>` in the view block
-(`be_block_content::EditorView`, `crates/be-block-content/src/editor_view.rs`); `ViewState` is
-opaque postcard `bytes` plus `refs`, block ids the type repoints or blanks when a child is replaced
-or deleted (`EditorView::child_edit`), so bytes may index into `refs`. Editors read it with
-`editor.view_state(key)` (a one-off read) or by reading `editor.view_content()` inside a binding,
-and write with `editor.set_view_state(key, Some(&ViewState::new(&value, refs)))`. Keys are string
-constants; values are decoded by hand with `ViewState::value::<T>()`.
-
-`crates/be-app-text/src/root/position.rs` (`keep_position`) shows what that costs: a
-`StoredCell` "restored" flag and an early-returning binding to wait for the view block, a
-`RefCell<Option<Position>>` to skip unchanged writes, a 500 ms timer (`SAVE_AFTER`) to debounce
-saves, and an extra effect to save when the editor is hidden. The file tree (`root/zoom.rs`,
-`root/rows.rs`) has the same restored-flag pattern. Callers today: be-app-text, be-app-file-tree,
-be-app-workspace (`FILES_VIEW`), be-app-boat (`CACHE`), be-app-desktop (`DISPLAY_BARS`,
-`CALENDAR_STATE`), be-sdk-shell (`LAYOUT`, `TITLES`, `RECENTS`, `CLOSED_VIEWS`, in
-`workspace.rs` and `saved.rs`).
-
-**Design.**
-
-- **Typed keys.** A view-state value is a type implementing a trait in be-block-content beside
-  `PresenceKind` and `ChannelKind` (`src/presence.rs`), which identify themselves with
-  `const ID: Uuid`:
-
-  ```rust
-  pub trait ViewStateKind: Serialize + DeserializeOwned + PartialEq + 'static {
-      const ID: Uuid;
-  }
-  ```
-
-  The map is keyed by that id (`LatestMap<Uuid, ViewState>`; change the stored form freely, no
-  format is frozen). Each kind stays its own map entry, so two devices writing different kinds
-  (the shell's layout and its recents) still merge without overwriting each other. Do not fold an
-  editor's view state into one struct.
-- **Block references stay typed.** Values name blocks through a `ViewRef` (a newtype over `Uuid`)
-  that serializes as an index into the entry's `refs`, so the type module can still repoint or
-  blank them without knowing the value's type. Writing collects the refs while serializing;
-  reading resolves each index (a blanked ref reads as `None`, so a field is `Option<ViewRef>` or
-  a list filters them). A thread-local or a serializer wrapper during the postcard call is enough.
-  `saved::SavedLayout`, `ClosedView`, `FILES_VIEW` and `CALENDAR_STATE` then hold `ViewRef`s
-  instead of hand-kept indices and parallel `refs` vectors.
-- **One reactive handle.** `editor.view_state::<K>()` in be-sdk-beui returns a `Copy` handle:
-  - `get()`, tracked, returns `Ready<Option<K>>`: `Err(Pending::Loading)` until the view block is
-    read, `Ok(None)` when nothing is saved. A value that is saved but does not decode is not
-    `None`: the shell keeps an unreadable layout rather than replacing it
-    (guides/blocks/workspaces.md, `unreadable_layout()`), so a decode failure is
-    `Err(Pending::Failed(..))` or a distinct variant the shell can tell apart.
-  - `set(Option<K>)` writes at once, skipping a value equal to the one held (as
-    `EditorState::set_view_state` already does in `crates/be-sdk/src/editor_state.rs`).
-
-  `editor.view_state(&str)`, `set_view_state(&str, ..)` and `ViewState::new`/`value` stop being
-  public API; nothing reads a view state any other way.
-- **No debouncing.** Saving on every scroll event or keystroke is expected and must be cheap. If a
-  stream of writes costs anything (outbox size, history, sync traffic), fix it where it is stored,
-  never in callers: `Document::absorb_operation` (`crates/be-block-content/src/model.rs`) merges
-  consecutive text edits but not consecutive `LatestMap` puts to the same key; make a put absorb
-  an earlier unsent put to the same key so a burst becomes one operation. Measure a burst of writes
-  in a test that counts the outbox's operations.
-
-**Steps.**
-
-1. Add `ViewStateKind`, `ViewRef` and the uuid-keyed map, with tests in be-block-content for
-   writing, reading, a ref repointed and blanked by `child_edit`, and an undecodable value.
-2. Add the put absorption and its test.
-3. Add `editor.view_state::<K>()` in be-sdk-beui (and whatever be-sdk-test needs to read it in
-   tests), and remove the string-keyed API.
-4. Port every caller listed above. For text, `keep_position` becomes: a memo of `Position::of`
-   keyed on `scrolled` and `cursors` (the surrounding text stays read untracked, which is what
-   finds a place again after edits), an effect that `set`s it whenever it changes, and a binding
-   that restores once when `get()` first returns `Ok`. `state.position_restored` stays: an opened
-   search hit waits for it (`select_where_opened` in `root/surface.rs`). Delete `SAVE_AFTER`, the
-   timer, the `saved` cell and the hidden-editor effect. Keep
-   `a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret.rs` passing.
-5. Update guides/blocks/workspaces.md (View state) and guides/apps/editor.md, including the rule:
-   view state is written on every change and never debounced.
-
-**Done when** no caller names a view state with a string, decodes bytes or indexes `refs` by hand,
-and nothing in the repository delays a view-state write.
 
 ## 3. `Show` with a fallback, for runs and for single children
 
