@@ -27,7 +27,8 @@ pub mod reactive {
     pub use crate::control::{Dynamic, ForEach, Keyed, Loading, Show};
     pub use crate::into_prop_via;
     pub use crate::prop::{
-        ByClosure, ByClosureLifted, ByLift, ByValue, Exact, Func, Getter, IntoFunc, IntoLiftedProp, IntoProp, IntoPropWith, Prop,
+        ByClosure, ByClosureLifted, ByLift, ByValue, Exact, Func, Getter, IntoFunc, IntoLiftedProp,
+        IntoProp, IntoPropWith, Prop,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
