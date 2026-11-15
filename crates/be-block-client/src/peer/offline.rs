@@ -808,6 +808,10 @@ impl<S: ObjectStore> Peer<S> {
                     .and_then(|summary| self.metadata(&summary).ok())
                     .and_then(|metadata| metadata.name()),
                 refused: unsent.refused,
+                kept_edits: self
+                    .refs
+                    .open_edits(block)
+                    .map_or(0, |kept| kept.edits.len()),
             })
             .collect()
     }
