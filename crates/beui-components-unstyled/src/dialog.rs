@@ -354,12 +354,12 @@ pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: Callback<()>,
     pub tall: bool,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 pub struct DialogCardHandle {
     pub pointer: NodeRef,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

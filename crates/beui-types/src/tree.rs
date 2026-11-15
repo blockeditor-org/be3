@@ -1,6 +1,6 @@
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
-    Prop, ScopeContext, SlotChild,
+    ChildSegment, ChildValue, Children, ComponentContext, Counted, Get, IntoChild, IntoProp,
+    IntoSegment, One, Prop, ScopeContext, Single, SlotChild,
 };
 
 use crate::layout::Sizing;
@@ -52,6 +52,10 @@ impl<P: ParentKind> ChildValue for Placed<P> {
     fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         self.node.finish_component(component, scope);
     }
+}
+
+impl<P: ParentKind> Counted for Placed<P> {
+    type Count = One;
 }
 
 impl<P: ParentKind> SlotChild for Placed<P> {
@@ -118,6 +122,21 @@ impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
     }
 }
 
+impl<P: BareChild> IntoSegment<Placed<P>> for Single<NodeId> {
+    fn into_segment(self) -> ChildSegment<Placed<P>> {
+        self.convert(|node: NodeId| node.into_child())
+    }
+}
+
+impl<P: BareChild> IntoSegment<Placed<P>> for Option<Single<NodeId>> {
+    fn into_segment(self) -> ChildSegment<Placed<P>> {
+        match self {
+            Some(child) => child.into_segment(),
+            None => ChildSegment::Many(Vec::new()),
+        }
+    }
+}
+
 impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
     fn into_segment(self) -> ChildSegment<Placed<P>> {
         ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
@@ -177,3 +196,11 @@ impl ParentKind for CanvasKind {
 }
 
 pub type CanvasItem = Placed<CanvasKind>;
+
+impl<P: ParentKind, N: beui_tree::reactive::BuiltOnce> IntoChild<Placed<P>>
+    for beui_tree::reactive::DynamicSegment<Placed<P>, N>
+{
+    fn into_child(self) -> Placed<P> {
+        unreachable!("no count is `BuiltOnce`")
+    }
+}

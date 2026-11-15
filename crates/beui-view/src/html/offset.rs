@@ -1,5 +1,4 @@
 use crate::reactive::Callback;
-use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Direction;
@@ -15,7 +14,7 @@ pub(crate) fn offset(
     fit: bool,
     follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let node = create("Offset", "div");
     for (property, value) in [

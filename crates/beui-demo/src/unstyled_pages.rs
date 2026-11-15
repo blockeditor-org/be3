@@ -601,7 +601,7 @@ pub(crate) fn PopupsPage() -> NodeId {
 
 fn popup_surface() -> AnchoredStyle {
     AnchoredStyle::new(
-        |content: Child| {
+        |content: NodeId| {
             view! {
                 <PopupPanel>{content}</PopupPanel>
             }
@@ -718,7 +718,7 @@ fn ExportMenu() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -754,7 +754,7 @@ fn RunSplit() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -1386,7 +1386,7 @@ fn PlainNote() -> NodeId {
                                 |handle: MenuRowHandle| view! {
                                     <MenuRow handle />
                                 },
-                                |menu: Child| view! {
+                                |menu: NodeId| view! {
                                     <PopupPanel>{menu}</PopupPanel>
                                 },
                             )
@@ -1394,7 +1394,7 @@ fn PlainNote() -> NodeId {
                                 |handle: ButtonHandle| view! {
                                     <ToolbarKey handle />
                                 },
-                                |keys: Child| view! {
+                                |keys: NodeId| view! {
                                     <ToolbarStrip>{keys}</ToolbarStrip>
                                 },
                             ))}
@@ -1411,7 +1411,7 @@ fn PlainNote() -> NodeId {
                         |handle: CompletionRowHandle| view! {
                             <CompletionRow handle />
                         },
-                        |rows: Child| view! {
+                        |rows: NodeId| view! {
                             <PopupPanel>{rows}</PopupPanel>
                         },
                     )}
@@ -1466,7 +1466,7 @@ fn PullUpSheet() -> NodeId {
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />
                 }}
-                panel={move |content: Child| view! {
+                panel={move |content: NodeId| view! {
                     <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
                 on_close={move || open.set(false)}
@@ -1570,7 +1570,7 @@ fn DeadlinePicker() -> NodeId {
                     literal={move |text: String| view! {
                         <Text color=TextColor::Muted>{text}</Text>
                     }}
-                    segments={move |segments: Child| view! {
+                    segments={move |segments: NodeId| view! {
                         <Frame padding={Padding::symmetric(Space::Md, Space::Sm)}>{segments}</Frame>
                     }}
                     field={move |handle: DateTimeBoxHandle| view! {

@@ -4,6 +4,11 @@ use std::cell::RefCell;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SlotId(u32);
 
+impl SlotId {
+    /// The slot of a host that keeps one child.
+    pub const FIRST: SlotId = SlotId(0);
+}
+
 enum SlotItems<T> {
     One(T),
     Many(Vec<T>),

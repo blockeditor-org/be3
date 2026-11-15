@@ -45,7 +45,7 @@ const TREE_CHEVRON: Size = Size::Xs;
 
 #[component]
 pub fn ContextMenu(
-    children: Child,
+    children: NodeId,
     items: Children<MenuItem>,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
     #[prop(default = false)] disabled: Prop<bool>,

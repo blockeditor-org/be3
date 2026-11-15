@@ -3,11 +3,17 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
-    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, flush,
-    on_cleanup, store, view,
+    Single, SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal,
+    flush, on_cleanup, store, view,
 };
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
+mod a_closure_is_a_prop_read_as_a_getter;
+mod a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one;
+mod a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it;
+mod a_show_with_a_fallback_swaps_runs_of_different_lengths;
+mod a_show_without_a_fallback_fills_an_optional_single_slot;
+mod dynamic_and_keyed_show_their_fallback_while_the_value_is_none;
 mod a_callback_given_a_signal_sets_it;
 mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
@@ -127,6 +133,36 @@ fn Element(
     });
     children.mount(&element);
     element
+}
+
+/// An element that keeps one child, as a frame does, and replaces it when told.
+#[component]
+fn Holder(tag: &'static str, children: Single<DomNode>) -> DomNode {
+    let element = DomNode::new(tag);
+    hold(&element, Some(children));
+    element
+}
+
+#[component]
+fn MaybeHolder(tag: &'static str, children: Option<Single<DomNode>>) -> DomNode {
+    let element = DomNode::new(tag);
+    hold(&element, children);
+    element
+}
+
+fn hold(element: &DomNode, child: Option<Single<DomNode>>) {
+    let held = Rc::downgrade(&element.0);
+    if let Some(child) = child {
+        child.mount(move |child| {
+            if let Some(held) = held.upgrade() {
+                let mut children = held.children.borrow_mut();
+                *children = ChildList::default();
+                if let Some(child) = child {
+                    children.push(child);
+                }
+            }
+        });
+    }
 }
 
 mod modifiers {

@@ -56,7 +56,7 @@ pub fn Toolbar(
 }
 
 #[component]
-fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> DynamicSegment<ListItem> {
+fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> DynamicSegment<ListItem> {
     let shown = create_memo(move || shown.get());
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();

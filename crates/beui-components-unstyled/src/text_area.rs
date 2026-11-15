@@ -1286,7 +1286,7 @@ fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) 
 struct Field {
     cx: Context,
     described: Memo<Node>,
-    frame: Stored<RefCell<Option<Render<Child>>>>,
+    frame: Stored<RefCell<Option<Render<NodeId>>>>,
     inner: NodeRef,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
@@ -1341,7 +1341,7 @@ pub fn TextArea(
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     accessibility: Option<Prop<Node>>,
-    frame: Option<Render<Child>>,
+    frame: Option<Render<NodeId>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     on_content_size: Callback<Vec2>,

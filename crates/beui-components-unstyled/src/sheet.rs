@@ -1113,11 +1113,11 @@ pub fn Sheet(
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
     grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    panel: Render<NodeId>,
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let mut stops = stops;
     stops.sort_by(f32::total_cmp);
@@ -1277,7 +1277,7 @@ pub fn ModalSheet(
     #[prop(default = 0.0)] fade: f32,
     scrim: Prop<Color>,
     grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    panel: Render<NodeId>,
     on_close: Callback<()>,
     #[prop(children)] content: Render,
 ) -> NodeId {
@@ -1315,10 +1315,10 @@ fn ModalSheetBody(
     fit: bool,
     fade: f32,
     grip: Render<SheetGripHandle>,
-    panel: Render<Child>,
+    panel: Render<NodeId>,
     on_presence: Callback<f32>,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let gone = create_signal(false);
     let reopened = open;

@@ -38,7 +38,7 @@ struct State {
 #[component]
 pub fn ContextMenu(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ContextMenuApi>,
-    children: Child,
+    children: NodeId,
     items: Children<MenuItem>,
     menu: MenuStyle,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
@@ -214,7 +214,7 @@ pub fn ContextMenu(
 fn Toolbar(
     items: Run<MenuItem>,
     button: RenderFn<ButtonHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
     anchor: Memo<OverlayAnchor>,
     bar: NodeRef,
     more: NodeRef,

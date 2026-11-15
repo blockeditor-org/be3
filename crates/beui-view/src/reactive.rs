@@ -34,8 +34,13 @@ pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
 pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
 pub use crate::types::{Clip, ClipItem};
 
-pub type Child = NodeId;
+/// What a slot that takes one node holds: a node built once, or one a `Show` with a
+/// `fallback`, a `Dynamic` or a `Keyed` swaps. A slot that needs the node itself (to measure
+/// it, say) is typed `NodeId`, and takes only a node built once.
+pub type Child = Single<NodeId>;
 
+/// A render prop builds a node once by default; one typed `Render<H, Child>` may also hand
+/// back a `Show` (with a `fallback`) or a `Dynamic` that swaps it.
 pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;

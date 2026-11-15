@@ -1,4 +1,5 @@
 use crate::reactive::{
+    Counted, One,
     BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp,
     IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
@@ -210,6 +211,16 @@ impl Span {
         }
     }
 }
+
+macro_rules! text_counted {
+    ($($ty:ty),*) => {
+        $(impl Counted for $ty {
+            type Count = One;
+        })*
+    };
+}
+
+text_counted!(Span, Gap, Break, TextItem);
 
 impl IntoSegment<TextChild> for Phrase {
     fn into_segment(self) -> ChildSegment<TextChild> {

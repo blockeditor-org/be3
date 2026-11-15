@@ -1,4 +1,3 @@
-use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Get;
 use crate::reactive::NodeId;
@@ -39,7 +38,7 @@ pub fn ListItem(
     #[prop(default = 0.0)] shrink: Prop<f32>,
     #[prop(default = None)] align: Prop<Option<Align>>,
     #[prop(default = None)] gap: Prop<Option<f32>>,
-    children: Child,
+    children: NodeId,
 ) -> ListItem {
     let sizing = move || {
         let grow = grow.get();

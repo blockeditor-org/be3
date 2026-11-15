@@ -140,7 +140,7 @@ pub struct DockChromeHandle {
     pub barred: bool,
     pub focused: Memo<bool>,
     pub see_through: Memo<bool>,
-    pub content: Child,
+    pub content: NodeId,
 }
 
 pub struct DockBarHandle {
@@ -3346,7 +3346,7 @@ fn TabMenu(
     split: Callback<()>,
     ungroup: Callback<()>,
     toggle_fullscreen: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let offered = create_memo(move || fullscreen.get().is_some());
     let fullscreen_label = create_memo(move || match fullscreen.get() {
@@ -3426,7 +3426,7 @@ fn GripMenu(
     toggle: Callback<()>,
     toggle_icons: Callback<()>,
     toggle_lock: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     let label = match vertical {
         true => "Show tabs across the top",

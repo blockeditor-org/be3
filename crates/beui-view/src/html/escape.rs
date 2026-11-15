@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use crate::escape::Escape;
-use crate::reactive::{Child, Get, NodeId, Prop, create_binding};
+use crate::reactive::{Get, NodeId, Prop, create_binding};
 use crate::types::{Color, FontId};
 use beui_core_html::beui_html::Node;
 use beui_core_html::css;
@@ -12,7 +12,7 @@ pub(crate) struct Inner {
     styles: RefCell<Vec<(&'static str, Prop<Option<String>>)>>,
 }
 
-pub(crate) fn embed(_inner: &Inner, child: Child) -> Node {
+pub(crate) fn embed(_inner: &Inner, child: NodeId) -> Node {
     element(child).expect("an embedded child is built first")
 }
 

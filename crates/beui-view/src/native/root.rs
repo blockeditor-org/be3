@@ -1,5 +1,5 @@
 use crate::components::root::Root;
-use crate::reactive::Child;
+use crate::reactive::NodeId;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
@@ -11,7 +11,7 @@ pub(crate) fn root(
     clear_color: Prop<Color>,
     title: Option<Prop<String>>,
     system_bars: Prop<SystemBars>,
-    children: Child,
+    children: NodeId,
 ) -> Root {
     let handle = crate::window::use_window();
     let window = move || match handle {

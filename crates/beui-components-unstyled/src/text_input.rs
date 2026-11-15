@@ -34,7 +34,7 @@ use beui_view::types::Sides;
 use beui_view::{CORE, Core};
 
 pub struct TextInputHandle {
-    pub field: Child,
+    pub field: NodeId,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
     pub disabled: Memo<bool>,
@@ -268,7 +268,7 @@ pub fn TextInput(
             open.call(at);
         }
     };
-    let surround = move |field: Child, padded: bool| {
+    let surround = move |field: NodeId, padded: bool| {
         let field = match padded {
             true => view! {
                 <Frame
@@ -308,7 +308,7 @@ pub fn TextInput(
         }
     };
     let surround = store(RefCell::new(Some(surround)));
-    let surround = move |field: Child, padded: bool| {
+    let surround = move |field: NodeId, padded: bool| {
         let wrap = surround
             .with(|surround| surround.borrow_mut().take())
             .expect("a text input wraps its field once");
@@ -349,7 +349,7 @@ pub fn TextInput(
                 hovered.set(is_hovered);
                 on_hover_change.call(is_hovered);
             }}
-            frame={move |field: Child| surround(field, true)}
+            frame={move |field: NodeId| surround(field, true)}
         />
     };
     let field = match multiline {

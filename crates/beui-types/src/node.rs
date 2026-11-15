@@ -3,8 +3,8 @@ use std::rc::Weak;
 use std::sync::OnceLock;
 
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, IntoChild, IntoSegment, ScopeContext,
-    SlotChild, Stored, store,
+    ChildSegment, ChildValue, Children, ComponentContext, Counted, IntoChild, IntoSegment, One,
+    ScopeContext, Single, SlotChild, Stored, store,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -107,6 +107,16 @@ impl IntoChild<NodeId> for NodeId {
     }
 }
 
+impl IntoChild<Single<NodeId>> for NodeId {
+    fn into_child(self) -> Single<NodeId> {
+        Single::built(self)
+    }
+}
+
+impl Counted for NodeId {
+    type Count = One;
+}
+
 impl IntoSegment<NodeId> for NodeId {
     fn into_segment(self) -> ChildSegment<NodeId> {
         ChildSegment::One(self)
@@ -138,3 +148,5 @@ pub struct ImeCursor {
     pub node: NodeId,
     pub rect: Option<be_lib_geometry::Rect>,
 }
+
+beui_tree::built_once!(NodeId);

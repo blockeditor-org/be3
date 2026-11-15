@@ -308,7 +308,7 @@ pub(crate) fn MenuList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<MenuListApi>,
     items: Run<MenuItem>,
     row: Option<RenderFn<MenuRowHandle>>,
-    panel: Option<RenderFn<Child>>,
+    panel: Option<RenderFn<NodeId>>,
     spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
@@ -443,7 +443,7 @@ pub(crate) fn MenuList(
 }
 
 #[component]
-fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) -> NodeId {
+fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<NodeId>) -> NodeId {
     let index = state.page.get_untracked().unwrap_or_default();
     let item = state.rows.value().borrow()[index].item.clone();
     let leave = MenuParent(Some(Callback::new(move |()| {
@@ -694,7 +694,7 @@ fn MenuRow(
     index: usize,
     focused: Selector<Focus>,
     row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
 ) -> NodeId {
     let (item, button, open, content_ref) = {
         let rows = state.rows.value();
