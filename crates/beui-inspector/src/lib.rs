@@ -37,7 +37,7 @@ use beui_view::reactive::*;
 use panel::Summary;
 use tree::{Entry, Key};
 
-const DEFAULT_WIDTH: f32 = 340.0;
+const DEFAULT_WIDTH: f32 = 380.0;
 const HANDLE_REACH: f32 = beui_core::screen_simulation::MARGIN;
 const HANDLE_THICKNESS: f32 = 4.0;
 const HANDLE_LENGTH: f32 = 40.0;
@@ -52,6 +52,7 @@ pub enum InspectorTab {
     AccessKit,
     Performance,
     Simulation,
+    Drags,
 }
 
 impl InspectorTab {
@@ -69,6 +70,7 @@ impl InspectorTab {
             InspectorTab::AccessKit => "A11y",
             InspectorTab::Performance => "Perf",
             InspectorTab::Simulation => "Sim",
+            InspectorTab::Drags => "Drag",
         }
     }
 }
@@ -389,6 +391,7 @@ pub struct Inspector {
     summary: Signal<Summary>,
     performance: Signal<panel::PerformanceSummary>,
     renderer: Signal<panel::RendererRows>,
+    drags: Signal<Vec<String>>,
     program: EmbedSlot,
     last_tool: InspectorTab,
     toolbar: responsive::Toolbar,
@@ -430,6 +433,7 @@ impl Inspector {
             summary: panel.summary,
             performance: panel.performance,
             renderer: panel.renderer,
+            drags: panel.drags,
             program: panel.program,
             last_tool: InspectorTab::default(),
             held: false,
@@ -501,6 +505,11 @@ impl Inspector {
 
     pub fn focused_row(&self) -> Option<Key> {
         self.tree_api()?.focused()
+    }
+
+    /// The Drag tool's rows, as it shows them.
+    pub fn drag_rows(&self) -> Vec<String> {
+        self.drags.get_untracked()
     }
 
     pub fn highlighted(&self) -> Option<NodeId> {
@@ -951,6 +960,10 @@ impl Inspector {
         self.summary.set(summary);
         self.performance.set(performance);
         self.renderer.set(renderer);
+        let drags = drag_rows(target);
+        if self.drags.with_untracked(|shown| *shown != drags) {
+            self.drags.set(drags);
+        }
         self.entries = current_entries;
     }
 
@@ -1084,9 +1097,10 @@ impl Inspector {
                 tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
-            InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => {
-                Vec::new()
-            }
+            InspectorTab::Program
+            | InspectorTab::Performance
+            | InspectorTab::Simulation
+            | InspectorTab::Drags => Vec::new(),
         }
     }
 
@@ -1101,10 +1115,67 @@ impl Inspector {
                 if let Some(id) = self.highlighted() {
                     overlay::highlight(&painter, target, id, screen);
                 }
+                if self.tab_shown(InspectorTab::Drags) {
+                    draw_drags(&painter, target, screen);
+                }
             });
             ctx.report_damage(painted.union(self.overlay_bounds.replace(painted)));
         });
     }
+}
+
+/// The carry on the program's drag board, if one is held: every fixed place it can land in,
+/// where each rests and the zone that chooses it, and the frame it shows.
+fn carry_of(target: &Document) -> Option<(Vec<beui_view::drag::Rest>, beui_view::drag::DragFrame)> {
+    target
+        .extension::<std::rc::Rc<beui_components_unstyled::Board>>()?
+        .inspect()
+}
+
+/// The Drag tab's rows: what is carried and each place, the chosen one marked.
+fn drag_rows(target: &Document) -> Vec<String> {
+    let Some((rests, frame)) = carry_of(target) else {
+        return vec!["Nothing is carried".to_owned()];
+    };
+    let mut rows = vec![match (frame.chosen, frame.floating) {
+        (None, _) => "Carried, floating, nothing chosen".to_owned(),
+        (Some(_), true) => "Carried, floating, a place chosen".to_owned(),
+        (Some(_), false) => "Carried, on a place".to_owned(),
+    }];
+    for (at, rest) in rests.iter().enumerate() {
+        let name = rest.label.clone().unwrap_or_else(|| format!("place {}", at + 1));
+        let chosen = match frame.chosen == Some(rest.id) {
+            true => " (chosen)",
+            false => "",
+        };
+        let zone = match rest.zone {
+            Some(zone) => format!(", zone {:.0},{:.0}", zone.min.x, zone.min.y),
+            None => String::new(),
+        };
+        rows.push(format!(
+            "{name}: {:.0},{:.0} {:.0}x{:.0}{zone}{chosen}",
+            rest.rest.min.x,
+            rest.rest.min.y,
+            rest.rest.width(),
+            rest.rest.height(),
+        ));
+    }
+    rows
+}
+
+/// Every place of the carry over the program: each rest outlined, each zone shaded, the
+/// chosen place filled, and where the item draws.
+fn draw_drags(painter: &Painter, target: &Document, scale: f32) {
+    let Some((rests, frame)) = carry_of(target) else {
+        return;
+    };
+    for rest in &rests {
+        if let Some(zone) = rest.zone {
+            overlay::zone(painter, zone.scaled(scale));
+        }
+        overlay::place(painter, rest.rest.scaled(scale), frame.chosen == Some(rest.id));
+    }
+    overlay::carried(painter, frame.item.scaled(scale));
 }
 
 fn flashes(painter: &Painter, target: &Document, scale: f32) {
@@ -1205,7 +1276,10 @@ fn total(target: &Document, tab: InspectorTab) -> usize {
         InspectorTab::Beui => target.root().map_or(0, |root| tree::count(target, root)),
         InspectorTab::Components => tree::component_count(target),
         InspectorTab::AccessKit => tree::accesskit_count(target),
-        InspectorTab::Program | InspectorTab::Performance | InspectorTab::Simulation => 0,
+        InspectorTab::Program
+        | InspectorTab::Performance
+        | InspectorTab::Simulation
+        | InspectorTab::Drags => 0,
     }
 }
 

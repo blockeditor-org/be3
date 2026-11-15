@@ -199,6 +199,7 @@ pub struct Panel {
     pub summary: Signal<Summary>,
     pub performance: Signal<PerformanceSummary>,
     pub renderer: Signal<RendererRows>,
+    pub drags: Signal<Vec<String>>,
     pub program: EmbedSlot,
 }
 
@@ -209,6 +210,7 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
     let summary = create_signal(Summary::default());
     let performance = create_signal(PerformanceSummary::default());
     let renderer = create_signal(RendererRows::new());
+    let drags = create_signal(Vec::<String>::new());
     let program = EmbedSlot::new();
 
     let mut document = Document::new();
@@ -235,6 +237,9 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
                 </DockTab>
                 <DockTab id=InspectorTab::Simulation title={InspectorTab::Simulation.title()}>
                     <SimulationTool state summary />
+                </DockTab>
+                <DockTab id=InspectorTab::Drags title={InspectorTab::Drags.title()}>
+                    <DragTool rows={drags.read_only()} />
                 </DockTab>
             </DockPane>
         };
@@ -277,7 +282,25 @@ pub fn build(state: Stored<State>, embeds_program: bool) -> Panel {
         summary,
         performance,
         renderer,
+        drags,
         program,
+    }
+}
+
+/// The Drag tool: what the program carries and every place it can land in; the places are
+/// drawn over the program while this tab shows.
+#[component]
+fn DragTool(rows: ReadSignal<Vec<String>>) -> NodeId {
+    view! {
+        <Scroll>
+            <Frame padding=BODY_PADDING>
+                <List spacing=FOOTER_SPACING>
+                    <ForEach value={rows}>|row: String|
+                        <Text style=TextStyle::CODE>{row}</Text>
+                    </ForEach>
+                </List>
+            </Frame>
+        </Scroll>
     }
 }
 
