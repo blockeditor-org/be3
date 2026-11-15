@@ -532,28 +532,22 @@ pub fn Chat(editor: Editor) -> NodeId {
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
         // A message removed outright keeps its id, so its row turns into a missing one's.
-        let missing = create_memo(move || shown.with(|row| row.missing));
-        let present = create_memo(move || !missing.get());
+        let present = create_memo(move || !shown.with(|row| row.missing));
         view! {
-            <List spacing=Space::None>
-                <Show value={missing}>
-                    <MissingRow id />
-                </Show>
-                <Show value={present}>
-                    <MessageRow
-                        editor
-                        chat={chat}
-                        me
-                        id
-                        row={shown}
-                        composer
-                        unsent
-                        block
-                        signing
-                        attached
-                    />
-                </Show>
-            </List>
+            <Show value={present} fallback={move || view! { <MissingRow id /> }}>
+                <MessageRow
+                    editor
+                    chat={chat}
+                    me
+                    id
+                    row={shown}
+                    composer
+                    unsent
+                    block
+                    signing
+                    attached
+                />
+            </Show>
         }
     };
     let older_message_rows = move |id: ObjectId| {
