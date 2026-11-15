@@ -46,7 +46,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 #[cfg(target_arch = "wasm32")]
-pub use web::run_in_worker;
+pub use web::{run_first, run_in_worker};
 
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};

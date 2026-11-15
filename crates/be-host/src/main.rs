@@ -589,6 +589,9 @@ struct HostCore {
     host_state: HostStateStore,
     /// The organizations each saved account last listed (`host_files`).
     workspaces: host_files::WorkspaceCache,
+    /// Where the web's host worker tells of a change to the host's files it could not keep.
+    #[cfg(target_arch = "wasm32")]
+    host_files_failed: Option<host::Mailbox>,
 
     client_id: Uuid,
     local_server_url: String,
@@ -930,9 +933,21 @@ impl HostCore {
         workspaces: host_files::WorkspaceCache,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let mut core = Self::with_state(host_state, String::new())?;
+        let (mailbox, post) = desk().mailbox(HostCore::host_files_failed);
+        workspaces.report_failures(post);
+        core.host_files_failed = Some(mailbox);
         core.workspaces = workspaces;
         core.data_dir = PathBuf::from(WEB_DATA_DIR);
         Ok(core)
+    }
+
+    /// A change to the host's files the web's host worker could not keep (out of space, a
+    /// failed write), shown as a host error, as a write that fails in place is.
+    #[cfg(target_arch = "wasm32")]
+    fn host_files_failed(&mut self, error: String) {
+        notices::report(format!(
+            "This device could not keep a change to its settings: {error}"
+        ));
     }
 
     fn with_state(
@@ -973,6 +988,8 @@ impl HostCore {
         let mut core = Self {
             host_state,
             workspaces: host_files::WorkspaceCache::default(),
+            #[cfg(target_arch = "wasm32")]
+            host_files_failed: None,
             client_id,
             local_server_url: url,
             accounts,

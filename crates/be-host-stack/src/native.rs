@@ -82,6 +82,9 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }
 
+/// Nothing runs first natively: the host keeps its files itself.
+pub(super) fn first() {}
+
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
     sealed.recv_timeout(FLUSH_TIMEOUT).ok()
 }

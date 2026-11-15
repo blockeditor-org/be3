@@ -95,6 +95,14 @@ impl WorkspaceCache {
         Some(web::store(jobs.clone(), Default::default()))
     }
 
+    /// Has the host's worker tell `post` of each change it could not keep.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn report_failures(&self, post: be_host_base::host::Post<String>) {
+        if let Keep::Elsewhere(jobs) = &self.keep {
+            let _ = jobs.send(web::Job::ReportTo(post));
+        }
+    }
+
     pub(crate) fn set(&mut self, url: &str, account: Uuid, organizations: Vec<Organization>) {
         match &self.keep {
             Keep::Here(refs) => {
@@ -120,7 +128,7 @@ pub(crate) use web::open;
 
 #[cfg(target_arch = "wasm32")]
 mod web {
-    use std::path::PathBuf;
+    use std::{cell::RefCell, path::PathBuf, rc::Rc};
 
     use be_block_protocol::Organization;
     use be_host_base::host_state::{Held, HostStateStore, Keeper, Write};
@@ -131,6 +139,8 @@ mod web {
 
     /// A change the page sends the host's worker to keep.
     pub(crate) enum Job {
+        /// Where to tell the page of a change that could not be kept.
+        ReportTo(be_host_base::host::Post<String>),
         State(Write),
         /// Deletes `host.sqlite3` and keeps the changes after in a fresh one.
         ForgetState,
@@ -169,11 +179,69 @@ mod web {
         })
     }
 
-    /// In the host's worker: opens the files, answers what they hold, then keeps each change.
+    /// What the host's worker keeps the host's files with.
+    struct Kept {
+        path: PathBuf,
+        keeper: Option<Keeper>,
+        refs: Option<be_block_client::RefsDb>,
+        taken: mpsc::UnboundedReceiver<Job>,
+        report: Option<be_host_base::host::Post<String>>,
+    }
+
+    impl Kept {
+        fn run(&mut self, job: Job) {
+            let kept = match job {
+                Job::ReportTo(post) => {
+                    self.report = Some(post);
+                    Ok(())
+                }
+                Job::State(write) => match &self.keeper {
+                    Some(keeper) => keeper.keep(&write).map_err(|error| error.to_string()),
+                    None => Err("the host's state could not be opened again".to_owned()),
+                },
+                Job::ForgetState => {
+                    // Closed before its files go.
+                    self.keeper = None;
+                    forget(&self.path).and_then(|()| {
+                        self.keeper =
+                            Some(Keeper::open(&self.path).map_err(|error| error.to_string())?);
+                        Ok(())
+                    })
+                }
+                Job::Workspaces {
+                    url,
+                    account,
+                    organizations,
+                } => match &self.refs {
+                    Some(refs) => refs
+                        .set_workspaces(&url, account, &organizations)
+                        .map_err(|error| error.to_string()),
+                    None => Ok(()),
+                },
+            };
+            if let Err(error) = kept {
+                match &self.report {
+                    Some(report) => report.send(error),
+                    None => eprintln!("be-host: a change to the host's files was not kept: {error}"),
+                }
+            }
+        }
+
+        /// Keeps every change sent so far.
+        fn run_sent(&mut self) {
+            while let Ok(job) = self.taken.try_recv() {
+                self.run(job);
+            }
+        }
+    }
+
+    /// In the host's worker: opens the files, answers what they hold, then keeps each change,
+    /// ahead of the stacks' work: the worker's loop keeps what was sent before each pass
+    /// (`be_host_stack::run_first`), so a change waits for no pass of a stack to end.
     async fn keep(
         data_dir: PathBuf,
         answer: oneshot::Sender<Opened>,
-        mut taken: mpsc::UnboundedReceiver<Job>,
+        taken: mpsc::UnboundedReceiver<Job>,
     ) {
         let opened = (|| {
             std::fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
@@ -188,44 +256,32 @@ mod web {
                 .unwrap_or_default();
             Ok::<_, String>((keeper, refs, held, listed))
         })();
-        let path = data_dir.join("host.sqlite3");
-        let (mut keeper, refs) = match opened {
+        let kept = match opened {
             Ok((keeper, refs, held, listed)) => {
                 let _ = answer.send(Ok((held, listed)));
-                (Some(keeper), refs)
+                Kept {
+                    path: data_dir.join("host.sqlite3"),
+                    keeper: Some(keeper),
+                    refs,
+                    taken,
+                    report: None,
+                }
             }
             Err(error) => {
                 let _ = answer.send(Err(error));
                 return;
             }
         };
-        while let Some(job) = taken.recv().await {
-            let kept = match job {
-                Job::State(write) => match &keeper {
-                    Some(keeper) => keeper.keep(&write).map_err(|error| error.to_string()),
-                    None => Err("the host's state could not be opened again".to_owned()),
-                },
-                Job::ForgetState => {
-                    // Closed before its files go.
-                    keeper = None;
-                    forget(&path).and_then(|()| {
-                        keeper = Some(Keeper::open(&path).map_err(|error| error.to_string())?);
-                        Ok(())
-                    })
-                }
-                Job::Workspaces {
-                    url,
-                    account,
-                    organizations,
-                } => match &refs {
-                    Some(refs) => refs
-                        .set_workspaces(&url, account, &organizations)
-                        .map_err(|error| error.to_string()),
-                    None => Ok(()),
-                },
-            };
-            if let Err(error) = kept {
-                eprintln!("be-host: a change to the host's files was not kept: {error}");
+        let kept = Rc::new(RefCell::new(kept));
+        be_host_stack::run_first({
+            let kept = Rc::clone(&kept);
+            move || kept.borrow_mut().run_sent()
+        });
+        loop {
+            let job = std::future::poll_fn(|context| kept.borrow_mut().taken.poll_recv(context));
+            match job.await {
+                Some(job) => kept.borrow_mut().run(job),
+                None => return,
             }
         }
     }

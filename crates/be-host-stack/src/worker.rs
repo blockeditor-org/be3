@@ -1263,6 +1263,8 @@ impl Session<'_> {
         let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
         let mut stopping = false;
         loop {
+            // What the host runs ahead of every pass (on the web, keeping its files).
+            platform::first();
             // A crash ends the worker before its next pass, so nothing more is written.
             #[cfg(any(test, feature = "testing"))]
             if shared
