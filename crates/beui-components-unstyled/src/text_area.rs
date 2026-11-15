@@ -26,7 +26,7 @@ use beui_text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::{Scroll, ScrollbarStyle};
+use crate::{Scroll, ScrollStyle};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;
 use beui_view::reactive::NodeId;
@@ -1339,7 +1339,7 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scrollbar: ScrollStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,

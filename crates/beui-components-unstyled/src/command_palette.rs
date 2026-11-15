@@ -10,7 +10,7 @@ use beui_view::types::Image;
 use beui_view::types::icons::Glyph;
 
 use crate::modal::{Modal, ModalHandle, ModalMotion};
-use crate::scroll::ScrollbarStyle;
+use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle, fuzzy_score, rank};
 use crate::text_input::{TextInputHandle, TextInputStyle};
 
@@ -118,7 +118,7 @@ pub fn CommandPalette(
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scrollbar: ScrollStyle,
     row: RenderFn<CommandRowHandle>,
     #[prop(children)] panel: Option<RenderFn<Child>>,
 ) -> NodeId {

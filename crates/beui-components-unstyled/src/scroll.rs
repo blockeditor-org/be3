@@ -60,14 +60,14 @@ pub struct ScrollHandle {
 /// browser's bar on the HTML core. A scroll inside a component (a text area, a
 /// list) takes the same look as a plain one, marker and all.
 #[derive(Clone, Copy, Default)]
-pub struct ScrollbarStyle {
+pub struct ScrollStyle {
     bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
     marker: Option<RenderFn<Memo<Direction>, NodeId>>,
     fade: f32,
     browser: Option<(Prop<Color>, Prop<Color>)>,
 }
 
-impl ScrollbarStyle {
+impl ScrollStyle {
     pub fn new(width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
         Self {
             bar: Some((width, RenderFn::new(bar))),
@@ -670,7 +670,7 @@ fn Scrolling(
     fit: bool,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
+    scrollbar: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
@@ -964,7 +964,7 @@ pub fn Scroll(
     #[prop(default = false)] follow_end: Prop<bool>,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = None)] focus_ring: Prop<Option<Outline>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scrollbar: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     children: Children<ListItem>,
 ) -> NodeId {
@@ -1045,7 +1045,7 @@ fn BrowserScroll(
     follow_end: Prop<bool>,
     bleed: Prop<Sides>,
     focus_ring: Prop<Option<Outline>>,
-    scrollbar: ScrollbarStyle,
+    scrollbar: ScrollStyle,
     on_change: Callback<ScrollPosition>,
     rows: NodeRef,
     children: Children<ListItem>,

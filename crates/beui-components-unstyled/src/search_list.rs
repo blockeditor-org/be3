@@ -12,7 +12,7 @@ use beui_view::types::KeyPhase;
 use beui_view::types::{Key, KeyPress};
 
 use crate::button::{Button, ButtonHandle};
-use crate::scroll::{Scroll, ScrollbarStyle};
+use crate::scroll::{Scroll, ScrollStyle};
 use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use beui_view::types::Track;
 
@@ -151,7 +151,7 @@ pub fn SearchList<K>(
     list_height: Prop<f32>,
     #[prop(default = false)] fill_height: Prop<bool>,
     spacing: f32,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scrollbar: ScrollStyle,
     accessibility: Func<K, Node>,
     row: RenderFn<SearchRowHandle<K>>,
 ) -> NodeId

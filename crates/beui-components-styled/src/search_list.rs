@@ -15,7 +15,7 @@ use crate::command_palette::{PaletteRow, PaletteSearch};
 use crate::frame::{ColorRole, Frame, Radius};
 use crate::list::List;
 use crate::picture::Picture;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::tokens::{Padding, Size, Space};
@@ -137,7 +137,7 @@ pub fn SearchList(
             list_height
             fill_height
             spacing={SPACING.px()}
-            scrollbar={scrollbar_style()}
+            scrollbar={scroll_style()}
             accessibility={row_accessibility}
             row
         />

@@ -134,7 +134,7 @@ pub use reorder::{
     Reorder, ReorderGap, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
 };
 pub use scroll::{
-    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollbarStyle,
+    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollApi, ScrollHandle, ScrollStyle,
 };
 pub use scrollbar::{
     Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,

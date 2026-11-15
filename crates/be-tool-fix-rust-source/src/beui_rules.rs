@@ -273,7 +273,7 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
                     | "RenderFn"
                     | "MenuStyle"
                     | "AnchoredStyle"
-                    | "ScrollbarStyle"
+                    | "ScrollStyle"
                     | "CompletionMenu"
             )
         })

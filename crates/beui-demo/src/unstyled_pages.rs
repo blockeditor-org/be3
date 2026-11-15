@@ -4,7 +4,7 @@ use beui::Rect;
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
     DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
-    ScrollHandle, ScrollbarHandle, ScrollbarStyle, SliderHandle, TextInputHandle, TextInputStyle,
+    ScrollHandle, ScrollStyle, ScrollbarHandle, SliderHandle, TextInputHandle, TextInputStyle,
     ToggleHandle, TooltipHandle,
 };
 use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, Swatches};
@@ -918,8 +918,8 @@ fn ThinScroll() -> NodeId {
 }
 
 #[sample]
-fn thin_scrollbar() -> ScrollbarStyle {
-    ScrollbarStyle::new(BAR_WIDTH, |handle: ScrollHandle| {
+fn thin_scrollbar() -> ScrollStyle {
+    ScrollStyle::new(BAR_WIDTH, |handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,

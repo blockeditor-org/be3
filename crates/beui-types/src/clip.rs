@@ -179,9 +179,12 @@ impl HeldClip {
     }
 
     /// Whether the system clipboard's text `now` is still what the held clip
-    /// wrote: the check of a platform without a change counter.
+    /// wrote: the check of a platform without a change counter. Line breaks
+    /// are compared as `\n` on both sides, since a platform reads the text
+    /// back through `text_from_system`.
     pub fn wrote(&self, now: Option<&str>) -> bool {
-        self.clip.is_some() && now.filter(|text| !text.is_empty()) == self.written()
+        let lf = |text: &str| text_from_system(text.to_owned());
+        self.clip.is_some() && now.filter(|text| !text.is_empty()).map(lf) == self.written().map(lf)
     }
 
     pub fn drop_clip(&mut self) {

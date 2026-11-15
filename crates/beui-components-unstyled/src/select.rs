@@ -3,7 +3,7 @@ use crate::ChoiceOption;
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
 use crate::form::Posted;
-use crate::scroll::ScrollbarStyle;
+use crate::scroll::ScrollStyle;
 use crate::search_list::{SearchList, SearchListApi, SearchRowHandle};
 use crate::text_input::{TextInputHandle, TextInputStyle};
 use beui_macros::{component, view};
@@ -69,7 +69,7 @@ pub fn Select(
     search_placeholder: Prop<String>,
     search_content: RenderFn<TextInputHandle>,
     search_style: TextInputStyle,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scrollbar: ScrollStyle,
     list_height: Prop<f32>,
     spacing: f32,
     trigger: Render<SelectTriggerHandle>,
