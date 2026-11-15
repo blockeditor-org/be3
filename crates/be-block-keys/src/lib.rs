@@ -1,7 +1,7 @@
 use std::fmt;
 
 mod access;
-pub use access::{CarriedKey, Entry, EntryHash, Record, Root};
+pub use access::{CarriedKey, Entry, EntryHash, LogKind, Record, Root};
 
 use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,

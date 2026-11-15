@@ -655,7 +655,7 @@ impl<S: ObjectStore> Peer<S> {
                 false => Err(ClientError::Locked(organization)),
             };
         };
-        checked_log(organization, pinned, &served)
+        checked_log(be_block_keys::LogKind::Organization, organization, pinned, &served)
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
@@ -1257,6 +1257,7 @@ impl<S: ObjectStore> Peer<S> {
         let root = be_block_keys::Entry::root(
             self.keys.identity(),
             self.keys.account().into_bytes(),
+            be_block_keys::LogKind::Block,
             block.into_bytes(),
         );
         self.keys.pin_root(block, root.hash());
@@ -1273,7 +1274,7 @@ impl<S: ObjectStore> Peer<S> {
             crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
-        checked_log(block, pinned, &served)
+        checked_log(be_block_keys::LogKind::Block, block, pinned, &served)
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -2760,6 +2761,7 @@ fn about(listing: Listing) -> Option<Uuid> {
 
 /// The log of `log` as the server served it, once its root is the one pinned and checks.
 fn checked_log(
+    kind: be_block_keys::LogKind,
     log: Uuid,
     pinned: be_block_keys::EntryHash,
     served: &[Vec<u8>],
@@ -2770,7 +2772,7 @@ fn checked_log(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ClientError::Forged(log))?;
     let root = entries.first().ok_or(ClientError::Forged(log))?;
-    if root.hash() != pinned || root.checked_root(log.into_bytes()).is_err() {
+    if root.hash() != pinned || root.checked_root(kind, log.into_bytes()).is_err() {
         return Err(ClientError::Forged(log));
     }
     Ok(entries)

@@ -93,7 +93,12 @@ pub async fn create_organization(
 ) -> Result<be_block_protocol::Organization, ClientError> {
     register_identity(connection, identity).await?;
     let id = Uuid::new_v4();
-    let root = be_block_keys::Entry::root(identity, account.into_bytes(), id.into_bytes());
+    let root = be_block_keys::Entry::root(
+        identity,
+        account.into_bytes(),
+        be_block_keys::LogKind::Organization,
+        id.into_bytes(),
+    );
     let pinned = Pinned {
         root: Some(root.hash()),
         escrow: None,

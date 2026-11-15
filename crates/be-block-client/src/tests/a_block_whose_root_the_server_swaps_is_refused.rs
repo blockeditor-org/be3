@@ -64,6 +64,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
     let forged = Entry::root(
         stranger.keys().identity(),
         stranger.account().into_bytes(),
+        be_block_keys::LogKind::Block,
         team.into_bytes(),
     );
     database

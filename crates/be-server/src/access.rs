@@ -1,7 +1,7 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
-use be_block_keys::{Entry, PublicIdentity, RecoveryPublic, SigningPublic};
+use be_block_keys::{Entry, LogKind, PublicIdentity, RecoveryPublic, SigningPublic};
 use be_block_protocol::ErrorCode;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -38,12 +38,13 @@ fn identity_of(connection: &Connection, account: Uuid) -> Result<Option<PublicId
 fn checked_root(
     connection: &Connection,
     account: Uuid,
+    kind: LogKind,
     log: Uuid,
     root: &[u8],
 ) -> Result<Entry, ServerError> {
     let entry = Entry::decode(root).map_err(|_| refused("the root does not read"))?;
     let checked = entry
-        .checked_root(log.into_bytes())
+        .checked_root(kind, log.into_bytes())
         .map_err(|_| refused("the root is not signed by whom it names"))?;
     if checked.creator != account.into_bytes() {
         return Err(refused("a root names the account that makes it"));
@@ -62,7 +63,7 @@ pub(crate) fn store_root(
     block: Uuid,
     root: &[u8],
 ) -> Result<(), ServerError> {
-    let entry = checked_root(connection, account, block, root)?;
+    let entry = checked_root(connection, account, LogKind::Block, block, root)?;
     connection.execute(
         "INSERT INTO access_log (organization_id, block_id, position, entry) VALUES (?1, ?2, 0, ?3)",
         params![organization.to_string(), block.to_string(), entry.encode()],
@@ -97,7 +98,7 @@ pub(crate) fn store_organization_root(
     organization: Uuid,
     root: &[u8],
 ) -> Result<(), ServerError> {
-    let entry = checked_root(connection, account, organization, root)?;
+    let entry = checked_root(connection, account, LogKind::Organization, organization, root)?;
     connection.execute(
         "INSERT INTO organization_log (organization_id, position, entry) VALUES (?1, 0, ?2)",
         params![organization.to_string(), entry.encode()],

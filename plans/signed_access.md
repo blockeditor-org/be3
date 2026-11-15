@@ -230,7 +230,9 @@ instead.
    rather than anonymously) or give administrators another check of a root
    they reach only through escrow, which today pins nothing; and take a pin
    only from a sender the log entitles to seal the key (today any verified
-   contact can plant a block's first pin). Done: a test where the server lists a
+   contact can plant a block's first pin). Decide too whether a block's agent
+   may read its organization's log: `bound_may` lets it today, since a
+   terminal host opens its organization as `Peer::attach` does. Done: a test where the server lists a
    contact as granted with no record and no key reaches them; one where the
    server withholds a revocation from a device and that device seals the new
    epoch to nobody until it has the log up to the epoch's head; one where a

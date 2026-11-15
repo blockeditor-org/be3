@@ -30,6 +30,7 @@ async fn an_organization_whose_root_the_server_swaps_is_refused() {
     let forged = Entry::root(
         stranger.keys().identity(),
         stranger.account().into_bytes(),
+        be_block_keys::LogKind::Organization,
         organization.into_bytes(),
     );
     harness

@@ -23,6 +23,7 @@ async fn a_root_an_administrator_reaches_only_through_escrow_is_never_passed_on(
     let forged = Entry::root(
         stranger.keys().identity(),
         stranger.account().into_bytes(),
+        be_block_keys::LogKind::Block,
         team.into_bytes(),
     );
     let planted = Uuid::new_v4();

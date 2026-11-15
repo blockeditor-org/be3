@@ -441,7 +441,12 @@ static SECRETS: std::sync::LazyLock<
 /// A new organization's id and the root of its log, made by `account` with its test keys.
 fn organization_root(account: Uuid) -> (Uuid, Vec<u8>) {
     let id = Uuid::new_v4();
-    let root = be_block_keys::Entry::root(&test_secret(account), account.into_bytes(), id.into_bytes());
+    let root = be_block_keys::Entry::root(
+        &test_secret(account),
+        account.into_bytes(),
+        be_block_keys::LogKind::Organization,
+        id.into_bytes(),
+    );
     (id, root.encode())
 }
 
@@ -760,7 +765,12 @@ impl TestClient {
     /// The root of `block`'s access log, as this client's account signs it on making the block.
     fn root(&self, block: Uuid) -> Vec<u8> {
         let account = self.account.expect("a client makes blocks once signed in");
-        be_block_keys::Entry::root(&test_secret(account), account.into_bytes(), block.into_bytes())
+        be_block_keys::Entry::root(
+            &test_secret(account),
+            account.into_bytes(),
+            be_block_keys::LogKind::Block,
+            block.into_bytes(),
+        )
             .encode()
     }
 

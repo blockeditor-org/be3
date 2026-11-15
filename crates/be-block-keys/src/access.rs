@@ -29,8 +29,17 @@ pub enum Record {
     Root(Root),
 }
 
+/// What a log is the log of, so a block's records never verify as an organization's, nor the
+/// other way round.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum LogKind {
+    Block,
+    Organization,
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Root {
+    pub kind: LogKind,
     pub creator: [u8; 16],
     pub identity: PublicIdentity,
 }
@@ -91,14 +100,15 @@ impl Entry {
         }
     }
 
-    /// The root of the log of `log`, made by `creator` with `secret`.
-    pub fn root(secret: &RecoverySecret, creator: [u8; 16], log: [u8; 16]) -> Self {
+    /// The root of the `kind` log of `log`, made by `creator` with `secret`.
+    pub fn root(secret: &RecoverySecret, creator: [u8; 16], kind: LogKind, log: [u8; 16]) -> Self {
         Self::sign(
             secret,
             creator,
             log,
             None,
             Record::Root(Root {
+                kind,
                 creator,
                 identity: secret.identity(),
             }),
@@ -130,11 +140,14 @@ impl Entry {
             .into()
     }
 
-    /// The root this entry is, when it is the well-formed, self-signed first entry of the log of
-    /// `log`.
-    pub fn checked_root(&self, log: [u8; 16]) -> Result<Root, KeyError> {
+    /// The root this entry is, when it is the well-formed, self-signed first entry of the `kind`
+    /// log of `log`.
+    pub fn checked_root(&self, kind: LogKind, log: [u8; 16]) -> Result<Root, KeyError> {
         let Record::Root(root) = &self.record;
-        let well_formed = self.log == log && self.previous.is_none() && self.signer == root.creator;
+        let well_formed = root.kind == kind
+            && self.log == log
+            && self.previous.is_none()
+            && self.signer == root.creator;
         match well_formed && self.signed_by(&root.identity.signing) {
             true => Ok(*root),
             false => Err(KeyError::Record),
