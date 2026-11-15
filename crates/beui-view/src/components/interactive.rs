@@ -294,7 +294,8 @@ fn carrying(
     // Only a source that takes focus hears keys.
     let keyed = match focusable {
         true => Callback::new(move |press: KeyPress| {
-            carry_keys(press, drag, mine, laid_out, &keyboard_lift) || on_key.call(press)
+            carry_keys(press, drag, mine, (wrapped, laid_out), &keyboard_lift)
+                || on_key.call(press)
         }),
         false => on_key,
     };
@@ -310,7 +311,10 @@ fn carry_keys(
     press: KeyPress,
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
     mine: crate::reactive::Signal<Option<crate::drag::CarryId>>,
-    laid_out: crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
+    (node, laid_out): (
+        NodeId,
+        crate::reactive::ReadSignal<Option<crate::measure::Measured>>,
+    ),
     lifted: &std::rc::Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>,
 ) -> bool {
     use crate::reactive::Get;
@@ -355,7 +359,7 @@ fn carry_keys(
     };
     let center = rect.center();
     let at = PointerPress {
-        window: WindowId::MAIN,
+        window: crate::reactive::window_of(node),
         pos: center,
         local: Pos2::ZERO + rect.size() / 2.0,
         size: rect.size(),
