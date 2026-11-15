@@ -62,7 +62,8 @@ publishes `ProgramsWatch`.
 
 Work off the UI thread hands its results back through `be_host_base::host::mailbox`: a worker
 `Post::send`s a value, which wakes the event loop, and the handler runs on the UI thread at the
-start of a frame, so nothing polls. Dropping the `Mailbox` drops whatever is still on its way. A
+start of a frame, so nothing polls. Letters from one thread arrive in the order it sent them;
+how they travel is the platform's (on the web, by `postMessage`: guides/running/web.md). Dropping the `Mailbox` drops whatever is still on its way. A
 handler that needs `&mut` state its owner holds is made on a `host::Desk<C>` and runs when the owner
 calls `desk.deliver(&mut c)` (`HostCore`'s requests, logind, `Programs`, `ScreenLock`).
 
