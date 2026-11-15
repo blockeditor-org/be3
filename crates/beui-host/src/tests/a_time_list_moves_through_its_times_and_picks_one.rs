@@ -21,7 +21,8 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                                 row_height=32.0
                                 option={|handle: TimeOptionHandle| view! {
                                     <Text>{handle.label}</Text>
-                                }} scroll={plain_scroll()}
+                                }}
+                                scroll={plain_scroll()}
                             />
                         </ListItem>
                     </List>

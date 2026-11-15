@@ -24,7 +24,8 @@ fn a_text_areas_focus_request_is_taken_once_and_not_again_on_a_remount() {
                             padding=AREA_PADDING
                             @node_ref=&area
                             state={state}
-                            line_numbers=false scroll={plain_scroll()}
+                            line_numbers=false
+                            scroll={plain_scroll()}
                         />
                     </Show>
                 </List>

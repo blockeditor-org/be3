@@ -21,7 +21,8 @@ fn an_ime_composition_pushes_the_text_after_the_caret_along() {
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true scroll={plain_scroll()}
+                single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

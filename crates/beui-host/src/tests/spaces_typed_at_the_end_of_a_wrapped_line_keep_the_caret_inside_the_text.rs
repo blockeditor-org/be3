@@ -32,7 +32,8 @@ fn spaces_typed_at_the_end_of_a_wrapped_line_keep_the_caret_inside_the_text() {
                     look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
-                    state={state} scroll={plain_scroll()}
+                    state={state}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }

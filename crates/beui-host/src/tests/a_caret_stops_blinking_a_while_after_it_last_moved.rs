@@ -17,7 +17,8 @@ fn a_caret_stops_blinking_a_while_after_it_last_moved() {
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true scroll={plain_scroll()}
+                single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

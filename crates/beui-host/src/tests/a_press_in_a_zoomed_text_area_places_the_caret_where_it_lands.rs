@@ -34,7 +34,8 @@ impl Zoomed {
                                 padding=AREA_PADDING
                                 @node_ref=&area
                                 state
-                                line_numbers=false scroll={plain_scroll()}
+                                line_numbers=false
+                                scroll={plain_scroll()}
                             />
                         </CanvasItem>
                     </Canvas>

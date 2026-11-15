@@ -610,7 +610,12 @@ pub fn Dialog(
     });
     view! {
         <List spacing=0.0>
-            <Modal open={as_card} scrim motion={ModalMotion::Slides(slide)} on_dismiss={on_dismiss}>|_: ModalHandle|
+            <Modal
+                open={as_card}
+                scrim
+                motion={ModalMotion::Slides(slide)}
+                on_dismiss={on_dismiss}
+            >|_: ModalHandle|
                 <Portal node={centred_card} />
             </Modal>
             <Overlay

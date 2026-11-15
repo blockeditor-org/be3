@@ -138,7 +138,7 @@ pub fn Scroll(
 
 pub fn scroll_style() -> ScrollStyle {
     let theme = use_theme();
-    ScrollStyle::new(Movement::Rubber.spring()).bar(SCROLLBAR_WIDTH, |handle: ScrollHandle| {
+    ScrollStyle::new(Movement::Rubber.spring()).bar(SCROLLBAR_WIDTH, RenderFn::new(|handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,
@@ -155,7 +155,7 @@ pub fn scroll_style() -> ScrollStyle {
                 on_engage={move |engaged: bool| on_engage.call(engaged)}
             />
         }
-    })
+    }))
     .fading(SCROLL_FADE)
     .marker(autoscroll_marker())
     .browser_colors(

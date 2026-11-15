@@ -901,11 +901,7 @@ impl State {
         let ease = self.curves.ease;
         let animation = create_animation(
             move |frame| {
-                let progress = tween(
-                    frame.elapsed.as_secs_f32(),
-                    SIDEBAR_SECONDS,
-                    ease,
-                );
+                let progress = tween(frame.elapsed.as_secs_f32(), SIDEBAR_SECONDS, ease);
                 let start = from.get();
                 shown.set(start + (target.get_untracked() - start) * progress);
                 progress < 1.0

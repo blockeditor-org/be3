@@ -12,18 +12,19 @@ pub use crate::unstyled::{
     DockApi, DockArea, DockHostLayout, DockSnap, DockTabKeys, DockWindowActions, HiddenBand,
 };
 use crate::unstyled::{
-    DockAwayHandle, DockCurves, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
-    DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle, DockSplitterHandle,
-    DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
+    DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockCurves,
+    DockDialogHandle, DockDragged, DockGripHandle, DockHighlightHandle, DockPreviewHandle,
+    DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle,
 };
 use beui_components_styled::action_bar::{ActionBar, ActionLabels};
+use beui_components_styled::back_slide::SLIDE_CURVES;
 use beui_components_styled::button::{Button, ButtonSize, ButtonVariant};
 use beui_components_styled::context_menu::menu_style;
 use beui_components_styled::text::{Icon, Text, TextColor, TextSize};
 use beui_components_styled::theme::{
     NARROW_WIDTH, PHONE_LANDSCAPE_WIDTH, POINTER_REACH, SHORT_HEIGHT, use_theme,
 };
-use beui_components_styled::back_slide::SLIDE_CURVES;
 use beui_components_styled::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_styled::tool_pill::BAND_FILL;
 use beui_components_styled::tooltip::Tooltip;

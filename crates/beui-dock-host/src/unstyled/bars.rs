@@ -816,10 +816,10 @@ impl State {
                 }
                 (_, None) => flight.grow = 0.0,
             }
-            lifting
-                .growth
-                .set((self.curves.ease.sample(flight.grow),
-            1.0 - self.curves.ease.sample(1.0 - flight.shrink),));
+            lifting.growth.set((
+                self.curves.ease.sample(flight.grow),
+                1.0 - self.curves.ease.sample(1.0 - flight.shrink),
+            ));
         }
         lifting.gap.set(None);
         lifting.lift.set(Some(Lift { target, ..lift }));
@@ -978,8 +978,10 @@ impl State {
         if flight.shrink <= 0.0 && lifting.gone.get_untracked().is_some() {
             lifting.gone.set(None);
         }
-        let growth = (self.curves.ease.sample(flight.grow),
-            1.0 - self.curves.ease.sample(1.0 - flight.shrink),);
+        let growth = (
+            self.curves.ease.sample(flight.grow),
+            1.0 - self.curves.ease.sample(1.0 - flight.shrink),
+        );
         if lifting.growth.get_untracked() != growth {
             lifting.growth.set(growth);
         }
@@ -989,8 +991,12 @@ impl State {
                 true => {
                     let mut off = flight.pos - goal;
                     let mut speed = flight.speed;
-                    self.curves.settle.advance(&mut off.x, &mut speed.x, seconds);
-                    self.curves.settle.advance(&mut off.y, &mut speed.y, seconds);
+                    self.curves
+                        .settle
+                        .advance(&mut off.x, &mut speed.x, seconds);
+                    self.curves
+                        .settle
+                        .advance(&mut off.y, &mut speed.y, seconds);
                     flight.pos = goal + off;
                     flight.speed = speed;
                 }

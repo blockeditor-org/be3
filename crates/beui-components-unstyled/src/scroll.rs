@@ -83,9 +83,9 @@ impl ScrollStyle {
     }
 
     /// The bar drawn along the scroll, `width` across.
-    pub fn bar(self, width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
+    pub fn bar(self, width: f32, bar: RenderFn<ScrollHandle, NodeId>) -> Self {
         Self {
-            bar: Some((width, RenderFn::new(bar))),
+            bar: Some((width, bar)),
             ..self
         }
     }

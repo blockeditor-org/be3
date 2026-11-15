@@ -52,7 +52,8 @@ fn typing_a_long_word_into_a_text_area_never_widens_its_lines() {
                     look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
-                    state={state} scroll={plain_scroll()}
+                    state={state}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }

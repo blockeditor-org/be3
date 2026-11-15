@@ -25,7 +25,8 @@ fn a_click_below_a_rich_text_areas_last_line_opens_a_plain_line_under_a_code_blo
                         look={area_look()}
                         font_size=AREA_FONT_SIZE
                         padding=AREA_PADDING
-                        state scroll={plain_scroll()}
+                        state
+                        scroll={plain_scroll()}
                     />
                 </ListItem>
             </List>

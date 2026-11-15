@@ -940,7 +940,7 @@ fn ThinScroll() -> NodeId {
 
 #[sample]
 fn thin_scrollbar() -> ScrollStyle {
-    ScrollStyle::new(RUBBER).bar(BAR_WIDTH, |handle: ScrollHandle| {
+    ScrollStyle::new(RUBBER).bar(BAR_WIDTH, RenderFn::new(|handle: ScrollHandle| {
         let ScrollHandle {
             position,
             direction,
@@ -959,7 +959,7 @@ fn thin_scrollbar() -> ScrollStyle {
                 <ThinThumb bar visibility />
             </unstyled::Scrollbar>
         }
-    })
+    }))
 }
 
 #[sample]

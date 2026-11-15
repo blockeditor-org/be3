@@ -20,7 +20,8 @@ fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile(
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true scroll={plain_scroll()}
+                single_line=true
+                scroll={plain_scroll()}
             />
         }
     });

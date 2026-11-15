@@ -18,7 +18,8 @@ fn instant_carets_do_not_request_blink_frames() {
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
                     state={state}
-                    single_line=true scroll={plain_scroll()}
+                    single_line=true
+                    scroll={plain_scroll()}
                 />
                 <Interactive focusable=true>
                     <Frame width=20.0 height=20.0 />

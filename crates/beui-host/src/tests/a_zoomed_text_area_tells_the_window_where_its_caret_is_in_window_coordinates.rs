@@ -21,7 +21,8 @@ fn caret_at(origin: Pos2, scale: f32) -> (Rect, Rect) {
                         padding=AREA_PADDING
                         @node_ref=&area
                         state
-                        line_numbers=false scroll={plain_scroll()}
+                        line_numbers=false
+                        scroll={plain_scroll()}
                     />
                 </CanvasItem>
             </Canvas>

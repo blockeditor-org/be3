@@ -19,7 +19,8 @@ fn a_text_area_shows_its_placeholder_until_something_is_typed() {
                 padding=AREA_PADDING
                 @node_ref=&area
                 state={state}
-                placeholder="Write something" scroll={plain_scroll()}
+                placeholder="Write something"
+                scroll={plain_scroll()}
             />
         }
     });

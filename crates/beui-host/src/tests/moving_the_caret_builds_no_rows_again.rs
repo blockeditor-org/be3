@@ -25,7 +25,8 @@ fn moving_the_caret_builds_no_rows_again() {
                     look={area_look()}
                     font_size=AREA_FONT_SIZE
                     padding=AREA_PADDING
-                    state={state} scroll={plain_scroll()}
+                    state={state}
+                    scroll={plain_scroll()}
                 />
             </Frame>
         }
