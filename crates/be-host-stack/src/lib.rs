@@ -170,10 +170,10 @@ pub struct Status {
     pub connecting: bool,
     pub blocks: usize,
     pub wakes: u64,
-    /// Open blocks with edits no journal holds yet (in a live session, until the server holds
-    /// them in its journal; offline, this device's journal), plus commands sent and not yet
-    /// carried out and unfinished imports. An edit a journal holds but no commit yet is durable
-    /// and not counted (guides/blocks/host.md).
+    /// Open blocks with edits this device does not keep yet (neither a journal holds them nor
+    /// its kept edits, `refs::OpenEdits`), plus commands sent and not yet carried out and
+    /// unfinished imports. A kept edit survives a restart and is not counted, though the server
+    /// may not hold it yet (guides/blocks/host.md).
     pub unsaved: usize,
     pub kept: usize,
     pub saves: u64,

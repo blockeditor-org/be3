@@ -57,7 +57,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         [EditorOperation {
             operation: own,
             mine: true,
-            unsettled: 0,
+            // Its own edit stays unsettled until the server's order holds it.
+            unsettled: 1,
             beneath: None,
         }]
     );

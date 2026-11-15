@@ -292,10 +292,12 @@ the connection a stopping stack closed.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (edits no journal holds yet, `Replicas::counts`' third number: in a
-live session, until the server holds them in its journal; plus every command sent and not
-yet carried out, `Shared::pending`, and imports; an edit a journal holds but no
-commit yet is durable and not counted). The "Saving changes" toast follows `unsaved`.
+`unsaved` (edits this device does not keep yet, `Replicas::counts`' third
+number: neither a journal holds them nor its kept edits, which are written
+ahead of each submission; plus every command sent and not yet carried out,
+`Shared::pending`, and imports; a kept edit survives a restart, so one the
+server does not hold yet, or no commit, is not counted, and nothing settled
+waits on a server that does not answer). The "Saving changes" toast follows `unsaved`.
 
 The close and switch guards ask only while `be_host_stack::flush()` returns
 more than zero. It returns the worker's count as it answers the flush: open
