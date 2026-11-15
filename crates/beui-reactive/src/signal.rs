@@ -5,17 +5,21 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
+use crate::loading::Pending;
 use crate::runtime::{RUNTIME, check_tracked_read, untrack};
 
-pub(crate) struct Source {
+pub(crate) struct Node {
     pub(crate) version: Cell<u64>,
     pub(crate) tracked_by: Cell<u64>,
     pub(crate) subscribers: RefCell<Subscribers>,
     pub(crate) producer: RefCell<Weak<Computation>>,
     pub(crate) freed: Cell<bool>,
+    /// Whether the value is there: `None` when it is, or why not. A `Source` or async memo
+    /// sets it; a memo takes it from what it read on its last run.
+    pub(crate) readiness: RefCell<Option<Pending>>,
 }
 
-impl Default for Source {
+impl Default for Node {
     fn default() -> Self {
         Self {
             version: Cell::default(),
@@ -23,6 +27,7 @@ impl Default for Source {
             subscribers: RefCell::default(),
             producer: RefCell::new(no_computation()),
             freed: Cell::new(false),
+            readiness: RefCell::new(None),
         }
     }
 }
@@ -74,17 +79,17 @@ impl Subscribers {
 }
 
 pub(crate) trait Tracked {
-    fn source(&self) -> &Source;
+    fn source(&self) -> &Node;
 }
 
-impl Tracked for Source {
-    fn source(&self) -> &Source {
+impl Tracked for Node {
+    fn source(&self) -> &Node {
         self
     }
 }
 
 impl<T> Tracked for Value<T> {
-    fn source(&self) -> &Source {
+    fn source(&self) -> &Node {
         &self.source
     }
 }
@@ -131,7 +136,24 @@ pub(crate) fn track(tracked: Rc<dyn Tracked>) {
     }
 }
 
-impl Source {
+impl Node {
+    pub(crate) fn readiness(&self) -> Option<Pending> {
+        self.readiness.borrow().clone()
+    }
+
+    pub(crate) fn is_settled(&self) -> bool {
+        self.readiness.borrow().is_none()
+    }
+
+    /// Whether it changed.
+    pub(crate) fn set_readiness(&self, readiness: Option<Pending>) -> bool {
+        if *self.readiness.borrow() == readiness {
+            return false;
+        }
+        self.readiness.replace(readiness);
+        true
+    }
+
     pub(crate) fn changed(&self) {
         self.version.set(self.version.get().wrapping_add(1));
         let subscribers = self.subscribers.borrow().live();
@@ -142,7 +164,7 @@ impl Source {
 }
 
 pub(crate) struct Value<T> {
-    pub(crate) source: Source,
+    pub(crate) source: Node,
     pub(crate) value: RefCell<T>,
 }
 
@@ -262,7 +284,7 @@ impl<T> Value<T> {
     pub(crate) fn new(value: T) -> Self {
         Self {
             value: RefCell::new(value),
-            source: Source::default(),
+            source: Node::default(),
         }
     }
 }
@@ -425,4 +447,17 @@ pub(crate) fn assert_writable() {
         RUNTIME.with(|runtime| runtime.memo_depth.get() == 0),
         "memo computations must not write signals"
     );
+}
+
+/// What a value that read `nodes` is: failed if any failed, else loading if any is.
+pub(crate) fn readiness_of<'a>(nodes: impl Iterator<Item = &'a Node>) -> Option<Pending> {
+    let mut readiness = None;
+    for node in nodes {
+        match &*node.readiness.borrow() {
+            None => {}
+            Some(Pending::Failed(error)) => return Some(Pending::Failed(error.clone())),
+            Some(Pending::Loading) => readiness = Some(Pending::Loading),
+        }
+    }
+    readiness
 }

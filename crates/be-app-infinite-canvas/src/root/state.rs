@@ -742,7 +742,7 @@ impl CanvasState {
         self.preview
     }
 
-    pub(crate) fn grid(&self) -> ReadSignal<be_type_infinite_canvas::CanvasGrid> {
+    pub(crate) fn grid(&self) -> Memo<be_type_infinite_canvas::CanvasGrid> {
         self.cells.value().content.field(
             be_sdk_beui::be_block_content::be_block_model::ObjectId::ROOT,
             be_type_infinite_canvas::Canvas::GRID,

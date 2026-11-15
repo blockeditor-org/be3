@@ -11,7 +11,7 @@ crate's tests are in `crates/beui-reactive/src/tests/`.
 
 ## Handles and ownership
 
-Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Trigger`, `Effect`, `Selector`,
+Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Source`, `AsyncMemo`, `Trigger`, `Effect`, `Selector`,
 `Stored`, `StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's
 `Callback`, `Binding` and `NodeRef` - is a `Copy` key into a thread-local arena,
 not a reference count (decisions/reactive_handles_are_copy_arena_keys.md), and
@@ -55,6 +55,8 @@ disposed later in the same flush; one still alive that reads it panics.
 | Need | Use |
 | --- | --- |
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
+| A value a future computes | `create_async_memo`: re-runs and cancels as a memo would, reads as a `Ready<T>` |
+| Data settled from outside (a host callback) that may not have arrived | `create_source`: a root whose readiness the boundaries see |
 | An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
 | A prop that only asks when something changed, an event or a value | `Trackable`: a `Trigger`, `Signal`, `ReadSignal`, `Memo` or `Reader` converts into one (and into `Option<Trackable>`), or `Trackable::new`; read it with `track()` |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
@@ -164,25 +166,56 @@ with `?`: `create_memo(move || Ok(rows.get()?.len()))`. No `Option` or
 `loaded: bool` sits beside the value
 (decisions/loading_state_is_ready_and_waits_at_a_boundary.md).
 
-`<Loading fallback={...}>` builds its content at once but hidden, shows the
-fallback while anything that content made is pending, then reveals it and
-never shows the fallback again, so a later reload updates in place. A source
-registers with the nearest boundary around the scope that makes it, through
-`wait_for(probe)` or `hold(source)`; a `Memo<Ready<T>>` handed to a `Prop<T>`
-is held that way, so `<Text>{name}</Text>` takes one directly. Traps:
+Data that arrives later comes from one of two roots, never a
+`Signal<Ready<T>>`:
 
-- Nothing registers inside a memo, which reruns on every read. Make the source
-  in a body or a binding.
-- A wait lasts as long as the scope that registered it. A source a binding
-  caches across its runs is made in a scope kept beside it, not the binding's
-  own, which the next run drops.
+- `create_async_memo(move || async move { ... })`: its closure runs tracked,
+  like a memo, and returns the future that computes a `Ready<T>`; when what it
+  read changes it runs again and drops (cancels) the future before. It reads
+  `Err(Loading)` until the first answer, then keeps the last good answer while
+  a newer one is on its way (`pending()` says so); a failure replaces it. The
+  futures run on the spawner the host installs (`spawn_with`): be-sdk-beui
+  runs them on be-sdk's executor and redraws when one answers.
+- `create_source::<T>()` (`OwnedSource` outside a scope): a value settled from
+  outside the graph, by a host callback or a stream that keeps updating;
+  whoever holds it calls `set`.
+
+Whether a value is there is part of the graph: a root is pending (or failed)
+while its value is, and a memo is pending while anything it read on its last
+run is. That holds even for a memo that handles the pending value
+(`rows.with(|rows| rows.as_ref().map_or(0, Vec::len))`): it counts as pending
+until its source settles, and its readers wake when it starts or stops
+waiting, as when its value changes.
+
+A read of a pending value outside a memo (in a binding, an effect, a `Prop`,
+or a snapshot in a component body) registers it with the boundary that
+handles it, for as long as the reading scope lives. Nothing registers inside
+a memo; the memo is pending in turn, and whoever reads it registers.
+
+`<Loading fallback={...}>` builds its content at once but hidden, shows the
+fallback while anything read under it is pending, then reveals it and never
+shows the fallback again, so a later reload updates in place.
+`hold(source)` turns a `Ready<T>` into the last value it had
+(`T::default()` before the first); a `Memo<Ready<T>>` handed to a `Prop<T>` is
+held that way, so `<Text>{name}</Text>` takes one directly.
+
+`<Errored fallback={...}>` shows its content, and its fallback instead while
+something read under it has failed, also after a `Loading` around it revealed.
+The fallback gets `(message, boundary)`; `boundary.reset()` runs the async
+memos made under it again, and the content, kept meanwhile, shows once nothing
+read under it has failed. A `Loading` inside it that has not revealed yet shows
+a failure as its own fallback instead.
+
+Traps:
+
 - While hidden, the content's bindings, memos and control flow run, so the
-  boundary finds every source; its effects wait until the reveal. An effect
-  that makes a source the view waits for (one that watches a new query when
-  an id changes) has to be a `create_binding`, or the boundary never sees it
-  and never reveals.
-- A source made outside the boundary (in `view` around `<Loaded>` instead of
-  inside its content) does not hold it back.
+  boundary sees every read; its effects wait until the reveal. A read that
+  should hold the boundary belongs in a binding, a memo a binding reads, or
+  the body, not only in an effect.
+- A read outside the boundary (in `view` around `<Loaded>` instead of inside
+  its content) does not hold it back.
+- A value that will never arrive (a block the viewer cannot see) must settle
+  its root, or it holds the boundary for ever.
 
 ## Blocks
 
@@ -214,7 +247,8 @@ An editor shows nothing it would correct a moment later: no empty or editable
 view before the content arrives, no placeholder the next answer replaces. Each
 `BeuiRoot::View` and `Preview` wraps its component in `<Loaded label="...">`,
 the editor's `Loading` boundary, which waits on every projection, graph query
-and `version_status()` made inside it. Something that loads later inside a
+and `version_status()` read inside it: each is pending until the host has
+answered. Something that loads later inside a
 shown view (a folder being expanded) says so in its own place.
 
 ## beui integration

@@ -614,7 +614,7 @@ fn Kinds<C: Layer>(
     let (open_input, input) = opener::<C, InputSettingsContent>(editor, layer);
     let (open_display, display) = opener::<C, DisplaySettingsContent>(editor, layer);
     let (open_editors, editors) = opener::<C, EditorSettingsContent>(editor, layer);
-    let showing = move |block: ReadSignal<Option<Uuid>>| {
+    let showing = move |block: Memo<Option<Uuid>>| {
         create_memo(move || block.get().is_some_and(|block| shown.get() == Some(block)))
     };
     view! {
@@ -658,7 +658,7 @@ fn Kinds<C: Layer>(
 fn opener<C: Layer, K: BlockContent + Default>(
     editor: Editor,
     layer: ContentProjection<C>,
-) -> (impl Fn() + Clone + use<C, K>, ReadSignal<Option<Uuid>>) {
+) -> (impl Fn() + Clone + use<C, K>, Memo<Option<Uuid>>) {
     let resolved = layer.project(|layer| layer.kind(K::CONTENT_TYPE));
     let host = editor.host();
     let open = move || {
