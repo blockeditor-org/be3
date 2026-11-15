@@ -30,7 +30,6 @@ use beui_dock::{
 
 use super::reveal::DockBarHidden;
 use super::{
-    Held,
     DockAlign, DockBarPlacement, DockDragged, DockEdge, DockMode, DockState, FLOAT_INSET, LeafId,
     State, TabId,
 };
@@ -134,10 +133,13 @@ impl DockBarDriver for State {
 }
 
 impl State {
-    /// Builds `bar`'s panel, in the scope of the `Kept` that keeps it (`Held::Bar`).
-    pub(super) fn build_bar_panel(&self, bar: TabId) -> NodeId {
+    pub(super) fn bar_panel(&self, bar: TabId) -> NodeId {
+        if let Some((panel, _)) = self.bar_panels.value().borrow().get(&bar) {
+            return *panel;
+        }
+        let scope = self.open_scope();
         let dock = *self;
-        let panel = {
+        let panel = scope.context().run(|| {
             let state = dock.state;
             let placement = create_memo(move || state.with(|state| state.bar_placement(bar)));
             let place = Callback::new(move |placement: Option<DockBarPlacement>| match placement {
@@ -168,14 +170,11 @@ impl State {
             });
             on_cleanup(move || reveal.hold(bar, false));
             self.content.call(bar)
-        };
-        self.bar_panels.value().borrow_mut().insert(bar, panel);
-        let panels = self.bar_panels;
-        on_cleanup(move || {
-            if panels.is_alive() {
-                panels.value().borrow_mut().remove(&bar);
-            }
         });
+        self.bar_panels
+            .value()
+            .borrow_mut()
+            .insert(bar, (panel, scope));
         panel
     }
 
@@ -361,8 +360,23 @@ impl State {
         window.is_none_or(|window| window_point(Pos2::ZERO, window, self.home()).is_some())
     }
 
+    pub(super) fn keep_bar_panels(&self, bars: &[TabId]) {
+        let dropped: Vec<TabId> = self
+            .bar_panels
+            .value()
+            .borrow()
+            .keys()
+            .filter(|bar| !bars.contains(bar))
+            .copied()
+            .collect();
+        for bar in dropped {
+            let panel = self.bar_panels.value().borrow_mut().remove(&bar);
+            drop(panel);
+        }
+    }
+
     fn bar_panel_rect(&self, bar: TabId) -> Option<Rect> {
-        let panel = *self.bar_panels.value().borrow().get(&bar)?;
+        let (panel, _) = *self.bar_panels.value().borrow().get(&bar)?;
         Some(measure(panel).get_untracked()?.rect)
     }
 
@@ -1948,15 +1962,7 @@ fn SharedBar(
     followed: Memo<Option<TabId>>,
     sizes: Signal<HashMap<TabId, Vec2>>,
 ) -> CanvasItem {
-    let held = view! {
-        <Kept key={Held::Bar(bar)}>|| { dock.build_bar_panel(bar) }</Kept>
-    };
-    let panel = *dock
-        .bar_panels
-        .value()
-        .borrow()
-        .get(&bar)
-        .expect("a kept bar's panel is built");
+    let panel = dock.bar_panel(bar);
     let measured = measure(panel);
     create_effect(move || {
         if let Some(measured) = measured.get() {
@@ -1989,7 +1995,7 @@ fn SharedBar(
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
                     <Frame align=Align2::START>
-                        {held}
+                        <Portal node={Some(panel)} />
                     </Frame>
                 </CanvasItem>
             </Canvas>
@@ -2058,10 +2064,15 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
             }
         });
     });
+    let node = create_signal(None);
+    create_effect(move || {
+        node.set(Some(match lifted.get() {
+            true => gap,
+            false => dock.bar_panel(bar),
+        }));
+    });
     view! {
-        <Show value={lifted} fallback={move || view! { <DockBarPanel dock bar={Some(bar)} /> }}>
-            <Portal node={Some(gap)} />
-        </Show>
+        <Portal node={node} />
     }
 }
 
@@ -2069,8 +2080,10 @@ fn DockBarSlot(dock: State, bar: TabId, placement: DockBarPlacement) -> NodeId {
 pub(super) fn DockBarLifted(dock: State) -> NodeId {
     let lifting = dock.lifting;
     let lifted = create_memo(move || lifting.lift.with(|lift| lift.map(|lift| lift.bar)));
+    let node = create_signal(None);
+    create_effect(move || node.set(lifted.get().map(|bar| dock.bar_panel(bar))));
     let held = view! {
-        <DockBarPanel dock bar={lifted} />
+        <Portal node={node} />
     };
     let measured = measure(held);
     create_effect(move || {
@@ -2123,20 +2136,7 @@ pub(super) enum BarHolder {
     Dock,
 }
 
-/// The bars' panels built now, kept by the dock's `KeepAlive` (`Held::Bar`).
-pub(super) type BarPanels = RefCell<HashMap<TabId, NodeId>>;
-
-/// `bar`'s panel, kept built and paused while no `DockBarPanel` shows it.
-#[component]
-fn DockBarPanel(dock: State, bar: Prop<Option<TabId>>) -> NodeId {
-    view! {
-        <Dynamic value={bar} fallback=()>|bar: TabId| {
-            view! {
-                <Kept key={Held::Bar(bar)}>|| { dock.build_bar_panel(bar) }</Kept>
-            }
-        }</Dynamic>
-    }
-}
+pub(super) type BarPanels = RefCell<HashMap<TabId, (NodeId, Scope)>>;
 
 pub(crate) type BarCovers = HashMap<(TabId, DockEdge, DockAlign), Rect>;
 

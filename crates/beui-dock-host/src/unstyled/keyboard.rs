@@ -96,16 +96,17 @@ impl State {
 
     fn panel_node(&self, tab: TabId) -> Option<NodeId> {
         self.panels
-            .with_untracked(|panels| panels.get(&tab).copied())
+            .value()
+            .borrow()
+            .get(&tab)
+            .map(|(panel, _)| *panel)
     }
 
     fn focus_panel(&self, tab: TabId) {
         let Some(panel) = self.panel_node(tab) else {
             return;
         };
-        let held: Vec<TabId> = self
-            .panels
-            .with_untracked(|panels| panels.keys().copied().collect());
+        let held: Vec<TabId> = self.panels.value().borrow().keys().copied().collect();
         for other in held.into_iter().filter(|other| *other != tab) {
             if self.remember_focus(other) {
                 break;

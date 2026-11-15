@@ -27,33 +27,11 @@ struct Cache {
     entries: RefCell<HashMap<AnyKey, Entry>>,
     next: Cell<u64>,
     keeps: Option<Box<dyn Fn(&AnyKey) -> bool>>,
-    awake: Option<Box<dyn Fn(&AnyKey) -> bool>>,
 }
 
 impl Cache {
     fn kept(&self, key: &AnyKey) -> bool {
         self.keeps.as_ref().is_none_or(|keeps| untrack(|| keeps(key)))
-    }
-
-    fn awake(&self, key: &AnyKey) -> bool {
-        self.awake.as_ref().is_some_and(|awake| untrack(|| awake(key)))
-    }
-
-    /// Pauses every entry nothing shows, or resumes it while its key is awake.
-    fn wake(&self) {
-        let hidden: Vec<(Rc<Scope>, bool)> = self
-            .entries
-            .borrow()
-            .iter()
-            .filter(|(_, entry)| entry.borrower.get_untracked().is_none())
-            .map(|(key, entry)| (entry.scope.clone(), self.awake(key)))
-            .collect();
-        for (scope, awake) in hidden {
-            match awake {
-                true => scope.resume(),
-                false => scope.pause(),
-            }
-        }
     }
 
     /// Forgets every entry its keep set dropped that nothing shows.
@@ -86,40 +64,22 @@ struct KeepAliveCache(Rc<Cache>);
 /// subtree is built the first time a `Kept` with its key is, paused (nothing in it runs)
 /// while no `Kept` shows it, and resumed and shown again by the next `Kept` with that key,
 /// wherever it is. Given `keep`, a key it no longer lists is dropped once nothing shows it.
-/// A key `awake` lists keeps running while hidden: what it serves is shown elsewhere (a dock tab
-/// whose own dock joined the one around it).
 ///
 /// A kept subtree belongs to the `KeepAlive`, so it reads the context provided around the
 /// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
 /// does.
 #[component]
-pub fn KeepAlive<B, KS, AS>(
-    keep: KS,
-    awake: AS,
-    #[prop(children)] content: Render<(), B>,
-) -> B::Output
+pub fn KeepAlive<B, KS>(keep: KS, #[prop(children)] content: Render<(), B>) -> B::Output
 where
     B: Unwrapped + 'static,
     KS: KeepSet,
-    AS: KeepSet,
 {
     let cache = Rc::new(Cache {
         owner: current_scope(),
         entries: RefCell::default(),
         next: Cell::new(0),
         keeps: keep.keeps(),
-        // Left out, `awake` lists nothing.
-        awake: awake.keeps(),
     });
-    if cache.awake.is_some() {
-        let watched = cache.clone();
-        create_effect(move || {
-            if let Some(awake) = &watched.awake {
-                awake(&AnyKey::new(()));
-            }
-            untrack(|| watched.wake());
-        });
-    }
     if cache.keeps.is_some() {
         let watched = cache.clone();
         create_effect(move || {
@@ -213,7 +173,6 @@ where
         let scope = entry.scope.clone();
         drop(entries);
         match keep {
-            true if released.awake(&key) => {}
             true => scope.pause(),
             false => {
                 if let Some(entry) = released.entries.borrow_mut().remove(&key) {
@@ -233,4 +192,3 @@ where
 fn create_signal_in<T: 'static>(scope: &Rc<Scope>, value: T) -> Signal<T> {
     scope.context().run(|| create_signal(value))
 }
-
