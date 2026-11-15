@@ -44,10 +44,6 @@ pub trait Instance: std::any::Any {
 
     fn presence_visible(&mut self, _visible: bool) {}
 
-    fn replace_child(&mut self, _old: Uuid, _new: Uuid) -> bool {
-        false
-    }
-
     fn open_view(&mut self, _view: View) {}
 }
 

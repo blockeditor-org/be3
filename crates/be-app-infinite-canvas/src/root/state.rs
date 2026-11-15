@@ -2492,24 +2492,6 @@ impl CanvasState {
         }
         self.record_update(before, after);
     }
-
-    pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
-        let replaced = self
-            .entities
-            .all_untracked()
-            .into_iter()
-            .filter(|entity| entity.shape.embeds_block() && entity.block == Some(old))
-            .map(|entity| CanvasEntity {
-                block: Some(new),
-                ..entity
-            })
-            .collect::<Vec<_>>();
-        if replaced.is_empty() {
-            return false;
-        }
-        self.record(InfiniteCanvasOperation::Update { entities: replaced });
-        true
-    }
 }
 
 pub(crate) fn selection_frame(

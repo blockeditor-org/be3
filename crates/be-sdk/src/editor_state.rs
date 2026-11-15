@@ -208,7 +208,6 @@ pub struct ContentCache {
     due: Rc<RefCell<Vec<Option<Uuid>>>>,
 }
 
-type ReplaceChild = Rc<dyn Fn(Uuid, Uuid) -> bool>;
 type Wake = (u64, Arc<AtomicU64>, Rc<dyn Fn(u64)>);
 
 #[derive(Clone)]
@@ -219,7 +218,6 @@ struct Inner {
     block: Uuid,
     scale: Rc<Cell<PointScale>>,
     contents: Rc<ContentCache>,
-    replace: RefCell<Option<ReplaceChild>>,
     content_rect: Cell<Rect>,
     intrinsic: Cell<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
@@ -254,7 +252,6 @@ impl EditorCore {
             block,
             scale,
             contents,
-            replace: RefCell::new(None),
             content_rect: Cell::new(Rect::ZERO),
             intrinsic: Cell::new(None),
             pending_resize: Cell::new(None),
@@ -471,15 +468,6 @@ impl EditorCore {
 
     pub fn report_reveal(&self, client_id: u64) {
         self.0.pending_reveal.set(Some(client_id));
-    }
-
-    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        *self.0.replace.borrow_mut() = Some(Rc::new(replace));
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        let replace = self.0.replace.borrow().clone();
-        replace.is_some_and(|replace| replace(old, new))
     }
 
     pub fn content_rect(&self) -> Rect {

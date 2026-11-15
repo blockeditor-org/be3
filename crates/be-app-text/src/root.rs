@@ -45,7 +45,6 @@ impl be_sdk_beui::BeuiRoot for TextRoot {
 pub fn TextEditor(editor: Editor) -> NodeId {
     let state = State::new(editor);
     position::keep_position(state);
-    editor.on_replace_child(move |old, new| state.is_alive() && state.replace_child(old, new));
 
     let content = NodeRef::new();
     editor.content(&content);

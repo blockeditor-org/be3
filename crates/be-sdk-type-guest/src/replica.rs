@@ -3055,7 +3055,9 @@ where
     fn change(&mut self, id: RequestId, change: Change) {
         match change {
             Change::Child(change) => {
-                let Some(operations) = self.visible.child_operations(crate::be_child(change))
+                let Some(operations) = self
+                    .visible
+                    .child_operations(crate::be_child(change), self.client)
                 else {
                     return self.reply(id, Answer::Changed(false));
                 };

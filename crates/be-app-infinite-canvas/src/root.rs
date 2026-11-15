@@ -97,10 +97,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let state = CanvasState::new(editor, false);
     state.watch();
 
-    editor.on_replace_child(move |old, new| {
-        state.is_alive() && state.replace_referenced_block(old, new)
-    });
-
     report_intrinsic_size(editor, state);
 
     let content = NodeRef::new();

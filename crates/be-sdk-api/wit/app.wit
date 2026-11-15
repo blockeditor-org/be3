@@ -90,9 +90,6 @@ interface app {
         /// Generates the artifact the settings describe again.
         regenerate-artifact: async func(data: list<u8>) -> result<_, failure>;
 
-        /// Puts a block in place of a child block; false when the editor cannot.
-        replace-child: async func(old: block-id, new: block-id) -> bool;
-
         /// Renders representation `format` of the editor's copy `serial`
         /// (`shell-message.copy`), which a paste asked for; none once the editor
         /// copied something else or cannot.

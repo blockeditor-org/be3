@@ -2511,20 +2511,6 @@ pub fn render_clip(
     .flatten()
 }
 
-pub fn replace_child(
-    app_id: &str,
-    instance: EditorInstanceId,
-    old: Uuid,
-    new: Uuid,
-) -> Option<bool> {
-    with(app_id, |runtime| {
-        let (messages, replaced) = runtime.instances.replace_child(instance, old, new);
-        runtime.send(messages);
-        replaced
-    })
-    .flatten()
-}
-
 pub fn resized(app_id: &str, instance: EditorInstanceId, size: Vec2) {
     with(app_id, |runtime| {
         let messages = runtime.instances.resized(instance, size);

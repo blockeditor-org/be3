@@ -448,20 +448,13 @@ impl AppEditor {
     }
 
     pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<bool> {
-        let replace = be_block_content::ChildChange::Replace { old, new };
-        let Some(app) = self.app() else {
-            return self.change_child(replace);
-        };
-        if !be_host_stack::discovery::block_type(self.block_type)
-            .is_some_and(|block_type| block_type.children.replace)
+        if !be_host_stack::discovery::block_type(self.block_type)?
+            .children
+            .replace
         {
-            return None;
+            return Some(false);
         }
-        match be_host_runtime::replace_child(&app.identity.id, self.instance, old, new) {
-            Some(true) => Some(true),
-            Some(false) => self.change_child(replace),
-            None => None,
-        }
+        self.change_child(be_block_content::ChildChange::Replace { old, new })
     }
 
     pub(crate) fn reorder_child(&self, child: Uuid, after: Option<Uuid>) -> Option<bool> {
