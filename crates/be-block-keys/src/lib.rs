@@ -385,7 +385,7 @@ fn normalize(input: &str, len: usize) -> Option<String> {
     (code.len() == len && code.bytes().all(|byte| CODE_ALPHABET.contains(&byte))).then_some(code)
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Deserialize, Serialize)]
 pub struct InviteCode([u8; INVITE_ENTROPY]);
 
 impl InviteCode {

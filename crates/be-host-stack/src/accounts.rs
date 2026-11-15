@@ -381,7 +381,7 @@ fn invitation_of(link: be_block_protocol::Link) -> Result<Invitation, AccountErr
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AgentCredentials {
     pub name: String,
     pub server: String,

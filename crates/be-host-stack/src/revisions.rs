@@ -145,14 +145,14 @@ pub fn collect_released(release: impl FnOnce(&[Uuid])) {
     super::edit(vec![Edit::Collected(ids)]);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum Asked {
     List,
     Preview([u8; 32]),
     Restore([u8; 32]),
 }
 
-#[derive(Debug)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub enum Answered {
     Listed(Result<Vec<Revision>, String>),
     Previewed(Result<Uuid, String>),
@@ -163,7 +163,7 @@ pub fn request(block: Uuid, request: Asked, reply: impl FnOnce(Answered) + Send 
     super::send(Command::Revision {
         block,
         request,
-        reply: crate::seen::after_publish(reply),
+        reply: crate::replies::expect(reply),
     });
 }
 

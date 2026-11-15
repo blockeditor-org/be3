@@ -9,8 +9,9 @@ use uuid::Uuid;
 
 use crate::worker::{Command, Store, Tasks};
 
-type Reply<T> = Box<dyn FnOnce(Result<T, String>) + Send>;
+type Reply<T> = crate::replies::Reply<Result<T, String>>;
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(crate) enum AuthorshipCommand {
     Sign {
         block: Uuid,
@@ -22,7 +23,7 @@ pub(crate) enum AuthorshipCommand {
         block: Uuid,
         bytes: Vec<u8>,
         signature: Vec<u8>,
-        reply: Reply<Signer>,
+        reply: Reply<crate::replies::Signed>,
     },
 }
 
@@ -35,7 +36,7 @@ pub fn sign(
     crate::send(Command::Authorship(AuthorshipCommand::Sign {
         block,
         bytes,
-        reply: Box::new(reply),
+        reply: crate::replies::expect(reply),
     }));
 }
 
@@ -52,7 +53,9 @@ pub fn verify(
         block,
         bytes,
         signature,
-        reply: Box::new(reply),
+        reply: crate::replies::expect(move |signer: Result<crate::replies::Signed, String>| {
+            reply(signer.map(|crate::replies::Signed(signer)| signer));
+        }),
     }));
 }
 
@@ -62,7 +65,7 @@ pub(crate) fn run(peer: &Arc<Peer<Store>>, tasks: &Tasks, command: AuthorshipCom
             block,
             bytes,
             reply,
-        } => reply(Ok(peer.sign_authored(block, &bytes))),
+        } => reply.send(Ok(peer.sign_authored(block, &bytes))),
         AuthorshipCommand::Verify {
             account,
             block,
@@ -75,7 +78,11 @@ pub(crate) fn run(peer: &Arc<Peer<Store>>, tasks: &Tasks, command: AuthorshipCom
                 let verified = peer
                     .verify_authored(account, block, &bytes, &signature)
                     .await;
-                reply(verified.map_err(|error| error.to_string()));
+                reply.send(
+                    verified
+                        .map(crate::replies::Signed)
+                        .map_err(|error| error.to_string()),
+                );
                 crate::changes::wake();
             });
         }

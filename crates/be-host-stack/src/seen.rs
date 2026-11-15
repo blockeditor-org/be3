@@ -147,40 +147,61 @@ impl From<&be_block_client::UnsentBlock> for Unsent {
 
 /// A moment on the monotonic clock, handed over as how long from now: two instances of the
 /// module count from the same origin on the web, but an `Instant` is not bytes.
-mod due {
+/// A moment as nanoseconds from now, negative for one already past: a held clock stands still
+/// behind the real one, so what is due on it is often in the past. The page and its worker
+/// read one clock.
+pub(crate) mod moment {
     use std::time::{Duration, Instant};
 
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    /// Nanoseconds from now, negative for a moment already past: a held clock stands still
-    /// behind the real one, so what is due on it is often in the past.
-    pub(super) fn serialize<S: Serializer>(
-        due: &Option<Instant>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
+    fn from_now(at: Instant) -> i128 {
         let now = Instant::now();
-        due.map(|due| match due.checked_duration_since(now) {
+        match at.checked_duration_since(now) {
             Some(ahead) => ahead.as_nanos() as i128,
-            None => -(now.duration_since(due).as_nanos() as i128),
-        })
-        .serialize(serializer)
+            None => -(now.duration_since(at).as_nanos() as i128),
+        }
     }
 
-    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Option<Instant>, D::Error> {
-        let Some(from_now) = Option::<i128>::deserialize(deserializer)? else {
-            return Ok(None);
-        };
+    fn at<E: serde::de::Error>(from_now: i128) -> Result<Instant, E> {
         let now = Instant::now();
         let span = Duration::from_nanos(from_now.unsigned_abs().min(u64::MAX as u128) as u64);
-        let due = if from_now < 0 {
-            now.checked_sub(span)
-        } else {
-            now.checked_add(span)
-        };
-        due.map(Some)
-            .ok_or_else(|| serde::de::Error::custom("a due moment this clock cannot hold"))
+        match from_now < 0 {
+            true => now.checked_sub(span),
+            false => now.checked_add(span),
+        }
+        .ok_or_else(|| E::custom("a moment this clock cannot hold"))
+    }
+
+    pub(crate) fn serialize<S: Serializer>(at: &Instant, serializer: S) -> Result<S::Ok, S::Error> {
+        from_now(*at).serialize(serializer)
+    }
+
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Instant, D::Error> {
+        at(i128::deserialize(deserializer)?)
+    }
+
+    pub(crate) mod option {
+        use std::time::Instant;
+
+        use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+        pub(crate) fn serialize<S: Serializer>(
+            at: &Option<Instant>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            at.map(super::from_now).serialize(serializer)
+        }
+
+        pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Option<Instant>, D::Error> {
+            Option::<i128>::deserialize(deserializer)?
+                .map(super::at)
+                .transpose()
+        }
     }
 }
 
@@ -296,7 +317,7 @@ pub struct Seen {
     /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
     /// stopped clock must reach for that work to happen. `None` while anything else could still
     /// make progress.
-    #[serde(with = "due")]
+    #[serde(with = "moment::option")]
     pub modules_due: Option<std::time::Instant>,
     pub uploading: usize,
     pub listing_revisions: usize,
@@ -472,7 +493,7 @@ impl Seen {
 /// A change the page makes to what it reads at once, rather than waiting for the worker: the
 /// page lays it over its own view, and sends it to the worker, which applies it to its `Seen`
 /// as it takes the command (`Command::Edit`), in the order sent.
-#[derive(Clone)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub(crate) enum Edit {
     /// A block made here (`create`): placed under its parent unless the parent already lists it.
     Create(Node),
@@ -490,6 +511,7 @@ pub(crate) enum Edit {
     Stage {
         block: Uuid,
         content_type: Uuid,
+        #[serde(with = "bytes")]
         bytes: Arc<Vec<u8>>,
     },
     /// Shows what an import staged for a block until its replica has it.

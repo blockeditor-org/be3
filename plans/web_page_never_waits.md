@@ -30,6 +30,9 @@ found one held past std's short spin:
 - be-host-base `host.rs`'s `UNSENT_SAVES`, which `save_file` pushes to and the host's frame
   takes from. Only be-host-runtime's instances call `save_file` today, answering an app's
   `save-file` on the page, so no worker takes it yet; a worker that saves a file would.
+- be-host-stack `replies.rs`'s `WAITING`, what each reply's number calls back: the page adds
+  to it and the worker takes from it as it answers. It becomes the page's alone once answers
+  travel to the page in the message that hands it the `Seen` (step 1).
 - be-host-stack `lib.rs`'s `OWN_INVITATIONS`, which the worker writes as invitations are made
   or listed and the page reads; it belongs in `Seen`.
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
@@ -63,7 +66,8 @@ a thread that runs beside it.
    then fails loudly. Two remain to check then, which should never run on the web's page:
    be-host-runtime `input.rs`'s `read_path` (a dropped file with a path and no bytes) and
    `fonts.rs`'s fallback reads (no system fonts on the web today). The host state's first answer and its `Write`s, and the organization
-   lists, become messages too. The handed-over `Seen` then
+   lists, become messages too. The stack's commands are bytes already, and replies numbers
+   answered with bytes (guides/blocks/host.md, "What the page reads"). The handed-over `Seen` then
    becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker
    wrote since the last), and the page's `Edit`s and replies travel as they do now. A
    worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s

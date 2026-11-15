@@ -11,7 +11,7 @@ const MAGIC: &[u8] = b"be3 block file\n";
 const VERSION: u32 = 1;
 const TOP: u32 = u32::MAX;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Saved {
     pub id: Uuid,
     pub block_type: Uuid,
