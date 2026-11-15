@@ -1492,6 +1492,7 @@ dependencies = [
  "be-wasm-threads",
  "futures-util",
  "pollster",
+ "serde",
  "tokio",
  "uuid",
 ]
@@ -1761,6 +1762,8 @@ dependencies = [
  "futures-util",
  "imbl",
  "js-sys",
+ "postcard",
+ "serde",
  "serde_json",
  "sha2 0.10.9",
  "tokio",
@@ -6525,6 +6528,7 @@ dependencies = [
  "imbl-sized-chunks",
  "rand_core 0.9.5",
  "rand_xoshiro",
+ "serde",
  "version_check",
 ]
 

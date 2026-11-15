@@ -27245,6 +27245,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "linux-arm64": {
@@ -27254,6 +27258,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "linux-x86_64": {
@@ -27263,6 +27271,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "macos-arm64": {
@@ -27272,6 +27284,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "macos-x86_64": {
@@ -27281,6 +27297,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "wasi": {
@@ -27290,6 +27310,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "windows-arm64": {
@@ -27299,6 +27323,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
             "windows-x86_64": {
@@ -27308,6 +27336,10 @@ third_party = {
                     ":imbl-sized-chunks-0.1.3",
                     ":rand_core-0.9.5",
                     ":rand_xoshiro-0.7.0",
+                    ":serde-1.0.228",
+                ],
+                "features": [
+                    "serde",
                 ],
             },
         },

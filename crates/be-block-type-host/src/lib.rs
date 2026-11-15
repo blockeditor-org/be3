@@ -18,7 +18,7 @@ pub use modules::{
 };
 pub use replicas::{Ctx, EARLY_OPEN, HOST_EDITOR, Merged, NotSearched, Owing, Replicas, Searched};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Conflict {
     pub ours: CommitId,
     pub theirs: CommitId,

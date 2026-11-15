@@ -615,7 +615,7 @@ pub(super) enum ContactCommand {
     Remove(Uuid),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct PairingRequest {
     pub from: u64,
     pub device: String,
@@ -826,7 +826,10 @@ impl Shared {
             self.seen.searched = crate::seen::Part::new(self.search.shown());
         }
         self.seen.search_indexed = self.search.indexed();
-        self.seen.search_busy = self.search.busy_with(super::search::wants_index(self));
+        self.seen.search_busy = self
+            .search
+            .busy_with(super::search::wants_index(self))
+            .map(crate::seen::Words::Borrowed);
         self.refresh_reach();
     }
 
@@ -915,7 +918,7 @@ pub struct Presence {
     pub value: Vec<u8>,
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct History {
     pub can_undo: bool,
     pub can_redo: bool,
@@ -1835,7 +1838,8 @@ impl Session<'_> {
 }
 
 fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
-    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step;
+    shared.lock().unwrap_or_else(PoisonError::into_inner).step =
+        step.map(crate::seen::Words::Borrowed);
 }
 
 /// The device has asked for everything it missed while away (`Shared::arriving`).
@@ -2117,10 +2121,15 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.reach_dirty.extend(expired);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
-    held.outbox = outbox;
+    held.outbox = outbox
+        .into_iter()
+        .map(|(kind, block)| (crate::seen::Words::Borrowed(kind), block))
+        .collect();
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
-        held.unsent = crate::Part::new(peer.unsent());
+        held.unsent = crate::Part::new(
+            peer.unsent().iter().map(crate::seen::Unsent::from).collect(),
+        );
         changed = true;
     }
     // What went wrong sending stops being news once the device is connected and in step: nothing
@@ -2606,9 +2615,9 @@ impl Ran<'_> {
             let (owing, undurable);
             (held.unsealed, owing, undurable) = self.replicas.counts();
             held.owing = owing.len();
-            held.owing_blocks = owing;
+            held.owing_blocks = owing.iter().map(crate::seen::Owed::from).collect();
             held.undurable = undurable.len();
-            held.undurable_blocks = undurable;
+            held.undurable_blocks = undurable.iter().map(crate::seen::Owed::from).collect();
             held.seals_owed += u64::from(sealed_owed);
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
@@ -2742,7 +2751,8 @@ async fn tend_with(
         .escrow_warning = peer
         .keys()
         .escrow_warning()
-        .map(be_block_client::EscrowWarning::message);
+        .map(be_block_client::EscrowWarning::message)
+        .map(crate::seen::Words::Borrowed);
     crate::changes::wake();
 }
 
@@ -3307,7 +3317,9 @@ async fn apply(
                     held.graph.relist_around(block, parent);
                 }
             }
-            held.unsent = crate::Part::new(peer.unsent());
+            held.unsent = crate::Part::new(
+            peer.unsent().iter().map(crate::seen::Unsent::from).collect(),
+        );
             crate::changes::stale();
             held.progressed += 1;
             drop(held);

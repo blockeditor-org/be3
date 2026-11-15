@@ -75,7 +75,7 @@ const TEXTS: usize = 256;
 
 /// A search an owner shows: words, `"quoted phrases"`, the last word a prefix
 /// (`be_lib_search::Query::parse`), within a block's tree or everything the account views.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub struct SearchAsk {
     pub text: String,
     pub within: Option<Uuid>,
@@ -83,7 +83,7 @@ pub struct SearchAsk {
 
 /// A document a search found: its block, the document's key within it (empty for a block that
 /// is one document), and where it matched.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct SearchHit {
     pub block: Uuid,
     pub key: String,
@@ -96,7 +96,7 @@ pub struct SearchHit {
 }
 
 /// A search's answer, the best hit first.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub struct Searched {
     pub hits: Vec<SearchHit>,
     /// Every queued edit this device made is indexed.

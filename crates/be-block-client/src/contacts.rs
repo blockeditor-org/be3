@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::{ClientError, connection::Connection};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Contact {
     pub account: Uuid,
     pub email: String,
