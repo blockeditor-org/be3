@@ -1,7 +1,7 @@
 //! The keys a `KeepAlive` keeps its subtrees by (`beui-view`'s `Kept`), and which keys it keeps.
 
 use std::any::{Any, TypeId};
-use std::hash::{Hash, Hasher};
+use std::hash::{BuildHasher, Hash, Hasher};
 use std::rc::Rc;
 
 use crate::component::MissingProp;
@@ -18,8 +18,7 @@ pub struct AnyKey {
 
 impl AnyKey {
     pub fn new<K: Hash + Eq + 'static>(key: K) -> Self {
-        #[allow(deprecated)]
-        let mut hasher = std::hash::SipHasher::new();
+        let mut hasher = be_lib_stable_hash::State::default().build_hasher();
         TypeId::of::<K>().hash(&mut hasher);
         key.hash(&mut hasher);
         Self {
@@ -30,13 +29,6 @@ impl AnyKey {
                 _ => false,
             },
         }
-    }
-
-    /// Whether this is one of `keys`.
-    pub fn is_one_of<K: Hash + Eq + 'static>(&self, keys: &[K]) -> bool {
-        self.value
-            .downcast_ref::<K>()
-            .is_some_and(|key| keys.contains(key))
     }
 }
 
@@ -73,31 +65,29 @@ impl<K: Hash + Eq + 'static> KeptKey for K {
 }
 
 /// Which keys a `KeepAlive` keeps while nothing shows them: all of them, or the keys a list
-/// names (`keep={open_tabs}`), read as it changes, so a key dropped from it goes for good.
+/// names (`keep={open_tabs}`), a `Prop` or a `Memo`, read as it changes, so a key dropped from
+/// it goes for good.
 pub trait KeepSet: 'static {
-    /// Whether `key` is kept, or `None` when every key is.
-    fn keeps(&self) -> Option<Box<dyn Fn(&AnyKey) -> bool>>;
+    /// The keys kept, read tracked, or `None` when every key is.
+    fn keys(&self) -> Option<Vec<AnyKey>>;
 }
 
 impl KeepSet for MissingProp {
-    fn keeps(&self) -> Option<Box<dyn Fn(&AnyKey) -> bool>> {
+    fn keys(&self) -> Option<Vec<AnyKey>> {
         None
     }
 }
 
 impl<K: Hash + Eq + Clone + 'static> KeepSet for Prop<Vec<K>> {
-    fn keeps(&self) -> Option<Box<dyn Fn(&AnyKey) -> bool>> {
-        let keys = self.clone();
-        Some(Box::new(move |key| keys.with(|keys| key.is_one_of(keys))))
+    fn keys(&self) -> Option<Vec<AnyKey>> {
+        Some(self.with(|keys| keys.iter().cloned().map(AnyKey::new).collect()))
     }
 }
 
+// A bare generic prop takes the value as written, so a memo arrives as a `Memo`, not a `Prop`.
 impl<K: Hash + Eq + Clone + 'static> KeepSet for Memo<Vec<K>> {
-    fn keeps(&self) -> Option<Box<dyn Fn(&AnyKey) -> bool>> {
-        let keys = *self;
-        Some(Box::new(move |key| {
-            keys.with(|keys: &Vec<K>| key.is_one_of(keys))
-        }))
+    fn keys(&self) -> Option<Vec<AnyKey>> {
+        Some(self.with(|keys: &Vec<K>| keys.iter().cloned().map(AnyKey::new).collect()))
     }
 }
 

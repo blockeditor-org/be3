@@ -145,7 +145,9 @@ subtree can move between parents. Without `key`, a `Kept` is the one unkeyed
 subtree of its `KeepAlive`. `keep` (a `Vec`, or a memo of one) lists the keys
 to hold: a key it drops is disposed once nothing shows it, and everything is
 disposed when the `KeepAlive` goes. Keys of any `Hash + Eq` type share one
-`KeepAlive`.
+`KeepAlive`. Two `Kept`s with one key shown at once show it where the one
+built last is. A `Kept` inside another one's subtree pauses and resumes with
+it.
 
 A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
 so it reads the context provided around the `KeepAlive`, not what is provided

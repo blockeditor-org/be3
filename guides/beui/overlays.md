@@ -92,7 +92,8 @@ focusable, hit, or described. To keep it, with its state, while closed
 paused, while closed. A kept subtree reads the context around its `KeepAlive`,
 not the overlay's, so content that needs the overlay's presence reads it
 outside the `Kept` (`use_overlay_presence()`) and provides it again inside
-(`presence.provide()`). Content can be built more than once, so it is an `Fn`. State the rest of a component reads (which rows a select's search
+(`presence.provide()`). Content can be built more than once, so it is an
+`Fn`. State the rest of a component reads (which rows a select's search
 hides) belongs outside the content, derived from data, since the content's
 nodes may not exist.
 
