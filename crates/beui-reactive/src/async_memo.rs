@@ -1,0 +1,169 @@
+use std::cell::RefCell;
+use std::future::Future;
+use std::pin::Pin;
+use std::rc::Rc;
+use std::task::{Context, Poll, Waker};
+
+use crate::loading::{Pending, Ready};
+use crate::runtime::check_tracked_read;
+use crate::scope::on_cleanup;
+use crate::signal::{Get, ReadSignal, Set, Signal, create_signal};
+use crate::trigger::{Trigger, create_trigger};
+use crate::computation::create_binding;
+
+/// A future the host's executor runs for an async memo.
+pub type LocalFuture = Pin<Box<dyn Future<Output = ()>>>;
+
+thread_local! {
+    static SPAWNER: RefCell<Option<Rc<dyn Fn(LocalFuture)>>> = const { RefCell::new(None) };
+}
+
+/// Installs what runs the futures of async memos on this thread, as `wake_with` installs the
+/// waker: beui-reactive has no executor of its own. The host's app framework installs one
+/// (be-sdk-beui runs them on be-sdk's executor). A future it is handed may finish without
+/// being polled again once its memo drops it: cancelling is done here, not by the executor.
+pub fn spawn_with(spawn: impl Fn(LocalFuture) + 'static) {
+    SPAWNER.with(|spawner| spawner.replace(Some(Rc::new(spawn))));
+}
+
+/// A future its async memo can drop before it finishes.
+struct Running {
+    future: RefCell<Option<LocalFuture>>,
+    waker: RefCell<Option<Waker>>,
+}
+
+impl Running {
+    fn cancel(&self) {
+        drop(self.future.borrow_mut().take());
+        if let Some(waker) = self.waker.borrow_mut().take() {
+            waker.wake();
+        }
+    }
+}
+
+fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
+    let running = Rc::new(Running {
+        future: RefCell::new(Some(Box::pin(future))),
+        waker: RefCell::new(None),
+    });
+    let polled = Rc::clone(&running);
+    let spawner = SPAWNER
+        .with(|spawner| spawner.borrow().clone())
+        .expect("an async memo needs a spawner: the host installs one with `spawn_with`");
+    spawner(Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+        let mut held = polled.future.borrow_mut();
+        let Some(future) = held.as_mut() else {
+            return Poll::Ready(());
+        };
+        match future.as_mut().poll(context) {
+            Poll::Ready(()) => {
+                *held = None;
+                Poll::Ready(())
+            }
+            Poll::Pending => {
+                *polled.waker.borrow_mut() = Some(context.waker().clone());
+                Poll::Pending
+            }
+        }
+    })));
+    running
+}
+
+/// A value computed by a future: `Err(Pending::Loading)` until the first answer, then the last
+/// good answer while a newer one is on its way (`pending()` says so), or `Err(Pending::Failed)`
+/// if the latest failed. `Copy`, like every handle.
+pub struct AsyncMemo<T: 'static> {
+    value: Signal<Ready<T>>,
+    pending: Signal<bool>,
+    rerun: Trigger,
+}
+
+impl<T> Clone for AsyncMemo<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for AsyncMemo<T> {}
+
+impl<T> PartialEq for AsyncMemo<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<T> Eq for AsyncMemo<T> {}
+
+impl<T> std::fmt::Debug for AsyncMemo<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("AsyncMemo").field(&self.value).finish()
+    }
+}
+
+/// An async memo, like SolidJS 2.0's: `source` runs tracked, like a memo, and returns the
+/// future that computes the value; when what it read changes it runs again, and the future
+/// it returned before is dropped, which cancels it. It runs at once (a binding), so it starts
+/// inside a hidden `Loading` too.
+///
+/// The future runs on the spawner the host installed (`spawn_with`); it ends with a `Ready<T>`,
+/// so `?` on another `Ready` inside it fails or waits the memo with it.
+pub fn create_async_memo<T, F>(mut source: impl FnMut() -> F + 'static) -> AsyncMemo<T>
+where
+    T: PartialEq + 'static,
+    F: Future<Output = Ready<T>> + 'static,
+{
+    let value = create_signal(Err(Pending::Loading));
+    let pending = create_signal(true);
+    let rerun = create_trigger();
+    create_binding(move || {
+        rerun.track();
+        let future = source();
+        pending.set(true);
+        let running = spawn(async move {
+            let answer = future.await;
+            value.set(answer);
+            pending.set(false);
+        });
+        on_cleanup(move || running.cancel());
+    });
+    AsyncMemo {
+        value,
+        pending,
+        rerun,
+    }
+}
+
+impl<T: 'static> AsyncMemo<T> {
+    /// Whether a future is on its way: the first, or a newer one while the last answer shows.
+    #[track_caller]
+    pub fn pending(&self) -> bool {
+        check_tracked_read::<Self>();
+        self.pending.get()
+    }
+
+    /// Runs `source` again, dropping the future in flight: what an `Errored` boundary's reset
+    /// does to the async memos under it.
+    pub fn refresh(&self) {
+        self.rerun.notify();
+    }
+
+    pub fn is_alive(&self) -> bool {
+        self.value.is_alive()
+    }
+
+    pub(crate) fn value(&self) -> ReadSignal<Ready<T>> {
+        self.value.read_only()
+    }
+}
+
+impl<T: 'static> Get<Ready<T>> for AsyncMemo<T> {
+    #[track_caller]
+    fn with<R>(&self, f: impl FnOnce(&Ready<T>) -> R) -> R {
+        check_tracked_read::<Self>();
+        self.value.with(f)
+    }
+
+    fn with_untracked<R>(&self, f: impl FnOnce(&Ready<T>) -> R) -> R {
+        self.value.with_untracked(f)
+    }
+}

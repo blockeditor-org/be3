@@ -181,17 +181,39 @@ impl<C: LiveEdit + Clone + Default + 'static> LiveContent<C> {
     }
 
     /// Reads a range of the block's stored form as its replica holds it, including what it
-    /// has not saved; `done` runs once the replica answers. A type that loads only its first
-    /// part reads the rest this way.
+    /// has not saved: the future ends once the replica answers. The request is sent at once,
+    /// whether or not the future is awaited. A type that loads only its first part reads the
+    /// rest this way.
     pub fn read_range(
         &self,
         offset: u64,
         length: u64,
-        done: impl FnOnce(Result<Vec<u8>, String>) + 'static,
-    ) {
+    ) -> impl std::future::Future<Output = Result<Vec<u8>, String>> + use<C> {
         let (token, message) = self.0.mirror.borrow_mut().read_range(offset, length);
-        self.0.reads.borrow_mut().insert(token, Box::new(done));
+        let answer: Rc<RefCell<(Option<Result<Vec<u8>, String>>, Option<std::task::Waker>)>> =
+            Rc::default();
+        let answered = Rc::clone(&answer);
+        self.0.reads.borrow_mut().insert(
+            token,
+            Box::new(move |read| {
+                let mut answered = answered.borrow_mut();
+                answered.0 = Some(read);
+                if let Some(waker) = answered.1.take() {
+                    waker.wake();
+                }
+            }),
+        );
         self.0.host.send_to_replica(self.0.block, message);
+        std::future::poll_fn(move |context| {
+            let mut answer = answer.borrow_mut();
+            match answer.0.take() {
+                Some(read) => std::task::Poll::Ready(read),
+                None => {
+                    answer.1 = Some(context.waker().clone());
+                    std::task::Poll::Pending
+                }
+            }
+        })
     }
 
     pub fn operate(&self, operation: C::Op) {
