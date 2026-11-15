@@ -20,6 +20,11 @@ wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 
+# Every guest runs on V8 (plans/wasm_on_v8.md) but on Android, which has no
+# prebuilt V8 yet (third-party/v8) and stays on wasmtime.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+v8 = "=152.2.0"
+
 [lints]
 workspace = true
 
@@ -29,5 +34,6 @@ be-wasm-guest-echo = { path = "../be-wasm-guest-echo" }
 be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 uuid = "1"
+wat = "1"
 wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }
