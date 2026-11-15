@@ -84,17 +84,35 @@ fn PaintReview(
         KeyReveal::Focus,
         move |event: KeyEvent| event.press().is_some_and(|press| shortcut(review, press)),
     );
-    let failure = create_memo(move || match manifest.get() {
-        Fetch::Failed(error) => Some(error),
-        _ => None,
+    let reason = create_memo(move || match manifest.get() {
+        Fetch::Failed(error) => error,
+        _ => String::new(),
     });
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show
-                    value={move || manifest.with(|manifest| matches!(manifest, Fetch::Loading))}
+                <Match
+                    value={manifest}
+                    fallback={move || view! {
+                        <ListItem grow=1.0>
+                            <Frame align=Align::Center padding=MESSAGE_PADDING>
+                                <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
+                                    <Text
+                                        style=TextStyle::HEADING
+                                        color=TextColor::Danger
+                                        align=beui::TextAlign::Center
+                                    >
+                                        "The paintings could not be loaded"
+                                    </Text>
+                                    <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
+                                        {reason}
+                                    </Text>
+                                </List>
+                            </Frame>
+                        </ListItem>
+                    }}
                 >
+                <Case is={Fetch::Loading}>
                     <ListItem grow=1.0>
                         <Frame align=Align::Center>
                             <List
@@ -110,28 +128,8 @@ fn PaintReview(
                             </List>
                         </Frame>
                     </ListItem>
-                </Show>
-                <Show value={move || failure.with(Option::is_some)}>
-                    <ListItem grow=1.0>
-                        <Frame align=Align::Center padding=MESSAGE_PADDING>
-                            <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
-                                <Text
-                                    style=TextStyle::HEADING
-                                    color=TextColor::Danger
-                                    align=beui::TextAlign::Center
-                                >
-                                    "The paintings could not be loaded"
-                                </Text>
-                                <Text style=TextStyle::CAPTION align=beui::TextAlign::Center>
-                                    {reason}
-                                </Text>
-                            </List>
-                        </Frame>
-                    </ListItem>
-                </Show>
-                <Show
-                    value={move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_)))}
-                >
+                </Case>
+                <Case when={|manifest: &Fetch<Rc<Manifest>>| matches!(manifest, Fetch::Ready(_))}>
                     <Show
                         value={move || review.open.with(Option::is_some)}
                         fallback={move || view! {
@@ -144,7 +142,8 @@ fn PaintReview(
                             <Viewer review={review} />
                         </ListItem>
                     </Show>
-                </Show>
+                </Case>
+                </Match>
             </List>
         </Frame>
     }
