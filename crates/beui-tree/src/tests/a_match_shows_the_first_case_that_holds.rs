@@ -1,5 +1,5 @@
 use super::*;
-use crate::reactive::{Case, Match};
+use crate::reactive::{Case, Match, ReadSignal};
 
 #[test]
 fn a_match_shows_the_first_case_that_holds() {
@@ -7,7 +7,9 @@ fn a_match_shows_the_first_case_that_holds() {
     fresh_ids();
     let scope = Scope::new();
     let count = create_signal(0_u32);
+    let built = std::rc::Rc::new(std::cell::Cell::new(0));
     let page = scope.run(|| {
+        let built = built.clone();
         view! {
             <Element tag="div">
                 <Match
@@ -19,17 +21,23 @@ fn a_match_shows_the_first_case_that_holds() {
                     <Case is={0}>
                         <Element tag="p" text="none" />
                     </Case>
-                    <Case when={|count: &u32| *count < 3}>|count: u32|
-                        <Element tag="p" text={format!("a few: {count}")} />
-                    </Case>
+                    <Case when={|count: &u32| *count < 3}>|count: ReadSignal<u32>| {
+                        built.set(built.get() + 1);
+                        view! {
+                            <Element tag="p" text={create_memo(move || format!("a few: {}", count.get()))} />
+                        }
+                    }</Case>
                 </Match>
             </Element>
         }
     });
     assert!(page.html().contains(">none</p>"), "{}", page.html());
 
+    count.set(1);
+    assert!(page.html().contains(">a few: 1</p>"), "{}", page.html());
     count.set(2);
     assert!(page.html().contains(">a few: 2</p>"), "{}", page.html());
+    assert_eq!(built.get(), 1, "a case is kept while it stays the one that holds");
 
     count.set(7);
     let html = page.html();

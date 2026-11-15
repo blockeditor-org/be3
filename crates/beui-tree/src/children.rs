@@ -744,6 +744,14 @@ impl<C: SlotChild> Clone for ChildSlot<C> {
 }
 
 impl<C: SlotChild> ChildSlot<C> {
+    /// The slot this fills in the host it was opened in, if it was opened in a host.
+    pub(crate) fn host_slot(&self) -> Option<SlotId> {
+        match &self.place {
+            Place::Host { slot, .. } => Some(*slot),
+            Place::Run { .. } => None,
+        }
+    }
+
     pub(crate) fn in_host(host: Rc<dyn SlotHost<C>>) -> Self {
         let slot = host.open();
         Self {
