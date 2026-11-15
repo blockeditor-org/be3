@@ -67,13 +67,17 @@ seen.
 ## Who is served what
 
 The whole log of a block goes to its members with `Edit` and up, and so do
-the whole logs of the ancestors its access is inherited from. They are the
+the whole logs of every ancestor up to the root. They are the
 ones who seal (key work needs only Edit, and they read all the content
 anyway), and a sealer must see every entry up to the head: an entry reduced to
 its hash could be the revocation of the person it is about to seal to, or of
-whoever granted them. So an editor of a block learns who is granted on the
-folders above it; accepted, as simpler than a commitment to the log's state
-that would let a sealer check one member without the rest. Not to
+whoever granted them. This reveals little: everyone granted on an ancestor
+already has access to this block (access is the highest grant on the path
+up), and its managers already see them (`list-access`). What an editor newly
+learns is that set at Edit too, the ancestors' history (grants since
+revoked), and their parent and link records. Accepted, as simpler than a
+commitment to the log's state that would let a sealer check one member
+without the rest. Not to
 `KnowExists`: anyone gets that by listing an id in their own block's
 references (guides/blocks/server.md, "Organizations and access"), and the log
 names every grantee.
@@ -106,9 +110,11 @@ device seals only to one. A checked grant now stands in for that contact check
 (decisions/share_links_are_an_out_of_band_start.md): it names the grantee's
 X25519 and signing keys as a member with the right level verified them, so a
 device may seal to a grantee it has no contact row for, using the keys in the
-grant, and a receiving device accepts a key sealed by a sender whose keys a
-checked record names (its own grant, the root, an owner record), not only by
-a contact. `get-signing-keys` stays only for showing authors
+grant. A receiving device accepts a key sealed by any sender holding `Edit`
+or above as of the epoch's head, not only by a contact: key work is done by
+whichever editor runs `tend`, which is often not the receiver's granter. An
+editor receiving it checks the sender in the whole log it holds; a reader
+below Edit is served the sender's proof path beside the sealed key. `get-signing-keys` stays only for showing authors
 (`Signer::Unverified`).
 
 ## What changes
@@ -167,6 +173,9 @@ signed").
   retirement it never sees. The fix, not planned yet, is fork detection:
   signed log heads carried in sessions, relays and commits, so two devices
   that meet compare what they were shown.
+- A reader below Edit checks a sealer on a proof path, which can hide a later
+  revocation of the sealer. That only lets a revoked editor hand a reader a
+  key, and a reader below Edit never seals or wraps with it.
 - **A leaked phrase** lets whoever holds it act as the account until it
   retires the key: read and write what it may, sign records, host a hosted
   block it has Edit on, or join one as a player.
