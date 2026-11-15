@@ -207,7 +207,6 @@ fn FieldRow(
     let mover = move |by: isize| {
         reorder.step(id, by);
     };
-    let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -226,8 +225,8 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach value={type_keys}>|index: usize|
-                                    <ChoiceOption label={FIELD_TYPES[index].1} />
+                                <ForEach value={FIELD_TYPES.map(|(_, label, _)| label).to_vec()}>|label: &'static str|
+                                    <ChoiceOption label={label} />
                                 </ForEach>
                             }}
                             selected={Binding::new(selected, retyped)}
@@ -337,7 +336,6 @@ fn NumberOptions(
         next.scale = NUMBER_SCALES[index].0;
         schema.operate(DatabaseSchema::set_number_options(id, next));
     };
-    let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
             <Frame padding={Padding::ZERO.left(Space::Xl3)}>
@@ -367,8 +365,8 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach value={scale_keys}>|index: usize|
-                                    <ChoiceOption label={NUMBER_SCALES[index].1} />
+                                <ForEach value={NUMBER_SCALES.map(|(_, label)| label).to_vec()}>|label: &'static str|
+                                    <ChoiceOption label={label} />
                                 </ForEach>
                             }}
                             selected={Binding::new(scale, rescaled)}
@@ -485,17 +483,11 @@ fn EnumOptions(
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let keys = create_memo(move || {
+    let options = create_memo(move || {
         field.with(|field| {
             field
                 .as_ref()
-                .map(|field| {
-                    field
-                        .enum_options
-                        .iter()
-                        .map(|option| option.id)
-                        .collect::<Vec<Uuid>>()
-                })
+                .map(|field| field.enum_options.clone())
                 .unwrap_or_default()
         })
     });
@@ -507,11 +499,11 @@ fn EnumOptions(
     view! {
         <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
-                <ForEach value={keys}>|option_id: Uuid|
+                <ForEach value={options} key={|option: &DatabaseEnumOption| option.id}>|option: ReadSignal<DatabaseEnumOption>|
                     <EnumOptionRow
                         schema={schema}
                         id={id}
-                        option_id={option_id}
+                        option={option}
                         field={field}
                         read_only={read_only}
                     />
@@ -540,23 +532,13 @@ fn EnumOptions(
 fn EnumOptionRow(
     schema: Schema,
     id: Uuid,
-    option_id: Uuid,
+    option: ReadSignal<DatabaseEnumOption>,
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let option =
-        create_memo(move || field.with(|field| field.as_ref()?.option(option_id).cloned()));
-    let name = create_memo(move || {
-        option.with(|option| {
-            option
-                .as_ref()
-                .map(|option| option.name.clone())
-                .unwrap_or_default()
-        })
-    });
-    let closed = create_memo(move || {
-        option.with(|option| option.as_ref().is_some_and(|option| option.closed))
-    });
+    let option_id = option.with_untracked(|option| option.id);
+    let name = create_memo(move || option.with(|option| option.name.clone()));
+    let closed = create_memo(move || option.with(|option| option.closed));
     let default = create_memo(move || {
         field
             .with(|field| field.as_ref().and_then(|field| field.default_value()) == Some(option_id))
@@ -600,24 +582,17 @@ fn EnumOptionRow(
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
     };
-    let color_label = create_memo(move || {
-        option.with(|option| {
-            option
-                .as_ref()
-                .map_or("Colour", |option| choice_color_label(option.color))
-                .to_owned()
-        })
-    });
+    let color_label =
+        create_memo(move || option.with(|option| choice_color_label(option.color).to_owned()));
+    let marked = create_memo(move || Some(option.get()));
     let dotted = create_memo(move || {
         option.with(|option| {
-            option.as_ref().map(|option| DatabaseEnumOption {
+            Some(DatabaseEnumOption {
                 icon: ChoiceIcon::None,
                 ..option.clone()
             })
         })
     });
-    let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
-    let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
             <MenuButton
@@ -628,12 +603,11 @@ fn EnumOptionRow(
                 icon_only=true
                 arrow=false
                 leading={view! {
-                    <ChoiceMark option={option} size=TextSize::Base />
+                    <ChoiceMark option={marked} size=TextSize::Base />
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
-                    <ForEach value={icon_keys}>|index: usize| {
-                        let icon = ChoiceIcon::ALL[index];
+                    <ForEach value={ChoiceIcon::ALL.to_vec()}>|icon: ChoiceIcon| {
                         view! {
                             <MenuItem
                                 label={choice_icon_label(icon)}
@@ -665,8 +639,7 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
-                    <ForEach value={color_keys}>|index: usize| {
-                        let color = ChoiceColor::ALL[index];
+                    <ForEach value={ChoiceColor::ALL.to_vec()}>|color: ChoiceColor| {
                         view! {
                             <MenuItem
                                 label={choice_color_label(color)}
@@ -758,14 +731,6 @@ fn BlockOptions(
         }
         entries
     });
-    let keys = create_memo(move || {
-        entries.with(|entries| {
-            entries
-                .iter()
-                .map(|(id, _)| *id)
-                .collect::<Vec<Option<Uuid>>>()
-        })
-    });
     let selected = create_memo(move || {
         let wanted = wanted.get();
         entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
@@ -790,15 +755,11 @@ fn BlockOptions(
                 <Text>"Block type"</Text>
                 <Select
                     options={view! {
-                        <ForEach value={keys}>|id: Option<Uuid>| {
-                            let label = create_memo(move || {
-                                entries.with(|entries| {
-                                    entries
-                                        .iter()
-                                        .find(|(value, _)| *value == id)
-                                        .map_or_else(String::new, |(_, name)| name.clone())
-                                })
-                            });
+                        <ForEach
+                            value={entries}
+                            key={|(block_type, _): &(Option<Uuid>, String)| *block_type}
+                        >|entry: ReadSignal<(Option<Uuid>, String)>| {
+                            let label = create_memo(move || entry.with(|(_, name)| name.clone()));
                             view! {
                                 <ChoiceOption label={label} />
                             }
