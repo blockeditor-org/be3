@@ -1,5 +1,5 @@
 use crate::escape::Escape;
-use crate::reactive::{NodeId, Prop};
+use crate::reactive::{Child, NodeId, Prop};
 use crate::types::{Color, FontId};
 use beui_html::Node;
 
@@ -8,7 +8,7 @@ pub(crate) enum Inner {}
 const HTML_ONLY: &str =
     "html_escape builds the HTML core's own nodes: call it only when CORE is Core::Html";
 
-pub(crate) fn embed(inner: &Inner, _child: NodeId) -> Node {
+pub(crate) fn embed(inner: &Inner, _child: Child) -> Node {
     match *inner {}
 }
 

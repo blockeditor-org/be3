@@ -3,8 +3,9 @@ use std::rc::Weak;
 use std::sync::OnceLock;
 
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Counted, IntoChild, IntoSegment, One,
-    ScopeContext, Single, SlotChild, Stored, store, AtMostOne, DynamicSegment,
+    AtMostOneChild, ChildSegment, ChildValue, Children, ComponentContext, ComponentOutput,
+    CountOne, Counted, IntoChild, IntoSegment, HostedNode, LazyChild, OneOf, ScopeContext, SingleChild,
+    SlotChild, Stored, ZeroOrOne, store,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -43,14 +44,72 @@ pub type NodeCell = Cell<Option<NodeId>>;
 pub struct CoreHooks {
     pub fill_ref: fn(NodeId, Weak<NodeCell>),
     pub finish_component: fn(NodeId, &ComponentContext, &ScopeContext),
-    /// A node with no look of its own that sizes to `child` and swaps it in place.
-    pub host: fn(Single<NodeId>) -> NodeId,
 }
 
 static HOOKS: OnceLock<CoreHooks> = OnceLock::new();
 
 pub fn install_core_hooks(hooks: CoreHooks) {
     let _ = HOOKS.set(hooks);
+}
+
+/// Builds a host node for control flow in a slot that takes one node, or hands the child
+/// back when this core is not the one building (`create_host`).
+pub type HostHook = fn(LazyChild<NodeId>) -> Result<NodeId, LazyChild<NodeId>>;
+
+static HOSTS: std::sync::Mutex<Vec<HostHook>> = std::sync::Mutex::new(Vec::new());
+
+/// Each core registers how it builds a host. Both cores may live in one process (a test
+/// renders HTML beside a native document), so a host goes to the first core that is
+/// building now, as `fill_ref` reaches only the core that knows the node.
+pub fn install_host_hook(hook: HostHook) {
+    let mut hosts = HOSTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !hosts.iter().any(|held| std::ptr::fn_addr_eq(*held, hook)) {
+        hosts.push(hook);
+    }
+}
+
+/// A node with no look of its own that sizes to `child` and swaps it in place: what control
+/// flow becomes in a slot that takes one node, or when it is named with `@test_id` or
+/// `@node_ref`.
+pub fn create_host(child: LazyChild<NodeId>) -> NodeId {
+    let hosts: Vec<HostHook> = HOSTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    let mut child = child;
+    for host in hosts {
+        match host(child) {
+            Ok(node) => return node,
+            Err(back) => child = back,
+        }
+    }
+    panic!("control flow was placed in a node's slot while no core was building")
+}
+
+impl IntoChild<NodeId> for OneOf<NodeId> {
+    fn into_child(self) -> NodeId {
+        create_host(self.into_lazy())
+    }
+}
+
+impl HostedNode for NodeId {}
+
+impl AtMostOneChild<NodeId> for SingleChild<ZeroOrOne<NodeId>> {
+    fn at_most_one_child(self) -> Option<NodeId> {
+        Some(create_host(self.0.into_lazy()))
+    }
+}
+
+impl ComponentOutput<NodeId> for OneOf<NodeId> {
+    fn into_output(self) -> NodeId {
+        create_host(self.into_lazy())
+    }
+}
+
+impl ComponentOutput<NodeId> for ZeroOrOne<NodeId> {
+    fn into_output(self) -> NodeId {
+        create_host(self.into_lazy())
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -109,14 +168,8 @@ impl IntoChild<NodeId> for NodeId {
     }
 }
 
-impl IntoChild<Single<NodeId>> for NodeId {
-    fn into_child(self) -> Single<NodeId> {
-        Single::built(self)
-    }
-}
-
 impl Counted for NodeId {
-    type Count = One;
+    type Count = CountOne;
 }
 
 impl IntoSegment<NodeId> for NodeId {
@@ -139,6 +192,45 @@ pub trait BuildsNode {
     fn built_node(&self) -> NodeId;
 }
 
+/// What `@test_id` and `@node_ref` name: a node, or control flow that builds at most one,
+/// which then becomes a host node (`create_host`) wherever it goes, even among a run.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
+    label = "a run of children has no node of its own: put `@test_id` or `@node_ref` on a tag inside each row, or on a tag around the run"
+)]
+pub trait NamesNode {
+    type Named;
+
+    fn name_node(self) -> (Self::Named, NodeId);
+}
+
+impl<T: BuildsNode> NamesNode for T {
+    type Named = T;
+
+    fn name_node(self) -> (T, NodeId) {
+        let node = self.built_node();
+        (self, node)
+    }
+}
+
+impl NamesNode for OneOf<NodeId> {
+    type Named = NodeId;
+
+    fn name_node(self) -> (NodeId, NodeId) {
+        let host = create_host(self.into_lazy());
+        (host, host)
+    }
+}
+
+impl NamesNode for ZeroOrOne<NodeId> {
+    type Named = NodeId;
+
+    fn name_node(self) -> (NodeId, NodeId) {
+        let host = create_host(self.into_lazy());
+        (host, host)
+    }
+}
+
 impl BuildsNode for NodeId {
     fn built_node(&self) -> NodeId {
         *self
@@ -149,20 +241,4 @@ impl BuildsNode for NodeId {
 pub struct ImeCursor {
     pub node: NodeId,
     pub rect: Option<be_lib_geometry::Rect>,
-}
-
-/// Control flow that builds at most one node, in a slot that needs a node built once
-/// (`ListItem`, `Root`, `Offset`): the core builds a bare frame that sizes to its child and
-/// swaps that child in place.
-impl<N: AtMostOne> IntoChild<NodeId> for DynamicSegment<NodeId, N> {
-    fn into_child(self) -> NodeId {
-        host(Single::from(self))
-    }
-}
-
-pub fn host(child: Single<NodeId>) -> NodeId {
-    let hooks = HOOKS
-        .get()
-        .expect("a core is installed before control flow is placed in a node's slot");
-    (hooks.host)(child)
 }

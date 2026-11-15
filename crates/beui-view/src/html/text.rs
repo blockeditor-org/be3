@@ -22,7 +22,7 @@ use crate::types::WrapAt;
 use beui_core_html::beui_html::Node;
 use beui_core_html::beui_html::reactive::IntoSlotHost;
 use beui_core_html::css;
-use beui_core_html::document::{create, element, set_attribute, set_style};
+use beui_core_html::document::{append, create, element, set_attribute, set_style};
 use beui_core_html::text::{Piece, Run, TextModel, TextSlot, line_height as font_line_height};
 use std::rc::Rc;
 
@@ -378,7 +378,7 @@ pub(crate) fn text_item(
 ) -> TextItem {
     let item = inline("TextItem", "span", &[("display", "inline-block")]);
     if let Some(child) = children {
-        child.mount_in(beui_core_html::tree::node_host(item));
+        append(item, child);
     }
     let slot = match (at, text) {
         (Some(at), _) => at.map(TextSlot::Anchored),

@@ -46,10 +46,11 @@ pub(crate) fn frame(
     raised: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
-    let frame = with_document(|document| document.create_frame());
-    if let Some(child) = children {
-        child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
-    }
+    let frame = with_document(|document| {
+        let frame = document.create_frame();
+        document.set_frame_child(frame, children);
+        frame
+    });
     bind(frame, width, Document::set_frame_width);
     bind(frame, height, Document::set_frame_height);
     bind(frame, aspect_ratio, Document::set_frame_aspect_ratio);

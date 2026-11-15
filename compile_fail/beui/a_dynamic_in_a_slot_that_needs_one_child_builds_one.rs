@@ -4,5 +4,5 @@ use beui::styled::*;
 
 #[component]
 fn Case(outer: Prop<bool>, inner: Prop<bool>) -> NodeId {
-    view! { <Card><Dynamic value={outer}>|_: bool| <Show condition={inner}><Frame /></Show></Dynamic></Card> } //~ ERROR can build `ZeroOrOne` children
+    view! { <Card><Dynamic value={outer}>|_: bool| <Show condition={inner}><Frame /></Show></Dynamic></Card> } //~ ERROR add `fallback=…` so the slot always holds a child
 }

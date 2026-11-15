@@ -109,7 +109,7 @@ pub fn reveal(node: NodeId) {
 #[cfg(target_arch = "wasm32")]
 fn reveal_in_page(node: NodeId) {
     use wasm_bindgen::JsCast;
-    let Some(element) = crate::dom::element(node) else {
+    let Some(element) = crate::document::boxed(node).and_then(crate::dom::element) else {
         return;
     };
     let options = js_sys::Object::new();

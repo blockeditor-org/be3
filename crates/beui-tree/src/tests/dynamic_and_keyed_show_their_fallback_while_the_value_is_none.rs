@@ -32,14 +32,14 @@ fn dynamic_and_keyed_show_their_fallback_while_the_value_is_none() {
 
     picked.set(Some((1, "one".to_owned())));
     let html = page.html();
-    assert!(html.contains(">1:one</p></dynamic>"), "{html}");
-    assert!(html.contains("<keyed id=2><p id=6>one</p></keyed>"), "{html}");
+    assert!(html.contains(">1:one</p></host></dynamic>"), "{html}");
+    assert!(html.contains("<keyed id=5><host id=3><p id=8>one</p></host></keyed>"), "{html}");
 
     picked.set(Some((1, "uno".to_owned())));
     let html = page.html();
-    assert!(html.contains(">1:uno</p></dynamic>"), "{html}");
+    assert!(html.contains(">1:uno</p></host></dynamic>"), "{html}");
     assert!(
-        html.contains("<keyed id=2><p id=6>uno</p></keyed>"),
+        html.contains("<keyed id=5><host id=3><p id=8>uno</p></host></keyed>"),
         "a `Keyed` whose key holds updates what it built in place: {html}"
     );
 

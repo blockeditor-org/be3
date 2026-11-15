@@ -303,9 +303,9 @@ impl Document {
         embed
     }
 
-    pub fn set_embed_child(&mut self, embed: NodeOf<EmbedNode>, child: Option<NodeId>) {
-        if self.contains(embed) && self.arena.get_as::<EmbedNode>(embed).child != child {
-            self.arena.get_mut_as::<EmbedNode>(embed).child = child;
+    pub fn set_embed_child(&mut self, embed: NodeOf<EmbedNode>, child: NodeId) {
+        if self.arena.get_as::<EmbedNode>(embed).child != Some(child) {
+            self.arena.get_mut_as::<EmbedNode>(embed).child = Some(child);
         }
     }
 

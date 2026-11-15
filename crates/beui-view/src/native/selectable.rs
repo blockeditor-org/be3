@@ -905,7 +905,7 @@ fn long_press(state: State, on_toolbar: Callback<Option<Rect>>, press: PointerPr
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn selectable(
     api: ComponentRef<SelectableState>,
-    children: NodeId,
+    children: Child,
     state: SelectableState,
     color: Prop<Color>,
     handle_color: Prop<Color>,

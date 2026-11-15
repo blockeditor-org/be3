@@ -1,3 +1,4 @@
+use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
@@ -19,6 +20,6 @@ pub fn Grid(
 }
 
 #[component]
-pub fn GridCell(#[prop(default = 1)] span: Prop<usize>, children: NodeId) -> GridCell {
+pub fn GridCell(#[prop(default = 1)] span: Prop<usize>, children: Child) -> GridCell {
     crate::core::grid_cell(span, children)
 }

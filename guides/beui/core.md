@@ -7,39 +7,42 @@ and measurement, base components, the HTML core and `beui-html`, and testing.
 
 **Slots and child types.** A children slot names the child it takes:
 `Children<ListItem>` (`List`, `Stack`), `Children<NodeId>` (`Scroll`),
-`Children<CanvasItem>`, `Child` / `Option<Child>` for one node its parent can
-swap (`Frame`, `Interactive`, a `CanvasItem`), or `NodeId` for one node built
-once, which a slot needing the node itself takes (`ListItem`, `Offset`, `Root`,
-a component that measures or portals its child). The run child types are all
-`Placed<P>`: a node plus the data its parent `P` keeps beside it (a `Sizing`, a
-span), so a child built for one parent does not fit another and the wrong kind
-is a compile error. A plain node converts into whatever a slot asks for. A new
-parent implements `ParentKind` (and `BareChild` if a bare `NodeId` should fit).
-A slot holds runs, not a flat list, which is how a fragment, `Show` or
-`ForEach` fills places among siblings it does not own. So control flow has no
-spacing and takes no `@test_id` or `@node_ref`. A `Vec` of nodes does not fill
-a slot; write a `ForEach` over the keys inside the same `view!`.
+`Children<CanvasItem>`, or `Child` / `Option<Child>` for one node. The child
+types are all `Placed<P>`: a node plus the data its parent `P` keeps beside it
+(a `Sizing`, a span), so a child built for one parent does not fit another and
+the wrong kind is a compile error. A plain node converts into whatever a slot
+asks for. A new parent implements `ParentKind` (and `BareChild` if a bare
+`NodeId` should fit). A slot holds runs, not a flat list, which is how a
+fragment, `Show` or `ForEach` fills places among siblings it does not own. A
+`Vec` of nodes does not fill a slot; write a `ForEach` over the keys inside the
+same `view!`.
 
-**Control flow in a single-child slot.** `Show`, `Dynamic`, `Keyed` and
-`Loading` return a `DynamicSegment<C, N>`, where `N` counts what their branches
-build (`One`, `ZeroOrOne`, `Many`), read from the branches' own types. Any
-count fills a run. A `Child` slot takes `One`: a `Show` with a `fallback`
-whose branches each build one child, or a `Dynamic` building one. An
-`Option<Child>` slot also takes `ZeroOrOne`, a `Show` without a `fallback`;
-the parent replaces its one child in place (`Single::mount`), with no node of
-the control flow's own. A `NodeId` slot (a `ListItem`, a `ForEach` row) takes
-`One` or `ZeroOrOne` in a bare frame the core builds around it, which sizes to
-its child. A run where one child goes is a compile error saying to put a `List`
-or `Layers` around it. An either/or is one `Show` with a `fallback`, never two
-`Show`s on a condition and its negation. A component whose whole view is a
-`Show` returns `DynamicSegment<ListItem>` (any count, for a run) or
-`DynamicSegment<NodeId, One>` (for a slot that takes one).
+**Control flow and its forms.** `Show`, `Dynamic`, `Keyed` and `Loading`
+return a lazy form whose type says how many children it builds, read from what
+the branches build: `OneOf<C>` (exactly one: a `Show` with a `fallback` whose
+branches each build one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>`
+(a `Show` without a `fallback`), or a run, `DynamicSegment<C>` (several
+children, `ForEach`). Among a parent's run every form fills its place with no
+node of its own, so a hidden `Show` takes no room and no spacing. In a slot
+that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
+`Option<Child>`) becomes a host node holding the child it swaps: natively a
+bare `Frame` that sizes to its child, on HTML a `display: contents` element
+that passes its placed styles on to its child. `@test_id` and `@node_ref` on
+`OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run.
+A run where one node goes, and a `Show` without a `fallback` where a node must
+always be, are compile errors saying what to add. A `ForEach` row that is a
+one-child `Show` costs a host per row. An either/or is one `Show` with a
+`fallback`, never two `Show`s on a condition and its negation
+([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)). A component
+whose whole view is control flow returns `DynamicSegment<ListItem>` (for a run)
+or `NodeId` (a host), which `#[component]` turns it into
+(`ComponentOutput`).
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
 only where the tree shows the node) and `@node_ref`. Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
-change the output type. A modifier works on the node itself; how a parent places
+change the output type. A modifier works on the node itself (`NamesNode`); how a parent places
 a child is a tag around it that builds the child that parent takes:
 `<ListItem grow=1.0>` (a list or stack child's length: `grow`, `length`, `min`,
 `max`, `shrink`, `align`, `gap`) and `<GridCell span=2>`. So

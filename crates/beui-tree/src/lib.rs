@@ -13,10 +13,11 @@ pub mod reactive {
     pub use crate::callback::{Callback, IntoCallback, IntoUnitCallback};
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{
-        AtMostOne, AtMostOneChild, Branch, ChildSegment, ChildSlot, Children, ChildrenSlot, Count,
-        Counted, DynamicSegment, ExactlyOne, Fallback, IntoChild, IntoOptionalChild, IntoSegment,
-        IntoSegments, IntoSlotHost, Many, One, OneChild, Or, Run, Single, SingleChild, SlotChild,
-        SlotHost, ValueFallback, Zero, ZeroOrOne, into_child, into_segment,
+        AtMostOneChild, Branch, ChildSegment, ChildSlot, Children, ChildrenSlot, ComponentOutput,
+        Count, CountMany, CountNone, CountOne, Counted, CountZero, CountZeroOrOne, DynamicSegment, Fallback,
+        FixedChild, FormOf, HostedNode, IntoChild, IntoSegment, IntoSegments, IntoSlotHost, LazyChild,
+        NeedsFallback, OneChild, OneOf, Or, Run, SingleChild, SlotChild, SlotHost, ValueFallback,
+        ZeroOrOne, into_child, into_segment,
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,

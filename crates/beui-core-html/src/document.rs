@@ -56,6 +56,43 @@ thread_local! {
     };
     static ARENA: RefCell<Arena> = RefCell::default();
     static REMOVALS: Rc<Removals> = Rc::default();
+    /// Host nodes (`create_host`) and the child each holds now.
+    static HOSTS: RefCell<HashMap<NodeId, Option<NodeId>>> = RefCell::default();
+}
+
+/// Makes `host` a host node: a `display: contents` element whose placed styles (what its
+/// parent sets to place it: flex, min and max, alignment, grid area) go to the child it holds.
+pub(crate) fn make_host(host: NodeId) {
+    set_style(host, "display", Some("contents".to_owned()));
+    HOSTS.with(|hosts| hosts.borrow_mut().insert(host, None));
+}
+
+/// Records the child a host holds now, moving its placed styles from the child it held.
+pub(crate) fn set_host_child(host: NodeId, child: Option<NodeId>) {
+    let Some(old) = HOSTS.with(|hosts| hosts.borrow_mut().insert(host, child)) else {
+        return;
+    };
+    if old == child {
+        return;
+    }
+    let placed = with_entry(host, |entry| entry.shared.borrow().placed.clone()).unwrap_or_default();
+    for (property, value) in placed {
+        if let Some(old) = old {
+            set_placed_style(old, property, None);
+        }
+        if let Some(child) = child {
+            set_placed_style(child, property, Some(value));
+        }
+    }
+}
+
+/// The node whose box stands for `node`: itself, or for a host node the child it holds
+/// (through nested hosts). `None` for a host holding nothing, which has no box.
+pub fn boxed(node: NodeId) -> Option<NodeId> {
+    match HOSTS.with(|hosts| hosts.borrow().get(&node).copied()) {
+        Some(child) => boxed(child?),
+        None => Some(node),
+    }
 }
 
 fn take_removals() -> Vec<NodeId> {
@@ -86,6 +123,7 @@ fn remove_released() {
         dropped
     });
     for (node, entry) in dropped {
+        HOSTS.with(|hosts| hosts.borrow_mut().remove(&node));
         for cell in &entry.refs {
             if let Some(cell) = cell.upgrade()
                 && cell.get() == Some(node)
@@ -235,8 +273,14 @@ pub fn set_style(node: NodeId, property: &'static str, value: Option<String>) {
     restyle(node, |entry| write(&mut entry.style, property, value));
 }
 
+/// Every style a parent sets to place a child goes through here, so a host node passes it on
+/// to the child it holds.
 pub fn set_placed_style(node: NodeId, property: &'static str, value: Option<String>) {
-    restyle(node, |entry| write(&mut entry.placed, property, value));
+    let held = HOSTS.with(|hosts| hosts.borrow().get(&node).copied());
+    restyle(node, |entry| write(&mut entry.placed, property, value.clone()));
+    if let Some(Some(child)) = held {
+        set_placed_style(child, property, value);
+    }
 }
 
 fn serialize(style: &[(&'static str, String)], placed: &[(&'static str, String)]) -> String {

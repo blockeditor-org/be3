@@ -458,5 +458,5 @@ impl beui_tree::reactive::IntoProp<Phrase> for &'static str {
 }
 
 impl beui_tree::reactive::Counted for Phrase {
-    type Count = beui_tree::reactive::One;
+    type Count = beui_tree::reactive::CountOne;
 }

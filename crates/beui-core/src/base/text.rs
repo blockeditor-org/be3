@@ -1375,9 +1375,9 @@ impl Document {
         })
     }
 
-    pub fn set_text_item_child(&mut self, item: NodeOf<TextItemNode>, child: Option<NodeId>) {
-        if self.contains(item) && self.arena.get_as::<TextItemNode>(item).child != child {
-            self.arena.get_mut_as::<TextItemNode>(item).child = child;
+    pub fn set_text_item_child(&mut self, item: NodeOf<TextItemNode>, child: NodeId) {
+        if self.arena.get_as::<TextItemNode>(item).child != Some(child) {
+            self.arena.get_mut_as::<TextItemNode>(item).child = Some(child);
         }
     }
 

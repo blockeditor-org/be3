@@ -1,6 +1,6 @@
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, Counted, Get, IntoChild, IntoProp,
-    IntoSegment, One, Prop, ScopeContext, Single, SlotChild,
+    ChildSegment, ChildValue, Children, ComponentContext, CountOne, Counted, Get, IntoChild,
+    IntoProp, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
 };
 
 use crate::layout::Sizing;
@@ -55,7 +55,7 @@ impl<P: ParentKind> ChildValue for Placed<P> {
 }
 
 impl<P: ParentKind> Counted for Placed<P> {
-    type Count = One;
+    type Count = CountOne;
 }
 
 impl<P: ParentKind> SlotChild for Placed<P> {
@@ -122,21 +122,6 @@ impl<P: BareChild> IntoSegment<Placed<P>> for NodeId {
     }
 }
 
-impl<P: BareChild> IntoSegment<Placed<P>> for Single<NodeId> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        self.convert(|node: NodeId| node.into_child())
-    }
-}
-
-impl<P: BareChild> IntoSegment<Placed<P>> for Option<Single<NodeId>> {
-    fn into_segment(self) -> ChildSegment<Placed<P>> {
-        match self {
-            Some(child) => child.into_segment(),
-            None => ChildSegment::Many(Vec::new()),
-        }
-    }
-}
-
 impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
     fn into_segment(self) -> ChildSegment<Placed<P>> {
         ChildSegment::Many(self.into_iter().map(IntoChild::into_child).collect())
@@ -197,10 +182,16 @@ impl ParentKind for CanvasKind {
 
 pub type CanvasItem = Placed<CanvasKind>;
 
-impl<P: BareChild, N: beui_tree::reactive::AtMostOne> IntoChild<Placed<P>>
-    for beui_tree::reactive::DynamicSegment<NodeId, N>
-{
+/// A row of a `ForEach` (or any slot of placed children taking one item) that is control
+/// flow building at most one node: a host node holds it, one per row.
+impl<P: BareChild> IntoChild<Placed<P>> for OneOf<NodeId> {
     fn into_child(self) -> Placed<P> {
-        crate::node::host(Single::from(self)).into_child()
+        crate::node::create_host(self.into_lazy()).into_child()
+    }
+}
+
+impl<P: BareChild> IntoChild<Placed<P>> for ZeroOrOne<NodeId> {
+    fn into_child(self) -> Placed<P> {
+        crate::node::create_host(self.into_lazy()).into_child()
     }
 }

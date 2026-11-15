@@ -191,7 +191,9 @@ pub fn scrolled_by(_node: NodeId) -> beui_types::Vec2 {
 pub fn rect(node: NodeId) -> Option<Rect> {
     use wasm_bindgen::JsCast;
 
-    let element: web_sys::Element = crate::dom::dom(node)?.dyn_into().ok()?;
+    let element: web_sys::Element = crate::dom::dom(crate::document::boxed(node)?)?
+        .dyn_into()
+        .ok()?;
     if !element.is_connected() {
         return None;
     }

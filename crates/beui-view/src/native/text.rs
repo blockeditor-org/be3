@@ -224,10 +224,13 @@ pub(crate) fn text_item(
     text: Option<Prop<Option<Rc<str>>>>,
     children: Option<Child>,
 ) -> TextItem {
-    let item = with_document(|document| document.create_text_item());
-    if let Some(child) = children {
-        child.mount(move |child| with_document(|document| document.set_text_item_child(item, child)));
-    }
+    let item = with_document(|document| {
+        let item = document.create_text_item();
+        if let Some(child) = children {
+            document.set_text_item_child(item, child);
+        }
+        item
+    });
     if let Some(text) = text {
         create_effect(move || {
             let text = text.get();

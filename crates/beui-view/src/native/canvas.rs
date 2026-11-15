@@ -75,14 +75,12 @@ pub(crate) fn canvas_item(
 ) -> CanvasItem {
     let item = with_document(|document| {
         let item = document.create_canvas_item();
+        if let Some(child) = children {
+            document.set_canvas_item_child(item, child);
+        }
         document.set_canvas_item_arranged(item, arranged);
         item
     });
-    if let Some(child) = children {
-        child.mount(move |child| {
-            with_document(|document| document.set_canvas_item_child(item, child))
-        });
-    }
     if arranged.is_none() {
         create_effect(move || {
             let rect =

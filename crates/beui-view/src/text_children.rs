@@ -1,5 +1,4 @@
 use crate::reactive::{
-    Counted, One,
     BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp,
     IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
@@ -214,8 +213,8 @@ impl Span {
 
 macro_rules! text_counted {
     ($($ty:ty),*) => {
-        $(impl Counted for $ty {
-            type Count = One;
+        $(impl crate::reactive::Counted for $ty {
+            type Count = crate::reactive::CountOne;
         })*
     };
 }

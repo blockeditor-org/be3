@@ -4,5 +4,5 @@ use beui::styled::*;
 
 #[component]
 fn Case(shown: Prop<bool>) -> NodeId {
-    view! { <Frame><Show condition={shown} fallback={|| view! { <Frame /> }}>|| <Frame /><Frame /></Show></Frame> } //~ ERROR can build `Many`
+    view! { <Frame><Show condition={shown} fallback={|| view! { <Frame /> }}>|| <Frame /><Frame /></Show></Frame> } //~ ERROR put it in a `<List>` or `<Layers>`
 }
