@@ -62,6 +62,10 @@ they happen.
   `journaled-taken` or what was forwarded until its gesture commits; from then on its edits count
   in commit order, after every edit taken before the commit. The exact accounting is settled in
   step 2.
+  After a commit the gesture's original messages still sit in replay before the ordinary edits
+  taken during the hold, so a positional `reported_clean` cut could drop them: the host moves a
+  committed gesture's messages to the commit's place in replay, or records the commit as one
+  message that carries them.
 - **The invariant.** At all times `visible` = `confirmed` + pending + `unsent` + `held` +
   `tentative`, in that order. While `held` or `tentative` is non-empty, each path keeps it by
   applying beneath them (`C::apply_beneath`, telling editors through `Journaled::Beneath`) or by
