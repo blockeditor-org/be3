@@ -7,7 +7,7 @@ use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::signal::Tracked;
+use crate::signal::{Signal, Set, Tracked, create_signal};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -469,4 +469,30 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
     computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
     Effect::of(&computation)
+}
+
+/// A signal that holds what was last written to it, but resets to `source` whenever what
+/// `source` reads changes, like Angular's `linkedSignal`: a draft seeded from a saved value
+/// and reset when the saved value changes. `source` runs now, and the reset is a binding,
+/// so a change to its inputs reaches the signal when effects next run.
+pub fn create_linked_signal<T: PartialEq + 'static>(
+    mut source: impl FnMut() -> T + 'static,
+) -> Signal<T> {
+    let probed = probe(false, &mut source);
+    let constant = probed.constant();
+    let signal = create_signal(probed.value);
+    if constant {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return signal;
+    }
+    let computation = Computation::new(None, move || {
+        let value = source();
+        signal.set(value);
+        false
+    });
+    computation.binding.set(true);
+    computation.watch(probed.read, probed.owner);
+    signal
 }

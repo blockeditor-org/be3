@@ -57,6 +57,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
 | An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
+| State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that a change to its source's inputs resets; never a signal seeded with `get_untracked` and an effect copying into it |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
 | A side effect, or work that needs the tree built around it (moving focus) | `create_effect`: queued, runs at the end of the entry |
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
