@@ -1572,6 +1572,8 @@ fn BlockFrameView(
                     top_bar: top_bar.get(),
                     dialog: None,
                     anchor: anchor.get().map(|anchor| anchor.scaled(zoom.recip())),
+                    // be-host-runtime sets it on every frame, from the shell's word.
+                    phone: false,
                 })
             });
             view! {

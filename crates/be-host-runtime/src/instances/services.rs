@@ -573,6 +573,10 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
+            Call::SetPhoneLayout { reply, on } => {
+                crate::runtime::ask_phone_layout(&self.app_id, instance, on);
+                self.answering(instance, reply).send(Ok(()));
+            }
             Call::SetPushDevice { reply, on } => {
                 let answering = self.answering(instance, reply);
                 be_host_base::push_device::set(

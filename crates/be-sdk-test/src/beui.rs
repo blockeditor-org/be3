@@ -390,6 +390,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 top_bar: TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             Kind::Picker | Kind::Rename(_) => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::None,
@@ -397,6 +398,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                 top_bar: TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             Kind::Creation => Some(be_sdk_api::FrameSpec {
                 chrome: FrameChrome::None,
@@ -407,6 +409,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
                     ..be_sdk_api::DialogFrame::default()
                 }),
                 anchor: None,
+                phone: false,
             }),
             _ => None,
         };
@@ -610,15 +613,15 @@ impl<A: BeuiRoot> BeuiTest<A> {
     }
 
     pub fn with_top_bar(self, closable: bool) -> Self {
-        self.with_bar(closable, TopBar::Shown)
+        self.with_bar(closable, TopBar::Shown, false)
     }
 
     pub fn without_top_bar(self) -> Self {
-        self.with_bar(false, TopBar::Hidden)
+        self.with_bar(false, TopBar::Hidden, false)
     }
 
     pub fn on_phone(self) -> Self {
-        self.with_bar(false, TopBar::Phone)
+        self.with_bar(false, TopBar::Hidden, true)
     }
 
     pub fn in_tab(mut self, tab: Option<Rect>) -> Self {
@@ -629,13 +632,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self
     }
 
-    fn with_bar(mut self, closable: bool, top_bar: TopBar) -> Self {
+    fn with_bar(mut self, closable: bool, top_bar: TopBar, phone: bool) -> Self {
         self.frame = Some(be_sdk_api::FrameSpec {
             chrome: FrameChrome::Drawn,
             content: closable.then_some(Rect::from_min_size(Pos2::ZERO, self.size)),
             top_bar,
             dialog: None,
             anchor: None,
+            phone,
         });
         self.place();
         self.run();
@@ -1901,6 +1905,14 @@ impl<A: BeuiRoot> BeuiTest<A> {
     pub fn take_push_device_requests(&mut self) -> Vec<bool> {
         self.take_requests_where(|call| match call {
             Call::SetPushDevice { on, .. } => Ok(on),
+            call => Err(call),
+        })
+    }
+
+    /// What the editor said of its phone layout (`host-services.set-phone-layout`), in order.
+    pub fn take_phone_layout_requests(&mut self) -> Vec<bool> {
+        self.take_requests_where(|call| match call {
+            Call::SetPhoneLayout { on, .. } => Ok(on),
             call => Err(call),
         })
     }
