@@ -46,9 +46,11 @@ is granted what).
   themselves. A block's agent is granted by its creator, who holds `Manage`
   (`create-agent`'s `bound-to` needs it) and names the agent's keys from
   making them, so no contact check is needed.
-- **Parent.** New parent, signed by the member who moved it. Inherited access
-  is checked only through signed parent records, so the server cannot place a
-  block under an ancestor someone else manages.
+- **Parent.** New parent and the hash of the parent's log root, signed by the
+  member who moved it. Inherited access is checked only through signed parent
+  records, so the server cannot place a block under an ancestor someone else
+  manages, nor serve a made-up log for a real ancestor, rooted at a creator it
+  controls.
 - **Administrator.** Account, keys, administrator or not, signed by an
   administrator, in the organization's log.
 
@@ -64,13 +66,21 @@ seen.
 
 ## Who is served what
 
-The whole log of a block goes only to its members with `Manage`, who may list
-its access today (`list-access`). Not to `KnowExists`: anyone gets that by
-listing an id in their own block's references (guides/blocks/server.md,
-"Organizations and access"), and the log names every grantee.
+The whole log of a block goes to its members with `Edit` and up, and so do
+the whole logs of the ancestors its access is inherited from. They are the
+ones who seal (key work needs only Edit, and they read all the content
+anyway), and a sealer must see every entry up to the head: an entry reduced to
+its hash could be the revocation of the person it is about to seal to, or of
+whoever granted them. So an editor of a block learns who is granted on the
+folders above it; accepted, as simpler than a commitment to the log's state
+that would let a sealer check one member without the rest. Not to
+`KnowExists`: anyone gets that by listing an id in their own block's
+references (guides/blocks/server.md, "Organizations and access"), and the log
+names every grantee.
 
-Everyone else is served **proof paths**: the entries that prove one right,
-and the chain they hang from, and nothing about other members.
+Readers below Edit (View, and Join in plans/hosted_blocks.md), who never
+seal, are served **proof paths**: the entries that prove one right, and the
+chain they hang from, and nothing about other members.
 
 - **A direct grant**: the root, the grant, and the log entries between them,
   each reduced to its hash where the reader needs only the chain (the signed
@@ -83,9 +93,11 @@ and the chain they hang from, and nothing about other members.
 - **An administrator**: the organization log's path from its root to the
   record that made them one.
 
-A grantee is served the path of its own grant. A device asked to seal to a
-grantee (key work's `unsealed`) is served that grantee's path with the entry.
-Hosted blocks add the host's grant and bans (plans/hosted_blocks.md).
+A reader below Edit is served the path of its own grant. Hosted blocks add
+the host's grant and bans (plans/hosted_blocks.md). A proof path can hide a
+later revocation behind a hash; for a reader who never seals, that only
+matters for a hosted block's host (plans/hosted_blocks.md, "Accepted
+limits").
 
 ## Sealing to someone who is not a contact
 
@@ -107,7 +119,7 @@ a contact. `get-signing-keys` stays only for showing authors
   (`be-block-protocol/wit/`) carry the signed record instead of the bare
   request; `create-organization` carries the organization root. `BlockGraph`
   keeps working from the records as it does from the rows today.
-- **Devices** check the proof path before they seal or wrap (the audit
+- **Devices** check the log up to its head before they seal or wrap (the audit
   below), and a row that does not check is skipped as a forged one is today.
   The shell's access list shows only checked grants.
 
@@ -118,8 +130,8 @@ revokes Bob on her laptop, the server can keep showing Carol's phone the log
 without that entry, and Carol's phone, doing key work, would seal the next key
 to Bob. So every new key epoch names the log head it was made under, signed
 with the account key of whoever made it; a device seals or wraps an epoch
-only to members granted as of that head or later, and must hold the log (or
-the proof path) up to that head to check it. A revocation is always followed
+only to members granted as of that head or later, and must hold the whole
+log up to that head to check it. A revocation is always followed
 by a rotation, whose new epoch names a head at or after the revocation, so no
 device that sees that epoch can seal it to Bob.
 
@@ -155,6 +167,9 @@ signed").
   retirement it never sees. The fix, not planned yet, is fork detection:
   signed log heads carried in sessions, relays and commits, so two devices
   that meet compare what they were shown.
+- **A leaked phrase** lets whoever holds it act as the account until it
+  retires the key: read and write what it may, sign records, host a hosted
+  block it has Edit on, or join one as a player.
 - **Retirement races.** A thief holding the old phrase can sign records until
   the retirement lands, and those stay valid after it. If the thief takes a
   new phrase first, the thief's retirement is the one in the logs and the

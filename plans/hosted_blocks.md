@@ -64,9 +64,11 @@ a role inside the app, since the share dialog grants no roles. A game:
   key is derived from the block's data key: anyone who could read the block
   could compute that one, a View member included.
 - **Handshake.** Noise IK: the joiner knows the host's static key from its
-  checked record, sends a fresh ephemeral key and its account's static key,
-  and signs the handshake hash with its signing key. A joiner through a link mixes in the
-  link secret as a pre-shared key. The host admits it when its grant checks
+  checked record and sends a fresh ephemeral key and its account's static key
+  (the X25519 identity key its grant names). The prologue is the block id and
+  the log head the host's proof was checked at, so both sides agree on which
+  block and which state of its access they speak under. The host admits the
+  joiner when its grant checks
   (Join or above, plans/signed_access.md) and it is not banned. Every later
   message is sealed under the session's keys with its own nonce, so the server
   can neither read, forge, reorder nor replay one. A host change or reconnect
@@ -128,6 +130,16 @@ a role inside the app, since the share dialog grants no roles. A game:
   be-host stops every host, and starting it again restarts none. On a
   server, `be BLOCK host` runs the same component headless
   (plans/headless_apps.md).
+
+## Accepted limits
+
+- A Join member checks the host on a proof path, which can hide a later
+  revocation of the host's Edit behind a hash (plans/signed_access.md, "Who is
+  served what"). A server that hides it can keep routing to a revoked editor,
+  who then reads the players' moves; it reads nothing stored, having lost its
+  keys at the rotation.
+- A leaked recovery phrase lets its holder host or join as the account
+  (plans/signed_access.md, "Accepted limits").
 
 ## Order of work
 

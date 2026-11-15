@@ -16,9 +16,10 @@ able to use a link it relays or stores
   `#`. The secret derives a **lookup id**, which the opener sends to find the
   link (as `InviteCode::lookup` names an invitation), a link key pair, and,
   for View and above, a key that opens the block's scope key, sealed with it
-  as pending grants are (`Peer::offer`). The secret also carries the hash of
-  the block's log root, which the opener pins (plans/signed_access.md,
-  "Root").
+  as pending grants are (`Peer::offer`). The secret also carries the hashes of
+  the block's log root and of its organization's root, which the opener pins
+  (plans/signed_access.md, "Root"), so a guest can check records an
+  administrator signed.
 - Making one stores a **link record** in the block's access log
   (plans/signed_access.md): level, who may open it, the lookup id and the
   link's public key, signed by a member with Manage.
@@ -47,7 +48,10 @@ able to use a link it relays or stores
   opener from outside a company organization becomes a **guest** of it: a
   member row that holds only grants made through links, gets no escrow key,
   sees no organization roots or members, and is removed when its last such
-  grant falls.
+  grant falls. A guest may not create blocks, grant access or make links
+  there, so nothing it made outlives it. Its be-host shows the organization
+  only through what it was shared, in Shared with me: no workspace, roots or
+  files pane of its own there.
 - Opening a link makes nobody a contact; a contact link or an invitation does
   that. So a share link is not a `link-kind` of the contact link family
   (`contacts.wit`, guides/blocks/keys.md "Contacts"), and never passes through
