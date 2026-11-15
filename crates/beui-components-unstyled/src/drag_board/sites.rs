@@ -349,6 +349,7 @@ impl Board {
             true => "Dropped".to_owned(),
             false => "Put down where it was".to_owned(),
         });
+        self.stop_edge();
         let Some(placing) = self.placing.borrow_mut().take() else {
             return false;
         };
