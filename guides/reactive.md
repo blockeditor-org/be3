@@ -302,8 +302,10 @@ built, and a `Choice` takes one for its options too, reporting each option's `it
 lookup by key costs the same however long the list; a repeated key is known by its first
 place and `nodes_of` gives every repeat's nodes. The list fills the handle through
 `claim` (two lists sharing one is a debug assertion), and it is empty again once the list
-is gone. A `ForEach` fills it as it builds; both `VirtualList` cores give the keys as they
-change and the built rows once per layout pass. Children are known to the handle by
+is gone, unless a list built in its place has claimed it since (a `Dynamic` builds the new
+branch before it drops the old). A `ForEach` fills it as it builds; a `VirtualList` gives the
+keys as they change and its built rows once per flush natively, and at each layout pass on
+the HTML core. Children are known to the handle by
 `SlotChild::Node`: the node, for node children whatever parent places them.
 
 ### Context

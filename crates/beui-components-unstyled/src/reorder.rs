@@ -109,8 +109,6 @@ pub struct ReorderHandle<K: 'static, P: 'static> {
     state: Stored<State<K, P>>,
     /// Each key's place in `order`.
     places: Memo<Rc<HashMap<K, usize>>>,
-    /// Whether the last change of `order` or `gap` came of a move the `Reorder` made.
-    armed: Memo<bool>,
     pub order: Memo<Vec<K>>,
     /// Hand this to the `ForEach` or `VirtualList` that shows `order`, as its `handle`: it is
     /// how the list finds its rows.
@@ -1019,18 +1017,6 @@ where
             Rc::new(places)
         })
     });
-    // Whether the order or gap changed in this flush came of a move the `Reorder` made: a
-    // move since the last change. Kept current by an effect, so a move that changed nothing
-    // is spent before any later change.
-    let moves = state.with(|state| state.moves);
-    let seen = Rc::new(Cell::new(0u64));
-    let armed = create_memo(move || {
-        order.track();
-        gap.track();
-        let moves = moves.get();
-        moves != seen.replace(moves)
-    });
-    create_effect(move || armed.track());
     create_effect(move || {
         keys.track();
         state.with(|state| {
@@ -1042,7 +1028,6 @@ where
     let handle = ReorderHandle {
         state,
         places,
-        armed,
         order,
         rows: state.with(|state| state.rows),
         dragging,
@@ -1215,12 +1200,14 @@ where
             _ => false,
         })
     });
+    // The count of moves rides with the place, so a row arms only for a place changed in the
+    // same flush as a move the `Reorder` made.
     let shifted = create_trigger();
-    let armed = reorder.armed;
+    let moves = state.with(|state| state.moves);
     create_effect_on_change(
-        move || (key.get(), place.get(), below_gap.get()),
-        move |(key, place, gap), (was_key, was_place, was_gap)| {
-            if armed.get_untracked() && key == was_key && (place != was_place || gap != was_gap) {
+        move || (key.get(), place.get(), below_gap.get(), moves.get()),
+        move |(key, place, gap, moved), (was_key, was_place, was_gap, was_moved)| {
+            if moved != was_moved && key == was_key && (place != was_place || gap != was_gap) {
                 shifted.notify();
             }
         },
