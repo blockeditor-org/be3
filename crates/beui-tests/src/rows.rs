@@ -1,7 +1,11 @@
 use crate::measured_rect;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
+use beui::primitives::Interactive;
+use beui::unstyled::{
+    DragHandle, DragPoint, Draggable, DropHandle, DropTarget, use_drop_site,
+};
+use beui::{PointerPress, Pos2, Rect, Vec2};
 use beui::{Align, Direction, ScrollPosition};
 
 #[component]
@@ -172,6 +176,47 @@ pub fn DragFixture() -> NodeId {
                         </Frame>
                     </DropTarget>
                 </Scroll>
+            </Frame>
+            <Text>{report}</Text>
+        </List>
+    }
+}
+
+/// An item lifted by an `Interactive`'s `drag` and dropped on a site: the site shows what
+/// is over it while carried and writes only at the release.
+#[component]
+pub fn CarryFixture() -> NodeId {
+    let dropped = create_signal(String::from("nothing"));
+    let basket = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|_: String| true),
+        Func::new(move |_: String| {
+            let rest = Rect::from_min_size(Pos2::ZERO, Vec2::new(40.0, 20.0));
+            beui::drag::fixed(beui::drag::Candidate::new((), rest, basket))
+        }),
+        Callback::new(move |(fruit, ()): (String, ())| dropped.set(fruit)),
+    );
+    let report = create_memo(move || match site.over.get() {
+        Some(()) => "Over basket".to_owned(),
+        None => format!("Dropped {}", dropped.get()),
+    });
+    view! {
+        <List spacing=Space::Xl>
+            <Interactive
+                drag={Func::new(|_: PointerPress| Some(beui::drag::Carry::new("apple".to_owned())))}
+            >
+                <Card @test_id="carry.apple">
+                    <Text>"Apple"</Text>
+                </Card>
+            </Interactive>
+            <Frame
+                @node_ref=&basket
+                width=Size::Custom(200.0)
+                height=Size::Custom(80.0)
+                fill=ColorRole::Surface
+                @test_id="carry.basket"
+            >
+                <Text>"Basket"</Text>
             </Frame>
             <Text>{report}</Text>
         </List>
