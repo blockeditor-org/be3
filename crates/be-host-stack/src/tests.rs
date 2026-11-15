@@ -688,6 +688,15 @@ fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
     crate::wait_until(what, |shared| ready(shared).then_some(()));
 }
 
+/// Whether the container's type made a child change (`change_child`), once it answers.
+#[track_caller]
+fn made(changed: Option<crate::ChildChanged>) -> bool {
+    let changed = changed.expect("the container's type is known");
+    crate::wait_until("the container's type answered the child change", |_| {
+        changed.answer()
+    })
+}
+
 fn add(block: Uuid, by: i64) {
     operate(block, CounterContent::encode_operation(&Counter::add(by)));
 }

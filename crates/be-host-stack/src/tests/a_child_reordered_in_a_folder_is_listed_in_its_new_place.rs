@@ -39,10 +39,7 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         is_known(FolderContent::CONTENT_TYPE)
     });
     for child in children {
-        assert_eq!(
-            change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child)),
-            Some(true)
-        );
+        assert!(made(change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child))));
     }
     let [first, second, third] = children;
     wait_until(
@@ -57,11 +54,11 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
             ChildChange::Reorder { block, after },
         )
     };
-    assert_eq!(reorder(third, None), Some(true));
+    assert!(made(reorder(third, None)));
     wait_until("listed the last child first", |shared| {
         listed(shared, folder) == [third, first, second]
     });
-    assert_eq!(reorder(third, Some(second)), Some(true));
+    assert!(made(reorder(third, Some(second))));
     wait_until(
         "listed the child after the one it was put after",
         |shared| listed(shared, folder) == [first, second, third],

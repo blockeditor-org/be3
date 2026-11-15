@@ -43,14 +43,11 @@ fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
         Some(TextBlock::of(text).encode()),
         false,
     );
-    assert_eq!(
-        change_child(
+    assert!(made(change_child(
             workspace,
             WorkspaceContent::CONTENT_TYPE,
             ChildChange::Add(note)
-        ),
-        Some(true)
-    );
+        )));
     flush();
     (workspace, note)
 }

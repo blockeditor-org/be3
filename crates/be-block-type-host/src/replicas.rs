@@ -1765,6 +1765,27 @@ impl<H: Host> Replicas<H> {
         self.change_now(block, change);
     }
 
+    /// Sends `change` as `change_later` does, and answers whether the type made it once the
+    /// replica says (`Changed`), which the pump delivers: a caller that awaits it holds up
+    /// nothing else. None when the block has no replica to send it to; a replica whose module
+    /// restarts is sent it again and answers then.
+    pub fn change_answered(
+        &mut self,
+        block: Uuid,
+        change: Change,
+    ) -> Option<impl Future<Output = bool> + 'static> {
+        let (module, op) = self.change_now(block, change)?;
+        let (answer, answered) = tokio::sync::oneshot::channel();
+        self.replies.insert((module, op), answer);
+        Some(async move {
+            answered
+                .await
+                .ok()
+                .and_then(|outcome| Ticket::<bool>::new(op).decode(outcome).ok())
+                .unwrap_or(false)
+        })
+    }
+
     pub async fn content(&mut self, ctx: Ctx<'_, H>, block: Uuid) -> Option<Vec<u8>> {
         self.on_replica(ctx, block, Asked::Content, Replica::content)
             .await

@@ -1539,6 +1539,8 @@ dependencies = [
  "be-sdk-manifest",
  "be-sdk-test",
  "be-sdk-window-stack",
+ "be-type-text",
+ "be-type-workspace",
  "be-wasm-threads",
  "beui",
  "beui-host",

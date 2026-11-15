@@ -862,19 +862,31 @@ struct PendingTransfer {
     destination: Option<Uuid>,
     parent_after: Option<BlockParent>,
     stage: TransferStage,
+    /// Puts a block back in the source a refused move took it out of: refused again, it is not
+    /// reported twice.
+    putting_back: bool,
+    /// What the block is called as it is queued, for a refusal to name: the graph can let it go
+    /// once its source does.
+    name: String,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone)]
 struct PendingReorder {
     child: Uuid,
     parent: Uuid,
     after: Option<Uuid>,
+    /// What the parent's type answered, once the reorder was sent.
+    answer: Option<be_host_stack::ChildChanged>,
 }
 
-#[derive(Clone, Copy)]
+/// A transfer takes a block out of its source, then puts it in its destination, each through
+/// the container's type, which answers whether it made the change.
+#[derive(Clone)]
 enum TransferStage {
     DeleteSource,
+    DeletingSource(be_host_stack::ChildChanged),
     AddDestination,
+    AddingDestination(be_host_stack::ChildChanged),
 }
 
 #[derive(Clone)]
@@ -903,10 +915,19 @@ fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
     std::fs::write(stamp, current)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum CopyStage {
     Duplicate,
-    Replace { copy_id: Uuid, block_type: Uuid },
+    Replace {
+        copy_id: Uuid,
+        block_type: Uuid,
+    },
+    /// The copy is placed in the container only once its type put it in the original's place.
+    Replacing {
+        copy_id: Uuid,
+        block_type: Uuid,
+        answer: be_host_stack::ChildChanged,
+    },
 }
 
 impl HostCore {
@@ -2293,6 +2314,8 @@ impl HostCore {
             destination: Some(parent),
             parent_after: (!linked).then_some(BlockParent::Block(parent)),
             stage: TransferStage::AddDestination,
+            putting_back: false,
+            name: name_of(child, "that block"),
         });
     }
 
@@ -2339,6 +2362,8 @@ impl HostCore {
             destination: Some(destination),
             parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
+            putting_back: false,
+            name: name_of(child, "that block"),
         });
     }
 
@@ -2346,34 +2371,43 @@ impl HostCore {
         if child == parent || after == Some(child) || refused_offline(parent) {
             return;
         }
-        let reorder = PendingReorder {
+        let queued = self.pending_reorders.iter().any(|reorder| {
+            (reorder.child, reorder.parent, reorder.after) == (child, parent, after)
+        });
+        if queued || !self.ensure_editor(parent) {
+            return;
+        }
+        self.pending_reorders.push(PendingReorder {
             child,
             parent,
             after,
-        };
-        if self.pending_reorders.contains(&reorder) || !self.ensure_editor(parent) {
-            return;
-        }
-        self.pending_reorders.push(reorder);
+            answer: None,
+        });
     }
 
     fn process_pending_reorders(&mut self) {
         let pending = std::mem::take(&mut self.pending_reorders);
-        for reorder in pending {
+        for mut reorder in pending {
+            if let Some(answer) = &reorder.answer {
+                match answer.answer() {
+                    None => self.pending_reorders.push(reorder),
+                    Some(false) => refuse_reorder(reorder.parent, reorder.child),
+                    Some(true) => {}
+                }
+                continue;
+            }
             let moving = self
                 .pending_transfers
                 .iter()
                 .any(|transfer| transfer.child == reorder.child);
-            let done = !moving
-                && self
+            if !moving {
+                reorder.answer = self
                     .with_editor(reorder.parent, |editor| {
                         editor.reorder_child(reorder.child, reorder.after)
                     })
-                    .flatten()
-                    .is_some();
-            if !done {
-                self.pending_reorders.push(reorder);
+                    .flatten();
             }
+            self.pending_reorders.push(reorder);
         }
     }
 
@@ -2459,6 +2493,8 @@ impl HostCore {
             destination: None,
             parent_after: None,
             stage: TransferStage::DeleteSource,
+            putting_back: false,
+            name: name_of(child, "that block"),
         });
     }
 
@@ -2476,37 +2512,65 @@ impl HostCore {
                 continue;
             }
             if matches!(transfer.stage, TransferStage::DeleteSource) {
-                let ready = match transfer.source {
-                    None | Some(SidebarDragSource::Orphaned) => Some(true),
+                transfer.stage = match transfer.source {
+                    None | Some(SidebarDragSource::Orphaned) => TransferStage::AddDestination,
                     Some(SidebarDragSource::Unfiled) if transfer.destination.is_some() => {
-                        Some(true)
+                        TransferStage::AddDestination
                     }
                     Some(SidebarDragSource::Root | SidebarDragSource::Unfiled) => {
                         be_host_stack::set_parent(transfer.child, BlockParent::Detached);
-                        Some(true)
+                        TransferStage::AddDestination
                     }
-                    Some(SidebarDragSource::Block(source)) => self
-                        .with_editor(source, |editor| editor.delete_child(transfer.child))
-                        .flatten(),
+                    Some(SidebarDragSource::Block(source)) => {
+                        let deleting = self
+                            .with_editor(source, |editor| editor.delete_child(transfer.child))
+                            .flatten();
+                        let Some(answer) = deleting else {
+                            self.pending_transfers.push(transfer);
+                            continue;
+                        };
+                        TransferStage::DeletingSource(answer)
+                    }
                 };
-                if ready != Some(true) {
+            }
+            if let TransferStage::DeletingSource(answer) = &transfer.stage {
+                match answer.answer() {
+                    None => {
+                        self.pending_transfers.push(transfer);
+                        continue;
+                    }
+                    Some(false) => {
+                        self.refused_transfer(transfer, false);
+                        continue;
+                    }
+                    Some(true) => transfer.stage = TransferStage::AddDestination,
+                }
+            }
+            if matches!(transfer.stage, TransferStage::AddDestination)
+                && let Some(destination) = transfer.destination
+                && !is_unfiled(destination)
+            {
+                let adding = self
+                    .with_editor(destination, |editor| editor.add_child(transfer.child))
+                    .flatten();
+                let Some(answer) = adding else {
                     self.pending_transfers.push(transfer);
                     continue;
-                }
-                transfer.stage = TransferStage::AddDestination;
+                };
+                transfer.stage = TransferStage::AddingDestination(answer);
             }
-
-            let ready = transfer.destination.map_or(Some(true), |destination| {
-                match is_unfiled(destination) {
-                    true => Some(true),
-                    false => self
-                        .with_editor(destination, |editor| editor.add_child(transfer.child))
-                        .flatten(),
+            if let TransferStage::AddingDestination(answer) = &transfer.stage {
+                match answer.answer() {
+                    None => {
+                        self.pending_transfers.push(transfer);
+                        continue;
+                    }
+                    Some(false) => {
+                        self.refused_transfer(transfer, true);
+                        continue;
+                    }
+                    Some(true) => {}
                 }
-            });
-            if ready != Some(true) {
-                self.pending_transfers.push(transfer);
-                continue;
             }
 
             if let Some(parent) = transfer.parent_after {
@@ -2516,6 +2580,44 @@ impl HostCore {
                 be_host_stack::placing(transfer.child, false);
             }
         }
+    }
+
+    /// A container's type refused a transfer's change: out of its source (`into` false) or into
+    /// its destination. The block goes back where the file tree showed it, its source taking it
+    /// again when it already let it go, and the person is told why.
+    fn refused_transfer(&mut self, transfer: PendingTransfer, into: bool) {
+        be_host_stack::placing(transfer.child, false);
+        if into {
+            match transfer.source {
+                Some(SidebarDragSource::Block(source)) => {
+                    self.pending_transfers.push(PendingTransfer {
+                        child: transfer.child,
+                        source: None,
+                        destination: Some(source),
+                        parent_after: None,
+                        stage: TransferStage::AddDestination,
+                        putting_back: true,
+                        name: transfer.name.clone(),
+                    });
+                }
+                Some(SidebarDragSource::Root) => {
+                    be_host_stack::set_parent(transfer.child, BlockParent::Root);
+                }
+                Some(
+                    SidebarDragSource::Unfiled | SidebarDragSource::Orphaned,
+                )
+                | None => {}
+            }
+        }
+        if transfer.putting_back {
+            return;
+        }
+        let container = match (into, transfer.destination, transfer.source) {
+            (true, Some(destination), _) => destination,
+            (false, _, Some(SidebarDragSource::Block(source))) => source,
+            _ => return,
+        };
+        refuse_transfer(container, &transfer.name, into);
     }
 
     fn queue_copy(&mut self, source: Uuid, container: Uuid) {
@@ -2571,28 +2673,46 @@ impl HostCore {
                     block_type,
                 };
             }
-            let CopyStage::Replace {
+            if let CopyStage::Replace {
                 copy_id,
                 block_type,
             } = copy.stage
-            else {
-                unreachable!("copy stage was just set to Replace")
-            };
-
-            if !self.ensure_editor(copy.container) {
-                self.pending_copies.push(copy);
-                continue;
+            {
+                if !self.ensure_editor(copy.container) {
+                    self.pending_copies.push(copy);
+                    continue;
+                }
+                let replacing = self
+                    .with_editor(copy.container, |editor| {
+                        editor.replace_child(copy.source, copy_id)
+                    })
+                    .flatten();
+                let Some(answer) = replacing else {
+                    self.pending_copies.push(copy);
+                    continue;
+                };
+                copy.stage = CopyStage::Replacing {
+                    copy_id,
+                    block_type,
+                    answer,
+                };
             }
-            let replaced = self
-                .with_editor(copy.container, |editor| {
-                    editor.replace_child(copy.source, copy_id)
-                })
-                .flatten();
-            match replaced {
+            let CopyStage::Replacing {
+                copy_id,
+                block_type,
+                answer,
+            } = &copy.stage
+            else {
+                unreachable!("copy stage was just set to Replacing")
+            };
+            let (copy_id, block_type) = (*copy_id, *block_type);
+            match answer.answer() {
                 None => {
                     self.pending_copies.push(copy);
                     continue;
                 }
+                // The copy stays detached, as it was made: placed nowhere, it is deleted as a
+                // block the person deletes is, and goes no further.
                 Some(false) => {
                     refuse_copy(copy.container);
                     continue;
@@ -4430,10 +4550,32 @@ fn is_unfiled(block: Uuid) -> bool {
 
 /// Says that `container` keeps linking to the block an unlink would have copied: its type
 /// cannot put a copy in the block's place, or the container can't be changed right now.
-fn refuse_copy(container: Uuid) {
-    let name = be_host_stack::node(container)
+fn name_of(block: Uuid, otherwise: &str) -> String {
+    be_host_stack::node(block)
         .and_then(|node| node.metadata.name())
-        .unwrap_or_else(|| "That block".to_owned());
+        .unwrap_or_else(|| otherwise.to_owned())
+}
+
+/// A container's type refused to let the block called `child` out (`into` false) or to take it
+/// in.
+fn refuse_transfer(container: Uuid, child: &str, into: bool) {
+    let container = name_of(container, "That block");
+    notices::refuse(match into {
+        true => format!("{container} can't hold {child}, so it stays where it was."),
+        false => format!("{container} can't let go of {child}, so it stays where it was."),
+    });
+}
+
+/// A container's type refused to put `child` somewhere else in its order.
+fn refuse_reorder(container: Uuid, child: Uuid) {
+    let (container, child) = (name_of(container, "That block"), name_of(child, "that block"));
+    notices::refuse(format!(
+        "{container} can't move {child} within it, so it stays where it was."
+    ));
+}
+
+fn refuse_copy(container: Uuid) {
+    let name = name_of(container, "That block");
     notices::refuse(format!(
         "{name} can't take its own copy of that block, so it still links to the original."
     ));
