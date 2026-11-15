@@ -16,8 +16,9 @@ Nothing about `be` is in `scripts/internal/pins`.
 ## Rejected
 
 - **A hash in `be-release`.** It comes from the same zone as `be` itself, so whoever can change
-  one can change the other; it would catch only corruption, which TLS and `curl --fail` already
-  do.
+  one can change the other. It would catch accidents (a stale cached object, a partly written
+  upload) but not an attacker, and deploy already reads each `be` back and checks its hash
+  before it writes `be-release`.
 - **A signed `be-release`.** It would protect against a compromised zone, but needs a signing key
   held by deploys, its public half in the repository and a rotation story, for one tool that
   agents run against a server that checks its build anyway. Worth revisiting if the zone stops
