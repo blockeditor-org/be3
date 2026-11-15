@@ -83,6 +83,14 @@ impl TestClient {
                 answered(client::account::pair(peer, None, sealed()).await),
             ),
             (
+                "account-notices",
+                answered(client::account::account_notices(peer).await),
+            ),
+            (
+                "dismiss-account-notice",
+                answered(client::account::dismiss_account_notice(peer, 1).await),
+            ),
+            (
                 "list-organizations",
                 answered(client::organizations::list_organizations(peer).await),
             ),
@@ -433,6 +441,10 @@ impl TestClient {
             (
                 "contacts-changed",
                 Opened::Unit(client::contacts::contacts_changed(peer)),
+            ),
+            (
+                "account-notices-changed",
+                Opened::Unit(client::account::account_notices_changed(peer)),
             ),
             (
                 "key-work-changed",

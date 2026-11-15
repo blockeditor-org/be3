@@ -1,3 +1,4 @@
+pub(crate) mod account_notices;
 pub mod codes;
 pub mod invite_codes;
 pub mod login_links;

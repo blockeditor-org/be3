@@ -210,6 +210,27 @@ async fn authenticated(
     )
 }
 
+/// The account's notices not dismissed for everyone (`account-notices`), whether or not an
+/// organization is open.
+pub async fn account_notices(
+    server_url: String,
+    token: String,
+) -> Result<Vec<be_block_protocol::AccountNotice>, AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    Ok(ask(client::account::account_notices(&connection)).await?)
+}
+
+/// Dismisses an account notice for the account's every device; in its first week the server
+/// keeps it, and only this device hides it (`be_host_base::notices::dismiss`).
+pub async fn dismiss_account_notice(
+    server_url: String,
+    token: String,
+    id: u64,
+) -> Result<(), AccountError> {
+    let connection = authenticated(&server_url, token).await?;
+    Ok(ask(client::account::dismiss_account_notice(&connection, id)).await?)
+}
+
 /// Ends the session `token` names; with `push_address`, this device's push endpoint, the
 /// account forgets it in every organization too.
 pub async fn logout(

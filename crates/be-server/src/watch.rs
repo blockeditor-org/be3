@@ -59,6 +59,8 @@ pub enum Push {
     },
     Paired(PairingMessage),
     ContactsChanged,
+    /// The account's notices changed (`store/account_notices.rs`).
+    AccountNoticesChanged,
     KeyWorkChanged,
     /// Keys the account may open were stored (`keys-changed`).
     KeysChanged,
