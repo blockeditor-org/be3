@@ -416,7 +416,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                     <ChoiceOption label={AccessLevel::Manage.label()} />
                                     <ChoiceOption label={AccessLevel::Edit.label()} />
                                     <ChoiceOption label={AccessLevel::View.label()} />
-                                    <ChoiceOption label={AccessLevel::KnowExists.label()} />
                                 }}
                             />
                             <Spacer />
