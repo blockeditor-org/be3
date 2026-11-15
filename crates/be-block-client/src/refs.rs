@@ -48,10 +48,11 @@ pub(crate) enum Table {
     Announcement,
     Summary,
     Held,
+    LetGo,
 }
 
 impl Table {
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 17] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -68,6 +69,7 @@ impl Table {
         Self::Announcement,
         Self::Summary,
         Self::Held,
+        Self::LetGo,
     ];
 
     pub fn code(self) -> u8 {
@@ -88,6 +90,7 @@ impl Table {
             Self::Announcement => 14,
             Self::Summary => 15,
             Self::Held => 16,
+            Self::LetGo => 17,
         }
     }
 
@@ -298,6 +301,15 @@ pub struct PendingCounts {
     pub unsent: usize,
 }
 
+/// What a catch-up of a root's search index listed of a block (`Peer::changed_page`): its root,
+/// its type and the head it was listed at.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ListedBlock {
+    pub root: Uuid,
+    pub content_type: Uuid,
+    pub head: Option<CommitId>,
+}
+
 /// A signing key this device knows an account by (plans/authorship.md): verified when a
 /// contact's card or key change named it, otherwise pinned the first time the server did.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -330,6 +342,9 @@ struct State {
     journals: HashMap<Uuid, Journaled>,
     /// What edits made here announce, by block and key, until sent and for a while after.
     announcements: HashMap<Uuid, BTreeMap<String, Waiting>>,
+    /// Blocks the search indexer let go after their commit could not be read, with what a
+    /// catch-up listed of them: read again when the next catch-up starts, across restarts.
+    let_go: HashMap<Uuid, Option<ListedBlock>>,
     next: u64,
 }
 
@@ -455,6 +470,9 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::LetGo => {
+                self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::Announcement => {
                 let (block, key) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
                 let key = String::from_utf8(key.to_vec()).map_err(|_| StoreError::Corrupt)?;
@@ -1070,6 +1088,40 @@ impl Refs {
             account.as_bytes().to_vec(),
             &known,
         )])
+    }
+
+    /// The blocks the search indexer let go (`let_go`).
+    pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
+        let state = self.state.lock().unwrap();
+        state.let_go.iter().map(|(block, listed)| (*block, *listed)).collect()
+    }
+
+    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it: a
+    /// listing kept before stays when this one has none.
+    pub fn let_go(&self, block: Uuid, listed: Option<ListedBlock>) -> Result<(), StoreError> {
+        let listed = {
+            let mut state = self.state.lock().unwrap();
+            let kept = state.let_go.get(&block).copied();
+            let listed = listed.or(kept.flatten());
+            if kept == Some(listed) {
+                return Ok(());
+            }
+            state.let_go.insert(block, listed);
+            listed
+        };
+        self.write(vec![row(Table::LetGo, block.as_bytes().to_vec(), &listed)])
+    }
+
+    /// Forgets `block` as one the search indexer let go: it was read, or is no longer indexed.
+    pub fn forget_let_go(&self, block: Uuid) -> Result<(), StoreError> {
+        if self.state.lock().unwrap().let_go.remove(&block).is_none() {
+            return Ok(());
+        }
+        self.write(vec![Row {
+            table: Table::LetGo,
+            key: block.as_bytes().to_vec(),
+            value: None,
+        }])
     }
 
     pub fn push(&self, op: Op) -> Result<u64, StoreError> {

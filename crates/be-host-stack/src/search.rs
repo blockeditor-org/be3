@@ -1,5 +1,5 @@
-//! Full-text search (plans/search.md): each root block's search index, which the devices that
-//! edit its tree write, and the searches the host and its apps ask for.
+//! Full-text search (guides/blocks/host.md, "Search"): each root block's search index, which the
+//! devices that edit its tree write, and the searches the host and its apps ask for.
 //!
 //! **Indexing.** A head this device's session moved (`Host::status` while it owns the session)
 //! queues its block (`Searching::dirty`). Each round of the worker's loop (`step`) takes the
@@ -27,7 +27,7 @@ use std::{
 };
 
 use be_block::search_index::{AsyncRead, SearchIndexContent};
-use be_block_client::{Peer, Write};
+use be_block_client::{ListedBlock, Peer, Write};
 use be_block_commit::CommitId;
 use be_block_content::{BlockContent, BlockMetadata, SEARCH_INDEX, be_block_model::BlockRef};
 use be_block_graph::{Access, BlockParent, EDIT_KINDS, SEARCH_INDEX_TYPE, SETTINGS_TYPE};
@@ -43,8 +43,9 @@ use crate::{
     worker::{Shared, Store, Tasks},
 };
 
-/// How often a commit that cannot be read holds a catch-up's watermark back before it is let
-/// go (a history collected under the head it was listed at never reads).
+/// How often in a row a commit that cannot be read holds a catch-up's watermark back before it
+/// is let go (a history collected under the head it was listed at never reads): kept on this
+/// device (`Peer::let_go`) and read again when each later catch-up starts, until it is read.
 const MAX_READ_FAILURES: u8 = 3;
 /// Writes to an index that may fail in a row (`Unwritten::Failed`) before its batches and
 /// settles are set aside (`Searching::failing`).
@@ -142,14 +143,6 @@ struct Confirm {
     drains: u64,
 }
 
-/// What the indexer needs of a block `changed-since` named, which the mirror may not hold.
-#[derive(Clone, Debug)]
-struct Caught {
-    root: Uuid,
-    content_type: Uuid,
-    head: Option<CommitId>,
-}
-
 impl Settle {
     /// The sequence the index has seen every change up to.
     #[cfg(test)]
@@ -187,7 +180,7 @@ pub struct Searching {
     /// Indexes made and not yet named in their root's metadata (`name_indexes`).
     made: Vec<(Uuid, Uuid)>,
     /// Blocks that `changed-since` named, for the indexer to read where the mirror does not.
-    caught: HashMap<Uuid, Caught>,
+    caught: HashMap<Uuid, ListedBlock>,
     /// Roots whose catch-up runs, and those that ran since this device last connected.
     catching: HashSet<Uuid>,
     caught_up: HashSet<Uuid>,
@@ -239,6 +232,9 @@ pub struct Searching {
     /// Writes a test makes fail before they start (`Unwritten::Failed`).
     #[cfg(test)]
     pub(crate) fail_writes: u32,
+    /// The watermark each index was last settled at here, for a test to see it move.
+    #[cfg(test)]
+    pub(crate) settled_at: HashMap<Uuid, u64>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -274,6 +270,40 @@ impl Searching {
     /// The new connection lists nothing yet.
     pub(crate) fn reconnected(&mut self) {
         self.release_failing(None);
+    }
+
+    /// Records that a block was read for a batch: its failures start again from none.
+    pub(crate) fn read(&mut self, block: Uuid) {
+        self.failures.remove(&block);
+    }
+
+    /// Counts a read of `block` that failed, and whether it is let go now: after
+    /// `MAX_READ_FAILURES` in a row it is counted as put, so a catch-up that lists it ends, and
+    /// the caller keeps it to be read again (`Peer::let_go`, `retry`).
+    pub(crate) fn read_failed(&mut self, block: Uuid) -> bool {
+        let failures = self.failures.entry(block).or_default();
+        *failures += 1;
+        if *failures < MAX_READ_FAILURES {
+            return false;
+        }
+        self.failures.remove(&block);
+        true
+    }
+
+    /// Queues a block that was let go again, as a catch-up starts, with what a catch-up listed
+    /// of it when the mirror does not hold it (else the mirror's head is newer).
+    pub(crate) fn retry(&mut self, block: Uuid, listed: Option<ListedBlock>) {
+        if let Some(listed) = listed {
+            self.caught.entry(block).or_insert(listed);
+        }
+        self.dirty.insert(block);
+    }
+
+    /// Forgets what is kept of a block that is not indexed: one detached, or under a root this
+    /// device cannot edit.
+    pub(crate) fn forget(&mut self, block: Uuid) {
+        self.caught.remove(&block);
+        self.failures.remove(&block);
     }
 
     /// Queues a block whose head this device's session moved.
@@ -798,6 +828,13 @@ enum Place {
     Root(Uuid),
 }
 
+/// Forgets `block` as one a catch-up let go (`Peer::forget_let_go`), logging a write that fails.
+fn forget_let_go(peer: &Peer<Store>, block: Uuid) {
+    if let Err(error) = peer.forget_let_go(block) {
+        eprintln!("be-host: could not forget {block} as let go by search: {error}");
+    }
+}
+
 /// The root whose index holds `block`'s text, within `PLACE_DEPTH` steps.
 fn place(graph: &Graph, block: Uuid) -> Place {
     let mut current = block;
@@ -945,7 +982,11 @@ async fn index(
                     }
                     continue;
                 }
-                Place::Skip => continue,
+                Place::Skip => {
+                    held.search.forget(block);
+                    forget_let_go(peer, block);
+                    continue;
+                }
                 Place::Root(root) => root,
             };
             if !held
@@ -953,6 +994,8 @@ async fn index(
                 .get(root)
                 .is_some_and(|root| root.access.can_edit())
             {
+                held.search.forget(block);
+                forget_let_go(peer, block);
                 continue;
             }
             match index_of(&held.graph, &held.search.named, root) {
@@ -1022,8 +1065,8 @@ async fn index(
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
                         .search
-                        .failures
-                        .remove(block);
+                        .read(*block);
+                    forget_let_go(peer, *block);
                     put_blocks.push(*block);
                     if whole {
                         read_whole.push(*block);
@@ -1035,10 +1078,11 @@ async fn index(
                     if whole {
                         held.search.whole.insert(*block);
                     }
-                    let failures = held.search.failures.entry(*block).or_default();
-                    *failures += 1;
-                    if *failures >= MAX_READ_FAILURES {
-                        held.search.failures.remove(block);
+                    if held.search.read_failed(*block) {
+                        let listed = held.search.caught.get(block).copied();
+                        if let Err(error) = peer.let_go(*block, listed) {
+                            eprintln!("be-host: could not keep {block} to index again: {error}");
+                        }
                         put_blocks.push(*block);
                     }
                 }
@@ -1276,6 +1320,10 @@ async fn puts_of(
     };
     // A commit that cannot be fetched now (a connection, a key) is held back: the block is not
     // put, and a catch-up that listed it does not move its watermark past it.
+    #[cfg(test)]
+    if failed_read(block) {
+        return None;
+    }
     let Ok(commit) = peer.load_commit(head).await else {
         return None;
     };
@@ -1627,6 +1675,13 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
         return;
     }
     let due = catch_ups_due(&held, true);
+    // What earlier catch-ups let go is read again, here or after a restart.
+    if !due.is_empty() {
+        for (block, listed) in peer.let_go_blocks() {
+            let mirrored = held.graph.get(block).is_some();
+            held.search.retry(block, listed.filter(|_| !mirrored));
+        }
+    }
     for (root, index) in due {
         held.search.catching.insert(root);
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());
@@ -1711,7 +1766,7 @@ async fn catch_up(
     loop {
         let page = peer.changed_page(root, after, PAGE).await?;
         peer.learn(&page.summaries).await?;
-        let blocks: Vec<(Uuid, Caught)> = page
+        let blocks: Vec<(Uuid, ListedBlock)> = page
             .summaries
             .iter()
             .filter(|summary| {
@@ -1724,7 +1779,7 @@ async fn catch_up(
             .map(|summary| {
                 (
                     summary.id,
-                    Caught {
+                    ListedBlock {
                         root,
                         content_type: summary.content_type,
                         head: summary.head,
@@ -1799,6 +1854,8 @@ fn settle_indexes(
             held.search.writing.remove(&index);
             match written {
                 Ok(Some(needs_text)) => {
+                    #[cfg(test)]
+                    held.search.settled_at.insert(index, settle.sequence);
                     held.search.wrote(index);
                     held.search.answers.clear();
                     held.search.reread(
@@ -1936,6 +1993,25 @@ async fn load<S: ObjectStore>(
         .await
         .map_err(|error| error.to_string())?;
     SearchIndexContent::from_stored(&stored).map_err(|error| error.to_string())
+}
+
+/// Blocks a test makes every read of fail, as a commit that cannot be fetched does, with the
+/// reads tried: kept apart from `Shared`, so they hold across a restart.
+#[cfg(test)]
+pub(crate) static FAILING_READS: std::sync::Mutex<BTreeMap<Uuid, (bool, u32)>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+/// Counts a read of `block`, and whether a test makes it fail (`FAILING_READS`).
+#[cfg(test)]
+fn failed_read(block: Uuid) -> bool {
+    let mut failing = FAILING_READS.lock().unwrap_or_else(PoisonError::into_inner);
+    match failing.get_mut(&block) {
+        Some((fails, tries)) => {
+            *tries += 1;
+            *fails
+        }
+        None => false,
+    }
 }
 
 /// What `index` holds for `block` at its newest head.

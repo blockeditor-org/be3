@@ -136,7 +136,7 @@ by parts"). `apply` is how a host that publishes commits rather than joining a
 session edits a block (`be sync`, version control).
 
 `search-text` answers a commit's searchable text for the search index
-(plans/search.md): `BlockContent::search_text`, whose default answers nothing,
+(guides/blocks/host.md, "Search"): `BlockContent::search_text`, whose default answers nothing,
 so a type that does not implement it is not content-searchable; a `Document`
 answers `Root::search_text_in`. Each `SearchDocument` has a key stable across
 edits (empty for a block that is one document), the part its text came from

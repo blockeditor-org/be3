@@ -1,5 +1,5 @@
-//! The search index block (plans/search.md): a `be_lib_search::Index` kept as the block's parts.
-//! The first part is the index's header with the length of every part it names, in
+//! The search index block (guides/blocks/host.md, "Search"): a `be_lib_search::Index` kept as the
+//! block's parts. The first part is the index's header with the length of every part it names, in
 //! `Index::parts` order; each of those parts is a child after it, so a replica loads only the
 //! header (`Loads::FirstPart`) and a query or a batch reads the rest by range.
 //!

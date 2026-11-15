@@ -238,7 +238,7 @@ interface blocks {
 
     /// What changed in the tree of `root`, a page at a time from the cursor
     /// `after` (first `{ changed: watermark, block: ff..ff }`),
-    /// at most `limit` blocks of each kind (plans/search.md). Needs View on
+    /// at most `limit` blocks of each kind (guides/blocks/server.md, "Changes since"). Needs View on
     /// `root`.
     changed-since: async func(root: block-id, after: change-cursor, limit: u32) -> result<changed-page, error>;
 
