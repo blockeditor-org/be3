@@ -56,14 +56,12 @@ pub fn Modal(
         ModalMotion::Slides | ModalMotion::Still => 1.0_f32,
         ModalMotion::Reported => 0.0,
     });
-    let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
     let asked = create_signal(false);
     create_effect(move || {
         if open.get() {
             untrack(|| asked.set(false));
         }
     });
-    let stays = create_memo(move || open.get() || !asked.get());
     let handle = ModalHandle {
         presence: presence.into(),
     };
@@ -77,7 +75,7 @@ pub fn Modal(
                 view! {
                     <BackSlide
                         enters=false
-                        open={stays}
+                        open={move || open.get() || !asked.get()}
                         on_back={move || {
                             asked.set(true);
                             on_dismiss.call(());
@@ -104,13 +102,13 @@ pub fn Modal(
             open={open}
             keep_alive=true
             placement=placed
-            scrim={faded}
+            scrim={move || scrim.get().scale_alpha(presence.get())}
             level={level}
             shown_in={shown_in}
-            policy={create_memo(move || match asked.get() && !open.get() {
+            policy={move || match asked.get() && !open.get() {
                 true => LayerPolicy::Inert,
                 false => LayerPolicy::BlocksAll,
-            })}
+            }}
             on_dismiss={move |_: Dismiss| on_dismiss.call(())}
             content={move || body.call(())}
         />

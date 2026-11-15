@@ -51,10 +51,6 @@ pub fn ColorInput(
     let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
     let hex = HexText::new(shown, alpha, value.into_callback());
     let label = create_memo(move || label.get());
-    let picker_label = create_memo(move || match label.get() {
-        label if label.is_empty() => "Choose a color".to_owned(),
-        label => format!("Choose {label}"),
-    });
     let disabled = create_memo(move || disabled.get());
     let preview = Callback::new(move |preview: Option<Color32>| {
         previewed.set(preview);
@@ -62,7 +58,10 @@ pub fn ColorInput(
     });
     let swatch_node = view! {
         <Popover
-            label={picker_label}
+            label={move || match label.get() {
+        label if label.is_empty() => "Choose a color".to_owned(),
+        label => format!("Choose {label}"),
+    }}
             icon_only=true
             disabled={disabled}
             surface

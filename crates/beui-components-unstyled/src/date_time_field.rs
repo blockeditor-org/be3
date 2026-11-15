@@ -265,7 +265,6 @@ fn SegmentView(
     let hovered = create_signal(false);
     let is_focused = create_signal(false);
     let focused = create_memo(move || state.focus.get() == Some(segment));
-    let tab_stop = create_memo(move || !state.disabled.get());
     let value = create_memo(move || state.values.get()[segment.index()]);
     let typed = create_memo(move || match state.typing.get() {
         Some((typing, buffer)) if typing == segment => Some(buffer),
@@ -310,7 +309,7 @@ fn SegmentView(
     view! {
         <Interactive
             focusable=true
-            tab_stop
+            tab_stop={move || !state.disabled.get()}
             focused
             ime={is_focused}
             on_focus_change={move |has_focus: bool| {

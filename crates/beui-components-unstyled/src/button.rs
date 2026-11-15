@@ -170,7 +170,7 @@ pub fn Button(
                 .collect();
             match link {
                 true => view! {
-                    <html::A href={Prop::dynamic(move || href.get().filter(|_| !disabled.get()))}>
+                    <html::A href={move || href.get().filter(|_| !disabled.get())}>
                         {inner}
                     </html::A>
                 },

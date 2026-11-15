@@ -189,13 +189,8 @@ where
                     open={floating}
                 >
                     <List spacing=0.0>
-                        <Dynamic value={carried}>|carried: Option<P>| {
-                            match carried {
-                                Some(carried) => preview.call(carried),
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
+                        <Dynamic value={carried} fallback={|| view! { <Frame /> }}>|carried: P| {
+                            preview.call(carried)
                         }</Dynamic>
                     </List>
                 </Overlay>

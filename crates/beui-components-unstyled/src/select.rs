@@ -110,14 +110,6 @@ pub fn Select(
             .get(index)
             .map(|option| option.label().get())
     });
-    let trigger_accessibility = create_memo(move || {
-        let mut node = accessibility.get();
-        if let Some(label) = label.get() {
-            node.set_value(label);
-        }
-        node.set_expanded(state.open.get());
-        node
-    });
     let trigger_content = move |handle: ButtonHandle| {
         trigger.call(SelectTriggerHandle {
             selected,
@@ -169,7 +161,14 @@ pub fn Select(
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref={&state.trigger}
-                accessibility={trigger_accessibility}
+                accessibility={move || {
+        let mut node = accessibility.get();
+        if let Some(label) = label.get() {
+            node.set_value(label);
+        }
+        node.set_expanded(state.open.get());
+        node
+    }}
                 disabled={disabled}
                 content={trigger_content}
                 on_click={move || toggle(state)}

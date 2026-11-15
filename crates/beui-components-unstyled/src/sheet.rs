@@ -1131,15 +1131,6 @@ pub fn Sheet(
     let dragging = create_signal(false);
     let shift = create_signal(HIDDEN_SHIFT);
     let gone = create_signal(true);
-    let present = create_memo(move || !gone.get());
-    let sheet_length = create_memo(move || match rest_at.get() {
-        Rest::Free(height) => Some(height),
-        Rest::Share(_) | Rest::Fitted => None,
-    });
-    let sheet_max = create_memo(move || match rest_at.get() {
-        Rest::Share(share) => share * extent.get(),
-        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
-    });
     let content = NodeRef::new();
     let slot = NodeRef::new();
     let motion = store(Motion {
@@ -1206,7 +1197,6 @@ pub fn Sheet(
         true => vec![Claim::always(true)],
         false => Vec::new(),
     });
-    let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
     let catcher = NodeRef::new();
     let grip = grip.call(SheetGripHandle {
@@ -1217,9 +1207,15 @@ pub fn Sheet(
     let panel = panel.once();
     let sheet = view! {
         <List spacing=0.0>
-            <Show keep_alive=true condition={present}>
-                <ListItem length=sheet_length max=sheet_max shrink=1.0>
-                    <Frame @node_ref=&slot translate={shifted}>
+            <Show keep_alive=true condition={move || !gone.get()}>
+                <ListItem length={move || match rest_at.get() {
+        Rest::Free(height) => Some(height),
+        Rest::Share(_) | Rest::Fitted => None,
+    }} max={move || match rest_at.get() {
+        Rest::Share(share) => share * extent.get(),
+        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
+    }} shrink=1.0>
+                    <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
                         {panel.call(view! {
                             <Frame>
                                 <Interactive
@@ -1338,10 +1334,9 @@ fn ModalSheetBody(
     });
     let extent = create_signal(0.0);
     let highest = stops.iter().copied().fold(0.0, f32::max);
-    let room = create_memo(move || extent.get() * (1.0 - highest));
     let built = view! {
         <List spacing=0.0>
-            <ListItem grow=1.0 min=room>
+            <ListItem grow=1.0 min={move || extent.get() * (1.0 - highest)}>
                 <Interactive
                     @test_id={"sheet.outside"}
                     on_click={on_close}
