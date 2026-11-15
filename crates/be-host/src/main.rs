@@ -2582,11 +2582,14 @@ impl HostCore {
                 }
             }
 
-            // A block put back goes where it sat, when its source keeps an order: adding put
-            // it last.
+            // A block put back goes where it sat, when its source keeps an order and still
+            // holds the sibling it followed: adding put it last.
             if transfer.putting_back
                 && let (Some(after), Some(source)) = (transfer.was_after, transfer.destination)
                 && self.keeps_order(source)
+                && after.is_none_or(|sibling| {
+                    be_host_stack::node(source).is_some_and(|node| node.contents().contains(&sibling))
+                })
             {
                 self.queue_reorder(transfer.child, source, after);
             }

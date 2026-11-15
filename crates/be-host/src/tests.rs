@@ -104,6 +104,8 @@ fn awaited(core: &HostCore) -> Vec<be_host_stack::ChildChanged> {
 fn settle(core: &mut HostCore) {
     let mut idle = false;
     for _ in 0..16 {
+        // Taken before the pass, so what readies between it and a wait is not missed.
+        let seen = progressed();
         core.process_pending_copies();
         core.process_pending_transfers();
         core.process_pending_reorders();
@@ -119,7 +121,6 @@ fn settle(core: &mut HostCore) {
         let awaited = awaited(core);
         if awaited.is_empty() {
             if std::mem::replace(&mut idle, true) {
-                let seen = progressed();
                 be_host_stack::wait_until("the stack moved on", |shared| {
                     (shared.progressed != seen).then_some(())
                 });
@@ -179,12 +180,13 @@ fn pending(core: &HostCore) -> String {
     copies.chain(transfers).chain(reorders).collect::<Vec<_>>().join(", ")
 }
 
-/// Whether a refusal containing `text` was shown. Notices are the process's, and a target's tests
-/// share a process: `text` names what only its own test does.
+/// How far the running stack has got (`Shared::progressed`).
 fn progressed() -> u64 {
     be_host_stack::wait_until("read the stack", |shared| Some(shared.progressed))
 }
 
+/// Whether a refusal containing `text` was shown. Notices are the process's, and a target's tests
+/// share a process: `text` names what only its own test does.
 fn refused(text: &str) -> bool {
     notices::shown()
         .iter()
