@@ -30,8 +30,7 @@ const ITEM_MARGIN: f32 = 2.0;
 
 #[component]
 pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let parent = state.editor().placed_content();
     let shown = create_memo(move || match parent.get() {
         Some(parent) => parent.intersect(placed.get()),
@@ -119,7 +118,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

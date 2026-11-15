@@ -467,8 +467,7 @@ impl PartialEq for Page {
 
 #[component]
 pub(crate) fn HexView(state: State) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let scale = pixels_per_point();
     let theme = use_theme();
     let geometry = create_memo(move || {
@@ -538,7 +537,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

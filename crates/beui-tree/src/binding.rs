@@ -1,7 +1,7 @@
-use beui_reactive::{Get, Set, Signal, check_tracked_read, create_signal, untrack};
+use beui_reactive::{Get, Reader, Set, Signal, create_signal};
 
 use crate::callback::{Callback, IntoCallback};
-use crate::prop::{Getter, IntoProp, IntoPropWith, Prop};
+use crate::prop::{IntoProp, IntoPropWith, Prop};
 
 /// State a component both shows and changes (a toggle's `checked`), instead of a prop and an
 /// `on_change`. The caller picks the owner: leave it out (the component's own signal), pass
@@ -13,7 +13,7 @@ pub struct Binding<T>(Source<T>);
 
 enum Source<T> {
     Signal(Signal<T>),
-    Derived(Getter<T>, Callback<T>),
+    Derived(Reader<T>, Callback<T>),
 }
 
 impl<T> Clone for Source<T> {
@@ -39,7 +39,7 @@ impl<T: Clone + 'static> Binding<T> {
             Prop::Static(value) => {
                 let signal = create_signal(value);
                 Self(Source::Derived(
-                    Getter::of_signal(signal.read_only()),
+                    signal.into(),
                     Callback::new(move |value: T| {
                         signal.set_unconditionally(value.clone());
                         write.call(value);
@@ -61,17 +61,14 @@ impl<T: 'static> Get<T> for Binding<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         match &self.0 {
             Source::Signal(signal) => signal.with(f),
-            Source::Derived(read, _) => {
-                check_tracked_read::<Self>();
-                f(&read.get())
-            }
+            Source::Derived(read, _) => read.with(f),
         }
     }
 
     fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         match &self.0 {
             Source::Signal(signal) => signal.with_untracked(f),
-            Source::Derived(read, _) => f(&untrack(|| read.get())),
+            Source::Derived(read, _) => read.with_untracked(f),
         }
     }
 }
@@ -81,7 +78,7 @@ impl<T: Clone + 'static> Set<T> for Binding<T> {
         match &self.0 {
             Source::Signal(signal) => signal.update(f),
             Source::Derived(read, write) => {
-                let mut value = untrack(|| read.get());
+                let mut value = read.get_untracked();
                 let result = f(&mut value);
                 write.call(value);
                 result
@@ -96,7 +93,7 @@ impl<T: Clone + 'static> Set<T> for Binding<T> {
         match &self.0 {
             Source::Signal(signal) => signal.set(value),
             Source::Derived(read, write) => {
-                if untrack(|| read.get()) != value {
+                if read.get_untracked() != value {
                     write.call(value);
                 }
             }
@@ -141,7 +138,7 @@ impl<T: Clone + 'static> crate::prop::IntoReadProp<T, crate::prop::ByValue> for 
 impl<T: Clone + 'static> IntoProp<T> for Binding<T> {
     fn into_prop(self) -> Prop<T> {
         match self.0 {
-            Source::Signal(signal) => Prop::Dynamic(Getter::of_signal(signal.read_only())),
+            Source::Signal(signal) => Prop::Dynamic(signal.into()),
             Source::Derived(read, _) => Prop::Dynamic(read),
         }
     }

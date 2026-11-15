@@ -84,8 +84,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
 
 #[component]
 fn Panel(id: u64) -> NodeId {
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(rect.get().min));
     let built = view! {
         <Layers>
@@ -98,7 +97,7 @@ fn Panel(id: u64) -> NodeId {
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built

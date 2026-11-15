@@ -3,7 +3,7 @@ use crate::primitives::*;
 use crate::reactive::*;
 use crate::{Forwarded, ForwardedInput};
 
-fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
+fn lefts(heard: impl Get<Vec<Forwarded>>) -> usize {
     heard.with_untracked(|heard| {
         heard
             .iter()
@@ -39,7 +39,7 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(vec![Input::PointerMoved(pos2(260.0, 50.0))]);
     assert_eq!(
-        lefts(heard.read_only()),
+        lefts(heard),
         1,
         "the catcher hears the pointer leave, once"
     );
@@ -48,7 +48,7 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.down(inside, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
     assert_eq!(
-        lefts(heard.read_only()),
+        lefts(heard),
         0,
         "a press it holds keeps the pointer"
     );
@@ -57,5 +57,5 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
         button: PointerButton::Primary,
         pressed: false,
     }]);
-    assert_eq!(lefts(heard.read_only()), 1, "until it is let go");
+    assert_eq!(lefts(heard), 1, "until it is let go");
 }

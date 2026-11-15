@@ -22,8 +22,7 @@ const CLIP_RADIUS: Radius = Radius::Sm;
 
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     create_effect(move || state.fit_timeline(placed.get().width().max(1.0)));
 
     let clips = state.clips;
@@ -195,7 +194,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

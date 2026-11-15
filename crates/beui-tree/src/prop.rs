@@ -1,5 +1,5 @@
 use beui_reactive::{
-    Get, Memo, ReadSignal, Ready, Signal, Stored, check_tracked_read, hold, store, untrack,
+    Get, Memo, ReadSignal, Reader, Ready, Signal, Stored, check_tracked_read, hold, store,
 };
 
 /// A value or a getter of one. Reads through `Get` like a signal, so a component reading
@@ -7,7 +7,7 @@ use beui_reactive::{
 /// rather than `move || memo.get()`, which boxes a closure and wakes on every read.
 pub enum Prop<T> {
     Static(T),
-    Dynamic(Getter<T>),
+    Dynamic(Reader<T>),
 }
 
 impl<T: Clone> Clone for Prop<T> {
@@ -21,72 +21,15 @@ impl<T: Clone> Clone for Prop<T> {
 
 impl<T: Copy> Copy for Prop<T> {}
 
-pub struct Getter<T>(Source<T>);
-
-enum Source<T> {
-    Function(Stored<Box<dyn Fn() -> T>>),
-    Signal(ReadSignal<T>, fn(&ReadSignal<T>) -> T),
-    Memo(Memo<T>, fn(&Memo<T>) -> T),
-}
-
-impl<T> Clone for Source<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for Source<T> {}
-
-impl<T> Clone for Getter<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for Getter<T> {}
-
-impl<T: 'static> Getter<T> {
-    pub fn new(read: impl Fn() -> T + 'static) -> Self {
-        Self(Source::Function(store(Box::new(read))))
+impl<T: 'static> Prop<T> {
+    pub fn dynamic(read: impl Fn() -> T + 'static) -> Self {
+        Prop::Dynamic(Reader::new(read))
     }
 
-    pub fn of_signal(signal: ReadSignal<T>) -> Self
+    pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U>
     where
         T: Clone,
     {
-        Self(Source::Signal(signal, <ReadSignal<T> as Get<T>>::get))
-    }
-
-    pub fn of_memo(memo: Memo<T>) -> Self
-    where
-        T: Clone + PartialEq,
-    {
-        Self(Source::Memo(memo, <Memo<T> as Get<T>>::get))
-    }
-
-    pub fn get(&self) -> T {
-        match &self.0 {
-            Source::Function(read) => read.with(|read| read()),
-            Source::Signal(signal, read) => read(signal),
-            Source::Memo(memo, read) => read(memo),
-        }
-    }
-
-    pub fn is_alive(&self) -> bool {
-        match &self.0 {
-            Source::Function(read) => read.try_with(|_| ()).is_some(),
-            Source::Signal(signal, _) => signal.is_alive(),
-            Source::Memo(memo, _) => memo.is_alive(),
-        }
-    }
-}
-
-impl<T: 'static> Prop<T> {
-    pub fn dynamic(read: impl Fn() -> T + 'static) -> Self {
-        Prop::Dynamic(Getter::new(read))
-    }
-
-    pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {
         match self {
             Prop::Static(value) => Prop::Static(f(value)),
             Prop::Dynamic(read) => Prop::dynamic(move || f(read.get())),
@@ -106,7 +49,7 @@ impl<T: 'static> Get<T> for Prop<T> {
         check_tracked_read::<Self>();
         match self {
             Prop::Static(value) => f(value),
-            Prop::Dynamic(read) => f(&read.get()),
+            Prop::Dynamic(read) => read.with(f),
         }
     }
 
@@ -119,13 +62,6 @@ impl<T: 'static> Get<T> for Prop<T> {
             Prop::Static(value) => value.clone(),
             Prop::Dynamic(read) => read.get(),
         }
-    }
-
-    fn get_untracked(&self) -> T
-    where
-        T: Clone,
-    {
-        untrack(|| self.get())
     }
 }
 
@@ -269,25 +205,25 @@ impl<T: 'static> IntoProp<T> for Prop<T> {
 
 impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Getter::of_signal(self))
+        Prop::Dynamic(self.into())
     }
 }
 
 impl<T: Clone + 'static> IntoProp<T> for Signal<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Getter::of_signal(self.read_only()))
+        Prop::Dynamic(self.into())
     }
 }
 
 impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Getter::of_memo(self))
+        Prop::Dynamic(self.into())
     }
 }
 
 impl<T: Clone + PartialEq + Default + 'static> IntoProp<T> for Memo<Ready<T>> {
     fn into_prop(self) -> Prop<T> {
-        Prop::Dynamic(Getter::of_memo(hold(self)))
+        Prop::Dynamic(hold(self).into())
     }
 }
 
@@ -303,7 +239,7 @@ impl IntoLiftedProp<Option<String>> for &'static str {
     }
 }
 
-impl<T: 'static> IntoLiftedProp<Option<T>> for Prop<T> {
+impl<T: Clone + 'static> IntoLiftedProp<Option<T>> for Prop<T> {
     fn into_lifted_prop(self) -> Prop<Option<T>> {
         self.map(Some)
     }

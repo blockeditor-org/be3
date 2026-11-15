@@ -15,6 +15,7 @@ mod computation;
 mod keyed;
 mod loading;
 mod memo;
+mod reader;
 mod runtime;
 mod scope;
 mod selector;
@@ -26,6 +27,7 @@ pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
 pub use memo::{Memo, create_memo};
+pub use reader::Reader;
 pub use runtime::{
     ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, untrack,
     wake_with, wake_zone_with, zone_pending,

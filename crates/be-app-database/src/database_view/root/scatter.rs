@@ -52,8 +52,7 @@ pub fn Scatter(data: Data) -> NodeId {
 
 #[component]
 fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let bounds = create_memo(move || {
         let (x_field, y_field) = axes.get()?;
         plot_bounds(&shown_rows(data), x_field.id, y_field.id)
@@ -161,7 +160,7 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built

@@ -134,8 +134,7 @@ fn Artwork(
     image: Memo<Option<Image>>,
     thumbhash: Memo<Option<Thumbhash>>,
 ) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
+    let placed = create_signal(Rect::ZERO);
     let world = editor.world();
     let placeholder = create_memo(move || thumbhash.get().map(|thumbhash| thumbhash.size()));
     let shape = create_memo(move || {
@@ -168,7 +167,7 @@ fn Artwork(
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

@@ -1874,16 +1874,15 @@ fn area_hit(tree: &impl Inspect, cx: &Context, pos: Pos2) -> Option<usize> {
 
 #[component]
 fn FieldFrame(report: Signal<Option<ReadSignal<Rect>>>, children: Child) -> NodeId {
-    let placed_held = create_signal(Rect::ZERO);
-    let placed = placed_held.read_only();
-    report.set_unconditionally(Some(placed));
+    let placed = create_signal(Rect::ZERO);
+    report.set_unconditionally(Some(placed.read_only()));
     let built = view! {
         <Frame>{children}</Frame>
     };
     let placed_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = placed_measured.get() {
-            placed_held.set(measured.rect);
+            placed.set(measured.rect);
         }
     });
     built

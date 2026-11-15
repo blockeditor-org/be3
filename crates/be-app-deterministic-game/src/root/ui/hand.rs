@@ -46,8 +46,7 @@ pub(crate) fn HandBar(
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> NodeId {
-    let rect_held = create_signal(Rect::ZERO);
-    let rect = rect_held.read_only();
+    let rect = create_signal(Rect::ZERO);
     create_effect(move || bar.set(rect.get()));
     let shown = create_memo(move || !hand.with(Vec::is_empty));
     let keys = create_memo(move || {
@@ -79,7 +78,7 @@ pub(crate) fn HandBar(
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
-            rect_held.set(measured.rect);
+            rect.set(measured.rect);
         }
     });
     built
@@ -90,7 +89,7 @@ fn HandItem(
     id: ItemId,
     spot: Spot,
     hand: Memo<Vec<HandCard>>,
-    bar: ReadSignal<Rect>,
+    bar: Prop<Rect>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> CanvasItem {

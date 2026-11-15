@@ -11,10 +11,11 @@ crate's tests are in `crates/beui-reactive/src/tests/`.
 
 ## Handles and ownership
 
-Every handle - `Signal`, `ReadSignal`, `Memo`, `Selector`, `Stored`,
-`StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's `Callback`,
-`Binding` and `NodeRef` - is a `Copy` key into a thread-local arena, not a
-reference count (decisions/reactive_handles_are_copy_arena_keys.md). So a `move`
+Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Effect`, `Selector`,
+`Stored`, `StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's
+`Callback`, `Binding` and `NodeRef` - is a `Copy` key into a thread-local arena,
+not a reference count (decisions/reactive_handles_are_copy_arena_keys.md), and
+two handles are equal when they name the same value. So a `move`
 closure takes its own copy for free, and a struct made only of handles derives
 `Clone, Copy` and is passed by value. A closure that needs an owned value (a
 `String`, a `Prop<String>`) clones it in a block around the closure:
@@ -61,10 +62,18 @@ disposed later in the same flush; one still alive that reads it panics.
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
 | Shared non-reactive state | `store`, or `StoredCell` for a `Copy` value |
+| Keep a signal, memo or closure to read later | `Reader`, converted from any of them |
 
 Reading and writing are the `Get` and `Set` traits, implemented by signals,
-memos, stores, `Prop` and `Binding`; import them with the types, and take
-`impl Get<T>` in a helper that only reads. `get`/`with` subscribe the running
+memos, stores, `Reader`, `Prop` and `Binding`; import them with the types. A
+helper that only reads takes `impl Get<T>`; a field or prop that keeps
+something to read is a `Reader<T>`, which a `Signal`, `ReadSignal` or `Memo`
+converts into (`.into()`) and `Reader::new(closure)` computes. Hand out a
+signal's read side as `.read_only()` only where the receiver must not write it;
+inside one function, keep the one `Signal`. `set` skips a value equal to the
+one held, so never compare before writing; `update` and `set_unconditionally`
+always notify, except that a store's `update` writes each field back with
+`set`. `get`/`with` subscribe the running
 computation; the `_untracked` forms and `untrack(|| ...)` do not. Dependencies
 are rediscovered on every run, so a branch not taken unsubscribes.
 
@@ -83,8 +92,9 @@ effect. The effects it wakes are queued and run in exactly these places:
   node builds its own subtree during layout;
 - when a zone with parked effects is entered (below).
 
-Creating an effect, reading a memo, disposing a scope and resuming one all
-leave effects queued. Effects queued outside any entry (a
+`create_effect` and `create_binding` return an `Effect`, whose `dispose` stops
+it before its scope goes; most callers drop it. Creating an effect, reading a
+memo, disposing a scope and resuming one all leave effects queued. Effects queued outside any entry (a
 write from a future or a host callback) call the waker set with `wake_with`
 once, so a burst asks for one frame; beui's `Context::set_waker` sets it.
 

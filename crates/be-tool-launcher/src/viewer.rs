@@ -137,8 +137,7 @@ pub(crate) fn ViewerBar(
 
 #[component]
 fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
-    let size_held = create_signal(Vec2::ZERO);
-    let size = size_held.read_only();
+    let size = create_signal(Vec2::ZERO);
     let natural = create_memo(move || picture.get().map_or(Vec2::ZERO, |image| image.size()));
     let shrunk = create_memo(move || {
         let natural = natural.get();
@@ -201,7 +200,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     let size_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = size_measured.get() {
-            size_held.set(measured.size);
+            size.set(measured.size);
         }
     });
     built
