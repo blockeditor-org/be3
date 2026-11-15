@@ -370,7 +370,8 @@ impl Seen {
     /// `synced` waits until there is nothing.
     pub fn unsynced(&self) -> Vec<String> {
         let mut reasons = Vec::new();
-        if !self.connected {
+        // A local account has no server: in step with itself is in step.
+        if !self.connected && !self.local {
             reasons.push(match &self.error {
                 Some(error) => format!("the block store is not connected to the server: {error}"),
                 None => "the block store is not connected to the server".to_owned(),

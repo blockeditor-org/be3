@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn the_storage_page_says_what_the_server_counts() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let mut host = HostTest::device(&dev);
     host.click("Tab \"Settings\"");
     host.wait("#settings.storage");
     host.click("#settings.storage");

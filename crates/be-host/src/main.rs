@@ -599,7 +599,6 @@ struct HostCore {
     host_files_failed: Option<host::Mailbox>,
 
     client_id: Uuid,
-    local_server_url: String,
     accounts: Vec<Account>,
     signed_in: bool,
     add_account_open: bool,
@@ -699,7 +698,6 @@ struct HostCore {
     allow_close: bool,
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
-    embedded_server: Option<be_host_server::EmbeddedServer>,
     _handoffs: Option<host::Mailbox>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
@@ -940,15 +938,12 @@ impl HostCore {
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         be_host_runtime::cache_in(data_dir.join("app-cache"));
-        let embedded_server = be_host_server::start_embedded_server(data_dir.join("server"))?;
-        let url = embedded_server.url.clone();
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
-        let mut core = Self::with_state(host_state, url)?;
+        let mut core = Self::with_state(host_state)?;
         core.workspaces =
-            host_files::WorkspaceCache::open(&data_dir, &core.accounts, &core.local_server_url);
+            host_files::WorkspaceCache::open(&data_dir, &core.accounts);
         core.programs.keep_files_in(data_dir.join("files"));
         core.data_dir = data_dir;
-        core.embedded_server = Some(embedded_server);
         Ok(core)
     }
 
@@ -960,7 +955,7 @@ impl HostCore {
         workspaces: host_files::WorkspaceCache,
         failures: Option<host::Mailbox>,
     ) -> Result<Self, Box<dyn Error + Send + Sync>> {
-        let mut core = Self::with_state(host_state, String::new())?;
+        let mut core = Self::with_state(host_state)?;
         core.host_files_failed = failures;
         core.workspaces = workspaces;
         core.data_dir = PathBuf::from(WEB_DATA_DIR);
@@ -977,10 +972,7 @@ impl HostCore {
         ));
     }
 
-    fn with_state(
-        host_state: HostStateStore,
-        url: String,
-    ) -> Result<Self, Box<dyn Error + Send + Sync>> {
+    fn with_state(host_state: HostStateStore) -> Result<Self, Box<dyn Error + Send + Sync>> {
         let client_id = host_state.client_id()?;
         let accounts = host_state.accounts()?;
         accounts::authorize(&accounts);
@@ -1006,10 +998,7 @@ impl HostCore {
             last_organization_id: None,
             authorization: None,
         });
-        let server_url = match &account.server {
-            ServerLocation::Local => url.clone(),
-            ServerLocation::Remote(remote) => remote.clone(),
-        };
+        let server_url = account.server.url();
         let registry = Rc::new(EditorRegistry::new());
         let editors = compositor::OwnedEditors::install(Rc::clone(&registry), client_id);
         let mut core = Self {
@@ -1018,7 +1007,6 @@ impl HostCore {
             #[cfg(target_arch = "wasm32")]
             host_files_failed: None,
             client_id,
-            local_server_url: url,
             accounts,
             signed_in,
             add_account_open: false,
@@ -1104,7 +1092,6 @@ impl HostCore {
             allow_close: false,
             data_dir: PathBuf::new(),
             #[cfg(not(target_arch = "wasm32"))]
-            embedded_server: None,
             _handoffs: None,
             error: None,
             pending_error_action: None,
@@ -1386,10 +1373,9 @@ impl HostCore {
         .collect()
     }
 
-    /// Signs in to the dev workspace's account, on the embedded server or at `remote_url`: with
-    /// `token` when given (a test's server issues one per device of an account,
-    /// crates/be-host-tests), and otherwise as a new local profile, or through the browser on a
-    /// remote server.
+    /// Signs in to the dev workspace's account: a local account, made on this device if there is
+    /// none, or at `remote_url` with `token` when given (a test's server issues one per device of
+    /// an account, crates/be-host-tests), and otherwise through the browser.
     #[cfg(not(target_os = "android"))]
     fn open_dev_workspace(&mut self, remote_url: Option<String>, token: Option<String>) {
         self.dev_workspace = true;
@@ -1531,30 +1517,23 @@ impl HostCore {
             .cloned()
     }
 
-    /// Signs in at the form's server: as a new local profile on the embedded one, with `token`
-    /// on a remote one when given, and through the browser otherwise.
+    /// Signs in: as a new local account made on this device (`create_local_account`), or at the
+    /// form's server with `token` when given, and through the browser otherwise.
     fn begin_account_request(&mut self, form: AccountForm, token: Option<String>) {
-        let remote = form.remote || !platform::HAS_EMBEDDED_SERVER;
-        let requested_url = if remote {
-            form.remote_url.clone()
-        } else {
-            self.local_server_url.clone()
-        };
-        let url = requested_url.trim().trim_end_matches('/').to_owned();
+        if !form.remote {
+            self.create_local_account(form.display_name);
+            return;
+        }
+        let url = form.remote_url.trim().trim_end_matches('/').to_owned();
         if url.is_empty() {
             self.account_error = Some("a server address is required".to_owned());
             return;
         }
-        let server = if remote {
-            ServerLocation::Remote(url.clone())
-        } else {
-            ServerLocation::Local
-        };
-        let authorization = Some(form.authorization.trim().to_owned())
-            .filter(|header| remote && !header.is_empty());
+        let server = ServerLocation::Remote(url.clone());
+        let authorization =
+            Some(form.authorization.trim().to_owned()).filter(|header| !header.is_empty());
         be_block_client::authorize(&url, authorization.clone());
         let requested = url.clone();
-        let display_name = form.display_name;
         let default = platform::default_account_server();
         let auth_url = default
             .filter(|server| server.api_url == url)
@@ -1565,11 +1544,7 @@ impl HostCore {
         let (check_now, checks) = tokio::sync::mpsc::unbounded_channel();
         platform::spawn_request(async move {
             let notify = post.clone();
-            let result = if !remote {
-                accounts::create_local_profile(requested, display_name)
-                    .await
-                    .map_err(|error| error.to_string())
-            } else if let Some(token) = token {
+            let result = if let Some(token) = token {
                 accounts::token_login(requested, token)
                     .await
                     .map_err(|error| error.to_string())
@@ -1597,6 +1572,40 @@ impl HostCore {
             url,
             authorization,
         });
+    }
+
+    /// A local account, which has no server (plans/local_accounts.md): its id, its identity and
+    /// its one organization are made on this device, the organization under the account's own
+    /// id, and it signs in at once. Its key is kept in plaintext beside its data, as a device
+    /// that holds everything it has has nothing a phrase would protect.
+    fn create_local_account(&mut self, display_name: String) {
+        let id = Uuid::now_v7();
+        let saved = SavedAccount {
+            server: ServerLocation::Local,
+            id,
+            email: String::new(),
+            name: display_name,
+            token: String::new(),
+            last_organization_id: None,
+            authorization: None,
+        };
+        let identity = be_block_keys::RecoveryPhrase::generate().secret().to_bytes();
+        let kept = self
+            .host_state
+            .save_account(&saved)
+            .and_then(|()| self.host_state.set_identity(&saved, identity));
+        if let Err(error) = kept {
+            self.account_error = Some(error.to_string());
+            return;
+        }
+        self.accounts = self.host_state.accounts().unwrap_or_else(|error| {
+            self.account_error = Some(error.to_string());
+            Vec::new()
+        });
+        self.account_error = None;
+        self.server_url = String::new();
+        self.add_account_open = false;
+        self.switch_account(saved);
     }
 
     fn account_answered(&mut self, event: accounts::LoginEvent) {
@@ -1669,19 +1678,19 @@ impl HostCore {
     }
 
     fn forget_account(&mut self, account: &Account) {
-        let url = match &account.server {
-            ServerLocation::Local => self.local_server_url.clone(),
-            ServerLocation::Remote(url) => url.clone(),
-        };
+        let url = account.server.url();
         let token = account.token.clone();
-        #[cfg(target_arch = "wasm32")]
-        web_push::sign_out(url, token, self.accounts.len() <= 1);
-        #[cfg(target_os = "android")]
-        android_push::sign_out(&self.host_state, url, token, self.accounts.len() <= 1);
-        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
-        platform::spawn_request(async move {
-            let _ = accounts::logout(url, token, None).await;
-        });
+        // A local account has no server to sign out of.
+        if account.server != ServerLocation::Local {
+            #[cfg(target_arch = "wasm32")]
+            web_push::sign_out(url, token, self.accounts.len() <= 1);
+            #[cfg(target_os = "android")]
+            android_push::sign_out(&self.host_state, url, token, self.accounts.len() <= 1);
+            #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+            platform::spawn_request(async move {
+                let _ = accounts::logout(url, token, None).await;
+            });
+        }
 
         if let Err(error) = self.host_state.remove_account(account) {
             self.account_error = Some(error.to_string());
@@ -1703,7 +1712,40 @@ impl HostCore {
         let me = self.me();
         let account = self.account.id;
         let cached = self.workspaces.workspaces(&url, account);
+        // A local account's one organization, and its key, are on this device: nothing to ask.
+        let local = (self.account.server == ServerLocation::Local).then(|| {
+            let keys = accounts::Keys {
+                account,
+                recovery: self.identity.map(|identity| {
+                    be_block_keys::RecoverySecret::from_bytes(identity)
+                        .identity()
+                        .public
+                }),
+                sealed: Vec::new(),
+                own: Vec::new(),
+            };
+            let organization = Organization {
+                id: account,
+                name: "Personal".to_owned(),
+                kind: be_block_protocol::OrganizationKind::Personal,
+                role: OrganizationRole::Editor,
+            };
+            (organization, keys)
+        });
         let work = async move {
+            if let Some((organization, keys)) = local {
+                return match operation {
+                    OrganizationOperation::Load => Ok(OrganizationResult::Loaded(
+                        vec![organization],
+                        keys,
+                        (url, account),
+                    )),
+                    _ => Err(AccountError {
+                        message: "A local account has no server to do that with.".to_owned(),
+                        invalid_token: false,
+                    }),
+                };
+            }
             let me = || {
                 me.clone().ok_or_else(|| AccountError {
                     message: "Unlock this account with its recovery phrase first.".to_owned(),
@@ -1925,7 +1967,7 @@ impl HostCore {
         }
         let ServerLocation::Remote(url) = account.server else {
             self.reauth.as_mut().unwrap().error = Some(
-                "This local profile is no longer available. Create a new local account.".into(),
+                "This local account is no longer available. Create a new local account.".into(),
             );
             return;
         };
@@ -2177,10 +2219,7 @@ impl HostCore {
     }
 
     fn switch_account(&mut self, account: Account) {
-        let server_url = match &account.server {
-            ServerLocation::Local => self.local_server_url.clone(),
-            ServerLocation::Remote(url) => url.clone(),
-        };
+        let server_url = account.server.url();
         self.focus_reports.clear();
         self.artifact_watches.clear();
         be_host_stack::stop();
@@ -3742,7 +3781,7 @@ impl HostCore {
         if be_host_stack::installed_for(self.account.id, organization) {
             return;
         }
-        let link_base = if self.server_url == self.local_server_url {
+        let link_base = if self.server_url.is_empty() {
             String::new()
         } else {
             accounts::link_base(&self.server_url)
@@ -3750,6 +3789,7 @@ impl HostCore {
         be_host_base::watches::publish::<be_sdk_api::LinkBaseWatch>(&link_base);
         self.publish_administrator();
         be_host_stack::start(be_host_stack::Config {
+            local: self.account.server == ServerLocation::Local,
             server_url: self.server_url.clone(),
             token: self.account.token.clone(),
             account: self.account.id,
@@ -3869,8 +3909,6 @@ impl HostCore {
             UiCommand::CancelErrorAction => self.pending_error_action = None,
             UiCommand::ConfirmErrorAction => match self.pending_error_action.take() {
                 Some(ErrorAction::DeleteClientDatabase) => self.delete_client_database(),
-                #[cfg(not(target_arch = "wasm32"))]
-                Some(ErrorAction::DeleteServerDatabase) => self.delete_server_database(),
                 None => {}
             },
             UiCommand::Exit => std::process::exit(1),
@@ -4206,10 +4244,7 @@ impl HostCore {
             if !listed {
                 return Vec::new();
             }
-            let url = match &account.server {
-                ServerLocation::Local => self.local_server_url.clone(),
-                ServerLocation::Remote(url) => url.clone(),
-            };
+            let url = account.server.url();
             self.workspaces
                 .workspaces(&url, account.id)
                 .into_iter()
@@ -4449,19 +4484,6 @@ impl HostCore {
         self.restart();
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    fn delete_server_database(&mut self) {
-        be_host_stack::stop_and_wait();
-        self.embedded_server = None;
-        let path = self.data_dir.join("server");
-        if let Err(error) = std::fs::remove_dir_all(&path)
-            && error.kind() != io::ErrorKind::NotFound
-        {
-            self.error = Some(format!("failed to delete {}: {error}", path.display()));
-            return;
-        }
-        self.restart();
-    }
 }
 
 fn sync_state(status: &be_host_stack::Status) -> ui::SyncState {

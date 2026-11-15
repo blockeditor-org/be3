@@ -75,6 +75,11 @@ pub fn refs_in(root: &std::path::Path) -> Result<be_block_client::RefsDb, String
 }
 
 pub struct Config {
+    /// A local account's, which has no server (plans/local_accounts.md): its stack runs on a
+    /// peer of its own (`Peer::local`) and `server_url` is unused. Said outright, not read
+    /// from an empty `server_url`, so a remote account whose address went missing fails to
+    /// connect rather than opening as an empty local one.
+    pub local: bool,
     pub server_url: String,
     pub token: String,
     pub account: Uuid,
@@ -91,10 +96,8 @@ impl Config {
         crate::accounts::socket_url(&self.server_url)
     }
 
-    /// A local account's, which has no server (plans/local_accounts.md): its `server_url` is
-    /// empty, and its stack runs on a peer of its own (`Peer::local`).
     pub fn is_local(&self) -> bool {
-        self.server_url.is_empty()
+        self.local
     }
 }
 

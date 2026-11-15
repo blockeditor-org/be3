@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn an_invitation_shows_the_link_to_send_the_invited_person() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.switch-organization");
     host.click("TextInput \"Organization name\"");

@@ -1659,6 +1659,20 @@ impl Session<'_> {
             moved |= version_revisions(shared) != before;
             want_open(shared, &self.wanted.blocks());
             step(shared, Some("the search index"));
+            // A local account has no server to catch its search indexes up from: what it
+            // settled this pass is queued as what this device sealed is, but for the indexes,
+            // which indexing writes.
+            {
+                let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                for block in peer.take_settled_here() {
+                    let index = peer.known_summary(block).is_some_and(|summary| {
+                        summary.content_type == be_block_graph::SEARCH_INDEX_TYPE
+                    });
+                    if !index {
+                        held.search.sealed(block);
+                    }
+                }
+            }
             moved |= super::search::step(
                 peer,
                 shared,

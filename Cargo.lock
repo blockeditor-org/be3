@@ -1527,7 +1527,6 @@ dependencies = [
  "be-host-base",
  "be-host-desktop",
  "be-host-runtime",
- "be-host-server",
  "be-host-services",
  "be-host-stack",
  "be-host-testing",

@@ -96,7 +96,7 @@ pub async fn create_local_profile(
 }
 
 /// Signs in with a token the server issued another way: a test's server hands one to each
-/// device of an account (crates/be-host-tests), since a local profile is a new account each time.
+/// device of an account (crates/be-host-tests).
 pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {
     let connection = crate::link::connect(&server_url).await?;
     let mut session = session_of(

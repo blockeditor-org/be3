@@ -77,6 +77,7 @@ mod a_held_clock_is_offered_a_modules_timer_only_while_nothing_is_in_flight;
 mod a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one;
 mod a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted;
 mod a_listing_fails_unless_another_connection_replaced_the_one_it_was_asked_on;
+mod a_local_account_finds_the_text_it_wrote;
 mod a_local_accounts_stack_saves_with_no_server;
 mod a_merge_conflict_shows_both_versions_and_keeps_the_one_chosen;
 mod a_name_the_server_refuses_is_taken_back_in_the_files;
@@ -460,6 +461,7 @@ impl Harness {
 
     fn config(&self, data_dir: PathBuf) -> Config {
         Config {
+            local: false,
             server_url: match &self.relay {
                 Some(relay) => format!("http://{}", relay.address()),
                 None => self.url.clone(),

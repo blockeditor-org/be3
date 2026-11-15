@@ -88,6 +88,12 @@ impl HostTest {
         Self::join(account, FILES)
     }
 
+    /// The address this device reaches its test [`Server`] at: a link made on another device
+    /// names that one's, which this device rewrites to its own to open it.
+    pub fn server_url(&self) -> String {
+        format!("http://{}", self.joined("server_url").relay.address())
+    }
+
     /// Starts another device of this one's account, as [`HostTest::device`] does, and pairs it
     /// with this one, as a person adding a device does: the new device shows a code, which is
     /// typed into this one. It returns once the new device shows its My files.

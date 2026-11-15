@@ -332,6 +332,13 @@ impl<S: ObjectStore> Peer<S> {
                 Op::Publish(pending) => match self.publish_locally(&pending)? {
                     PublishOutcome::Published(head) => {
                         self.settle(sequence, &pending, head)?;
+                        // Its summary says the head too, as a server's listing would.
+                        if let Some(mut summary) = self.refs.summary(block)
+                            && summary.head != Some(head)
+                        {
+                            summary.head = Some(head);
+                            self.refs.revise(summary)?;
+                        }
                         Drained::Published { block, head }
                     }
                     PublishOutcome::Rejected(remote) => {
@@ -363,6 +370,9 @@ impl<S: ObjectStore> Peer<S> {
                     Drained::Held { block }
                 }
             };
+            if !matches!(outcome, Drained::Diverged { .. }) {
+                self.settled_here.lock().unwrap().insert(block);
+            }
             outcomes.push(outcome);
         }
         Ok(outcomes)

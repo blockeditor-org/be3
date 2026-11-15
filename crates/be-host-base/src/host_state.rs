@@ -39,6 +39,15 @@ pub enum ServerLocation {
 }
 
 impl ServerLocation {
+    /// The server's address: none for a local account, which has no server
+    /// (plans/local_accounts.md).
+    pub fn url(&self) -> String {
+        match self {
+            Self::Local => String::new(),
+            Self::Remote(url) => url.clone(),
+        }
+    }
+
     pub fn key(&self) -> &str {
         match self {
             Self::Local => "local",
