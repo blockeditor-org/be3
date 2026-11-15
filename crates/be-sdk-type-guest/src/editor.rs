@@ -147,6 +147,10 @@ pub enum ToEditor {
         lacking: Vec<Lacked>,
         held: Vec<u64>,
     },
+    /// The replica could not open the block's content (it does not decode in this build, its
+    /// type module failed, its parts cannot be read), and says why: until a snapshot arrives,
+    /// the editor reads it as failed rather than loading.
+    Failed(String),
 }
 
 mod range_result {
@@ -247,6 +251,7 @@ pub struct EditorMirror<C: LiveEdit> {
     puts: Vec<(u64, Result<be_block_content::PartRef, String>)>,
     lacking: BTreeMap<u64, (Vec<u8>, bool)>,
     lacking_revision: u64,
+    failed: Option<String>,
 }
 
 impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
@@ -269,6 +274,7 @@ impl<C: LiveEdit + Clone + Default> Default for EditorMirror<C> {
             puts: Vec::new(),
             lacking: BTreeMap::new(),
             lacking_revision: 0,
+            failed: None,
         }
     }
 }
@@ -284,6 +290,20 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
 
     pub fn is_loaded(&self) -> bool {
         self.confirmed.is_some()
+    }
+
+    /// Why the content could not be opened, until a snapshot that opens arrives: the replica
+    /// said so (`ToEditor::Failed`), or the snapshot it sent does not decode in this build.
+    pub fn failure(&self) -> Option<&str> {
+        self.failed.as_deref()
+    }
+
+    /// Notes a failure to open, which readers hear of as a change of revision.
+    fn fail(&mut self, reason: String) {
+        if self.failed.as_deref() != Some(reason.as_str()) {
+            self.failed = Some(reason);
+            self.revision += 1;
+        }
     }
 
     /// How many of its operations this editor was told landed, which a snapshot's `applied`
@@ -458,6 +478,10 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
                 self.lacking_revision += 1;
                 None
             }
+            ToEditor::Failed(reason) => {
+                self.fail(reason);
+                None
+            }
         }
     }
 
@@ -465,11 +489,12 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
         if snapshot.content_type != C::CONTENT_TYPE {
             return;
         }
-        let Ok(mut settled) = C::decode(&snapshot.bytes) else {
-            return;
+        let mut settled = match C::decode(&snapshot.bytes) {
+            Ok(settled) => settled,
+            Err(error) => return self.fail(format!("The content could not be read: {error}")),
         };
-        if settled.adopt_session_state(&snapshot.session).is_err() {
-            return;
+        if let Err(error) = settled.adopt_session_state(&snapshot.session) {
+            return self.fail(format!("The content's session could not be read: {error}"));
         }
         let Ok(unsettled) = snapshot
             .unsettled
@@ -477,8 +502,9 @@ impl<C: LiveEdit + Clone + Default> EditorMirror<C> {
             .map(|operation| C::decode_operation(operation))
             .collect::<Result<Vec<_>, _>>()
         else {
-            return;
+            return self.fail("The content's unsettled edits could not be read".to_owned());
         };
+        self.failed = None;
         let taken = snapshot.applied.saturating_sub(self.acknowledged);
         self.acknowledged = snapshot.applied;
         for _ in 0..taken.min(self.pending.len() as u64) {
