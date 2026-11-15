@@ -1341,6 +1341,65 @@ impl Refs {
             .collect()
     }
 
+    /// What the outbox holds at `sequence`, as it stands now.
+    pub fn op(&self, sequence: u64) -> Option<Op> {
+        self.state.lock().unwrap().outbox.get(&sequence).cloned()
+    }
+
+    /// Puts commits of `block` stamped again in place of those `renamed` names, in one write:
+    /// `rewritten` replaces their outbox entries, and the local head, the head read whole, the
+    /// journal's base and seal and what announcements wait on move to the new ids.
+    pub fn restamp(
+        &self,
+        block: Uuid,
+        renamed: &HashMap<CommitId, CommitId>,
+        rewritten: Vec<(u64, Pending)>,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut guard = self.state.lock().unwrap();
+            let state = &mut *guard;
+            for (sequence, pending) in rewritten {
+                let op = Op::Publish(pending);
+                rows.push(row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op));
+                state.outbox.insert(sequence, op);
+            }
+            if let Some(head) = state.heads.get_mut(&block)
+                && let Some(new) = renamed.get(head)
+            {
+                *head = *new;
+                rows.push(row(Table::Head, block.as_bytes().to_vec(), &*new));
+            }
+            if let Some(held) = state.held.get_mut(&block)
+                && let Some(new) = renamed.get(held)
+            {
+                *held = *new;
+                rows.push(row(Table::Held, block.as_bytes().to_vec(), &*new));
+            }
+            if let Some(journal) = state.journals.get_mut(&block) {
+                let head = &mut journal.head;
+                let mut moved = false;
+                if let Some(commit) = &mut head.base.commit
+                    && let Some(new) = renamed.get(commit)
+                {
+                    *commit = *new;
+                    moved = true;
+                }
+                if let Some((commit, _)) = &mut head.sealing
+                    && let Some(new) = renamed.get(commit)
+                {
+                    *commit = *new;
+                    moved = true;
+                }
+                if moved {
+                    rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &*head));
+                }
+            }
+            announcements::renamed(state, block, renamed, &mut rows);
+        }
+        self.write(rows)
+    }
+
     pub fn pending_for(&self, block: Uuid) -> Vec<(u64, Op)> {
         let state = self.state.lock().unwrap();
         state
@@ -1349,10 +1408,6 @@ impl Refs {
             .filter(|(_, op)| op.block() == block)
             .map(|(sequence, op)| (*sequence, op.clone()))
             .collect()
-    }
-
-    pub fn holds(&self, sequence: u64) -> bool {
-        self.state.lock().unwrap().outbox.contains_key(&sequence)
     }
 
     pub fn has_structural(&self, block: Uuid) -> bool {
