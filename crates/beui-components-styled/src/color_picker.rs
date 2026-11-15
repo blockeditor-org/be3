@@ -87,30 +87,28 @@ pub fn ColorPicker(
                             >|handle: SliderHandle|
                                 <StripFace handle strip=Strip::Hue />
                             </HueSlider>
-                            <Show condition=alpha>
+                            {alpha.then(|| view! {
                                 <AlphaSlider
                                     picker={picker}
                                     thumb={SLIDER_HEIGHT.px()}
                                 >|handle: SliderHandle|
                                     <StripFace handle strip={Strip::Alpha(color)} />
                                 </AlphaSlider>
-                            </Show>
+                            })}
                         </List>
                     </ListItem>
                     <ColorSwatch color={shown} width=PREVIEW_SIZE height=PREVIEW_SIZE />
                 </List>
                 <ColorFields picker={picker} alpha />
-                <Show condition=has_swatches>|| {
-                    let swatches = swatches.clone(); view! {
-                        <Swatches
-                            picker={picker}
-                            swatches
-                            spacing={crate::choice::OPTION_SPACING.px()}
-                        >|handle: SwatchHandle|
-                            <SwatchFace handle />
-                        </Swatches>
-                    }
-                }</Show>
+                {has_swatches.then(|| view! {
+                    <Swatches
+                        picker={picker}
+                        swatches
+                        spacing={crate::choice::OPTION_SPACING.px()}
+                    >|handle: SwatchHandle|
+                        <SwatchFace handle />
+                    </Swatches>
+                })}
             </List>
         </Frame>
     }
@@ -144,7 +142,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                         on_submit={move |typed: String| hex.submit(typed)}
                     />
                 </ListItem>
-                <Show condition=alpha>
+                {alpha.then(|| view! {
                     <ListItem length=ALPHA_WIDTH>
                         <NumberInput
                             value={Binding::new(opacity, set_opacity)}
@@ -153,7 +151,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
                             label="Opacity percent"
                         />
                     </ListItem>
-                </Show>
+                })}
             </List>
             <Grid
                 columns={[Track::Intrinsic, Track::Fraction(1.0)].repeat(3)}

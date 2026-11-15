@@ -235,9 +235,8 @@ fn Button(id: &'static str, label: &'static str, on_click: Callback<()>) -> Node
 #[component]
 fn FrameFixture() -> NodeId {
     let wide = create_signal(false);
-    let width = create_memo(move || Extent::px(if wide.get() { 100.0 } else { 50.0 }));
     let inner = view! {
-        <Frame width={width} height=20.0 fill={GREEN} />
+        <Frame width={move || Extent::px(if wide.get() { 100.0 } else { 50.0 })} height=20.0 fill={GREEN} />
     };
     let outer = view! {
         <Frame

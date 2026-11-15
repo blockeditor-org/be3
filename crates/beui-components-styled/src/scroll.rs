@@ -118,7 +118,7 @@ pub fn Scroll(
             fit={fit || bounded}
             follow_end
             bleed={bleed.map(|bleed| bleed.reach)}
-            focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px())))}
+            focus_ring={move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px()))}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />

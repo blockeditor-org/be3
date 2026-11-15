@@ -452,7 +452,7 @@ fn TabSettings() -> NodeId {
             <Dialog
                 open={open}
                 title="Tab settings"
-                anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+                anchor={move || DialogAnchor::Rect(tab.get())}
                 width={Size::Custom(240.0)}
                 on_dismiss={move || open.set(false)}
             >
@@ -1190,7 +1190,7 @@ fn LoadSliders() -> NodeId {
                 </ListItem>
             </List>
             <Slider value={load} label="Load" />
-            <Progress value={create_memo(move || Some(load.get()))} label="Load" />
+            <Progress value={load} label="Load" />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION>"Zoom, with 1x in the middle"</Text>
                 <ListItem grow=1.0>
@@ -1267,10 +1267,10 @@ fn LockedControls() -> NodeId {
                 label="Save"
                 variant=ButtonVariant::Primary
                 disabled={locked}
-                description={create_memo(move || match locked.get() {
+                description={move || match locked.get() {
                     true => "Unlock to save".to_owned(),
                     false => String::new(),
-                })}
+                }}
                 @test_id="demo.locked.save"
             />
         </List>
@@ -1283,7 +1283,6 @@ fn LightSwitches() -> NodeId {
     let kitchen = create_signal(true);
     let hall = create_signal(false);
     let every = create_memo(move || kitchen.get() && hall.get());
-    let mixed = create_memo(move || kitchen.get() != hall.get());
     view! {
         <List spacing=Space::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -1293,7 +1292,7 @@ fn LightSwitches() -> NodeId {
                         kitchen.set(on);
                         hall.set(on);
                     })}
-                    indeterminate={mixed}
+                    indeterminate={move || kitchen.get() != hall.get()}
                 />
                 <Text>"Every light"</Text>
             </List>
@@ -2626,11 +2625,10 @@ fn FailedImport() -> NodeId {
     let failure = create_signal(Some(
         "Couldn't import holiday.heic: the format isn't supported".to_owned(),
     ));
-    let dismissed = create_memo(move || failure.with(Option::is_none));
     view! {
         <List spacing=Space::Md>
             <Banner message={failure} id="demo.banner" on_dismiss={move || failure.set(None)} />
-            <Show condition={dismissed}>
+            <Show condition={move || failure.with(Option::is_none)}>
                 <Button
                     label="Import again"
                     @test_id="demo.banner.again"
@@ -3502,7 +3500,7 @@ fn ScrollRowFace(
             fill={fill_color}
             focus={focused}
             radius=Radius::Md
-            padding={create_memo(move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get()))}
+            padding={move || Padding::symmetric(ROW_PADDING_HORIZONTAL, vertical.get())}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Lg>
                 <ListItem grow=1.0>
@@ -4537,11 +4535,11 @@ pub(crate) fn ThemesPage() -> NodeId {
             >
                 <ThemedSamples />
             </Sample>
-            <Show condition={windowed}>
+            {windowed.then(|| view! {
                 <Sample title="Window" code={vec![WindowSample::SOURCE]}>
                     <WindowSample />
                 </Sample>
-            </Show>
+            })}
         </ScrollPage>
     }
 }

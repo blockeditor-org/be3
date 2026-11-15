@@ -234,9 +234,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
-    let has_submenu = create_memo(move || has_submenu.get());
     let shortcut = create_memo(move || shortcut.get());
-    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let color = create_memo(move || match (disabled.get(), danger.get()) {
@@ -256,9 +254,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let has_glyph = create_memo(move || glyph.get() != LeadingMark::None || glyphs.get());
     let glyph = create_memo(move || glyph.get().glyph());
     let lead = create_memo(move || lead.get());
-    let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
-    let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
     let fill_color = create_memo(move || row_background(focused.get(), pointed.get()));
     view! {
@@ -273,7 +269,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                    <Show condition={has_lead}>
+                    <Show condition={move || !lead.get().is_empty()}>
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
                     <Show condition={has_glyph}>
@@ -284,7 +280,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             <Text color align=TextAlign::Start overflow=Overflow::Ellipsis>
                                 {label}
                             </Text>
-                            <Show condition={has_detail}>
+                            <Show condition={move || !detail.get().is_empty()}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -296,7 +292,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={has_shortcut}>
+                    <Show condition={move || !shortcut.get().is_empty()}>
                         <ListItem gap={SHORTCUT_SPACING.px()}>
                             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                                 {shortcut}
@@ -371,11 +367,8 @@ pub(crate) fn MenuTreeLead(
 ) -> DynamicSegment<ListItem> {
     let indent = indent.px();
     let depth = create_memo(move || depth.get());
-    let in_tree = create_memo(move || depth.get().is_some());
     let expanded = create_memo(move || expanded.get());
     let width = create_memo(move || Size::Custom(depth.get().unwrap_or_default() as f32 * indent));
-    let expandable = create_memo(move || expanded.get().is_some());
-    let leaf = create_memo(move || !expandable.get());
     let glyph = create_memo(move || match expanded.get() {
         Some(true) => Some(ICON_CHEVRON_DOWN),
         Some(false) => Some(ICON_CHEVRON_RIGHT),
@@ -386,12 +379,12 @@ pub(crate) fn MenuTreeLead(
         _ => "Expand".to_owned(),
     });
     view! {
-        <Show condition={in_tree}>
+        <Show condition={move || depth.get().is_some()}>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                 <Frame width />
                 <unstyled::Button
                     label
-                    disabled={leaf}
+                    disabled={move || expanded.get().is_none()}
                     tab_stop=false
                     press_focus=false
                     on_click={toggle}

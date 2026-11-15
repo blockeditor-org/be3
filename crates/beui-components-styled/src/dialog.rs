@@ -237,7 +237,7 @@ fn DialogBodyFace(
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::TITLE>{title}</Text>
                             </ListItem>
-                            <Show condition={create_memo(move || closable)}>
+                            {closable.then(|| view! {
                                 <Button
                                     icon_only=true
                                     glyph=ICON_X
@@ -247,7 +247,7 @@ fn DialogBodyFace(
                                     @test_id={named(id, "close")}
                                     on_click={dismiss}
                                 />
-                            </Show>
+                            })}
                         </List>
                     </Show>
                     {content}
@@ -264,13 +264,13 @@ fn DialogBodyFace(
 fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
     let footer = handle.footer;
     let narrow = handle.narrow;
-    let wide = create_memo(move || !narrow.get());
     let start = create_memo(move || footer.get().start);
     let end = create_memo(move || footer.get().end);
-    let leading = create_memo(move || !start.with(Vec::is_empty));
     view! {
         <List spacing=Space::None @test_id={named(id, "actions")}>
-            <Show condition={wide}>
+            <Show
+                condition={narrow}
+                fallback={move || view! {
                 <List
                     direction=Direction::Horizontal
                     align=Align::Center
@@ -281,15 +281,15 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
                     <ForEach keys={start}>|index: usize|
                         <ActionButton handle index id />
                     </ForEach>
-                    <Show condition={leading}>
+                    <Show condition={move || !start.with(Vec::is_empty)}>
                         <Spacer />
                     </Show>
                     <ForEach keys={end}>|index: usize|
                         <ActionButton handle index id />
                     </ForEach>
                 </List>
-            </Show>
-            <Show condition={narrow}>
+                }}
+            >
                 <List spacing=ACTION_SPACING>
                     <ForEach keys={end}>|index: usize|
                         <ActionButton handle index id />

@@ -26,7 +26,7 @@ pub fn Scrollbar(
     let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
         <Frame
-            padding={create_memo(move || Padding::symmetric(ends_horizontal.get(), ends_vertical.get()))}
+            padding={move || Padding::symmetric(ends_horizontal.get(), ends_vertical.get())}
         >
             <unstyled::Scrollbar
                 position
@@ -71,7 +71,7 @@ fn ScrollbarTrack(handle: ScrollbarHandle, visibility: Prop<f32>) -> NodeId {
     let bottom = inset_when(&direction, Direction::Horizontal);
 
     view! {
-        <Frame padding={create_memo(move || Padding::ZERO.right(right.get()).bottom(bottom.get()))}>
+        <Frame padding={move || Padding::ZERO.right(right.get()).bottom(bottom.get())}>
             <Frame fill={ColorRole::custom(track)} radius=Radius::Full>
                 <ScrollbarThumb position direction color radius={Size::Track.px() / 2.0} />
             </Frame>
