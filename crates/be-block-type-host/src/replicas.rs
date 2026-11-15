@@ -1919,13 +1919,11 @@ impl<H: Host> Replicas<H> {
     }
 
     /// Whether a replica in a live session waits for the server to order edits it submitted, or
-    /// one rejoining its session has local edits to submit once it has: a seal now would leave
+    /// one joining its session has local edits to submit once it has: a seal now would leave
     /// them out.
     pub fn ordering(&self) -> bool {
         self.open.values().any(|open| {
-            let edits_to_give = open.joining
-                && open.rejoining.is_some()
-                && open.replay.iter().any(Replayed::local_edit);
+            let edits_to_give = open.joining && open.replay.iter().any(Replayed::local_edit);
             edits_to_give
                 || (!open.made_up
                     && !open.joining
