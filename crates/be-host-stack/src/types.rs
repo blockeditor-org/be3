@@ -185,7 +185,7 @@ impl Guest for Crashing {
 #[cfg(all(not(test), not(target_arch = "wasm32")))]
 async fn staged(name: &str, module: &str) -> Source {
     let entry = module.to_owned();
-    be_block_type_host::modules::wasm(name, staged_tag(module).await, None, move |host| {
+    be_block_type_host::modules::wasm(name, staged_tag(module).await, move |host| {
         host.load_from(&entry, crate::discovery::open)
     })
 }

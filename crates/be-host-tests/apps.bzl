@@ -14,14 +14,12 @@ def _host_with(name, apps, libraries = "exclude"):
     program(
         name = name,
         app_types = [package + ":types" for package in packages],
-        compiled_only = True,
         data = [package + ":data" for package in packages],
         files = ["build-info.json"],
         index = libraries != "only",
         libraries = libraries,
         manifests = [package + ":manifest" for package in packages],
         modules = [package + ":module" for package in packages],
-        precompiled = "//crates/be-host:precompiled",
     )
 
 # Defines the apps each test's host stages, one :host-with-<apps> for each

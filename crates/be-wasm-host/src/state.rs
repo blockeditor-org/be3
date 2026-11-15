@@ -136,6 +136,7 @@ pub struct State {
     pub(crate) transport: Transport,
     pub(crate) threads: Arc<Spawner>,
     pub(crate) wake: Arc<Wake>,
+    pub(crate) wasi: Arc<crate::wasi::Wasi>,
     pub(crate) gpu_time: Duration,
     pub(crate) submit_time: Duration,
     pub(crate) isolate: v8::IsolateHandle,
