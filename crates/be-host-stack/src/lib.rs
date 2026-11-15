@@ -1587,6 +1587,26 @@ pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) 
     )));
 }
 
+/// Invitation codes this device made or listed as the person's own. Opening one of these links
+/// reads nothing from the server, so the inviter checking their own link never marks it opened.
+static OWN_INVITATIONS: std::sync::Mutex<Vec<be_block_keys::InviteCode>> =
+    std::sync::Mutex::new(Vec::new());
+
+fn own_invitation(code: &be_block_keys::InviteCode) {
+    let mut own = OWN_INVITATIONS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !own.contains(code) {
+        own.push(code.clone());
+    }
+}
+
+/// Whether `code` is an invitation this device made or listed as the person's own.
+pub fn is_own_invitation(code: &be_block_keys::InviteCode) -> bool {
+    OWN_INVITATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .contains(code)
+}
+
 /// An invitation in the organization's invite list.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Invite {

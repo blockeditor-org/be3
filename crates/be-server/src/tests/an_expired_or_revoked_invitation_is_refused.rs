@@ -43,7 +43,17 @@ async fn an_expired_or_revoked_invitation_is_refused() {
     assert_eq!(state(expiring), Some(InvitationState::Expired));
     assert_eq!(state(revoked), Some(InvitationState::Revoked));
     assert!(admin.links().await.is_empty());
-    // Once their retention passes, they go.
+    // One accepted that its inviter's device has not finished yet stays past its retention:
+    // the accepter is not their contact until it is.
+    let accepted = admin.invite(organization).await.unwrap();
+    assert!(matches!(invited.accept(accepted, &[]).await, Ok(())));
+    metadata_database(&harness.directory)
+        .execute(
+            "UPDATE links SET invite_ended = 1 WHERE id = ?1",
+            [accepted.to_string()],
+        )
+        .unwrap();
+    // Once their retention passes, the others go.
     metadata_database(&harness.directory)
         .execute(
             "UPDATE links SET invite_ended = 1 WHERE invite_revoked = 1;",
@@ -57,6 +67,10 @@ async fn an_expired_or_revoked_invitation_is_refused() {
         .call(|peer| client::contacts::list_invitations(peer, organization))
         .await
         .unwrap();
-    assert!(listed.is_empty(), "{listed:?}");
+    assert_eq!(
+        listed.iter().map(|row| row.id).collect::<Vec<_>>(),
+        vec![accepted],
+        "only the accepted one not yet finished stays"
+    );
     harness.stop().await;
 }

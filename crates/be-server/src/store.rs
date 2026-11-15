@@ -789,6 +789,7 @@ impl ServerStore {
             )?;
             if current == OrganizationRole::Administrator {
                 crate::keys::rotate_escrow_later(&transaction, organization, account)?;
+                crate::contacts::revoke_invitations_of(&transaction, account, organization)?;
             }
             let forgotten = forget_orphaned_block_agents(graph, &transaction, organization)?;
             transaction.commit()?;
@@ -1408,6 +1409,7 @@ fn remove_from(
         "DELETE FROM memberships WHERE organization_id = ?1 AND account_id = ?2",
         params![organization.to_string(), account.to_string()],
     )?;
+    crate::contacts::revoke_invitations_of(connection, account, organization)?;
     crate::notifications::forget_member(connection, organization, account)?;
     connection.execute(
         "DELETE FROM wrapped_keys WHERE organization_id = ?1 AND wrapped_by = ?2",
