@@ -385,6 +385,12 @@ impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
     }
 }
 
+impl<T: SlotChild> IntoSegment<T> for Option<DynamicSegment<T>> {
+    fn into_segment(self) -> ChildSegment<T> {
+        ChildSegment::Nested(self.map(IntoSegment::into_segment).into_iter().collect())
+    }
+}
+
 /// Exactly one child that control flow swaps: a `Show` with a `fallback` whose branches each
 /// build one, a `Dynamic` or a `Keyed` building one. Among a parent's run it adds no node; in
 /// a slot that takes one node it is held by a host node, a bare frame that sizes to its child
@@ -420,6 +426,14 @@ macro_rules! lazy_form {
         impl<T: SlotChild> IntoSegment<T> for $form<T> {
             fn into_segment(self) -> ChildSegment<T> {
                 ChildSegment::Dynamic(self.0)
+            }
+        }
+
+        /// Control flow built only when a value fixed when the view is built says so
+        /// (`labelled.then(|| view! { <Show ..> })`) fills a run like any `Option` of a child.
+        impl<T: SlotChild> IntoSegment<T> for Option<$form<T>> {
+            fn into_segment(self) -> ChildSegment<T> {
+                ChildSegment::Nested(self.map(IntoSegment::into_segment).into_iter().collect())
             }
         }
     };

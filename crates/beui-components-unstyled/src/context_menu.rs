@@ -187,9 +187,8 @@ pub fn ContextMenu(
                         }}
                     />
                 </Show>
-                <Show value={toolbar_open}>|| {
-                    let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
-                    view! {
+                {toolbar_style.map(|(button, panel)| view! {
+                    <Show value={toolbar_open}>
                         <Toolbar
                             @node_ref=&toolbar
                             items={toolbar_items.clone()}
@@ -202,8 +201,8 @@ pub fn ContextMenu(
                             on_more={more}
                             on_dismiss={move || on_toolbar_close.call(())}
                         />
-                    }
-                }</Show>
+                    </Show>
+                })}
             </List>
         </Interactive>
     }
