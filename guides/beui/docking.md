@@ -87,7 +87,7 @@ rebuild a body only when its document changes.
 A tab's panel is built the first time the tab is shown and belongs to the dock, not the pane: the
 dock holds one `KeepAlive` and each pane shows a panel through a `Kept` keyed by its tab (bars'
 panels likewise), so the panel keeps its nodes, scroll, caret and state when hidden, dragged,
-floated, or switched between tiled and stacked. A panel no pane shows is paused, not laid out and
+floated, or switched between tiled and stacked. A panel no view shows is paused, not laid out and
 not read by a screen reader; it is dropped once its tab leaves the dock. The panel of a tab whose
 own dock joined this one is in `KeepAlive`'s `awake`: shown as that dock's tabs, it keeps running
 and reads as shown (`kept_shown()`), so the join holds. A view of a tab's content that takes the
