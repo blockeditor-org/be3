@@ -3,12 +3,12 @@ use std::{env, error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 use be_server::{ServerConfig, backup};
 use tokio::net::TcpListener;
 
-const USAGE: &str = "\
-Usage:
+const USAGE: &str = r#"Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
             [--fcm-credentials FILE] [--push-host HOST]... [--allow-local-push-endpoints]
+            [--oidc-providers FILE]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -48,6 +48,8 @@ Usage:
                             Let Web Push endpoints be http:// and on loopback or private
                             addresses, for a test that serves one with --push-host; without,
                             an endpoint is https:// on a public address
+  --oidc-providers FILE     The OpenID Connect providers people may sign in with, as a JSON
+                            list (below); without, people sign in only by emailed code
 
 Objects are kept in DIR/objects, or, when BE_S3_ENDPOINT, BE_S3_REGION,
 BE_S3_BUCKET, BE_S3_ACCESS_KEY and BE_S3_SECRET_KEY are all set, in that bucket
@@ -75,7 +77,16 @@ out the account's other sessions. For an email with no account, using it makes
 the account, with no invite code: that is how a new server's first account is
 made. --auth-origin is the server's own. It too works while the server runs.
 
-RUST_LOG sets what is logged (default: info).";
+The providers file lists each provider as {"id", "name", "issuer", "client_id",
+"client_secret", "authoritative_email"}. The id names it in its redirect URI,
+AUTH-ORIGIN/auth/oidc/ID/callback, which the provider must allow. The issuer is
+one tenant's own: multi-tenant issuers are not supported. Only a provider marked
+authoritative_email has its verified emails trusted. {"id": "google", "preset":
+"google", "client_id", "client_secret"} stands for Google, which is. Removing a
+provider leaves the accounts that sign in only with it with no way in but
+`login-link --account ID`; the server warns of them at start.
+
+RUST_LOG sets what is logged (default: info)."#;
 
 macro_rules! assets {
     ($($name:literal: $content_type:literal),* $(,)?) => {
@@ -200,6 +211,12 @@ async fn run() -> Result<(), Box<dyn Error + Send + Sync>> {
                 let json = std::fs::read_to_string(&file)
                     .map_err(|error| format!("reading {file}: {error}"))?;
                 config.push.fcm = Some(be_server::push::FcmConfig::from_service_account(&json)?);
+            }
+            "--oidc-providers" => {
+                let file = arguments.next().ok_or("--oidc-providers needs a file")?;
+                let json = std::fs::read_to_string(&file)
+                    .map_err(|error| format!("reading {file}: {error}"))?;
+                config.providers = be_server::oidc::parse_providers(&json)?.into();
             }
             "--push-host" => {
                 let host = arguments.next().ok_or("--push-host needs a host name")?;
@@ -441,9 +458,12 @@ fn login_link(
     };
     let link = login_links::create(&data_dir, whom)?;
     println!("{origin}{}", login_links::path(&link.token));
+    let named = match (link.email.as_str(), account) {
+        ("", Some(account)) => format!("account {account}"),
+        (email, _) => email.to_owned(),
+    };
     eprintln!(
-        "a login link for {} made, good once for fifteen minutes{}",
-        link.email,
+        "a login link for {named} made, good once for fifteen minutes{}",
         if link.registers {
             "; using it makes the account"
         } else {

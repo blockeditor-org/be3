@@ -3,7 +3,7 @@
 Depends on: none.
 
 Today a remote account signs in, registers and recovers by a code mailed to its
-email, its one identity; an operator invite code gates registration
+email, or signs in with an OpenID Connect provider the operator configured; an operator invite code gates registration
 (guides/blocks/server.md, "Accounts"). Passwords are gone
 (decisions/accounts_have_no_passwords.md). The portal also changes an email
 (`email_change_link`) and lists browser sessions. Mail goes through
@@ -55,7 +55,7 @@ An account needs no email: one whose identities are only providers or passkeys
 is allowed, and those are its recovery. An account always keeps at least one
 identity; the last can't be removed, and an account with only one (a provider
 or a passkey alone) is nudged to add a second. An email verified by a provider
-the operator marks authoritative for email (step 2) becomes the account's
+the operator marks authoritative for email becomes the account's
 verified email. Where an email is shown for an account today, the contact card
 and "Connect with NAME (EMAIL)?" among them, an account with no verified email
 shows only its name.
@@ -130,55 +130,17 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 ## Steps
 
 1. **What is left of identities and emailed codes.** Codes sign in, register,
-   recover and prove (guides/blocks/server.md, Accounts). An
-   account with no email waits for the first identity that is not one (steps 2
-   and 3): until then every account that signs in has an email identity, so
-   `accounts.email` stays required, and the contact card and "Connect with NAME
-   (EMAIL)?" still show it. Making it optional, and showing only the name where
-   there is none, comes with that step.
+   recover and prove, and providers sign in (guides/blocks/server.md,
+   Accounts). An account with no email has the empty string as its `email`
+   everywhere, as a local profile does, and every client already shows only
+   the name for it (decisions/an_account_with_no_email_has_an_empty_one.md).
    The portal's two cookies (`be3-account`, `be3-attempt`) are scoped to
    `/auth` without a prefix, so a sibling subdomain could set or shadow them;
    move both to `__Host-` names with `Path=/` once development serves HTTPS or
-   the plain-HTTP setup uses a cookie name of its own.
-2. **OIDC providers.** Operator config lists providers: issuer, client id and
-   secret, and whether the provider is authoritative for email. Providers are
-   single-tenant: the issuer is the tenant's own, and a multi-tenant one
-   (Microsoft's `common` or `organizations`, whose discovery returns a templated
-   issuer) is not supported until asked. Removing a provider leaves accounts
-   whose only identity it was with no way in but `login-link --account ID`, so
-   the server warns at start, naming how many accounts it strands. Use the
-   `openidconnect` crate. Rules:
-   - Authorization code with PKCE, `state` and `nonce`, and a full ID token
-     check: signature against the provider's JWKS, `aud` and `azp`, expiry,
-     nonce. The redirect is fixed at
-     `{auth-origin}/auth/oidc/{provider}/callback`.
-   - Key on `(iss, sub)` with the configured issuer, never on email: emails
-     change, and Apple's may be a relay address.
-   - Trust `email_verified` only from providers the operator marks as
-     authoritative for email (Google). Never store or reserve an email the
-     provider has not verified. An account made through a provider needs no
-     email of its own.
-   - An authoritative provider's verified email becomes the account's verified
-     email, under the same rule as a registered one: no two accounts hold it.
-     When it matches an existing account's email, the only choices are linking,
-     after a code sent to that email, or signing in another way; it never makes
-     a second account showing that email, and never links automatically. If
-     the provider's email changes later, the stored one follows only when no
-     other account holds the new one.
-   - Otherwise a provider sign-in with no linked identity makes a new account,
-     and only a signed-in user adds a provider to an existing one, with fresh
-     proof.
-   - The portal's CSP has `form-action 'self'`, so sign-in with a provider
-     starts as a GET link to `/auth/oidc/{provider}/start`, which redirects.
-   - Registering through a provider needs the operator invite code while
-     registration needs one.
-   - GitHub is OAuth2, not OIDC; skip it until asked.
-   Done: tests against a fake OIDC provider: a token with the wrong `aud`, a
-   bad signature, an old nonce or a reused `state` is refused; an unverified
-   email links nothing; a provider email matching an account links only after
-   the emailed code and never makes a second account; a changed provider email
-   held by another account is not taken.
-3. **Passkeys.** Register and use WebAuthn credentials in the portal with
+   the plain-HTTP setup uses a cookie name of its own. An account with no
+   email is told nothing when an identity is added or removed: give it the
+   notice in the app, on its other sessions, as the rules above say.
+2. **Passkeys.** Register and use WebAuthn credentials in the portal with
    `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
    wasm, which the CSP already allows (`script-src 'self'
    'wasm-unsafe-eval'`, `connect-src 'self'`). The RP ID is the
@@ -188,7 +150,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    orphans every passkey and every provider's registered redirect URI; say so
    in guides/hosting.md. Done: tests with a software authenticator: register,
    sign in without an email, remove, and a passkey for another RP ID refused.
-4. **Invitations stop depending on email.** Today an invitation is already a
+3. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
@@ -242,7 +204,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-5. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+4. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
    redirect URIs), and the invitation lines in guides/blocks/keys.md

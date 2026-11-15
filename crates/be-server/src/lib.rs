@@ -38,12 +38,15 @@ use tokio_tungstenite::{
 pub mod backup;
 pub mod blocks;
 pub mod contacts;
+#[cfg(test)]
+mod fake_provider;
 mod http;
 pub mod journal;
 pub mod keys;
 pub mod limits;
 mod notifications;
 pub mod objects;
+pub mod oidc;
 mod organization;
 pub mod push;
 pub mod retention;
@@ -172,6 +175,8 @@ pub struct ServerConfig {
     /// Where pushes may go, and FCM's credentials when it sends through FCM
     /// (`--fcm-credentials`).
     pub push: push::PushConfig,
+    /// The OpenID Connect providers people may sign in with (`--oidc-providers`).
+    pub providers: Cow<'static, [oidc::Provider]>,
 }
 
 impl ServerConfig {
@@ -196,6 +201,7 @@ impl ServerConfig {
         bucket: None,
         public_url: None,
         push: push::PushConfig::DEFAULT,
+        providers: Cow::Borrowed(&[]),
     };
 
     pub const OPEN: Self = Self {
@@ -411,7 +417,23 @@ pub async fn serve_with_mail(
             "push services may refuse this server's pushes: set --auth-origin or --public-url to an https:// URL"
         );
     }
+    let stranded = store
+        .stranded_by_providers(
+            config
+                .providers
+                .iter()
+                .map(|provider| provider.issuer.clone())
+                .collect(),
+        )
+        .await?;
+    if stranded > 0 {
+        tracing::warn!(
+            stranded,
+            "accounts sign in only with providers this server no longer has: let one in with `be-server login-link --account ID`"
+        );
+    }
     let services = Services {
+        discovery: Arc::default(),
         pusher: push::Pusher::new(vapid, subject, &config.push),
         notifications: Arc::new(address::Rate::new(
             limits::MAX_NOTIFICATIONS_PER_MINUTE,
@@ -575,6 +597,8 @@ pub(crate) struct Services {
     s3: Option<s3s::service::S3Service>,
     /// Sends pushes to members who are not connected.
     pusher: Arc<push::Pusher>,
+    /// The providers' discovery documents.
+    discovery: Arc<oidc::Discovery>,
     /// Notifications each account sent this minute.
     notifications: Arc<address::Rate<uuid::Uuid>>,
     /// Notifications each account sent about each block this minute.
