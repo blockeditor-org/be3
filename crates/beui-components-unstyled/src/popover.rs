@@ -1,6 +1,7 @@
 use accesskit::{HasPopup, Node, Role};
 use beui_macros::{component, view};
-use beui_view::components::overlay::use_modal;
+use beui_view::components::overlay::{use_modal, use_overlay_presence};
+use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::types::LayerPolicy;
 use beui_view::types::icons::Glyph;
 
@@ -94,6 +95,7 @@ pub fn Popover(
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     });
     view! {
+        <KeepAlive>
         <List spacing=0.0>
             <PopupTrigger
                 @node_ref=&trigger_ref
@@ -120,23 +122,35 @@ pub fn Popover(
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
                 open={move || open.get()}
-                keep_alive=true
                 on_dismiss={move || {
                     open.set(false);
                     if refocus_trigger.get_untracked() {
                         refocus.set(true);
                     }
                 }}
-            >|handle: AnchoredHandle|
-                <PopoverSurface label>
-                    {content.call(PopoverHandle {
-                        open,
-                        shown: handle.shown,
-                        close,
-                    })}
-                </PopoverSurface>
-            </Anchored>
+            >|handle: AnchoredHandle| {
+                // Built the first time it opens, as a dropdown or as a sheet, and kept, paused,
+                // while closed; it carries the overlay's presence, which it reads.
+                let overlay = use_overlay_presence();
+                view! {
+                    <Kept key={handle.sheet}>|| {
+                        if let Some(overlay) = overlay {
+                            overlay.provide();
+                        }
+                        view! {
+                            <PopoverSurface label>
+                                {content.call(PopoverHandle {
+                                    open,
+                                    shown: handle.shown,
+                                    close,
+                                })}
+                            </PopoverSurface>
+                        }
+                    }</Kept>
+                }
+            }</Anchored>
         </List>
+        </KeepAlive>
     }
 }
 

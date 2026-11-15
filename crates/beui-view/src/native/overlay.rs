@@ -9,7 +9,6 @@ use crate::reactive::Set;
 use crate::reactive::create_binding;
 use crate::reactive::create_effect;
 use crate::reactive::owner_scope;
-use crate::reactive::provide_context;
 use crate::reactive::store;
 use crate::reactive::untrack;
 use crate::types::Rect;
@@ -27,7 +26,8 @@ use std::cell::RefCell;
 
 struct Mounted {
     content: NodeId,
-    scope: Scope,
+    /// Owns the content while it is shown; dropping it disposes the content.
+    _scope: Scope,
 }
 
 pub(crate) fn overlay(
@@ -44,7 +44,6 @@ pub(crate) fn overlay(
     pointer: Option<NodeRef>,
     beak: Prop<f32>,
     window: Prop<Option<WindowSpec>>,
-    keep_alive: bool,
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
@@ -108,25 +107,16 @@ pub(crate) fn overlay(
             let mut held = held.borrow_mut();
             if shown {
                 let content = match held.as_ref() {
-                    Some(held) => {
-                        if keep_alive {
-                            held.scope.resume();
-                        }
-                        held.content
-                    }
+                    Some(held) => held.content,
                     None => {
-                        let scope = owner.run(|| match keep_alive {
-                            true => Scope::detached().pausable(),
-                            false => Scope::detached(),
-                        });
+                        let scope = owner.run(Scope::detached);
                         let built = scope.context().run(|| {
-                            provide_context(presence);
-                            provide_context(presence.modality());
+                            presence.provide();
                             content.call(())
                         });
                         *held = Some(Mounted {
                             content: built,
-                            scope,
+                            _scope: scope,
                         });
                         built
                     }
@@ -141,17 +131,8 @@ pub(crate) fn overlay(
                 document.close_overlay(overlay);
                 document.set_overlay_content(overlay, None);
             });
-            match keep_alive {
-                true => {
-                    if let Some(held) = held.as_ref() {
-                        held.scope.pause();
-                    }
-                }
-                false => {
-                    presence.lingering().update(Vec::clear);
-                    drop(held.take());
-                }
-            }
+            presence.lingering().update(Vec::clear);
+            drop(held.take());
         });
     });
     overlay.id()

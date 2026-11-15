@@ -3,6 +3,7 @@ use beui_view::types::{Dismiss, LayerLevel, LayerPolicy};
 
 use super::back_slide::{BackSlide, SlideCurves};
 use beui_view::components::overlay::{Overlay, use_overlay_presence};
+use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::OverlayAnchor;
 use beui_view::reactive::*;
@@ -98,11 +99,24 @@ pub fn Modal(
         ModalPlacement::Fill => Placement::Fill,
         ModalPlacement::Sheet => Placement::Edge(LayerEdge::Bottom),
     };
+    // The body is built the first time the modal opens and kept, paused, while it is closed.
+    // It reads the overlay's presence, which a kept subtree does not see unless it carries it.
+    let content = move || {
+        let overlay = use_overlay_presence();
+        view! {
+            <Kept>|| {
+                if let Some(overlay) = overlay {
+                    overlay.provide();
+                }
+                body.call(())
+            }</Kept>
+        }
+    };
     view! {
+        <KeepAlive>
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
             open={open}
-            keep_alive=true
             placement=placed
             scrim={move || scrim.get().scale_alpha(presence.get())}
             level={level}
@@ -112,7 +126,8 @@ pub fn Modal(
                 false => LayerPolicy::BlocksAll,
             }}
             on_dismiss={move |_: Dismiss| on_dismiss.call(())}
-            content={move || body.call(())}
+            content={content}
         />
+        </KeepAlive>
     }
 }
