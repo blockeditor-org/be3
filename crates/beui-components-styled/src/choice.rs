@@ -8,7 +8,6 @@ use crate::list::List;
 use crate::select::Select;
 use crate::tokens::{Padding, Size, Space, Stroke};
 use beui_components_unstyled::{ChoiceOption, ChoiceOptionHandle, FirstFit};
-use beui_view::primitives::Layers;
 use beui_view::reactive::*;
 
 use crate::text::{Text, TextColor};
@@ -63,9 +62,9 @@ fn ChoiceLabel(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=MARK_SPACING>
-            <Show condition={kind == Kind::Radio}>
+            {(kind == Kind::Radio).then(|| view! {
                 <RadioMark checked={checked} />
-            </Show>
+            })}
             <ListItem grow=1.0>
                 <Text overflow=Overflow::Ellipsis color align>{label}</Text>
             </ListItem>
@@ -85,16 +84,14 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             radius=Radius::Full
             align=Align::Center
         >
-            <Layers>
-                <Show condition={checked}>
-                    <Frame
-                        width=MARK_DOT
-                        height=MARK_DOT
-                        fill=ColorRole::Accent
-                        radius=Radius::Full
-                    />
-                </Show>
-            </Layers>
+            <Show condition={checked}>
+                <Frame
+                    width=MARK_DOT
+                    height=MARK_DOT
+                    fill=ColorRole::Accent
+                    radius=Radius::Full
+                />
+            </Show>
         </Frame>
     }
 }

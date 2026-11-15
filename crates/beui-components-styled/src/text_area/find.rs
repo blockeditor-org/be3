@@ -55,7 +55,6 @@ fn FindBarRows(state: TextAreaState, read_only: Memo<bool>) -> NodeId {
     let case_sensitive = state.find().case_sensitive;
     let focus_query = state.find().focus_query;
     let show_replace = state.find().show_replace;
-    let show_replace = create_memo(move || show_replace.get() && !read_only.get());
     view! {
         <Frame fill=ColorRole::Surface>
             <List spacing=Space::None>
@@ -107,7 +106,7 @@ fn FindBarRows(state: TextAreaState, read_only: Memo<bool>) -> NodeId {
                         />
                     </List>
                 </Frame>
-                <Show condition={show_replace}>
+                <Show condition={move || show_replace.get() && !read_only.get()}>
                     <ReplaceRow state={state} no_current={no_current} no_matches={no_matches} />
                 </Show>
             </List>

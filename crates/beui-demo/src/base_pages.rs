@@ -64,14 +64,14 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={create_memo(move || Some(Outline::new(theme.text.get(), 2.0)))}
+                outline={move || Some(Outline::new(theme.text.get(), 2.0))}
                 radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
                 fill={theme.control}
-                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
+                outline={move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0))}
                 radius=8.0
             />
             <Frame
@@ -1002,7 +1002,7 @@ fn AnchoredOverlay() -> NodeId {
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -1051,7 +1051,7 @@ fn FloatingWindow() -> NodeId {
                 <Frame
                     @test_id="demo.window.panel"
                     fill={theme.surface}
-                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
@@ -1116,7 +1116,7 @@ fn PopupWindow() -> NodeId {
                     <Frame
                         @test_id="demo.popup.panel"
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -1143,7 +1143,7 @@ fn PopupWindow() -> NodeId {
                                 <Frame
                                     @test_id="demo.popup.inner"
                                     fill={theme.control}
-                                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                                     radius={Radius::Md.px()}
                                     padding=12.0
                                 >
@@ -1225,13 +1225,13 @@ fn AnimationSample() -> NodeId {
             />
             <Text color={theme.text}>"Tween"</Text>
             <Frame
-                width={create_memo(move || position.get() + 20.0)}
+                width={move || Extent::px(position.get() + 20.0)}
                 height=12.0
                 fill={theme.accent}
             />
             <Text color={theme.text}>"Spring"</Text>
             <Frame
-                width={create_memo(move || spring_position.get() + 20.0)}
+                width={move || Extent::px(spring_position.get() + 20.0)}
                 height=12.0
                 fill={theme.success}
             />

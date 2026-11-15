@@ -94,7 +94,7 @@ pub(crate) fn PopupButtonFace(
             size
             image
             trailing_glyph={trailing}
-            pressed={create_memo(move || open.get())}
+            pressed={open}
             placeholder
             leading
         />

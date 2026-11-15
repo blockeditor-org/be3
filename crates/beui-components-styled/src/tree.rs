@@ -473,7 +473,7 @@ fn ChevronFace(
                     width={width}
                     height={height}
                     fill={fill}
-                    border={create_memo(move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    border={move || marked.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
                     focus={focused}
                     radius=CHEVRON_RADIUS
                 >

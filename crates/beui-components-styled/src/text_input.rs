@@ -113,8 +113,6 @@ fn TextInputFrame(
         clear,
         copy,
     } = handle;
-    let clearable = create_memo(move || clearable.get() && !empty.get());
-    let marked = create_memo(move || glyph.get().is_some());
     let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
     let border = create_memo(move || {
         raised
@@ -128,7 +126,7 @@ fn TextInputFrame(
     });
     view! {
         <Frame
-            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(Stroke::Focus)))}
+            border={move || focused.get().then_some(Border::FOCUS.offset(Stroke::Focus))}
             radius=Radius::Md
         >
             <Frame
@@ -148,7 +146,7 @@ fn TextInputFrame(
                     }}
                     spacing=Space::None
                 >
-                    <Show condition={marked}>
+                    <Show condition={move || glyph.get().is_some()}>
                         <Frame padding={Padding::ZERO.left(PADDING_HORIZONTAL)}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
@@ -156,7 +154,7 @@ fn TextInputFrame(
                         </Frame>
                     </Show>
                     <ListItem grow=1.0>{field}</ListItem>
-                    <Show condition={clearable}>
+                    <Show condition={move || clearable.get() && !empty.get()}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true

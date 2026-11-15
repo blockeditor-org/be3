@@ -67,12 +67,6 @@ fn ActionBarFace(
         })
     };
     let (icon_keys, label_keys) = (keys(icons), keys(labelled));
-    let divided = create_memo(move || {
-        labels == ActionLabels::Shown
-            && icons.with(|icons| !icons.is_empty())
-            && labelled.with(|labelled| !labelled.is_empty())
-    });
-    let offered = create_memo(move || overflow.with(|items| !items.is_empty()));
     let prefix = test_prefix.clone();
     let pin = move |actions: Memo<Vec<Action>>, key: u64, shown: bool| {
         let action = actions
@@ -92,7 +86,11 @@ fn ActionBarFace(
     view! {
         <List direction=direction align=Align::Center spacing=SPACING>
             <ForEach keys={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
-            <Show condition={divided}>
+            <Show condition={move || {
+                labels == ActionLabels::Shown
+                    && icons.with(|icons| !icons.is_empty())
+                    && labelled.with(|labelled| !labelled.is_empty())
+            }}>
                 <Frame padding={Padding::horizontal(DIVIDER_MARGIN)}>
                     <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>
@@ -100,7 +98,7 @@ fn ActionBarFace(
             <ForEach keys={label_keys}>|key: u64| {
                 labelled_pin(labelled, key, labels == ActionLabels::Shown)
             }</ForEach>
-            <Show condition={offered}>
+            <Show condition={move || overflow.with(|items| !items.is_empty())}>
                 <MenuButton
                     icon_only=true
                     variant=ButtonVariant::Ghost
@@ -157,9 +155,8 @@ fn ActionPin(action: Action, labelled: bool, size: ButtonSize, prefix: String) -
                     icon_only,
                     tooltip,
                 };
-                let pressed = create_memo(move || checked.get());
                 view! {
-                    <ButtonFace handle={face} variant size pressed={pressed} />
+                    <ButtonFace handle={face} variant size pressed={checked} />
                 }
             }</unstyled::Toggle>
         },

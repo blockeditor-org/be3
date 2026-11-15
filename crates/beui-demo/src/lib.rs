@@ -618,8 +618,8 @@ fn DemoShell() -> NodeId {
                                     view! {
                                         <DockTab
                                             id={document.key()}
-                                            title={create_memo(move || page.get().title().to_owned())}
-                                            icon={create_memo(move || page.get().icon().to_owned())}
+                                            title={move || page.get().title().to_owned()}
+                                            icon={move || page.get().icon().to_owned()}
                                             on_close={move || pages.close(document)}
                                         >
                                             <DockDocumentBody document>|page: ReadSignal<Page>|
@@ -772,11 +772,10 @@ fn DemoToolbar(pages: Pages) -> NodeId {
         )
     });
     let narrow = narrower_than(NARROW_WIDTH);
-    let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
-            <Show condition={wide}>
+            <Show condition={move || !narrow.get()}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer />

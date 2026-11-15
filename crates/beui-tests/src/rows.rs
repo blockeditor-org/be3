@@ -38,7 +38,7 @@ pub fn RowsFixture() -> NodeId {
                     }}
                     on_click={move || chosen.set("Export".to_owned())}
                 />
-                <Progress value={create_memo(|| Some(0.5_f32))} label="Working" />
+                <Progress value={Some(0.5_f32)} label="Working" />
             </List>
             <Text>{report}</Text>
         </List>
@@ -119,11 +119,10 @@ pub fn ScrollChainFixture() -> NodeId {
 pub fn DragFixture() -> NodeId {
     let dropped = create_signal(String::from("nothing"));
     let report = create_memo(move || format!("Dropped {}", dropped.get()));
-    let apple = create_memo(|| Some("apple".to_owned()));
     view! {
         <List spacing=Space::Xl>
             <Draggable
-                payload={apple}
+                payload={Some("apple".to_owned())}
                 preview={|fruit: String| view! {
                     <Text>{fruit}</Text>
                 }}
@@ -147,7 +146,7 @@ pub fn DragFixture() -> NodeId {
             <Frame width=Size::Custom(200.0) height=Size::Custom(120.0)>
                 <Scroll>
                     <Draggable
-                        payload={create_memo(|| Some("pear".to_owned()))}
+                        payload={Some("pear".to_owned())}
                         preview={|fruit: String| view! {
                             <Text>{fruit}</Text>
                         }}
