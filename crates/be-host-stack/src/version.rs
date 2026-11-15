@@ -11,7 +11,7 @@ use be_block::{
     version_control::{Action, Kept, Operation, View, masked, scope_mask},
 };
 use be_block_client::{ClientError, Peer, Saved, Write};
-use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
+use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, MergeBase, now_milliseconds};
 use be_block_content::{
     BlockContent, BlockMetadata, Root,
     be_block_model::{Document, Model},
@@ -33,6 +33,10 @@ use super::worker::{Shared, Store, node_of};
 pub(super) use reach::{LoopCall, LoopCalls, Reach};
 
 const LOG_LENGTH: usize = 100;
+/// How many levels of a block's history on each side a write of a block that moved walks to
+/// find the two heads' common ancestor (`merge_over`), before it takes the head it read as the
+/// base.
+pub(crate) const MERGE_BASE_DEPTH: usize = 64;
 
 #[derive(Default)]
 pub struct VersionState {
@@ -2494,8 +2498,10 @@ fn merge_defined(
 
 /// `ours`, made from `block`'s content at `made_from` (or from `read_content`, when that head
 /// is not known or shares no history with `theirs`), merged with its content at `theirs`:
-/// the merge written, its references and derived metadata. `None` when there is nothing to
-/// merge: `theirs` is what `made_from` was built on, an edit of this device not sent yet.
+/// the merge written, its references and derived metadata. The base is the two heads' common
+/// ancestor within `MERGE_BASE_DEPTH` levels of each, or else `made_from`. `None` when there
+/// is nothing to merge: `theirs` is what `made_from` was built on, an edit of this device not
+/// sent yet.
 async fn merge_over(
     context: &mut Context<'_>,
     block: Uuid,
@@ -2510,17 +2516,20 @@ async fn merge_over(
         .ok_or("Version control does not know a block it writes.")?;
     let base = match made_from {
         Some(made_from) => {
-            context.peer.fetch_history(theirs).await.map_err(failed)?;
-            context
+            let base = match context
                 .peer
-                .fetch_history(made_from)
+                .merge_base(made_from, theirs, MERGE_BASE_DEPTH)
                 .await
-                .map_err(failed)?;
-            let commits = context.peer.commits();
-            if commits.is_ancestor(theirs, made_from).map_err(stored)? {
-                return Ok(None);
-            }
-            match commits.common_ancestor(made_from, theirs).map_err(stored)? {
+                .map_err(failed)?
+            {
+                MergeBase::Behind => return Ok(None),
+                MergeBase::Base(base) => Some(base),
+                // Edits made while the command ran reach this deep only on top of the head it
+                // read, which is then their common ancestor.
+                MergeBase::TooDeep => Some(made_from),
+                MergeBase::Unrelated => None,
+            };
+            match base {
                 Some(base) => Some(
                     context
                         .peer

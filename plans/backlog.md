@@ -40,13 +40,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
   another (`ClickCounter`). Done: a touch in one window never joins a gesture in
   another, shown by a beui-core test with two windows' touches.
 
-## 9. Version control's caches
-
-- **A bounded walk to the merge base.** A version command's write of a block that moved
-  (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
-  the device holds of each, up to four times a write. Done: the walk stops at a depth past
-  which the command falls back to the head it read as the base.
-
 ## 10. Search
 
 - **Compaction past the byte cap.** A writer's compaction makes no merge reading more than
