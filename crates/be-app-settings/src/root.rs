@@ -11,7 +11,7 @@ mod storage;
 mod ui;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::beui::styled::{Frame, List, Space};
+use be_sdk_beui::beui::styled::Frame;
 use block::{BlockSettingsView, is_block_settings};
 use devices::DevicesPage;
 use organization::{OfflinePage, OrganizationPage};
@@ -42,27 +42,19 @@ impl be_sdk_beui::BeuiRoot for SettingsRoot {
         view! {
             <Root>
                 <Loaded>
-                    <List spacing=Space::None>
-                        <Dynamic value={shown}>|shown: Option<Option<Uuid>>| {
-                            match shown {
-                                Some(Some(owner)) => view! {
-                                    <ListItem grow=1.0>
-                                        <BlockSettingsView editor={editor} owner={owner} />
-                                    </ListItem>
-                                },
-                                Some(None) => view! {
-                                    <ListItem grow=1.0>
-                                        <SettingsView editor={editor} />
-                                    </ListItem>
-                                },
-                                None => view! {
-                                    <ListItem grow=1.0>
-                                        <Frame />
-                                    </ListItem>
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
+                    <Dynamic
+                        value={shown}
+                        fallback={|| view! { <Frame /> }}
+                    >|owner: Option<Uuid>| {
+                        match owner {
+                            Some(owner) => view! {
+                                <BlockSettingsView editor={editor} owner={owner} />
+                            },
+                            None => view! {
+                                <SettingsView editor={editor} />
+                            },
+                        }
+                    }</Dynamic>
                 </Loaded>
             </Root>
         }

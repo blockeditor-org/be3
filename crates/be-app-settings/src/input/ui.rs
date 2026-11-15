@@ -47,15 +47,10 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let reach = editor.watch::<InputReachWatch>();
     let keyboard = create_memo(move || reach.get().keyboard);
     let pasting = create_memo(move || reach.get().middle_click_paste);
-    let elsewhere = create_memo(move || !keyboard.get() && !pasting.get() && !pointers.get());
-    let keyboard_reach = create_memo(move || match pointers.get() {
-        true => String::new(),
-        false => "For the programs this desktop runs.".to_owned(),
-    });
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
-            <Show condition={elsewhere}>
+            <Show condition={move || !keyboard.get() && !pasting.get() && !pointers.get()}>
                 <SettingsSection title="Input">
                     <SettingsRow
                         label="These settings take effect in a desktop session on Linux, and this session is not one."
@@ -63,7 +58,13 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                 </SettingsSection>
             </Show>
             <Show condition={keyboard}>
-                <SettingsSection title="Keyboard" description={keyboard_reach}>
+                <SettingsSection
+                    title="Keyboard"
+                    description={move || match pointers.get() {
+                        true => String::new(),
+                        false => "For the programs this desktop runs.".to_owned(),
+                    }}
+                >
                     <TextSetting
                         label="Layout"
                         description="XKB names, like us, de or us,de."
@@ -131,7 +132,6 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         description="Lets programs paste the text last selected in them with the middle button."
                         row={paste_row}
                         on={paste_on}
-                        mixed={create_memo(|| false)}
                         read_only={read_only}
                         id={"middle-click-paste".to_owned()}
                         separated=false
@@ -221,7 +221,6 @@ fn Pointers(
     let keys = create_memo(move || {
         devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
     });
-    let none = create_memo(move || devices.with(Vec::is_empty));
     let chosen = create_signal(None::<DeviceKey>);
     let scope = create_memo(move || {
         chosen
@@ -235,10 +234,10 @@ fn Pointers(
             .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
         Some(index.map_or(0, |index| index + 1))
     });
-    let description = create_memo(move || match none.get() {
+    let description = move || match devices.with(Vec::is_empty) {
         true => "No pointer is connected to this session.".to_owned(),
         false => String::new(),
-    });
+    };
     view! {
         <SettingsSection title="Pointers" description={description}>
             <SettingsRow label="Change" description="Every pointer at once, or one on its own.">
@@ -343,7 +342,6 @@ fn PointerRows(
         FieldState { mixed: true, .. } => "Mixed".to_owned(),
         state => format!("{:+.2}", state.value),
     });
-    let has_speed = create_memo(move || speed.get().supported);
     let (tap_on, tap_mixed, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, has_natural) = switch_state(natural);
     let (speed_row, tap_row, natural_row) = (
@@ -367,7 +365,7 @@ fn PointerRows(
                     read_only={read_only}
                 />
             </ForEach>
-            <Show condition={has_speed}>
+            <Show condition={move || speed.with(|speed| speed.supported)}>
                 <SliderSetting
                     label="Speed"
                     description="How far the pointer moves for each movement of the device."
@@ -444,7 +442,7 @@ fn DisplayChoice(
                 .map(|(_, name)| name.clone())
         })
     };
-    let automatic = create_memo(move || {
+    let automatic = move || {
         let lands = devices.with(|devices| {
             devices
                 .iter()
@@ -456,7 +454,7 @@ fn DisplayChoice(
             .and_then(|id| name_of(&id))
             .unwrap_or_else(|| "every display".to_owned());
         format!("Automatic ({place})")
-    });
+    };
     let selected = create_memo(move || {
         let chosen = effective.with(|effective| effective.display(&device).map(str::to_owned));
         let index = chosen
@@ -557,9 +555,7 @@ fn TextSetting(
                         }
                     })}
                     label={label}
-                    placeholder={create_memo(move || {
-                        inherited.get().unwrap_or_else(|| "Default".to_owned())
-                    })}
+                    placeholder={move || inherited.get().unwrap_or_else(|| "Default".to_owned())}
                     disabled={read_only}
                     @test_id={format!("input.{id}")}
                 />
@@ -614,7 +610,7 @@ fn SwitchSetting(
     description: &'static str,
     row: SettingHandle,
     on: Memo<bool>,
-    mixed: Memo<bool>,
+    #[prop(default = false)] mixed: Prop<bool>,
     read_only: Memo<bool>,
     id: String,
     #[prop(default = true)] separated: bool,

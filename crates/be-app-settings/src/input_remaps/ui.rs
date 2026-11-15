@@ -47,7 +47,6 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         read_only,
     };
     let toml = create_signal(false);
-    let editing = create_memo(move || !toml.get());
     let status = create_memo(move || {
         match device.get() {
             RemapState::Off => "This device runs no remaps.",
@@ -78,10 +77,10 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                     <Switch on={toml} label="Edit as TOML" @test_id={"input-remaps.toml"} />
                 </SettingsRow>
             </SettingsSection>
-            <Show condition={editing}>
-                <EditorTab shared={shared} editor={editor} />
-            </Show>
-            <Show condition={toml}>
+            <Show
+                condition={toml}
+                fallback={move || view! { <EditorTab shared={shared} editor={editor} /> }}
+            >
                 <TomlTab shared={shared} />
             </Show>
         </SettingsPage>
