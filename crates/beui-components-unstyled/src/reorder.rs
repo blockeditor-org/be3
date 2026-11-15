@@ -16,7 +16,14 @@ use beui_view::types::{
 };
 
 use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
-use crate::glide::{GLIDE_SPRING, Glide, GlideApi, GlideHold};
+use crate::glide::{Glide, GlideApi, GlideHold};
+
+/// The spring rows and gaps settle by. It becomes a required prop once a styled
+/// `Reorder` can forward this one's optional props (plans/glide_on_a_signal.md).
+const SPRING: Spring = Spring {
+    stiffness: 500.0,
+    damping: 42.0,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReorderMove<K, P> {
@@ -447,7 +454,9 @@ where
     P: Clone + PartialEq + 'static,
 {
     let frames = stored.with(|state| {
-        state.visited.set(visited);
+        if state.visited.get_untracked() != visited {
+            state.visited.set(visited);
+        }
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {
@@ -495,7 +504,7 @@ where
             let aim = state.aim.get();
             let mut offset = shown.size - aim;
             let mut speed = state.speed.get();
-            GLIDE_SPRING.advance(&mut offset, &mut speed, seconds);
+            SPRING.advance(&mut offset, &mut speed, seconds);
             state.speed.set(speed);
             shown.size = (aim + offset).max(0.0);
             let moving = offset != 0.0 || speed != 0.0;
@@ -980,7 +989,7 @@ where
     );
     state.with(|state| state.frames.set(Some(frames)));
     create_effect(move || {
-        keys.track();
+        keys.with(|_| ());
         state.with(|state| {
             if state.settling.replace(false) {
                 shut(state);
@@ -1233,7 +1242,7 @@ where
     };
     let api = ComponentRef::<GlideApi>::new();
     let inner = view! {
-        <Glide arm={Some(arm)} within={Some(api)}>
+        <Glide spring=SPRING on={arm} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
@@ -1257,7 +1266,7 @@ where
     };
     let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row api arm={Some(arm)} from={from} raised={raised}>
+        <Glide @node_ref=&row api spring=SPRING on={arm} from={from} raised={raised}>
             <Frame padding={padding}>{inner}</Frame>
         </Glide>
     };

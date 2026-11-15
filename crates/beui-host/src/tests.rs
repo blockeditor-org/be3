@@ -245,6 +245,7 @@ mod a_gathered_pane_folds_to_its_tabs_and_unfolds_for_a_tab;
 mod a_glide_armed_by_a_reorder_paints_where_it_was_and_springs_to_its_new_place;
 mod a_glide_handed_a_starting_point_settles_from_it;
 mod a_glide_moved_again_mid_flight_carries_on_from_where_it_is;
+mod a_glide_on_a_trigger_glides_a_row_pushed_down_by_what_grows_above_it;
 mod a_glide_snaps_when_unarmed_or_when_animations_are_off;
 mod a_global_action_runs_from_a_text_field_inside_an_open_palette;
 mod a_global_key_whose_release_was_lost_does_not_swallow_the_next_press;
@@ -2989,13 +2990,13 @@ pub(crate) fn gliding_rows(
         view! {
             <List spacing=0.0>
                 <ForEach value={order}>|key: u64|
-                    <unstyled::Glide @test_id={format!("slot.{key}")} arm={Some(arm)}>
+                    <styled::Glide @test_id={format!("slot.{key}")} on={arm}>
                         <Frame
                             @test_id={format!("row.{key}")}
                             height=GLIDE_ROW
                             fill={Color32::from_rgb((key * 40 % 256) as u8, 90, 160)}
                         />
-                    </unstyled::Glide>
+                    </styled::Glide>
                 </ForEach>
             </List>
         }
@@ -3015,9 +3016,9 @@ pub(crate) fn scrolled_gliding_rows(
                 <Offset offset={scrolled}>
                     <List spacing=0.0>
                         <ForEach value={order}>|key: u64|
-                            <unstyled::Glide @test_id={format!("slot.{key}")} arm={Some(arm)}>
+                            <styled::Glide @test_id={format!("slot.{key}")} on={arm}>
                                 <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
-                            </unstyled::Glide>
+                            </styled::Glide>
                         </ForEach>
                     </List>
                 </Offset>

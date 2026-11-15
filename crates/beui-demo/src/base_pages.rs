@@ -11,7 +11,7 @@ use beui::primitives::Text;
 use beui::primitives::{Grid, List};
 use beui::reactive::Painter;
 use beui::unstyled::FirstFit;
-use beui::unstyled::Glide;
+use beui::styled::Glide;
 use beui::{Align, Align2, Corners, Dismiss, Extent, Justify, Outline, Placement, Track};
 use beui::{Color, Pos2, vec2};
 use beui::{FillRule, LineCap, LineJoin, Path, Stroke};
@@ -989,7 +989,7 @@ fn GlidingPlanets() -> NodeId {
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
                 <ForEach value={order}>|planet: usize|
-                    <Glide arm={Some(moved)}>
+                    <Glide on={moved}>
                         <Tile label={PLANETS[planet].to_owned()} />
                     </Glide>
                 </ForEach>

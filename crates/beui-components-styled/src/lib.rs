@@ -20,6 +20,7 @@ pub mod date_time_field;
 pub mod dialog;
 pub mod focus_ring;
 pub mod frame;
+pub mod glide;
 pub mod fullscreen;
 pub mod key_cap;
 pub mod link;
@@ -108,6 +109,8 @@ pub use dialog::{
 };
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius};
+pub use beui_components_unstyled::{GlideApi, GlideHold};
+pub use glide::Glide;
 pub use fullscreen::Fullscreen;
 pub use key_cap::KeyCap;
 pub use link::Link;
