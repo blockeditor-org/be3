@@ -61,7 +61,7 @@ impl ServerKey {
         let account = Uuid::new_v4();
         let secret = RecoverySecret::from_bytes(random_secret());
         connection.execute(
-            "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '!')",
+            "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
             params![
                 account.to_string(),
                 format!("server-{}@server.invalid", account.simple()),

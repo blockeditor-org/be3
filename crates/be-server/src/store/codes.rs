@@ -9,7 +9,7 @@
 //!
 //! Strangers can't spend the owner's mail: requests are capped per address (an IPv6 /64) and
 //! per network (an IPv6 /48), and an account's own budget counts only requests from addresses
-//! that never signed in to it (`Passwords::known`). A request for an email with no account does
+//! that never signed in to it (`Remembered::known`). A request for an email with no account does
 //! the same work and sends nothing.
 
 use super::*;
@@ -37,6 +37,8 @@ pub const CODES_PER_ACCOUNT: i64 = 20;
 /// registration and email-change links (`portal::MAX_MAIL_LINKS`): only holders of an invite
 /// code can take one.
 pub const MAX_REGISTRATION_CODES: i64 = 1024;
+/// Registration codes one invite code may have waiting at once.
+pub const REGISTRATION_CODES_PER_INVITE: i64 = 8;
 /// How long a proof stays fresh for account changes.
 pub const FRESH_PROOF: i64 = 600;
 
@@ -232,14 +234,14 @@ impl ServerStore {
             portal::validate_name(request.display_name)?;
         }
         let invite = invite_codes::invite_hash(request.invite);
-        let address = passwords::address_key(request.address);
+        let address = crate::address::address_key_text(request.address);
         let network = network_key(request.address);
         let attempt = hash_token(request.attempt);
         let name = request.display_name.trim().to_owned();
         let device_code = request.device_code.to_owned();
         let asking = request.account;
         let public = public_attempt(request.attempt);
-        let known_email = self.passwords.known(&email, request.address);
+        let known_email = self.remembered.known(&email, request.address);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let now = now();
@@ -264,7 +266,7 @@ impl ServerStore {
                         params![invite, now],
                         |row| row.get(0),
                     )?;
-                    if waiting >= portal::MAX_MAIL_LINKS_PER_INVITE {
+                    if waiting >= REGISTRATION_CODES_PER_INVITE {
                         return Err(refused(
                             "Invite code: too many registrations with this code are waiting on their email. Try again after they expire.",
                         ));
@@ -416,7 +418,7 @@ impl ServerStore {
                         invite_codes::spend(&transaction, &invite)?;
                         let account = Uuid::new_v4();
                         transaction.execute(
-                            "INSERT INTO accounts (id, email, display_name, password_hash) VALUES (?1, ?2, ?3, '')",
+                            "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
                             params![account.to_string(), email, name],
                         )?;
                         add_email_identity(&transaction, &account.to_string(), &email)?;
@@ -442,8 +444,6 @@ impl ServerStore {
                     }
                     _ => {
                         if purpose == CodePurpose::Recover {
-                            // The account may be in someone else's hands: its password goes too.
-                            transaction.execute("UPDATE accounts SET password_hash = '' WHERE id = ?1", [account.to_string()])?;
                             transaction.execute("DELETE FROM sessions WHERE account_id = ?1", [account.to_string()])?;
                             transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [account.to_string()])?;
                         }
@@ -463,7 +463,7 @@ impl ServerStore {
             })
             .await;
         let (entered, email) = entered_code?;
-        self.passwords.remember(&email, address, Instant::now());
+        self.remembered.remember(&email, address, Instant::now());
         Ok(entered)
     }
 

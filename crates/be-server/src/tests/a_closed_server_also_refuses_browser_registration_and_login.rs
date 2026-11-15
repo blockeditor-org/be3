@@ -3,7 +3,7 @@ use super::*;
 async fn a_closed_server_also_refuses_browser_registration_and_login() {
     let harness = Harness::configured(ServerConfig::default()).await;
     let mut browser = Browser::default();
-    for action in ["login", "register", "forgot", "verify", "reset", "approve"] {
+    for action in ["code/send", "register", "enter", "verify", "approve"] {
         let (status, _) = browser
             .submit(
                 &harness,
@@ -11,8 +11,8 @@ async fn a_closed_server_also_refuses_browser_registration_and_login() {
                 &format!("/auth/{action}"),
                 &[
                     ("email", "ada@example.com"),
-                    ("password", "correct horse battery"),
-                    ("confirmation", "correct horse battery"),
+                    ("display_name", "Ada"),
+                    ("email_code", "23456789"),
                 ],
             )
             .await;

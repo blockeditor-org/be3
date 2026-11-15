@@ -115,8 +115,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             let contact = Uuid::new_v4().to_string();
             transaction
                 .execute(
-                    "INSERT INTO accounts (id, email, display_name, password_hash)
-                     VALUES (?1, ?1, 'Contact', '!')",
+                    "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?1, 'Contact')",
                     [&contact],
                 )
                 .unwrap();

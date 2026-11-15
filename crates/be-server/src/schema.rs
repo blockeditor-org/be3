@@ -14,7 +14,6 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         email           TEXT NOT NULL UNIQUE,
         display_name    TEXT NOT NULL,
-        password_hash   TEXT NOT NULL,
         local_profile   INTEGER NOT NULL DEFAULT 0
     );
 
@@ -63,12 +62,8 @@ const SCHEMA: &str = "
         purpose TEXT NOT NULL,
         account_id TEXT NOT NULL DEFAULT '',
         email TEXT NOT NULL,
-        display_name TEXT NOT NULL DEFAULT '',
-        password_hash TEXT NOT NULL DEFAULT '',
-        device_code TEXT NOT NULL DEFAULT '',
         expires INTEGER NOT NULL,
-        address TEXT NOT NULL DEFAULT '',
-        invite_hash TEXT NOT NULL DEFAULT ''
+        address TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX account_mail_email ON account_mail(email, purpose);
     CREATE INDEX account_mail_address ON account_mail(address);

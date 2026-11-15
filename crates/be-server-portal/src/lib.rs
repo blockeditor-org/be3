@@ -7,8 +7,6 @@ pub enum Screen {
     SignInClosed,
     Register,
     RegistrationClosed,
-    Forgot,
-    Reset,
     Verify,
     Approve,
     Account,
@@ -17,8 +15,6 @@ pub enum Screen {
     Approved,
     Denied,
     CheckEmail,
-    ResetRequested,
-    PasswordReset,
     EmailUpdated,
     /// Asks for the code mailed for the browser's attempt.
     EnterCode,
@@ -71,31 +67,17 @@ pub struct IdentityRow {
 pub enum Field {
     Email,
     DisplayName,
-    Password,
-    Confirmation,
-    CurrentPassword,
     Invite,
     EmailCode,
 }
 
 impl Field {
-    pub const ALL: [Field; 7] = [
-        Field::Email,
-        Field::DisplayName,
-        Field::Password,
-        Field::Confirmation,
-        Field::CurrentPassword,
-        Field::Invite,
-        Field::EmailCode,
-    ];
+    pub const ALL: [Field; 4] = [Field::Email, Field::DisplayName, Field::Invite, Field::EmailCode];
 
     pub fn name(&self) -> &'static str {
         match self {
             Field::Email => "email",
             Field::DisplayName => "display_name",
-            Field::Password => "password",
-            Field::Confirmation => "confirmation",
-            Field::CurrentPassword => "current_password",
             Field::Invite => "invite",
             Field::EmailCode => "email_code",
         }
@@ -105,9 +87,6 @@ impl Field {
         match self {
             Field::Email => "Email:",
             Field::DisplayName => "Display name:",
-            Field::Password => "Password:",
-            Field::Confirmation => "Password confirmation:",
-            Field::CurrentPassword => "Current password:",
             Field::Invite => "Invite code:",
             Field::EmailCode => "Code:",
         }

@@ -360,7 +360,7 @@ impl Harness {
         let (profile, token) = runtime.block_on(async {
             be_server::ServerStore::open(directory.join("server"))
                 .unwrap()
-                .register("counter@example.com", "Counter", "correct horse battery")
+                .register("counter@example.com", "Counter")
                 .await
                 .unwrap()
         });
@@ -852,11 +852,7 @@ struct Someone {
 impl Someone {
     fn register(data: &std::path::Path, _url: &str, email: &str, name: &str) -> Self {
         let (profile, token) = runtime()
-            .block_on(be_server::ServerStore::open(data).unwrap().register(
-                email,
-                name,
-                "correct horse battery",
-            ))
+            .block_on(be_server::ServerStore::open(data).unwrap().register(email, name))
             .unwrap();
         let session = crate::accounts::Session {
             account: profile.account,

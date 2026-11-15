@@ -114,7 +114,7 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
 
     let (_, token) = ServerStore::open(&harness.directory)
         .unwrap()
-        .register("http@example.com", "Http", "a long enough password")
+        .register("http@example.com", "Http")
         .await
         .unwrap();
     let mut posted = Posted::new();

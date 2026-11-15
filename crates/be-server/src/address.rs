@@ -45,6 +45,22 @@ pub(crate) fn address_key(address: IpAddr) -> IpAddr {
     }
 }
 
+/// [`address_key`] spelled as the mail and code limits store it: the IPv4 address, or an IPv6
+/// /64 as `a:b:c:d::/64`. Anything that is not an address is kept as it is.
+pub(crate) fn address_key_text(address: &str) -> String {
+    match address.parse::<IpAddr>().map(address_key) {
+        Ok(IpAddr::V6(v6)) => {
+            let segments = v6.segments();
+            format!(
+                "{:x}:{:x}:{:x}:{:x}::/64",
+                segments[0], segments[1], segments[2], segments[3]
+            )
+        }
+        Ok(IpAddr::V4(v4)) => v4.to_string(),
+        Err(_) => address.to_owned(),
+    }
+}
+
 /// Counts what each address holds, up to `limit` each.
 pub(crate) struct PerAddress {
     held: Mutex<HashMap<IpAddr, usize>>,

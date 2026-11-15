@@ -59,16 +59,12 @@ fn identity_notice(services: &Services, email: &str, removed: &str) {
     });
 }
 
+/// Mails the link that verifies a new email for the account.
 fn deliver(services: &Services, origin: &str, mail: MailLink) {
-    let page = if mail.purpose == "reset" {
-        "reset"
-    } else {
-        "verify"
-    };
     services.mail.send(Email {
         recipient: mail.email,
-        subject: if mail.purpose == "reset" { "Reset your be3 password" } else { "Verify your be3 email address" }.into(),
-        body: format!("Open {origin}/auth/{page}?token={} . If you did not request this, ignore this message.", encode(&mail.token)),
+        subject: "Verify your be3 email address".into(),
+        body: format!("Open {origin}/auth/verify?token={} . If you did not request this, ignore this message.", encode(&mail.token)),
     });
 }
 
@@ -115,7 +111,6 @@ pub(crate) async fn handle(
         services.browser_auth.consume_form(value("csrf"), token)?;
         let account = || profile.as_ref().map(|profile| profile.account).ok_or_else(|| invalid("Sign in to continue."));
         let login_allowed = || if services.config.allow_login { Ok(()) } else { Err(invalid("This server is not accepting sign-ins.")) };
-        let confirm_password = || if value("password") == value("confirmation") { Ok(()) } else { Err(invalid("Password confirmation: the passwords do not match.")) };
         let registration_allowed = || if services.config.allow_registration { Ok(()) } else { Err(invalid("This server is not accepting new accounts.")) };
         // The browser's attempt: the one it holds, or a new one it is given with the response.
         let attempt_for = |response: &mut Response| match attempt.is_empty() {
@@ -135,7 +130,7 @@ pub(crate) async fn handle(
                 if let Some(mailed) = mailed { deliver_code(services, origin, mailed); }
                 response.location = Some(link("/auth/enter", &code));
             },
-            "/auth/register" if value("password").is_empty() => {
+            "/auth/register" => {
                 login_allowed()?;
                 registration_allowed()?;
                 let attempt = attempt_for(&mut response);
@@ -172,48 +167,10 @@ pub(crate) async fn handle(
                 if let Some(profile) = profile.as_ref() { identity_notice(services, &profile.email, &removed.subject); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
-            "/auth/login" => {
-                login_allowed()?;
-                let (_, credential) = services.store.login_browser(value("email"), value("password"), address).await?;
-                if !token.is_empty() { services.store.logout(token).await?; }
-                response.cookie = Some(credential);
-                response.location = Some(link("/auth", &code));
-            },
-            "/auth/register" => {
-                login_allowed()?;
-                if !services.config.allow_registration { return Err(invalid("This server is not accepting new accounts.")); }
-                confirm_password()?;
-                let mail = services.store.registration_link(value("email"), value("display_name"), value("password"), value("invite"), &code, address).await?;
-                deliver(services, origin, mail);
-                response.location = Some(link("/auth/check-email", &code));
-            },
-            "/auth/forgot" => {
-                login_allowed()?;
-                if let Some(mail) = services.store.password_reset_link(value("email"), &code, address).await? { deliver(services, origin, mail); }
-                response.location = Some(link("/auth/reset-requested", &code));
-            },
             "/auth/verify" => {
-                let purpose = services.store.mail_purpose(value("token")).await?;
-                if purpose == "register" {
-                    login_allowed()?;
-                    if !services.config.allow_registration { return Err(invalid("This server is not accepting new accounts.")); }
-                }
-                let (registered, saved_code, old_email) = services.store.confirm_mail(value("token"), None, address).await?;
-                if let Some(account) = registered {
-                    if !token.is_empty() { services.store.logout(token).await?; }
-                    response.cookie = Some(services.store.browser_session(account).await?);
-                    response.location = Some(link("/auth", &saved_code));
-                } else {
-                    if let Some(email) = old_email { services.mail.send(Email { recipient: email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() }); }
-                    response.location = Some("/auth/email-updated".into());
-                }
-            },
-            "/auth/reset" => {
-                login_allowed()?;
-                confirm_password()?;
-                let (_, saved_code, _) = services.store.confirm_mail(value("token"), Some(value("password")), address).await?;
-                response.cookie = Some(String::new());
-                response.location = Some(link("/auth/password-reset", &saved_code));
+                let old_email = services.store.confirm_mail(value("token")).await?;
+                services.mail.send(Email { recipient: old_email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() });
+                response.location = Some("/auth/email-updated".into());
             },
             "/auth/code" => {
                 browser_auth::code_status(services, &code)?;
@@ -240,11 +197,6 @@ pub(crate) async fn handle(
                 let mail = services.store.email_change_link(account()?, value("email"), token, address).await?;
                 deliver(services, origin, mail);
                 response.location = Some("/auth/check-email".into());
-            },
-            "/auth/settings/password" => {
-                confirm_password()?;
-                response.cookie = Some(services.store.change_password(account()?, value("current_password"), value("password"), token, address).await?);
-                response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/sessions/revoke" => {
                 services.store.revoke_session(account()?, value("session"), token).await?;
@@ -350,21 +302,15 @@ pub(crate) async fn handle(
         }
         "/auth" if signed_in => Screen::Account,
         "/auth" | "/auth/login" => Screen::SignIn,
-        "/auth/register" | "/auth/forgot" | "/auth/reset" if !config.allow_login => {
-            Screen::SignInClosed
-        }
+        "/auth/register" if !config.allow_login => Screen::SignInClosed,
         "/auth/register" if !config.allow_registration => Screen::RegistrationClosed,
         "/auth/register" => Screen::Register,
-        "/auth/forgot" => Screen::Forgot,
-        "/auth/reset" => Screen::Reset,
         "/auth/verify" => Screen::Verify,
         "/auth/settings" => Screen::Settings,
         "/auth/sessions" => Screen::Sessions,
         "/auth/approved" => Screen::Approved,
         "/auth/denied" => Screen::Denied,
         "/auth/check-email" => Screen::CheckEmail,
-        "/auth/reset-requested" => Screen::ResetRequested,
-        "/auth/password-reset" => Screen::PasswordReset,
         "/auth/email-updated" => Screen::EmailUpdated,
         "/auth/recover" if !config.allow_login => Screen::SignInClosed,
         "/auth/recover" => Screen::Recover,
@@ -379,16 +325,12 @@ pub(crate) async fn handle(
         "/auth"
             | "/auth/login"
             | "/auth/register"
-            | "/auth/forgot"
             | "/auth/verify"
-            | "/auth/reset"
             | "/auth/settings"
             | "/auth/sessions"
             | "/auth/approved"
             | "/auth/denied"
             | "/auth/check-email"
-            | "/auth/reset-requested"
-            | "/auth/password-reset"
             | "/auth/email-updated"
             | "/auth/enter"
             | "/auth/recover"

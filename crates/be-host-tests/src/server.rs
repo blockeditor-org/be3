@@ -73,7 +73,7 @@ impl Server {
             .block_on(
                 self.inner
                     .store
-                    .register(&email, name, be_server::Running::PASSWORD),
+                    .register(&email, name),
             )
             .unwrap_or_else(|error| {
                 panic!("the test server could not make the account {name}: {error}")

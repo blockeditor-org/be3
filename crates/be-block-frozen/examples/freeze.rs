@@ -164,7 +164,6 @@ async fn register(
     socket: &str,
     email: &str,
     name: &str,
-    password: &str,
     phrase: &RecoveryPhrase,
     organization: Option<Uuid>,
 ) -> Result<Peer<MemoryStore>, String> {
@@ -175,7 +174,7 @@ async fn register(
             Credentials::Token(
                 be_server::ServerStore::open(data)
                     .map_err(text)?
-                    .register(email, name, password)
+                    .register(email, name)
                     .await
                     .map_err(text)?
                     .1,
@@ -324,7 +323,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
                 Credentials::Token(
                     be_server::ServerStore::open(data)
                         .map_err(text)?
-                        .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
+                        .register(scene::OWNER_EMAIL, scene::OWNER_NAME)
                         .await
                         .map_err(text)?
                         .1,
@@ -354,7 +353,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &socket,
         scene::EDITOR_EMAIL,
         scene::EDITOR_NAME,
-        scene::EDITOR_PASSWORD,
         &editor_phrase,
         Some(personal),
     )
@@ -674,7 +672,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         &socket,
         scene::FRIEND_EMAIL,
         scene::FRIEND_NAME,
-        scene::FRIEND_PASSWORD,
         &friend_phrase,
         Some(personal),
     )
@@ -807,21 +804,16 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let (unused_invite, _) =
         be_server::store::invite_codes::create(data, Some(1), None).map_err(text)?;
     let store = be_server::ServerStore::open(data).map_err(text)?;
-    let link = store
-        .registration_link(
-            scene::REGISTERED_EMAIL,
-            scene::REGISTERED_NAME,
-            scene::REGISTERED_PASSWORD,
-            &used_invite,
-            "",
-            "127.0.0.1",
-        )
-        .await
-        .map_err(text)?;
-    store
-        .confirm_mail(&link.token, None, "127.0.0.1")
-        .await
-        .map_err(text)?;
+    be_block_frozen::codes::enter(
+        &store,
+        ServerConfig::OPEN,
+        be_server::store::codes::CodePurpose::Register,
+        scene::REGISTERED_EMAIL,
+        scene::REGISTERED_NAME,
+        &used_invite,
+        "127.0.0.1",
+    )
+    .await?;
     let storage = client::account::storage_changed(&owner.connection())
         .recv()
         .await

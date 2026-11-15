@@ -32,7 +32,7 @@ impl Harness {
         let (profile, token) = runtime.block_on(async {
             be_server::ServerStore::open(directory.join("server"))
                 .unwrap()
-                .register("counter@example.com", "Counter", "correct horse battery")
+                .register("counter@example.com", "Counter")
                 .await
                 .unwrap()
         });

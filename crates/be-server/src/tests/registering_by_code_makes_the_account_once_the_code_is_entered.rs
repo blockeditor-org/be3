@@ -34,17 +34,7 @@ async fn registering_by_code_makes_the_account_once_the_code_is_entered() {
         (identities[0].kind.as_str(), identities[0].subject.as_str()),
         ("email", "ada@example.com")
     );
-    // The account has no password, and its only identity can't be removed.
-    let mut password = Browser::default();
-    let (status, _) = password
-        .submit(
-            &harness,
-            "/auth/login",
-            "/auth/login",
-            &[("email", "ada@example.com"), ("password", "")],
-        )
-        .await;
-    assert_eq!(status, 400);
+    // Its only identity can't be removed.
     browser.prove(&harness, "ada@example.com").await;
     let (status, page) = browser
         .submit(

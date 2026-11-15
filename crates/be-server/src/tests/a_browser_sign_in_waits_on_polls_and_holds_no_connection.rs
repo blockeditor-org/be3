@@ -26,7 +26,7 @@ async fn a_browser_sign_in_waits_on_polls_and_holds_no_connection() {
     ));
     let mut browser = Browser::default();
     browser
-        .login(&harness, "offline@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "offline@example.com")
         .await;
     assert_eq!(
         browser

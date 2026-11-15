@@ -16,8 +16,6 @@ pub struct Running {
 }
 
 impl Running {
-    pub const PASSWORD: &str = "correct horse battery";
-
     pub async fn start(config: ServerConfig) -> Self {
         Self::at(
             std::env::temp_dir().join(format!("be-server-{}", Uuid::new_v4())),
@@ -66,7 +64,7 @@ impl Running {
     pub async fn register(&self, email: &str, name: &str) -> String {
         ServerStore::open(&self.directory)
             .unwrap()
-            .register(email, name, Self::PASSWORD)
+            .register(email, name)
             .await
             .unwrap()
             .1

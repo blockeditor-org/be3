@@ -5,7 +5,7 @@ fn every_field_is_labelled_by_its_visible_label() {
     let sign_in = render(&page(Screen::SignIn));
     assert!(sign_in.contains("<input type=\"email\" name=\"email\""));
     assert!(sign_in.contains("aria-label=\"Email\""));
-    assert!(sign_in.contains("aria-label=\"Password\""));
+    assert!(!sign_in.contains("type=\"password\""));
     let registration = render(&page(Screen::Register));
     for label in ["Invite code", "Display name", "Email"] {
         assert!(
@@ -16,8 +16,7 @@ fn every_field_is_labelled_by_its_visible_label() {
     for screen in [
         Screen::SignIn,
         Screen::Register,
-        Screen::Forgot,
-        Screen::Reset,
+        Screen::Settings,
         Screen::EnterCode,
         Screen::Recover,
     ] {

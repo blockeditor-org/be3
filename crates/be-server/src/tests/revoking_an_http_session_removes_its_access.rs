@@ -17,7 +17,7 @@ async fn revoking_an_http_session_removes_its_access() {
     posted.heard(&frames);
     let mut browser = Browser::default();
     browser
-        .login(&harness, "http-revoke@example.com", "correct horse battery")
+        .sign_in_by_code(&harness, "http-revoke@example.com")
         .await;
     browser.prove(&harness, "http-revoke@example.com").await;
     assert_eq!(
