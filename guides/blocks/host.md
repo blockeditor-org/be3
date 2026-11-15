@@ -383,11 +383,16 @@ index and search it locally.
   (`SearchIndexContent::merges_over`) is merged while the host is idle
   (`compact_idle_indexes`): nothing queued, written or caught up for search, no
   search running, no command waiting, the outbox empty and no module working.
-  One index at a time, a commit a pass, with no cap, sealed and sent like a batch
-  (it counts as one being written, so the host is busy meanwhile and that index's
-  batches wait). An index is looked at again only once its head moves. There is
-  no signal yet for the device being idle or on power, so this is the host's own
-  idleness.
+  One index at a time, a commit a pass, with merges up to `IDLE_MERGE_BYTES`
+  (128 MiB, since a merge reads its segments whole into memory), sealed and sent
+  like a batch (it counts as one being written, so the host is busy meanwhile and
+  that index's batches wait). Only the device that wrote an index's last batch
+  compacts it: `Searching::last_written` keeps the head each write here left,
+  and the pass looks only at an index still at that head locally and on the
+  server as far as this device knows, once per head, so two devices never make
+  the same merges and nothing is loaded for an index no write here moved. There
+  is no signal yet for the device being idle or on power, so this is the host's
+  own idleness.
 - **Catching up.** When this device is connected and may edit a root whose
   index is named, `start_catch_ups` asks `Peer::changed_since(root, watermark)`
   (the index's `Index::watermark`) once per connection: the blocks it lists
