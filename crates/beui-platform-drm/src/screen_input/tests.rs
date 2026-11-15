@@ -1,6 +1,7 @@
 use super::*;
 use beui::{pos2, vec2};
 
+mod a_captured_finger_stays_captured_after_its_region_goes;
 mod a_region_hears_whether_the_pointer_is_in_it;
 mod a_region_that_captures_touch_takes_fingers_landing_in_it;
 mod a_wall_between_displays_stops_the_pointer_until_it_goes;
