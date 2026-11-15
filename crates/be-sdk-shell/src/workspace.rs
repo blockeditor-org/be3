@@ -758,9 +758,11 @@ impl Workspace {
 
     /// Called inside the shell's `Loaded`, makes it wait until the session's view block is
     /// read, so the layout is back before the shell first shows: the `Workspace` itself is made
-    /// outside the boundary, and reads its view state from effects.
+    /// outside the boundary, so its own reads of the view state hold nothing. The read here,
+    /// untracked so a later save rebuilds nothing, registers with the boundary while the view
+    /// block is loading.
     pub fn wait_for_layout(&self) {
-        self.editor.view_state::<SavedLayout>();
+        let _ = self.editor.view_state::<SavedLayout>().get_untracked();
     }
 
     pub fn unreadable_layout(&self) -> ReadSignal<Option<String>> {
