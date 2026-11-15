@@ -513,11 +513,20 @@ pub(crate) fn ControlFlowPage() -> NodeId {
             <Sample title="Show with a fallback" code={vec![ShowFallback::SOURCE, Tile::SOURCE]}>
                 <ShowFallback />
             </Sample>
+            <Sample title="Show over an Option" code={vec![ShowPicked::SOURCE, Tile::SOURCE]}>
+                <ShowPicked />
+            </Sample>
             <Sample title="ForEach" code={vec![PlanetList::SOURCE, Tile::SOURCE]}>
                 <PlanetList />
             </Sample>
-            <Sample title="Dynamic" code={vec![DynamicShape::SOURCE]}>
-                <DynamicShape />
+            <Sample title="ForEach with a key" code={vec![CounterList::SOURCE, Tile::SOURCE]}>
+                <CounterList />
+            </Sample>
+            <Sample title="Match" code={vec![MatchShape::SOURCE]}>
+                <MatchShape />
+            </Sample>
+            <Sample title="Dynamic" code={vec![DynamicCount::SOURCE, Tile::SOURCE]}>
+                <DynamicCount />
             </Sample>
         </ScrollPage>
     }
@@ -596,8 +605,13 @@ fn PlanetList() -> NodeId {
                     on_click={move || count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
                 />
             </List>
-            <ForEach value={planets}>|planet: &'static str|
-                <Tile label={planet.to_owned()} />
+            <ForEach
+                value={planets}
+                fallback={|| view! {
+                    <Tile label="No planets: the fallback shows while the list is empty" />
+                }}
+            >|planet: &'static str, index: ReadSignal<usize>|
+                <Tile label={move || format!("{}. {planet}", index.get() + 1)} />
             </ForEach>
         </List>
     }
@@ -605,7 +619,73 @@ fn PlanetList() -> NodeId {
 
 #[sample]
 #[component]
-fn DynamicShape() -> NodeId {
+fn ShowPicked() -> NodeId {
+    let picked = create_signal(None::<&'static str>);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <ForEach value={PLANETS[..3].to_vec()}>|planet: &'static str|
+                    <Button
+                        label={planet.to_owned()}
+                        variant=ButtonVariant::Secondary
+                        on_click={move || picked.set(Some(planet))}
+                    />
+                </ForEach>
+                <Button
+                    label="None"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || picked.set(None)}
+                />
+            </List>
+            <Show
+                value={picked}
+                fallback={|| view! {
+                    <Tile label="Nothing picked" />
+                }}
+            >|planet: ReadSignal<&'static str>|
+                <Tile label={move || format!("Picked {}: changed in place", planet.get())} />
+            </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn CounterList() -> NodeId {
+    #[derive(Clone, PartialEq)]
+    struct Counter {
+        id: u32,
+        name: &'static str,
+        count: u32,
+    }
+    let counters = create_signal(vec![
+        Counter { id: 1, name: "Apples", count: 0 },
+        Counter { id: 2, name: "Pears", count: 0 },
+    ]);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <List direction=Direction::Horizontal spacing=8.0>
+                <Button
+                    label="Count an apple"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || counters.update(|counters| counters[0].count += 1)}
+                />
+                <Button
+                    label="Swap"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || counters.update(|counters| counters.swap(0, 1))}
+                />
+            </List>
+            <ForEach value={counters} key={|counter: &Counter| counter.id}>|counter: ReadSignal<Counter>|
+                <Tile label={move || counter.with(|counter| format!("{}: {}", counter.name, counter.count))} />
+            </ForEach>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn MatchShape() -> NodeId {
     #[derive(Clone, Copy, PartialEq)]
     enum Shape {
         Caption,
@@ -627,19 +707,35 @@ fn DynamicShape() -> NodeId {
                     }
                 })}
             />
-            <Dynamic value={shape}>|shape: Shape| {
-                match shape {
-                    Shape::Caption => view! {
-                        <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
-                    },
-                    Shape::Square => view! {
-                        <Frame width=SWATCH height=SWATCH fill={theme.accent} />
-                    },
-                    Shape::Circle => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
-                    },
-                }
-            }</Dynamic>
+            <Match value={shape}>
+                <Case is={Shape::Caption}>
+                    <Text color={theme.text}>"The first case that holds shows"</Text>
+                </Case>
+                <Case is={Shape::Square}>
+                    <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+                </Case>
+                <Case is={Shape::Circle}>
+                    <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
+                </Case>
+            </Match>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn DynamicCount() -> NodeId {
+    let count = create_signal(1u32);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <Button
+                label="Add one"
+                variant=ButtonVariant::Secondary
+                on_click={move || count.update(|count| *count += 1)}
+            />
+            <Dynamic value={count}>|count: u32|
+                <Tile label={format!("Built again for {count}")} />
+            </Dynamic>
         </List>
     }
 }
