@@ -76,7 +76,8 @@ fn a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart() {
     });
     // Each connection's catch-up reads the note once and holds the watermark back, until the
     // third lets it go.
-    let settled = || with_shared_mut(|shared| shared.search.settled_at.get(&index).copied()).flatten();
+    let settled =
+        || with_shared_mut(|shared| shared.search.settled_at.get(&index).copied()).flatten();
     wait_for_tries(note, 1);
     finds("apples", &[]);
     assert_eq!(settled(), None, "a block not read holds the watermark back");

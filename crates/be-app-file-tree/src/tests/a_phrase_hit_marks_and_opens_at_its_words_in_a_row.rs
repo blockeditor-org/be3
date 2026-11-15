@@ -10,7 +10,9 @@ fn a_phrase_hit_marks_and_opens_at_its_words_in_a_row() {
     let mut found = BlockInfo::new(trip, text, BlockParent::Block(MY_FILES));
     found.set_intrinsic_name("Trip".to_owned());
     my_files(&mut fixture, vec![found.clone()]);
-    fixture.host.set_blocks(BlockQuery::Block(trip), vec![found]);
+    fixture
+        .host
+        .set_blocks(BlockQuery::Block(trip), vec![found]);
     let typed = "\"big river\"";
     let snippet = "The river was low. Further on, the Big River met the delta.";
     let start = snippet.find("Big").unwrap();

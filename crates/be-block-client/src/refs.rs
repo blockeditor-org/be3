@@ -1093,7 +1093,11 @@ impl Refs {
     /// The blocks the search indexer let go (`let_go`).
     pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
         let state = self.state.lock().unwrap();
-        state.let_go.iter().map(|(block, listed)| (*block, *listed)).collect()
+        state
+            .let_go
+            .iter()
+            .map(|(block, listed)| (*block, *listed))
+            .collect()
     }
 
     /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it: a

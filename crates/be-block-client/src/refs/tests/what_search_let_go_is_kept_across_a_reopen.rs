@@ -33,7 +33,10 @@ fn what_search_let_go_is_kept_across_a_reopen() {
     kept.sort_by_key(|(block, _)| *block);
     let mut expected = vec![(listed, Some(caught)), (unlisted, None)];
     expected.sort_by_key(|(block, _)| *block);
-    assert_eq!(kept, expected, "what was let go is kept, and what was read is not");
+    assert_eq!(
+        kept, expected,
+        "what was let go is kept, and what was read is not"
+    );
 
     drop(refs);
     let _ = std::fs::remove_file(&path);
