@@ -1,7 +1,7 @@
 use super::*;
 use be_block_graph::Access;
 
-async fn join(
+pub(super) async fn join(
     harness: &Harness,
     owner: &mut TestClient,
     organization: Uuid,

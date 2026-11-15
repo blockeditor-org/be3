@@ -1910,7 +1910,7 @@ impl ServerStore {
         block: Uuid,
         account: Uuid,
         access: Access,
-    ) -> Result<BTreeSet<Uuid>, ServerError> {
+    ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
             match leaving {
@@ -1981,6 +1981,15 @@ impl ServerStore {
                     ));
                 }
             }
+            // A grant that changes nothing writes nothing and tells no one: a device that shares
+            // again what it may already have shared (the organization's settings, on each
+            // administrator's connect) costs its audience nothing.
+            let granted = graph
+                .get(block)
+                .map(|node| node.grants.get(&account).copied().unwrap_or(Access::None));
+            if granted == Some(access) {
+                return Ok(None);
+            }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             revoke_or_grant(
@@ -2000,7 +2009,7 @@ impl ServerStore {
             if !forgotten.is_empty() {
                 store.sessions_changed();
             }
-            Ok(before)
+            Ok(Some(before))
         })
         .await
     }

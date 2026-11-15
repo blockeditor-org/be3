@@ -1823,20 +1823,22 @@ impl Client {
                 let set = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let before = connection
+                    let changed = connection
                         .store
                         .set_access(identity, block, account, access)
                         .await?;
-                    connection
-                        .revoked(
-                            &[contacts::Granted {
-                                organization: identity.organization,
-                                block,
-                                before,
-                            }],
-                            &[account],
-                        )
-                        .await;
+                    if let Some(before) = changed {
+                        connection
+                            .revoked(
+                                &[contacts::Granted {
+                                    organization: identity.organization,
+                                    block,
+                                    before,
+                                }],
+                                &[account],
+                            )
+                            .await;
+                    }
                     Ok(())
                 }
                 .await;
