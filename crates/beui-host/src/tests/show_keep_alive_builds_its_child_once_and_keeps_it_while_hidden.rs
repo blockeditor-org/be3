@@ -21,7 +21,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
                 <Show
                     keep_alive=true
                     value={visible}
-                    then={move || {
+                    then={move |_| {
                         builds.update(|builds| *builds += 1);
                         view! {
                             <Text>"panel"</Text>
