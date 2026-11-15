@@ -4,7 +4,8 @@
 //! covers the dock. A hidden band takes no room from the body. The owner hears where each one is
 //! (`DockHostLayout::hidden_bands`) and says how far it is out (`DockHostLayout::reveal`); it slides
 //! in from its edge in its own layer at `LayerLevel::Raised`, over everything the dock shows. A bar
-//! keeps its band out while it holds it (`DockBarControl::hold_band`), as a bar's open panel does.
+//! keeps its band out while an overlay opened from it is open (a menu, its grip's menu, a panel;
+//! `OverlaysWithin`), so the band never slides away from under it.
 
 use be_lib_stable_hash::HashMap;
 
