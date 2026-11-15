@@ -410,6 +410,12 @@ downloads = {
         "size_bytes": 90528,
         "version": "0.3.77",
     },
+    "base16ct-1.0.0": {
+        "name": "base16ct",
+        "sha256": "fd307490d624467aa6f74b0eabb77633d1f758a7b25f12bceb0b22e08d9726f6",
+        "size_bytes": 10594,
+        "version": "1.0.0",
+    },
     "base64-0.22.1": {
         "name": "base64",
         "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
@@ -523,6 +529,12 @@ downloads = {
         "sha256": "553c5d846a6ba5150c65e3b1b8ec073bcf1abc20f9b7220de384a4443ea4e20a",
         "size_bytes": 85266,
         "version": "1.8.1",
+    },
+    "bs58-0.5.1": {
+        "name": "bs58",
+        "sha256": "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4",
+        "size_bytes": 28483,
+        "version": "0.5.1",
     },
     "bstr-1.13.0": {
         "name": "bstr",
@@ -1046,6 +1058,12 @@ downloads = {
         "size_bytes": 3887,
         "version": "0.2.4",
     },
+    "crypto-bigint-0.7.11": {
+        "name": "crypto-bigint",
+        "sha256": "914c195c4d7fbc5ed7f88d14cbf85914d5c664967658d43404b263913a477e82",
+        "size_bytes": 315022,
+        "version": "0.7.11",
+    },
     "crypto-common-0.1.7": {
         "name": "crypto-common",
         "sha256": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
@@ -1064,11 +1082,11 @@ downloads = {
         "size_bytes": 20379,
         "version": "0.10.1",
     },
-    "ctutils-0.4.3": {
+    "ctutils-0.4.8": {
         "name": "ctutils",
-        "sha256": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
-        "size_bytes": 30825,
-        "version": "0.4.3",
+        "sha256": "261af4dc7a06ea8a527a8717d8cbba3417530d6ea14e1edb3de6b67806be474f",
+        "size_bytes": 37135,
+        "version": "0.4.8",
     },
     "cursor-icon-1.2.0": {
         "name": "cursor-icon",
@@ -1082,11 +1100,35 @@ downloads = {
         "size_bytes": 306017,
         "version": "4.1.3",
     },
+    "curve25519-dalek-5.0.0": {
+        "name": "curve25519-dalek",
+        "sha256": "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23",
+        "size_bytes": 350408,
+        "version": "5.0.0",
+    },
     "curve25519-dalek-derive-0.1.1": {
         "name": "curve25519-dalek-derive",
         "sha256": "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3",
         "size_bytes": 11723,
         "version": "0.1.1",
+    },
+    "darling-0.23.0": {
+        "name": "darling",
+        "sha256": "25ae13da2f202d56bd7f91c25fba009e7717a1e4a1cc98a76d844b65ae912e9d",
+        "size_bytes": 43298,
+        "version": "0.23.0",
+    },
+    "darling_core-0.23.0": {
+        "name": "darling_core",
+        "sha256": "9865a50f7c335f53564bb694ef660825eb8610e0a53d3e11bf1b0d3df31e03b0",
+        "size_bytes": 74564,
+        "version": "0.23.0",
+    },
+    "darling_macro-0.23.0": {
+        "name": "darling_macro",
+        "sha256": "ac3984ec7bd6cfa798e62b4a642426a5be0e68f9401cfc2a01e3fa9ea2fcdb8d",
+        "size_bytes": 2480,
+        "version": "0.23.0",
     },
     "dasp_sample-0.11.0": {
         "name": "dasp_sample",
@@ -1244,11 +1286,29 @@ downloads = {
         "size_bytes": 6859,
         "version": "0.1.5",
     },
+    "dyn-clone-1.0.20": {
+        "name": "dyn-clone",
+        "sha256": "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555",
+        "size_bytes": 13134,
+        "version": "1.0.20",
+    },
+    "ecdsa-0.17.0": {
+        "name": "ecdsa",
+        "sha256": "c0681a4fc24c767085329728d8dfba959af91228aa4610cca4f8ce317ba46ae0",
+        "size_bytes": 36763,
+        "version": "0.17.0",
+    },
     "ed25519-2.2.3": {
         "name": "ed25519",
         "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
         "size_bytes": 17802,
         "version": "2.2.3",
+    },
+    "ed25519-3.0.0": {
+        "name": "ed25519",
+        "sha256": "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a",
+        "size_bytes": 19256,
+        "version": "3.0.0",
     },
     "ed25519-dalek-2.2.0": {
         "name": "ed25519-dalek",
@@ -1256,11 +1316,23 @@ downloads = {
         "size_bytes": 98034,
         "version": "2.2.0",
     },
+    "ed25519-dalek-3.0.0": {
+        "name": "ed25519-dalek",
+        "sha256": "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de",
+        "size_bytes": 102545,
+        "version": "3.0.0",
+    },
     "either-1.17.0": {
         "name": "either",
         "sha256": "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d",
         "size_bytes": 21820,
         "version": "1.17.0",
+    },
+    "elliptic-curve-0.14.3": {
+        "name": "elliptic-curve",
+        "sha256": "900f37e7e18d74a2347389af6cd69e3a30d5cc9e697f40004865679aa75e9c7c",
+        "size_bytes": 51761,
+        "version": "0.14.3",
     },
     "embedded-io-0.4.0": {
         "name": "embedded-io",
@@ -1388,11 +1460,23 @@ downloads = {
         "size_bytes": 27188,
         "version": "0.3.7",
     },
+    "ff-0.14.0": {
+        "name": "ff",
+        "sha256": "a1f686ab92a9fb0eaf188f6c6c87b89490baa6fdb0db4544ba4dc47f7942489f",
+        "size_bytes": 23241,
+        "version": "0.14.0",
+    },
     "fiat-crypto-0.2.9": {
         "name": "fiat-crypto",
         "sha256": "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d",
         "size_bytes": 495390,
         "version": "0.2.9",
+    },
+    "fiat-crypto-0.3.0": {
+        "name": "fiat-crypto",
+        "sha256": "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24",
+        "size_bytes": 600542,
+        "version": "0.3.0",
     },
     "filedescriptor-0.8.3": {
         "name": "filedescriptor",
@@ -1694,6 +1778,12 @@ downloads = {
         "size_bytes": 2169,
         "version": "0.2.0",
     },
+    "group-0.14.0": {
+        "name": "group",
+        "sha256": "7fd1a1c7a5206c5b7a3f5a0d7ccd3ff85d0c8f5133d62a02680255b0004af5f4",
+        "size_bytes": 18537,
+        "version": "0.14.0",
+    },
     "gvdb-0.10.1": {
         "name": "gvdb",
         "sha256": "c28284f834fe0083db924efe590a684fe81c661c6269fc536ae964ab01adc111",
@@ -1735,6 +1825,12 @@ downloads = {
         "sha256": "b0c35f58762feb77d74ebe43bdbc3210f09be9fe6742234d573bacc26ed92b67",
         "size_bytes": 11168,
         "version": "0.2.1",
+    },
+    "hashbrown-0.12.3": {
+        "name": "hashbrown",
+        "sha256": "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888",
+        "size_bytes": 102968,
+        "version": "0.12.3",
     },
     "hashbrown-0.14.5": {
         "name": "hashbrown",
@@ -1946,6 +2042,12 @@ downloads = {
         "size_bytes": 12883,
         "version": "2.3.0",
     },
+    "ident_case-1.0.1": {
+        "name": "ident_case",
+        "sha256": "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39",
+        "size_bytes": 3492,
+        "version": "1.0.1",
+    },
     "idna-1.1.0": {
         "name": "idna",
         "sha256": "3b0875f23caa03898994f6ddc501886a45c7d3d62d04d2d90788d47be1b1e4de",
@@ -1981,6 +2083,12 @@ downloads = {
         "sha256": "65b27460c2c92b037f3f94c538ed9a3342f3fdf923606781629ccb35f82d042a",
         "size_bytes": 29653,
         "version": "0.15.0",
+    },
+    "indexmap-1.9.3": {
+        "name": "indexmap",
+        "sha256": "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99",
+        "size_bytes": 54653,
+        "version": "1.9.3",
     },
     "indexmap-2.14.0": {
         "name": "indexmap",
@@ -2594,6 +2702,12 @@ downloads = {
         "size_bytes": 7278,
         "version": "0.3.0",
     },
+    "oauth2-5.0.0": {
+        "name": "oauth2",
+        "sha256": "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d",
+        "size_bytes": 91364,
+        "version": "5.0.0",
+    },
     "objc-sys-0.3.5": {
         "name": "objc-sys",
         "sha256": "cdb91bdd390c7ce1a8607f35f3ca7151b65afc0ff5ff3b34fa350f7d7c7e4310",
@@ -2762,6 +2876,12 @@ downloads = {
         "size_bytes": 7066,
         "version": "0.3.1",
     },
+    "openidconnect-4.1.0": {
+        "name": "openidconnect",
+        "sha256": "df0d098a59353679624d406825940139e2b2d554a52b64c9fb1b1bc42a11fe5c",
+        "size_bytes": 177756,
+        "version": "4.1.0",
+    },
     "openxr-0.22.0": {
         "name": "openxr",
         "sha256": "53770c8f7d3f185bcb577b78f2ed8e33bbf7cdf5cd57fb68b5ec0b4117b79de6",
@@ -2779,6 +2899,12 @@ downloads = {
         "sha256": "01f140a738f180203d7912dfd369936fff2fb0ad6f426c0aa007ed3e2b443e6b",
         "size_bytes": 1347627,
         "version": "0.4.6",
+    },
+    "ordered-float-2.10.1": {
+        "name": "ordered-float",
+        "sha256": "68f19d67e5a2795c94e73e0bb1cc1a7edeb2e28efd39e2e1c9b7a40c1108b11c",
+        "size_bytes": 16029,
+        "version": "2.10.1",
     },
     "ordered-float-5.3.0": {
         "name": "ordered-float",
@@ -2809,6 +2935,18 @@ downloads = {
         "sha256": "5c2ed4fa0ec7ec58b657d4184680c57da9e203e97771d29a566028869a5193e0",
         "size_bytes": 67773,
         "version": "0.4.1",
+    },
+    "p256-0.14.0": {
+        "name": "p256",
+        "sha256": "d2c9239b2dbc807adbbe147e8cf72ea7450c3a0aabe62cb8e75ff4ec22e1f72a",
+        "size_bytes": 77479,
+        "version": "0.14.0",
+    },
+    "p384-0.14.0": {
+        "name": "p384",
+        "sha256": "d17b851e6b3e378ab4ecb07fa2ed23f4d15f075735f8fec9fa1e7bdce5f8301f",
+        "size_bytes": 75265,
+        "version": "0.14.0",
     },
     "parking-2.2.1": {
         "name": "parking",
@@ -3068,6 +3206,18 @@ downloads = {
         "size_bytes": 72033,
         "version": "0.2.37",
     },
+    "primefield-0.14.0": {
+        "name": "primefield",
+        "sha256": "c555a6e4eb7d4e158fcb028c835c3b8642206ddc279b5c6b202ef9a8bdb592f4",
+        "size_bytes": 21910,
+        "version": "0.14.0",
+    },
+    "primeorder-0.14.0": {
+        "name": "primeorder",
+        "sha256": "5c9f42978c78a00e3d68f69fc03e57a234debae69da4020a4fb588fcdcd07b06",
+        "size_bytes": 29009,
+        "version": "0.14.0",
+    },
     "proc-macro-crate-3.5.0": {
         "name": "proc-macro-crate",
         "sha256": "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f",
@@ -3296,6 +3446,18 @@ downloads = {
         "size_bytes": 15585,
         "version": "0.4.6",
     },
+    "ref-cast-1.0.27": {
+        "name": "ref-cast",
+        "sha256": "7e440fb4e4b4147295338efb76001ab9e4efc0e5839df2c47fc5ac2381d365c3",
+        "size_bytes": 15335,
+        "version": "1.0.27",
+    },
+    "ref-cast-impl-1.0.27": {
+        "name": "ref-cast-impl",
+        "sha256": "92ecd8964f8453721699a1ed72037b0db49ce2f5a5138486ee89bed6f67cdf3a",
+        "size_bytes": 10194,
+        "version": "1.0.27",
+    },
     "regalloc2-0.15.2": {
         "name": "regalloc2",
         "sha256": "757712e8e61590d6d4f5d563483755538b5aa13467837a3b41cd9832509a7f85",
@@ -3331,6 +3493,12 @@ downloads = {
         "sha256": "67e3803f97b999e80cbf7c6ecdd07a8102204d92e1633cf48783720c521196bd",
         "size_bytes": 78696,
         "version": "0.48.1",
+    },
+    "rfc6979-0.6.0": {
+        "name": "rfc6979",
+        "sha256": "b4a459cddafb3fe76b31fd8f1108007566c40301feb64dc7b54656eb7388172b",
+        "size_bytes": 15702,
+        "version": "0.6.0",
     },
     "rfd-0.15.4": {
         "name": "rfd",
@@ -3530,6 +3698,18 @@ downloads = {
         "size_bytes": 10183,
         "version": "1.0.6",
     },
+    "schemars-0.9.0": {
+        "name": "schemars",
+        "sha256": "4cd191f9397d57d581cddd31014772520aa448f65ef991055d7f61582c65165f",
+        "size_bytes": 80032,
+        "version": "0.9.0",
+    },
+    "schemars-1.2.3": {
+        "name": "schemars",
+        "sha256": "ab508826f74a77ca9d5aba6ff19b522583ee3eaf28a19384ff3d0e5835fadf6e",
+        "size_bytes": 94602,
+        "version": "1.2.3",
+    },
     "scoped-tls-1.0.1": {
         "name": "scoped-tls",
         "sha256": "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294",
@@ -3554,6 +3734,12 @@ downloads = {
         "size_bytes": 63639,
         "version": "0.12.0",
     },
+    "sec1-0.8.1": {
+        "name": "sec1",
+        "sha256": "d56d437c2f19203ce5f7122e507831de96f3d2d4d3be5af44a0b0a09d8a80e4d",
+        "size_bytes": 22369,
+        "version": "0.8.1",
+    },
     "semver-1.0.28": {
         "name": "semver",
         "sha256": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd",
@@ -3565,6 +3751,12 @@ downloads = {
         "sha256": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e",
         "size_bytes": 83652,
         "version": "1.0.228",
+    },
+    "serde-value-0.7.0": {
+        "name": "serde-value",
+        "sha256": "f3a1a3341211875ef120e117ea7fd5228530ae7e7036a779fdc9117be6b3282c",
+        "size_bytes": 10249,
+        "version": "0.7.0",
     },
     "serde_bytes-0.11.19": {
         "name": "serde_bytes",
@@ -3590,6 +3782,18 @@ downloads = {
         "size_bytes": 155574,
         "version": "1.0.150",
     },
+    "serde_path_to_error-0.1.20": {
+        "name": "serde_path_to_error",
+        "sha256": "10a9ff822e371bb5403e391ecd83e182e0e77ba7f6fe0160b795797109d1b457",
+        "size_bytes": 18046,
+        "version": "0.1.20",
+    },
+    "serde_plain-1.0.2": {
+        "name": "serde_plain",
+        "sha256": "9ce1fc6db65a611022b23a0dec6975d63fb80a302cb3388835ff02c097258d50",
+        "size_bytes": 11183,
+        "version": "1.0.2",
+    },
     "serde_repr-0.1.21": {
         "name": "serde_repr",
         "sha256": "8d3b1629de253c70a0508c3899572da79ca359fdab27c7920ff00406df418906",
@@ -3607,6 +3811,24 @@ downloads = {
         "sha256": "d3491c14715ca2294c4d6a88f15e84739788c1d030eed8c110436aafdaa2f3fd",
         "size_bytes": 12822,
         "version": "0.7.1",
+    },
+    "serde_with-3.22.0": {
+        "name": "serde_with",
+        "sha256": "ee78f1fbe43ac4a0e47aadb3dbd357b69eb0d3793e948624cd03dd2750ab1c0a",
+        "size_bytes": 211486,
+        "version": "3.22.0",
+    },
+    "serde_with_macros-3.22.0": {
+        "name": "serde_with_macros",
+        "sha256": "8705578779c2b6bd90d84d66eb2e206b708b1a4d7b9f17641b293545bf1c7e46",
+        "size_bytes": 38174,
+        "version": "3.22.0",
+    },
+    "serdect-0.4.3": {
+        "name": "serdect",
+        "sha256": "66cf8fedced2fcf12406bcb34223dffb92eaf34908ede12fed414c82b7f00b3e",
+        "size_bytes": 19800,
+        "version": "0.4.3",
     },
     "serial2-0.2.38": {
         "name": "serial2",
@@ -3679,6 +3901,12 @@ downloads = {
         "sha256": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
         "size_bytes": 15531,
         "version": "2.2.0",
+    },
+    "signature-3.0.0": {
+        "name": "signature",
+        "sha256": "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5",
+        "size_bytes": 15027,
+        "version": "3.0.0",
     },
     "simd-adler32-0.3.9": {
         "name": "simd-adler32",
@@ -5335,6 +5563,12 @@ downloads = {
         "sha256": "e366f27a5cabcddb2706a78296a40b8fcc451e1a6aba2fc1d94b4a01bdaaef4b",
         "size_bytes": 45928,
         "version": "0.9.1",
+    },
+    "wnaf-0.14.1": {
+        "name": "wnaf",
+        "sha256": "795ca18b3fdb5e62bf982199278341ddcf7ebf7d32e25e212ad05d496e95f6fa",
+        "size_bytes": 15454,
+        "version": "0.14.1",
     },
     "writeable-0.6.4": {
         "name": "writeable",

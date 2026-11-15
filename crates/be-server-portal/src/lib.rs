@@ -27,6 +27,8 @@ pub enum Screen {
     },
     /// "I can't sign in": a code to the account's email that ends every other session.
     Recover,
+    /// A provider sign-in with no account, waiting for the operator's invite code.
+    ProviderRegister,
     NotFound,
     Message {
         title: String,
@@ -54,12 +56,20 @@ pub struct Session {
     pub current: bool,
 }
 
+/// A link that begins signing in with a provider (`/auth/oidc/{id}/start`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ProviderLink {
+    pub name: String,
+    pub href: String,
+}
+
 /// A way to sign in to the account, as the settings page lists it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct IdentityRow {
     pub id: String,
-    /// `email`, and later `passkey` and `oidc`.
+    /// `email` or `oidc`, and later `passkey`.
     pub kind: String,
+    /// The email, or the provider's name and the email it gave.
     pub label: String,
     /// False for the account's last identity, which can't be removed.
     pub removable: bool,
@@ -156,6 +166,14 @@ pub struct Page {
     pub email_code: String,
     pub saved: bool,
     pub allow_registration: bool,
+    /// Providers to sign in with, on the sign-in and registration pages, or to add, on the
+    /// settings page.
+    pub providers: Vec<ProviderLink>,
+    /// The account's own providers it may prove it is the owner with, on the settings page.
+    pub proof_providers: Vec<ProviderLink>,
+    /// The provider a screen is about: the one waiting for an invite code, or the one a code
+    /// to the account's email will link.
+    pub provider: String,
     pub assets: String,
 }
 

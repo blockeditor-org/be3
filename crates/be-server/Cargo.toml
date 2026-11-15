@@ -25,6 +25,7 @@ futures-util = "0.3"
 http = "1"
 httparse = "1"
 hyper-util = { version = "0.1", features = ["server-auto", "tokio"] }
+openidconnect = { version = "4", default-features = false, features = ["ureq"] }
 rand = "0.9"
 ring = "0.17"
 be-lib-web-push = { path = "../be-lib-web-push" }
@@ -33,6 +34,7 @@ rusty-s3 = "0.11"
 s3s = "0.17"
 s3s-fs = "0.17"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 sha2 = "0.10"
 be-block-sqlite-schema = { path = "../be-block-sqlite-schema" }
 tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }

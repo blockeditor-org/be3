@@ -54,7 +54,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
         LinkFor::Account(account) => {
             let email: Option<String> = database
                 .query_row(
-                    "SELECT email FROM accounts WHERE id = ?1",
+                    "SELECT COALESCE(email, '') FROM accounts WHERE id = ?1",
                     [account.to_string()],
                     |row| row.get(0),
                 )
@@ -118,7 +118,7 @@ impl ServerStore {
                         None => {
                             unregistered(&transaction, &email)?;
                             let name = email.split('@').next().unwrap_or_default().to_owned();
-                            make_account(&transaction, &email, &name)?.to_string()
+                            make_account(&transaction, Some(&email), &name)?.to_string()
                         }
                     },
                 };

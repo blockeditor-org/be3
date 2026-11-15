@@ -1,9 +1,9 @@
 use be_server_portal::{
-    Field as Named, IdentityRow, Page, Screen, Session, SessionKind, with_code,
+    Field as Named, IdentityRow, Page, ProviderLink, Screen, Session, SessionKind, with_code,
 };
 use beui::icons::{
     Glyph, ICON_BLOCKS, ICON_CIRCLE_ALERT, ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_GLOBE,
-    ICON_KEY_ROUND, ICON_LAPTOP, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X, ICON_SHIELD_CHECK,
+    ICON_KEY_ROUND, ICON_LAPTOP, ICON_LOG_IN, ICON_MAIL, ICON_MAIL_CHECK, ICON_SEARCH_X, ICON_SHIELD_CHECK,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -16,7 +16,9 @@ const PRODUCT: &str = "be3";
 pub fn title(page: &Page) -> String {
     let name = match &page.screen {
         Screen::SignIn | Screen::SignInClosed => "Sign in",
-        Screen::Register | Screen::RegistrationClosed => "Create an account",
+        Screen::Register | Screen::RegistrationClosed | Screen::ProviderRegister => {
+            "Create an account"
+        }
         Screen::Verify => "Verify your email address",
         Screen::LoginLink => "Sign in with a link",
         Screen::Approve => "Approve sign-in",
@@ -243,6 +245,9 @@ fn Body(page: Shown) -> NodeId {
                 </List>
             </Card>
         },
+        Screen::ProviderRegister => view! {
+            <ProviderRegister page />
+        },
         Screen::LoginLink => view! {
             <Card>
                 <List spacing=Space::Xl>
@@ -419,6 +424,7 @@ fn SignIn(page: Shown) -> NodeId {
                         />
                         <Submit label="Email me a code" />
                     </PortalForm>
+                    <Providers page />
                     <List
                         direction=Direction::Horizontal
                         justify=Justify::SpaceBetween
@@ -443,6 +449,66 @@ fn SignIn(page: Shown) -> NodeId {
                 />
             })}
         </List>
+    }
+}
+
+/// Links that sign in with each provider the server has, when it has any.
+#[component]
+fn Providers(page: Shown) -> Option<NodeId> {
+    let providers = page.read(|page| page.providers.clone());
+    (!providers.is_empty()).then(|| {
+        view! {
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>"Or continue with"</Text>
+                <ForEach value={providers}>|provider: ProviderLink|
+                    <PageLink label={format!("Continue with {}", provider.name)} href={provider.href.clone()} />
+                </ForEach>
+            </List>
+        }
+    })
+}
+
+/// A provider sign-in with no account here: the invite code makes one.
+#[component]
+fn ProviderRegister(page: Shown) -> NodeId {
+    let (_, name) = values(page);
+    let invite = page.read(|page| create_signal(page.invite.clone()));
+    let provider = page.read(|page| page.provider.clone());
+    let lead = match provider.is_empty() {
+        true => "This sign-in expired. Sign in with your provider again.".to_owned(),
+        false => format!(
+            "No account here signs in with this {provider} account yet. Enter an invite code to create one."
+        ),
+    };
+    view! {
+        <Card>
+            <List spacing=Space::Xl>
+                <Heading title="Create your account" lead />
+                <Notice text={page.general()} />
+                <PortalForm action="/auth/oidc/register" csrf={page.csrf()}>
+                    <Field
+                        kind=InputKind::Text
+                        name="invite"
+                        label="Invite code"
+                        autocomplete="off"
+                        hint="From the people who run this server."
+                        value={invite}
+                        problem={page.problem(Named::Invite)}
+                    />
+                    <Field
+                        kind=InputKind::Text
+                        name="display_name"
+                        label="Display name"
+                        autocomplete="nickname"
+                        hint="How other people see you in be3."
+                        value={name}
+                        problem={page.problem(Named::DisplayName)}
+                    />
+                    <Submit label="Create account" />
+                </PortalForm>
+                <PageLink label="Sign in another way" href="/auth/login" />
+            </List>
+        </Card>
     }
 }
 
@@ -514,6 +580,7 @@ fn Register(page: Shown) -> NodeId {
                     />
                     <Submit label="Email me a code" />
                 </PortalForm>
+                <Providers page />
                 <PageLink
                     label="Already have an account? Sign in"
                     href={page.here("/auth/login")}
@@ -642,8 +709,16 @@ fn Section(title: String, lead: String, children: Children<ListItem>) -> NodeId 
 #[component]
 fn Settings(page: Shown) -> NodeId {
     let (email, name) = values(page);
-    let (identities, fresh) = page.read(|page| (page.identities.clone(), page.fresh));
+    let (identities, fresh, adding) =
+        page.read(|page| (page.identities.clone(), page.fresh, page.providers.clone()));
     let csrf = page.csrf();
+    // One way in that isn't an email is one lost device or provider from no way in.
+    let alone = match identities.as_slice() {
+        [only] if only.kind != "email" => {
+            "Add a second way to sign in, so losing this one doesn't lock you out.".to_owned()
+        }
+        _ => String::new(),
+    };
     let saved = match page.read(|page| page.saved) {
         true => "Your changes were saved.".to_owned(),
         false => String::new(),
@@ -658,9 +733,17 @@ fn Settings(page: Shown) -> NodeId {
                 title="Ways to sign in"
                 lead="Any one of these signs you in. Your last one can’t be removed."
             >
+                <Notice text={alone} />
                 <ForEach value={identities}>|identity: IdentityRow|
                     <IdentityLine identity csrf={csrf.clone()} fresh />
                 </ForEach>
+                {(fresh && !adding.is_empty()).then(|| view! {
+                    <List spacing=Space::Md>
+                        <ForEach value={adding.clone()}>|provider: ProviderLink|
+                            <PageLink label={format!("Add {}", provider.name)} href={provider.href.clone()} />
+                        </ForEach>
+                    </List>
+                })}
             </Section>
             <Section title="Display name" lead="How other people see you in be3.">
                 <PortalForm action="/auth/settings/name" csrf={page.csrf()}>
@@ -763,9 +846,22 @@ fn SessionRow(session: Session, csrf: String) -> NodeId {
 /// the owner's, before an account change.
 #[component]
 fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
-    let lead = match fresh {
-        true => format!("You confirmed it is you, so you can {doing} for the next few minutes."),
-        false => format!("To {doing}, first confirm it is you with a code we email you."),
+    let (emailed, providers) = page.read(|page| {
+        (
+            page.account
+                .as_ref()
+                .is_some_and(|account| !account.email.is_empty()),
+            page.proof_providers.clone(),
+        )
+    });
+    let lead = match (fresh, emailed) {
+        (true, _) => {
+            format!("You confirmed it is you, so you can {doing} for the next few minutes.")
+        }
+        (false, true) => format!("To {doing}, first confirm it is you with a code we email you."),
+        (false, false) => {
+            format!("To {doing}, first confirm it is you with a provider you sign in with.")
+        }
     };
     view! {
         <Frame border={Some(Border::DEFAULT)} radius=Radius::Lg padding={Padding::all(Space::Xl)}>
@@ -777,10 +873,17 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
                     <Text style=TextStyle::HEADING>"Confirm it is you"</Text>
                 </List>
                 <Text style=TextStyle::PARAGRAPH>{lead.clone()}</Text>
-                {(!fresh).then(|| view! {
+                {(!fresh && emailed).then(|| view! {
                     <PortalForm action="/auth/proof" csrf={page.csrf()}>
                         <Submit label="Email me a code" variant=ButtonVariant::Secondary />
                     </PortalForm>
+                })}
+                {(!fresh && !providers.is_empty()).then(|| view! {
+                    <List spacing=Space::Md>
+                        <ForEach value={providers.clone()}>|provider: ProviderLink|
+                            <PageLink label={format!("Confirm with {}", provider.name)} href={provider.href.clone()} />
+                        </ForEach>
+                    </List>
                 })}
             </List>
         </Frame>
@@ -789,14 +892,22 @@ fn Proof(page: Shown, fresh: bool, doing: String) -> NodeId {
 
 #[component]
 fn IdentityLine(identity: IdentityRow, csrf: String, fresh: bool) -> NodeId {
-    let detail = match identity.removable {
-        true => "Email: a code we send signs you in".to_owned(),
-        false => "Email: your only way to sign in".to_owned(),
+    let email = identity.kind == "email";
+    let detail = match (email, identity.removable) {
+        (true, true) => "Email: a code we send signs you in",
+        (true, false) => "Email: your only way to sign in",
+        (false, true) => "Provider: signing in with it signs you in",
+        (false, false) => "Provider: your only way to sign in",
+    }
+    .to_owned();
+    let glyph = match email {
+        true => ICON_MAIL,
+        false => ICON_LOG_IN,
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Text size=TextSize::Lg color=TextColor::Muted>
-                <Icon glyph=ICON_MAIL />
+                <Icon glyph />
             </Text>
             <ListItem grow=1.0>
                 <List spacing=Space::Xs2>
@@ -820,10 +931,20 @@ fn IdentityLine(identity: IdentityRow, csrf: String, fresh: bool) -> NodeId {
 #[component]
 fn EnterCode(page: Shown) -> NodeId {
     let typed = page.read(|page| create_signal(page.email_code.clone()));
-    let lead = page.read(|page| match page.code_email.is_empty() {
-        true => "Enter the code from the email we sent you. Ask for a new one if it has expired."
-            .to_owned(),
-        false => format!(
+    let lead = page.read(|page| match (page.provider.is_empty(), page.code_email.is_empty()) {
+        (false, _) => format!(
+            "{} already has an account here. Enter the code we sent it to sign in and add {} to that account, or sign in another way.",
+            match page.code_email.is_empty() {
+                true => "Your email",
+                false => page.code_email.as_str(),
+            },
+            page.provider
+        ),
+        (true, true) => {
+            "Enter the code from the email we sent you. Ask for a new one if it has expired."
+                .to_owned()
+        }
+        (true, false) => format!(
             "If {} has an account here, we sent it a code. It works for ten minutes.",
             page.code_email
         ),

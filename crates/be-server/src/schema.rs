@@ -12,7 +12,9 @@ pub fn initialize(connection: &Connection) -> Result<(), ServerError> {
 const SCHEMA: &str = "
     CREATE TABLE accounts (
         id              TEXT PRIMARY KEY,
-        email           TEXT NOT NULL UNIQUE,
+        -- The verified email, if the account has one: an email identity's, or an authoritative
+        -- provider's. None for an account made through a provider that gave no verified email.
+        email           TEXT UNIQUE,
         display_name    TEXT NOT NULL,
         local_profile   INTEGER NOT NULL DEFAULT 0
     );
@@ -33,6 +35,9 @@ const SCHEMA: &str = "
         kind            TEXT NOT NULL,
         subject         TEXT NOT NULL,
         created         INTEGER NOT NULL,
+        -- For a provider (`oidc`), the verified email it last gave, if it is authoritative for
+        -- email.
+        email           TEXT NOT NULL DEFAULT '',
         UNIQUE (kind, subject)
     );
     CREATE INDEX identities_account ON identities(account_id);
@@ -51,11 +56,37 @@ const SCHEMA: &str = "
         created         INTEGER NOT NULL,
         address         TEXT NOT NULL,
         network         TEXT NOT NULL,
-        remembered      INTEGER NOT NULL DEFAULT 0
+        remembered      INTEGER NOT NULL DEFAULT 0,
+        -- For a code that links a provider: its identity's subject and the email it gave.
+        identity        TEXT NOT NULL DEFAULT '',
+        identity_email  TEXT NOT NULL DEFAULT ''
     );
     CREATE INDEX sign_in_codes_address ON sign_in_codes(address, created);
     CREATE INDEX sign_in_codes_network ON sign_in_codes(network, created);
     CREATE INDEX sign_in_codes_account ON sign_in_codes(account_id, created);
+
+    CREATE TABLE oidc_states (
+        state_hash      TEXT PRIMARY KEY,
+        provider        TEXT NOT NULL,
+        verifier        TEXT NOT NULL,
+        nonce           TEXT NOT NULL,
+        attempt_hash    TEXT NOT NULL,
+        device_code     TEXT NOT NULL DEFAULT '',
+        intent          TEXT NOT NULL,
+        link_account    TEXT NOT NULL DEFAULT '',
+        address         TEXT NOT NULL,
+        expires         INTEGER NOT NULL
+    );
+
+    CREATE TABLE oidc_pending (
+        attempt_hash    TEXT PRIMARY KEY,
+        provider        TEXT NOT NULL,
+        subject         TEXT NOT NULL,
+        email           TEXT NOT NULL DEFAULT '',
+        display_name    TEXT NOT NULL DEFAULT '',
+        device_code     TEXT NOT NULL DEFAULT '',
+        expires         INTEGER NOT NULL
+    );
 
     CREATE TABLE login_links (
         token_hash TEXT PRIMARY KEY,
