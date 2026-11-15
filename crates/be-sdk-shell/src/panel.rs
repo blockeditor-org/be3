@@ -183,7 +183,7 @@ fn read_item_info(
         references,
         backrefs,
         artifact: {
-            workspace.editor().artifacts().get();
+            workspace.editor().artifacts().track();
             workspace.host().artifact(item.id)
         },
         deleted,

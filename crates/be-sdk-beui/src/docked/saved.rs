@@ -47,7 +47,7 @@ pub(super) fn keep_joined(link: &Rc<ProtocolLink>, editor: Editor) {
         &link.host,
         editor,
         move || {
-            pushed.get();
+            pushed.track();
             declares.track();
         },
         create_memo(move || declaring.get()),

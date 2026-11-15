@@ -166,7 +166,8 @@ callbacks run inside `pump` and `operate`. A read between frames (`ready`,
 (`on_due`) when it took anything a callback announces. Pushed and watched values change
 while host frames are delivered, so an adapter queues them and applies them in
 its next frame (`on_pumped`). A framework adapts these and nothing else:
-be-sdk-beui turns each into a signal, so beui editors never see callbacks.
+be-sdk-beui turns each into a signal, or a pushed or watched value's announcement into a
+`Trigger` (`Editor::pushed`), so beui editors never see callbacks.
 
 The editor state over `EditorHost` is plain too (`be-sdk/src/editor_state.rs`):
 `EditorCore` (content cache, view state, peers, pan and zoom, reported sizes,

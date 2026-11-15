@@ -94,8 +94,6 @@ struct ChildRecord {
     tab: Option<DockTabControl>,
 }
 
-type Revision = OwnedSignal<u64>;
-
 fn then<T: 'static>(
     host: &EditorHost,
     asked: impl std::future::Future<Output = Option<T>> + 'static,
@@ -117,8 +115,8 @@ enum Changed {
 
 struct Mirror {
     host: EditorHost,
-    pushed: [Revision; Pushed::ALL.len()],
-    watches: RefCell<be_lib_stable_hash::HashMap<std::any::TypeId, (Subscription, Revision)>>,
+    pushed: [OwnedTrigger; Pushed::ALL.len()],
+    watches: RefCell<be_lib_stable_hash::HashMap<std::any::TypeId, (Subscription, OwnedTrigger)>>,
     changed: Rc<RefCell<Vec<Changed>>>,
     _pushes: Vec<Subscription>,
 }
@@ -139,22 +137,22 @@ impl Mirror {
             .collect();
         Self {
             host: host.clone(),
-            pushed: Pushed::ALL.map(|pushed| OwnedSignal::new(host.revision(pushed))),
+            pushed: Pushed::ALL.map(|_| OwnedTrigger::new()),
             watches: RefCell::default(),
             changed,
             _pushes: pushes,
         }
     }
 
-    fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
-        self.pushed[pushed as usize].read_only()
+    fn watch(&self, pushed: Pushed) -> Trigger {
+        self.pushed[pushed as usize].handle()
     }
 
     fn track(&self, pushed: Pushed) {
-        self.pushed[pushed as usize].get();
+        self.pushed[pushed as usize].track();
     }
 
-    fn watched(&self, watch: std::any::TypeId) -> ReadSignal<u64> {
+    fn watched(&self, watch: std::any::TypeId) -> Trigger {
         self.watches
             .borrow_mut()
             .entry(watch)
@@ -165,30 +163,25 @@ impl Mirror {
                         changed.borrow_mut().push(Changed::Watch(watch));
                     }
                 });
-                (
-                    changes,
-                    OwnedSignal::new(self.host.watch_revision_of(watch)),
-                )
+                (changes, OwnedTrigger::new())
             })
             .1
-            .read_only()
+            .handle()
     }
 
     fn sync(&self) {
         let changed = std::mem::take(&mut *self.changed.borrow_mut());
         for changed in changed {
             match changed {
-                Changed::Pushed(pushed) => {
-                    self.pushed[pushed as usize].set(self.host.revision(pushed));
-                }
+                Changed::Pushed(pushed) => self.pushed[pushed as usize].notify(),
                 Changed::Watch(watch) => {
-                    let revision = self
+                    let changes = self
                         .watches
                         .borrow()
                         .get(&watch)
-                        .map(|(_, revision)| revision.handle());
-                    if let Some(revision) = revision {
-                        revision.set(self.host.watch_revision_of(watch));
+                        .map(|(_, changes)| changes.handle());
+                    if let Some(changes) = changes {
+                        changes.notify();
                     }
                 }
             }
@@ -498,9 +491,9 @@ impl Editor {
     pub fn stored_head(&self, block: Uuid) -> Memo<crate::HeadRead> {
         let host = self.host();
         host.watch_head(block);
-        let revision = self.pushed(Pushed::Heads);
+        let changed = self.pushed(Pushed::Heads);
         let read = create_memo(move || {
-            revision.get();
+            changed.track();
             host.head(block)
         });
         wait_for(move || match read.with(Option::is_some) {
@@ -517,7 +510,7 @@ impl Editor {
         search: Memo<Option<be_sdk::Search>>,
     ) -> Memo<Option<be_sdk::SearchResults>> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Searches);
+        let changed = self.pushed(Pushed::Searches);
         let watching = host.clone();
         create_effect(move || {
             let Some(asked) = search.get() else {
@@ -528,7 +521,7 @@ impl Editor {
             on_cleanup(move || host.unwatch_search(&asked));
         });
         create_memo(move || {
-            revision.get();
+            changed.track();
             search.with(|asked| asked.as_ref().and_then(|asked| host.search(asked)))
         })
     }
@@ -577,7 +570,8 @@ impl Editor {
         source
     }
 
-    pub fn pushed(&self, pushed: Pushed) -> ReadSignal<u64> {
+    /// Notified each time the host pushes `pushed`; `track` it and read what changed from the host.
+    pub fn pushed(&self, pushed: Pushed) -> Trigger {
         self.state().pushed.watch(pushed)
     }
 
@@ -589,11 +583,11 @@ impl Editor {
         then(self.state().core.host(), asked, answered)
     }
 
-    pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
-        let woken = create_signal(0);
-        let (waker, wakes) = self.state().core.woken(move |count| woken.set(count));
+    pub fn woken(&self) -> (Waker, Trigger) {
+        let woken = create_trigger();
+        let (waker, wakes) = self.state().core.woken(move |_| woken.notify());
         crate::content::keep(wakes);
-        (waker, woken.read_only())
+        (waker, woken)
     }
 
     /// Changes only when playback starts, pauses, seeks, ends or fails, so its position is
@@ -601,9 +595,9 @@ impl Editor {
     /// media type only, so load the bytes again after the content changes.
     pub fn audio(&self) -> Memo<AudioStatus> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Audio);
+        let changed = self.pushed(Pushed::Audio);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.audio()
         })
     }
@@ -611,9 +605,9 @@ impl Editor {
     pub fn history(&self, block: Uuid) -> Memo<BlockHistory> {
         let host = self.host();
         host.watch_history([block]);
-        let revision = self.pushed(Pushed::Histories);
+        let changed = self.pushed(Pushed::Histories);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.history(block)
         })
     }
@@ -621,11 +615,11 @@ impl Editor {
     pub fn version_status(&self) -> Memo<be_sdk::VersionStatus> {
         let host = self.host();
         host.watch_version();
-        let revision = self.pushed(Pushed::Version);
+        let changed = self.pushed(Pushed::Version);
         let known = create_memo({
             let host = host.clone();
             move || {
-                revision.get();
+                changed.track();
                 host.version_known()
             }
         });
@@ -635,7 +629,7 @@ impl Editor {
         });
         let core = self.core();
         create_memo(move || {
-            revision.get();
+            changed.track();
             core.version_status().unwrap_or_default()
         })
     }
@@ -644,11 +638,11 @@ impl Editor {
         self.state().core.version(command);
     }
 
-    pub fn histories(&self) -> ReadSignal<u64> {
+    pub fn histories(&self) -> Trigger {
         self.pushed(Pushed::Histories)
     }
 
-    pub fn artifacts(&self) -> ReadSignal<u64> {
+    pub fn artifacts(&self) -> Trigger {
         self.pushed(Pushed::Artifacts)
     }
 
@@ -664,9 +658,9 @@ impl Editor {
 
     pub fn focused_block(&self) -> Memo<FocusedBlock> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Focus);
+        let changed = self.pushed(Pushed::Focus);
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.focused_block()
         })
     }
@@ -720,18 +714,18 @@ impl Editor {
         W::Value: Default,
     {
         let host = self.host();
-        let revision = self.watch_revision::<W>();
+        let changed = self.watch_changes::<W>();
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.watched::<W>().unwrap_or_default()
         })
     }
 
     pub fn offered<W: Watched>(&self) -> Memo<bool> {
         let host = self.host();
-        let revision = self.watch_revision::<W>();
+        let changed = self.watch_changes::<W>();
         create_memo(move || {
-            revision.get();
+            changed.track();
             host.offers::<W>()
         })
     }
@@ -768,7 +762,7 @@ impl Editor {
         value.read_only()
     }
 
-    fn watch_revision<W: Watched>(&self) -> ReadSignal<u64> {
+    fn watch_changes<W: Watched>(&self) -> Trigger {
         self.state().pushed.watched(std::any::TypeId::of::<W>())
     }
 
@@ -776,7 +770,7 @@ impl Editor {
         self.state().core.host().act(call);
     }
 
-    pub fn web_view_events(&self) -> ReadSignal<u64> {
+    pub fn web_view_events(&self) -> Trigger {
         self.pushed(Pushed::WebView)
     }
 
@@ -832,9 +826,9 @@ impl Editor {
 
     pub fn block_types_known(&self) -> Memo<bool> {
         let host = self.host();
-        let revision = self.pushed(Pushed::Catalog);
+        let changed = self.pushed(Pushed::Catalog);
         let known = create_memo(move || {
-            revision.get();
+            changed.track();
             host.block_types_known()
         });
         wait_for(move || match known.get() {
@@ -1143,10 +1137,10 @@ impl Editor {
         let peers = create_signal(Vec::new());
         let core = self.core();
         core.host().ask_for_peers(None);
-        let revision = self.pushed(Pushed::Peers);
+        let changed = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
         create_effect(move || {
-            revision.get();
+            changed.track();
             if let Some(decoded) = core.new_peers::<P>(&seen) {
                 peers.set(decoded);
             }
@@ -1164,10 +1158,10 @@ impl Editor {
     {
         let core = self.core();
         core.host().ask_for_peers(None);
-        let revision = self.pushed(Pushed::PeerMessages);
+        let changed = self.pushed(Pushed::PeerMessages);
         let seen = Cell::new(core.host().peer_messages_seen());
         create_effect(move || {
-            revision.get();
+            changed.track();
             let received = core.new_peer_messages::<M>(&seen);
             untrack(|| {
                 for (from, message) in received {

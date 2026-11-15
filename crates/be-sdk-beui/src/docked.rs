@@ -166,7 +166,7 @@ impl DockedTabs {
         let pushed = link.pushed;
         let picks = link.host.clone();
         create_effect(move || {
-            pushed.get();
+            pushed.track();
             if !docked {
                 return;
             }
@@ -286,7 +286,7 @@ struct ProtocolLink {
     host: EditorHost,
     view: ViewId,
     docked: bool,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     tabs: Weak<DockedTabs>,
     bodies: RefCell<Option<DockBodies>>,
     placings: Cell<u64>,
@@ -573,7 +573,7 @@ impl DockHostLink for ProtocolLink {
         let view = self.view;
         let pushed = self.pushed;
         create_memo(move || {
-            pushed.get();
+            pushed.track();
             let hosted = host.dock_hosted(view)?;
             Some(hosted_from_api(&hosted, &mut |path| own(path)))
         })
@@ -590,7 +590,7 @@ impl DockHostLink for ProtocolLink {
         let view = self.view;
         let pushed = self.pushed;
         create_effect(move || {
-            pushed.get();
+            pushed.track();
             for tab in untrack(|| host.take_dock_closes(view)) {
                 if let Some(tab) = own(&tab) {
                     untrack(|| events.call(DockHostEvent::Close(tab)));
@@ -735,7 +735,7 @@ pub(crate) fn bridge_child_dock(
         let host = host.clone();
         let paths = Rc::clone(&paths);
         create_effect(move || {
-            pushed.get();
+            pushed.track();
             let Some(child) = child.get() else {
                 return;
             };
@@ -878,12 +878,12 @@ pub(crate) fn bridge_child_dock(
 fn DockBarBody(
     editor: Editor,
     host: EditorHost,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     shown: (ChildId, DockTabPath),
 ) -> NodeId {
     let (child, path) = shown.clone();
     let size = create_memo(move || {
-        pushed.get();
+        pushed.track();
         untrack(|| host.child_dock(child))
             .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
             .filter(|size| size.x > 0.0 && size.y > 0.0)
@@ -919,7 +919,7 @@ fn DockTabBody(editor: Editor, shown: Option<(ChildId, DockTabPath)>) -> NodeId 
 fn tab_menu(
     editor: Editor,
     host: EditorHost,
-    pushed: ReadSignal<u64>,
+    pushed: Trigger,
     child: Option<ChildId>,
     path: Option<DockTabPath>,
 ) -> Memo<Vec<MenuNode>> {
@@ -931,7 +931,7 @@ fn tab_menu(
     ));
     let shown = child.zip(path);
     create_effect(move || {
-        pushed.get();
+        pushed.track();
         let Some((child, path)) = shown.clone() else {
             return;
         };

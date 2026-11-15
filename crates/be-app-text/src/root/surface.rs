@@ -230,7 +230,7 @@ fn select_where_opened(state: State) {
     let revealed = state.editor.pushed(Pushed::Reveal);
     let wanted = create_signal(None::<SearchLocation>);
     create_effect(move || {
-        revealed.get();
+        revealed.track();
         if let Some(at) = untrack(|| state.editor.host().take_reveal()) {
             wanted.set(Some(at));
         }
