@@ -122,11 +122,7 @@ impl Workspace {
                     let Some((block, asked)) = asked else {
                         return Ok(None);
                     };
-                    match asked.await {
-                        Some(Ok(listing)) => Ok(Some((block, listing))),
-                        Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
-                        None => Err(Pending::Loading),
-                    }
+                    Ok(Some((block, be_sdk_beui::answer(asked).await?)))
                 }
             })
         };

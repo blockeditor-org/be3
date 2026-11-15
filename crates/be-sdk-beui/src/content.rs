@@ -1,4 +1,3 @@
-use std::hash::Hash;
 use std::rc::Rc;
 
 use be_block_content::be_block_model::{Document, Field, FieldRef, List, Model};
@@ -265,21 +264,6 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         T: Clone + PartialEq + 'static,
     {
         self.watch(Some(key), project)
-    }
-
-    pub fn project_keyed<K, V>(
-        &self,
-        project: impl Fn(&C, &KeyedStore<K, V>) + 'static,
-    ) -> KeyedStore<K, V>
-    where
-        K: Clone + Eq + Hash + 'static,
-        V: Clone + PartialEq + 'static,
-    {
-        let live = self.live();
-        let store: KeyedStore<K, V> = KeyedStore::new();
-        live.visible(|content| project(content, &store));
-        keep(live.on_change(move |content, _| project(content, &store)));
-        store
     }
 
     pub fn on_touched(&self, key: Touched, run: impl Fn(&C, &[Touched]) + 'static) {
