@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::disk::{self, Disk, Kind, join, name_of, parent_of};
 use crate::index::{Index, Placed, Record, Skip, Stat};
 use crate::remote::{self, Block};
-use crate::{CLIENT, ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, explain};
+use crate::{ERRORS_FILE, Report, STATE_DIRECTORY, UNEXPORTED_FILE, client, explain};
 
 const IN_FLIGHT: usize = 16;
 const ATTEMPTS: usize = 8;
@@ -719,7 +719,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         });
         let content = self
             .types
-            .apply(block_type, current, CLIENT, edit)
+            .apply(block_type, current, client(), edit)
             .await?
             .ok_or("its type has no plain-file form")?;
         self.described(block_type, content).await
@@ -732,7 +732,7 @@ impl<S: ObjectStore> Pass<'_, S> {
             let change = Edit::Child(ChildChange::Add(*child));
             if let Some(changed) = self
                 .types
-                .apply(block_type, content.clone(), CLIENT, change)
+                .apply(block_type, content.clone(), client(), change)
                 .await?
             {
                 content = Some(changed);
@@ -784,7 +784,7 @@ impl<S: ObjectStore> Pass<'_, S> {
         });
         let ours = self
             .types
-            .apply(block_type, base.clone(), CLIENT, edit)
+            .apply(block_type, base.clone(), client(), edit)
             .await?
             .ok_or("its type has no plain-file form")?;
         let merges_parts =
@@ -1813,7 +1813,7 @@ async fn list_children<S: ObjectStore>(
             for child in children {
                 let edit = Edit::Child(change(*child));
                 if let Some(changed) = types
-                    .apply(block_type, content.clone(), CLIENT, edit)
+                    .apply(block_type, content.clone(), client(), edit)
                     .await?
                 {
                     content = Some(changed);
