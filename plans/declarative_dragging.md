@@ -305,12 +305,12 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 
 ## Open questions
 
-- **Moving between sites.** The receiving site's `commit` inserts the item; the source's removal
-  is a tentative edit it commits on the drop. Whether `Carry` hears that through a `moved_away`
-  callback or the payload carries its own removal is decided in step 2. Within one tree, a row
-  could move without being rebuilt by being a `Kept` under its key inside one `KeepAlive` around
-  both lists, which moves a subtree between parents (guides/beui/core.md); decide in step 2
-  whether that is worth it.
+- **Moving between sites** (decided in step 2: decisions/beui_a_move_between_drop_sites_is_the_apps.md).
+  The receiving site's `commit` gets the payload and the app does the move: it removes the item
+  from its home and inserts it at the chosen place in one edit, as it would for any other command.
+  `Carry` has no `moved_away` callback. Within one tree, a row could move without being rebuilt
+  by being a `Kept` under its key inside one `KeepAlive` around both lists, which moves a subtree
+  between parents (guides/beui/core.md); decide when a caller rebuilding rows is too slow.
 - **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
   or close it (today a flicked-out row leaves at once)? Decide in step 2.
 - **Rows a `VirtualList` has not built** have no rects. Either `slots_in` uses its estimates, or
