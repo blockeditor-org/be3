@@ -34,12 +34,17 @@ struct Roots {
     /// Blocks whose trusted keys carried different roots: one of them was forged, so neither
     /// is used.
     conflicting: HashSet<Uuid>,
-    /// Roots carried only by keys this device does not trust: opened through escrow, which
-    /// anyone who knows the escrow's public key can seal, or the server's seal of the
-    /// organization settings key. Carried on into keys an administrator makes for a block it
-    /// holds no trusted key of (`carried_plain`), never taken as the block's pin
-    /// (`KeyBook::root`).
-    escrowed: HashMap<Uuid, EntryHash>,
+}
+
+/// What a device holds of a block's access log root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RootPin {
+    /// Pinned from making the block or from a trusted key of it.
+    Pinned(EntryHash),
+    /// Trusted keys of it carried different roots: one was forged.
+    Conflicting,
+    /// None yet.
+    Unknown,
 }
 
 impl Roots {
@@ -376,12 +381,12 @@ impl KeyBook {
         self.ring
             .insert(escrow.id, ContentKey::from_bytes(secret.to_bytes()));
         self.trusted.lock().unwrap().insert(escrow.id);
-        let wrapped = vec![self.seal_plain_to(
-            escrow.id,
-            self.account,
-            &self.identity.public(),
-            &secret.to_bytes(),
-        )];
+        self.roots
+            .lock()
+            .unwrap()
+            .blocks
+            .insert(escrow.id, self.organization);
+        let wrapped = vec![self.seal_to(escrow.id, self.account, &self.identity.public())?];
         Ok((
             escrow,
             KeySet {
@@ -446,75 +451,48 @@ impl KeyBook {
         self.roots.lock().unwrap().pinned.get(&block).copied()
     }
 
+    pub fn root_pin(&self, block: Uuid) -> RootPin {
+        let roots = self.roots.lock().unwrap();
+        match roots.pinned.get(&block) {
+            Some(root) => RootPin::Pinned(*root),
+            None if roots.conflicting.contains(&block) => RootPin::Conflicting,
+            None => RootPin::Unknown,
+        }
+    }
+
     /// Pins the root of a block this device makes, before minting its keys, which carry it.
     pub fn pin_root(&self, block: Uuid, root: EntryHash) {
         self.roots.lock().unwrap().pin(block, root);
     }
 
-    /// `key` as it travels sealed or wrapped: with its block and that block's root
-    /// (`CarriedKey`), or bare for an escrow key, whose own chain pins it
-    /// (`verify_escrow`). A key whose block's root this device does not hold is not handed on.
+    /// `key` as it travels sealed or wrapped (`CarriedKey`): with the block it is a key of
+    /// (the organization, for an escrow key), and that block's root only when this device holds
+    /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
+    /// for. A key this device cannot place is not handed on.
     pub fn carried_plain(&self, key: Uuid) -> Result<Vec<u8>, StoreError> {
         let plain = self.trusted_plain(key)?;
         let roots = self.roots.lock().unwrap();
-        if let Some(block) = roots.blocks.get(&key) {
-            let root = roots
-                .pinned
-                .get(block)
-                .or_else(|| {
-                    (!roots.conflicting.contains(block))
-                        .then(|| roots.escrowed.get(block))
-                        .flatten()
-                })
-                .ok_or(StoreError::MissingKey(key))?;
-            return Ok(CarriedKey {
-                key: *plain.as_bytes(),
-                block: block.into_bytes(),
-                root: *root,
-            }
-            .encode());
+        let block = roots.blocks.get(&key).ok_or(StoreError::MissingKey(key))?;
+        Ok(CarriedKey {
+            key: *plain.as_bytes(),
+            block: block.into_bytes(),
+            root: roots.pinned.get(block).copied(),
         }
-        drop(roots);
-        match self.is_escrow(key) {
-            true => Ok(plain.as_bytes().to_vec()),
-            false => Err(StoreError::MissingKey(key)),
-        }
+        .encode())
     }
 
-    fn is_escrow(&self, key: Uuid) -> bool {
-        self.rows
-            .lock()
-            .unwrap()
-            .keys
-            .get(&key)
-            .is_some_and(|row| row.kind == KeyKind::Escrow)
-            || self
-                .escrow
-                .lock()
-                .unwrap()
-                .chain
-                .iter()
-                .any(|escrow| escrow.id == key)
-    }
-
-    /// The key `bytes` opened to, when they are what a key of `row` carries: its block's, with
-    /// that block's root, which a trusted key pins; or bare, for an escrow key.
+    /// The key `bytes` opened to, when they carry the block `row` is a key of. A trusted key
+    /// pins the root it carries; any other pins nothing.
     fn opened(&self, row: Option<KeyRow>, bytes: &[u8], vouched: bool) -> Option<[u8; 32]> {
         let row = row?;
-        if row.kind == KeyKind::Escrow {
-            return bytes.try_into().ok();
-        }
         let carried = CarriedKey::decode(bytes).ok()?;
         if carried.block != row.block.into_bytes() {
             return None;
         }
         let mut roots = self.roots.lock().unwrap();
         roots.blocks.insert(row.id, row.block);
-        match vouched {
-            true => roots.pin(row.block, carried.root),
-            false => {
-                roots.escrowed.entry(row.block).or_insert(carried.root);
-            }
+        if vouched && let Some(root) = carried.root {
+            roots.pin(row.block, root);
         }
         Some(carried.key)
     }
@@ -678,28 +656,18 @@ impl KeyBook {
         public: &RecoveryPublic,
     ) -> Result<WrappedKey, StoreError> {
         let plain = self.carried_plain(key)?;
-        Ok(self.seal_plain_to(key, account, public, &plain))
-    }
-
-    fn seal_plain_to(
-        &self,
-        key: Uuid,
-        account: Uuid,
-        public: &RecoveryPublic,
-        plain: &[u8],
-    ) -> WrappedKey {
         let to = Party {
             account: account.into_bytes(),
             public: *public,
         };
-        WrappedKey {
+        Ok(WrappedKey {
             key,
             wrapped_by: WrappedBy::Account(account),
             sender: self.account,
             sealed: self
                 .identity
-                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), plain),
-        }
+                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain),
+        })
     }
 
     fn mint(&self, block: Uuid, kind: KeyKind, owner_only: bool) -> KeyRow {

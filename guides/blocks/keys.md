@@ -16,11 +16,11 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   chunks, commits, manifests, metadata, session traffic and wrapped keys. An
   unknown id is `StoreError::MissingKey`.
 - **Keys travel with their block and root**: what is sealed or wrapped is
-  `be_block_keys::CarriedKey`, the key, the block it is a key of and the hash
-  of that block's access log root, so whoever opens it knows which block it is
-  for whatever the server's row says (`KeyBook::opened` drops a key whose
-  block differs) and pins the root (below). An escrow key travels bare: its
-  own signed chain pins it.
+  `be_block_keys::CarriedKey`, the key, the block it is a key of (the
+  organization, for an escrow key) and the hash of that block's access log
+  root when the sender holds it pinned, so whoever opens it knows which block
+  it is for whatever the server's row says (`KeyBook::opened` drops a key
+  whose block differs) and may pin the root (below).
 - **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
   it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
@@ -86,11 +86,13 @@ creator and their keys, made by `Peer::creation` (and `import`) and sent with
 somewhere the server cannot write: making the block (`KeyBook::pin_root`,
 before its keys are made, which carry it) or a trusted key of the block
 (`KeyBook::opened`). Keys of one block that carry different roots leave it
-with none (`Roots::conflicting`). `Peer::access_log` refuses a log whose root
-is not the pinned one (`ClientError::Forged`). A key opened only through
-escrow or the server's seal pins nothing: its root is only carried on into
-keys an administrator makes for that block (`Roots::escrowed`), since anyone
-who knows the escrow's public key can seal to it.
+with none (`RootPin::Conflicting`). `Peer::access_log` refuses a log whose
+root is not the pinned one, or a block whose root conflicts
+(`ClientError::Forged`). A key opened only through escrow or the server's
+seal pins nothing, since anyone who knows the escrow's public key can seal to
+it; and a device hands a key on with a root only when it holds that root
+pinned (`KeyBook::carried_plain`), so an administrator rotating a block it
+reaches only through escrow passes on no root at all.
 
 A company organization has a log too, rooted at its creator:
 `contacts::create_organization` picks the organization id, signs the root and

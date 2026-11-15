@@ -90,5 +90,54 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
         "the other block's log still checks"
     );
 
+    // A verified contact seals the member a key of the note carrying another root: one of the
+    // two was forged, so the note has no root at all.
+    let other = Uuid::new_v4();
+    let carried = be_block_keys::CarriedKey {
+        key: [4; 32],
+        block: note.into_bytes(),
+        root: Some(forged.hash()),
+    };
+    let sealed = owner.keys().identity().seal_for(
+        owner.account().into_bytes(),
+        &be_block_keys::Party {
+            account: member.account().into_bytes(),
+            public: member.keys().identity().public(),
+        },
+        other.as_bytes(),
+        &carried.encode(),
+    );
+    let database = harness.database();
+    database
+        .execute(
+            "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
+             VALUES (?1, ?2, ?3, 'data', 8, 0)",
+            rusqlite::params![organization.to_string(), other.to_string(), note.to_string()],
+        )
+        .unwrap();
+    database
+        .execute(
+            "INSERT INTO wrapped_keys (organization_id, key_id, wrapped_by, sender, sealed)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![
+                organization.to_string(),
+                other.to_string(),
+                format!("account:{}", member.account()),
+                owner.account().to_string(),
+                sealed
+            ],
+        )
+        .unwrap();
+    drop(database);
+    let conflicted = harness.second(&member).await;
+    assert_eq!(
+        conflicted.keys().root_pin(note),
+        crate::keys::RootPin::Conflicting
+    );
+    assert!(
+        matches!(conflicted.access_log(note).await, Err(ClientError::Forged(block)) if block == note),
+        "a block whose keys carried two roots is not locked but forged"
+    );
+
     harness.stop().await;
 }

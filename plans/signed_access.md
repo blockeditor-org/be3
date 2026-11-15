@@ -220,10 +220,17 @@ instead.
    phrase. Done: a test where an account takes a new phrase and a record
    signed with the old key after it is refused. A root carried only by a key opened through escrow is not pinned
    (anyone can seal to the escrow key); step 3 decides how an administrator
-   checks a log it reaches only through escrow.
+   checks a log it reaches only through escrow. Agents' blocks and records are
+   rooted at the agent's own keys, which its maker makes and holds no copy of,
+   so only the agent (or a later owner record) retires or transfers them.
 3. **Signed grants and administrators.** Records, logs, proof paths, the
    server's checks and the devices', sealing to grantees who are not contacts,
-   and key epochs bound to log heads. Done: a test where the server lists a
+   and key epochs bound to log heads. Before any decision acts on a pin:
+   authenticate escrow wraps (sealed by their sender, as `seal_for` is,
+   rather than anonymously) or give administrators another check of a root
+   they reach only through escrow, which today pins nothing; and take a pin
+   only from a sender the log entitles to seal the key (today any verified
+   contact can plant a block's first pin). Done: a test where the server lists a
    contact as granted with no record and no key reaches them; one where the
    server withholds a revocation from a device and that device seals the new
    epoch to nobody until it has the log up to the epoch's head; one where a

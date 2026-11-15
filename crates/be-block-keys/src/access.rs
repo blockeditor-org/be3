@@ -142,33 +142,46 @@ impl Entry {
     }
 }
 
-/// A content key as it travels sealed or wrapped: the key, the block it is a key of and the hash
-/// of that block's access log root. Sealed together, so a server that relabels a key row as
-/// another block's, or serves a block's log rooted elsewhere, is caught by whoever opens it.
+/// A key as it travels sealed or wrapped: the key, the block (or, for an escrow key, the
+/// organization) it is a key of, and the hash of that log's root when the sender holds it
+/// pinned. Sealed together, so a server that relabels a key row as another block's, or serves a
+/// block's log rooted elsewhere, is caught by whoever opens it. A sender that holds no pinned
+/// root (it reached the block only through escrow, say) sends none, and the key pins nothing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CarriedKey {
     pub key: [u8; 32],
     pub block: [u8; 16],
-    pub root: EntryHash,
+    pub root: Option<EntryHash>,
 }
 
 impl CarriedKey {
-    const LEN: usize = 32 + 16 + 32;
+    const BARE: usize = 32 + 16 + 1;
 
     pub fn encode(&self) -> Vec<u8> {
-        [self.key.as_slice(), &self.block, &self.root].concat()
+        let mut bytes = [self.key.as_slice(), &self.block].concat();
+        match &self.root {
+            Some(root) => {
+                bytes.push(1);
+                bytes.extend_from_slice(root);
+            }
+            None => bytes.push(0),
+        }
+        bytes
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, KeyError> {
-        if bytes.len() != Self::LEN {
-            return Err(KeyError::Corrupt);
-        }
-        let (key, rest) = bytes.split_at(32);
-        let (block, root) = rest.split_at(16);
+        let (head, root) = bytes.split_at_checked(Self::BARE).ok_or(KeyError::Corrupt)?;
+        let (key, rest) = head.split_at(32);
+        let (block, flag) = rest.split_at(16);
+        let root = match (flag, root.len()) {
+            ([0], 0) => None,
+            ([1], 32) => Some(root.try_into().map_err(|_| KeyError::Corrupt)?),
+            _ => return Err(KeyError::Corrupt),
+        };
         Ok(Self {
             key: key.try_into().map_err(|_| KeyError::Corrupt)?,
             block: block.try_into().map_err(|_| KeyError::Corrupt)?,
-            root: root.try_into().map_err(|_| KeyError::Corrupt)?,
+            root,
         })
     }
 }

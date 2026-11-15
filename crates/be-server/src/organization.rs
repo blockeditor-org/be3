@@ -208,14 +208,12 @@ impl ServerKey {
                 continue;
             }
             let plain = ring.get(row.id).ok_or(ServerError::Corrupt)?;
-            // Devices take this seal for the settings key alone and pin no root from it (the
-            // standing exception, decisions/the_server_never_vouches_for_an_identity.md), so the
-            // root it carries is the one the server holds.
-            let root = crate::access::root_hash(connection, organization, settings)?.unwrap_or_default();
+            // The server vouches for no root (decisions/the_server_never_vouches_for_an_identity.md),
+            // so it carries none.
             let carried = be_block_keys::CarriedKey {
                 key: *plain.as_bytes(),
                 block: settings.into_bytes(),
-                root,
+                root: None,
             };
             let sealed = self.secret.seal_for(
                 self.account.into_bytes(),

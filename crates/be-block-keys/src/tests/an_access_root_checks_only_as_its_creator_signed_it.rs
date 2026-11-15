@@ -48,9 +48,18 @@ fn an_access_root_checks_only_as_its_creator_signed_it() {
     let carried = CarriedKey {
         key: [3; 32],
         block,
-        root: root.hash(),
+        root: Some(root.hash()),
     };
     assert_eq!(CarriedKey::decode(&carried.encode()), Ok(carried));
+    let unvouched = CarriedKey { root: None, ..carried };
+    assert_eq!(
+        CarriedKey::decode(&unvouched.encode()),
+        Ok(unvouched),
+        "a key whose sender holds no root carries none"
+    );
+    let mut truncated = carried.encode();
+    truncated.pop();
+    assert!(CarriedKey::decode(&truncated).is_err());
     assert!(
         CarriedKey::decode(&[3; 32]).is_err(),
         "a bare key carries no block and no root"

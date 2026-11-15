@@ -1,7 +1,7 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
-use be_block_keys::{Entry, EntryHash, PublicIdentity, RecoveryPublic, SigningPublic};
+use be_block_keys::{Entry, PublicIdentity, RecoveryPublic, SigningPublic};
 use be_block_protocol::ErrorCode;
 use rusqlite::{Connection, OptionalExtension, params};
 use uuid::Uuid;
@@ -88,17 +88,6 @@ pub(crate) fn log_of(
     Ok(entries)
 }
 
-/// The hash of the block's root, as the server holds it.
-pub(crate) fn root_hash(
-    connection: &Connection,
-    organization: Uuid,
-    block: Uuid,
-) -> Result<Option<EntryHash>, ServerError> {
-    let Some(root) = log_of(connection, organization, block)?.into_iter().next() else {
-        return Ok(None);
-    };
-    Ok(Some(Entry::decode(&root).map_err(|_| ServerError::Corrupt)?.hash()))
-}
 
 /// Stores `root` as the first entry of a new company organization's log, once it checks
 /// (`checked_root`).

@@ -1268,7 +1268,11 @@ impl<S: ObjectStore> Peer<S> {
     /// rooted anywhere else is the server's, and refused (`ClientError::Forged`).
     pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
         let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
-        let pinned = self.keys.root(block).ok_or(ClientError::Locked(block))?;
+        let pinned = match self.keys.root_pin(block) {
+            crate::keys::RootPin::Pinned(root) => root,
+            crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
+            crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
+        };
         checked_log(block, pinned, &served)
     }
 
