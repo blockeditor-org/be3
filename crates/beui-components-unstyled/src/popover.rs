@@ -129,8 +129,9 @@ pub fn Popover(
                     }
                 }}
             >|handle: AnchoredHandle| {
-                // Built the first time it opens, as a dropdown or as a sheet, and kept, paused,
-                // while closed; it carries the overlay's presence, which it reads.
+                // Built the first time it opens as a dropdown, and again the first time it opens
+                // as a sheet: one `Kept` for each look, both kept, paused, while closed, so each
+                // keeps its own state. It carries the overlay's presence, which it reads.
                 let overlay = use_overlay_presence();
                 view! {
                     <Kept key={handle.sheet}>|| {

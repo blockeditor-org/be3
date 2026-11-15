@@ -3,7 +3,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use be_lib_stable_hash::HashMap;
+use be_lib_stable_hash::{HashMap, HashSet};
 use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
@@ -26,26 +26,23 @@ struct Cache {
     owner: Option<ScopeContext>,
     entries: RefCell<HashMap<AnyKey, Entry>>,
     next: Cell<u64>,
-    keeps: Option<Box<dyn Fn(&AnyKey) -> bool>>,
+    /// The keys kept while nothing shows them, or `None` when every key is.
+    keeps: Option<Memo<HashSet<AnyKey>>>,
 }
 
 impl Cache {
     fn kept(&self, key: &AnyKey) -> bool {
-        self.keeps.as_ref().is_none_or(|keeps| untrack(|| keeps(key)))
+        self.keeps
+            .is_none_or(|keeps| keeps.with_untracked(|keeps| keeps.contains(key)))
     }
 
     /// Forgets every entry its keep set dropped that nothing shows.
     fn trim(&self) {
-        let Some(keeps) = &self.keeps else {
-            return;
-        };
         let dropped: Vec<Entry> = {
             let mut entries = self.entries.borrow_mut();
             let gone: Vec<AnyKey> = entries
                 .iter()
-                .filter(|(key, entry)| {
-                    entry.borrower.get_untracked().is_none() && !keeps(key)
-                })
+                .filter(|(key, entry)| entry.borrower.get_untracked().is_none() && !self.kept(key))
                 .map(|(key, _)| key.clone())
                 .collect();
             gone.iter().filter_map(|key| entries.remove(key)).collect()
@@ -64,6 +61,7 @@ struct KeepAliveCache(Rc<Cache>);
 /// subtree is built the first time a `Kept` with its key is, paused (nothing in it runs)
 /// while no `Kept` shows it, and resumed and shown again by the next `Kept` with that key,
 /// wherever it is. Given `keep`, a key it no longer lists is dropped once nothing shows it.
+/// Two `Kept`s with one key shown at once show it where the one built last is.
 ///
 /// A kept subtree belongs to the `KeepAlive`, so it reads the context provided around the
 /// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
@@ -78,15 +76,14 @@ where
         owner: current_scope(),
         entries: RefCell::default(),
         next: Cell::new(0),
-        keeps: keep.keeps(),
+        keeps: untrack(|| keep.keys().is_some()).then(|| {
+            create_memo(move || keep.keys().unwrap_or_default().into_iter().collect())
+        }),
     });
-    if cache.keeps.is_some() {
+    if let Some(keeps) = cache.keeps {
         let watched = cache.clone();
         create_effect(move || {
-            if let Some(keeps) = &watched.keeps {
-                // Read the keep set so a change to it trims what it dropped.
-                keeps(&AnyKey::new(()));
-            }
+            keeps.with(|_| ());
             untrack(|| watched.trim());
         });
     }
@@ -105,7 +102,7 @@ where
 /// `KeepAlive`): built the first time, shown here through a portal, and kept, paused, after
 /// this `Kept` goes, until another `Kept` with that key shows it again. Inside it,
 /// `kept_shown()` says whether it is shown, so what it holds outside itself (a dock it
-/// joined) lets go while it is hidden.
+/// joined) lets go while it is hidden. A `Kept` inside another one's subtree pauses with it.
 #[component]
 pub fn Kept<K>(key: K, #[prop(children)] content: Render<(), NodeId>) -> NodeId
 where
@@ -158,6 +155,24 @@ where
             (node, borrower)
         }
     };
+    // Hidden with the subtree around it (a `Kept` of another `KeepAlive`), and shown with it.
+    if let Some(around) = around {
+        let followed = cache.clone();
+        let key = key.clone();
+        create_effect(move || {
+            let shown = around.get();
+            let entries = followed.entries.borrow();
+            let Some(entry) = entries.get(&key).filter(|entry| entry.borrower.get_untracked() == Some(me)) else {
+                return;
+            };
+            let scope = entry.scope.clone();
+            drop(entries);
+            match shown {
+                true => scope.resume(),
+                false => scope.pause(),
+            }
+        });
+    }
     let released = cache.clone();
     on_cleanup(move || {
         let entries = released.entries.borrow();

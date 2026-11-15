@@ -51,5 +51,13 @@ app's popup in another tab no longer shows that tab.
 2. App children (`be-sdk-beui` `child.rs`, `SubregionView`) follow `kept_shown()` and report
    hidden as it turns false, before their scope pauses, rather than through `measure`.
 
+**Ideas from the review of the first attempt.**
+- Fix the late refocus at its source: stamp focus requests with a sequence number, so a request
+  from a hidden or paused subtree never overrides a later explicit keyboard grant, or drop it when
+  the subtree hides. That extends what already happens to a focus request made while hidden (it
+  waits until shown).
+- Instead of an `awake` key set on the generic `KeepAlive`, the inner dock shows the joined tab's
+  panel through a `Kept` of its own, so the panel is shown, not hidden and kept running.
+
 **Tests.** The three host tests above; a dock tab hidden behind another is paused and kept (its
 effects wait and run once shown, nothing rebuilt); nested-dock tests in beui-host.
