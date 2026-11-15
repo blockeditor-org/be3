@@ -10,7 +10,7 @@ use beui_reactive::{ScopeContext, current_scope};
 use crate::reactive::{
     AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set, Signal,
     Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup,
-    provide_kept_shown, untrack, use_context,
+    provide_context, provide_kept_shown, untrack, use_context,
 };
 
 struct Entry {
