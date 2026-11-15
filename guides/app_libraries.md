@@ -101,6 +101,12 @@ position-independent (`-shared`) with everything exported; a linked app
 position-independent with only its own code. `libraries` on a rule names the
 whole closure, not only direct uses.
 
+A module above the root is linked `-Bsymbolic`, so what it defines binds to
+its own definition: otherwise it reaches each of its symbols another module
+could define through a `GOT.func` or `GOT.mem` import, which the loader answers
+from the lowest module exporting the name (PDFium's FreeType was handed beui's
+`TT_RunIns`).
+
 A link that needs libraries reads their `be3.lib` sections and refuses a
 closure that is incomplete or in which two libraries hold the same crate or C
 library (two copies of beui-reactive would be two reactive runtimes, which

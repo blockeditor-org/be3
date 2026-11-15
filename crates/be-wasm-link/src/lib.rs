@@ -42,9 +42,15 @@ const DROPPED_FROM_APPS: [&str; 5] = [
     "--no-entry",
     "--export=__heap_base",
 ];
-const APP_FLAGS: [&str; 7] = [
+// -Bsymbolic binds what a module defines to its own definition. Without it a
+// module reaches its own symbols that others could define through GOT.func and
+// GOT.mem imports, which the loader answers from the lowest module that
+// exports the name: PDFium's FreeType took the address of its TT_RunIns and
+// was handed beui's.
+const APP_FLAGS: [&str; 8] = [
     "-shared",
     "--experimental-pic",
+    "-Bsymbolic",
     "--unresolved-symbols=import-dynamic",
     "--export=__wasm_init_tls",
     "--export=__tls_size",
