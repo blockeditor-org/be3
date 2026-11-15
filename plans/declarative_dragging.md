@@ -224,9 +224,11 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      leaves its scroll gives `.preview`; capturing the face as a texture is in the backlog.
      Presence in 1c is only the hook: the board's tracked `frame()`, which a host publishes
      from an effect; peers drawing a remote carry wait for step 5, once a site has a stable id
-     to name places by. Keys: Space lifts a focused source, the arrows step between its places
+     to name places by. Keys: Ctrl+Shift and an arrow move a focused source one place; Move in the palette,
+     or Space on a source that does not activate, lifts it; the arrows step between its places
      (`step_toward`), Space or Enter drops, Escape or Tab puts it down, and a live region says
-     the lift, each place and the end. It may give a site
+     the lift, each place and the end
+     (decisions/beui_activating_drag_sources_keep_their_keys.md). It may give a site
      an optional node, which the inspector and `Into` nesting want.
    - **1d:** beui-demo pages: the list above, free positioning that snaps into slots
      (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An

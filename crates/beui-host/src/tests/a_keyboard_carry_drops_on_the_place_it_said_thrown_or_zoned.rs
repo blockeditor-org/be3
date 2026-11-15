@@ -20,7 +20,6 @@ fn said(harness: &Harness) -> Option<String> {
 fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
     let _root = RootScope::new();
     let dropped = create_signal(Vec::<&'static str>::new());
-    let activated = create_signal(0_u32);
     let document = build_node(move || {
         let baskets = [NodeRef::new(), NodeRef::new(), NodeRef::new(), NodeRef::new()];
         let names = ["left", "middle", "right", "far"];
@@ -49,7 +48,6 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
             <List spacing=20.0 align=Align::Start>
                 <Interactive
                     focusable=true
-                    on_activate={move || activated.update(|count| *count += 1)}
                     drag={Func::new(|_: PointerPress| Some(Carry::new(7_u32)))}
                 >
                     <Frame width=60.0 height=40.0 />
@@ -90,10 +88,5 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
         dropped.get_untracked(),
         ["middle", "far"],
         "a zoned place an arrow reaches is the one dropped on"
-    );
-    assert_eq!(
-        activated.get_untracked(),
-        0,
-        "lifting and dropping with Space and Enter activates nothing"
     );
 }
