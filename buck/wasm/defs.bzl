@@ -359,6 +359,43 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
     )
     wasi_module(name = name, libraries = libraries, library = ":" + library, module = module, **kwargs)
 
+# An app compiled once (app's tests_apart): the crate as an rlib, :lib-wasm,
+# and :wasm, a cdylib of buck/wasm/app_module_root.rs that links it, which
+# :module names as app_module's does.
+def _app_module_apart(module, libraries = None, extra_deps = [], visibility = None):
+    kwargs = {"visibility": visibility} if visibility != None else {}
+    facts = cargo_wasm_facts()
+    if libraries == None:
+        libraries = DEFAULT_LIBRARIES
+    native.rust_library(
+        name = "lib-wasm",
+        crate = facts.crate,
+        crate_root = facts.crate_root,
+        deps = facts.deps + extra_deps,
+        edition = facts.edition,
+        env = facts.env,
+        features = facts.features,
+        mapped_srcs = cargo_manifest_sources(),
+        rustc_flags = ["-Zdefault-visibility=hidden"] + opt_flags("app") + SYMBOL_FLAGS,
+        srcs = cargo_library_sources() + ["manifest.json"],
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
+        **RUST_LOCAL,
+    )
+    native.rust_library(
+        name = "wasm",
+        crate = facts.crate + "_module",
+        crate_root = "app_module_root.rs",
+        edition = facts.edition,
+        linker_flags = _needs(libraries),
+        mapped_srcs = {"root//buck/wasm:app_module_root.rs": "app_module_root.rs"},
+        named_deps = {"app": ":lib-wasm"},
+        preferred_linkage = "shared",
+        rustc_flags = _guest_exports + ([] if libraries else _reactor) + opt_flags("app") + SYMBOL_FLAGS,
+        target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
+        **(kwargs | RUST_LOCAL),
+    )
+    wasi_module(name = "module", libraries = libraries, library = ":wasm", module = module, **kwargs)
+
 # An app: the guest cdylib, :wasm (wasm32 only; an app is all behind
 # cfg(target_arch = "wasm32")), :module named after its manifest's entry point,
 # :manifest, and its wasm :test. test_env is extra environment for compiling the
@@ -377,19 +414,34 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
 # crates/be-tool-buck/src/plan.rs plans it there), as the library named after its package, and each
 # examples/NAME.rs is :example-NAME on the host, such as a benchmark that
 # drives the editor through be-sdk-test.
-def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None):
+#
+# tests_apart compiles the app once, as an rlib (:lib-wasm) that both :module
+# (through buck/wasm/app_module_root.rs) and the tests (a crate of their own,
+# buck/wasm/app_tests_root.rs and the package's src/**/tests*) link, rather
+# than once for :module and again with its tests (plans/cheaper_incremental_builds.md,
+# step 3). The tests then reach only the app's public items.
+def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], types = None, libraries = None, tests_apart = False):
     kwargs = {"visibility": visibility} if visibility != None else {}
-    app_module(
-        name = "module",
-        extra_deps = extra_deps,
-        libraries = libraries,
-        module = module,
-        visibility = visibility,
-    )
+    if tests_apart:
+        _app_module_apart(
+            extra_deps = extra_deps,
+            libraries = libraries,
+            module = module,
+            visibility = visibility,
+        )
+    else:
+        app_module(
+            name = "module",
+            extra_deps = extra_deps,
+            libraries = libraries,
+            module = module,
+            visibility = visibility,
+        )
     native.export_file(name = "manifest", src = "manifest.json", **kwargs)
     app_data(name = "data", files = data, **kwargs)
     app_types(name = "types", module = types, **kwargs)
     app_tests(
+        apart = tests_apart,
         env = test_env,
         exports = _guest_exports,
         extra_deps = extra_deps,
@@ -413,24 +465,37 @@ def app(module, visibility = None, test_env = {}, data = {}, extra_deps = [], ty
 # place of the toolchain's.
 # The test crate itself is compiled at app_test's opt level, and its
 # dependencies as the app's are.
-def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
+def app_tests(exports = [], env = {}, extra_deps = [], libraries = None, apart = False):
     facts = cargo_wasm_facts()
     if libraries == None:
         libraries = DEFAULT_LIBRARIES
     if all([library in libraries for library in DEFAULT_LIBRARIES]):
         libraries = libraries + [TEST_LIBRARY]
+    if apart:
+        crate = facts.crate + "_tests"
+        crate_root = "src/app_tests_root.rs"
+        named_deps = {"app": ":lib-wasm"}
+        mapped_srcs = cargo_manifest_sources(foreign_resources = {"root//buck/wasm:app_tests_root.rs": crate_root})
+        srcs = native.glob(["src/**/tests.rs", "src/**/tests/**"])
+    else:
+        crate = facts.crate
+        crate_root = facts.crate_root
+        named_deps = {}
+        mapped_srcs = cargo_manifest_sources()
+        srcs = cargo_test_sources() + native.glob(["manifest.json"])
     native.rust_binary(
         name = "test-module",
-        crate = facts.crate,
-        crate_root = facts.crate_root,
+        crate = crate,
+        crate_root = crate_root,
         deps = facts.test_deps + extra_deps + [_LIBTEST],
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
         linker_flags = _needs(libraries),
-        mapped_srcs = cargo_manifest_sources(),
+        mapped_srcs = mapped_srcs,
+        named_deps = named_deps,
         rustc_flags = exports + ["--test"] + opt_flags("app_test") + SYMBOL_FLAGS,
-        srcs = cargo_test_sources() + native.glob(["manifest.json"]),
+        srcs = srcs,
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
     )

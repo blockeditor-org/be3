@@ -5,5 +5,6 @@ cargo_package()
 
 app(
     module = "checklist",
+    tests_apart = True,
     types = "//crates/be-type-checklist:module",
 )

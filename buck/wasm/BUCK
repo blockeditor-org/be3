@@ -3,3 +3,8 @@ load("@root//buck/dev:verify.bzl", "package_fix")
 # The rules in defs.bzl need a package to live in; nothing is built here.
 
 package_fix()
+
+# The roots app() compiles an app's module and tests from when they are apart.
+export_file(name = "app_tests_root.rs")
+
+export_file(name = "app_module_root.rs")
