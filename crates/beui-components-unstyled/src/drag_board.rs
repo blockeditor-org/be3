@@ -6,7 +6,11 @@ use be_lib_stable_hash::HashMap;
 use beui_view::drag::{
     DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Take, Target,
 };
-use beui_view::reactive::{NodeId, tree_local};
+use beui_view::drag::DragFrame;
+use beui_view::reactive::{NodeId, OwnedSignal, tree_local};
+
+mod sites;
+pub(crate) use sites::{Erased, Site};
 use beui_view::types::{Rect, WindowId};
 
 /// The drag board of the current tree: what is carried, the targets and scrollers it can
@@ -48,10 +52,14 @@ pub struct Board {
     scrollers: RefCell<Vec<EdgeScroller>>,
     scrolling: RefCell<Option<Scrolling>>,
     next: Cell<u64>,
+    sites: RefCell<Vec<Site>>,
+    placing: RefCell<Option<sites::Placing>>,
+    lifted: OwnedSignal<Option<Erased>>,
+    shown: OwnedSignal<Option<DragFrame>>,
 }
 
 impl Board {
-    fn new(space: Rc<dyn Space>) -> Self {
+    pub(crate) fn new(space: Rc<dyn Space>) -> Self {
         Self {
             space,
             orders: RefCell::default(),
@@ -62,6 +70,10 @@ impl Board {
             scrollers: RefCell::default(),
             scrolling: RefCell::default(),
             next: Cell::default(),
+            sites: RefCell::default(),
+            placing: RefCell::default(),
+            lifted: OwnedSignal::new(None),
+            shown: OwnedSignal::new(None),
         }
     }
 
@@ -129,7 +141,7 @@ impl Board {
     }
 
     pub fn carrying(&self) -> bool {
-        self.carried.borrow().is_some()
+        self.carried.borrow().is_some() || self.placing()
     }
 
     pub fn item(&self) -> Option<Rect> {
@@ -547,11 +559,19 @@ impl Driver for Board {
     }
 
     fn track(&self, point: DragPoint, order: Order) {
+        if self.placing() {
+            self.place(point, false);
+            return;
+        }
         self.order(order);
         Board::track(self, point);
     }
 
     fn release(&self, cancelled: bool, order: Order) {
+        if self.placing() {
+            self.put_down(!cancelled);
+            return;
+        }
         self.order(order);
         match cancelled {
             true => {
@@ -562,6 +582,9 @@ impl Driver for Board {
     }
 
     fn cancel(&self) -> bool {
+        if self.placing() {
+            return self.put_down(false);
+        }
         Board::cancel(self)
     }
 
