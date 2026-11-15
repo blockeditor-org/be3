@@ -112,7 +112,7 @@ pub use drag_board::{Board, drag_board};
 pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use form::Form;
-pub use glide::{GLIDE_SPRING, Glide, GlideApi, GlideHold};
+pub use glide::{Glide, GlideApi, GlideHold};
 pub use list_row::ListRow;
 pub use menu::{
     MenuCaption, MenuGrid, MenuItem, MenuListApi, MenuNodes, MenuRowHandle, MenuRowKind, MenuThen,

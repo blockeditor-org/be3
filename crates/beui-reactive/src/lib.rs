@@ -21,6 +21,7 @@ mod scope;
 mod selector;
 mod signal;
 mod stored;
+mod trackable;
 mod trigger;
 
 pub use beui_reactive_macros::Store;
@@ -43,6 +44,7 @@ pub use scope::{
 pub use selector::{Selector, create_selector};
 pub use signal::{Get, OwnedSignal, ReadSignal, Set, Signal, create_signal};
 pub use stored::{OwnedStored, Stored, StoredCell, store};
+pub use trackable::Trackable;
 pub use trigger::{OwnedTrigger, Trigger, create_trigger};
 
 #[cfg(test)]

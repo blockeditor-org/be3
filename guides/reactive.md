@@ -56,6 +56,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | --- | --- |
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
 | An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
+| A prop that only asks when something changed, an event or a value | `Trackable`: a `Trigger`, `Signal`, `ReadSignal`, `Memo` or `Reader` converts into one (and into `Option<Trackable>`), or `Trackable::new`; read it with `track()` |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
 | State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that resets when its source returns something new, when effects next run (not at the write); never a signal seeded with `get_untracked` and an effect copying into it |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
