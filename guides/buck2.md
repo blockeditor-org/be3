@@ -209,11 +209,23 @@ accepted paintings among its inputs: it writes every painting it makes into `MAD
 reads none. Then `painting_compare` (crates/be-tool-paint-compare), keyed on what the test made
 and the crate's `snapshots/`, writes `changed/` (each new or changed painting and a `.why`) and
 `used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
-painting reruns only that cheap compare, and a test that paints differently from run to run gives
-one painting per build of its code, from the cache, rather than flipping with the accepted
-painting it read. Only `buck2 test` (a plain `./scripts/test`)
-still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
-fail.
+painting reruns only that cheap compare, and a test that paints differently from run to run
+gives one painting per build of its code, from the cache, rather than flipping with the accepted
+painting it read. That compare also writes `paintings-names`, each painting made and whether it
+is new or differs. When one does, or the test made one of the paintings `be3.again` names, a
+dynamic action (`_again`) runs the test once more as `record` does and `paint-compare --again`
+compares the second run's paintings with the first's, writing `[again]`'s `flaky`, a line per
+difference or for a second run that failed, which crates/be-tool-verify prints and
+be-tool-local's `ci` puts on the pull request's summary comment. A test that failed leaves an
+earlier report at its path, so neither reads the reports of a package with a failed test, nor
+any when something else failed (a compile, which may have kept a test from running at all):
+be-tool-verify's failures.rs reads which from the event log. It only reports. Otherwise it is an
+empty directory and nothing runs. `./scripts/ci --previews BASE` sets `be3.again` (`-c`) to the
+accepted paintings the branch changed since its merge base with BASE, so a run after a painting
+was accepted, by the author's verify or by CI's autofix, still checks it. The second run's
+action is keyed on the test's code as the first is, so it runs once per build of such a test and
+comes from the cache after that. Only `buck2 test` (a plain `./scripts/test`) still hands the
+test the accepted paintings (`hidden`), which it compares in-process to pass or fail.
 
 - **App tests** are the crate's tests compiled to wasm and run by `be-sdk-test-runner`; they
   compare with only their crate's `snapshots/`, so one crate's paintings leave others cached.
@@ -244,19 +256,20 @@ fail.
 
 `./scripts/verify` and `./scripts/ci` are one `buck2 bxl --keep-going` of `buck/dev/verify.bxl`,
 with `--host` and a `--part` for each part asked for: `lint`, every `source_fix` in the root and
-toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check pass;
-`app-tests`, those that paint; `thorough`, the thorough tests (below), which the other two leave
-out, and `tests` builds be-host's `:web-dist` in their place; `previews` and `bootstrap`, what `./scripts/ci` asks for; and
-always the crates' rules and Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile
-generated anew, and crates/be-tool-verify. It finds
-each by kind, so a new package, test or crate needs no list. Each test is configured for its own
-default platform (the HTML core's tests for `linux_x86_64_html`), the tools that run here for
-`--host`, and the rest for `linux_x86_64`. The script declares no action of its own and only
-ensures what targets build, so its outputs are the ones `./scripts/buck build` of the same target
-shares: an action declared in BXL would have its output under a path keyed by the script's
-arguments. It prints the manifest crates/be-tool-verify reads, a `kind<TAB>path` line each,
-worked out before anything builds, so the bootstrap writes it whole to
-`target/verify-manifest.txt` even when something failed, and buck2 still exits non-zero.
+toolchains cells; `tests`, the `[run]` of every `_be_test` that does not paint and the check
+pass; `app-tests`, those that paint, with each one's `[again]`; `thorough`, the thorough tests
+(below), which the other two leave out, and `tests` builds be-host's `:web-dist` in their place;
+`previews` and `bootstrap`, what `./scripts/ci` asks for; and always the crates' rules and
+Cargo.lock (`//:cargo-plan`) and the sysroot's lockfile generated anew, and
+crates/be-tool-verify. It finds each by kind, so a new package, test or crate needs no list.
+Each test is configured for its own default platform (the HTML core's tests for
+`linux_x86_64_html`), the tools that run here for `--host`, and the rest for `linux_x86_64`. The
+script declares no action of its own and only ensures what targets build, so its outputs are the
+ones `./scripts/buck build` of the same target shares: an action declared in BXL would have its
+output under a path keyed by the script's arguments. It prints the manifest
+crates/be-tool-verify reads, a `kind<TAB>path` line each, worked out before anything builds, so
+the bootstrap writes it whole to `target/verify-manifest.txt` even when something failed, and
+buck2 still exits non-zero.
 
 **Thorough tests** carry the label `THOROUGH` (buck/dev/test.bzl): each run stays costly on the
 build server however it is written, and a change most verifies make reruns it, so

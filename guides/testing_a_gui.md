@@ -149,7 +149,13 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
   what it painted (`MADE_PAINTINGS`), and an action after it compares that with `snapshots/`
   (guides/buck2.md, Tests). So the test's result is cached on its code alone, and a test that
   paints nondeterministically keeps one painting until its code changes instead of flipping on
-  every run. Such a painting still flips when the test reruns (plans/flaky_paintings.md).
+  every run. To catch such a test, verify runs a test once more whenever it makes a painting
+  that is new or changed, and CI on a pull request does the same for every painting the pull
+  request changed (buck2.md, Tests). Where the two runs differ, or the second run fails, verify
+  prints the painting with what changed and keeps going, and the pull request's summary comment
+  lists it under "Flaky paintings". The first run's painting is the one accepted. Fix what the
+  test reads that varies (6, Writing a test that does not flake). A painting that changes when
+  nothing it shows or runs has changed is a sign of the same flake.
 - Git never merges a painting. On a conflict take either side (`git checkout --theirs`) and let
   verify repaint it.
 - Changed paintings need no explanation in your work: a person reviews them on the pull

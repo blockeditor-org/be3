@@ -91,9 +91,14 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
             parts.push(part);
         }
     }
+    let base = arguments
+        .iter()
+        .position(|argument| argument == "--previews")
+        .and_then(|at| arguments.get(at + 1));
+    let again = base.map(|base| changed_paintings(base)).unwrap_or_default();
     let (status, output) = buck::retrying(
         &buck2,
-        &bxl_arguments(host, &parts, &events),
+        &bxl_arguments(host, &parts, &events, &again),
         false,
         true,
         (!verbose).then_some(log.as_path()),
@@ -134,26 +139,71 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
     buck::exec(command)
 }
 
+/// The accepted paintings a pull request changed since `base`, the files under
+/// a crate's snapshots/ that differ from where the branch left it and are
+/// still there; none when git cannot say.
+fn changed_paintings(base: &str) -> Vec<String> {
+    let git = |arguments: &[&str]| {
+        Command::new("git")
+            .arg("-C")
+            .arg(repository())
+            .args(arguments)
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()
+            .filter(|output| output.status.success())
+            .map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
+    };
+    let Some(from) = git(&["merge-base", base, "HEAD"]) else {
+        return Vec::new();
+    };
+    git(&[
+        "diff",
+        "--name-only",
+        "--no-renames",
+        "--diff-filter=d",
+        from.trim(),
+        "HEAD",
+        "--",
+        "crates/*/snapshots/*.paint",
+    ])
+    .map(|listed| listed.lines().map(str::to_owned).collect())
+    .unwrap_or_default()
+}
+
 /// The buck2 command: buck/dev/verify.bxl with the parts asked for, which
 /// prints the manifest crates/be-tool-verify reads, whole even when something
 /// fails to build. --keep-going builds everything that can be, so that it
 /// reads what did; the tools it runs here are built for host. The event log
 /// is for crates/be-tool-verify too, which checks from it where Rust links
-/// ran (be-tool-verify's links.rs).
-fn bxl_arguments(host: &str, parts: &[&str], events: &std::path::Path) -> Vec<String> {
+/// ran (be-tool-verify's links.rs). `again` is the accepted paintings the pull
+/// request changed, as `be3.again`, whose tests run a second time
+/// (_again in buck/dev/test.bzl) even when the checkout already holds what
+/// they paint. That value grows with the pull request, by a path of about a
+/// hundred bytes for each painting it changed.
+pub(crate) fn bxl_arguments(
+    host: &str,
+    parts: &[&str],
+    events: &std::path::Path,
+    again: &[String],
+) -> Vec<String> {
     let mut arguments: Vec<String> = [
         "bxl",
         "--keep-going",
         "--event-log",
         &events.to_string_lossy(),
-        "//buck/dev/verify.bxl:main",
-        "--",
-        "--host",
-        host,
     ]
     .into_iter()
     .map(str::to_owned)
     .collect();
+    if !again.is_empty() {
+        arguments.extend(["-c".to_owned(), format!("be3.again={}", again.join(","))]);
+    }
+    arguments.extend(
+        ["//buck/dev/verify.bxl:main", "--", "--host", host]
+            .into_iter()
+            .map(str::to_owned),
+    );
     for part in parts {
         arguments.extend(["--part".to_owned(), (*part).to_owned()]);
     }

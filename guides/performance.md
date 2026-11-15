@@ -304,6 +304,10 @@ verify leaves out (guides/buck2.md, What verify builds); the C under host builds
 - **Compiles are the larger cost.** Before making a dependency of every app heavier, count it
   thirty times: once for each app test module that compiles and precompiles it
   (plans/app_tests_linked_against_libraries.md would share it instead).
+- **A changed painting costs its test a second run.** When a test makes a painting that is new
+  or differs from the accepted one, and in CI for every painting a pull request changed, the
+  test runs once more and its paintings are compared again (`_again` in buck/dev/test.bzl), once
+  per build of its code. A test whose paintings change with most changes doubles its cost.
 - **What stays costly becomes thorough.** A test that costs tens of CPU seconds a run however it
   is written, and that most changes rerun, carries `THOROUGH` and leaves verify for
   `./scripts/verify --thorough`; add it to the list in guides/buck2.md with its cost.
