@@ -1,7 +1,7 @@
 //! The action that follows a painting test's (run_test in buck/dev/test.bzl):
 //!
 //! ```text
-//! paint-compare --made DIR --accepted DIR --out OUT [--record DIR] [--update] [--changed FILE]
+//! paint-compare --made DIR --accepted DIR --out OUT [--record DIR] [--update] [--names FILE]
 //! paint-compare --again --made DIR --accepted DIR --record DIR --out OUT
 //! ```
 //!
@@ -25,9 +25,9 @@
 //! `--update` a painting that differs is said at the end of the log and makes
 //! a status of 0 one of 1, as the test itself would have failed.
 //!
-//! `--changed FILE` writes the names of the paintings that are new or differ,
-//! a line each, into FILE, which is empty when none does: what decides whether
-//! the test runs once more (run_test's "paintings" in buck/dev/test.bzl).
+//! `--names FILE` writes a line into FILE for each painting made, `changed NAME`
+//! when it is new or differs and `same NAME` when not: what decides whether the
+//! test runs once more (_again in buck/dev/test.bzl).
 //!
 //! `--again` compares that second run, a `--record DIR` whose paintings are
 //! `--made`, with the first run's paintings, `--accepted`. It writes OUT/flaky,
@@ -40,7 +40,7 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-pub const USAGE: &str = "usage: paint-compare [--again] --made DIR --accepted DIR --out OUT [--record DIR] [--update] [--changed FILE]";
+pub const USAGE: &str = "usage: paint-compare [--again] --made DIR --accepted DIR --out OUT [--record DIR] [--update] [--names FILE]";
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Options {
@@ -49,7 +49,7 @@ pub struct Options {
     pub out: PathBuf,
     pub record: Option<PathBuf>,
     pub update: bool,
-    pub changed: Option<PathBuf>,
+    pub names: Option<PathBuf>,
     pub again: bool,
 }
 
@@ -71,7 +71,7 @@ pub fn parse(arguments: impl IntoIterator<Item = OsString>) -> Result<Options, S
             "--out" => out = Some(value()?),
             "--record" => options.record = Some(value()?),
             "--update" => options.update = true,
-            "--changed" => options.changed = Some(value()?),
+            "--names" => options.names = Some(value()?),
             "--again" => options.again = true,
             _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
         }
@@ -106,14 +106,18 @@ pub fn run(options: &Options) -> Result<(), String> {
             sha256(accepted.as_deref().unwrap_or_default()).as_bytes(),
         )?;
         let why = match &accepted {
-            None => "there is no accepted painting".to_owned(),
-            Some(accepted) => match beui_paint_snapshot::changed(accepted, &made) {
-                Some(why) => why,
-                None => continue,
-            },
+            None => Some("there is no accepted painting".to_owned()),
+            Some(accepted) => beui_paint_snapshot::changed(accepted, &made),
         };
+        names.push_str(match why {
+            Some(_) => "changed ",
+            None => "same ",
+        });
         names.push_str(&name.to_string_lossy());
         names.push('\n');
+        let Some(why) = why else {
+            continue;
+        };
         if options.update {
             let mut why_name = name.to_owned();
             why_name.push(".why");
@@ -127,7 +131,7 @@ pub fn run(options: &Options) -> Result<(), String> {
             ));
         }
     }
-    if let Some(file) = &options.changed {
+    if let Some(file) = &options.names {
         write(file, names.as_bytes())?;
     }
     let Some(record) = &options.record else {
@@ -153,7 +157,9 @@ pub fn run(options: &Options) -> Result<(), String> {
 /// `--again`: the second run against the first (the module's doc says what it
 /// writes).
 fn again(options: &Options) -> Result<(), String> {
-    let record = options.record.as_deref().unwrap_or(&options.made);
+    let Some(record) = &options.record else {
+        return Err(format!("--again needs --record\n{USAGE}"));
+    };
     let changed = options.out.join("changed");
     create_dir(&changed)?;
     let mut flaky = String::new();

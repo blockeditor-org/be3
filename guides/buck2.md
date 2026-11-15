@@ -211,14 +211,19 @@ and the crate's `snapshots/`, writes `changed/` (each new or changed painting an
 `used/` (the SHA-256 of each accepted painting it compared with). So editing or accepting a
 painting reruns only that cheap compare, and a test that paints differently from run to run gives
 one painting per build of its code, from the cache, rather than flipping with the accepted
-painting it read. That compare also writes `paintings-changed`, the names of the paintings that
-are new or differ; when it names any, a dynamic action (`_again`) runs the test once more as
-`record` does and `paint-compare --again` compares the second run's paintings with the first's,
-writing `[again]`'s `flaky`, a line per difference or for a second run that failed, which
-crates/be-tool-verify prints and be-tool-local's `ci` puts on the pull request's summary
-comment. It only reports. When nothing changed it is an empty directory and nothing runs; the
-second run's action is keyed on the test's code as the first is, so it runs once per build of a
-test whose paintings changed. Only `buck2 test` (a plain `./scripts/test`)
+painting it read. That compare also writes `paintings-names`, each painting made and whether it
+is new or differs. When one does, or the test made one of the paintings `be3.again` names, a
+dynamic action (`_again`) runs the test once more as `record` does and `paint-compare --again`
+compares the second run's paintings with the first's, writing `[again]`'s `flaky`, a line per
+difference or for a second run that failed, which crates/be-tool-verify prints and
+be-tool-local's `ci` puts on the pull request's summary comment; neither reads it when
+something failed to build, since a first run that failed leaves an earlier report at its path.
+It only reports. Otherwise it is an empty directory and nothing runs. `./scripts/ci --previews
+BASE` sets `be3.again` (`-c`) to the accepted paintings the branch changed since its merge base
+with BASE, so a run after a painting was accepted, by the author's verify or by CI's autofix,
+still checks it. The second run's action is keyed on the test's code as the first is, so it runs
+once per build of such a test and comes from the cache after that. Only `buck2 test` (a plain
+`./scripts/test`)
 still hands the test the accepted paintings (`hidden`), which it compares in-process to pass or
 fail.
 

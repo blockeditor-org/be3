@@ -206,6 +206,9 @@ impl Run {
         };
         let mut command = Command::new(tool);
         command.arg("ci").arg(&self.options.manifest);
+        if self.options.build_failed {
+            command.arg("--build-failed");
+        }
         if let Some((base, out)) = &self.options.previews {
             command.arg("--previews").arg(base).arg(out);
         }
@@ -635,8 +638,13 @@ impl Run {
 
     /// What the second run of each test whose paintings changed found
     /// (_again in buck/dev/test.bzl). It only reports: the paintings the first
-    /// run made are the ones accepted.
+    /// run made are the ones accepted. When something failed to build, a
+    /// report at its path can be an earlier build's, left there by a first run
+    /// that failed this time, so none is read.
     fn flakes(&mut self) {
+        if self.options.build_failed {
+            return;
+        }
         let mut found = Vec::new();
         for (package, directory) in self.built_in("flaky") {
             let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
@@ -654,7 +662,7 @@ impl Run {
             return;
         }
         println!(
-            "These tests painted differently, or failed, when run once more, so these paintings are flaky; fix what the test reads that varies (guides/testing_a_gui.md, 6):"
+            "These tests painted differently, or failed, when run once more, so these paintings are flaky; fix what the test reads that varies (guides/testing_a_gui.md, 6, Writing a test that does not flake):"
         );
         for line in found {
             println!("{line}");

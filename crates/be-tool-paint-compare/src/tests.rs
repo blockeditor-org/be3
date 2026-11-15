@@ -8,7 +8,7 @@ mod a_record_without_update_fails_on_a_changed_painting;
 mod a_second_run_that_agrees_but_fails_is_reported_as_flaky;
 mod a_second_run_that_paints_differently_is_reported_as_flaky;
 mod changed_and_new_paintings_are_kept_with_why_and_every_one_is_used;
-mod changed_names_the_new_and_differing_paintings;
+mod names_says_which_paintings_changed;
 
 /// An empty directory of the test's own.
 fn scratch(name: &str) -> PathBuf {
@@ -35,7 +35,7 @@ fn options(directory: &Path) -> Options {
         out: directory.join("out"),
         record: None,
         update: true,
-        changed: None,
+        names: None,
         again: false,
     }
 }

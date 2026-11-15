@@ -3,7 +3,7 @@ use std::io::{Read as _, Write as _};
 
 use beui_paint_format::{Frame, Painting, TextureKey};
 use flate2::Compression;
-use flate2::read::DeflateDecoder;
+use flate2::bufread::DeflateDecoder;
 use flate2::write::DeflateEncoder;
 use serde::{Deserialize, Serialize};
 
@@ -146,9 +146,16 @@ impl Snapshot {
             ));
         }
         let mut body = Vec::new();
-        DeflateDecoder::new(&bytes[header..])
+        let mut decoder = DeflateDecoder::new(&bytes[header..]);
+        decoder
             .read_to_end(&mut body)
             .map_err(|error| format!("could not decompress snapshot: {error}"))?;
+        // The decoder stops at the end of the deflate stream: anything after it is not part of
+        // the painting, so a file with it is not one the painter wrote.
+        let rest = decoder.into_inner().len();
+        if rest > 0 {
+            return Err(format!("snapshot has {rest} bytes after its end"));
+        }
         Ok(body)
     }
 }

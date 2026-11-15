@@ -5,10 +5,12 @@ use std::process::ExitCode;
 use crate::git;
 use crate::previews::{PAINTINGS, stage};
 
-const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT]";
+const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT] [--build-failed]";
 
 struct Options {
     previews: Option<(String, PathBuf)>,
+    /// Something failed to build, so a report at its path may be an earlier build's.
+    build_failed: bool,
 }
 
 struct Run {
@@ -68,10 +70,14 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
 }
 
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
-    let mut options = Options { previews: None };
+    let mut options = Options {
+        previews: None,
+        build_failed: false,
+    };
     while let Some(argument) = arguments.next() {
         let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
         match argument.as_str() {
+            "--build-failed" => options.build_failed = true,
             "--previews" => {
                 let base = value()?;
                 options.previews = Some((base, value()?.into()));
@@ -99,8 +105,12 @@ impl Run {
     }
 
     /// The comment's section on the tests whose second run disagreed with
-    /// their first (_again in buck/dev/test.bzl), empty when none did.
+    /// their first (_again in buck/dev/test.bzl), empty when none did, and a
+    /// line saying it was not looked for when something failed to build.
     fn flaky(&self) -> String {
+        if self.options.build_failed {
+            return "## Flaky paintings\n\nNot looked for: something failed to build, so a report may be an earlier build's.\n\n".to_owned();
+        }
         let mut section = String::new();
         for (package, directory) in self.built_in("flaky") {
             let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
