@@ -232,17 +232,20 @@ accessibility belong to the outer component. A slot that hands a value names
 it like a closure argument, `<Container>|size| <Card size /></Container>`; a
 `RenderFn` slot may run more than once, so its body clones what it moves.
 
-`Show` (with a `fallback` for when its condition is false), `Dynamic` (rebuild
-on every value change), `Keyed` (rebuild when its `key` changes, update the
-rest through a `ReadSignal`) and `ForEach` build no node of their own (except
-a host where one node must go, or where `@test_id` or `@node_ref` names them): each fills its place
-in its parent's slot (a run, or one child where it builds exactly one;
+`Show` (with a `fallback` for when its value is `false` or `None`), `Match`
+(the first `Case` that holds), `Dynamic` (rebuild when its value changes to one
+that differs), `Keyed` (rebuild when its `key` changes, update the rest through a
+`ReadSignal`) and `ForEach` build no node of their own (except a host where one
+node must go, or where `@test_id` or `@node_ref` names them): each fills its
+place in its parent's slot (a run, or one child where it builds exactly one;
 [beui/core.md](beui/core.md#writing-views)) and builds each child in a scope of
 its own, disposed with the child. Given a `fallback`, `Dynamic` and `Keyed` take
-an `Option` and show the fallback while it is `None`; `fallback=()` shows nothing. Key a `ForEach` by identity, never by
-content: a key that changes with an edit destroys the row's nodes and scope and
-loses its focus, caret and measured text. Give the row the key and let it read
-its own item from a `KeyedStore`.
+an `Option` and show the fallback while it is `None`; `fallback=()` shows
+nothing. Key a `ForEach` by identity, never by content: a key that changes with
+an edit destroys the row's nodes and scope and loses its focus, caret and
+measured text. With `key={|item: &T| item.id}` a row is kept while its item
+changes and reads it through a signal; for items held in a `KeyedStore`, list
+the keys and let each row read its own item from the store.
 
 ### Context
 
