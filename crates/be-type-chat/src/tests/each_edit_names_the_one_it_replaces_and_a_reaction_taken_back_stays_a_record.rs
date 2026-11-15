@@ -1,31 +1,33 @@
-use be_block_model::LatestMap;
+use be_block_model::RankedMap;
 
 use super::*;
-use crate::{ChatHeader, Counted, Deletion, EditSlot, MessageEdit, Reaction, ReactionKey};
+use crate::{ChatHeader, Deletion, EditSlot, MessageEdit, Reaction, ReactionKey};
 
-/// What someone with Edit writes at `key` of the edits, a record or a removal.
-fn edit_at(chat: &ChatContent, key: &Counted<EditSlot>, edit: Option<&MessageEdit>) -> ChatContent {
-    let edits: LatestMap<Counted<EditSlot>, MessageEdit> =
+/// What someone with Edit writes at `slot` of the edits at `rank`: a record or a removal.
+fn edit_at(chat: &ChatContent, slot: &EditSlot, rank: u64, edit: Option<&MessageEdit>) -> ChatContent {
+    let edits: RankedMap<EditSlot, MessageEdit> =
         chat.header().field(ObjectId::ROOT, ChatHeader::EDITS);
-    let change = ChatHeader::EDITS.put(ObjectId::ROOT, key, edit, edits.next(key, 99, BO));
+    let change = ChatHeader::EDITS.rank(ObjectId::ROOT, slot, rank, edit, edits.next(slot, 99, BO));
     edited(chat, [[change].into_iter().collect()])
 }
 
 fn reaction_at(
     chat: &ChatContent,
-    key: &Counted<ReactionKey>,
+    key: &ReactionKey,
+    rank: u64,
     reaction: Option<&Reaction>,
 ) -> ChatContent {
-    let reactions: LatestMap<Counted<ReactionKey>, Reaction> =
+    let reactions: RankedMap<ReactionKey, Reaction> =
         chat.header().field(ObjectId::ROOT, ChatHeader::REACTIONS);
     let change =
-        ChatHeader::REACTIONS.put(ObjectId::ROOT, key, reaction, reactions.next(key, 99, BO));
+        ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, rank, reaction, reactions.next(key, 99, BO));
     edited(chat, [[change].into_iter().collect()])
 }
 
-/// Each edit and reaction record counts one past its author's last for its slot and names it,
-/// and writing one removes the earlier: a record put back is not the latest, and the latest cut
-/// shows, however the records around it are rewritten.
+/// Each edit and reaction record counts one past its slot's rank and names the record it
+/// replaces, and is kept ranked by its count: one put back never takes a later one's place,
+/// a later one from another device always does, and a slot holding anything but a record at
+/// its own count shows its history was altered.
 #[test]
 fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record() {
     let chat = sent(
@@ -38,14 +40,9 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
         message: lunch,
         author: ADA,
     };
-    let at = |seq| Counted { slot, seq };
 
     let once = chat.next_edit(lunch, ADA, 5, "lunch at one?");
-    assert_eq!(
-        (once.seq, once.previous),
-        (1, None),
-        "a message's first edit"
-    );
+    assert_eq!((once.seq, once.previous), (1, None), "a message's first edit");
     let chat = edited(&chat, [chat.put_edit(lunch, &once)]);
     let twice = chat.next_edit(lunch, ADA, 6, "lunch at two?");
     assert_eq!(
@@ -55,86 +52,73 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     );
     let chat = edited(&chat, [chat.put_edit(lunch, &twice)]);
     assert_eq!(chat.body(lunch).as_deref(), Some("lunch at two?"));
-    let edits: LatestMap<Counted<EditSlot>, MessageEdit> =
-        chat.header().field(ObjectId::ROOT, ChatHeader::EDITS);
-    assert_eq!(
-        edits.keys().collect::<Vec<_>>(),
-        [&at(2)],
-        "the earlier edit is removed"
-    );
+    assert!(!chat.edit_head(lunch, ADA).cut);
 
-    // Someone with Edit puts the first edit back: the second is still the latest.
+    // Someone with Edit puts the first edit back: it counts lower, so it changes nothing.
     let replayed = edited(&chat, [chat.put_edit(lunch, &once)]);
     assert_eq!(replayed.body(lunch).as_deref(), Some("lunch at two?"));
     assert!(!replayed.edit_head(lunch, ADA).cut);
-    // Removing the second as well cuts the latest, which shows.
-    let rolled_back = edit_at(&replayed, &at(2), None);
-    assert_eq!(rolled_back.body(lunch).as_deref(), Some("lunch at one?"));
-    assert!(rolled_back.edit_head(lunch, ADA).cut);
-    // So does an edit removed outright.
-    let removed = edit_at(&chat, &at(2), None);
+    // Put above the latest it signs a count it is not kept at, which shows.
+    let raised = edit_at(&chat, &slot, 3, Some(&once));
+    assert_eq!(raised.body(lunch).as_deref(), Some("lunch at one?"));
+    assert!(raised.edit_head(lunch, ADA).cut);
+    // So does a removal, which ranks above the latest to take its place; the author's next edit
+    // outranks it and heals the slot.
+    let removed = edit_at(&chat, &slot, 3, None);
     assert_eq!(removed.edit_of(lunch), None);
     assert!(removed.edit_head(lunch, ADA).cut);
-    // Its author's next edit counts past the cut and is the latest again.
     let again = removed.next_edit(lunch, ADA, 12, "lunch at three?");
-    assert_eq!((again.seq, again.previous), (3, None));
+    assert_eq!((again.seq, again.previous), (4, None));
     let healed = edited(&removed, [removed.put_edit(lunch, &again)]);
     assert!(!healed.edit_head(lunch, ADA).cut);
     assert_eq!(healed.body(lunch).as_deref(), Some("lunch at three?"));
-    // A record moved to a higher count takes that count, which its signature does not cover.
-    let moved = edit_at(&chat, &at(7), Some(&once));
-    let head = moved
-        .edit_of(lunch)
-        .expect("the moved record is the latest");
-    assert_eq!((head.body.as_str(), head.seq), ("lunch at one?", 7));
-    assert_ne!(head.key(lunch), once.key(lunch));
-    // A removal is signed by nobody: one made up past the head marks the slot cut while its
-    // genuine latest still shows, which the editor tells as altered history, not forgery.
-    let made_up = edit_at(&edit_at(&chat, &at(999), Some(&twice)), &at(999), None);
-    let head = made_up.edit_head(lunch, ADA);
-    assert!(head.cut);
-    assert_eq!(head.record.as_ref(), Some(&twice));
-    // A count past any an author reaches is junk: it cuts the slot and is never the head, and the
-    // author's next edit still counts and shows.
-    let junk = edit_at(
-        &edit_at(&chat, &at(u64::MAX), Some(&once)),
-        &at(u64::MAX),
-        None,
-    );
-    let head = junk.edit_head(lunch, ADA);
-    assert!(head.cut);
-    assert_eq!(head.record.as_ref(), Some(&twice));
+
+    // A rank no author reaches shows as altered for good, without overflowing: the author's
+    // next edit still lands, at the same rank by a later stamp.
+    let junk = edit_at(&chat, &slot, u64::MAX, None);
     let after = junk.next_edit(lunch, ADA, 13, "lunch at four?");
-    assert_eq!(after.seq, 3);
+    assert_eq!(after.seq, u64::MAX);
     let after = edited(&junk, [junk.put_edit(lunch, &after)]);
     assert_eq!(after.body(lunch).as_deref(), Some("lunch at four?"));
-    // One planted just below the bound, where the author's counts stop: their next edit shows,
-    // overwriting at that count, and the slot stays cut, since one put back there would leave
-    // no trace.
-    let bound = (1 << 32) - 1;
-    let planted = edit_at(&edit_at(&chat, &at(bound), Some(&once)), &at(bound), None);
-    let next = planted.next_edit(lunch, ADA, 14, "lunch at five?");
-    assert_eq!(next.seq, bound);
-    let planted = edited(&planted, [planted.put_edit(lunch, &next)]);
-    let head = planted.edit_head(lunch, ADA);
-    assert!(head.cut, "a slot at the bound stays altered");
-    assert_eq!(planted.body(lunch).as_deref(), Some("lunch at five?"));
-    // A record filed under another author takes that author, which its signature does not cover.
+    assert!(after.edit_head(lunch, ADA).cut, "a slot at the top stays altered");
+
+    // A device offline since the first edit writes its own second: the other device's third
+    // outranks it whichever merges first or stamps later, and nothing reads as altered.
+    let base = chat.clone();
+    let third = base.next_edit(lunch, ADA, 7, "lunch at three, from the laptop");
+    let laptop = edited(&base, [base.put_edit(lunch, &third)]);
+    let stale = MessageEdit {
+        seq: 2,
+        previous: Some(once.key(lunch)),
+        time: 50,
+        body: "lunch at two, from the phone".to_owned(),
+        ..twice.clone()
+    };
+    let phone = edited(&base, [base.put_edit(lunch, &stale)]);
+    for (ours, theirs) in [(&laptop, &phone), (&phone, &laptop)] {
+        let (joined, _) = merged(&base, ours, theirs);
+        assert_eq!(
+            joined.body(lunch).as_deref(),
+            Some("lunch at three, from the laptop")
+        );
+        assert!(!joined.edit_head(lunch, ADA).cut);
+    }
+
+    // A record filed under another author takes that author, which its signature does not
+    // cover.
     let bos = chat.next_edit(lunch, BO, 9, "Bo says three");
-    let filed = edit_at(&chat, &at(3), Some(&bos));
-    let head = filed
-        .edit_of(lunch)
-        .expect("the filed record is the latest");
-    assert_eq!((head.author, head.seq), (ADA, 3));
-    assert_ne!(head.key(lunch), bos.key(lunch));
-    // Someone else's edit is kept in their own slot, and changes nothing.
+    let filed = edit_at(&chat, &slot, 3, Some(&MessageEdit { seq: 3, ..bos.clone() }));
+    let head = filed.edit_of(lunch).expect("the filed record is the latest");
+    assert_eq!(head.author, ADA);
+    assert_ne!(head.key(lunch), MessageEdit { seq: 3, ..bos }.key(lunch));
+    // Someone else's own edit is kept in their own slot, and changes nothing.
     let by_bo = edited(&chat, [chat.edit(lunch, BO, 9, "Bo says three")]);
     assert_eq!(by_bo.body(lunch).as_deref(), Some("lunch at two?"));
 
     // A deletion removed outright is noticed.
     let deleted = edited(&chat, [chat.delete(who, ADA, 10)]);
     assert!(!deleted.deletion_removed(who));
-    let deletions: LatestMap<ObjectId, Deletion> = deleted
+    let deletions: be_block_model::LatestMap<ObjectId, Deletion> = deleted
         .header()
         .field(ObjectId::ROOT, ChatHeader::DELETIONS);
     let removal =
@@ -142,8 +126,8 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let undeleted = edited(&deleted, [[removal].into_iter().collect()]);
     assert!(undeleted.deletion_removed(who));
 
-    // Reactions chain the same way: taking one back stays a record, the kept one put back is
-    // not the latest, and removing the taken-back one cuts it.
+    // Reactions rank the same way: taking one back stays a record, the kept one put back
+    // changes nothing, and removing the taken-back one shows.
     let (key, kept) = chat.reaction(lunch, BO, "heart", 8, true);
     let reacted = edited(&chat, [chat.put_reaction(&key, &kept)]);
     assert_eq!(reacted.reactions(lunch), [("heart".to_owned(), vec![BO])]);
@@ -160,27 +144,12 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let heads = unreacted.reaction_heads(lunch);
     assert_eq!(heads.len(), 1);
     assert!(
-        heads[0]
-            .1
-            .record
-            .as_ref()
-            .is_some_and(|reaction| !reaction.kept)
-            && !heads[0].1.cut,
+        heads[0].1.record.as_ref().is_some_and(|reaction| !reaction.kept) && !heads[0].1.cut,
         "it stays as a record its author can sign"
     );
     let replayed = edited(&unreacted, [unreacted.put_reaction(&key, &kept)]);
     assert!(replayed.reactions(lunch).is_empty());
-    let cut = reaction_at(
-        &replayed,
-        &Counted {
-            slot: key.clone(),
-            seq: 2,
-        },
-        None,
-    );
-    assert_eq!(cut.reactions(lunch), [("heart".to_owned(), vec![BO])]);
-    assert!(
-        cut.reaction_heads(lunch)[0].1.cut,
-        "the taken-back record was cut"
-    );
+    let cut = reaction_at(&unreacted, &key, 3, None);
+    assert!(cut.reactions(lunch).is_empty());
+    assert!(cut.reaction_heads(lunch)[0].1.cut, "the taken-back record was removed");
 }

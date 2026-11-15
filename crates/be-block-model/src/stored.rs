@@ -10,6 +10,7 @@ use crate::{
     Items, Kept, Kind, Malformed, Object, ObjectId, Objects, Place, Sequence, Shape, Tree, Value,
     grid::Cells,
     latest::{Stamp, Stamped},
+    ranked::Ranked,
 };
 
 pub use ciborium::Value as Stored;
@@ -150,6 +151,21 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
                         uuid(stamped.stamp.origin),
                     ];
                     entry.extend(stamped.value.as_deref().map(raw));
+                    Stored::Array(entry)
+                })
+                .collect(),
+        ),
+        Value::Ranked(entries) => Stored::Array(
+            entries
+                .iter()
+                .map(|(key, ranked)| {
+                    let mut entry = vec![
+                        raw(key),
+                        Stored::from(ranked.rank),
+                        Stored::from(ranked.stamp.time),
+                        uuid(ranked.stamp.origin),
+                    ];
+                    entry.extend(ranked.value.as_deref().map(raw));
                     Stored::Array(entry)
                 })
                 .collect(),
@@ -343,6 +359,29 @@ impl Loading {
                         Some((
                             key,
                             Stamped {
+                                stamp: Stamp { time, origin },
+                                value,
+                            },
+                        ))
+                    })
+                    .collect(),
+            ),
+            Shape::Ranked => Value::Ranked(
+                found
+                    .into_array()
+                    .ok()?
+                    .into_iter()
+                    .filter_map(|entry| {
+                        let mut entry = entry.into_array().ok()?.into_iter();
+                        let key = encode(&entry.next()?);
+                        let rank = u64::try_from(int(&entry.next()?)?).ok()?;
+                        let time = u64::try_from(int(&entry.next()?)?).ok()?;
+                        let origin = as_uuid(&entry.next()?)?;
+                        let value = entry.next().map(|value| encode(&value));
+                        Some((
+                            key,
+                            Ranked {
+                                rank,
                                 stamp: Stamp { time, origin },
                                 value,
                             },

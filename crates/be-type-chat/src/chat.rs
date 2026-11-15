@@ -6,7 +6,7 @@ use be_block_content::{
 use std::collections::BTreeMap;
 
 use be_block_model::{
-    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Place, Series,
+    Anchor, BlockRef, Change, Document, Edit, LatestMap, List, Model, ObjectId, Place, RankedMap, Series,
     Step, Touched,
 };
 use serde::{Deserialize, Serialize};
@@ -27,14 +27,14 @@ pub struct ChatHeader {
     /// messages keep their place and its own follow them.
     #[model(merge_appends)]
     pub messages: List<Message>,
-    /// Each person's edits of each message, by message, author and count (`Counted`): the
-    /// message's author's latest is what it says (`ChatContent::edit_of`).
-    pub edits: LatestMap<Counted<EditSlot>, MessageEdit>,
+    /// Each person's latest edit of each message, ranked by its count (`MessageEdit::seq`):
+    /// the message's author's is what it says (`ChatContent::edit_of`).
+    pub edits: RankedMap<EditSlot, MessageEdit>,
     /// Each message deleted, by its id. The message itself is removed (it stays in version
     /// history); this keeps who deleted it and when, which a message kept in a segment needs.
     pub deletions: LatestMap<ObjectId, Deletion>,
-    /// Each reaction record, by its reaction and count.
-    pub reactions: LatestMap<Counted<ReactionKey>, Reaction>,
+    /// Each reaction's latest record, ranked by its count (`Reaction::seq`).
+    pub reactions: RankedMap<ReactionKey, Reaction>,
     /// The closed segments, in time order (a merge keeps it: `order_segments`). None is closed
     /// yet.
     pub segments: Series<Segment>,
@@ -86,17 +86,6 @@ pub const OFFLINE_AFTER: i64 = 5 * 60 * 1000;
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Signature(#[serde(with = "serde_bytes")] pub Vec<u8>);
 
-/// One record of a chain (plans/authorship.md): a slot's records by one author, counted from
-/// one. Each record its author writes counts one past the highest written for the slot and
-/// removes their earlier ones, so the slot holds one live record, and a removal with no live
-/// record counted past it cut the latest (`Head::cut`). Two devices that write the same count
-/// share its key, and the later stamp keeps one: either is its author's.
-#[derive(Clone, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct Counted<S> {
-    pub slot: S,
-    pub seq: u64,
-}
-
 /// The edits one person made of one message. Only the message's author's count.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
@@ -106,8 +95,9 @@ pub struct EditSlot {
     pub author: Uuid,
 }
 
-/// A slot's live record with the highest count, if it has one, and whether a record counted
-/// past it was removed: its latest was cut, which no signature covers.
+/// A slot's record (plans/authorship.md), if it holds one, and whether its history was altered
+/// (`head`): what it holds is not a record counted as it is ranked, which no signature of its
+/// author's covers.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Head<V> {
     pub record: Option<V>,
@@ -120,8 +110,8 @@ pub struct MessageEdit {
     pub author: Uuid,
     pub time: i64,
     pub body: String,
-    /// Its count among its author's edits of the message (`Counted`), signed: the key it is
-    /// kept at says the same, or it was moved there.
+    /// Its count among its author's edits of the message, signed: the rank it is kept at
+    /// says the same, or the history was altered.
     pub seq: u64,
     /// The key of the edit this one replaces (`MessageEdit::key`), none for a message's
     /// first: signed, so each edit names the one before it.
@@ -155,7 +145,7 @@ pub struct ReactionKey {
 #[serde(default)]
 pub struct Reaction {
     pub time: i64,
-    /// Its count among its author's records of the reaction (`Counted`), signed.
+    /// Its count among its author's records of the reaction, signed, as for an edit.
     pub seq: u64,
     /// False once its author took it back: a taken-back reaction stays as a signed record, so
     /// nobody else can remove one unnoticed.
@@ -484,7 +474,7 @@ impl ChatContent {
         self.header.read::<Message>(id)
     }
 
-    fn edits(&self) -> LatestMap<Counted<EditSlot>, MessageEdit> {
+    fn edits(&self) -> RankedMap<EditSlot, MessageEdit> {
         self.header.field(ObjectId::ROOT, ChatHeader::EDITS)
     }
 
@@ -517,27 +507,23 @@ impl ChatContent {
     /// author's signature cannot cover.
     pub fn reaction_heads(&self, message: ObjectId) -> Vec<(ReactionKey, Head<Reaction>)> {
         let map = self.reaction_map();
-        let first = Counted {
-            slot: ReactionKey {
-                message,
-                author: Uuid::nil(),
-                reaction: String::new(),
-            },
-            seq: 0,
+        let first = ReactionKey {
+            message,
+            author: Uuid::nil(),
+            reaction: String::new(),
         };
-        let mut slots: Vec<&ReactionKey> = map
+        let slots: Vec<&ReactionKey> = map
             .written_range(first..)
-            .map(|(counted, _)| &counted.slot)
+            .map(|(slot, _, _)| slot)
             .take_while(|slot| slot.message == message)
             .collect();
-        slots.dedup();
         slots
             .into_iter()
             .map(|slot| (slot.clone(), head(&map, slot)))
             .collect()
     }
 
-    fn reaction_map(&self) -> LatestMap<Counted<ReactionKey>, Reaction> {
+    fn reaction_map(&self) -> RankedMap<ReactionKey, Reaction> {
         self.header.field(ObjectId::ROOT, ChatHeader::REACTIONS)
     }
 
@@ -859,22 +845,17 @@ impl ChatContent {
         }
     }
 
-    /// Writes `edit` of `message`, signed or not, at its author's slot and count, and removes
-    /// that slot's earlier records.
+    /// Writes `edit` of `message`, signed or not, at its author's slot ranked by its count:
+    /// it replaces the edit held only if it counts as far or further.
     pub fn put_edit(&self, message: ObjectId, edit: &MessageEdit) -> Edit {
         let slot = EditSlot {
             message,
             author: edit.author,
         };
-        put_counted(
-            &self.edits(),
-            ChatHeader::EDITS,
-            slot,
-            edit.seq,
-            edit,
-            stamp_time(edit.time),
-            edit.author,
-        )
+        let stamp = self.edits().next(&slot, stamp_time(edit.time), edit.author);
+        [ChatHeader::EDITS.rank(ObjectId::ROOT, &slot, edit.seq, Some(edit), stamp)]
+            .into_iter()
+            .collect()
     }
 
     /// An unsigned deletion of `message` (`deletion`, then `put_deletion`).
@@ -913,21 +894,24 @@ impl ChatContent {
         if self.message(message).is_some() {
             changes.push(Change::remove(message));
         }
+        // The message's edits and reactions go with it, each removed a rank above its record.
         changes.extend(
             edits
                 .keys()
-                .filter(|key| key.slot.message == message)
+                .filter(|key| key.message == message)
                 .map(|key| {
-                    ChatHeader::EDITS.put(ObjectId::ROOT, key, None, edits.next(key, at, author))
+                    let rank = edits.rank(key).saturating_add(1);
+                    ChatHeader::EDITS.rank(ObjectId::ROOT, key, rank, None, edits.next(key, at, author))
                 }),
         );
         changes.extend(
             reactions
                 .keys()
-                .filter(|key| key.slot.message == message)
+                .filter(|key| key.message == message)
                 .map(|key| {
+                    let rank = reactions.rank(key).saturating_add(1);
                     let stamp = reactions.next(key, at, author);
-                    ChatHeader::REACTIONS.put(ObjectId::ROOT, key, None, stamp)
+                    ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, rank, None, stamp)
                 }),
         );
         changes.into_iter().collect()
@@ -983,18 +967,15 @@ impl ChatContent {
         (key, reaction)
     }
 
-    /// Writes a reaction record, signed or not, at its key and count, and removes that key's
-    /// earlier records.
+    /// Writes a reaction record, signed or not, at its key ranked by its count, as `put_edit`
+    /// does an edit.
     pub fn put_reaction(&self, key: &ReactionKey, reaction: &Reaction) -> Edit {
-        put_counted(
-            &self.reaction_map(),
-            ChatHeader::REACTIONS,
-            key.clone(),
-            reaction.seq,
-            reaction,
-            stamp_time(reaction.time),
-            key.author,
-        )
+        let stamp = self
+            .reaction_map()
+            .next(key, stamp_time(reaction.time), key.author);
+        [ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, reaction.seq, Some(reaction), stamp)]
+            .into_iter()
+            .collect()
     }
 }
 
@@ -1002,120 +983,73 @@ fn stamp_time(time: i64) -> u64 {
     u64::try_from(time).unwrap_or(0)
 }
 
-/// A record kept at a `Counted` key of slot `S`, whose signature covers what the key says.
-trait CountedRecord<S>: Clone {
-    /// Takes what its key says: its count, and its slot's author where it names one.
-    fn take_key(&mut self, slot: &S, seq: u64);
+/// A record whose slot and count its signature covers.
+trait SlotRecord<S>: Clone {
+    /// Takes what its slot says it is, where the slot names it: an edit's author.
+    fn take_slot(&mut self, slot: &S);
+    fn seq(&self) -> u64;
 }
 
-impl CountedRecord<EditSlot> for MessageEdit {
-    fn take_key(&mut self, slot: &EditSlot, seq: u64) {
+impl SlotRecord<EditSlot> for MessageEdit {
+    fn take_slot(&mut self, slot: &EditSlot) {
         self.author = slot.author;
-        self.seq = seq;
+    }
+
+    fn seq(&self) -> u64 {
+        self.seq
     }
 }
 
 /// A reaction's slot (its `ReactionKey`) is what its signature names already.
-impl CountedRecord<ReactionKey> for Reaction {
-    fn take_key(&mut self, _slot: &ReactionKey, seq: u64) {
-        self.seq = seq;
+impl SlotRecord<ReactionKey> for Reaction {
+    fn take_slot(&mut self, _slot: &ReactionKey) {}
+
+    fn seq(&self) -> u64 {
+        self.seq
     }
 }
 
-/// The head of `slot` (`Head`). Its record takes what the key it is kept at says, so one filed
-/// under another author or count no longer matches its signature.
-fn head<S: Ord + Clone, V: CountedRecord<S>>(map: &LatestMap<Counted<S>, V>, slot: &S) -> Head<V> {
-    let mut live = None;
-    let mut removed = None;
-    let mut junk = false;
-    for (key, record) in map.written_range(slot_range(slot)) {
-        // No honest author nears the bound: a slot there was tampered with, and stays cut.
-        junk |= key.seq >= MAX_SEQ - 1;
-        match record {
-            _ if key.seq >= MAX_SEQ => {}
-            Some(record) => live = Some((key.seq, record)),
-            None => removed = Some(key.seq),
-        }
-    }
-    let cut = junk || removed.is_some_and(|removed| live.is_none_or(|(seq, _)| removed > seq));
-    let record = live.map(|(seq, record)| {
-        let mut record = record.clone();
-        record.take_key(slot, seq);
+/// The record `slot` holds, taking its slot's author, so one filed under another author no
+/// longer matches its signature; and whether the slot's history was altered: it holds a
+/// removal, or a record whose count is not its rank (one put back counts lower, so it never
+/// takes the place of a later one: it can only be put at a rank it does not sign), or it
+/// reached `MAX_SEQ - 1`, where one record put back over another leaves no trace.
+fn head<S: Ord + Clone, V: SlotRecord<S>>(map: &RankedMap<S, V>, slot: &S) -> Head<V> {
+    let rank = map.rank(slot);
+    let record = map.get(slot).cloned().map(|mut record| {
+        record.take_slot(slot);
         record
     });
+    let cut = rank >= MAX_SEQ - 1
+        || match &record {
+            Some(record) => record.seq() != rank,
+            None => rank > 0,
+        };
     Head { record, cut }
 }
 
-/// Past the counts a record takes: keys are not signed, so anyone with Edit can write one this
-/// high or higher, which `head` takes for a cut rather than a record, and which no count
-/// overflows on.
+/// No honest author's count reaches it: keys are not signed, so anyone with Edit can write a
+/// rank this high, which shows as altered for good (`head`).
 const MAX_SEQ: u64 = 1 << 32;
 
-/// The count of the next record of `slot`: one past the highest written, removed or not, so a
-/// chain goes on past a record someone else cut. It stops at `MAX_SEQ - 1`, so its author's
-/// records still show, overwriting each other at that key; a slot that reached it shows as cut
-/// for good, since one record put back over another there would leave no trace.
-fn next_seq<S: Ord + Clone, V>(map: &LatestMap<Counted<S>, V>, slot: &S) -> u64 {
-    map.written_range(slot_range(slot))
-        .map(|(key, _)| key.seq)
-        .filter(|seq| *seq < MAX_SEQ)
-        .last()
-        .map_or(1, |seq| (seq + 1).min(MAX_SEQ - 1))
-}
-
-/// Every count of `slot`.
-fn slot_range<S: Clone>(slot: &S) -> std::ops::RangeInclusive<Counted<S>> {
-    Counted {
-        slot: slot.clone(),
-        seq: 0,
-    }..=Counted {
-        slot: slot.clone(),
-        seq: u64::MAX,
-    }
-}
-
-/// Writes `record` at `slot` and `seq`, and removes the slot's live records counted before it.
-fn put_counted<S: Ord + Clone + Serialize, V: Serialize, M>(
-    map: &LatestMap<Counted<S>, V>,
-    field: be_block_model::FieldRef<M, LatestMap<Counted<S>, V>>,
-    slot: S,
-    seq: u64,
-    record: &V,
-    at: u64,
-    author: Uuid,
-) -> Edit {
-    let key = Counted {
-        slot: slot.clone(),
-        seq,
-    };
-    let mut changes = vec![field.put(
-        ObjectId::ROOT,
-        &key,
-        Some(record),
-        map.next(&key, at, author),
-    )];
-    changes.extend(
-        map.range(slot_range(&slot))
-            .filter(|(held, _)| held.seq < seq)
-            .map(|(held, _)| field.put(ObjectId::ROOT, held, None, map.next(held, at, author))),
-    );
-    changes.into_iter().collect()
+/// The count of the next record of `slot`: one past its rank, so a chain goes on past a
+/// record someone else removed or put higher, which it outranks. It saturates, so a slot at
+/// the top still takes its author's records, at the same rank by a later stamp.
+fn next_seq<S: Ord, V>(map: &RankedMap<S, V>, slot: &S) -> u64 {
+    map.rank(slot).saturating_add(1).max(1)
 }
 
 /// Reactions grouped by message and then by name, leaving out those to deleted messages.
 fn grouped_reactions(
-    reactions: &LatestMap<Counted<ReactionKey>, Reaction>,
+    reactions: &RankedMap<ReactionKey, Reaction>,
     deletions: &LatestMap<ObjectId, Deletion>,
 ) -> BTreeMap<ObjectId, Vec<(String, Vec<Uuid>)>> {
     let mut grouped: BTreeMap<ObjectId, BTreeMap<String, Vec<Uuid>>> = BTreeMap::new();
-    let mut slots: Vec<&ReactionKey> = reactions.keys().map(|key| &key.slot).collect();
-    slots.dedup();
-    for key in slots.into_iter().filter(|key| {
-        !deletions.contains_key(&key.message)
-            && head(reactions, *key)
-                .record
-                .is_some_and(|reaction| reaction.kept)
-    }) {
+    for key in reactions
+        .iter()
+        .filter(|(key, reaction)| reaction.kept && !deletions.contains_key(&key.message))
+        .map(|(key, _)| key)
+    {
         grouped
             .entry(key.message)
             .or_default()
@@ -1504,7 +1438,7 @@ impl BlockContent for ChatContent {
         let changed: Vec<ObjectId> = self
             .edits()
             .keys()
-            .map(|key| key.slot.message)
+            .map(|key| key.message)
             .chain(self.deletions().keys().copied())
             .collect();
         let mut reads = Vec::new();

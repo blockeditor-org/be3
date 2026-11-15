@@ -11,18 +11,10 @@ or that is forged.
 
 ## What is left open
 
-- **Bounding the record chains.** Each edit or reaction record replaced
-  leaves its removed key and stamp in the header's `LatestMap` for good
-  (guides/chat.md, "Records chain"), and every replica loads the header. Only
-  a removed key counted past its slot's head carries meaning; the others could
-  go. That needs a `LatestMap` that forgets keys (a close op that drops a
-  closed message's keys outright, or tombstone collection, with a rule for
-  merging a replica that never saw it); then a close can move a closed
-  message's records into its segment's part, as trustworthy as the part is
-  (guides/chat.md, "Segments"), leaving the header recent slots' heads.
-- **A whole rollback goes unseen.** Someone with Edit who rewrites the whole
-  header to an earlier state, cut keys included, shows nothing: records only
-  detect what changes beside them.
+- **A whole rollback goes unseen.** Someone with Edit who commits the whole
+  header as an earlier state, ranks included, shows nothing: a live change
+  never lowers a rank, but a commit is a whole state, and records only detect
+  what changes beside them.
 - **Taken-back reactions stay.** A reaction taken back is a signed record that
   stays in the header (and in version history), so who once reacted how is
   kept, as for edited bodies.
