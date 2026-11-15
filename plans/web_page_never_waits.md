@@ -65,10 +65,8 @@ a thread that runs beside it.
    changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
    bytes to travel by `postMessage` rather than through the shared heap. An update carries the
    change notices and the replies' answers with it, and the page takes the updates once a
-   frame, as be-host's frame starts. A
-   worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
-   `letters_web.rs`), but as the address of a value in the shared heap, which the page takes
-   and frees: with a memory of its own, the worker sends the letter's bytes instead.
+   frame, as be-host's frame starts. A worker's letter to a page mailbox travels by
+   `postMessage` as a copy of its bytes already (`Post::across`).
    An update sends whole what is not a persistent map, and a map's changed entry whole: an open
    block's `Content` on each of its edits, the outbox and the owing lists on each change, and
    an editor's queued frames. Send content as its edit (the block's own operations or a byte
