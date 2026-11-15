@@ -75,6 +75,9 @@ pub(super) struct Inbox {
     pub(super) handover: Arc<crate::seen::Handover>,
     /// The modules' clock as the host held it when the stack started (`hold_clock`).
     pub(super) held_clock: Option<Instant>,
+    /// Ends when the page stops the stack (`crate::stop`), which drops its sender: the worker
+    /// then closes its connection, so whatever it waits on from the server fails at once.
+    pub(super) stopped: tokio::sync::oneshot::Receiver<()>,
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
@@ -663,6 +666,14 @@ pub struct Shared {
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
+    pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
+    /// Offline, each node's head as `Seen::out_of_reach` was worked out for it, and whether it
+    /// was out of reach then: worked out again only for a node whose head moved.
+    pub(crate) reach: HashMap<Uuid, (CommitId, bool)>,
+    /// The graph revision and connection `Seen::out_of_reach` was worked out at.
+    pub(crate) reach_at: Option<(u64, bool)>,
     pub leaving: bool,
     pub module_error: Option<(Uuid, String)>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
@@ -812,6 +823,40 @@ impl Shared {
         }
         self.seen.search_indexed = self.search.indexed();
         self.seen.search_busy = self.search.busy_with(super::search::wants_index(self));
+        self.refresh_reach();
+    }
+
+    /// Works out which blocks are out of reach (`Seen::out_of_reach`) when the graph or the
+    /// connection moved since: offline, a node with a head this device holds no version of
+    /// whole (`app_graph::out_of_reach`). The page reads the answer, never the peer.
+    fn refresh_reach(&mut self) {
+        let key = (self.seen.graph.revision, self.seen.connected);
+        if self.reach_at == Some(key) {
+            return;
+        }
+        self.reach_at = Some(key);
+        let peer = self.peer.as_ref().filter(|_| !self.seen.connected);
+        let mut reach = HashMap::new();
+        let mut out = HashSet::new();
+        if let Some(peer) = peer {
+            for node in self.seen.graph.nodes() {
+                let Some(head) = node.head else {
+                    continue;
+                };
+                let lost = match self.reach.get(&node.id) {
+                    Some((known, lost)) if *known == head => *lost,
+                    _ => super::app_graph::out_of_reach(peer, node),
+                };
+                reach.insert(node.id, (head, lost));
+                if lost {
+                    out.insert(node.id);
+                }
+            }
+        }
+        self.reach = reach;
+        if *self.seen.out_of_reach != out {
+            self.seen.out_of_reach = crate::Part::new(out);
+        }
     }
 
     /// Applies the page's edits as the worker takes them (`Command::Edit`).
@@ -860,11 +905,24 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         mut nudged,
         handover,
         held_clock,
+        stopped,
     }: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
     let _worker = crate::seen::Worker::enter(&shared, &handover);
+    let closing = Arc::clone(&shared);
+    platform::spawn_local(async move {
+        let _ = stopped.await;
+        let connection = closing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    });
     let mut replicas = Replicas::new(Modules::with_kinds_changed(
         types::sources().await,
         config.clock.clone(),
@@ -921,7 +979,12 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.peer = None;
     held.set_connected(false);
+    // Whatever else still holds the connection, the stack that made it is done with it.
+    let connection = held.connection.take();
     drop(held);
+    if let Some(connection) = connection {
+        connection.close();
+    }
     changed.notify_all();
 }
 
