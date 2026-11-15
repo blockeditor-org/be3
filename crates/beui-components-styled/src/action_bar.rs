@@ -1,5 +1,6 @@
 use accesskit::Role;
 use beui_components_unstyled as unstyled;
+pub use beui_components_unstyled::ActionLabels;
 use beui_components_unstyled::{ActionBarHandle, MenuNodes, ToggleHandle};
 use beui_macros::{component, view};
 use beui_view::actions::{Action, MenuNode};
@@ -20,14 +21,6 @@ const DIVIDER_HEIGHT: Size = Size::Custom(18.0);
 const DIVIDER_MARGIN: Space = Space::Xs;
 const LABEL_MARGIN: Space = Space::Xs2;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ActionLabels {
-    #[default]
-    Shown,
-    Icons,
-    Overflow,
-}
-
 #[component]
 pub fn ActionBar(
     menu: Prop<Vec<MenuNode>>,
@@ -40,7 +33,7 @@ pub fn ActionBar(
     view! {
         <unstyled::ActionBar
             menu
-            labels={labels != ActionLabels::Overflow}
+            labels
             title
         >|handle: ActionBarHandle|
             <ActionBarFace handle labels direction size test_prefix />

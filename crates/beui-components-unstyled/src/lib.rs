@@ -65,7 +65,7 @@ pub mod typeahead;
 mod watched;
 
 pub use accessibility::labelled_node;
-pub use action_bar::{ActionBar, ActionBarHandle, title_action};
+pub use action_bar::{ActionBar, ActionBarHandle, ActionLabels, title_action};
 pub use anchored::{Anchored, AnchoredHandle, AnchoredSheetHandle, AnchoredStyle, SheetWhen};
 pub use back_slide::BackSlide;
 pub use banner::Banner;
