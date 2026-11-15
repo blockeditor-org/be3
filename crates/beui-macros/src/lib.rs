@@ -579,7 +579,13 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { Some(::__beui_tree::reactive::IntoCallback::into_callback(value)) },
         )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
-        reactive_setter(ident, inner_ty, false, |build| quote! { Some(#build) })
+        Setter {
+            method: ident.clone(),
+            generics: quote! { <__Passed> },
+            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalProp<#inner_ty, __Passed> },
+            where_clause: quote! {},
+            value: quote! { ::__beui_tree::reactive::IntoOptionalProp::into_optional_prop(value) },
+        }
     } else if let Some(inner_ty) = &prop.inner_ty {
         if is_string_type(inner_ty) {
             plain(
