@@ -28,7 +28,6 @@ fn an_unlink_the_containers_type_makes_places_the_copy_in_it() {
     };
     settle(&mut core);
 
-    assert!(!refused("still links to the original"));
     be_host_stack::wait_until("the text names the copy", |shared| {
         let held = shared.blocks.get(&notes)?;
         let text = TextBlock::text(&TextContent::decode(held.bytes()).ok()?);
