@@ -10,6 +10,8 @@ be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-wasm-gpu-host = { path = "../be-wasm-gpu-host" }
 rustc-demangle = "0.1"
+# Pinned exactly: third-party/v8/BUCK's _VERSION and its pins, and
+# scripts/internal/build-rusty-v8-android.sh's version, move with it.
 v8 = "=152.2.0"
 getrandom = "0.3"
 wasm-encoder = "0.257"
