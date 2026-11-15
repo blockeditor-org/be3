@@ -11,11 +11,17 @@ fn be_release_moves_only_with_the_server() {
         be_release(&options(&[]).unwrap(), "abc123").as_deref(),
         Some("abc123\n")
     );
-    assert_eq!(be_release(&options(&["--skip-server"]).unwrap(), "abc123"), None);
+    assert_eq!(
+        be_release(&options(&["--skip-server"]).unwrap(), "abc123"),
+        None
+    );
     assert_eq!(
         be_release(&options(&["--skip-server", "--skip-be"]).unwrap(), "abc123"),
         None
     );
     let refused = options(&["--skip-be"]).err().unwrap();
-    assert!(refused.contains("--skip-be needs --skip-server"), "{refused}");
+    assert!(
+        refused.contains("--skip-be needs --skip-server"),
+        "{refused}"
+    );
 }
