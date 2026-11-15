@@ -353,14 +353,12 @@ fn keep_setting(workspace: Uuid) -> Setting<OfflineSettings, bool> {
 #[component]
 pub(super) fn OfflinePage(editor: Editor) -> NodeId {
     let workspaces = workspaces(editor);
-    let listed = create_memo(move || !workspaces.with(Vec::is_empty));
-    let none = create_memo(move || !listed.get());
     let layered = LayeredSettings::<OfflineSettings>::this_device(editor);
     let resolved = editor.resolved_settings::<OfflineSettings>(editor.block_id());
     view! {
         <SettingsPage>
             <SettingsSection title="Offline" description={OFFLINE_ABOUT}>
-                <Show condition={none}>
+                <Show condition={move || workspaces.with(Vec::is_empty)}>
                     <SettingsRow label="No workspaces yet" compact=true />
                 </Show>
                 <ForEach keys={workspaces}>|workspace: Uuid| {
@@ -373,17 +371,14 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
                     });
                     let on = create_memo(move || choice.get().keep);
                     let fixed = create_memo(move || choice.get().fixed);
-                    let note = create_memo(move || match fixed.get() {
-                        true => FIXED.to_owned(),
-                        false => String::new(),
-                    });
-                    let label = create_memo(move || name_of(editor, workspace));
-                    let first = create_memo(move || workspaces.with(|all| all.first() != Some(&workspace)));
                     view! {
                         <SettingsRow
-                            label={label}
-                            note={note}
-                            separated={first}
+                            label={move || name_of(editor, workspace)}
+                            note={move || match fixed.get() {
+                                true => FIXED.to_owned(),
+                                false => String::new(),
+                            }}
+                            separated={move || workspaces.with(|all| all.first() != Some(&workspace))}
                             locked={fixed}
                             compact=true
                         >

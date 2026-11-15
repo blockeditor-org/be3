@@ -40,13 +40,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     });
     let bar = editor.offered::<DesktopBarWatch>();
     let rotate_shown = create_memo(move || bar.get() && offered.get());
-    let screens = create_memo(move || bar.get() || offered.get());
-    let screens_title = create_memo(move || match offered.get() {
-        true => "Screens".to_owned(),
-        false => "Desktop bar".to_owned(),
-    });
     let before_rotate = create_memo(move || none.get() || arranged.get());
-    let after_rotate = create_memo(move || before_rotate.get() || rotate_shown.get());
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
     let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
     let in_bar_row = settings.row(&rotate_in_bar);
@@ -60,8 +54,11 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     view! {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
-            <Show condition={screens}>
-                <SettingsSection title={screens_title}>
+            <Show condition={move || bar.get() || offered.get()}>
+                <SettingsSection title={move || match offered.get() {
+                    true => "Screens".to_owned(),
+                    false => "Desktop bar".to_owned(),
+                }}>
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
@@ -95,7 +92,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                             setting={keyboard_row}
                             label="Keyboard button in the bar"
                             description="A button in the desktop's bar that opens the on-screen keyboard."
-                            separated={after_rotate}
+                            separated={move || before_rotate.get() || rotate_shown.get()}
                             compact=true
                             locked={read_only}
                             id={"display.keyboard-in-bar".to_owned()}

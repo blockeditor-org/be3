@@ -244,7 +244,7 @@ pub(super) fn ProgramDialog(
             ));
         }
     };
-    let summary = create_memo(move || {
+    let summary = move || {
         let named: Vec<String> = [
             ("program", exe.get()),
             ("program id", program.get()),
@@ -258,7 +258,7 @@ pub(super) fn ProgramDialog(
             true => "Every program".to_owned(),
             false => named.join(", "),
         }
-    });
+    };
     view! {
         <Dialog
             open={open}
@@ -384,11 +384,11 @@ fn ProgramList(
             <List spacing=Space::None>
                 <ForEach keys={indices}>|index: usize| {
                     let item = create_memo(move || listed.with(|listed| listed.get(index).cloned()));
-                    let name = create_memo(move || item.get().map(|item| item.name).unwrap_or_default());
-                    let detail = create_memo(move || item.get().map(|item| item.detail).unwrap_or_default());
-                    let selected = create_memo(move || {
+                    let name = move || item.get().map(|item| item.name).unwrap_or_default();
+                    let detail = move || item.get().map(|item| item.detail).unwrap_or_default();
+                    let selected = move || {
                         item.get().is_some_and(|item| chosen.get().as_deref() == Some(item.key.as_str()))
-                    });
+                    };
                     view! {
                         <ListItem grow=1.0>
                             <ListRow

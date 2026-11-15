@@ -39,8 +39,8 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
     });
     let set_here = row.modified();
     let none = create_memo(move || keys.with(Vec::is_empty));
-    let link_off = create_memo(move || none.get() || (read_only.get() && chosen.get().is_none()));
-    let detail = create_memo(move || {
+    let link_off = move || none.get() || (read_only.get() && chosen.get().is_none());
+    let detail = move || {
         let name = |editor: Uuid| {
             remappers.with(|remappers| {
                 remappers
@@ -54,7 +54,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             None if none.get() => "No app here remaps input.".to_owned(),
             None => "None yet: opening them makes them.".to_owned(),
         }
-    });
+    };
     let create = move |remapper: Uuid| {
         let name = remappers.with_untracked(|remappers| {
             remappers
