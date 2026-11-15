@@ -26,7 +26,7 @@ pub mod reactive {
     };
     pub use crate::control::kept_shown;
     pub use crate::control::{
-        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs,
+        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, ForEachRef, Keyed, Loading, Match, Matched, RowArgs,
         RowKey, Show, ShowValue,
     };
     pub use crate::into_prop_via;
