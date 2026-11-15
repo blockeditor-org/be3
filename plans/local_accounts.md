@@ -67,8 +67,10 @@ Each says whether a server account offline has the same gap.
    never start offline; a local account has one member and nothing to rotate. Local accounts
    only.
 5. **The graph.** The server works out access and the `size` and `tree_size` it lists. A local
-   account's one member has everything, and sizes are counted on the device. Offline listings
-   already answer from summaries.
+   account's one member has everything (`Refs::local_listing`). Sizes are not counted on the
+   device yet: a local account's blocks list a size of 0, so the files show none. Fill it by
+   counting the bytes of the objects each block holds as its commits settle, and each tree's
+   from its children's.
 6. **History and reclaiming storage.** `fetch_history` reads history from the server, and holds,
    retention and reclamation run there (guides/blocks/server.md, Liveness and reclamation). A
    local account holds all its history, and reclaims with the same storage crates on the device.
@@ -76,16 +78,19 @@ Each says whether a server account offline has the same gap.
    holds, retention and reclamation stay the server's, so the rest is local accounts only.
 7. **What only a server can do:** sharing, access lists, members, invites, pairing a device,
    block agents, push and contacts. These are refused with "needs a server", as sharing, leaving
-   and approving a device already are offline.
+   and approving a device already are offline. A local account's menus still offer Share and
+   Access, which it refuses; they should not be offered.
+
+What the server enforces that a local account goes without, its one member holding every
+block: `may_create`'s reserved My files and Unfiled ids and who may make workspaces (the host
+makes those roots under their reserved ids itself), and access and visibility. A block agent's
+scoping (`bound_may`) is the server's, and a local account makes no agents: they are refused
+offline. The app sandbox is the host's own (guides/apps/host_services.md), so it holds the same.
 
 ## Steps
 
-1. A peer with no server: its local head is final, and its account, roots and settings are made
-   on the device. The peer and the stack are built (`Peer::local`, `Config::is_local`;
-   guides/blocks/client.md, Saving and the outbox); be-host making the account, its organization
-   and its identity on the device comes with step 2.
-2. Onboarding's "Create local account" makes one, on the web too. `--dev-workspace` uses one.
-3. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
+1. Sizes on the device (gap 5).
+2. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
    be-server as a test dependency. Update guides/hosting.md (Local profiles and the default
    server), guides/blocks/server.md (Running it, Tests), guides/blocks/host.md and
    guides/running/native.md.

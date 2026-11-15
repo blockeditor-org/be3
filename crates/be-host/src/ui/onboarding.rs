@@ -21,8 +21,6 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
     let pending = create_memo(move || view.error.get().pending);
     let title = create_memo(move || match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => "Delete client database?".to_owned(),
-        #[cfg(not(target_arch = "wasm32"))]
-        Some(ErrorAction::DeleteServerDatabase) => "Delete local server database?".to_owned(),
         None => String::new(),
     });
     let unsaved = create_memo(move || view.error.get().unsaved);
@@ -36,11 +34,6 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                 1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),
                 count => format!("{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."),
             }
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        Some(ErrorAction::DeleteServerDatabase) => {
-            "This permanently deletes every organization and block stored on this device's local server."
-                .to_owned()
         }
         None => String::new(),
     }
@@ -69,16 +62,6 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={|| send(UiCommand::AskErrorAction(ErrorAction::DeleteClientDatabase))}
                 />
-                {platform::HAS_EMBEDDED_SERVER.then(|| view! {
-                    <Button
-                        label="Delete local server database..."
-                        variant=ButtonVariant::Secondary
-                        on_click={|| {
-                            #[cfg(not(target_arch = "wasm32"))]
-                            send(UiCommand::AskErrorAction(ErrorAction::DeleteServerDatabase));
-                        }}
-                    />
-                })}
                 <Button
                     label="Exit"
                     variant=ButtonVariant::Ghost
@@ -338,15 +321,13 @@ pub(super) fn AddAccountDialog(
                                         on_click={move || selection.set(Some(0))}
                                     />
                                 })}
-                                {platform::HAS_EMBEDDED_SERVER.then(|| view! {
-                                    <ActionRow
-                                        label="On this device"
-                                        detail="A local account, stored on this device"
-                                        glyph=ICON_MONITOR
-                                        @test_id="account.local"
-                                        on_click={move || selection.set(Some(1))}
-                                    />
-                                })}
+                                <ActionRow
+                                    label="On this device"
+                                    detail="A local account, stored on this device"
+                                    glyph=ICON_MONITOR
+                                    @test_id="account.local"
+                                    on_click={move || selection.set(Some(1))}
+                                />
                                 <ActionRow
                                     label="Another server"
                                     detail="Connect using a server address"

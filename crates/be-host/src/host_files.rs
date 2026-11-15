@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 
 use be_block_protocol::Organization;
-use be_host_base::host_state::{SavedAccount, ServerLocation};
+use be_host_base::host_state::SavedAccount;
 use uuid::Uuid;
 
 /// The organizations each saved account last listed, by server address and account.
@@ -42,21 +42,12 @@ impl Default for WorkspaceCache {
     }
 }
 
-/// The server address an account's organizations are cached under: a local account's is the
-/// embedded server's.
-fn address(account: &SavedAccount, local: &str) -> String {
-    match &account.server {
-        ServerLocation::Local => local.to_owned(),
-        ServerLocation::Remote(url) => url.clone(),
-    }
-}
-
 /// What `refs` lists for each of `accounts`.
-fn read(refs: &be_block_client::RefsDb, accounts: &[SavedAccount], local: &str) -> Listed {
+fn read(refs: &be_block_client::RefsDb, accounts: &[SavedAccount]) -> Listed {
     accounts
         .iter()
         .map(|account| {
-            let url = address(account, local);
+            let url = account.server.url();
             let listed = refs.workspaces(&url, account.id).unwrap_or_default();
             ((url, account.id), listed)
         })
@@ -66,12 +57,12 @@ fn read(refs: &be_block_client::RefsDb, accounts: &[SavedAccount], local: &str) 
 impl WorkspaceCache {
     /// Reads the refs database in `data_dir` here, in this process.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn open(data_dir: &std::path::Path, accounts: &[SavedAccount], local: &str) -> Self {
+    pub(crate) fn open(data_dir: &std::path::Path, accounts: &[SavedAccount]) -> Self {
         let refs = be_host_stack::refs_in(data_dir).ok();
         Self {
             listed: refs
                 .as_ref()
-                .map(|refs| read(refs, accounts, local))
+                .map(|refs| read(refs, accounts))
                 .unwrap_or_default(),
             keep: Keep::Here(refs),
         }
@@ -265,10 +256,9 @@ mod web {
                 Keeper::open(data_dir.join("host.sqlite3")).map_err(|error| error.to_string())?;
             let held = keeper.read().map_err(|error| error.to_string())?;
             let refs = be_host_stack::refs_in(&data_dir).ok();
-            // The web runs no embedded server, so no account is a local one.
             let listed = refs
                 .as_ref()
-                .map(|refs| read(refs, held.accounts(), ""))
+                .map(|refs| read(refs, held.accounts()))
                 .unwrap_or_default();
             Ok::<_, String>((keeper, refs, held, listed))
         })();

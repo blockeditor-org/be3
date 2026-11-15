@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn a_contact_link_asks_before_connecting_two_accounts() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let ada = server.account("Ada");
+    let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.click("#host.contacts.new-link");
@@ -20,14 +23,10 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     host.pause(500);
     host.gone("Dialog \"Contacts\"");
 
-    host.click("#file-tree.host-menu");
-    host.click("#host.menu.accounts");
-    host.click("Button \"Add account\"");
-    host.click("#account.local");
-    host.click("#account.name");
-    host.type_text("Ada");
-    host.click("#account.confirm");
-    host.click("Button \"Personal\"");
+    let dev_device = host;
+    let mut host = HostTest::device(&ada);
+    // Made on Dev's device, the link names the server as that device reaches it.
+    let link = link.replacen(&dev_device.server_url(), &host.server_url(), 1);
 
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
@@ -42,4 +41,5 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     host.crop("Dialog \"Contacts\"");
     host.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
     host.close();
+    dev_device.close();
 }

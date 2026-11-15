@@ -298,8 +298,8 @@ sends it. `Peer::write` does both.
   server's compare-and-swap), else `Saved::Rejected`, or `Drained::Diverged` to
   merge. Listings answer from every summary it holds (`Refs::local_listing`),
   history from its store (`history_held`), and what needs a server is refused as
-  offline. be-host-stack runs it when the `Config`'s `server_url` is empty
-  (`Config::is_local`): the line never goes up (`Line::Local`), the stack starts
+  offline. be-host-stack runs it when its `Config` says `local` (set outright,
+  never read from an empty `server_url`): the line never goes up (`Line::Local`), the stack starts
   as arrived (`arrive_locally`), and its status says `local`, which the host
   shows as saved rather than offline.
 - **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an

@@ -14,6 +14,7 @@ fn two_peers_of_one_organization_share_a_counter() {
 
     let elsewhere = std::env::temp_dir().join(format!("be-host-be-peer-{}", Uuid::new_v4()));
     start(Config {
+        local: false,
         server_url: harness.url.clone(),
         token: harness.token.clone(),
         account: harness.account,

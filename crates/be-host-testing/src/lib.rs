@@ -66,6 +66,7 @@ impl Harness {
 
     pub fn connect(&self) {
         be_host_stack::start(Config {
+            local: false,
             server_url: self.url.clone(),
             token: self.token.clone(),
             account: self.account,

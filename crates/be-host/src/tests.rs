@@ -60,7 +60,7 @@ fn synced() {
 /// Opens a core on the running stack (`be_host_testing::Harness`).
 fn core() -> HostCore {
     let state = HostStateStore::open(":memory:").expect("the host state opens");
-    HostCore::with_state(state, String::new()).expect("the app starts")
+    HostCore::with_state(state).expect("the app starts")
 }
 
 /// Makes a block on the running stack, named `name`, with `content`.

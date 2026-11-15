@@ -17,8 +17,8 @@ library is `//crates/NAME:NAME`, abbreviated `//crates/NAME`, with its other tar
 - `be-sdk-*`: what apps are written with: the protocol (`be-sdk-api`), the guest libraries
   (`be-sdk`, `be-sdk-beui`), the libraries apps link against and the test harness.
 - `be-host-*`: be-host, split into crates that build in parallel. `be-host-base`,
-  `be-host-stack` and `be-host-server` (the server be-host embeds for a local account) have no
-  beui, and `be-host-services` (the Linux D-Bus services) and `be-host-programs` (the desktop's
+  `be-host-stack` and `be-host-server` (be-server on a thread, which tests start to sign in
+  against) have no beui, and `be-host-services` (the Linux D-Bus services) and `be-host-programs` (the desktop's
   installed programs and icons) only beui's types; `be-host-runtime` runs apps;
   `be-host-desktop` holds the desktop hosts; `be-host-testing` and `be-host-tests` are its test
   harness and host tests.
