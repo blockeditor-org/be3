@@ -112,6 +112,10 @@ pub struct Graph {
     heard: HashMap<Uuid, u64>,
     floor: u64,
     pending: HashMap<Uuid, u32>,
+    /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
+    /// can hold one, so it stays a member of the listings it belongs in until the drain sends
+    /// its creation (`relist_around`), and they are asked for again.
+    unpublished: HashSet<Uuid>,
     derived: HashMap<Uuid, Entries>,
     referenced: HashMap<Uuid, Vec<Uuid>>,
     /// The head an open block's replica last reported, which what the server lists of it does not
@@ -281,11 +285,29 @@ impl Graph {
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
         };
-        listed.fetch = match std::mem::take(&mut listed.again) {
+        let stale = std::mem::take(&mut listed.again);
+        listed.fetch = match stale {
             true => Fetch::Wanted,
             false => Fetch::Loaded,
         };
+        // An answer to a request made before a change that asked for the listing again
+        // cannot know of what that change added: what was listed stays until the answer
+        // to the request after it, so a block made or moved here does not leave the
+        // graph between its change settling and that answer.
+        let kept: Vec<Uuid> = match stale {
+            true => listed.members.iter().copied().collect(),
+            false => Vec::new(),
+        };
         listed.members = nodes.iter().map(|node| node.id).collect();
+        listed.members.extend(
+            kept.into_iter()
+                .chain(self.unpublished.iter().copied())
+                .filter(|block| {
+                    self.nodes
+                        .get(block)
+                        .is_some_and(|node| member(listing, node, &self.nodes) == Some(true))
+                }),
+        );
         let described = match listing {
             Listing::References(block) => self.referenced.contains_key(&block),
             _ => false,
@@ -346,6 +368,7 @@ impl Graph {
     /// What the server answers of `block`'s place changed (the drain sent its creation or its
     /// move): the listings it is in or about are asked for again.
     pub fn relist_around(&mut self, block: Uuid, parent: Option<BlockParent>) {
+        self.unpublished.remove(&block);
         if let Some(parent) = parent {
             self.relist(Listing::Children(parent));
         }
@@ -486,6 +509,12 @@ impl Graph {
         }
         self.heard.insert(block, revision);
         true
+    }
+
+    /// A block made here, kept until the drain sends it: what the server lists before then
+    /// cannot hold it (`unpublished`).
+    pub fn made(&mut self, block: Uuid) {
+        self.unpublished.insert(block);
     }
 
     pub fn change(&mut self, node: Node) {
@@ -697,6 +726,7 @@ impl Graph {
     }
 
     pub fn forget(&mut self, block: Uuid) {
+        self.unpublished.remove(&block);
         for listed in self.listings.values_mut() {
             listed.members.remove(&block);
         }
