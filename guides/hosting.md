@@ -168,8 +168,11 @@ Uploads no block takes are deleted after a day.
 Push notifications (guides/blocks/server.md, "Notifications") go out through Web Push with a
 VAPID key the server makes in its database, to the known push services only (FCM, Mozilla,
 Apple, Windows). The key is plaintext inside the database, so inside its backups, which are
-sealed with the backup key, and has no rotation path. A self-hosted UnifiedPush server such as
-ntfy needs `--push-host HOST`, once per host. The server must reach them over IPv4 or native IPv6: behind DNS64, an IPv4-only push
+sealed with the backup key, and has no rotation path. Android devices take pushes through a
+UnifiedPush distributor (decisions/android_push_via_unifiedpush.md): Sunup's endpoints are on
+Mozilla autopush and work as they are; ntfy's, whether on ntfy.sh or a self-hosted ntfy, need
+`--push-host ntfy.sh` (or that server's host), once per host, or the server refuses them when
+the device registers. The server must reach them over IPv4 or native IPv6: behind DNS64, an IPv4-only push
 service resolves into `64:ff9b::/96`, which the server refuses as not public. FCM, for Android devices
 without a UnifiedPush distributor, needs a Firebase project: its service account's JSON key on
 the host, passed as `--fcm-credentials FILE`. The deployment has none yet, so the server offers
