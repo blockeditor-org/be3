@@ -5,12 +5,12 @@ use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
 
 use crate::computation::{Effect, create_binding};
-use crate::stored::StoredCell;
 use crate::loading::{ErrorBoundary, Pending, Ready};
 use crate::runtime::check_tracked_read;
 use crate::scope::on_cleanup;
 use crate::signal::{Get, Set, Signal, create_signal};
 use crate::source::{Source, create_source};
+use crate::stored::StoredCell;
 use crate::trigger::{Trigger, create_trigger};
 
 /// A future the host's executor runs for an async memo.
@@ -83,26 +83,29 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
         cancelled: Cell::new(false),
     });
     let polled = Rc::clone(&running);
-    hand_over(Rc::clone(&running), Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
-        let mut held = polled.future.borrow_mut();
-        let Some(future) = held.as_mut() else {
-            return Poll::Ready(());
-        };
-        match future.as_mut().poll(context) {
-            Poll::Ready(()) => {
-                *held = None;
-                Poll::Ready(())
+    hand_over(
+        Rc::clone(&running),
+        Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+            let mut held = polled.future.borrow_mut();
+            let Some(future) = held.as_mut() else {
+                return Poll::Ready(());
+            };
+            match future.as_mut().poll(context) {
+                Poll::Ready(()) => {
+                    *held = None;
+                    Poll::Ready(())
+                }
+                Poll::Pending if polled.cancelled.get() => {
+                    *held = None;
+                    Poll::Ready(())
+                }
+                Poll::Pending => {
+                    *polled.waker.borrow_mut() = Some(context.waker().clone());
+                    Poll::Pending
+                }
             }
-            Poll::Pending if polled.cancelled.get() => {
-                *held = None;
-                Poll::Ready(())
-            }
-            Poll::Pending => {
-                *polled.waker.borrow_mut() = Some(context.waker().clone());
-                Poll::Pending
-            }
-        }
-    })));
+        })),
+    );
     running
 }
 
@@ -177,7 +180,9 @@ where
         pending,
         rerun,
     };
-    value.with_node(|node| ErrorBoundary::hold_refresh(node, std::rc::Rc::new(move || memo.refresh())));
+    value.with_node(|node| {
+        ErrorBoundary::hold_refresh(node, std::rc::Rc::new(move || memo.refresh()))
+    });
     memo
 }
 

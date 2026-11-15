@@ -28,5 +28,9 @@ fn a_boundary_waits_for_the_pending_values_read_under_it() {
     assert_eq!(name.get(), "notes");
 
     second.set(Ok(3));
-    assert_eq!(boundary.state(), Ok(()), "a source nothing read does not hold it");
+    assert_eq!(
+        boundary.state(),
+        Ok(()),
+        "a source nothing read does not hold it"
+    );
 }
