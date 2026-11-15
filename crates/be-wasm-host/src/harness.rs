@@ -1,30 +1,20 @@
+//! Running a crate's tests compiled to wasm (be-sdk-test-runner): once together, and when that
+//! fails, each again on its own, since a panic ends a wasm run.
+
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
-    time::Duration,
+    sync::{Arc, Mutex},
 };
 
-use wasmtime::{Linker, Store, Trap, TypedFunc, WasmBacktrace};
-use wasmtime_wasi::p2::pipe::MemoryOutputPipe;
-use wasmtime_wasi::{FsPerms, I32Exit, WasiCtxBuilder, p1};
-
-use crate::{
-    Host, Stored,
-    dylink::{self, Program},
-    gpu, library_module,
-    precompile::test_module,
-    shared_memory,
-    state::State,
-    stderr::Tee,
-    threads, wake,
-};
+use crate::wasi::{EXITED, Output, Wasi};
+use crate::{Host, Running, Setup, Stored, wake::Wake};
 
 const START: &str = "_start";
 const MAIN: &str = "__main_void";
-const LISTING_CAPACITY: usize = 1 << 20;
 const CARRIED: [&str; 2] = ["--ignored", "--include-ignored"];
 const PANICKED: &str = " panicked at ";
 const ABORT: &str = "abort";
+const UNREACHABLE: &str = "RuntimeError: unreachable";
 const PANIC_MACHINERY: [&str; 5] = [
     "core::panicking::",
     "core::option::expect_failed",
@@ -35,22 +25,32 @@ const PANIC_MACHINERY: [&str; 5] = [
 const TEST_HARNESS: &str = "test::__rust_begin_short_backtrace";
 const BACKTRACE_NOTE: &str = "note: run with `RUST_BACKTRACE=1`";
 
+fn kept() -> Arc<Mutex<Vec<u8>>> {
+    Arc::default()
+}
+
 impl Host {
     pub fn run_tests(
         &self,
         wasm: &Path,
         arguments: &[String],
         directories: &[PathBuf],
-        precompiled: Option<&Path>,
         libraries: &[PathBuf],
     ) -> Result<i32, String> {
-        let module = &self.tests(wasm, precompiled, libraries)?;
-        match self.run_instance(module, arguments, directories, None, &Tee::default()) {
+        let tests = Tests {
+            module: Stored::file(wasm.to_path_buf())?.into_bytes()?,
+            libraries: libraries.to_vec(),
+        };
+        let stderr = Output::Tee {
+            kept: kept(),
+            held: false,
+        };
+        match self.run_instance(&tests, arguments, directories, Output::Inherited, stderr) {
             Ok(0) => return Ok(0),
             Ok(_) => {}
             Err(failure) => eprintln!("{failure}"),
         }
-        let names = self.list_tests(&module, arguments, directories)?;
+        let names = self.list_tests(&tests, arguments, directories)?;
         eprintln!(
             "a panic ends a wasm test run, so the {} tests run again one at a time",
             names.len()
@@ -65,20 +65,23 @@ impl Host {
             let mut single = vec![arguments[0].clone(), name.clone(), "--exact".to_owned()];
             single.extend(carried.iter().map(|argument| (*argument).clone()));
             single.extend(["--test-threads=1".to_owned(), "--nocapture".to_owned()]);
-            let stdout = MemoryOutputPipe::new(usize::MAX);
-            let stderr = Tee::held();
+            let stdout = Output::Kept(kept());
+            let stderr = Output::Tee {
+                kept: kept(),
+                held: true,
+            };
             let failure = match self.run_instance(
-                module,
+                &tests,
                 &single,
                 directories,
-                Some(stdout.clone()),
-                &stderr,
+                stdout.clone(),
+                stderr.clone(),
             ) {
                 Ok(0) => continue,
                 Ok(code) => format!("exit {code}"),
                 Err(failure) => failure,
             };
-            print!("{}", String::from_utf8_lossy(&stdout.contents()));
+            print!("{}", stdout.contents());
             eprint!("{}", stderr.contents());
             eprintln!("{failure}");
             failed.push((name, why(&stderr, &failure)));
@@ -98,43 +101,9 @@ impl Host {
         Ok(1)
     }
 
-    fn tests(
-        &self,
-        wasm: &Path,
-        precompiled: Option<&Path>,
-        libraries: &[PathBuf],
-    ) -> Result<Tests, String> {
-        let module = test_module(&self.engine, wasm, precompiled)?;
-        let identities = dylink::libraries(&module)?;
-        if identities.is_empty() {
-            return Ok(Tests {
-                program: Program::Whole(module),
-                identities,
-            });
-        }
-        if identities.len() != libraries.len() {
-            return Err(format!(
-                "the tests are linked against {} libraries, and {} were given",
-                identities.len(),
-                libraries.len()
-            ));
-        }
-        let mut modules = Vec::with_capacity(identities.len() + 1);
-        for (identity, path) in identities.iter().zip(libraries) {
-            let library = library_module(&self.engine, identity, Stored::file(path.clone())?)
-                .map_err(|error| format!("{} could not be loaded: {error}", path.display()))?;
-            modules.push(library);
-        }
-        modules.push(module);
-        Ok(Tests {
-            program: Program::Linked(modules.into()),
-            identities,
-        })
-    }
-
     fn list_tests(
         &self,
-        module: &Tests,
+        tests: &Tests,
         arguments: &[String],
         directories: &[PathBuf],
     ) -> Result<Vec<String>, String> {
@@ -146,18 +115,17 @@ impl Host {
             .cloned()
             .collect();
         listing.extend(["--list", "--format", "terse"].map(str::to_owned));
-        let output = MemoryOutputPipe::new(LISTING_CAPACITY);
-        let code = self.run_instance(
-            module,
-            &listing,
-            directories,
-            Some(output.clone()),
-            &Tee::default(),
-        )?;
+        let output = Output::Kept(kept());
+        let stderr = Output::Tee {
+            kept: kept(),
+            held: false,
+        };
+        let code = self.run_instance(tests, &listing, directories, output.clone(), stderr)?;
         if code != 0 {
             return Err(format!("the tests could not be listed: exit {code}"));
         }
-        Ok(String::from_utf8_lossy(&output.contents())
+        Ok(output
+            .contents()
             .lines()
             .filter_map(|line| line.strip_suffix(": test"))
             .map(str::to_owned)
@@ -169,141 +137,96 @@ impl Host {
         tests: &Tests,
         arguments: &[String],
         directories: &[PathBuf],
-        stdout: Option<MemoryOutputPipe>,
-        stderr: &Tee,
+        stdout: Output,
+        stderr: Output,
     ) -> Result<i32, String> {
-        let module = tests.program.first();
-        let memory = shared_memory(&self.engine, module)?;
-        let mut builder = WasiCtxBuilder::new();
-        builder
-            .inherit_stdio()
-            .stderr(stderr.clone())
-            .inherit_env()
-            .args(arguments);
-        for directory in directories {
-            let guest = directory
-                .to_str()
-                .ok_or_else(|| format!("{} is not a usable path", directory.display()))?;
-            builder
-                .preopened_dir(directory, guest, FsPerms::ReadWrite)
-                .map_err(|error| {
-                    format!(
-                        "{} could not be opened for the tests: {error}",
-                        directory.display()
-                    )
-                })?;
+        let wasi = Wasi::run(arguments, stdout, stderr, directories)?;
+        let identities = crate::dylink::libraries(&crate::engine::Shape::read(&tests.module)?)?;
+        if identities.len() != tests.libraries.len() {
+            return Err(format!(
+                "the tests are linked against {} libraries, and {} were given",
+                identities.len(),
+                tests.libraries.len()
+            ));
         }
-        if let Some(stdout) = stdout {
-            builder.stdout(stdout);
-        }
-        let woken: Arc<wake::Wake> = Arc::default();
-        let state = State {
-            wasi: builder.build_p1(),
-            memory: crate::state::Memory::Shared(memory.clone()),
-            device: self.devices.open(&self.imports),
-            imports: Arc::clone(&self.imports),
-            error: None,
-            fatal: None,
-            returned: Vec::new(),
-            transport: Default::default(),
-            gpu_time: Duration::ZERO,
-            submit_time: Duration::ZERO,
-            threads: threads::Spawner::new(
-                self.engine.clone(),
-                tests.program.clone(),
-                Some(memory.clone()),
-                Arc::clone(&woken),
-                Arc::clone(&self.interrupt),
-            ),
-            wake: Arc::clone(&woken),
-            limits: Default::default(),
+        let library = |identity: &str| {
+            let index = identities
+                .iter()
+                .position(|linked| linked == identity)
+                .ok_or_else(|| format!("the tests are not linked against {identity}"))?;
+            let path = &tests.libraries[index];
+            Stored::file(path.clone())?
+                .into_bytes()
+                .map_err(|error| format!("{} could not be loaded: {error}", path.display()))
         };
-        let mut store = Store::new(&self.engine, state);
-        crate::interrupt::watch(&mut store, true);
-        let mut linker: Linker<State> = Linker::new(&self.engine);
-        p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
-            .map_err(|error| format!("wasi could not be linked: {error}"))?;
-        linker
-            .define(&store, "env", "memory", memory.clone())
-            .map_err(|error| format!("the test memory could not be linked: {error}"))?;
-        gpu::link(&mut linker)?;
-        crate::panic::link(&mut linker)?;
-        threads::link(&mut linker)?;
-        wake::link(&mut linker)?;
-        linker
-            .define_unknown_imports_as_traps(module)
-            .map_err(|error| format!("the test imports could not be stubbed: {error}"))?;
-        let instance = linker
-            .instantiate(&mut store, module)
+        let wake: Arc<Wake> = Arc::default();
+        let setup = Setup {
+            wasi,
+            initialize: false,
+        };
+        let mut running = Running::new(self, tests.module.clone(), &library, &wake, setup)
             .map_err(|error| format!("the tests could not be instantiated: {error}"))?;
-        let outcome = match &tests.program {
-            Program::Whole(_) => {
-                let start: TypedFunc<(), ()> = instance
-                    .get_typed_func(&mut store, START)
-                    .map_err(|error| format!("the tests have no usable {START} export: {error}"))?;
-                start.call(&mut store, ()).map(|()| 0)
-            }
-            Program::Linked(modules) => {
-                crate::initialize(&instance, &mut store)?;
-                let linked =
-                    dylink::plan(&mut store, modules, &tests.identities, &instance, &memory)?;
-                let thread = dylink::Thread {
-                    blocks: linked.take(&memory)?,
-                    root_block: dylink::main_thread_locals(&mut store, &instance)?,
-                    main: true,
-                };
-                store.data().threads.linked(Arc::clone(&linked));
-                let tests = dylink::link(&mut store, &linker, modules, &linked, instance, &thread)?;
-                let main: TypedFunc<(), i32> = tests
-                    .get_typed_func(&mut store, MAIN)
-                    .map_err(|error| format!("the tests have no usable {MAIN} export: {error}"))?;
-                main.call(&mut store, ())
-            }
+        let entry = match identities.is_empty() {
+            true => START,
+            false => MAIN,
         };
-        let state = store.data_mut();
+        let (outcome, _) = running.call(entry);
+        let state = running.state_mut();
         if let Some(failure) = state.take_error().or_else(|| state.threads.take_failure()) {
             return Err(failure);
         }
+        if let Some(code) = state
+            .fatal
+            .as_deref()
+            .and_then(|fatal| fatal.strip_prefix(EXITED))
+            .and_then(|code| code.parse().ok())
+        {
+            return Ok(code);
+        }
         match outcome {
-            Ok(code) => Ok(code),
-            Err(error) => match error.downcast_ref::<I32Exit>() {
-                Some(exit) => Ok(exit.0),
-                None if aborted(&error) => Err(aborted_with_backtrace(&error)),
-                None => Err(format!("the tests trapped: {error:?}")),
-            },
+            Ok(code) => Ok(code.unwrap_or(0)),
+            Err(_) if state.fatal.is_some() => Err(state.fatal.take().unwrap_or_default()),
+            Err(thrown) if aborted(&thrown) => Err(aborted_with_backtrace(&thrown)),
+            Err(thrown) => Err(format!("the tests trapped: {thrown}")),
         }
     }
 }
 
-// The tests, as one module with everything in it whose `_start` runs them, or
-// linked against the libraries in `identities` (guides/app_libraries.md), whose
-// `__main_void` runs them once the libraries are linked as an app's are.
+/// The tests, as one module with everything in it whose `_start` runs them, or linked against
+/// `libraries` (guides/app_libraries.md), whose `__main_void` runs them once they are linked as
+/// an app's are.
 struct Tests {
-    program: Program,
-    identities: Vec<String>,
+    module: Vec<u8>,
+    libraries: Vec<PathBuf>,
 }
 
-fn aborted(error: &wasmtime::Error) -> bool {
-    error.downcast_ref::<Trap>() == Some(&Trap::UnreachableCodeReached)
-        && error
-            .downcast_ref::<WasmBacktrace>()
-            .and_then(|backtrace| backtrace.frames().first())
-            .and_then(|frame| frame.func_name())
-            == Some(ABORT)
-}
-
-fn aborted_with_backtrace(error: &wasmtime::Error) -> String {
-    let Some(backtrace) = error.downcast_ref::<WasmBacktrace>() else {
-        return "the tests aborted".to_owned();
-    };
-    let names: Vec<String> = backtrace
-        .frames()
-        .iter()
-        .map(|frame| match frame.func_name() {
-            Some(name) => format!("{:#}", rustc_demangle::demangle(name)),
-            None => format!("<function {}>", frame.func_index()),
+/// The names of the functions on a trap's stack as V8 writes it (`at MODULE.FUNCTION (wasm://…)`),
+/// innermost first, demangled.
+fn frames(thrown: &str) -> Vec<String> {
+    thrown
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix("at "))
+        .map(|frame| {
+            let name = match frame.find(" (") {
+                Some(end) => &frame[..end],
+                None => frame,
+            };
+            let function = ["._ZN", "._R"]
+                .iter()
+                .filter_map(|mangled| name.find(mangled).map(|at| &name[at + 1..]))
+                .next()
+                .unwrap_or_else(|| name.rsplit('.').next().unwrap_or(name));
+            format!("{:#}", rustc_demangle::demangle(function))
         })
-        .collect();
+        .collect()
+}
+
+fn aborted(thrown: &str) -> bool {
+    thrown.starts_with(UNREACHABLE) && frames(thrown).first().map(String::as_str) == Some(ABORT)
+}
+
+fn aborted_with_backtrace(thrown: &str) -> String {
+    let names = frames(thrown);
     let end = names
         .iter()
         .position(|name| name.starts_with(TEST_HARNESS))
@@ -324,7 +247,7 @@ fn aborted_with_backtrace(error: &wasmtime::Error) -> String {
     message
 }
 
-fn why(stderr: &Tee, failure: &str) -> String {
+fn why(stderr: &Output, failure: &str) -> String {
     let written = stderr.contents();
     let panic = written
         .lines()

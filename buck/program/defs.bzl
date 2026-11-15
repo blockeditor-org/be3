@@ -56,86 +56,6 @@ type_bundle = rule(
     impl = _type_bundle_impl,
 )
 
-# One action a module, so that the thirty-odd compiles run side by side on as
-# many workers rather than one after another.
-def _precompile(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
-    artifact = ctx.actions.declare_output((name or wasm.basename.removesuffix(".wasm")) + ".cwasm")
-    ctx.actions.run(
-        cmd_args(
-            ctx.attrs.precompiler[RunInfo],
-            "--precompile-to",
-            "--target",
-            ctx.attrs.precompile_target,
-            artifact.as_output(),
-            wasm,
-        ),
-        category = "wasm_precompile",
-        identifier = name or wasm.basename,
-    )
-    return artifact
-
-# One module precompiled, as a file a test reads at run time: a test that loads a large
-# module (the base library is 22 MB, ten seconds of Cranelift) takes it compiled from here, once
-# for the build, rather than compiling it in its own process.
-def _precompiled_module_impl(ctx: AnalysisContext) -> list[Provider]:
-    wasm = ctx.attrs.module[DefaultInfo].default_outputs[0]
-    return [DefaultInfo(default_output = _precompile(ctx, wasm))]
-
-precompiled_module = rule(
-    attrs = {
-        "module": attrs.dep(),
-        "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
-        "precompiler": attrs.dep(providers = [RunInfo]),
-    },
-    impl = _precompiled_module_impl,
-)
-
-# Every app's modules, libraries and type modules precompiled once, for
-# apps that stage some or all of them (crates/be-host-tests stages a few editors
-# per test): an app given it as `precompiled` takes each .cwasm from here
-# rather than precompiling its own, so apps that share a module share its
-# action, which only runs once an app asks for its output.
-PrecompiledInfo = provider(fields = {"artifacts": provider_field(dict)})
-
-def _precompiled_apps_impl(ctx: AnalysisContext) -> list[Provider]:
-    artifacts = {}
-    for module in ctx.attrs.modules + ctx.attrs.libraries:
-        info = module.get(WasmLibrariesInfo)
-        for library in info.closure if info else []:
-            if library not in artifacts:
-                name = "library{}-{}".format(len(artifacts), library.basename.removesuffix(".wasm"))
-                artifacts[library] = _precompile(ctx, library, name)
-    for library in ctx.attrs.libraries:
-        wasm = library[DefaultInfo].default_outputs[0]
-        if wasm not in artifacts:
-            name = "library{}-{}".format(len(artifacts), wasm.basename.removesuffix(".wasm"))
-            artifacts[wasm] = _precompile(ctx, wasm, name)
-    for module in ctx.attrs.modules + ctx.attrs.app_types:
-        for wasm in module[DefaultInfo].default_outputs[:1]:
-            artifacts[wasm] = _precompile(ctx, wasm)
-    return [DefaultInfo(default_outputs = artifacts.values()), PrecompiledInfo(artifacts = artifacts)]
-
-precompiled_apps = rule(
-    attrs = {
-        "app_types": attrs.list(attrs.dep(), default = []),
-        # Libraries no app links, precompiled with the apps' own: the one app
-        # tests link (TEST_LIBRARY in buck/wasm/defs.bzl).
-        "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
-        "modules": attrs.list(attrs.dep()),
-        "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
-        "precompiler": attrs.dep(providers = [RunInfo]),
-    },
-    impl = _precompiled_apps_impl,
-)
-
-def _compiled(ctx: AnalysisContext, wasm: Artifact, name: [str, None] = None) -> Artifact:
-    if not ctx.attrs.precompiled:
-        return _precompile(ctx, wasm, name)
-    artifacts = ctx.attrs.precompiled[PrecompiledInfo].artifacts
-    if wasm not in artifacts:
-        fail("{} is not among {}'s modules".format(wasm, ctx.attrs.precompiled.label))
-    return artifacts[wasm]
-
 # What `buck2 run` unpacks a program's archive with: built for the platform
 # the program is, as the machine that runs it is, but on beui's native core,
 # since a program on the HTML core, such as be-server's portal assets, is built
@@ -171,17 +91,14 @@ def _lay_out(ctx: AnalysisContext, layout: list, arguments: list, generated: Art
     ctx.actions.assembled_dir(out, contents = contents, has_content_based_path = False)
 
 # The app as it runs (crates/be-tool-buck's stage): the executable under cargo's name, and
-# beside it every app, each module precompiled for precompile_target in an
-# action of its own by the precompiler, app-test-runner as the workers run
-# it, whatever the app is built for, and every library in their closures
-# (guides/app_libraries.md), each with its .cwasm, and the type modules; with no
-# precompiler, each app is its module alone. With no binary it
+# beside it every app's module, every library in their closures
+# (guides/app_libraries.md) and the type modules. With no binary it
 # is the apps alone. `index` writes the apps.json the app finds the
 # apps through. The web bundle is this rule too: `bindgen` runs
 # wasm-bindgen over each module. The stage writes only the files it makes
 # and where everything goes; the directory is then laid out from that
 # (_lay_out), each file a symlink to the artifact it is, so programs that
-# share the apps' modules and .cwasm files share their bytes too. `[archive]`
+# share the apps' modules share their bytes too. `[archive]`
 # is the whole directory, links followed, as one
 # compressed file (crates/be-host-archive), a quarter of its size or less, made on a
 # worker. `buck2 run` runs the executable from it, unpacked into target/programs
@@ -202,8 +119,6 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         arguments.append(artifacts)
 
     only_libraries = ctx.attrs.libraries == "only"
-    if ctx.attrs.compiled_only:
-        add("--compiled-only")
     name = None
     if ctx.attrs.binary:
         executable = ctx.attrs.binary[DefaultInfo].default_outputs[0]
@@ -217,11 +132,8 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         for library in info.closure if info else []:
             if library not in libraries:
                 libraries.append(library)
-    for index, library in enumerate(libraries if ctx.attrs.libraries != "exclude" else []):
+    for library in libraries if ctx.attrs.libraries != "exclude" else []:
         add(cmd_args("--library=", library, delimiter = ""), [library])
-        if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            artifact = _compiled(ctx, library, "library{}-{}".format(index, library.basename.removesuffix(".wasm")))
-            add("--library-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.linked:
         wasm = module[DefaultInfo].default_outputs[0]
         add("--file=" + wasm.basename, [wasm])
@@ -234,14 +146,8 @@ def _program_impl(ctx: AnalysisContext) -> list[Provider]:
         add(cmd_args(manifest, wasm.basename, delimiter = "="), [manifest, wasm])
         if files:
             add(cmd_args("--data=", files, delimiter = ""), [files])
-        if ctx.attrs.precompiler or ctx.attrs.precompiled:
-            artifact = _compiled(ctx, wasm)
-            add("--artifact=" + artifact.basename, [artifact])
         for type_module in types[DefaultInfo].default_outputs if types else []:
             add(cmd_args("--app-type=", type_module, delimiter = ""), [type_module])
-            if ctx.attrs.precompiler or ctx.attrs.precompiled:
-                artifact = _compiled(ctx, type_module)
-                add("--type-artifact=" + artifact.basename, [artifact])
     for module in ctx.attrs.bindgen:
         wasm = module[DefaultInfo].default_outputs[0]
         bindings = ctx.actions.declare_output(wasm.basename.removesuffix(".wasm") + "-bindings", dir = True)
@@ -297,9 +203,6 @@ program = rule(
         "app_types": attrs.list(attrs.dep(), default = []),
         "binary": attrs.option(attrs.dep(), default = None),
         "bindgen": attrs.list(attrs.dep(), default = []),
-        # Each precompiled app without its module, for an app that only
-        # falls back to the module.
-        "compiled_only": attrs.bool(default = False),
         # Each app's read-only data (app_data), in the order of manifests.
         "data": attrs.list(attrs.source(), default = []),
         "executable_name": attrs.string(default = ""),
@@ -316,11 +219,6 @@ program = rule(
         "linked": attrs.list(attrs.dep(), default = []),
         "manifests": attrs.list(attrs.source()),
         "modules": attrs.list(attrs.dep()),
-        "precompile_target": attrs.string(default = "x86_64-unknown-linux-gnu"),
-        # Where each .cwasm comes from in place of the precompiler: a
-        # precompiled_apps target over these modules or more.
-        "precompiled": attrs.option(attrs.dep(providers = [PrecompiledInfo]), default = None),
-        "precompiler": attrs.option(attrs.dep(providers = [RunInfo]), default = None),
         # What `buck2 run` runs a bundle without an executable with, followed
         # by the bundle.
         "run_with": attrs.list(attrs.arg(), default = []),

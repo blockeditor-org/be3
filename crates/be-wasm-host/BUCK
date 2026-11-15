@@ -1,4 +1,4 @@
-load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_example", "cargo_library", "cargo_package", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_package", "cargo_test")
 load("@root//buck/program:defs.bzl", "program")
 load("@root//buck/program:drive.bzl", "page_test")
 
@@ -17,8 +17,6 @@ cargo_test(
     }
 )
 
-cargo_binary()
-
 # The examples: `./scripts/buck run //crates/be-wasm-host:example-<example>`.
 
 cargo_example("gpu-calls")
@@ -26,7 +24,7 @@ cargo_example("gpu-calls")
 cargo_example("instantiate")
 
 # The standalone guest (src/tests/standalone.wat, which the tests above run on
-# wasmtime) in Chromium: assembled into a module, and run by be-wasm-guest-host's
+# V8) in Chromium: assembled into a module, and run by be-wasm-guest-host's
 # guest.js with be-host's app.js against be-wasm-gpu-shim, which
 # wasm-bindgen prepares as the web bundle does, in a page that checks what it
 # painted (web/standalone.js).
