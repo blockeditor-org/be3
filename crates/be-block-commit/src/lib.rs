@@ -13,7 +13,7 @@ pub use merge::{
 };
 pub use retention::{CommitSummary, RetentionPlan, RetentionPolicy, plan as plan_retention};
 #[cfg(feature = "store")]
-pub use store::CommitStore;
+pub use store::{CommitStore, MergeBase, MergeBaseWalk};
 
 /// How far past the server's clock a commit's time may be: a device's clock may run a little
 /// fast, but a far-future time would win every comparison by commit time, as a search query's

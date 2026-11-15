@@ -20,13 +20,6 @@ Fixed items are removed as they land.
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
-## 9. Version control's caches
-
-- **A bounded walk to the merge base.** A version command's write of a block that moved
-  (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
-  the device holds of each, up to four times a write. Done: the walk stops at a depth past
-  which the command falls back to the head it read as the base.
-
 ## 11. Large folders
 
 - **Republishing a large folder's summary.** A folder's summary lists every
