@@ -342,10 +342,6 @@ struct JournalHead {
     /// Where the order stands: what this device heard the server number, or numbered itself
     /// offline.
     order: be_block_session::Sequencer,
-    /// A seal this device made of the journal, with the last sequence it holds, written with
-    /// the seal's commit in one write and dropped by the next rebase: while it stands, the
-    /// seal's commit holds the journal through that sequence (`Peer::sealing`).
-    sealing: Option<(CommitId, u64)>,
 }
 
 #[derive(Clone, Debug)]
@@ -493,7 +489,6 @@ impl State {
                                 state: Vec::new(),
                             },
                             order: be_block_session::Sequencer::starting(0),
-                            sealing: None,
                         },
                         entries: BTreeMap::new(),
                     })
@@ -1098,39 +1093,22 @@ impl Refs {
 
     /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
     /// journal the commit holds, the journal notes the seal in the same write.
-    pub fn push_publish(&self, pending: Pending, sealing: Option<u64>) -> Result<u64, StoreError> {
+    pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
             let sequence = state.take();
-            let mut rows = vec![
+            let rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
                 row(Table::Head, block.as_bytes().to_vec(), &head),
             ];
-            if let Some(through) = sealing
-                && let Some(journal) = state.journals.get_mut(&block)
-            {
-                journal.head.sealing = Some((head, through));
-                rows.push(row(
-                    Table::JournalBase,
-                    block.as_bytes().to_vec(),
-                    &journal.head,
-                ));
-            }
             state.outbox.insert(sequence, op);
             state.heads.insert(block, head);
             (sequence, rows)
         };
         self.write(rows)?;
         Ok(sequence)
-    }
-
-    /// The seal this device made of the block's journal since its last rebase, and the last
-    /// sequence it holds (`JournalHead::sealing`).
-    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
-        let state = self.state.lock().unwrap();
-        state.journals.get(&block)?.head.sealing
     }
 
     /// The block's journal on this device, sealed.
@@ -1155,7 +1133,6 @@ impl Refs {
                     state: Vec::new(),
                 },
                 order: be_block_session::Sequencer::starting(0),
-                sealing: None,
             },
             entries: BTreeMap::new(),
         })
@@ -1267,10 +1244,8 @@ impl Refs {
                     value: None,
                 });
             }
-            // A rebase starts the journal from a commit: no seal of the old one stands.
             journal.head.tag = tag;
             journal.head.base = base;
-            journal.head.sealing = None;
             rows.push(row(
                 Table::JournalBase,
                 block.as_bytes().to_vec(),

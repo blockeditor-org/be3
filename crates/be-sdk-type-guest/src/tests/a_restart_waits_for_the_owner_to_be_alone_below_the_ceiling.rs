@@ -30,6 +30,7 @@ fn a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling() {
     sim.type_at(0, 1, 0, "more ");
     sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 2);
+    eprintln!("DEBUG state {} base {} journal {:?} restarted {:?}", state, base_state(&sim), sim.journal.as_ref().map(|j| (j.base.sequence, j.base.commit, j.entries.len())), sim.devices[0].undo.restarted_at);
     assert!(
         base_state(&sim) >= state,
         "below the ceiling, an owner with others in the session does not restart"

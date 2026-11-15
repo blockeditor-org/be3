@@ -29,6 +29,7 @@ fn a_new_owner_replays_a_journaled_edit_by_its_part() {
     );
     sim.crash(0);
     sim.fail_publishes = 0;
+    sim.errors.clear();
 
     let reads = sim.part_reads;
     sim.open(1);

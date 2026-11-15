@@ -47,6 +47,7 @@ pub(crate) const CONTENTS_BLOCKS: usize = if cfg!(test) { 8 } else { 256 };
 mod authorship;
 mod import;
 mod journal;
+pub use journal::Submitted;
 mod notifications;
 mod offline;
 mod prefixes;
@@ -1066,12 +1067,6 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
-    /// The seal this device made of `block`'s journal since its last rebase, and the last
-    /// sequence it holds: noted with the seal's commit in one write.
-    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
-        self.refs.sealing(block)
-    }
-
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {
         self.refs.remote(block)
     }
@@ -2009,7 +2004,6 @@ impl<S: ObjectStore> Peer<S> {
                 references: listed.clone(),
                 metadata: sealed.clone(),
             },
-            sealed_through.map(|sealed| sealed.sequence),
         )?;
         if !self.is_attached()
             && let Some(mut summary) = self.refs.summary(block)

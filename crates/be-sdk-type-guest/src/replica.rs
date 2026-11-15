@@ -856,7 +856,10 @@ where
         loop {
             // A seal that came due as the order brought work back starts now: the host ticks
             // only when its clock moves.
-            if !self.sealing && self.commit_at().is_some_and(|at| self.now >= at) {
+            if !self.sealing
+                && self.seal_would_settle()
+                && self.commit_at().is_some_and(|at| self.now >= at)
+            {
                 self.sealing = true;
                 self.jobs.push_back(Job::Seal {
                     sealing: Sealing::Due,
@@ -2554,6 +2557,7 @@ where
     /// could not read, no reload of its own on its way, and no retry waiting.
     fn seal_would_settle(&self) -> bool {
         self.owes()
+            && !self.diverged
             && self.merge_failures == 0
             && self.reloading.is_empty()
             && self.seal_retry_at.is_none_or(|at| self.now >= at)
