@@ -5,13 +5,14 @@ Depends on: none.
 Today a remote account is an email and a password. The `/auth` portal verifies
 the email, an operator invite code gates registration, and be-server hashes and
 checks passwords behind a bounded queue with lockouts, slowdowns and capped mail
-links (guides/blocks/server.md, "Accounts"). The portal also changes an email,
-resets a password and lists browser sessions. Mail goes through
+links (guides/blocks/server.md, "Accounts"). The portal also changes an email
+(`email_change_link`), resets a password and lists browser sessions; changing
+a password ends every session of the account. Mail goes through
 `mail::Delivery`, whose only implementation, `LogDelivery`, writes every link to
-the server log (guides/hosting.md, "Accounts and the portal"). Agents and local
-profiles already have no password: a token is their only credential. This plan
-replaces the password with sign-in methods that are cheaper to run and safer to
-hold, without requiring any one of them on every device or server.
+the server log, the hosted server's included (guides/hosting.md, "Accounts and
+the portal"). Agents and local profiles already have no password: a token is
+their only credential. This plan replaces the password with sign-in methods that
+are cheaper to run, without requiring any one of them on every device or server.
 
 It covers accounts on a server. A local account (plans/local_accounts.md) has no
 server, so nothing here applies to it; until that plan deletes the embedded
@@ -46,7 +47,7 @@ signs in. One mechanism, three kinds:
    any device with a browser, stores no secret and doubles as recovery (it can
    add or replace any other identity).
 2. **Passkey (WebAuthn).** An upgrade offered after sign-in and used when
-   present; never required. Phishing-resistant and no hashing queue.
+   present; never required.
 3. **OIDC identity `(issuer, sub)`.** Sign in with Google, Apple, Microsoft or an
    organization's own provider. Generic OIDC is the one implementation; Google
    and Apple are presets of it. A server with no providers configured shows no
@@ -62,87 +63,204 @@ the URL on another device, signs in and approves there, and the first device's
 poll completes. A device with no browser (the PineNote, a login session with no
 browser program) relies on that alone. Every method here must work through that
 URL, so none may need the browser to be on the device being signed in. No
-client needs OAuth or WebAuthn code of its own.
+client needs OAuth or WebAuthn code of its own. The approve page keeps its
+warning that approving signs in another device, since that approval can be
+phished whatever signed in to the portal; it may also show the requester's
+rough location.
 
 Agent accounts keep their tokens (guides/tracker.md), and header
 authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
+## Rules every method follows
+
+- **Email codes.** Eight characters from an alphabet without look-alikes (or
+  six digits, if the user prefers; open question), valid ten minutes, dead
+  after five wrong tries. A code belongs to the one pending attempt that asked
+  for it (an attempt id held in the requesting browser's cookie), never to the
+  email alone, and a new request for the same attempt ends the older code. The
+  mail also carries a link that fills the code in; it completes sign-in only in
+  the browser that began the attempt. Opened anywhere else it shows the code and
+  signs nothing in, so nobody can sign a victim's browser in to an attacker's
+  account (login CSRF).
+- **Mail limits strangers can't spend.** Today resets are capped at three per
+  account, which a stranger can use up to lock the owner out of recovery.
+  Instead: caps per address (an IPv6 address by its /64, as now), and a large
+  per-account budget that refills quickly, counting only requests from addresses
+  that never completed a sign-in for that account (a small, bounded remembered
+  addresses table, as passwords keep today). A request for an email with no
+  account does the same work and sends nothing, so total mail is at most the
+  number of accounts times the per-account rate, and no global cap is needed
+  (one reachable by anonymous traffic would lock everyone out). Registration
+  links stay capped per invite code, and the global cap stays only on
+  registration and email-change links, as now.
+- **Registration enumeration.** Registering with an email that has an account
+  is refused today (`unregistered` in `store/portal.rs`), which tells a stranger
+  the email is registered. Behind an operator invite code that leak is small.
+  Keep the refusal while registration needs a code, and record it in the guide;
+  mailing "you already have an account" instead is the alternative if
+  registration opens.
+- **Fresh proof for account changes.** Changing the email, adding or removing an
+  identity, and ending other sessions need a proof from the last few minutes: a
+  code sent to the current email, a passkey, or a provider sign-in. An email
+  change (the existing `email_change_link` flow, now behind fresh proof) also
+  mails the old address. Every identity added or removed mails a notice. Signing
+  in through an emailed code after "I can't sign in" (recovery) offers to end
+  every other session, as a password change does today; whether it ends them by
+  default is an open question.
+- **Operator links.** `be-server login-link` (step 4) makes a single-use link
+  valid fifteen minutes, keeps only its hash, and builds it from
+  `--auth-origin`.
+
 ## Steps
 
-1. **Identities table.** Split credentials from accounts: an account id, and
-   identities of the kinds above. Email stays a verified attribute used for
-   contact and recovery. Remove the password column, `store/passwords.rs`, the
-   hashing queue, the lockouts and slowdown, remembered addresses, the reset
-   flow and the portal's password settings page; no migration, since no format
-   is frozen (guides/frozen_formats.md). The portal's settings page lists the
-   account's identities, to add and remove (never the last one); its sessions
-   page stays.
-2. **Emailed code sign-in and registration.** A one-time code (or link) through
-   the portal replaces password registration, sign-in and reset. Mail stays
-   capped per email and purpose, per address and per invite code, as now; a
-   sign-in mail is capped per account as resets are today, and one for an email
-   with no account does the same work and sends nothing, so the portal does not
-   say which emails have accounts. A code takes a few wrong guesses and then
-   dies, which replaces the lockouts. Connect real email delivery (a
-   `mail::Delivery` that sends) here; until then `LogDelivery` keeps printing
-   to the log.
-3. **Operator login link.** For a self-hosted server without mail delivery, a
-   `be-server login-link` command (beside `invite-code create`, run against the
-   data directory as it is) prints a one-time sign-in link for an account,
-   replacing "read it from the log".
-4. **OIDC providers.** Operator config lists providers (issuer, client id,
-   secret). Rules:
-   - Key on `sub`, never on email: emails change, and Apple's may be a relay
-     address.
-   - Link a provider identity to an existing account automatically only when
-     the provider says `email_verified` and the account's email is verified;
-     otherwise only a signed-in user adds it explicitly. Unverified-email
-     linking is an account takeover.
+1. **Mail delivery.** A `mail::Delivery` that sends, configured on the command
+   line, with its credentials in a file under the data directory's `secrets/`
+   on the hosted server (as `gateway.env` is, servers/api/default.nix), passed
+   with `EnvironmentFile` or `LoadCredential`, never in the repository. Which
+   provider or SMTP relay is the user's choice (open question). The domain gets
+   SPF, DKIM and DMARC records. `LogDelivery` stays for development and tests;
+   until this lands, a server whose log holds codes gives the log's reader every
+   account, so the hosted server must not drop passwords before it. Done: a test
+   where the sending delivery talks to a fake SMTP server (or provider endpoint)
+   and the message arrives with its headers; the hosted server sends a real
+   verification mail.
+2. **Identities and emailed codes, beside passwords.** Add identities: an
+   account id, and identities of the kinds above; email stays a verified
+   attribute for contact and recovery. Add sign-in and registration by emailed
+   code through the portal, following the rules above, while password sign-in
+   still works. The portal's settings page lists identities, to add and remove
+   (never the last); its sessions page stays and lists app sessions too. Tests
+   read codes from a capturing `Delivery` (as `tests.rs` already has one), or
+   from the portal's JSON `Page` that a server without a `Portal` answers.
+   Done: tests where a code signs in only the browser that asked for it; a link
+   opened in another browser shows the code and signs nothing in; a sixth wrong
+   try, an expired code and a superseded code are each refused; requests from a
+   stranger's addresses never stop the owner getting a code from an address
+   they signed in from; an email with no account sends nothing; an email change
+   without fresh proof is refused and with it mails the old address.
+3. **Passwords go.** Once step 1 runs on the hosted server: remove the password
+   column, `store/passwords.rs`, the hashing queue, the lockouts and slowdown,
+   the reset flow and the password settings page. `address_key` moves from
+   `passwords.rs` to `address.rs`, beside its `IpAddr` form, and the remembered
+   addresses table stays for the mail limits. `--allow-login` then gates
+   signing in by any identity, and `--allow-registration` gates making an
+   account by any identity, both behind the operator invite code as now. No
+   migration, since no format is frozen (guides/frozen_formats.md). Done: verify
+   with the password code gone; the portal tests sign in only through codes.
+4. **Operator login link.** For a self-hosted server without mail delivery,
+   `be-server login-link --data-dir DATA (--email EMAIL | --account ID)`
+   (beside `invite-code create`, run against the data directory while the
+   server runs) prints a link as the rules above say, replacing "read it from
+   the log". It signs in an existing account only; the first account is still
+   made by registering with an invite code (whether the command should also
+   bootstrap the first registration is an open question). Done: a test where a
+   link signs in once and a second use and an expired one are refused.
+5. **OIDC providers.** Operator config lists providers: issuer, client id and
+   secret, or for Apple the `.p8` key, team id and key id, from which the
+   server signs the client secret JWT (valid at most six months) itself. Use
+   the `openidconnect` crate. Rules:
+   - Authorization code with PKCE, `state` and `nonce`, and a full ID token
+     check: signature against the provider's JWKS, `aud` and `azp`, expiry,
+     nonce. The redirect is fixed at
+     `{auth-origin}/auth/oidc/{provider}/callback`.
+   - Key on `(iss, sub)`, with `iss` exactly as discovery gives it
+     (Microsoft's multi-tenant issuer names the tenant), never on email: emails
+     change, and Apple's may be a relay address.
+   - Trust `email_verified` only from providers the operator marks as
+     authoritative for email (Google, Apple). Never store or reserve an email
+     the provider has not verified.
+   - Linking a provider identity to an existing account with the same verified
+     email asks once for a code sent to that email first (the user may choose
+     automatic linking instead; open question). Otherwise only a signed-in user
+     adds one, with fresh proof.
+   - The portal's CSP has `form-action 'self'`, so sign-in with a provider
+     starts as a GET link to `/auth/oidc/{provider}/start`, which redirects.
+   - Apple answers with `response_mode=form_post`, a cross-site POST: the
+     `SameSite=Lax` cookie is not sent and the portal's Origin check refuses it.
+     The callback route takes no cookie and no Origin check; it finds its
+     attempt from `state` in a server-side table (or a short-lived
+     `SameSite=None` cookie set at start), and every other check above still
+     applies.
+   - Registering through a provider needs the operator invite code while
+     registration needs one.
    - Nudge anyone whose only identity is a provider to link a second one, so
      losing a Google account does not lock them out.
-   - Apple needs a paid developer account, a rotating signed client secret and
-     stores the name only on first sign-in, so keep it then. This is the
-     operator's cost, which is why presets are optional.
-   - GitHub is OAuth2, not OIDC; skip it until asked.
-5. **Passkeys.** Register and use WebAuthn credentials in the portal, scoped to
-   `--auth-origin`; allow several per account and list them for removal. Push
-   them only once the browser UI is good enough.
-6. **Invitations stop depending on email.** Today an invitation is already a
+   - Apple keeps the name only on first sign-in, so store it then. Apple costs
+     the operator a paid developer account, which is why presets are optional.
+     GitHub is OAuth2, not OIDC; skip it until asked.
+   Done: tests against a fake OIDC provider: a token with the wrong `aud`, a
+   bad signature, an old nonce or a reused `state` is refused; an unverified
+   email links nothing; Apple's form POST callback completes without the
+   cookie.
+6. **Passkeys.** Register and use WebAuthn credentials in the portal with
+   `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
+   wasm, which the CSP already allows (`script-src 'self'
+   'wasm-unsafe-eval'`, `connect-src 'self'`). The RP ID is the
+   `--auth-origin` host. Passkeys are discoverable, so signing in with one
+   needs no email first. Allow several per account and list them for removal.
+   Push them only once the browser UI is good enough. Changing `--auth-origin`
+   orphans every passkey and every provider's registered redirect URI; say so
+   in guides/hosting.md. Done: tests with a software authenticator: register,
+   sign in without an email, remove, and a passkey for another RP ID refused.
+7. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
    accepts it, and a new one for the same email replaces the outstanding one.
-   Drop the email: an invitation names an organization and a role, and whoever
-   opens the link with an account on the server may accept it. A link is then
-   a bearer secret, so it is single use and expires, and the id reaches the
-   invitee only in the link, as now. Keep at most a bounded number outstanding
-   per organization in place of one per email. The flow has to be good, because
-   the failure to avoid is an invitee who can't find the invite while the
-   inviter can't tell why:
-   - Creating an invite ends on the link, with copy, the platform share sheet
-     and a QR code, and says plainly that nothing was sent. Today the Invite
-     member dialog asks for an email and shows the link once in a field.
-   - The invite list (`list-links`) shows each one's state: waiting, opened,
-     accepted, expired or revoked, who accepted, and when. "Opened" (the server
-     answered `get-link` for it) is what tells the inviter the link arrived and
-     the invitee is mid-way, so a quiet invite is not a mystery.
-   - Revoke, and copy the same link again, from the list: the inviter's device
-     keeps the code sealed for itself (`RecoverySecret::seal_own`). An expired
-     invite offers a fresh link in one step.
+   - Drop the email. An invitation names an organization and joins as an
+     editor, never as an administrator: an administrator is sealed the escrow
+     key, so a leaked administrator invitation would hand over the
+     organization. Making someone an administrator is `set-role` on a member
+     who is already the administrator's verified contact. Whoever opens the link
+     with an account on the server may accept it; for an editor, the list
+     showing who accepted, and `remove-member`, are enough, with no confirming
+     step.
+   - A link is then a bearer secret: single use, expiring after seven days by
+     default (open question), and the id reaches the invitee only in the link,
+     as now. At most a bounded number outstanding per organization, in place of
+     one per email.
+   - Reading the invitation before signing in: `get-link` needs a signed-in
+     account today. Add an unauthenticated read by link id that answers the
+     organization name (in the clear on the server already) and the sealed
+     card, rate-limited per address; the host opens the card with the code and
+     shows who invited them and to what. The alternative, showing the card only
+     after sign-in, is simpler but sends people into registration not knowing
+     who invited them.
    - The link works for someone with no account. The server never sees what
-     follows `#`, so the host (the web build, or be-host) holds the code, opens
-     the card and shows who invited them and to what, then sends them through
-     the portal to register or sign in with any identity above and returns to
-     the invitation with the code still held. An operator invite code still
-     applies to registering, invite link or not; the portal asks for one when
-     the server requires it.
+     follows `#`, so the host (the web build, or be-host) keeps the code, sends
+     them through the portal to register or sign in with any identity above, and
+     returns to the invitation with the code still held. An operator invite code
+     still applies to registering; the portal asks for one when the server
+     requires it. plans/share_links.md needs the same round trip for a share
+     link's secret; whichever lands second uses the first one's mechanism.
    - Opening it signed in as the wrong account (one already a member, say) says
      whose invite it is and offers to sign in as another, not a bare error.
+   - **Kept rows.** Today `finish_links` and `delete-link` delete a link's row,
+     and links never expire. The invite list needs rows kept after accepting,
+     expiring and revoking: new, with a bound per organization and a retention
+     period after which they go.
+   - **The invite list** (new, in the organization screen,
+     `crates/be-host/src/ui/organization.rs`, with the Invite member dialog in
+     `crates/be-host/src/ui/dialogs.rs`): creating an invite ends on the link,
+     with copy, the platform share sheet and a QR code, and says plainly that
+     nothing was sent (today the dialog asks for an email and shows the link
+     once in a field). Each invite shows its state: waiting, opened (the server
+     answered a read for it, which tells the inviter the link arrived), accepted,
+     expired or revoked, who accepted, and when. Revoke, and copy the same link
+     again, from the list: the inviter's device keeps the code sealed for itself
+     (`RecoverySecret::seal_own`). An expired invite offers a fresh link in one
+     step.
    - Accepting makes the two accounts contacts, as now.
-7. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
-   "Accounts and the portal" in guides/hosting.md, and the invitation lines in
-   guides/blocks/keys.md ("Inviting", "Contacts"); add the decision records
-   below.
+   Done: tests where an invitation joins an account with any email as an
+   editor; one opened a second time, an expired one and a revoked one are
+   refused; the read before sign-in answers the organization name and sealed
+   card only; the list shows opened and accepted; a painting of the invite list
+   and of the link with its QR code.
+8. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+   "Accounts and the portal" in guides/hosting.md (mail credentials, providers,
+   `login-link`, and that changing `--auth-origin` orphans passkeys and
+   redirect URIs), and the invitation lines in guides/blocks/keys.md
+   ("Inviting", "Contacts"); add the decision records below.
 
 Registration admission (operator invite codes) stays a separate policy from the
 credential kind and from member invitations. It is temporary, for while the
@@ -154,8 +272,8 @@ asking for the code when the server wants one.
 
 - **Share links** (plans/share_links.md, in flight) let an account on the server
   open a block's link; the opener signs in or registers through this plan's
-  portal like an invitee, and the host keeps the secret across it as for an
-  invite link. Opening a link with no account at all is deferred
+  portal like an invitee, keeping the secret across it the same way. Opening a
+  link with no account at all is deferred
   (plans/deferred/anonymous_share_links.md); its question of what a server asks
   of an account made without an email becomes "with no identity" once this
   lands, and is that plan's to answer.
@@ -168,32 +286,38 @@ asking for the code when the server wants one.
 
 ## Decisions to record
 
-- Passwords are removed. Rejected: keeping them as a fallback, because it keeps
-  the whole hashing and lockout machinery and weakens the passkey guarantee. A
-  device with no browser signs in by opening the URL on another device, so none
-  needs one.
+- Passwords are removed. They cost the hashing pool, lockouts and slowdowns,
+  and carry credential stuffing and reuse; an emailed code is enough because an
+  account holds no content keys. Rejected: keeping them as a fallback, which
+  keeps all of that machinery for no gain, since email recovery already
+  overrides any other credential and approving a device code can be phished
+  whatever signed in to the portal. A device with no browser signs in by
+  opening the URL on another device, so none needs one.
 - Login through a central provider only (rejected): breaks self-hosting, leaks
   metadata and makes us depend on someone else's recovery.
 - An account that is only a bare keypair (rejected): fits end-to-end encryption
   but key loss has no safety net beyond the recovery phrase and it is hard to
   explain; passkeys give most of the benefit with platform sync.
 - Invitations are links the inviter sends, never mail the server sends or
-  anything bound to an email.
+  anything bound to an email, and they join as editors only.
 - Providers are configured by the operator, per server; accounts do not federate
   across servers.
 
 ## Open questions
 
-- Emailed code or link? A link is easier on one device; a code works when the
-  mail arrives on another. Probably offer a code that the link also fills in.
+- Which mail provider or SMTP relay does the hosted server use?
+- Emailed codes: eight unambiguous characters or six digits? And code or link
+  first in the mail? The plan sends both, the link filling the code in.
 - Does the hosted server want Apple at launch, given the developer-account cost?
 - Must every account keep a verified email? An account made through a provider
   has the provider's email, which may be a relay address. The contact card and
   "Connect with NAME (EMAIL)?" show an email, and the email is the recovery
   path, so an account whose only identity is a provider would have no recovery
   but the provider.
-- With the email gone, anyone holding a leaked invite link joins as its role.
-  Should accepting wait for the inviter to confirm the name on the accepter's
-  card before the account becomes a member, for every invitation or only for
-  administrators (who are sealed the escrow key)?
-- How long does an invite link last before it expires?
+- Linking a provider identity to an existing account with the same verified
+  email: confirm once with an emailed code (as written), or link automatically?
+- Does signing in by emailed code for recovery end every other session by
+  default, as a password change does today?
+- How long does an invite link last before it expires (seven days as written)?
+- Should `be-server login-link` also bootstrap the first account on a server
+  with no mail, in place of registering with an invite code?
