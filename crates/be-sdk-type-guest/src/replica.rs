@@ -1277,8 +1277,6 @@ where
         if self.unreadable.is_some() {
             return self.job_while_unreadable(job);
         }
-        if local {
-        }
         // Given again after a reopening, and the order holds it already: it is not made twice.
         if local && self.edit_number() <= self.own_through {
             return self.job_already_ordered(job);
