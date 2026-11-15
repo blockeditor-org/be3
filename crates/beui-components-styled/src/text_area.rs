@@ -294,13 +294,16 @@ pub fn DocumentMarker(marker: TextMarker) -> NodeId {
         MarkerKind::Void(_) => MarkerShape::Void,
     });
     view! {
-        <Dynamic value={shape}>|shape: MarkerShape| {
-            marker_content(marker, shape)
-        }</Dynamic>
+        <List spacing=Space::None>
+            <Dynamic value={shape}>|shape: MarkerShape|
+                <MarkerContent marker shape />
+            </Dynamic>
+        </List>
     }
 }
 
-fn marker_content(marker: TextMarker, shape: MarkerShape) -> NodeId {
+#[component]
+fn MarkerContent(marker: TextMarker, shape: MarkerShape) -> NodeId {
     let style = marker.style;
     let content = match shape {
         MarkerShape::Written => {

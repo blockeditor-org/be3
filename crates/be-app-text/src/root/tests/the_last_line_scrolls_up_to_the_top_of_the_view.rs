@@ -20,7 +20,11 @@ fn the_last_line_scrolls_up_to_the_top_of_the_view() {
     let mut last = None;
     while let Some(node) = pending.pop() {
         if document.node_kind(node) == "text"
-            && document.node_detail(node).unwrap_or_default().trim_matches('"') == "Line 40"
+            && document
+                .node_detail(node)
+                .unwrap_or_default()
+                .trim_matches('"')
+                == "Line 40"
         {
             last = document.node_rect(node);
         }

@@ -403,9 +403,9 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
 /// not Control Pictures symbols, which the bundled fonts do not have.
 fn control_marker(byte: u8) -> Option<&'static str> {
     const NAMES: [&str; 32] = [
-        "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF",
-        "CR", "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM",
-        "SUB", "ESC", "FS", "GS", "RS", "US",
+        "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF", "CR",
+        "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM", "SUB",
+        "ESC", "FS", "GS", "RS", "US",
     ];
     match byte {
         b'\t' | b'\n' => None,
