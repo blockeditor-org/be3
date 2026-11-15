@@ -388,21 +388,14 @@ impl HostStateStore {
         self.set_setting("tried_display_modes", modes)
     }
 
-    /// This device's keys for pushes it decrypts itself (Android's UnifiedPush receiver), made
-    /// by `make` the first time. Two callers at once agree on the first one kept.
-    pub fn push_keys_or_make(
-        &self,
-        make: impl FnOnce() -> Vec<u8>,
-    ) -> Result<Vec<u8>, HostStateError> {
-        if let Some(keys) = self.push_keys()? {
-            return Ok(keys);
-        }
+    /// Keeps `keys` as this device's keys for pushes it decrypts itself (Android's UnifiedPush
+    /// receiver) unless some are kept already: of two callers at once, the first one's stay.
+    pub fn keep_push_keys(&self, keys: &[u8]) -> Result<(), HostStateError> {
         self.connection.execute(
             "INSERT OR IGNORE INTO push_receiver (id, keys) VALUES (0, ?1)",
-            params![make()],
+            params![keys],
         )?;
-        self.push_keys()?
-            .ok_or_else(|| HostStateError::from("the push keys were not kept".to_owned()))
+        Ok(())
     }
 
     pub fn push_keys(&self) -> Result<Option<Vec<u8>>, HostStateError> {

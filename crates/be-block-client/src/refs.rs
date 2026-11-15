@@ -1084,10 +1084,6 @@ impl Refs {
             .unwrap_or_default()
     }
 
-    /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
-    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
-    /// never forgotten, so what an account signed before a new phrase still verifies, though
-    /// not as its current key (`Peer::verify_authored`).
     pub fn contact_name(&self, account: Uuid) -> Option<String> {
         self.state
             .lock()
@@ -1110,6 +1106,10 @@ impl Refs {
         self.write(vec![row(Table::ContactNames, Vec::new(), &names)])
     }
 
+    /// Keeps `key` as one `account` signs with: verified once a contact's card or key change
+    /// names it, which no later pin undoes. The newest verified key, last, is the account's current one. A key is
+    /// never forgotten, so what an account signed before a new phrase still verifies, though
+    /// not as its current key (`Peer::verify_authored`).
     pub fn add_signer(
         &self,
         account: Uuid,

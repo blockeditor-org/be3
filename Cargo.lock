@@ -1512,7 +1512,9 @@ dependencies = [
  "beui-reactive",
  "directories-next",
  "futures-util",
+ "jni 0.22.4",
  "libc",
+ "ndk-context",
  "serde_json",
  "tokio",
  "uuid",
@@ -1963,6 +1965,7 @@ dependencies = [
  "base64 0.22.1",
  "p256 0.13.2",
  "ring",
+ "zeroize",
 ]
 
 [[package]]

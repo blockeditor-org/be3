@@ -144,6 +144,12 @@ impl std::fmt::Debug for DeviceKeys {
     }
 }
 
+/// Overwrites kept key bytes with zeros, in writes the compiler keeps, so a copy read from or
+/// written to storage does not linger in memory.
+pub fn forget(bytes: &mut [u8]) {
+    zeroize::Zeroize::zeroize(bytes);
+}
+
 /// The length of `DeviceKeys::to_bytes`: the private key, then the authentication secret.
 pub const DEVICE_KEYS_BYTES: usize = 32 + 16;
 
@@ -177,6 +183,7 @@ impl DeviceKeys {
         })
     }
 
+    /// The keys to keep, holding the private key: `forget` them once kept.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = self.private.to_bytes().to_vec();
         bytes.extend_from_slice(&self.auth);
