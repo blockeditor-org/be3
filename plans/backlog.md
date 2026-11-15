@@ -12,6 +12,14 @@ Fixed items are removed as they land.
   Done: it can be dropped on any edge of any joined layer's pane, shown by a
   dock test.
 
+## 3. beui platforms
+
+- **A share sheet.** beui has no way to hand a link to the platform's share
+  sheet, so the Invite member dialog offers copy and a QR code only. Done: a
+  beui call that shares a `Clip` where the platform has a sheet (the web's
+  `navigator.share`, Android's send intent) and says whether it has one, with
+  a Share button in the Invite member dialog where it does, and in beui-demo.
+
 ## 7. Sessions
 
 - **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
