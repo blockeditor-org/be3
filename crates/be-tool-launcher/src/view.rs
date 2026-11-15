@@ -46,7 +46,6 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 .collect::<Vec<u64>>()
         })
     });
-    let reading = create_memo(move || !listing.get());
     let back = move || model.deselect();
     let sidebar = view! {
         <Sidebar model={model} />
@@ -56,12 +55,9 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     let shade = theme.scrim_soft;
     view! {
         <List spacing=Space::None>
-            <Show condition={listing}>
-                <ListItem grow=1.0>
-                    <Portal node={Some(sidebar)} />
-                </ListItem>
-            </Show>
-            <Show condition={reading}>
+            <Show
+                condition={listing}
+                fallback={move || view! {
                 <ListItem grow=1.0>
                     <BackSlide
                         on_back={back}
@@ -99,6 +95,11 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                             </List>
                         </Frame>
                     </BackSlide>
+                </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <Portal node={Some(sidebar)} />
                 </ListItem>
             </Show>
             <ImageViewer model={model} />
@@ -284,7 +285,6 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     let state = create_memo(move || pull_request.get().state);
     let labels = create_memo(move || pull_request.get().labels);
     let checked_out = create_memo(move || model.current(&pull_request.get()));
-    let has_tags = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let modifiers = held_modifiers();
     let open = move || {
         let held = modifiers.get_untracked();
@@ -298,7 +298,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     <List spacing=ROW_SPACING>
                         <Text>{title}</Text>
                         <Text style=TextStyle::CAPTION>{details}</Text>
-                        <Show condition={has_tags}>
+                        <Show condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}>
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                     </List>
@@ -310,16 +310,17 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
 
 #[component]
 pub(crate) fn StateIcon(state: Memo<State>) -> NodeId {
-    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
-    let color = create_memo(move || match state.get() {
-        State::Open => TextColor::Success,
-        State::Draft => TextColor::Muted,
-        State::Merged => TextColor::Custom(MERGED.into()),
-        State::Closed => TextColor::Danger,
-    });
     view! {
-        <Text color align=TextAlign::Center>
-            <Icon glyph={glyph} />
+        <Text
+            color={move || match state.get() {
+                State::Open => TextColor::Success,
+                State::Draft => TextColor::Muted,
+                State::Merged => TextColor::Custom(MERGED.into()),
+                State::Closed => TextColor::Danger,
+            }}
+            align=TextAlign::Center
+        >
+            <Icon glyph={move || state_glyph(state.get()).to_owned()} />
         </Text>
     }
 }
@@ -340,14 +341,15 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
             <Show condition={checked_out}>
-                <Chip text=CURRENT color={create_memo(move || resolve_color(theme.accent.get()))} />
+                <Chip text=CURRENT color={move || resolve_color(theme.accent.get())} />
             </Show>
             <ForEach keys>|index: usize| {
                 let label = create_memo(move || labels.get().get(index).cloned());
-                let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
-                let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
                 view! {
-                    <Chip text color />
+                    <Chip
+                        text={move || label.get().map(|label| label.name).unwrap_or_default()}
+                        color={move || label.get().map_or(Color32::from_gray(128), |label| label.color)}
+                    />
                 }
             }</ForEach>
             <Spacer />

@@ -103,7 +103,6 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
     let entries = create_memo(move || item.with(|item| item.entries().unwrap_or_default()));
     let has_menu = create_memo(move || entries.with(|entries| !entries.is_empty()));
     let item_is_menu = create_memo(move || item.with(|item| item.item_is_menu));
-    let click_opens = create_memo(move || item_is_menu.get() && has_menu.get());
     let request = {
         let (editor, id) = (editor, id.clone());
         move |request: fn(TrayClick) -> TrayRequest| {
@@ -160,7 +159,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             label
             image
             glyph=ICON_BLOCKS
-            click_opens
+            click_opens={move || item_is_menu.get() && has_menu.get()}
             secondary_opens={has_menu}
             bounds={bar_bounds()}
             placement=Placement::BelowStart

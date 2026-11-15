@@ -50,8 +50,6 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
     });
     let events = day_events(editor, block, day);
     let none = create_memo(move || events.with(Vec::is_empty));
-    let some = create_memo(move || !none.get());
-    let unopened = create_memo(move || block.get().is_none());
     let open = move || {
         if let Some(block) = block.get_untracked() {
             workspace.open_block(block, DatabaseView::CONTENT_TYPE);
@@ -64,20 +62,22 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
                 <Calendar selected={picked} today={Some(today)} width={Length::FILL} />
                 <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
                     <Text weight=Weight::Bold>{heading}</Text>
-                    <Show condition={none}>
+                    <Show
+                        condition={none}
+                        fallback={move || view! {
+                            <ForEach keys={events}>|event: DayEvent|
+                                <EventRow event />
+                            </ForEach>
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"No events"</Text>
-                    </Show>
-                    <Show condition={some}>
-                        <ForEach keys={events}>|event: DayEvent|
-                            <EventRow event />
-                        </ForEach>
                     </Show>
                 </List>
                 <Button
                     label="Open calendar"
                     glyph=ICON_CALENDAR_DAYS
                     variant=ButtonVariant::Ghost
-                    disabled={unopened}
+                    disabled={move || block.with(Option::is_none)}
                     @test_id={"desktop.calendar.open"}
                     on_click={open}
                 />

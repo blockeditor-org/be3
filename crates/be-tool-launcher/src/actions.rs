@@ -227,7 +227,6 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
         Some((problem_slot, problem)) if problem_slot == slot => problem,
         _ => String::new(),
     });
-    let failed = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=Space::Md>
             <Show condition={working}>
@@ -236,7 +235,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
                     <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>
-            <Show condition={failed}>
+            <Show condition={move || !problem.with(String::is_empty)}>
                 <Text color=TextColor::Danger>{problem}</Text>
             </Show>
             <SlotLog model slot />
@@ -248,9 +247,8 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
 #[component]
 fn SlotLog(model: Model, slot: Slot) -> DynamicSegment<ListItem> {
     let runs = model.runs;
-    let logged = create_memo(move || runs.logged.get() == Some(slot));
     view! {
-        <Show condition={logged}>
+        <Show condition={move || runs.logged.get() == Some(slot)}>
             <Button
                 label="Show the log"
                 glyph=ICON_TERMINAL
@@ -267,23 +265,16 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
     let runs = model.runs;
     let logged = create_memo(move || runs.logged.get() == Some(slot));
     let open = create_signal(false);
-    let shown = create_memo(move || logged.get() && open.get());
-    let label = create_memo(move || {
-        if open.get() {
-            "Hide the log"
-        } else {
-            "Show the log"
-        }
-        .to_owned()
-    });
     let toggle = move || open.update(|open| *open = !*open);
     let pane = runs.pane;
     view! {
         <List spacing=Space::Md>
             <Show condition={logged}>
-                <Button label glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
+                <Button
+                    label={move || if open.get() { "Hide the log" } else { "Show the log" }.to_owned()}
+                    glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
             </Show>
-            <Show condition={shown}>
+            <Show condition={move || logged.get() && open.get()}>
                 <ListItem length=LOG_HEIGHT>
                     <Frame>
                         <TerminalPane pane />

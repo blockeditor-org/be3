@@ -106,7 +106,7 @@ fn HandItem(
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let held = held.get();
         let mark = play.mark(spot);
         let hidden = hidden.with(|hidden| hidden.contains(&id));
@@ -120,13 +120,13 @@ fn HandItem(
             }
             paint_card_mark(painter, rect, mark, 1.0, &theme);
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={spot_test_id(spot)}
         >

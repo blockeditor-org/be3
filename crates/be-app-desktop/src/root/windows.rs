@@ -334,14 +334,13 @@ pub(crate) fn WindowChips(
 #[component]
 fn RestoreChip(workspace: Workspace, vertical: Memo<bool>) -> NodeId {
     let keys = workspace.placeholders();
-    let label = create_memo(move || match (vertical.get(), keys.with(Vec::len)) {
-        (false, count) => format!("Restore {count}"),
-        (true, 1) => "Restore the window from last time".to_owned(),
-        (true, count) => format!("Restore the {count} windows from last time"),
-    });
     view! {
         <Button
-            label
+            label={move || match (vertical.get(), keys.with(Vec::len)) {
+                (false, count) => format!("Restore {count}"),
+                (true, 1) => "Restore the window from last time".to_owned(),
+                (true, count) => format!("Restore the {count} windows from last time"),
+            }}
             glyph=ICON_ARCHIVE_RESTORE
             icon_only={vertical}
             variant=ButtonVariant::Primary
@@ -389,29 +388,11 @@ fn WindowChip(
         ChipKey::Placeholder(_) | ChipKey::Block(_) => false,
     };
     let tab_glyph = workspace.tab_glyph(tab);
-    let glyph = create_memo(move || tab_glyph.get().or(Some(ICON_APP_WINDOW)));
     let image = workspace.tab_picture(tab);
     let shown = create_memo(move || windows.shown(chip));
     let focused = create_memo(move || windows.focused(chip));
-    let hollow = create_memo(move || waiting || !shown.get());
-    let running = create_memo(move || !waiting);
-    let closable = create_memo(move || !waiting && !display);
     let openable = workspace.placeholder_openable(tab);
-    let unopenable = create_memo(move || !openable.get());
     let ringing = bell_flash(workspace.tab_rung(tab));
-    let variant = create_memo(move || match (ringing.get(), shown.get()) {
-        (true, _) => ButtonVariant::Primary,
-        (false, true) => ButtonVariant::Secondary,
-        (false, false) => ButtonVariant::Ghost,
-    });
-    let visibility = create_memo(move || match shown.get() {
-        true => "Hide".to_owned(),
-        false => "Show".to_owned(),
-    });
-    let visibility_glyph = create_memo(move || match shown.get() {
-        true => Some(ICON_EYE_OFF),
-        false => Some(ICON_EYE),
-    });
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::Button);
         node.set_toggled(Toggled::from(focused.get()));
@@ -445,22 +426,30 @@ fn WindowChip(
             bounds={bar_bounds()}
             placement=Placement::BelowStart
             items={view! {
-                <Show condition={running}>
-                    <MenuItem
-                        label={visibility}
-                        glyph={visibility_glyph}
-                        row_test_id={visibility_id.clone()}
-                        on_click={move || match shown.get_untracked() {
-                            true => windows.hide(chip),
-                            false => windows.show(chip),
-                        }}
-                    />
-                </Show>
-                <Show condition=waiting>
+                <Show
+                    condition=waiting
+                    fallback={move || view! {
+                        <MenuItem
+                            label={move || match shown.get() {
+                                true => "Hide".to_owned(),
+                                false => "Show".to_owned(),
+                            }}
+                            glyph={move || match shown.get() {
+                                true => Some(ICON_EYE_OFF),
+                                false => Some(ICON_EYE),
+                            }}
+                            row_test_id={visibility_id.clone()}
+                            on_click={move || match shown.get_untracked() {
+                                true => windows.hide(chip),
+                                false => windows.show(chip),
+                            }}
+                        />
+                    }}
+                >
                     <MenuItem
                         label="Open"
                         glyph=ICON_EXTERNAL_LINK
-                        disabled={unopenable}
+                        disabled={move || !openable.get()}
                         row_test_id={open_id.clone()}
                         on_click={move || workspace.open_placeholder(tab)}
                     />
@@ -479,7 +468,7 @@ fn WindowChip(
                         on_click={move || windows.move_to(chip, target)}
                     />
                 </ForEach>
-                <Show condition={closable}>
+                <Show condition={!waiting && !display}>
                     <MenuItem
                         label="Close"
                         glyph=ICON_X
@@ -491,7 +480,7 @@ fn WindowChip(
         >
             <unstyled::Button
                 label={title}
-                glyph
+                glyph={move || tab_glyph.get().or(Some(ICON_APP_WINDOW))}
                 icon_only={icons}
                 press_focus=false
                 accessibility
@@ -501,11 +490,15 @@ fn WindowChip(
             >|handle|
                 <ButtonFace
                     handle
-                    variant={variant}
+                    variant={move || match (ringing.get(), shown.get()) {
+                        (true, _) => ButtonVariant::Primary,
+                        (false, true) => ButtonVariant::Secondary,
+                        (false, false) => ButtonVariant::Ghost,
+                    }}
                     size=ButtonSize::Compact
                     image
                     pressed={focused}
-                    placeholder={hollow}
+                    placeholder={move || waiting || !shown.get()}
                 />
             </unstyled::Button>
         </ContextMenu>

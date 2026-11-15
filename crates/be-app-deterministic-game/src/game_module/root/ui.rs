@@ -116,9 +116,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     view! {
@@ -129,11 +127,11 @@ fn ModulePanel(editor: Editor) -> NodeId {
                         <Button
                             label="Replace module..."
                             variant=ButtonVariant::Secondary
-                            disabled={blocked}
+                            disabled={move || busy.get() || read_only.get()}
                             @test_id={"game-module.replace"}
                             on_click={replace}
                         />
-                        <Show condition={failed}>
+                        <Show condition={move || error.with(Option::is_some)}>
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>

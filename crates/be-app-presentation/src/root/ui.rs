@@ -46,14 +46,9 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     let editing = create_memo(move || !presenting.get());
     let docked = create_memo(move || editing.get() && chrome.get());
-    let bare = create_memo(move || !docked.get());
     create_effect(move || match docked.get() {
         true => editor.content(&docked_stage),
         false => editor.content(&bare_stage),
-    });
-    let background = create_memo(move || match presenting.get() {
-        true => ColorRole::Custom(PRESENTING.into()),
-        false => ColorRole::Background,
     });
     let keys = move |press: KeyPress| presenting.get_untracked() && navigate(slides, press);
     let read_only = editor.read_only();
@@ -72,18 +67,15 @@ pub fn PresentationView(editor: Editor) -> NodeId {
 
     view! {
         <Interactive focusable=true focused={presenting} on_key={keys}>
-            <Frame fill={background}>
-                <Layers>
-                    <Show condition={docked}>
-                        <DeckDock
-                            editor={editor}
-                            slides={slides}
-                            duplicate={duplicate.clone()}
-                            stage={docked_stage}
-                            selected={slides.selected()}
-                        />
-                    </Show>
-                    <Show condition={bare}>
+            <Frame
+                fill={move || match presenting.get() {
+                    true => ColorRole::Custom(PRESENTING.into()),
+                    false => ColorRole::Background,
+                }}
+            >
+                <Show
+                    condition={docked}
+                    fallback={move || view! {
                         <List spacing=Space::None>
                             <ListItem grow=1.0>
                                 <Stage
@@ -101,8 +93,16 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                                 <Playback editor={editor} slides={slides} />
                             </Show>
                         </List>
-                    </Show>
-                </Layers>
+                    }}
+                >
+                    <DeckDock
+                        editor={editor}
+                        slides={slides}
+                        duplicate={duplicate.clone()}
+                        stage={docked_stage}
+                        selected={slides.selected()}
+                    />
+                </Show>
             </Frame>
         </Interactive>
     }
@@ -211,13 +211,14 @@ fn Stage(
             editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * aspect, SLIDE_HEIGHT)));
         }
     };
-    let fitted = create_memo(move || match fit.get() {
-        true => ratio.get(),
-        false => FILL,
-    });
 
     view! {
-        <Frame aspect_ratio={fitted}>
+        <Frame
+            aspect_ratio={move || match fit.get() {
+                true => ratio.get(),
+                false => FILL,
+            }}
+        >
             <ChildBlock
                 editor={editor}
                 block={target}
@@ -382,15 +383,12 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         Notes::Block(target) => Some(target),
         Notes::None | Notes::Loading | Notes::Missing => None,
     });
-    let missing = create_memo(move || notes.get() == Notes::None);
     let status = create_memo(move || match notes.get() {
         Notes::Loading => Some("Loading the notes…"),
         Notes::Missing => Some("This slide's notes could not be found."),
         Notes::None | Notes::Block(_) => None,
     });
-    let waiting = create_memo(move || status.get().is_some());
     let message = create_memo(move || status.get().unwrap_or_default().to_owned());
-    let written = create_memo(move || target.get().is_some());
     let add = move || {
         if let Some(id) = selected.get_untracked() {
             slides.add_notes(id);
@@ -400,7 +398,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         <Frame fill=ColorRole::Surface>
             <Layers>
                 <List spacing=Space::None>
-                    <Show condition={missing}>
+                    <Show condition={move || notes.get() == Notes::None}>
                         <Frame padding=NOTES_PADDING>
                             <List
                                 direction=Direction::Horizontal
@@ -420,7 +418,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                             </List>
                         </Frame>
                     </Show>
-                    <Show condition={waiting}>
+                    <Show condition={move || status.with(Option::is_some)}>
                         <Frame padding=NOTES_PADDING>
                             <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
                                 {message}
@@ -428,7 +426,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                         </Frame>
                     </Show>
                 </List>
-                <Show condition={written}>
+                <Show condition={move || target.with(Option::is_some)}>
                     <ChildBlock
                         editor={editor}
                         block={target}
@@ -560,10 +558,6 @@ fn SlideTile(
             .map_or_else(String::new, |index| (index + 1).to_string())
     });
     let selected = create_memo(move || selected.get());
-    let outline = create_memo(move || match selected.get() {
-        true => Border::new(ColorRole::Accent).width(Stroke::Focus),
-        false => Border::DEFAULT,
-    });
 
     let select = move || slides.select(Some(id));
     let remove = move || slides.remove(id);
@@ -597,7 +591,10 @@ fn SlideTile(
         >|_: ReorderItemHandle|
             <Frame
                 fill=ColorRole::Control
-                border={create_memo(move || Some(outline.get()))}
+                border={move || match selected.get() {
+                    true => Border::new(ColorRole::Accent).width(Stroke::Focus),
+                    false => Border::DEFAULT,
+                }}
                 radius=Radius::Md
                 padding=Space::Sm
             >

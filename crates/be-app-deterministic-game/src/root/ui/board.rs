@@ -295,26 +295,25 @@ pub(crate) fn Stage(
         })
     });
     let bounds = create_memo(move || layout.with(Layout::bounds));
-    let marks_draw: Prop<Draw> = Prop::dynamic(move || {
+    let marks_draw = move || {
         let (layout, annotations, pending) = (layout.get(), annotations.get(), pending.get());
         Rc::new(move |painter: &Painter, rect: Rect| {
             annotations::paint(painter, rect, &layout, &annotations, pending);
         }) as Draw
-    });
+    };
     let lifted_rect = create_memo(move || {
         lifted
             .with(|lifted| lifted.as_ref().map(|lifted| lifted.rect))
             .unwrap_or(Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0)))
     });
-    let lifted_draw: Prop<Draw> = Prop::dynamic(move || {
+    let lifted_draw = move || {
         let lifted = lifted.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(lifted) = &lifted {
                 paint_sprite(painter, rect, &lifted.sprite);
             }
         }) as Draw
-    });
-    let flight_keys = create_memo(move || motion.flying.get());
+    };
 
     view! {
         <Interactive
@@ -340,8 +339,8 @@ pub(crate) fn Stage(
                             <CanvasItem
                                 x=0.0
                                 y=0.0
-                                width={create_memo(move || bounds.get().width().max(1.0))}
-                                height={create_memo(move || bounds.get().height().max(1.0))}
+                                width={move || bounds.get().width().max(1.0)}
+                                height={move || bounds.get().height().max(1.0)}
                                 @test_id={"game.board"}
                             >
                                 <Drawing draw={marks_draw} />
@@ -351,7 +350,7 @@ pub(crate) fn Stage(
                     <HandBar hand bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>
-                    <ForEach keys={flight_keys}>|id: ItemId|
+                    <ForEach keys={motion.flying}>|id: ItemId|
                         <FlightItem id motion={motion} />
                     </ForEach>
                     <CanvasItem
@@ -386,7 +385,7 @@ fn TableItem(
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let placed = placed.get();
         let mark = match &placed {
             Some((
@@ -409,13 +408,13 @@ fn TableItem(
                 paint_item(painter, rect, placed, zoom, mark, &theme);
             }
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
         >
             <Drawing draw={draw} />
         </CanvasItem>
@@ -433,7 +432,7 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
             .unwrap_or(Rect::ZERO)
     });
     let theme = use_theme();
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let place = place.get();
         let mark = play.mark(spot);
         let theme = theme.get().resolve();
@@ -443,13 +442,13 @@ fn SpotItem(spot: Spot, layout: Memo<Layout>, play: Play) -> CanvasItem {
                 paint_spot(painter, rect, place, mark, zoom, &theme);
             }
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
-            x={create_memo(move || rect.get().left())}
-            y={create_memo(move || rect.get().top())}
-            width={create_memo(move || rect.get().width().max(1.0))}
-            height={create_memo(move || rect.get().height().max(1.0))}
+            x={move || rect.get().left()}
+            y={move || rect.get().top()}
+            width={move || rect.get().width().max(1.0)}
+            height={move || rect.get().height().max(1.0)}
             clip=false
             @test_id={spot_test_id(spot)}
         >
@@ -471,14 +470,14 @@ fn FlightItem(id: ItemId, motion: Motion) -> CanvasItem {
             .with(|flight| flight.as_ref().map(|flight| flight.rect(now)))
             .unwrap_or(Rect::ZERO)
     });
-    let draw: Prop<Draw> = Prop::dynamic(move || {
+    let draw = move || {
         let flight = flight.get();
         Rc::new(move |painter: &Painter, rect: Rect| {
             if let Some(flight) = &flight {
                 paint_sprite(painter, rect, &flight.sprite);
             }
         }) as Draw
-    });
+    };
     view! {
         <CanvasItem
             x={create_memo(move || rect.get().left())}

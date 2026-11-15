@@ -25,14 +25,6 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
             _ => None,
         }
     });
-    let position = create_memo(move || match model.viewer.get() {
-        Some(viewer) => format!(
-            "Image {} of {} · the arrow keys move between them",
-            viewer.index + 1,
-            viewer.images.len()
-        ),
-        None => String::new(),
-    });
     let first = create_memo(move || {
         model
             .viewer
@@ -71,7 +63,14 @@ pub(crate) fn ImageViewer(model: Model) -> NodeId {
             <Frame fill=ColorRole::Background padding=PADDING>
                 <List spacing=PADDING>
                     <ViewerBar
-                        position
+                        position={move || match model.viewer.get() {
+                            Some(viewer) => format!(
+                                "Image {} of {} · the arrow keys move between them",
+                                viewer.index + 1,
+                                viewer.images.len()
+                            ),
+                            None => String::new(),
+                        }}
                         first
                         last
                         on_previous={previous}
@@ -148,11 +147,6 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     });
     let actual = create_signal(false);
     let zoomed = create_memo(move || actual.get() && shrunk.get());
-    let fitted = create_memo(move || !zoomed.get());
-    let cursor = create_memo(move || match shrunk.get() {
-        true => CursorIcon::PointingHand,
-        false => CursorIcon::Default,
-    });
     let hint = create_memo(move || {
         match (zoomed.get(), shrunk.get()) {
             (true, _) => "100% · click to fit it to the window",
@@ -171,14 +165,22 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     let zoom_out = move || actual.set(false);
     let built = view! {
         <List spacing=Space::Md>
-            <Show condition={fitted}>
-                <ListItem grow=1.0>
-                    <Interactive cursor={cursor} on_click={zoom_in}>
-                        <Picture image={picture} fit=ImageFit::ScaleDown smooth={shrunk} />
-                    </Interactive>
-                </ListItem>
-            </Show>
-            <Show condition={zoomed}>
+            <Show
+                condition={zoomed}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Interactive
+                            cursor={move || match shrunk.get() {
+                                true => CursorIcon::PointingHand,
+                                false => CursorIcon::Default,
+                            }}
+                            on_click={zoom_in}
+                        >
+                            <Picture image={picture} fit=ImageFit::ScaleDown smooth={shrunk} />
+                        </Interactive>
+                    </ListItem>
+                }}
+            >
                 <ListItem grow=1.0>
                     <Scroll>
                         <Scroll direction=Direction::Horizontal>

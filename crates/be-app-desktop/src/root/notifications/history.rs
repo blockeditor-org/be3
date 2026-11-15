@@ -28,7 +28,6 @@ pub(crate) fn NotificationList(
     popover: PopoverHandle,
 ) -> NodeId {
     let empty = create_memo(move || listed.with(Vec::is_empty));
-    let some = create_memo(move || !empty.get());
     let clear = move || {
         let ids: Vec<u32> =
             listed.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
@@ -49,16 +48,18 @@ pub(crate) fn NotificationList(
                     on_click={clear}
                 />
             </List>
-            <Show condition={empty}>
+            <Show
+                condition={empty}
+                fallback={move || view! {
+                    <NotificationRows
+                        notifications={notifications}
+                        listed={listed}
+                        height={height}
+                        popover={popover}
+                    />
+                }}
+            >
                 <Text style=TextStyle::CAPTION>"Nothing new."</Text>
-            </Show>
-            <Show condition={some}>
-                <NotificationRows
-                    notifications={notifications}
-                    listed={listed}
-                    height={height}
-                    popover={popover}
-                />
             </Show>
         </List>
     }
@@ -71,9 +72,8 @@ fn NotificationRows(
     height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let max_length = create_memo(move || Size::Custom(height.get()));
     view! {
-        <Scroll max_length>
+        <Scroll max_length={move || Size::Custom(height.get())}>
             <ForEach keys={listed}>|shown: Listed|
                 <NotificationRow notifications={notifications} shown popover={popover} />
             </ForEach>

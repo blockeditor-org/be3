@@ -188,14 +188,13 @@ pub(crate) fn UnreadableBarsDialog(editor: Editor) -> NodeId {
     let displays = editor.watch::<DisplaysWatch>();
     let further = create_memo(move || displays.with(|displays| displays.len() > 1));
     let kept = create_signal(false);
-    let open = create_memo(move || report.with(Option::is_some) && further.get() && !kept.get());
     let reset = move || {
         let empty: SavedBars = Vec::new();
         editor.set_view_state(DISPLAY_BARS, Some(&ViewState::new(&empty, Vec::new())));
     };
     view! {
         <Dialog
-            open={open}
+            open={move || report.with(Option::is_some) && further.get() && !kept.get()}
             kind=DialogKind::Alert
             title="The bars of the other displays could not be read"
             width=Size::Dialog

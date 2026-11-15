@@ -111,11 +111,10 @@ fn LayoutItem(layouts: Layouts, index: u32) -> MenuItem {
                 .unwrap_or_default()
         })
     });
-    let checked = create_memo(move || Some(listed.with(|listed| listed.active == index)));
     view! {
         <MenuItem
             label={name}
-            checked
+            checked={move || listed.with(|listed| listed.active == index)}
             radio=true
             row_test_id={format!("desktop.layout.{index}")}
             on_click={move || layouts.switch(index)}
