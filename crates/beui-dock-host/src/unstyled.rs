@@ -11,7 +11,7 @@ mod switch;
 #[cfg(test)]
 mod tests;
 
-use be_lib_stable_hash::{HashMap, HashSet};
+use be_lib_stable_hash::HashMap;
 use beui_view::types::{AboveEmbeds, LayerPolicy};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -278,12 +278,8 @@ struct State {
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
     /// The panels built now, kept by the dock's `KeepAlive` (`Held::Panel`).
     panels: Signal<HashMap<TabId, NodeId>>,
-    /// The tabs a pane showed and then hid for another, until they show again: a view of their
-    /// content that takes the keyboard meanwhile (an app putting it back on its popup's trigger
-    /// as the popup closes) does not show them again.
-    left_behind: Stored<RefCell<HashSet<TabId>>>,
-    /// The tabs whose own dock joined this one, shown as that dock's tabs.
-    hosts: Memo<Vec<TabId>>,
+    /// Whether each built panel is shown now (its `Kept`'s `kept_shown()`).
+    panel_shown: Stored<RefCell<HashMap<TabId, Memo<bool>>>>,
     handles: Signal<HashMap<TabId, (NodeRef, bool)>>,
     owner: Stored<Option<ScopeContext>>,
     tab: RenderFn<DockTabHandle>,
@@ -432,9 +428,16 @@ impl DockTabDriver for State {
         if !self.panels.is_alive() {
             return;
         }
-        let left_behind = self.left_behind.value().borrow().contains(&tab)
-            && !self.hosts.with_untracked(|hosts| hosts.contains(&tab));
-        if left_behind {
+        // A view of a tab's content that takes the keyboard while no view shows its panel (an
+        // app putting it back on a popup's trigger as a press on another tab closes the popup)
+        // does not show the tab again.
+        let hidden = self
+            .panel_shown
+            .value()
+            .borrow()
+            .get(&tab)
+            .is_some_and(|shown| !shown.get_untracked());
+        if hidden {
             return;
         }
         self.content_keyboard.set(Some(tab));
@@ -652,16 +655,6 @@ impl State {
         })
     }
 
-    /// Notes that a pane hid `left` to show `shown`.
-    fn leave_behind(&self, left: Option<TabId>, shown: Option<TabId>) {
-        let held = self.left_behind.value();
-        let mut behind = held.borrow_mut();
-        behind.extend(left);
-        if let Some(shown) = shown {
-            behind.remove(&shown);
-        }
-    }
-
     /// Builds `tab`'s panel, in the scope of the `Kept` that keeps it (`DockPanel`).
     fn build_panel(&self, tab: TabId) -> NodeId {
         let control = self.tab_control(tab);
@@ -675,8 +668,14 @@ impl State {
         untrack(|| self.panels.update(|panels| {
             panels.insert(tab, panel);
         }));
-        let (panels, remembered) = (self.panels, self.remembered);
+        if let Some(shown) = kept_shown() {
+            self.panel_shown.value().borrow_mut().insert(tab, shown);
+        }
+        let (panels, remembered, panel_shown) = (self.panels, self.remembered, self.panel_shown);
         on_cleanup(move || {
+            if panel_shown.is_alive() {
+                panel_shown.value().borrow_mut().remove(&tab);
+            }
             if panels.is_alive() {
                 panels.update(|panels| {
                     panels.remove(&tab);
@@ -1878,8 +1877,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
         panels: create_signal(HashMap::default()),
-        left_behind: store(RefCell::default()),
-        hosts,
+        panel_shown: store(RefCell::default()),
         handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
         on_close,
@@ -2233,7 +2231,6 @@ fn DockStack(dock: State) -> NodeId {
                 .flatten()
                 .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
-            dock.leave_behind(left, tab);
             given.set(tab.filter(|_| held));
             panel.set(tab);
         },
@@ -3072,6 +3069,10 @@ fn give_keyboard_once_shown(dock: State, shown: Signal<Option<TabId>>, given: St
         let Some(tab) = given.try_get().flatten() else {
             return;
         };
+        if shown.get() != Some(tab) {
+            given.set(None);
+            return;
+        }
         // Again once the panel is built, which can be after its tab is shown.
         if !dock.panels.with(|panels| panels.contains_key(&tab)) {
             return;
@@ -3097,7 +3098,6 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
                 .flatten()
                 .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
-            dock.leave_behind(left, tab);
             given.set(tab.filter(|_| held));
             panel.set(tab);
         },
