@@ -54,7 +54,7 @@ impl Changes {
         *self == Self::default()
     }
 
-    fn merge(&mut self, other: Changes) {
+    pub(crate) fn merge(&mut self, other: Changes) {
         self.graph |= other.graph;
         self.contacts |= other.contacts;
         self.storage |= other.storage;
@@ -102,8 +102,26 @@ impl Default for ChangeWatch {
     }
 }
 
-/// Tells every watcher of `changes`.
+/// Tells every watcher of `changes`: from the worker thread, once the `Seen` that has them is
+/// handed over (`seen::hold_changes`).
 pub(crate) fn post(changes: Changes) {
+    if changes.is_empty() {
+        return;
+    }
+    if let Some(changes) = crate::seen::hold_changes(changes) {
+        deliver(changes);
+    }
+}
+
+/// Wakes the host: from the worker thread, once the `Seen` with what it did is handed over.
+pub(crate) fn wake() {
+    if !crate::seen::hold_wake() {
+        be_host_base::host::wake();
+    }
+}
+
+/// Tells every watcher of `changes` now.
+pub(crate) fn deliver(changes: Changes) {
     if changes.is_empty() {
         return;
     }

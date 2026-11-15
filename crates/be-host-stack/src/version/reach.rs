@@ -54,7 +54,7 @@ impl LoopCalls {
         self.calls
             .send(call)
             .map_err(|_| "The block store stopped.".to_owned())?;
-        be_host_base::host::wake();
+        crate::changes::wake();
         answered
             .await
             .map_err(|_| "The block store stopped.".to_owned())

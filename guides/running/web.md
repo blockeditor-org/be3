@@ -110,9 +110,11 @@ survives a reload. Traps that shape this code:
   may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
   worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. Two waits on the
   page remain until plans/web_page_never_waits.md lands: `be_wasm_threads::Mutex::lock`, for
-  the locks the page shares with the stack's worker, spins on the page (and waits for real
-  everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
-  third: a page that needs something another thread holds asks for it with a message.
+  the locks the page still shares with the stack's worker, spins on the page (and waits for
+  real everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
+  third: a page that needs something another thread holds asks for it with a message. The
+  stack's state is not one of those locks: the page reads the `Seen` the worker hands over
+  through an atomic slot (guides/blocks/host.md, "What the page reads").
 - A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
   the page and the worker (`be_host_stack::link` keeps them per thread on wasm).
 - An unload cannot wait for the worker, so durability does not depend on it: a replica seals

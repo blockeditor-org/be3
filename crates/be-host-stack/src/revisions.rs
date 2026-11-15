@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use super::{
     Content, Shared,
+    seen::Edit,
     replicas::Replicas,
     worker::{Command, Store},
 };
@@ -24,7 +25,7 @@ pub struct Preview {
 }
 
 pub fn source(block: Uuid) -> Option<Uuid> {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .get(&block)
@@ -34,7 +35,7 @@ pub fn source(block: Uuid) -> Option<Uuid> {
 }
 
 pub fn error(block: Uuid) -> Option<String> {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .contains_key(&block)
@@ -45,7 +46,7 @@ pub fn error(block: Uuid) -> Option<String> {
 }
 
 pub fn released(block: Uuid) -> bool {
-    super::with_shared(|shared| {
+    super::with_seen(|shared| {
         shared
             .revision_previews
             .get(&block)
@@ -55,17 +56,17 @@ pub fn released(block: Uuid) -> bool {
 }
 
 pub fn load(alias: Uuid, source: Uuid, content_type: Uuid) {
-    let wanted = super::with_shared_mut(|shared| {
-        let preview = shared.revision_previews.get_mut(&alias)?;
-        if preview.released || preview.content.is_some() || preview.requested {
-            return None;
-        }
-        preview.requested = true;
-        Some(())
+    let wanted = super::with_seen(|shared| {
+        shared
+            .revision_previews
+            .get(&alias)
+            .is_some_and(|preview| {
+                !preview.released && preview.content.is_none() && !preview.requested
+            })
     })
-    .flatten()
-    .is_some();
+    .unwrap_or_default();
     if wanted {
+        super::edit(vec![Edit::Requested(alias)]);
         super::send(Command::PreviewChild {
             alias,
             source,
@@ -118,63 +119,32 @@ pub(super) async fn load_child(
 }
 
 pub fn alias(parent: Uuid, block: Uuid) -> Uuid {
-    super::with_shared_mut(|shared| {
-        let Some(root) = shared
-            .revision_previews
-            .get(&parent)
-            .map(|preview| preview.root)
-        else {
-            return block;
-        };
-        if let Some(id) = shared.preview_aliases.get(&(root, block)) {
-            return *id;
-        }
-        let id = Uuid::new_v4();
-        shared.preview_aliases.insert((root, block), id);
-        shared.revision_previews.insert(
-            id,
-            Preview {
-                source: block,
-                root,
-                content: shared.blocks.get(&block).cloned(),
-                released: false,
-                requested: false,
-            },
-        );
-        id
+    let Some((root, aliased)) = super::with_seen(|shared| {
+        let root = shared.revision_previews.get(&parent)?.root;
+        Some((root, shared.preview_aliases.get(&(root, block)).copied()))
     })
-    .unwrap_or(block)
+    .flatten() else {
+        return block;
+    };
+    if let Some(id) = aliased {
+        return id;
+    }
+    let id = Uuid::new_v4();
+    super::edit(vec![Edit::Alias { root, block, id }]);
+    id
 }
 
 pub fn release(root: Uuid) {
-    super::with_shared_mut(|shared| {
-        for (id, preview) in shared
-            .revision_previews
-            .iter_mut()
-            .filter(|(_, preview)| preview.root == root && !preview.released)
-        {
-            preview.released = true;
-            shared.released_previews.push(*id);
-        }
-    });
-    be_host_base::host::wake();
+    super::edit(vec![Edit::Release(root)]);
 }
 
 pub fn collect_released(release: impl FnOnce(&[Uuid])) {
-    let ids = super::with_shared_mut(|shared| std::mem::take(&mut shared.released_previews))
-        .unwrap_or_default();
+    let ids = super::with_seen(|shared| shared.released_previews.clone()).unwrap_or_default();
     if ids.is_empty() {
         return;
     }
     release(&ids);
-    super::with_shared_mut(|shared| {
-        for id in ids {
-            if let Some(preview) = shared.revision_previews.get_mut(&id) {
-                preview.content = None;
-            }
-            shared.unreadable.remove(&id);
-        }
-    });
+    super::edit(vec![Edit::Collected(ids)]);
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -195,7 +165,7 @@ pub fn request(block: Uuid, request: Asked, reply: impl FnOnce(Answered) + Send 
     super::send(Command::Revision {
         block,
         request,
-        reply: Box::new(reply),
+        reply: crate::seen::after_publish(reply),
     });
 }
 

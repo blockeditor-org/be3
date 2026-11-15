@@ -1,0 +1,819 @@
+//! What the page reads (`Seen`), and how the worker hands it over without the page ever
+//! taking a lock the worker holds (plans/web_page_never_waits.md).
+//!
+//! The worker keeps `Seen` inside its `Shared` and publishes a copy of it as a whole value: into
+//! a one-value slot (`Handover`), an atomic pointer the worker swaps a new `Arc<Seen>` into and
+//! the page swaps out. Neither side ever waits on the other. The copy is cheap: the large parts
+//! are `Part`s, shared between the worker's `Seen` and every copy until the worker next changes
+//! one, which then copies that part alone.
+//!
+//! The worker publishes at the end of each pass of its loop, and before the page hears of
+//! anything from the worker thread: a change notice (`changes::post`), a wake, or a reply to a
+//! page call (`after_publish`) is held until the `Seen` that has it is in the slot. So a read
+//! changes when the new `Seen` lands, as a signal does, and the page never hears of a change
+//! it cannot read yet.
+//!
+//! The page keeps the last `Seen` it took, and what it changed itself since (`Edit`s), each
+//! sent to the worker as a command too: its own view is the `Seen` it took with the edits the
+//! worker had not applied when it published that `Seen` laid over it again.
+
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    ops::{Deref, DerefMut},
+    sync::{
+        Arc, PoisonError,
+        atomic::{AtomicPtr, Ordering},
+    },
+};
+
+use be_block_content::{BlockMetadata, Entries};
+use be_block_graph::BlockParent;
+use be_block_type_host::Conflict;
+use be_sdk_type_api::{Description, EditorId};
+use be_wasm_threads::Mutex;
+use uuid::Uuid;
+
+use crate::{
+    Content, Graph, Node, Owner, Query, SearchAsk, Searched,
+    conflicts::Comparison,
+    revisions::Preview,
+    version::VersionState,
+    worker::{History, PairingRequest, Shared, Store},
+};
+
+/// A part of `Seen` the worker and the copies it handed over share until the worker changes
+/// it: a write copies it first unless nothing else holds it (`Arc::make_mut`).
+pub struct Part<T>(Arc<T>);
+
+impl<T> Part<T> {
+    pub fn new(value: T) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+impl<T: Default> Default for Part<T> {
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
+impl<T> Clone for Part<T> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<T> Deref for Part<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: Clone> DerefMut for Part<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Part<T> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
+/// An editor's frame the worker queued, numbered so the page can say which it took
+/// (`Edit::TookFrames`).
+#[derive(Clone, Debug)]
+pub struct Frame {
+    pub number: u64,
+    pub block: Uuid,
+    pub bytes: Arc<Vec<u8>>,
+}
+
+/// What the page's synchronous API reads: the part of the worker's `Shared` it hands over.
+#[derive(Clone, Default)]
+pub struct Seen {
+    pub revision_previews: Part<HashMap<Uuid, Preview>>,
+    pub preview_aliases: Part<HashMap<(Uuid, Uuid), Uuid>>,
+    pub released_previews: Vec<Uuid>,
+    pub graph: Part<Graph>,
+    pub blocks: Part<HashMap<Uuid, Content>>,
+    pub described: Part<HashMap<Uuid, Description>>,
+    /// What the worker has for each editor that the page has not taken yet.
+    pub editor_frames: Part<HashMap<EditorId, Vec<Frame>>>,
+    /// The number the next frame queued gets.
+    pub frames_queued: u64,
+    pub histories: Part<HashMap<Uuid, History>>,
+    pub wakes: u64,
+    pub unsealed: usize,
+    pub saves: u64,
+    pub owing: usize,
+    /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
+    pub owing_blocks: Vec<be_block_type_host::Owing>,
+    /// The blocks `undurable` counts, for `busy` to name.
+    pub undurable_blocks: Vec<be_block_type_host::Owing>,
+    /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
+    /// host keeps asking.
+    pub seals_owed: u64,
+    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
+    pub asking: Vec<String>,
+    /// Open replicas with edits that are not in the device's journal yet.
+    pub undurable: usize,
+    pub connected: bool,
+    pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<be_block_client::Peer<Store>>>,
+    pub reached: bool,
+    /// Between connecting and having asked for everything the device must catch up on: set as
+    /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
+    /// outbox has drained and the open replicas have rejoined their sessions.
+    pub arriving: bool,
+    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
+    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
+    pub recounting: bool,
+    pub draining: bool,
+    pub error: Option<String>,
+    /// What went wrong sending: a refused or failed drain of the outbox, or a refused append to
+    /// a session's journal. Unlike `error`, it is about being in step with the server, so it
+    /// clears once the device is connected and nothing waits to be sent (`report`).
+    pub sync_error: Option<String>,
+    pub conflicts: Part<HashMap<Uuid, Vec<Conflict>>>,
+    pub pairing: Vec<PairingRequest>,
+    pub contacts: Part<Vec<be_block_client::Contact>>,
+    /// The account's storage, while an editor watches it (`watch_storage`).
+    pub storage: Option<be_block_protocol::AccountStorage>,
+    pub escrow_warning: Option<&'static str>,
+    /// The account's notification mode for each block it set to other than `all`, once read
+    /// (`Tasks::notify_modes`).
+    pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
+    /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
+    pub locked: Part<HashSet<Uuid>>,
+    pub versions: Part<HashMap<Uuid, VersionState>>,
+    /// How many commands the worker has finished: those the page sent and it has not finished
+    /// are pending (`Shared::pending`).
+    pub done: usize,
+    pub typing: bool,
+    /// While the host holds the modules' clock and nothing else is in flight, when their
+    /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
+    /// stopped clock must reach for that work to happen. `None` while anything else could still
+    /// make progress.
+    pub modules_due: Option<std::time::Instant>,
+    pub uploading: usize,
+    pub listing_revisions: usize,
+    /// Commands in the lane beside the loop that need only the server (`Served`).
+    pub serving: usize,
+    pub importing: usize,
+    /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
+    /// busy reason that names what queued commands wait behind.
+    pub step: Option<&'static str>,
+    pub previewed: Part<HashSet<Uuid>>,
+    pub staged: Part<HashMap<Uuid, (Uuid, Arc<Vec<u8>>)>>,
+    pub unreadable: Part<HashMap<Uuid, String>>,
+    pub waiting: usize,
+    /// What the outbox held when `waiting` was counted, for `unsynced` to name.
+    pub outbox: Vec<(&'static str, Uuid)>,
+    /// Counts finished drains of the outbox.
+    pub drains: u64,
+    pub unsent: Part<Vec<be_block_client::UnsentBlock>>,
+    pub comparison: Option<Comparison>,
+    /// The answers to the searches the page wants, as of `searched_at` (`Searching::shown`).
+    pub searched: Part<HashMap<SearchAsk, Searched>>,
+    /// Whether every edit this device queued for its search indexes is indexed.
+    pub search_indexed: bool,
+    /// Why the search is busy, as the worker's `busy` says.
+    pub search_busy: Option<&'static str>,
+    /// The last of the page's edits the worker applied (`Edit`).
+    pub edits_applied: u64,
+}
+
+impl Seen {
+    /// What keeps the device from being in step with the server, apart from `busy`: drive's
+    /// `synced` waits until there is nothing.
+    pub fn unsynced(&self) -> Vec<String> {
+        let mut reasons = Vec::new();
+        if !self.connected {
+            reasons.push(match &self.error {
+                Some(error) => format!("the block store is not connected to the server: {error}"),
+                None => "the block store is not connected to the server".to_owned(),
+            });
+        }
+        if self.arriving {
+            reasons.push("the block store catches up with the server after connecting".to_owned());
+        }
+        if self.draining {
+            reasons.push("the block store sends the edits it kept".to_owned());
+        }
+        if self.serving > 0 {
+            reasons.push(format!(
+                "the block store waits on the server for {} command(s)",
+                self.serving
+            ));
+        }
+        if self.listing_revisions > 0 {
+            reasons.push("the block store asks the server for a block's revisions".to_owned());
+        }
+        if self.recounting {
+            reasons.push("the block store has yet to count what waits to be sent".to_owned());
+        }
+        let waiting = self.unsealed + self.waiting;
+        if waiting > 0 {
+            // Named in full, so a wait that never ends says what it waited on: whether the
+            // edits were never sealed or sat in the outbox with no drain to send them.
+            let outbox: Vec<String> = self
+                .outbox
+                .iter()
+                .map(|(kind, block)| format!("{kind} {block}"))
+                .collect();
+            let unsealed: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            reasons.push(format!(
+                "{waiting} edit(s) wait to be sent: {} unsealed [{}], {} in the outbox [{}]; {} drain(s) ended, {}",
+                self.unsealed,
+                unsealed.join("; "),
+                self.waiting,
+                outbox.join(", "),
+                self.drains,
+                match self.draining {
+                    true => "one under way",
+                    false => "none under way",
+                },
+            ));
+        }
+        reasons
+    }
+
+    /// Why the block store keeps a driver waiting, with `pending` commands not finished and the
+    /// search busy for `searching`.
+    pub(crate) fn busy_with(
+        &self,
+        hurried: bool,
+        pending: usize,
+        searching: Option<&str>,
+    ) -> Vec<String> {
+        let mut reasons: Vec<String> = [
+            (pending > 0, "the block store has commands to carry out"),
+            (self.typing, "a block type module has yet to settle"),
+            (self.uploading > 0, "the block store uploads files"),
+            (
+                self.graph.fetching(),
+                "the block store loads the organization's graph",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
+        .collect();
+        if self.undurable > 0 {
+            let blocks: Vec<String> = self
+                .undurable_blocks
+                .iter()
+                .map(ToString::to_string)
+                .collect();
+            reasons.push(format!(
+                "the block store keeps edits the device's journal does not hold yet, for {}",
+                blocks.join(", ")
+            ));
+        }
+        if hurried && self.owing > 0 {
+            let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
+            reasons.push(format!(
+                "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",
+                blocks.join(", "),
+                self.seals_owed
+            ));
+        }
+        if let Some(searching) = searching {
+            reasons.push(format!("the block store's search is busy: {searching}"));
+        }
+        if pending > 0
+            && let Some(step) = self.step
+        {
+            reasons.push(format!("the block store's loop is busy with {step}"));
+        }
+        if !self.asking.is_empty() {
+            reasons.push(format!(
+                "the block store waits on its type modules for {}",
+                self.asking.join(", ")
+            ));
+        }
+        reasons
+    }
+
+    /// What `block`'s content reads as: a revision's preview while it is one, else the open
+    /// block's.
+    pub(crate) fn content(&self, block: Uuid) -> Option<&Content> {
+        match self.revision_previews.get(&block) {
+            Some(preview)
+                if !preview.released
+                    && self
+                        .graph
+                        .get(preview.source)
+                        .is_some_and(|node| node.access.can_view()) =>
+            {
+                preview.content.as_ref()
+            }
+            Some(_) => None,
+            None => self.blocks.get(&block),
+        }
+    }
+}
+
+/// A change the page makes to what it reads at once, rather than waiting for the worker: the
+/// page lays it over its own view, and sends it to the worker, which applies it to its `Seen`
+/// as it takes the command (`Command::Edit`), in the order sent.
+#[derive(Clone)]
+pub(crate) enum Edit {
+    /// A block made here (`create`): placed under its parent unless the parent already lists it.
+    Create(Node),
+    /// A node as the page has it already (`duplicate`, `import`).
+    Node(Node),
+    Placing(Uuid, bool),
+    Parent(Uuid, BlockParent),
+    Define {
+        block: Uuid,
+        metadata: BlockMetadata,
+        derived: Option<Entries>,
+    },
+    Derive(Uuid, Entries),
+    Want(Owner, Vec<Query>),
+    Stage {
+        block: Uuid,
+        content_type: Uuid,
+        bytes: Arc<Vec<u8>>,
+    },
+    /// Shows what an import staged for a block until its replica has it.
+    ShowStaged(Uuid),
+    Alias {
+        root: Uuid,
+        block: Uuid,
+        id: Uuid,
+    },
+    /// A revision preview's child whose content is asked for (`revisions::load`).
+    Requested(Uuid),
+    /// Lets go of every preview under a preview's root (`revisions::release`).
+    Release(Uuid),
+    /// The released previews the host let go of (`revisions::collect_released`).
+    Collected(Vec<Uuid>),
+    /// Compares a block's conflicting sides, letting go of any comparison before.
+    Compare(Uuid),
+    StopComparing,
+    /// One side of the comparison of `block` was previewed, or could not be.
+    Compared {
+        block: Uuid,
+        theirs: bool,
+        shown: Result<Uuid, String>,
+    },
+    /// Keeping a side of the comparison of `block` failed.
+    KeepFailed {
+        block: Uuid,
+        error: String,
+    },
+    /// Forgets a block's conflicts (`conflicts::dismiss`).
+    Dismiss(Uuid),
+    /// The page took an editor's frames up to and including `upto`.
+    TookFrames {
+        editor: EditorId,
+        upto: u64,
+    },
+}
+
+impl Edit {
+    /// Applies the edit, and answers the blocks whose content, or what is shown of it, changed.
+    pub(crate) fn apply(&self, seen: &mut Seen) -> Vec<Uuid> {
+        match self {
+            Edit::Create(node) => {
+                if let Some(BlockParent::Block(above)) = node.parent
+                    && seen.graph.get(above).is_some_and(|above| {
+                        !above.unfiled() && !above.references.contains(&node.id)
+                    })
+                {
+                    seen.graph.placing(node.id, true);
+                }
+                seen.graph.change(node.clone());
+                seen.graph.made(node.id);
+            }
+            Edit::Node(node) => seen.graph.change(node.clone()),
+            Edit::Placing(block, placing) => seen.graph.placing(*block, *placing),
+            Edit::Parent(block, parent) => {
+                let placing = match parent {
+                    BlockParent::Block(above) => seen
+                        .graph
+                        .get(*above)
+                        .is_some_and(|above| !above.unfiled() && !above.references.contains(block)),
+                    BlockParent::Root | BlockParent::Detached => false,
+                };
+                seen.graph.placing(*block, placing);
+                seen.graph
+                    .update(*block, |node| node.parent = Some(*parent));
+            }
+            Edit::Define {
+                block,
+                metadata,
+                derived,
+            } => {
+                seen.graph
+                    .update(*block, |node| node.metadata = metadata.clone());
+                if let Some(derived) = derived {
+                    seen.graph.derive(*block, derived.clone());
+                }
+            }
+            Edit::Derive(block, derived) => seen.graph.derive(*block, derived.clone()),
+            Edit::Want(owner, queries) => {
+                if seen.graph.wanted(*owner) != queries.as_slice() {
+                    seen.graph.want(*owner, queries.clone());
+                }
+            }
+            Edit::Stage {
+                block,
+                content_type,
+                bytes,
+            } => {
+                seen.staged
+                    .insert(*block, (*content_type, Arc::clone(bytes)));
+            }
+            Edit::ShowStaged(block) => {
+                if seen.blocks.contains_key(block) {
+                    return Vec::new();
+                }
+                let Some(content) = seen
+                    .staged
+                    .get(block)
+                    .filter(|(content_type, _)| crate::is_known(*content_type))
+                    .map(|(content_type, bytes)| Content::new(*content_type, bytes.to_vec()))
+                else {
+                    return Vec::new();
+                };
+                seen.blocks.insert(*block, content);
+                seen.previewed.insert(*block);
+                return vec![*block];
+            }
+            Edit::Alias { root, block, id } => {
+                if seen.preview_aliases.contains_key(&(*root, *block)) {
+                    return Vec::new();
+                }
+                seen.preview_aliases.insert((*root, *block), *id);
+                let content = seen.blocks.get(block).cloned();
+                seen.revision_previews.insert(
+                    *id,
+                    Preview {
+                        source: *block,
+                        root: *root,
+                        content,
+                        released: false,
+                        requested: false,
+                    },
+                );
+            }
+            Edit::Requested(alias) => {
+                if let Some(preview) = seen.revision_previews.get_mut(alias) {
+                    preview.requested = true;
+                }
+            }
+            Edit::Release(root) => release(seen, *root),
+            Edit::Collected(ids) => {
+                seen.released_previews.retain(|id| !ids.contains(id));
+                for id in ids {
+                    if let Some(preview) = seen.revision_previews.get_mut(id) {
+                        preview.content = None;
+                    }
+                    seen.unreadable.remove(id);
+                }
+            }
+            Edit::Compare(block) => {
+                stop_comparing(seen);
+                seen.comparison = Some(Comparison {
+                    block: *block,
+                    ours: None,
+                    theirs: None,
+                    error: None,
+                });
+                crate::changes::stale();
+            }
+            Edit::StopComparing => stop_comparing(seen),
+            Edit::Compared {
+                block,
+                theirs,
+                shown,
+            } => match seen
+                .comparison
+                .as_mut()
+                .filter(|comparison| comparison.block == *block)
+            {
+                Some(comparison) => {
+                    let slot = match theirs {
+                        false => &mut comparison.ours,
+                        true => &mut comparison.theirs,
+                    };
+                    *slot = Some(shown.clone());
+                    crate::changes::stale();
+                }
+                None => {
+                    if let Ok(preview) = shown {
+                        release(seen, *preview);
+                    }
+                }
+            },
+            Edit::KeepFailed { block, error } => {
+                if let Some(comparison) = seen
+                    .comparison
+                    .as_mut()
+                    .filter(|comparison| comparison.block == *block)
+                {
+                    comparison.error = Some(error.clone());
+                    crate::changes::stale();
+                }
+            }
+            Edit::Dismiss(block) => {
+                stop_comparing(seen);
+                if seen.conflicts.contains_key(block) {
+                    seen.conflicts.remove(block);
+                    crate::changes::stale();
+                    return vec![*block];
+                }
+            }
+            Edit::TookFrames { editor, upto } => {
+                let Some(frames) = seen.editor_frames.get(editor) else {
+                    return Vec::new();
+                };
+                if frames.first().is_none_or(|frame| frame.number > *upto) {
+                    return Vec::new();
+                }
+                let frames = seen
+                    .editor_frames
+                    .get_mut(editor)
+                    .expect("the editor has frames");
+                frames.retain(|frame| frame.number > *upto);
+                if frames.is_empty() {
+                    seen.editor_frames.remove(editor);
+                }
+            }
+        }
+        Vec::new()
+    }
+}
+
+fn release(seen: &mut Seen, root: Uuid) {
+    let released: Vec<Uuid> = seen
+        .revision_previews
+        .iter()
+        .filter(|(_, preview)| preview.root == root && !preview.released)
+        .map(|(id, _)| *id)
+        .collect();
+    for id in released {
+        if let Some(preview) = seen.revision_previews.get_mut(&id) {
+            preview.released = true;
+        }
+        seen.released_previews.push(id);
+    }
+    crate::changes::wake();
+}
+
+fn stop_comparing(seen: &mut Seen) {
+    let Some(comparison) = seen.comparison.take() else {
+        return;
+    };
+    crate::changes::stale();
+    for preview in [comparison.ours, comparison.theirs]
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        release(seen, preview);
+    }
+}
+
+/// A one-value slot the worker puts each `Seen` it publishes into and the page takes it from:
+/// an atomic pointer to an `Arc<Seen>`, so neither ever waits on the other. A `Seen` the page
+/// has not taken when the worker puts a newer one is dropped.
+#[derive(Default)]
+pub(crate) struct Handover(AtomicPtr<Seen>);
+
+impl Handover {
+    pub(crate) fn put(&self, seen: Arc<Seen>) {
+        let old = self
+            .0
+            .swap(Arc::into_raw(seen).cast_mut(), Ordering::AcqRel);
+        if !old.is_null() {
+            // `old` came from `Arc::into_raw` in an earlier `put`, and the swap took it out of
+            // the slot, so nothing else reaches it.
+            // unsafe(memory)
+            drop(unsafe { Arc::from_raw(old) });
+        }
+    }
+
+    pub(crate) fn take(&self) -> Option<Arc<Seen>> {
+        let taken = self.0.swap(std::ptr::null_mut(), Ordering::AcqRel);
+        // As in `put`, the pointer came from `Arc::into_raw` and the swap took it out of the slot.
+        // unsafe(memory)
+        (!taken.is_null()).then(|| unsafe { Arc::from_raw(taken) })
+    }
+}
+
+impl Drop for Handover {
+    fn drop(&mut self) {
+        self.take();
+    }
+}
+
+/// Builds the `Seen` to hand over from the worker's `Shared` and puts it in the slot. Called
+/// with the lock on `Shared` held, so two puts land in the order the state they copy changed.
+pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
+    shared.refresh_seen();
+    handover.put(Arc::new(shared.seen.clone()));
+}
+
+/// The worker thread's way to its stack, and what it holds back from the page until the next
+/// `Seen` is handed over.
+struct Here {
+    shared: Arc<Mutex<Shared>>,
+    handover: Arc<Handover>,
+    changes: crate::Changes,
+    wake: bool,
+    calls: Vec<Box<dyn FnOnce()>>,
+    /// A task to publish is spawned and has not run yet.
+    scheduled: bool,
+}
+
+thread_local! {
+    static HERE: RefCell<Option<Here>> = const { RefCell::new(None) };
+}
+
+/// Marks this thread as the worker of the stack whose `Shared` this is, until dropped.
+pub(crate) struct Worker;
+
+impl Worker {
+    pub(crate) fn enter(shared: &Arc<Mutex<Shared>>, handover: &Arc<Handover>) -> Self {
+        HERE.with(|here| {
+            *here.borrow_mut() = Some(Here {
+                shared: Arc::clone(shared),
+                handover: Arc::clone(handover),
+                changes: crate::Changes::default(),
+                wake: false,
+                calls: Vec::new(),
+                scheduled: false,
+            });
+        });
+        Self
+    }
+}
+
+impl Drop for Worker {
+    /// The worker's last `Seen`, and what it held back for it: a task to publish would not run
+    /// once the worker ends. A reply it runs may hold back more, which goes out the same way.
+    fn drop(&mut self) {
+        loop {
+            publish_now();
+            let held = HERE.with(|here| {
+                here.borrow().as_ref().is_some_and(|here| {
+                    here.wake || !here.calls.is_empty() || !here.changes.is_empty()
+                })
+            });
+            if !held {
+                break;
+            }
+        }
+        HERE.with(|here| here.borrow_mut().take());
+    }
+}
+
+/// On the worker thread, holds `changes` back until the next `Seen` is handed over, which it
+/// asks for (`schedule`); elsewhere, answers them to be posted at once.
+pub(crate) fn hold_changes(changes: crate::Changes) -> Option<crate::Changes> {
+    let held = HERE.with(|here| match here.borrow_mut().as_mut() {
+        Some(here) => {
+            here.changes.merge(changes);
+            None
+        }
+        None => Some(changes),
+    });
+    if held.is_none() {
+        schedule();
+    }
+    held
+}
+
+/// On the worker thread, holds a wake of the host back until the next `Seen` is handed over,
+/// and answers true.
+pub(crate) fn hold_wake() -> bool {
+    let held = HERE.with(|here| match here.borrow_mut().as_mut() {
+        Some(here) => {
+            here.wake = true;
+            true
+        }
+        None => false,
+    });
+    if held {
+        schedule();
+    }
+    held
+}
+
+/// Wraps a reply to a page call so that, run on the worker thread, it runs once the `Seen`
+/// with what the worker did before it is handed over: what the page reads after hearing the
+/// reply has it.
+pub(crate) fn after_publish<T: 'static>(
+    reply: impl FnOnce(T) + Send + 'static,
+) -> Box<dyn FnOnce(T) + Send> {
+    Box::new(move |value| {
+        let call: Box<dyn FnOnce()> = Box::new(move || reply(value));
+        let call = HERE.with(|here| match here.borrow_mut().as_mut() {
+            Some(here) => {
+                here.calls.push(call);
+                None
+            }
+            None => Some(call),
+        });
+        match call {
+            Some(call) => call(),
+            None => schedule(),
+        }
+    })
+}
+
+/// Has a task on the worker publish once the worker yields, unless one is due already: the
+/// changes made until then go in one `Seen`, and the lock on `Shared` is not held then.
+fn schedule() {
+    let spawn = HERE.with(|here| {
+        here.borrow_mut()
+            .as_mut()
+            .is_some_and(|here| !std::mem::replace(&mut here.scheduled, true))
+    });
+    if spawn {
+        crate::platform::spawn_local(async {
+            HERE.with(|here| {
+                if let Some(here) = here.borrow_mut().as_mut() {
+                    here.scheduled = false;
+                }
+            });
+            publish_now();
+        });
+    }
+}
+
+/// Hands the worker's `Seen` over now, then posts the changes, wake and replies held back for
+/// it. Only the worker calls it, and never while it holds the lock on `Shared`: it may wait a
+/// moment for another thread to let go of it, as a worker may.
+pub(crate) fn publish_now() {
+    let Some((shared, handover)) = HERE.with(|here| {
+        here.borrow()
+            .as_ref()
+            .map(|here| (Arc::clone(&here.shared), Arc::clone(&here.handover)))
+    }) else {
+        return;
+    };
+    publish(
+        &mut shared.lock().unwrap_or_else(PoisonError::into_inner),
+        &handover,
+    );
+    let (changes, wake, calls) = HERE.with(|here| {
+        here.borrow_mut().as_mut().map_or_else(
+            || (crate::Changes::default(), false, Vec::new()),
+            |here| {
+                (
+                    std::mem::take(&mut here.changes),
+                    std::mem::take(&mut here.wake),
+                    std::mem::take(&mut here.calls),
+                )
+            },
+        )
+    });
+    crate::changes::deliver(changes);
+    for call in calls {
+        call();
+    }
+    if wake {
+        be_host_base::host::wake();
+    }
+}
+
+
+/// Whether this thread is a stack's worker.
+pub(crate) fn on_worker() -> bool {
+    HERE.with(|here| here.borrow().is_some())
+}
+
+/// On the worker thread, runs `change` on its `Shared` and hands the result over at once, so a
+/// reply that changed what the page reads (`import_file`'s, which makes a block) reaches the
+/// page after the change does, and answers true. Elsewhere answers false without running it.
+/// The worker calls it only from replies, never while it holds the lock on `Shared`.
+pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
+    let Some((shared, handover)) = HERE.with(|here| {
+        here.borrow()
+            .as_ref()
+            .map(|here| (Arc::clone(&here.shared), Arc::clone(&here.handover)))
+    }) else {
+        return false;
+    };
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    change(&mut held);
+    publish(&mut held, &handover);
+    true
+}
+
+/// On the worker thread, reads its `Seen`.
+pub(crate) fn here<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
+    let shared = HERE.with(|here| here.borrow().as_ref().map(|here| Arc::clone(&here.shared)))?;
+    let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    Some(read(&held.seen))
+}
