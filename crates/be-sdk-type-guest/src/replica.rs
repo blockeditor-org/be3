@@ -2832,6 +2832,17 @@ where
 
     /// How the host answered the submission `counter`.
     fn answer_submitted(&mut self, counter: u64, outcome: Outcome) {
+        // A change waiting on what it submitted (a replacement) is answered once the server holds
+        // it: a host that waits for the answer may be what would hand this replica the order.
+        let reply = self
+            .pending
+            .iter_mut()
+            .find(|sent| sent.id.counter == counter)
+            .and_then(|sent| sent.reply.take());
+        if let Some(id) = reply {
+            let made = !matches!(outcome, Outcome::Failed(_));
+            self.reply(id, Answer::Changed(made));
+        }
         match outcome {
             Outcome::Held => self.lacking.held(counter),
             Outcome::Kept => {}

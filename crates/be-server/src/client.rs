@@ -2062,6 +2062,7 @@ impl Client {
             } => {
                 let block = self.joined(this.op());
                 let tag = self.tag_of(this.op());
+                eprintln!("DEBUG server submit block={block:?} tag={tag:?}");
                 let connection = &self.connection;
                 let submitted = async {
                     prelude?;
@@ -2104,6 +2105,7 @@ impl Client {
                     Ok(())
                 }
                 .await;
+                eprintln!("DEBUG server submitted {submitted:?}");
                 self.reply(reply, submitted);
             }
             Call::SessionRebaseJournal {

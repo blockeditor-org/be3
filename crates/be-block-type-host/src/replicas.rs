@@ -2327,6 +2327,7 @@ impl<H: Host> Replicas<H> {
     /// elsewhere (`Peer::learn`) may answer only after the message arrived. Once a search for its
     /// key has answered, a message still sealed with it is let go and recorded.
     pub fn heard(&mut self, (peer, shared): Ctx<'_, H>, event: &Event) {
+        eprintln!("DEBUG heard {:?}", std::mem::discriminant(event));
         let block = match event {
             Event::SessionChanged { block, .. }
             | Event::Relayed { block, .. }
@@ -2337,6 +2338,7 @@ impl<H: Host> Replicas<H> {
             _ => return,
         };
         if let Some(waiting) = self.unsealing.get_mut(block) {
+            eprintln!("DEBUG heard while unsealing {block}");
             waiting.push_back(event.clone());
             return;
         }
