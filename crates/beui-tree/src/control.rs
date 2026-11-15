@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 use beui_macros::component;
 use beui_reactive::{
+    Memo, create_memo, provide_context, use_context,
     Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Signal, StoredCell, create_binding,
     create_signal, store, untrack,
 };
@@ -165,6 +166,16 @@ fn show<C: SlotChild>(
     });
 }
 
+/// Whether the branch of a `Show` with `keep_alive` around the caller is shown, and every such
+/// branch around that: `None` outside any. What a kept branch holds outside itself while hidden (a
+/// dock it joined) lets go by it, and takes back when it shows again.
+pub fn kept_shown() -> Option<Memo<bool>> {
+    use_context::<KeptShown>().map(|KeptShown(shown)| shown)
+}
+
+#[derive(Clone, Copy)]
+struct KeptShown(Memo<bool>);
+
 fn keep<C: SlotChild>(
     condition: Prop<bool>,
     branches: [Option<Built<C>>; 2],
@@ -173,6 +184,11 @@ fn keep<C: SlotChild>(
 ) {
     let held = store(RefCell::new([None, None] as [Kept<C>; 2]));
     let shown = StoredCell::new(None::<bool>);
+    let outer = kept_shown();
+    let showing = [create_signal(false), create_signal(false)];
+    let branch_shown = showing.map(|own| {
+        create_memo(move || own.get() && outer.is_none_or(|outer| outer.get()))
+    });
     create_binding(move || {
         let visible = condition.get();
         if shown.get() == Some(visible) {
@@ -187,14 +203,20 @@ fn keep<C: SlotChild>(
         let mut held = held.borrow_mut();
         if let Some((host, scope)) = held[1 - visible].as_ref() {
             host.set_visible(false);
+            // Told before it pauses, so an effect it wakes still runs.
+            untrack(|| showing[1 - visible].set(false));
             scope.pause();
         }
+        // Shown before it is built, so what a first build claims (a dock it joins) holds on.
+        untrack(|| showing[visible].set(true));
         let built = held[visible].is_some();
         if !built && let Some(branch) = branches[visible] {
             let scope = Scope::detached().pausable();
-            let host = scope
-                .context()
-                .run(|| branch.call(()).mount_in(slot.clone()));
+            let shown_here = branch_shown[visible];
+            let host = scope.context().run(|| {
+                provide_context(KeptShown(shown_here));
+                branch.call(()).mount_in(slot.clone())
+            });
             held[visible] = Some((host, scope));
         }
         match held[visible].as_ref() {

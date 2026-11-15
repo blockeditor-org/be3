@@ -1,7 +1,8 @@
 use super::*;
 
-/// A canvas's dock joins its tab, so the live canvas kept alive beside a preview used to keep its
-/// panes over the whole tab, hiding the preview and the revision bar.
+/// A canvas's dock joins its tab. The live canvas is kept while a revision is previewed, and its
+/// dock lets the tab go meanwhile, so the preview shows under its revision bar and the canvas comes
+/// back as it was.
 #[test]
 fn a_canvas_revision_previews_under_its_revision_bar() {
     let mut host = HostTest::start(Options::default());
@@ -23,6 +24,8 @@ fn a_canvas_revision_previews_under_its_revision_bar() {
         .expect("the empty canvas has a saved revision");
     host.pause(60_000);
     add_to_canvas(&mut host, "Text");
+    // The block just added is selected: the live canvas keeps its selection through a preview.
+    host.wait("#infinite-canvas.selection-bar");
     host.wait(&format!("UTC\" {original}"));
     host.synced();
     host.click(&original);
@@ -38,5 +41,9 @@ fn a_canvas_revision_previews_under_its_revision_bar() {
     host.click("#workspace.revision.current");
     host.gone("#workspace.revision.preview");
     host.wait("GenericContainer #infinite-canvas.entity.");
+    // The live canvas comes back as it was, kept rather than built again: its dock joined the
+    // tab again (its tool bar shows) and the block it had selected still is.
+    host.wait("#infinite-canvas.dock");
+    host.wait("#infinite-canvas.selection-bar");
     host.close();
 }

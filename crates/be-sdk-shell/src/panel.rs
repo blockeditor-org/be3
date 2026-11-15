@@ -246,9 +246,9 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
                 <TabBar bar={move || bar.call(())} own=true />
-                // Not kept alive while a revision is previewed: a live editor whose dock joined
-                // the tab would keep its panes over the preview and the revision bar.
-                <Show value={move || !previewing.get()}>
+                // Kept, with its selection, camera and scroll, while a revision is previewed; a
+                // dock it joined to the tab lets the tab go while hidden (`kept_shown`).
+                <Show keep_alive=true value={move || !previewing.get()}>
                     <Dynamic
                         value={move || match info.get() {
                             Some(info) if !info.access.can_view() => Content::Denied,

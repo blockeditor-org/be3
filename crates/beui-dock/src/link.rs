@@ -463,7 +463,22 @@ impl DockJoin {
             registry,
             claimed: Rc::clone(&self.claimed),
             joined: Rc::new(Joined::default()),
+            hidden: Cell::new(false),
         });
+        // Inside a branch kept while hidden (`Show` with `keep_alive`), the join lets the tab go
+        // while hidden, so what shows there instead (a revision's preview) has it, and takes it
+        // back, with the same declaration, once shown and the tab is free again.
+        if let Some(shown) = kept_shown() {
+            let following = Rc::clone(&link);
+            let version = following.registry.version;
+            create_effect(move || {
+                let shown = shown.get();
+                if version.is_alive() {
+                    version.get();
+                }
+                untrack(|| following.follow_shown(shown));
+            });
+        }
         let held = Rc::clone(&link);
         on_cleanup(move || held.release());
         Some(link)
@@ -479,9 +494,38 @@ struct JoinedLink {
     registry: Rc<Registry>,
     claimed: Rc<Cell<bool>>,
     joined: Rc<Joined>,
+    /// Out of the tab while the kept branch it was claimed in is hidden.
+    hidden: Cell<bool>,
 }
 
 impl JoinedLink {
+    fn follow_shown(&self, shown: bool) {
+        match (shown, self.hidden.get()) {
+            (false, false) => {
+                self.hidden.set(true);
+                self.withdraw();
+                self.claimed.set(false);
+            }
+            (true, true) if !self.claimed.get() => {
+                self.claimed.set(true);
+                self.hidden.set(false);
+                if self.joined.declaration.borrow().is_some() {
+                    self.join();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn join(&self) {
+        self.registry
+            .joins
+            .borrow_mut()
+            .entry(self.host)
+            .or_insert_with(|| Rc::clone(&self.joined));
+        self.registry.bump();
+    }
+
     fn outer(&self, inner: TabId) -> Option<TabId> {
         self.registry.foreign.borrow().outer(self.host, inner)
     }
@@ -525,19 +569,18 @@ impl JoinedLink {
         *self.joined.declaration.borrow_mut() = None;
         *self.joined.events.borrow_mut() = None;
         *self.joined.bodies.borrow_mut() = None;
-        self.claimed.set(false);
+        if !self.hidden.replace(true) {
+            self.claimed.set(false);
+        }
     }
 }
 
 impl DockHostLink for JoinedLink {
     fn declare(&self, declaration: DockDeclaration) {
         *self.joined.declaration.borrow_mut() = Some(declaration);
-        self.registry
-            .joins
-            .borrow_mut()
-            .entry(self.host)
-            .or_insert_with(|| Rc::clone(&self.joined));
-        self.registry.bump();
+        if !self.hidden.get() {
+            self.join();
+        }
     }
 
     fn hosted(&self) -> Memo<Option<DockHosted>> {
