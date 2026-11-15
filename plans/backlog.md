@@ -137,3 +137,16 @@ Depends on #686 (session catch-ups replaced by server ordering).
   (`log_unlisted_held`); with no such line, the missing reference is past the
   graph, in what the app's `Backrefs` watch was told. Done: the cause found
   from that output and fixed at its source, with a test that shows it.
+
+## 16. Keys
+
+- **Commits sealed before a rotation.** A commit made offline is sealed under
+  the key the device held when it wrote it. If the block's keys rotate
+  meanwhile (a member removed), the drain publishes it under the old key, which
+  the removed member still holds: neither `drain_publish` nor the server checks
+  the key's epoch. Offline writes report `Saved::Kept`, version control's
+  included, so this is the usual path. Done: the drain reseals such a commit
+  (and those built on it) under the current key before sending it, or the
+  server refuses one sealed under a superseded key (plans/signed_access.md's
+  key epochs), shown by a client test where a member is removed while another
+  device writes offline and the removed member cannot open what it sends.
