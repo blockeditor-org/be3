@@ -42,7 +42,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree_ref = ComponentRef::new();
     let picker = picker(editor, tree, renaming, tree_ref);
     let exporter = Exporter::new(editor);
-    let exported = exporter.error();
     let held: Held = store(std::cell::RefCell::new(None));
     let inspecting = create_signal(None::<Inspection>);
     let inspected_from = NodeRef::new();
@@ -125,10 +124,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.reveal_system(focused.via.last().copied().or(focused.block_id));
         tree.expand(focused.via.iter().rev().copied());
     };
-    let picked = picker.error();
-    let failure = create_memo(move || picked.get().or_else(|| exported.get()));
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
 
     let outline = move |key: RowKey| {
         let (landed, accepts) = arriving.get()?;
@@ -216,13 +211,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 </Show>
                                 <Show condition={filtering}>
                                     <ContentHits editor hits={content} />
-                                </Show>
-                                <Show condition={failed}>
-                                    <Frame padding=PADDING>
-                                        <Text style=TextStyle::CAPTION color=TextColor::Danger>
-                                            {reason}
-                                        </Text>
-                                    </Frame>
                                 </Show>
                                 <ListItem grow=1.0>
                                     <Tree
@@ -994,7 +982,6 @@ fn row_rect(tree: TreeApi<RowKey>, key: &RowKey) -> Option<Rect> {
 #[derive(Clone, Copy)]
 pub(crate) struct Picker {
     inner: Stored<PickerInner>,
-    error: Signal<Option<String>>,
 }
 
 type Picked = std::rc::Rc<dyn Fn(be_sdk_beui::PickedBlock, Uuid)>;
@@ -1005,11 +992,6 @@ struct PickerInner {
 }
 
 impl Picker {
-    pub(crate) fn error(&self) -> Memo<Option<String>> {
-        let error = self.error;
-        create_memo(move || error.get())
-    }
-
     pub(crate) fn open(
         &self,
         editor: Editor,
@@ -1017,9 +999,7 @@ impl Picker {
         excluded: HashSet<Uuid>,
         anchor: impl Into<be_sdk_beui::PickAnchor>,
     ) {
-        self.error.set(None);
         let picked = std::rc::Rc::clone(&self.inner.value().picked);
-        let error = self.error;
         let place = BlockParent::Block(parent);
         editor.pick_block(
             BlockFilter {
@@ -1030,10 +1010,7 @@ impl Picker {
                 place: Some(place.encode()),
             },
             anchor,
-            move |result| match result {
-                Ok(block) => picked(block, parent),
-                Err(failure) => error.set(Some(failure.to_string())),
-            },
+            move |block| picked(block, parent),
         );
     }
 
@@ -1049,7 +1026,6 @@ fn picker(
     renaming: Renaming,
     tree_ref: ComponentRef<TreeApi<RowKey>>,
 ) -> Picker {
-    let error = create_signal(None::<String>);
     let host = editor.host();
     let picked: Picked = std::rc::Rc::new(move |picked, parent| {
         let block_type = Uuid::from_bytes(picked.block_type);
@@ -1067,7 +1043,6 @@ fn picker(
             picked,
             tree: tree_ref,
         }),
-        error,
     }
 }
 

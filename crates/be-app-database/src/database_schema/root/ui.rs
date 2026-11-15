@@ -866,15 +866,13 @@ fn RelationOptions(
             },
             &button,
             move |picked| {
-                if let Ok(picked) = picked {
-                    schema.operate(DatabaseSchema::set_relation_options(
-                        id,
-                        DatabaseRelationOptions {
-                            database: Some(picked.id()),
-                            ..current.clone()
-                        },
-                    ));
-                }
+                schema.operate(DatabaseSchema::set_relation_options(
+                    id,
+                    DatabaseRelationOptions {
+                        database: Some(picked.id()),
+                        ..current.clone()
+                    },
+                ));
             },
         );
     };

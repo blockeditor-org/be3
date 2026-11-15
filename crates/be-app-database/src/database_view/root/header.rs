@@ -33,11 +33,6 @@ pub fn ViewHeader(data: Data) -> NodeId {
                     <Show condition={narrow}>
                         <NarrowHeader data={data} />
                     </Show>
-                    <Banner
-                        message={data.error}
-                        id="database-view.error"
-                        on_dismiss={move || data.dismiss_error()}
-                    />
                     <Separator />
                 </List>
             }

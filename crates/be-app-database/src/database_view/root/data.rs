@@ -70,7 +70,6 @@ pub struct ViewData {
     pub calendar_start: Memo<Option<Uuid>>,
     pub calendar_end: Memo<Option<Uuid>>,
     pub selected: Signal<Option<Selection>>,
-    pub error: Signal<Option<String>>,
     pub read_only: Memo<bool>,
     pub reorderable: Memo<bool>,
     pub sharing_prefix: Memo<Vec<Uuid>>,
@@ -182,7 +181,6 @@ impl ViewData {
                 selected.set(Some(moved));
             }
         });
-        let error = create_signal(None::<String>);
         let search = create_signal(String::new());
         let toggled = create_signal(HashSet::<GroupKey>::new());
         let views = watch_views(editor, database_id);
@@ -256,7 +254,6 @@ impl ViewData {
             calendar_start,
             calendar_end,
             selected,
-            error,
             read_only,
             reorderable,
             sharing_prefix,
@@ -305,10 +302,6 @@ impl ViewData {
 
     pub fn deselect(&self) {
         self.selected.set(None);
-    }
-
-    pub fn dismiss_error(&self) {
-        self.error.set(None);
     }
 
     pub fn operate_view(&self, edit: Edit) {
@@ -682,18 +675,16 @@ impl ViewData {
             return;
         };
         let database = self.database;
-        let error = self.error;
         self.editor.pick_block(
             value_block_filter(&name, request),
             request.anchor,
-            move |picked| match picked {
-                Ok(picked) => set_cell(
+            move |picked| {
+                set_cell(
                     &database,
                     row,
                     request.field_id,
                     Some(DatabaseValue::Block(picked.id())),
-                ),
-                Err(failure) => error.set(Some(failure.to_string())),
+                );
             },
         );
     }

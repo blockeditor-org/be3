@@ -2,7 +2,7 @@
 
 Depends on: none.
 
-Reading `crates/be-app-text/src/root.rs` (`TextEditor`) turned up five places where an app works
+Reading `crates/be-app-text/src/root.rs` (`TextEditor`) turned up several places where an app works
 around something the framework should do. Each part below stands alone and can land as its own
 pull request, except that part 3's sweep and part 4's sweep touch the same lines and are best done
 together (part 3, step 4). None of them changes `editor.content(&node_ref)`: that is deliberately
@@ -270,34 +270,3 @@ derived value (`Prop::dynamic(..)` works but is rarely used).
    choice.
 
 **Done when** a closure works as a prop value, and memos that only fed one prop are gone.
-
-## 5. A failed action is reported by the host, not drawn by the app
-
-**Today.** Apps keep an error signal and draw their own dismissable `Banner` for one-off
-failures:
-
-- be-app-text: `ImportError` (`root/import_error.rs`) shows `state.import_error`, which nothing
-  ever sets to `Some` (the only write is `.set(None)` in `root/surface.rs`). It is dead code.
-- be-app-infinite-canvas: `state.import_error` (`root/state.rs`), set when copying canvas objects
-  cannot be serialized, when a pasted clip names the wrong number of blocks, and when a picked image
-  file cannot be read; drawn in `root/toolbar.rs`.
-- be-app-database: `data.error` (`database_view/root/data.rs`), set when picking a block for a
-  cell fails; drawn in `database_view/root/header.rs`.
-
-(be-app-deterministic-game's `Banner` is its own component for the game's table, not this.)
-
-The host already shows one-off failures as toasts: `be_host_base::notices::report(message)`,
-shown by `crates/be-host/src/ui.rs` (`notice_toasts`). Apps have no way to reach it.
-
-**Steps.**
-
-1. Add an app-protocol call for it, for example `report-failure: func(message: string)` in
-   `crates/be-sdk-api/wit/app.wit`, handled in be-host-runtime by `notices::report`, exposed as
-   `editor.host().report_failure(message)` in be-sdk and be-sdk-beui, recorded by be-sdk-test so
-   tests can assert on it. Keep the protocol free of beui types. Document it in
-   guides/apps/host_services.md.
-2. Delete `ImportError`, `import_error` and its `.set(None)` from be-app-text.
-3. Port the canvas and the database view to the new call and delete their error signals, dismiss
-   methods and banners. Update their tests and paintings.
-
-**Done when** no app keeps an error signal or a `Banner` for a one-off failure.

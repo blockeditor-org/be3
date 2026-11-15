@@ -49,7 +49,7 @@ impl From<&NodeRef> for PickAnchor {
     }
 }
 
-type Answer = Box<dyn FnOnce(Result<PickedBlock, Failure>)>;
+type Answer = Box<dyn FnOnce(PickedBlock)>;
 
 #[derive(Clone)]
 pub(crate) struct Picking(Rc<Asked>);
@@ -104,10 +104,8 @@ impl Picking {
         let Some(answer_with) = self.0.answer.borrow_mut().take() else {
             return;
         };
-        match answer {
-            Ok(Some(block)) => answer_with(Ok(block)),
-            Ok(None) => {}
-            Err(failure) => answer_with(Err(failure)),
+        if let Ok(Some(block)) = answer {
+            answer_with(block);
         }
     }
 }

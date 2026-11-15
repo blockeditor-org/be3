@@ -102,6 +102,11 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         fixture.shown().contains(&preview),
         "failure preserves the preview"
     );
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The revision could not be restored: Could not restore"],
+        "the host says why the restore failed"
+    );
     fixture.test.click("workspace.revision.current");
     fixture.settle();
     assert!(fixture.shown().contains(&opened));

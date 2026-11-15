@@ -265,7 +265,6 @@ struct GameCreation {
     listing_error: RefCell<Option<String>>,
     chosen: Cell<Option<Chosen>>,
     module: RefCell<Option<BlockList>>,
-    error: RefCell<Option<String>>,
     changed: Signal<u64>,
 }
 
@@ -279,7 +278,6 @@ impl GameCreation {
             listing_error: RefCell::new(None),
             module: RefCell::new(None),
             chosen: Cell::new(None),
-            error: RefCell::new(None),
             creation,
         }
     }
@@ -389,18 +387,13 @@ impl GameCreation {
             games,
             listing: self.listing.get(),
             module,
-            error: self
-                .error
-                .borrow()
-                .clone()
-                .or_else(|| self.listing_error.borrow().clone()),
+            error: self.listing_error.borrow().clone(),
             ready: chosen.is_some(),
         }
     }
 
     fn choose(&self, chosen: Chosen) {
         self.chosen.set(Some(chosen));
-        *self.error.borrow_mut() = None;
     }
 
     fn create_block(&self) -> Result<Uuid, String> {
@@ -459,10 +452,7 @@ impl GameCreationModel for GameCreation {
                 let Some(creation) = this.and_then(|this| this.try_value()) else {
                     return;
                 };
-                match picked {
-                    Ok(module) => creation.choose(Chosen::Module(module.id())),
-                    Err(error) => *creation.error.borrow_mut() = Some(error.to_string()),
-                }
+                creation.choose(Chosen::Module(picked.id()));
                 creation.changed();
             });
         self.changed();
