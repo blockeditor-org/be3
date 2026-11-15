@@ -4,14 +4,15 @@ use super::*;
 fn a_message_shows_as_sending_until_it_is_delivered() {
     let mut chat = Harness::new(&[(ROSA, "Are you on the train yet?")]);
 
+    chat.editor.store().hold_submissions(true);
     chat.write("Just got on");
     chat.click("chat.send");
     let on = chat.id(1);
     assert!(
         chat.row(on).contains("Sending"),
-        "a message its replica confirmed is sending until the server holds it"
+        "a message is sending until the server holds it"
     );
-    chat.editor.advance(Duration::from_millis(500));
+    chat.editor.store().hold_submissions(false);
     chat.editor.run();
     assert!(
         !chat.row(on).contains("Sending"),

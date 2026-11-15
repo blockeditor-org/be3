@@ -1,7 +1,8 @@
 use super::*;
 
 /// Edits show at once while the server says nothing, and stopping does not wait on it longer
-/// than a flush does. The device keeps the edits, and sends them once it is back.
+/// than a flush does. The device keeps the edits, so they are saved though the server has not
+/// ordered them, and sends them once it is back.
 #[test]
 fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
     let harness = Harness::relayed().on_manual_clock();
@@ -20,9 +21,9 @@ fn typing_shows_while_the_server_is_silent_and_stopping_does_not_wait_on_it() {
         status().connected,
         "the edits showed only once the connection was given up"
     );
-    assert!(
-        status().unsaved > 0,
-        "what the server has not ordered is unsaved"
+    wait_until(
+        "kept the edits the server has not ordered, which are saved on the device",
+        |shared| shared.undurable == 0,
     );
 
     let (stopped, stopping) = std::sync::mpsc::channel();
