@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::{EditorHost, OwnedEditor};
 use be_sdk_test::BeuiTest;
@@ -9,7 +7,7 @@ use uuid::Uuid;
 
 use super::{PEER, shown_cursor};
 use crate::root::TextRoot;
-use crate::root::position::{POSITION, Position};
+use crate::root::position::Position;
 
 fn opened(
     block: Uuid,
@@ -30,10 +28,7 @@ fn opened(
 
 fn saved(editor: &BeuiTest<TextRoot>, view: Uuid) -> (EditorViewContent, Option<Position>) {
     let content = editor.content::<EditorViewContent>(Some(view));
-    let position = content
-        .root()
-        .state(POSITION)
-        .and_then(|state| state.value::<Position>());
+    let position = content.root().view_state::<Position>().and_then(Result::ok);
     (content, position)
 }
 
@@ -93,14 +88,25 @@ fn a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret() {
     first.run();
     first.type_text("Y");
     first.run();
-    first.advance(Duration::from_secs(1));
-    first.run();
     let left = top_line(&first);
     assert_ne!(left.0, "Line 1", "the view was scrolled down");
-    let (kept, position) = saved(&first, view);
+    let (_, position) = saved(&first, view);
     assert!(
         position.is_some(),
-        "where the text was left is saved once it holds still"
+        "where the text was left is saved as it changes"
+    );
+
+    // Hidden, then squeezed as it is taken down, the view clamps and rewraps: what is kept is
+    // still where the person left it.
+    let size = first.size();
+    first.presence_visible(false);
+    first.resize(Vec2::new(size.x / 4.0, 40.0));
+    first.resize(Vec2::new(size.x, 1.0));
+    let (kept, squeezed) = saved(&first, view);
+    assert_eq!(
+        squeezed.as_ref().map(|kept| &kept.line_start),
+        position.as_ref().map(|kept| &kept.line_start),
+        "taking the view down does not move what is kept"
     );
 
     let left_text = TextBlock::text(&first.content::<TextContent>(None));

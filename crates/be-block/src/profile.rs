@@ -1,10 +1,10 @@
+use be_block_content::ViewStateKind;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub const WORKSPACE_EDITOR: Uuid = Uuid::from_u128(0xde8b_500a_12d8_4bc0_8381_8bbf_dc9f_e34f);
 pub const FILES_EDITOR: Uuid = Uuid::from_u128(0x9026_bab5_b23e_4b81_a693_d3a2_5090_5f9e);
 pub const DESKTOP_EDITOR: Uuid = Uuid::from_u128(0x378d_6c68_d52a_4781_addb_fde9_a8af_f2e2);
-pub const RECENTS: &str = "recents";
 pub const MAX_RECENT: usize = 20;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -15,6 +15,11 @@ pub struct RecentBlock {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Recents(pub Vec<RecentBlock>);
+
+/// Kept in a workspace's profile view.
+impl ViewStateKind for Recents {
+    const ID: Uuid = Uuid::from_u128(0x7072_6f66_696c_652d_7265_6365_6e74_0001);
+}
 
 impl Recents {
     pub fn visit(&self, block: Uuid, block_type: Uuid) -> Option<Self> {

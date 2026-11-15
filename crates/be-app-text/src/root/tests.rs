@@ -11,7 +11,7 @@ use super::*;
 use crate::presence::TextCursor;
 use crate::root::TextRoot;
 use crate::root::embeds::{image_embed_directive, parse_embeds};
-use crate::root::state::LINE_NUMBERS;
+use crate::root::state::LineNumbers;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
@@ -219,6 +219,7 @@ fn line_numbers(editor: &BeuiTest<TextRoot>, view: Uuid) -> Option<bool> {
     editor
         .content::<EditorViewContent>(Some(view))
         .root()
-        .state(LINE_NUMBERS)
-        .and_then(|state| state.value::<bool>())
+        .view_state::<LineNumbers>()
+        .and_then(Result::ok)
+        .map(|kept| kept.0)
 }

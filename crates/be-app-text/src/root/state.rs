@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use be_sdk_beui::BlockQuery;
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_block_content::presence::pick_free_color;
 use be_sdk_beui::{BlockList, Blocks};
 use be_sdk_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBaseWatch};
@@ -14,6 +14,7 @@ use beui::reactive::*;
 use beui::styled::TextAreaState;
 use beui::{Rect, Vec2};
 use beui_text_editor_core::{EditorCommand, TextLanguage};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::document::{BlockDocument, TextBody, inside_block_url};
@@ -23,8 +24,13 @@ use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
 use be_type_image::ImageContent;
 use be_type_text::TextContent;
 
-/// The view state key whether the gutter of line numbers is shown is kept under.
-pub(crate) const LINE_NUMBERS: &str = "line-numbers";
+/// Whether the gutter of line numbers is shown, kept in the view's state.
+#[derive(Deserialize, PartialEq, Serialize)]
+pub(crate) struct LineNumbers(pub bool);
+
+impl ViewStateKind for LineNumbers {
+    const ID: Uuid = Uuid::from_u128(0x7465_7874_2d6c_696e_652d_6e75_6d00_0001);
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct FocusedEmbed {
@@ -45,7 +51,7 @@ pub(crate) struct State {
     pub embeds: Signal<Vec<ResolvedEmbed>>,
     pub hex_view: Signal<bool>,
     /// Whether the gutter of line numbers is shown: a choice of this view, kept in its state
-    /// (`LINE_NUMBERS`), not in the text. Off until it is chosen.
+    /// (`LineNumbers`), not in the text. Off until it is chosen.
     pub line_numbers: Memo<bool>,
     pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
@@ -85,19 +91,13 @@ impl State {
         let dependencies = client.watch(BlockQuery::References(block_id));
         let embeds = create_signal(Vec::new());
         let hex_view = create_signal(false);
+        let kept_line_numbers = editor.view_state::<LineNumbers>();
         let line_numbers = create_memo(move || {
-            editor
-                .view_content()
-                .and_then(|view| {
-                    view.read(|held| {
-                        held.root()
-                            .state(LINE_NUMBERS)
-                            .and_then(ViewState::value::<bool>)
-                    })
-                    .ok()
-                    .flatten()
-                })
-                .unwrap_or(false)
+            kept_line_numbers
+                .get()
+                .ok()
+                .flatten()
+                .is_some_and(|kept| kept.0)
         });
         let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
@@ -211,8 +211,7 @@ impl State {
     /// Shows the gutter of line numbers if it is hidden, else hides it, for this view.
     pub fn toggle_line_numbers(&self) {
         let shown = !self.line_numbers.get_untracked();
-        self.editor
-            .set_view_state(LINE_NUMBERS, Some(&ViewState::new(&shown, Vec::new())));
+        self.editor.view_state().set(Some(LineNumbers(shown)));
     }
 
     pub fn create_image_block(&self, image: &ImageContent) -> Uuid {

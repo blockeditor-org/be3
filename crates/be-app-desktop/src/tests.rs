@@ -18,13 +18,15 @@ use be_sdk_beui::{
     WifiSecurity, WifiStatus, WifiWatch, WindowKind, WindowOrigin, WindowsWatch,
 };
 
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
-use be_sdk_shell::{SHELL_BARS, SavedProgram, saved_programs};
+use be_sdk_shell::{SHELL_BARS, SavedLayout, SavedProgram, saved_programs};
 use be_sdk_test::BeuiTest;
 use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::root::DesktopRoot;
+use crate::root::calendar::KeptCalendar;
 use crate::root::media::{BINDINGS, BRIGHTNESS_STEP, VOLUME_STEP};
 
 mod a_band_over_a_full_screen_window_comes_out_only_for_a_deliberate_push;
@@ -280,11 +282,7 @@ impl Fixture {
     }
 
     fn kept(&self) -> Vec<SavedProgram> {
-        self.saved()
-            .root()
-            .state("layout")
-            .map(saved_programs)
-            .unwrap_or_default()
+        saved_programs(&self.saved().root())
     }
 
     fn block_chips(&self) -> Vec<String> {
@@ -745,8 +743,9 @@ impl Fixture {
         self.test
             .content::<EditorViewContent>(None)
             .root()
-            .state("desktop.calendar")
-            .and_then(|state| state.refs.first().copied())
+            .view_state::<KeptCalendar>()
+            .and_then(Result::ok)
+            .and_then(|kept| kept.0.block())
     }
 
     /// Offers the screen edges watch on one 800 by 600 display and auto-hides the bottom band.

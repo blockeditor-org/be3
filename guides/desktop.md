@@ -83,7 +83,7 @@ child.
 
 **A program window is a tab.** be-sdk-shell's `Workspace` has one tab model whose content is a
 block or a program (`program.rs`: `Program { window, record }`). Program tabs take keys from the
-same counter as block tabs and are saved with the dock layout in the `layout` view state
+same counter as block tabs and are saved with the dock layout in the `SavedLayout` view state
 (`saved::SavedProgram`). The desktop app floats each in a dock window of its own (`ProgramWindow`);
 workspace-ui puts them in its editors pane, or floating where the host opens windows (in space).
 `program::place` binds windows to tabs.
@@ -202,7 +202,7 @@ try it: Apps panel > Menu > Running Apps, then Crash or Kill beside `be3.desktop
 
 ## A layout that cannot be read
 
-When the `layout` view state does not decode, the desktop starts nothing from it and saves nothing
+When the `SavedLayout` view state does not decode, the desktop starts nothing from it and saves nothing
 over it: be-sdk-shell's notice (`workspace.layout`; guides/blocks/workspaces.md, View state)
 offers Reset layout, Exit and Copy report. Running programs show behind it as windows but are not
 saved until a reset. Exit is Log out in a login session. The same holds for further displays' bar

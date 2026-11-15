@@ -77,7 +77,7 @@ Apps panel, and Super still opens the panel, centred over the windows' area
 - The clock (`desktop.clock`, `root/clock.rs`) with the unread notification count; it opens a
   calendar month with the day's events beside the notification history (`root/calendar.rs`,
   `root/notifications/history.rs`). The events come from a database calendar view the desktop
-  creates once and remembers in its `desktop.calendar` view state. Toasts make way while it is open.
+  creates once and remembers in its `KeptCalendar` view state. Toasts make way while it is open.
 
 While the session is ending, the ending bar (`root/ending.rs`) names the programs still open, with
 Cancel and End now (guides/desktop/login_session.md, Power and logging out).

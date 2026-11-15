@@ -28,6 +28,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
+mod a_burst_of_view_state_writes_is_journaled_as_one_put_each;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending;
@@ -46,6 +47,7 @@ mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
 mod a_follower_whose_catchup_was_lost_asks_again;
+mod a_followers_burst_of_view_state_writes_is_sent_as_one_put_each;
 mod a_followers_edit_after_it_reopens_on_the_same_connection_lands;
 mod a_followers_edit_the_owner_took_and_sealed_while_it_was_deaf_lands_once;
 mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
@@ -457,6 +459,8 @@ struct Sim<C: LiveEdit + Clone + Default> {
     held: Vec<(usize, Call)>,
     deaf: BTreeSet<usize>,
     largest_relay: usize,
+    /// What each device sent its peers, in order: (device, bytes).
+    sent: Vec<(usize, Vec<u8>)>,
     part_reads: usize,
     parts_put: usize,
     fail_puts: usize,
@@ -528,6 +532,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             held: Vec::new(),
             deaf: BTreeSet::new(),
             largest_relay: 0,
+            sent: Vec::new(),
             part_reads: 0,
             parts_put: 0,
             fail_puts: 0,
@@ -1039,6 +1044,9 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 };
                 if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
                     return;
+                }
+                if !matches!(to, Recipients::One(Endpoint::Editor(_) | Endpoint::Host)) {
+                    self.sent.push((device, bytes.clone()));
                 }
                 match to {
                     Recipients::One(Endpoint::Editor(editor)) => {

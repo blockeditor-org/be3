@@ -1,4 +1,7 @@
-use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState, ViewStateKind};
+use be_sdk_shell::{ClosedViews, SavedLayout};
+
+use crate::root::FilesView;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 
 use be_sdk_beui::beui::{NodeId, Rect, ScrollDelta, Vec2};
@@ -413,7 +416,7 @@ fn profiled_sized(size: Option<Vec2>, layout: Option<ViewState>) -> (Fixture, Uu
     if let Some(layout) = layout {
         let edit = profile
             .root()
-            .set_state("layout", Some(&layout), 1, Uuid::nil());
+            .put_stored(SavedLayout::ID, Some(&layout), 1, Uuid::nil());
         profile.apply(&edit);
     }
     open_editor(size, Some(profile))
