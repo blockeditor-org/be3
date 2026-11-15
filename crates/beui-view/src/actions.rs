@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use std::any::Any;
 
 use crate::reactive::{
-    Get, IntoProp, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal, Prop, Set,
+    Get, IntoProp, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal, Prop, Set,
     create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
 };
 use crate::types::icons::Glyph;
@@ -307,13 +307,13 @@ impl ActionBuilder {
         self
     }
 
-    pub fn enabled(mut self, enabled: impl IntoProp<bool>) -> Self {
-        self.enabled = enabled.into_prop();
+    pub fn enabled<M>(mut self, enabled: impl IntoPropWith<bool, M>) -> Self {
+        self.enabled = enabled.into_prop_with();
         self
     }
 
-    pub fn checked(mut self, checked: impl IntoProp<bool>) -> Self {
-        self.checked = Some(checked.into_prop());
+    pub fn checked<M>(mut self, checked: impl IntoPropWith<bool, M>) -> Self {
+        self.checked = Some(checked.into_prop_with());
         self.radio = false;
         self
     }

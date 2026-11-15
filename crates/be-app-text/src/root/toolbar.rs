@@ -26,40 +26,31 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
     let tab = use_frame_anchor();
     let settings = create_signal(false);
     menu_actions(state, settings);
-    let hex = state.hex_view;
-    let text_view = create_memo(move || !hex.get());
-    let hex_view = create_memo(move || hex.get());
     view! {
         <Dialog
             open={settings}
             title="Text settings"
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={move || settings.set(false)}
         >
-            <List spacing=SETTINGS_SPACING>
-                <Show condition={text_view}>
-                    <TextSettings state={state} />
-                </Show>
-                <Show condition={hex_view}>
-                    <HexSettings state={state} />
-                </Show>
-            </List>
+            <Show condition={state.hex_view} fallback={move || view! { <TextSettings state={state} /> }}>
+                <HexSettings state={state} />
+            </Show>
         </Dialog>
     }
 }
 
 fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
-    let in_text = create_memo(move || !hex.get());
     let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
         .glyph(ICON_BRACKETS)
-        .checked(create_memo(move || hex.get()))
+        .checked(hex)
         .register();
     let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
     .glyph(ICON_SQUARE_PLUS)
-    .enabled(in_text)
+    .enabled(move || !hex.get())
     .register();
     let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
         .glyph(ICON_SETTINGS)
@@ -169,15 +160,14 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
 }
 
 #[component]
-pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
+pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<ListItem> {
     let typing = state.typing;
     let hex = state.hex_view;
     let row = NodeRef::new();
     let held = holds_focus(row);
     arrow_focus(row, Direction::Horizontal);
     let shown = create_memo(move || (typing.get() || held.get()) && !hex.get());
-    let touch = state.text.touch_mode();
-    let keyboard = create_memo(move || touch.get());
+    let keyboard = state.text.touch_mode();
     let content = state.text.content();
     let markdown = create_memo(move || {
         content.get();
@@ -204,9 +194,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                             <ListItem grow=1.0>
                                 <Scroll direction=Direction::Horizontal>
                                     <Frame padding=FORMAT_PADDING>
-                                        <List spacing=Space::None>
-                                            <Show condition={markdown} then={controls} />
-                                        </List>
+                                        <Show condition={markdown} then={controls} />
                                     </Frame>
                                 </Scroll>
                             </ListItem>
@@ -228,9 +216,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
         }
     };
     view! {
-        <List spacing=Space::None>
-            <Show condition={shown} then={bar} />
-        </List>
+        <Show condition={shown} then={bar} />
     }
 }
 
