@@ -219,7 +219,10 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   the first recent message usually names the newest closed one, so an open
   chat with segments reads that segment once. A filter more than three
   quarters full (`Segment::over_full`) excuses nothing, since anyone with Edit
-  can write one. Rows read back from closed segments are not checked, and the
+  can write one. A part whose bytes fail their length or hash check against
+  the index counts as not holding it, so breaking a segment's entry hides no
+  gap; a part that cannot be read at all (offline, an error) shows nothing
+  until it can. Rows read back from closed segments are not checked, and the
   newest messages removed together, after their authors' last ones, are named
   by none, so they show nothing.
 
