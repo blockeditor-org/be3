@@ -11,6 +11,7 @@ use beui_view::drag::{
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
 use beui_view::types::Velocity;
+use beui_view::types::input::PointerId;
 
 use super::Board;
 
@@ -43,6 +44,8 @@ pub(crate) struct Placing {
     told: Option<(u64, Option<CandidateId>)>,
     velocity: Velocity,
     last: Option<DragPoint>,
+    /// The pointer that lifted it: only it moves and releases the carry.
+    pointer: PointerId,
 }
 
 fn closest_of(specs: &[(u64, DragSpec<Placed>)]) -> DragSpec<Placed> {
@@ -117,11 +120,20 @@ impl Board {
             frame: DragFrame::default(),
             chosen: None,
             told: None,
+            pointer: point.pointer,
             velocity: Velocity::new(now(), point.pos),
             last: None,
         });
         self.lifted.update(|lifted| *lifted = Some(payload));
         self.place(point, false);
+    }
+
+    /// Whether the carry is held by `pointer`; another pointer's moves and releases leave it.
+    pub(crate) fn carried_by(&self, pointer: PointerId) -> bool {
+        self.placing
+            .borrow()
+            .as_ref()
+            .is_some_and(|placing| placing.pointer == pointer)
     }
 
     pub(crate) fn placing(&self) -> bool {

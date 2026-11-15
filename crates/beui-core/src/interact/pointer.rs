@@ -217,6 +217,7 @@ impl Session {
             window: self.window,
             pen: self.pen,
             predicted: self.predicted,
+            pointer: self.pointer,
             ..press_at(
                 rect,
                 scale,
@@ -1076,8 +1077,9 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
                 && let Some(drags) = doc.drags.clone()
             {
                 let modifiers = frame.ctx.input(|input| input.modifiers);
-                let point =
-                    beui_types::drag::DragPoint::at(pos, modifiers).in_window(session.window);
+                let point = beui_types::drag::DragPoint::at(pos, modifiers)
+                    .in_window(session.window)
+                    .by(session.pointer);
                 drags.track(point, &|node| drag_order(doc, node));
             }
             if !cancelled {
@@ -1132,7 +1134,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, lost: bool) {
             if doc.dragging()
                 && let Some(drags) = doc.drags.clone()
             {
-                drags.release(cancelled, &|node| drag_order(doc, node));
+                drags.release(session.pointer, cancelled, &|node| drag_order(doc, node));
             }
         }
         Role::Secondary => {}
@@ -1756,8 +1758,17 @@ fn track(doc: &mut Document, frame: &Frame) {
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, window, touch });
+    // The pointer is the one pressing, whose drag this frame re-sends.
+    let held = doc
+        .pointers
+        .sessions
+        .iter()
+        .find(|session| session.role == Role::Press)
+        .map_or(PointerId::Mouse, |session| session.pointer);
     if let Some(drags) = doc.drags.clone() {
-        let point = beui_types::drag::DragPoint::at(pos, modifiers).in_window(window);
+        let point = beui_types::drag::DragPoint::at(pos, modifiers)
+            .in_window(window)
+            .by(held);
         drags.track(point, &|node| drag_order(doc, node));
     }
 }
