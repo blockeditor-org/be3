@@ -84,14 +84,22 @@ pub fn Interactive(
     let activates = !on_activate.is_empty() || !on_activate_change.is_empty();
     let source = crate::reactive::NodeRef::new();
     let (on_press, on_drag, on_key, children) = match drag {
-        Some(drag) => carrying(
-            drag,
-            (focusable, activates, source),
-            on_press,
-            on_drag,
-            on_key,
-            children,
-        ),
+        Some(drag) => {
+            let carry = carrying(drag, (focusable, activates, source), on_press, on_drag);
+            let Face {
+                raised,
+                offset,
+                said,
+                anchor,
+                open,
+                preview,
+            } = carry.face.clone();
+            let face = view! {
+                <CarriedFace raised offset said anchor open preview children />
+            };
+            let on_key = (carry.finish)(face, on_key);
+            (carry.pressed, carry.dragged, on_key, Some(face.into()))
+        }
         None => (on_press, on_drag, on_key, children),
     };
     let node = crate::core::interactive(
@@ -164,19 +172,32 @@ type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 /// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
 /// (`carry_keys`). If this node goes
 /// while its carry is held, the carry is put down, dropping nothing.
+/// What `CarriedFace` draws from.
+#[derive(Clone)]
+struct Face {
+    raised: crate::reactive::Memo<bool>,
+    offset: crate::reactive::Memo<Vec2>,
+    said: crate::reactive::Memo<Option<String>>,
+    anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
+    open: crate::reactive::Memo<bool>,
+    preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
+}
+
+/// A source's carrying, before its face is built: the press callbacks, what the face draws
+/// from, and, once the face is built, the key callback (which measures and lifts the face).
+struct Carrying {
+    pressed: Callback<PointerPress>,
+    dragged: Callback<PointerPress>,
+    face: Face,
+    finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
+}
+
 fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
     (focusable, activates, source): (bool, bool, crate::reactive::NodeRef),
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
-    on_key: Callback<KeyPress, bool>,
-    children: Option<Child>,
-) -> (
-    Callback<PointerPress>,
-    Callback<PointerPress>,
-    Callback<KeyPress, bool>,
-    Option<Child>,
-) {
+) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use std::cell::RefCell;
     use crate::types::Rect;
@@ -276,31 +297,43 @@ fn carrying(
             mine.set(Some(id));
         }) as Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>
     };
-    let wrapped = view! {
-        <CarriedFace raised offset said anchor open preview={Rc::clone(&preview)} children />
+    let face = Face {
+        raised,
+        offset,
+        said,
+        anchor,
+        open,
+        preview: Rc::clone(&preview),
     };
-    let laid_out = crate::measure::measure(wrapped);
-    measured.set(Some(laid_out));
-    // Only a source that takes focus hears keys, and offers "Move" in the palette while it
-    // has the focus, in an action scope of its own.
-    let keyed = match focusable {
-        true => {
-            let lift = Rc::clone(&keyboard_lift);
-            crate::reactive::child_scope(move || {
-                crate::actions::action_scope(&source);
-                crate::actions::Action::new("drag.move", "Move", move || {
-                    lift_by_keys(drag, (wrapped, laid_out), &lift);
+    let finish = Box::new(move |wrapped: NodeId, on_key: Callback<KeyPress, bool>| {
+        let laid_out = crate::measure::measure(wrapped);
+        measured.set(Some(laid_out));
+        // Only a source that takes focus hears keys, and offers "Move" in the palette while
+        // it has the focus, in an action scope of its own.
+        match focusable {
+            true => {
+                let lift = Rc::clone(&keyboard_lift);
+                crate::reactive::child_scope(move || {
+                    crate::actions::action_scope(&source);
+                    crate::actions::Action::new("drag.move", "Move", move || {
+                        lift_by_keys(drag, (wrapped, laid_out), &lift);
+                    })
+                    .register();
+                });
+                Callback::new(move |press: KeyPress| {
+                    carry_keys(press, activates, drag, mine, (wrapped, laid_out), &keyboard_lift)
+                        || on_key.call(press)
                 })
-                .register();
-            });
-            Callback::new(move |press: KeyPress| {
-                carry_keys(press, activates, drag, mine, (wrapped, laid_out), &keyboard_lift)
-                    || on_key.call(press)
-            })
+            }
+            false => on_key,
         }
-        false => on_key,
-    };
-    (pressed, dragged, keyed, Some(wrapped.into()))
+    });
+    Carrying {
+        pressed,
+        dragged,
+        face,
+        finish,
+    }
 }
 
 
