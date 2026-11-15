@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use beui::{
-    Keystroke, Modifiers, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
+    Keystroke, Pen, PenPhase, PointerButton, Pos2, ScrollDelta, TouchId, TouchPhase,
     TouchpadGesture, native::Setup, native::Waker, vec2,
 };
 use beui_core::clipboard::{Clip, PasteAnswer};
@@ -63,7 +63,7 @@ use crate::input::{
     InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, Pointing,
     RawInput, SharedFilter,
 };
-use crate::keyboard::Keyboard;
+use crate::keyboard::{Keyboard, seat_edge};
 use crate::layout::{arrange, clamp, mirrored_scale};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::outputs::{DisplayRenderer, Outputs};
@@ -1338,10 +1338,10 @@ impl Session {
             }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
-                self.filtered(RawInput::Key {
-                    code,
-                    pressed: event.state() == KeyState::Pressed,
-                });
+                let pressed = event.state() == KeyState::Pressed;
+                if seat_edge(pressed, event.count()) {
+                    self.filtered(RawInput::Key { code, pressed });
+                }
             }
             InputEvent::PointerMotion { event } => {
                 if self.platform.locked {
@@ -1745,9 +1745,6 @@ impl Card for Session {
             self.push(input);
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {
-            if self.keyboard.modifiers() != Modifiers::NONE {
-                self.push(beui::Input::Modifiers(Modifiers::NONE));
-            }
             self.keyboard = keyboard;
         }
         if self.blanked {

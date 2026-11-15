@@ -40,8 +40,8 @@ fn a_key_held_while_the_keyboard_moves_to_another_window_is_released_there() {
             Heard::Enter(vec![KEY_LEFTCTRL]),
             Heard::Key(KEY_LEFTCTRL, false),
         ],
-        "the window the keyboard moved to entered with Ctrl held, so it hears Ctrl let go, as \
-         when Super+Tab moves the keyboard straight from one window to another"
+        "the window the click moved the keyboard to entered with Ctrl held, so it hears Ctrl \
+         let go, though the window that took the press had the keyboard then"
     );
     assert_eq!(harness.client.received.depressed & CONTROL_MASK, 0);
     assert!(
