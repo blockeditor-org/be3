@@ -126,7 +126,9 @@ it is on a phone; thresholds are the styled `Docking`'s `NARROW_WIDTH`, `SHORT_H
 `PHONE_LANDSCAPE_WIDTH`):
 
 - **Stacked** (`DockMode::Stacked`): the focused tab fills the dock under the dock's own stacked bar
-  (icon and title, a count that opens a sheet of open tabs, back). No tab bars, splitters or
+  (icon and title, a count that opens a sheet of open tabs, back). A joined editor's stage (the one
+  bare pane of its group) is named and counted as the tab its dock took the place of
+  (`DockState::standing_in`), so a document reads as itself. No tab bars, splitters or
   windows, but the whole state is kept, so widening tiles it again. Locks are ignored while
   stacked.
 - **Gathered** (`DockMode::Compact`): a compact tree with a bare stage pane (an editor's stage,
