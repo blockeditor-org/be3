@@ -1,16 +1,15 @@
 use super::*;
 
-use std::sync::atomic::Ordering;
-
-/// What typing into a block copies of the graph, which the page's `Seen` shares with the
-/// worker: a few nodes, whatever the graph's size, not the whole graph per edit.
+/// What typing into a block copies of the worker's graph, which the page's `Seen` shares: the
+/// nodes it changes, whatever the graph's size, not the whole graph per edit.
 fn copied_by_a_keystroke(block: Uuid, count: &mut i64) -> u64 {
-    crate::graph::NODES_COPIED.store(0, Ordering::Relaxed);
+    let copied = || with_shared(|shared| shared.graph.copied_on_write).unwrap_or_default();
+    let before = copied();
     *count += 1;
     add(block, 1);
     wait_for_count(block, *count);
     flush();
-    crate::graph::NODES_COPIED.load(Ordering::Relaxed)
+    copied() - before
 }
 
 #[test]
