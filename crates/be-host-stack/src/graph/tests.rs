@@ -11,6 +11,7 @@ mod a_folders_blocks_leave_once_nothing_lists_it;
 mod a_head_an_open_block_reported_outlasts_what_is_listed_of_it;
 mod a_listing_whose_request_got_no_answer_is_asked_for_again;
 mod a_placed_child_its_parent_drops_again_is_noted;
+mod a_head_change_copies_one_node_not_the_graph_a_seen_shares;
 mod an_older_announcement_never_undoes_a_newer_one;
 
 fn node(id: Uuid) -> Node {

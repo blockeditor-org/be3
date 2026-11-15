@@ -2116,6 +2116,39 @@ third_party = {
         ],
         "version": "1.9.4",
     },
+    "archery-1.2.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Diogo Sousa <diogogsousa@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Abstract over the atomicity of reference-counting pointers",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/orium/archery",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/orium/archery",
+            "CARGO_PKG_RUST_VERSION": "1.85.0",
+        },
+        "library": {
+            "crate": "archery",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "archery",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.2.3",
+    },
     "argon2-0.5.3": {
         "build_script": None,
         "env": {
@@ -4992,6 +5025,77 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "2.12.1",
+    },
+    "bitmaps-3.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>",
+            "CARGO_PKG_DESCRIPTION": "Fixed size boolean arrays",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "./README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/bodil/bitmaps",
+        },
+        "library": {
+            "crate": "bitmaps",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "bitmaps",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "3.2.1",
     },
     "blake2-0.10.6": {
         "build_script": None,
@@ -27115,6 +27219,198 @@ third_party = {
         ],
         "version": "0.15.0",
     },
+    "imbl-5.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>:Joe Neeman <joeneeman@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Immutable collection datatypes",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/jneem/imbl",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jneem/imbl",
+            "CARGO_PKG_RUST_VERSION": "1.77",
+        },
+        "library": {
+            "crate": "imbl",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "imbl",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":archery-1.2.3",
+                    ":bitmaps-3.2.1",
+                    ":imbl-sized-chunks-0.1.3",
+                    ":rand_core-0.9.5",
+                    ":rand_xoshiro-0.7.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "5.0.0",
+    },
+    "imbl-sized-chunks-0.1.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Bodil Stokke <bodil@bodil.org>:Joe Neeman <joeneeman@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Efficient sized chunk datatypes",
+            "CARGO_PKG_LICENSE": "MPL-2.0+",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/jneem/imbl-sized-chunks",
+        },
+        "library": {
+            "crate": "imbl_sized_chunks",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "imbl-sized-chunks",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitmaps-3.2.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.1.3",
+    },
     "indexmap-2.14.0": {
         "build_script": None,
         "env": {
@@ -43993,6 +44289,71 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.9.5",
+    },
+    "rand_xoshiro-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rand Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Xoshiro, xoroshiro and splitmix64 random number generators",
+            "CARGO_PKG_HOMEPAGE": "https://rust-random.github.io/book",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-random/rngs",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "rand_xoshiro",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rand_xoshiro",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":rand_core-0.9.5",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.0",
     },
     "range-alloc-0.1.5": {
         "build_script": None,

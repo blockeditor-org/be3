@@ -224,6 +224,12 @@ downloads = {
         "size_bytes": 83471,
         "version": "1.9.4",
     },
+    "archery-1.2.3": {
+        "name": "archery",
+        "sha256": "33ca55ee147b1926dbea904f50fe4902494e97bc742205abbbf10c709e43815f",
+        "size_bytes": 19957,
+        "version": "1.2.3",
+    },
     "argon2-0.5.3": {
         "name": "argon2",
         "sha256": "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072",
@@ -511,6 +517,12 @@ downloads = {
         "sha256": "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a",
         "size_bytes": 50766,
         "version": "2.12.1",
+    },
+    "bitmaps-3.2.1": {
+        "name": "bitmaps",
+        "sha256": "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6",
+        "size_bytes": 19587,
+        "version": "3.2.1",
     },
     "blake2-0.10.6": {
         "name": "blake2",
@@ -2168,6 +2180,18 @@ downloads = {
         "size_bytes": 29653,
         "version": "0.15.0",
     },
+    "imbl-5.0.0": {
+        "name": "imbl",
+        "sha256": "e4308a675e4cfc1920f36a8f4d8fb62d5533b7da106844bd1ec51c6f1fa94a0c",
+        "size_bytes": 121245,
+        "version": "5.0.0",
+    },
+    "imbl-sized-chunks-0.1.3": {
+        "name": "imbl-sized-chunks",
+        "sha256": "8f4241005618a62f8d57b2febd02510fb96e0137304728543dfc5fd6f052c22d",
+        "size_bytes": 43637,
+        "version": "0.1.3",
+    },
     "indexmap-1.9.3": {
         "name": "indexmap",
         "sha256": "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99",
@@ -3517,6 +3541,12 @@ downloads = {
         "sha256": "76afc826de14238e6e8c374ddcc1fa19e374fd8dd986b0d2af0d02377261d83c",
         "size_bytes": 24129,
         "version": "0.9.5",
+    },
+    "rand_xoshiro-0.7.0": {
+        "name": "rand_xoshiro",
+        "sha256": "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41",
+        "size_bytes": 18189,
+        "version": "0.7.0",
     },
     "range-alloc-0.1.5": {
         "name": "range-alloc",
