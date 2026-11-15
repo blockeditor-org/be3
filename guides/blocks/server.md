@@ -689,8 +689,9 @@ one). A passkey identity's subject is `"{rp_id} {credential id}"`, so one made
 before `--auth-origin` changed is never found, and its `credential` the key and
 counter; its user handle is the account's id. They are made
 discoverable (`residentKey: required`), so the sign-in page offers one before an
-email is typed. A page that offers a ceremony (sign-in; on settings and
-sessions, adding one when the proof is fresh, else proving with one) begins it
+email is typed. A page that offers a ceremony (sign-in; on settings, adding one
+when the proof is fresh; on settings and sessions without one, proving with
+one) begins it
 when it renders and keeps its state in the page's form token
 (`browser_auth::Sessions::form`), which is bound to the browser's session,
 single use and ten minutes long. The portal's wasm
@@ -700,7 +701,13 @@ page's options (`PasskeyOffer`, WebAuthn's JSON) and posts
 it builds, with the page's token, so the answer meets the portal's Origin check
 and spends the ceremony; webauthn-rs checks the challenge, the origin, the RP
 ID's hash and user verification. Adding checks the fresh proof again when it
-lands. Tests use a software authenticator (`fake_authenticator.rs`).
+lands, and an account holds at most `MAX_PASSKEYS`, each stored in at most
+`MAX_CREDENTIAL_BYTES`. A use is kept only if its counter is past the stored
+one, compared in the transaction that keeps it, so two at once don't both
+count. A passkey for another RP ID neither signs in nor counts as an account's
+remaining way in when another identity is removed. Every failed passkey
+sign-in gives one answer, so it tells no one which credentials exist. Tests
+use a software authenticator (`fake_authenticator.rs`).
 
 The protocol has the browser sign-in's one-shot `begin-browser-login` and
 `poll-browser-login` ("Signing in" above), token `Authenticate`, header

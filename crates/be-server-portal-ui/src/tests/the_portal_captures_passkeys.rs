@@ -24,7 +24,7 @@ fn the_portal_captures_passkeys() {
     let passkey = IdentityRow {
         id: "passkey".into(),
         kind: "passkey".into(),
-        label: "Passkey added 2026-11-15".into(),
+        label: "Passkey added 2026-11-15 14:02 UTC (q3Xv9A)".into(),
         removable: true,
     };
     // Fresh: the account's passkeys are listed for removal, and another can be added.

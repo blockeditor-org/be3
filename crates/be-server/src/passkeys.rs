@@ -116,12 +116,15 @@ pub(crate) fn answer<T: serde::de::DeserializeOwned>(credential: &str) -> Result
 
 /// A refusal for a passkey answer the relying party did not accept.
 pub(crate) fn not_accepted(_: webauthn_rs::prelude::WebauthnError) -> ServerError {
-    refused("That passkey did not work here. Try again, or sign in another way.")
+    refused(crate::store::passkeys::DID_NOT_WORK)
 }
 
-/// How the settings page names a passkey: when it was added, from its identity's `created`.
-pub(crate) fn label(created: i64) -> String {
+/// How the settings page names a passkey: when it was added (UTC), from its identity's
+/// `created`, and the start of its credential id, from its `subject`, so two added the same
+/// minute still differ.
+pub(crate) fn label(created: i64, subject: &str) -> String {
     let days = created.div_euclid(86400);
+    let seconds = created.rem_euclid(86400);
     // Howard Hinnant's civil_from_days.
     let z = days + 719468;
     let era = z.div_euclid(146097);
@@ -133,5 +136,8 @@ pub(crate) fn label(created: i64) -> String {
     let day = day_of_year - (153 * shifted + 2) / 5 + 1;
     let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
     let year = year_of_era + era * 400 + i64::from(month <= 2);
-    format!("Passkey added {year}-{month:02}-{day:02}")
+    let (hour, minute) = (seconds / 3600, seconds % 3600 / 60);
+    let credential = subject.rsplit(' ').next().unwrap_or_default();
+    let short: String = credential.chars().take(6).collect();
+    format!("Passkey added {year}-{month:02}-{day:02} {hour:02}:{minute:02} UTC ({short})")
 }

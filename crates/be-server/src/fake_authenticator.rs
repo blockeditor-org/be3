@@ -59,7 +59,7 @@ pub struct FakeAuthenticator {
     user_handle: Vec<u8>,
     /// The RP ID it signs for: the one it was made for, unless a test changes it.
     pub rp_id: String,
-    counter: u32,
+    pub counter: u32,
 }
 
 impl FakeAuthenticator {

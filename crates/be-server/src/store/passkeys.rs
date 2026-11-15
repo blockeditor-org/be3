@@ -30,6 +30,17 @@ fn stored(passkey: &Passkey) -> Result<String, ServerError> {
     serde_json::to_string(passkey).map_err(|_| ServerError::Corrupt)
 }
 
+/// Passkeys one account may hold.
+pub const MAX_PASSKEYS: i64 = 16;
+/// The longest stored passkey: an ES256 or RS256 key with no attestation is well under it, and
+/// a client that attaches a long attestation chain gets no room for one.
+pub const MAX_CREDENTIAL_BYTES: usize = 4096;
+
+/// The one answer to any passkey sign-in that fails, so it never tells a stranger which
+/// credentials exist.
+pub(crate) const DID_NOT_WORK: &str =
+    "That passkey did not work here. Try again, or sign in another way.";
+
 fn read(credential: &str) -> Result<Passkey, ServerError> {
     serde_json::from_str(credential).map_err(|_| ServerError::Corrupt)
 }
@@ -38,17 +49,38 @@ fn read(credential: &str) -> Result<Passkey, ServerError> {
 pub(crate) struct Found {
     pub subject: String,
     pub account: Uuid,
+    /// As it was when found, which the relying party checks the assertion with;
+    /// `passkey_signed_in` checks its counter again against the stored one.
     pub passkey: Passkey,
 }
 
-/// Keeps what an assertion changed about the passkey `subject` (its counter, its backup
-/// state), if anything.
+/// Keeps what an assertion of the account's passkey `subject` changed (its counter, its
+/// backup state), against the passkey as stored now, in the caller's transaction: an assertion
+/// whose counter is not past the stored one is refused, so two at once can't both count, and a
+/// cloned authenticator shows. Refused too when the passkey is no longer the account's.
 fn note_use(
     database: &rusqlite::Connection,
     subject: &str,
-    mut passkey: Passkey,
+    account: Uuid,
     result: &AuthenticationResult,
+    refusal: &str,
 ) -> Result<(), ServerError> {
+    let credential: Option<String> = database
+        .query_row(
+            "SELECT credential FROM identities WHERE kind = 'passkey' AND subject = ?1 AND account_id = ?2",
+            params![subject, account.to_string()],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let credential = credential.ok_or_else(|| refused(refusal))?;
+    let counter = serde_json::from_str::<serde_json::Value>(&credential)
+        .ok()
+        .and_then(|stored| stored["cred"]["counter"].as_u64())
+        .ok_or(ServerError::Corrupt)?;
+    if (result.counter() > 0 || counter > 0) && u64::from(result.counter()) <= counter {
+        return Err(refused(refusal));
+    }
+    let mut passkey = read(&credential)?;
     if passkey.update_credential(result) == Some(true) {
         database.execute(
             "UPDATE identities SET credential = ?2 WHERE kind = 'passkey' AND subject = ?1",
@@ -93,9 +125,7 @@ impl ServerStore {
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            let (account, credential) = row.ok_or_else(|| {
-                refused("That passkey does not sign in to an account here. Sign in another way.")
-            })?;
+            let (account, credential) = row.ok_or_else(|| refused(DID_NOT_WORK))?;
             Ok(Found {
                 subject,
                 account: parse_uuid(&account)?,
@@ -128,6 +158,20 @@ impl ServerStore {
                     "Confirm it is you first, with one of your ways to sign in.",
                 ));
             }
+            let held: i64 = transaction.query_row(
+                "SELECT count(*) FROM identities WHERE account_id = ?1 AND kind = 'passkey'",
+                [account.to_string()],
+                |row| row.get(0),
+            )?;
+            if held >= MAX_PASSKEYS {
+                return Err(refused(&format!(
+                    "Your account has {MAX_PASSKEYS} passkeys, the most it may have. Remove one first."
+                )));
+            }
+            let credential = stored(&passkey)?;
+            if credential.len() > MAX_CREDENTIAL_BYTES {
+                return Err(refused("That passkey did not work here. Try another."));
+            }
             let subject = subject(&rp_id, passkey.cred_id());
             let taken: bool = transaction.query_row(
                 "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'passkey' AND subject = ?1)",
@@ -146,7 +190,7 @@ impl ServerStore {
             };
             transaction.execute(
                 "INSERT INTO identities (id, account_id, kind, subject, created, credential) VALUES (?1, ?2, 'passkey', ?3, ?4, ?5)",
-                params![identity.id, account.to_string(), identity.subject, identity.created, stored(&passkey)?],
+                params![identity.id, account.to_string(), identity.subject, identity.created, credential],
             )?;
             transaction.commit()?;
             Ok(identity)
@@ -167,17 +211,7 @@ impl ServerStore {
         let (session, email) = self
             .with_database(move |_, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
-                let held: bool = transaction.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'passkey' AND subject = ?1 AND account_id = ?2)",
-                    params![subject, found.account.to_string()],
-                    |row| row.get(0),
-                )?;
-                if !held {
-                    return Err(refused(
-                        "That passkey does not sign in to an account here. Sign in another way.",
-                    ));
-                }
-                note_use(&transaction, &subject, found.passkey, &result)?;
+                note_use(&transaction, &subject, found.account, &result, DID_NOT_WORK)?;
                 let email: Option<String> = transaction.query_row(
                     "SELECT email FROM accounts WHERE id = ?1",
                     [found.account.to_string()],
@@ -208,16 +242,13 @@ impl ServerStore {
         let browser = hash_token(browser);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            let credential: Option<String> = transaction
-                .query_row(
-                    "SELECT credential FROM identities WHERE kind = 'passkey' AND subject = ?1 AND account_id = ?2",
-                    params![subject, account.to_string()],
-                    |row| row.get(0),
-                )
-                .optional()?;
-            let credential =
-                credential.ok_or_else(|| refused("That passkey does not sign in to your account."))?;
-            note_use(&transaction, &subject, read(&credential)?, &result)?;
+            note_use(
+                &transaction,
+                &subject,
+                account,
+                &result,
+                "That passkey did not confirm it is you. Try again, or another way.",
+            )?;
             let now = now();
             let proved = transaction.execute(
                 "UPDATE sessions SET proved = ?3 WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3",
