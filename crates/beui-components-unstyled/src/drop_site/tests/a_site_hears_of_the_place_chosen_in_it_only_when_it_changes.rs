@@ -35,7 +35,11 @@ fn a_site_hears_of_the_place_chosen_in_it_only_when_it_changes() {
         fixture.track(pos2(50.0, y));
         flush();
     }
-    assert_eq!(heard.get(), before + 1, "points that keep the choice tell nothing");
+    assert_eq!(
+        heard.get(),
+        before + 1,
+        "points that keep the choice tell nothing"
+    );
 
     fixture.track(pos2(50.0, 90.0));
     flush();

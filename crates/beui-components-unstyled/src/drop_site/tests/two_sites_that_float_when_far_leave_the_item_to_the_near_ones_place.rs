@@ -26,7 +26,11 @@ fn two_sites_that_float_when_far_leave_the_item_to_the_near_ones_place() {
     let done = column(done, "done");
 
     fixture.board.lift(carry(1_u32), at(pos2(60.0, 50.0)));
-    assert_eq!(todo.over.get_untracked(), Some("todo"), "the near column's place wins");
+    assert_eq!(
+        todo.over.get_untracked(),
+        Some("todo"),
+        "the near column's place wins"
+    );
     assert_eq!(done.over.get_untracked(), None);
 
     fixture.track(pos2(540.0, 50.0));

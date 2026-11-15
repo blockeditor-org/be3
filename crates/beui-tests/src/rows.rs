@@ -1,12 +1,10 @@
 use crate::measured_rect;
+use beui::primitives::Interactive;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::primitives::Interactive;
-use beui::unstyled::{
-    DragHandle, DragPoint, Draggable, DropHandle, DropTarget, use_drop_site,
-};
-use beui::{PointerPress, Pos2, Rect, Vec2};
+use beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget, use_drop_site};
 use beui::{Align, Direction, ScrollPosition};
+use beui::{PointerPress, Pos2, Rect, Vec2};
 
 #[component]
 pub fn RowsFixture() -> NodeId {

@@ -35,5 +35,9 @@ fn a_site_gone_mid_carry_is_never_dropped_on() {
         "the site gone, the carry chooses again where the pointer was"
     );
     fixture.release();
-    assert_eq!(*dropped.borrow(), vec!["right"], "and never drops on the one gone");
+    assert_eq!(
+        *dropped.borrow(),
+        vec!["right"],
+        "and never drops on the one gone"
+    );
 }

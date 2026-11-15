@@ -32,7 +32,11 @@ fn at(pos: Pos2) -> DragPoint {
 }
 
 fn slot(node: NodeRef, drop: u32, x: f32) -> Candidate<u32> {
-    Candidate::new(drop, Rect::from_min_size(pos2(x, 0.0), vec2(20.0, 20.0)), node)
+    Candidate::new(
+        drop,
+        Rect::from_min_size(pos2(x, 0.0), vec2(20.0, 20.0)),
+        node,
+    )
 }
 
 fn frame(spec: &DragSpec<u32>, point: DragPoint, last: &DragFrame) -> Evaluated<u32> {

@@ -27,7 +27,9 @@ fn an_interactive_that_lifts_a_carry_hears_none_of_its_drags() {
     let drag = |harness: &mut Harness| {
         harness.down(grab, PointerButton::Primary);
         for step in 1..=5 {
-            harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 10.0 * step as f32))]);
+            harness.frame(vec![Input::PointerMoved(
+                grab + vec2(0.0, 10.0 * step as f32),
+            )]);
         }
         harness.up(grab + vec2(0.0, 50.0), PointerButton::Primary);
         harness.settle();
