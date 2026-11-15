@@ -1266,6 +1266,43 @@ impl Refs {
         self.write(rows)
     }
 
+    /// Makes this device's journal `journal` (sealed), as the server holds it: its base, its
+    /// entries and its order, whatever this device held before.
+    pub fn replace_journal(&self, block: Uuid, journal: Journal) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let held = Self::journaled(&mut state, block, journal.tag);
+            for sequence in std::mem::take(&mut held.entries).into_keys() {
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            let mut order = be_block_session::Sequencer::starting(journal.base.sequence);
+            for entry in &journal.entries {
+                order.sequence = order.sequence.max(entry.sequence);
+                order.barrier = order.barrier.max(entry.floor);
+            }
+            held.head = JournalHead {
+                tag: journal.tag,
+                base: journal.base,
+                order,
+            };
+            for entry in journal.entries {
+                rows.push(row(
+                    Table::JournalEntry,
+                    journal_entry_key(block, entry.sequence),
+                    &entry,
+                ));
+                held.entries.insert(entry.sequence, entry);
+            }
+            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &held.head));
+        }
+        self.write(rows)
+    }
+
     pub fn creating(&self, block: Uuid) -> bool {
         let state = self.state.lock().unwrap();
         state

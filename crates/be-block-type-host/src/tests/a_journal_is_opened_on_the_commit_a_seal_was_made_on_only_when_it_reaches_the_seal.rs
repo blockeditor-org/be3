@@ -83,10 +83,11 @@ fn a_journal_is_opened_on_the_commit_a_seal_was_made_on_only_when_it_reaches_the
         );
 
         // A journal with no entries through the seal holds nothing of it.
-        peer.rebase_journal(block, 0, tag(), base, false, false)
+        let past = JournalBase { sequence: 4, ..base };
+        peer.rebase_journal(block, 0, tag(), past, false, false)
             .await
-            .expect("the journal starts over");
-        let empty = seal(&peer, block, parent, "empty", 2).await;
+            .expect("the journal starts past what it numbered");
+        let empty = seal(&peer, block, parent, "empty", 5).await;
         let (_, _, load_at, sealed_head) =
             crate::replicas::journal_for(&peer, block, None, false, Some(empty));
         assert_eq!((load_at, sealed_head), (Some(empty), None), "the base alone");

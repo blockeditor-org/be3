@@ -96,10 +96,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Makes this device's journal of `block` the server's `journal`, sealed as joining answered
     /// it: this device keeps what it opened on, and adds what it hears numbered after.
     pub fn keep_journal(&self, block: Uuid, journal: &Journal) -> Result<(), ClientError> {
-        self.refs
-            .rebase_journal(block, journal.tag, journal.base.clone())?;
-        self.refs
-            .append_journal(block, journal.tag, journal.entries.clone())?;
+        self.refs.replace_journal(block, journal.clone())?;
         Ok(())
     }
 

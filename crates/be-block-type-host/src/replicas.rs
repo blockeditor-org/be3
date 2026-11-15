@@ -2807,6 +2807,10 @@ impl<H: Host> Replicas<H> {
                 let (client, session, journal) =
                     peer.connection().join_session(block, tag).await?;
                 let head = peer.remote_head(block).await?;
+                let journal = match journal {
+                    Some(journal) => Some(journal),
+                    None => started_from_mirror(&peer, block, tag, client, &session, head).await,
+                };
                 let journal = opened(&peer, journal);
                 Ok::<_, ClientError>((client, session, head, kept_commits(&peer, block), journal))
             }
@@ -3755,6 +3759,10 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         let tag = tag.ok_or(ClientError::Unexpected)?;
         let (client, session, journal) = peer.connection().join_session(block, tag).await?;
         let head = peer.remote_head(block).await?;
+        let journal = match journal {
+            Some(journal) => Some(journal),
+            None => started_from_mirror(&peer, block, tag, client, &session, head).await,
+        };
         Ok((
             client,
             session,
@@ -3967,6 +3975,39 @@ fn mirror_afresh<S: be_block_store::ObjectStore>(peer: &Peer<S>, block: Uuid, he
     };
     mirror.entries.clear();
     let _ = peer.keep_journal(block, &mirror);
+}
+
+/// For a server with no journal of `block`: when this device's journal is on the server's head
+/// and the replica joining holds the lease, the server's journal starts from it, so the order
+/// goes on with the session state this device sealed (what an editor shown that content numbers
+/// its next edit by). Its entries were all sealed by then or heard from an order that ended.
+async fn started_from_mirror<S: be_block_store::ObjectStore>(
+    peer: &Peer<S>,
+    block: Uuid,
+    tag: be_block_store::Hash,
+    client: ClientId,
+    session: &SessionState,
+    head: Option<CommitId>,
+) -> Option<be_block_protocol::Journal> {
+    if session.owner != Some(client) {
+        return None;
+    }
+    let mirror = peer.local_journal(block).ok()??;
+    if mirror.tag != tag
+        || mirror.base.commit != head
+        || (mirror.base.sequence == 0 && mirror.base.state.is_empty())
+        || mirror.entries.iter().any(|entry| entry.received.is_none())
+    {
+        return None;
+    }
+    let answer = peer
+        .rebase_journal(block, session.generation, tag, mirror.base, true, false)
+        .await
+        .ok()??;
+    answer.await.ok()?;
+    let mut sealed = peer.sealed_journal(block)?;
+    sealed.entries.clear();
+    Some(sealed)
 }
 
 /// Opens the server's journal as joining answered it, keeping it sealed too.
