@@ -128,7 +128,9 @@ fn an_index_over_the_merge_cap_is_compacted_while_idle_and_answers_the_same() {
     other.merge_bytes.set(1);
     let grapes = other.index_note(workspace, index, "grapes");
     finds("grapes", &[grapes]);
-    crate::wait_until("heard the other device's index head", |_| (peer.known_remote_head(index) != ours).then_some(()));
+    crate::wait_until("heard the other device's index head", |_| {
+        (peer.known_remote_head(index) != ours).then_some(())
+    });
     crate::with_shared_mut(|shared| shared.search.hold_idle = false);
     send(Command::Sync);
     flush();

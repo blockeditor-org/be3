@@ -1046,7 +1046,10 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.graph.revision,
                 held.versions
                     .iter()
-                    .filter_map(|(block, state)| Some((block.to_string(), state.status.error.as_ref()?)))
+                    .filter_map(|(block, state)| Some((
+                        block.to_string(),
+                        state.status.error.as_ref()?
+                    )))
                     .collect::<Vec<_>>()
             );
             drop(held);
@@ -1075,7 +1078,9 @@ pub fn flush_and_send() {
     flush();
     // A flush that kept anything has already set `draining`, and its command `recounting`, so
     // `unsynced` is not empty before the outbox has been read again.
-    wait_until("the server holds what the flush kept", |shared| shared.unsynced().is_empty().then_some(()));
+    wait_until("the server holds what the flush kept", |shared| {
+        shared.unsynced().is_empty().then_some(())
+    });
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

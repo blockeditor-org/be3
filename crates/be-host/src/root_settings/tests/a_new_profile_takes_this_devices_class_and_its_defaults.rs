@@ -1,7 +1,9 @@
 use super::*;
 
 fn arrived(block: Uuid) {
-    be_host_stack::wait_until("held the block", |shared| shared.blocks.contains_key(&block).then_some(()));
+    be_host_stack::wait_until("held the block", |shared| {
+        shared.blocks.contains_key(&block).then_some(())
+    });
 }
 
 fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {

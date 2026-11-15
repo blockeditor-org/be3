@@ -212,7 +212,9 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
             if self.mirror.content().is_some_and(&done) {
                 return;
             }
-            crate::wait_until(what, |shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_until(what, |shared| {
+                shared.editor_frames.contains_key(&id).then_some(())
+            });
         }
     }
 
@@ -224,7 +226,9 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
             if done(self) {
                 return;
             }
-            crate::wait_until(what, |shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_until(what, |shared| {
+                shared.editor_frames.contains_key(&id).then_some(())
+            });
         }
     }
 
@@ -669,7 +673,9 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
 
 #[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
-    crate::wait_until(&format!("counted {expected}"), |shared| (counted(shared, block) == Some(expected)).then_some(()));
+    crate::wait_until(&format!("counted {expected}"), |shared| {
+        (counted(shared, block) == Some(expected)).then_some(())
+    });
 }
 
 fn ask_for(queries: Vec<Query>) {

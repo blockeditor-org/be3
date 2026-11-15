@@ -20,7 +20,9 @@ fn finds(text: &str, blocks: &[Uuid]) {
 }
 
 fn parts_read() -> u64 {
-    crate::wait_until("read how many parts search read", |shared| Some(shared.search.parts_read))
+    crate::wait_until("read how many parts search read", |shared| {
+        Some(shared.search.parts_read)
+    })
 }
 
 #[test]
@@ -158,7 +160,9 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
             .iter()
             .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
     );
-    crate::wait_until("read another part for search", |shared| (shared.search.parts_read > read).then_some(()));
+    crate::wait_until("read another part for search", |shared| {
+        (shared.search.parts_read > read).then_some(())
+    });
     // In the race the chat's head is newer than the removal; here the removal was stamped
     // after the head, so the chat moves on once more and its segment is back.
     let (_, send) = editor

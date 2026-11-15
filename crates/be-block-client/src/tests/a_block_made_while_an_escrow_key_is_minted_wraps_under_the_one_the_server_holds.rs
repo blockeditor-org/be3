@@ -9,7 +9,10 @@ use be_block_protocol::WrappedBy;
 async fn a_block_made_while_an_escrow_key_is_minted_wraps_under_the_one_the_server_holds() {
     let harness = Harness::start().await;
     let admin = harness.owner("admin@example.com").await;
-    let held = admin.keys().escrow().expect("the creator pins its escrow key");
+    let held = admin
+        .keys()
+        .escrow()
+        .expect("the creator pins its escrow key");
     let (minted, _) = admin.keys().mint_escrow().unwrap();
     assert_eq!(
         admin.keys().escrow(),

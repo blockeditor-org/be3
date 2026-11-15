@@ -222,8 +222,9 @@ fn saved_counter() -> (Uuid, [u8; 32]) {
         ),
     );
     be_host_stack::flush_and_send();
-    let head =
-        be_host_stack::wait_until("saved the block", |shared| shared.graph.get(block).and_then(|node| node.head));
+    let head = be_host_stack::wait_until("saved the block", |shared| {
+        shared.graph.get(block).and_then(|node| node.head)
+    });
     (block, *head.hash().as_bytes())
 }
 
