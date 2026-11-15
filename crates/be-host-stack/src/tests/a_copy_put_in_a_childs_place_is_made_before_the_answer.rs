@@ -13,7 +13,10 @@ fn a_copy_put_in_a_childs_place_is_made_before_the_answer() {
     let (notes, source) = (Uuid::new_v4(), Uuid::new_v4());
     wait_until("knew text", |_| is_known(TextContent::CONTENT_TYPE));
     let link = be_block_content::block_url::block_url("", Uuid::nil(), source);
-    for (block, name, body) in [(source, "Source", "source"), (notes, "Notes", link.as_str())] {
+    for (block, name, body) in [
+        (source, "Source", "source"),
+        (notes, "Notes", link.as_str()),
+    ] {
         create(
             block,
             TextContent::CONTENT_TYPE,
@@ -28,7 +31,9 @@ fn a_copy_put_in_a_childs_place_is_made_before_the_answer() {
         shared.busy(true).is_empty() && shared.unsynced().is_empty()
     });
     ask_for(vec![Query::Roots]);
-    wait_until("listed the roots", |shared| shared.graph.get(source).is_some());
+    wait_until("listed the roots", |shared| {
+        shared.graph.get(source).is_some()
+    });
 
     let (copy, answer) = replace_with_copy(notes, TextContent::CONTENT_TYPE, source)
         .expect("the text and the source are known");

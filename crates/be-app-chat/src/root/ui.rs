@@ -18,8 +18,8 @@ use be_sdk_beui::{
     LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
 };
 use be_type_chat::{
-    ChatContent, ChatReads, Deletion, Gap, Message, MessageHash, MessageEdit, Reaction, ReactionKey, ReadPlace,
-    Segment, Shown, Signature,
+    ChatContent, ChatReads, Deletion, Gap, Message, MessageEdit, MessageHash, Reaction,
+    ReactionKey, ReadPlace, Segment, Shown, Signature,
 };
 use beui::{Align, Direction, ScrollPosition};
 use uuid::Uuid;
@@ -539,7 +539,12 @@ pub fn Chat(editor: Editor) -> NodeId {
         // A message removed outright keeps its id, so its row turns into a missing one's.
         let present = create_memo(move || !shown.with(|row| row.missing));
         view! {
-            <Show value={present} fallback={move || view! { <MissingRow id /> }}>
+            <Show
+                value={present}
+                fallback={move || view! {
+                    <MissingRow id />
+                }}
+            >
                 <MessageRow
                     editor
                     chat={chat}
@@ -875,7 +880,10 @@ fn read_segment(
     let segment = segment.clone();
     let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
     editor.then(async move { Some(reading.await) }, move |bytes| {
-        let found = match bytes.ok().map(|bytes| chat.read(|content| content.read_segment(index, &bytes))) {
+        let found = match bytes
+            .ok()
+            .map(|bytes| chat.read(|content| content.read_segment(index, &bytes)))
+        {
             Some(Ok(Some(messages))) => SegmentRead::Held(messages),
             Some(Ok(None)) => SegmentRead::Broken,
             _ => SegmentRead::Failed,
@@ -991,8 +999,9 @@ fn missing_messages(
         for (gap, message, segments) in found {
             let naming = gap.naming;
             let hash = message.hash(block, naming);
-            let asked = verdicts
-                .with_untracked(|verdicts| verdicts.get(&naming).is_some_and(|(at, _)| *at == hash));
+            let asked = verdicts.with_untracked(|verdicts| {
+                verdicts.get(&naming).is_some_and(|(at, _)| *at == hash)
+            });
             if !asked {
                 verdicts.update(|verdicts| {
                     verdicts.insert(naming, (hash, None));
@@ -1048,8 +1057,8 @@ fn missing_messages(
                 read.with(|read| {
                     gaps.iter()
                         .filter(|(gap, hash, segments)| {
-                            let verified = verdicts.get(&gap.naming)
-                                == Some(&(*hash, Some(Signer::Verified)));
+                            let verified =
+                                verdicts.get(&gap.naming) == Some(&(*hash, Some(Signer::Verified)));
                             let not_closed = segments.iter().all(|segment| {
                                 read.get(segment)
                                     .and_then(Option::as_ref)

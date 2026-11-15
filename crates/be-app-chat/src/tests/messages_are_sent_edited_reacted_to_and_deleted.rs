@@ -18,7 +18,9 @@ fn messages_are_sent_edited_reacted_to_and_deleted() {
     assert_eq!(sent.author, ME);
     assert_eq!(
         sent.seen.map(|seen| (seen.id, seen.hash)),
-        chat.content().hash(CHAT, not_yet).map(|hash| (not_yet, hash)),
+        chat.content()
+            .hash(CHAT, not_yet)
+            .map(|hash| (not_yet, hash)),
         "a message notes the last one its author saw"
     );
 

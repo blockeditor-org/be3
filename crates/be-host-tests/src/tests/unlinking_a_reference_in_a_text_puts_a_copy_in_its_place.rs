@@ -21,7 +21,9 @@ fn row_part(host: &mut HostTest, title: &str, nth: usize, part: &str) -> String 
         })
         .unwrap_or_else(|| panic!("row {nth} titled {title:?} has no {part} in\n{tree}"));
     let place = |after: &str, separator: char| -> (f32, f32) {
-        let (_, rest) = line.split_once(after).expect("the tree gives each node a place");
+        let (_, rest) = line
+            .split_once(after)
+            .expect("the tree gives each node a place");
         let pair = rest.split_whitespace().next().unwrap_or_default();
         let (a, b) = pair.split_once(separator).expect("a place is two numbers");
         (a.parse().unwrap(), b.parse().unwrap())
@@ -39,11 +41,21 @@ fn chevron_of(host: &mut HostTest, title: &str, nth: usize) -> String {
         .filter(|line| line.contains(&row))
         .nth(nth)
         .unwrap_or_else(|| panic!("no row {nth} titled {title:?} in\n{tree}"));
-    let (_, rest) = line.split_once(" at ").expect("the tree gives each node a place");
+    let (_, rest) = line
+        .split_once(" at ")
+        .expect("the tree gives each node a place");
     let (x, rest) = rest.split_once(',').expect("a place is two numbers");
     let y = rest.split_whitespace().next().unwrap_or_default();
-    let (_, size) = line.split_once(" size ").expect("the tree gives each node a size");
-    let height: f32 = size.split('x').nth(1).and_then(|h| h.split_whitespace().next()).unwrap_or("22").parse().unwrap();
+    let (_, size) = line
+        .split_once(" size ")
+        .expect("the tree gives each node a size");
+    let height: f32 = size
+        .split('x')
+        .nth(1)
+        .and_then(|h| h.split_whitespace().next())
+        .unwrap_or("22")
+        .parse()
+        .unwrap();
     let (x, y): (f32, f32) = (x.parse().unwrap(), y.parse().unwrap());
     format!("{},{}", x + height / 2.0, y + height / 2.0)
 }
@@ -125,7 +137,10 @@ fn unlinking_a_reference_in_a_text_puts_a_copy_in_its_place() {
         let close = tree
             .lines()
             .find(|line| line.contains("Button \"Close tab\""))
-            .and_then(|line| line.split_whitespace().find(|word| word.starts_with("#dock.tab.")))
+            .and_then(|line| {
+                line.split_whitespace()
+                    .find(|word| word.starts_with("#dock.tab."))
+            })
             .expect("a tab's close button has a test id")
             .to_owned();
         host.click(&close);
@@ -133,15 +148,25 @@ fn unlinking_a_reference_in_a_text_puts_a_copy_in_its_place() {
     }
     host.gone("#text.surface");
     host.run(&["settle"]);
-    let listed: Vec<String> = (1..=2).map(|nth| url_of(&mut host, "Source", nth)).collect();
-    assert!(listed.contains(&source) && listed.contains(&open), "{listed:?}");
-    let reference = 1 + listed.iter().position(|url| *url == source).unwrap_or_default();
+    let listed: Vec<String> = (1..=2)
+        .map(|nth| url_of(&mut host, "Source", nth))
+        .collect();
+    assert!(
+        listed.contains(&source) && listed.contains(&open),
+        "{listed:?}"
+    );
+    let reference = 1 + listed
+        .iter()
+        .position(|url| *url == source)
+        .unwrap_or_default();
     let more = row_part(&mut host, "Source", reference, ".more");
     host.click(&more);
     host.click("MenuItem \"Unlink\"");
     host.synced();
     host.run(&["settle"]);
-    let closed: Vec<String> = (1..=2).map(|nth| url_of(&mut host, "Source", nth)).collect();
+    let closed: Vec<String> = (1..=2)
+        .map(|nth| url_of(&mut host, "Source", nth))
+        .collect();
     assert!(
         !closed.contains(&source) && closed.contains(&open) && !closed.contains(&String::new()),
         "the closed text names a second copy: {closed:?}"

@@ -2,7 +2,12 @@ use super::*;
 use crate::{Gap, Segment};
 
 fn removed(chat: &ChatContent, message: ObjectId) -> ChatContent {
-    edited(chat, [[be_block_model::Change::remove(message)].into_iter().collect()])
+    edited(
+        chat,
+        [[be_block_model::Change::remove(message)]
+            .into_iter()
+            .collect()],
+    )
 }
 
 /// A message removed outright, not deleted, is missing before the first later message that

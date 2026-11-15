@@ -11,7 +11,11 @@ fn a_message_removed_outright_shows_as_missing_in_its_place() {
     ]);
     let (first, gone, last) = (chat.id(0), chat.id(1), chat.id(2));
 
-    chat.arrive([be_sdk_beui::be_block_content::be_block_model::Change::remove(gone)].into_iter().collect());
+    chat.arrive(
+        [be_sdk_beui::be_block_content::be_block_model::Change::remove(gone)]
+            .into_iter()
+            .collect(),
+    );
     assert_eq!(
         chat.editor.label(&format!("chat.missing.{gone}")),
         "A message that was here is no longer in the chat"

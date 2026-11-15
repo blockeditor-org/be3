@@ -98,7 +98,9 @@ pub struct Counted<S> {
 }
 
 /// The edits one person made of one message. Only the message's author's count.
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[derive(
+    Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
+)]
 pub struct EditSlot {
     pub message: ObjectId,
     pub author: Uuid,
@@ -728,7 +730,10 @@ impl ChatContent {
         let own_previous = recent
             .iter()
             .rev()
-            .find(|id| self.message(**id).is_some_and(|sent| sent.author == message.author))
+            .find(|id| {
+                self.message(**id)
+                    .is_some_and(|sent| sent.author == message.author)
+            })
             .and_then(|id| prior(*id));
         (
             ObjectId::new(),
@@ -849,9 +854,7 @@ impl ChatContent {
             time,
             body: body.into(),
             seq: next_seq(&edits, &slot),
-            previous: head(&edits, &slot)
-                .record
-                .map(|edit| edit.key(message)),
+            previous: head(&edits, &slot).record.map(|edit| edit.key(message)),
             signature: Signature::default(),
         }
     }
@@ -914,7 +917,9 @@ impl ChatContent {
             edits
                 .keys()
                 .filter(|key| key.slot.message == message)
-                .map(|key| ChatHeader::EDITS.put(ObjectId::ROOT, key, None, edits.next(key, at, author))),
+                .map(|key| {
+                    ChatHeader::EDITS.put(ObjectId::ROOT, key, None, edits.next(key, at, author))
+                }),
         );
         changes.extend(
             reactions
@@ -1083,7 +1088,12 @@ fn put_counted<S: Ord + Clone + Serialize, V: Serialize, M>(
         slot: slot.clone(),
         seq,
     };
-    let mut changes = vec![field.put(ObjectId::ROOT, &key, Some(record), map.next(&key, at, author))];
+    let mut changes = vec![field.put(
+        ObjectId::ROOT,
+        &key,
+        Some(record),
+        map.next(&key, at, author),
+    )];
     changes.extend(
         map.range(slot_range(&slot))
             .filter(|(held, _)| held.seq < seq)

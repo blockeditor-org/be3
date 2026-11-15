@@ -618,7 +618,10 @@ pub fn replace_with_copy(
         old: source,
         new: copy,
     };
-    Some((copy, send_child_change(block, content_type, change, Some(source))))
+    Some((
+        copy,
+        send_child_change(block, content_type, change, Some(source)),
+    ))
 }
 
 /// Makes the copy `replace_with_copy` put in `block`, once its type did: whether it was made. One

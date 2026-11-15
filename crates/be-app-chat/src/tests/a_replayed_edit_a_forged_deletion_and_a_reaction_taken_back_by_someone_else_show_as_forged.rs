@@ -58,7 +58,12 @@ fn a_replayed_edit_a_forged_deletion_and_a_reaction_taken_back_by_someone_else_s
         Some(&second),
         edits().next(&made_up, 98, sam),
     );
-    let removal = ChatHeader::EDITS.put(ObjectId::ROOT, &made_up, None, edits().next(&made_up, 99, sam));
+    let removal = ChatHeader::EDITS.put(
+        ObjectId::ROOT,
+        &made_up,
+        None,
+        edits().next(&made_up, 99, sam),
+    );
     chat.arrive([write, removal].into_iter().collect());
     assert_eq!(
         chat.row(lunch),

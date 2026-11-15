@@ -41,7 +41,11 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let at = |seq| Counted { slot, seq };
 
     let once = chat.next_edit(lunch, ADA, 5, "lunch at one?");
-    assert_eq!((once.seq, once.previous), (1, None), "a message's first edit");
+    assert_eq!(
+        (once.seq, once.previous),
+        (1, None),
+        "a message's first edit"
+    );
     let chat = edited(&chat, [chat.put_edit(lunch, &once)]);
     let twice = chat.next_edit(lunch, ADA, 6, "lunch at two?");
     assert_eq!(
@@ -79,7 +83,9 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     assert_eq!(healed.body(lunch).as_deref(), Some("lunch at three?"));
     // A record moved to a higher count takes that count, which its signature does not cover.
     let moved = edit_at(&chat, &at(7), Some(&once));
-    let head = moved.edit_of(lunch).expect("the moved record is the latest");
+    let head = moved
+        .edit_of(lunch)
+        .expect("the moved record is the latest");
     assert_eq!((head.body.as_str(), head.seq), ("lunch at one?", 7));
     assert_ne!(head.key(lunch), once.key(lunch));
     // A removal is signed by nobody: one made up past the head marks the slot cut while its
@@ -90,7 +96,11 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     assert_eq!(head.record.as_ref(), Some(&twice));
     // A count past any an author reaches is junk: it cuts the slot and is never the head, and the
     // author's next edit still counts and shows.
-    let junk = edit_at(&edit_at(&chat, &at(u64::MAX), Some(&once)), &at(u64::MAX), None);
+    let junk = edit_at(
+        &edit_at(&chat, &at(u64::MAX), Some(&once)),
+        &at(u64::MAX),
+        None,
+    );
     let head = junk.edit_head(lunch, ADA);
     assert!(head.cut);
     assert_eq!(head.record.as_ref(), Some(&twice));
@@ -112,7 +122,9 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     // A record filed under another author takes that author, which its signature does not cover.
     let bos = chat.next_edit(lunch, BO, 9, "Bo says three");
     let filed = edit_at(&chat, &at(3), Some(&bos));
-    let head = filed.edit_of(lunch).expect("the filed record is the latest");
+    let head = filed
+        .edit_of(lunch)
+        .expect("the filed record is the latest");
     assert_eq!((head.author, head.seq), (ADA, 3));
     assert_ne!(head.key(lunch), bos.key(lunch));
     // Someone else's edit is kept in their own slot, and changes nothing.
@@ -136,7 +148,10 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let reacted = edited(&chat, [chat.put_reaction(&key, &kept)]);
     assert_eq!(reacted.reactions(lunch), [("heart".to_owned(), vec![BO])]);
     let (_, taken_back) = reacted.reaction(lunch, BO, "heart", 9, false);
-    assert_eq!((taken_back.seq, taken_back.previous), (2, Some(kept.key(&key))));
+    assert_eq!(
+        (taken_back.seq, taken_back.previous),
+        (2, Some(kept.key(&key)))
+    );
     let unreacted = edited(&reacted, [reacted.put_reaction(&key, &taken_back)]);
     assert!(
         unreacted.reactions(lunch).is_empty(),
@@ -145,7 +160,12 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
     let heads = unreacted.reaction_heads(lunch);
     assert_eq!(heads.len(), 1);
     assert!(
-        heads[0].1.record.as_ref().is_some_and(|reaction| !reaction.kept) && !heads[0].1.cut,
+        heads[0]
+            .1
+            .record
+            .as_ref()
+            .is_some_and(|reaction| !reaction.kept)
+            && !heads[0].1.cut,
         "it stays as a record its author can sign"
     );
     let replayed = edited(&unreacted, [unreacted.put_reaction(&key, &kept)]);
@@ -159,5 +179,8 @@ fn each_edit_names_the_one_it_replaces_and_a_reaction_taken_back_stays_a_record(
         None,
     );
     assert_eq!(cut.reactions(lunch), [("heart".to_owned(), vec![BO])]);
-    assert!(cut.reaction_heads(lunch)[0].1.cut, "the taken-back record was cut");
+    assert!(
+        cut.reaction_heads(lunch)[0].1.cut,
+        "the taken-back record was cut"
+    );
 }

@@ -3563,9 +3563,11 @@ async fn apply(
             match replicas.change_answered(block, Change::Child(change)) {
                 Some(made) => tasks.spawn(async move {
                     let made = made.await;
-                    reply.send(made && copy.is_none_or(|(source, to)| {
-                        crate::copied_in_place(block, content_type, source, to)
-                    }));
+                    reply.send(
+                        made && copy.is_none_or(|(source, to)| {
+                            crate::copied_in_place(block, content_type, source, to)
+                        }),
+                    );
                 }),
                 None => reply.send(false),
             }

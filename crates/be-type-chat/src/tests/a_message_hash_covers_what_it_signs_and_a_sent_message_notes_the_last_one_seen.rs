@@ -9,9 +9,14 @@ fn a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_see
 
     assert_eq!(first.seen, None, "the first message saw nothing before it");
     assert_eq!(first.own_previous, None, "nor did its author send any");
-    let hello_prior = chat.hash(CHAT, hello).map(|hash| crate::Prior { id: hello, hash });
+    let hello_prior = chat
+        .hash(CHAT, hello)
+        .map(|hash| crate::Prior { id: hello, hash });
     assert_eq!(second.seen, hello_prior);
-    assert_eq!(second.own_previous, hello_prior, "its author's previous message");
+    assert_eq!(
+        second.own_previous, hello_prior,
+        "its author's previous message"
+    );
     assert!(first.signature.0.is_empty(), "nothing signs messages yet");
 
     let hash = first.hash(CHAT, hello);
