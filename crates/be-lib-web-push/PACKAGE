@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -29,6 +30,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -41,6 +43,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -53,6 +56,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64-html": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -63,6 +67,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -75,6 +80,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -87,6 +93,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},
@@ -99,6 +106,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//third-party/rust:p256-0.13.2",
                 "//third-party/rust:ring-0.17.14",
             ],
             "examples": {},

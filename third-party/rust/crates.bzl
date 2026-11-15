@@ -3645,6 +3645,70 @@ third_party = {
         ],
         "version": "0.3.77",
     },
+    "base16ct-0.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": 'Pure Rust implementation of Base16 a.k.a hexadecimal (RFC 4648) which avoids\nany usages of data-dependent branches/LUTs and thereby provides portable\n"best effort" constant-time operation and embedded-friendly no_std support\n',
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/base16ct",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "base16ct",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "base16ct",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.2.0",
+    },
     "base64-0.22.1": {
         "build_script": None,
         "env": {
@@ -8464,6 +8528,7 @@ third_party = {
                     "std",
                 ],
             },
+            "linux-x86_64-html": {},
             "macos-arm64": {
                 "features": [
                     "db",
@@ -10957,6 +11022,134 @@ third_party = {
         ],
         "version": "0.8.21",
     },
+    "crypto-bigint-0.5.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of a big integer library which has been designed from\nthe ground-up for use in cryptographic applications. Provides constant-time,\nno_std-friendly implementations of modern formulas using const generics.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/crypto-bigint",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "crypto_bigint",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "crypto-bigint",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":generic-array-0.14.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "generic-array",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.5.5",
+    },
     "crypto-common-0.1.7": {
         "build_script": None,
         "env": {
@@ -11870,6 +12063,18 @@ third_party = {
                     "flagset",
                     "oid",
                     "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "oid",
                     "std",
                     "zeroize",
                 ],
@@ -13929,6 +14134,238 @@ third_party = {
         ],
         "version": "1.17.0",
     },
+    "elliptic-curve-0.13.8": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "General purpose Elliptic Curve Cryptography (ECC) support, including types\nand traits for representing various elliptic curve forms, scalars, points,\nand public/secret keys composed thereof.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits/tree/master/elliptic-curve",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "elliptic_curve",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "elliptic-curve",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":crypto-bigint-0.5.5",
+                    ":digest-0.10.7",
+                    ":ff-0.13.1",
+                    ":generic-array-0.14.7",
+                    ":group-0.13.0",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sec1-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "digest",
+                    "ecdh",
+                    "ff",
+                    "group",
+                    "hazmat",
+                    "sec1",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.8",
+    },
     "emojis-0.9.0": {
         "build_script": None,
         "env": {
@@ -14982,6 +15419,103 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.7",
+    },
+    "ff-0.13.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <thestr4d@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Library for building and interfacing with finite fields",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/ff",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "ff",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ff",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.1",
     },
     "filedescriptor-0.8.3": {
         "build_script": None,
@@ -17614,49 +18148,61 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "linux-x86_64-html": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "macos-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "wasi": {
@@ -17686,17 +18232,21 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
             "windows-x86_64": {
                 "deps": [
                     ":typenum-1.20.1",
+                    ":zeroize-1.9.0",
                 ],
                 "features": [
                     "more_lengths",
+                    "zeroize",
                 ],
             },
         },
@@ -18979,6 +19529,110 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.2.0",
+    },
+    "group-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Sean Bowe <ewillbefull@gmail.com>:Jack Grigg <jack@z.cash>",
+            "CARGO_PKG_DESCRIPTION": "Elliptic curve group traits and utilities",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/zkcrypto/group",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/zkcrypto/group",
+        },
+        "library": {
+            "crate": "group",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "group",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ff-0.13.1",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.0",
     },
     "gvdb-0.10.1": {
         "build_script": None,
@@ -32856,6 +33510,126 @@ third_party = {
         ],
         "version": "0.4.1",
     },
+    "p256-0.13.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the NIST P-256 (a.k.a. secp256r1, prime256v1)\nelliptic curve as defined in SP 800-186, with support for ECDH, ECDSA\nsigning/verification, and general purpose curve arithmetic\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves/tree/master/p256",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "p256",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "p256",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                    ":primeorder-0.13.6",
+                ],
+                "features": [
+                    "alloc",
+                    "arithmetic",
+                    "ecdh",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.2",
+    },
     "parking-2.2.1": {
         "build_script": None,
         "env": {
@@ -35997,6 +36771,70 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.3.1",
+    },
+    "primeorder-0.13.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of complete addition formulas for prime order elliptic\ncurves (Renes-Costello-Batina 2015). Generic over field elements and curve\nequation coefficients\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/elliptic-curves/tree/master/primeorder",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "primeorder",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "primeorder",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":elliptic-curve-0.13.8",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.13.6",
     },
     "proc-macro-crate-3.5.0": {
         "build_script": None,
@@ -43866,6 +44704,174 @@ third_party = {
             "-Cdebuginfo=0",
         ],
         "version": "0.12.0",
+    },
+    "sec1-0.7.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of SEC1: Elliptic Curve Cryptography encoding formats\nincluding ASN.1 DER-serialized private keys as well as the\nElliptic-Curve-Point-to-Octet-String encoding\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/sec1",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "sec1",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "sec1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64-html": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base16ct-0.2.0",
+                    ":der-0.7.10",
+                    ":generic-array-0.14.7",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "der",
+                    "point",
+                    "std",
+                    "subtle",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "0.7.3",
     },
     "semver-1.0.28": {
         "build_script": None,

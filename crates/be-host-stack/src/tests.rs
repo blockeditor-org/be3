@@ -54,6 +54,7 @@ mod a_counter_lives_in_the_new_stack_and_survives_a_reconnect;
 mod a_defined_index_keeps_the_host_busy_until_its_root_is_read_again;
 mod a_deleted_block_remembers_where_it_was_until_it_is_restored;
 mod a_deleted_database_row_is_no_longer_found;
+mod a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped;
 mod a_device_that_never_wrote_an_index_hears_what_another_device_indexes;
 mod a_duplicated_block_carries_what_its_source_held;
 mod a_file_still_duplicates_and_exports_though_it_saves_in_parts;
@@ -888,13 +889,25 @@ impl Someone {
         url: &str,
         organization: Uuid,
     ) -> std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>> {
+        self.peer_keeping(url, organization, be_block_client::RefsDb::memory())
+            .await
+    }
+
+    /// A peer that keeps what it learns in `refs`, as a device's refs database.
+    async fn peer_keeping(
+        &self,
+        url: &str,
+        organization: Uuid,
+        refs: be_block_client::RefsDb,
+    ) -> std::sync::Arc<be_block_client::Peer<be_block_store::MemoryStore>> {
         let peer = be_block_client::Peer::connect(
             be_block_client::PeerConfig::new(
                 crate::accounts::socket_url(url),
                 self.phrase.secret(),
                 be_block_client::Credentials::Token(self.session.token.clone()),
             )
-            .organization(Some(organization)),
+            .organization(Some(organization))
+            .refs(refs),
             be_block_store::MemoryStore::new(),
         )
         .await
@@ -1475,11 +1488,28 @@ struct Member {
 
 impl Member {
     fn join(harness: &Harness, personal: Uuid, email: &str, name: &str) -> Self {
+        Self::join_keeping(
+            harness,
+            personal,
+            email,
+            name,
+            be_block_client::RefsDb::memory(),
+        )
+    }
+
+    /// Joins with a peer that keeps what it learns in `refs`.
+    fn join_keeping(
+        harness: &Harness,
+        personal: Uuid,
+        email: &str,
+        name: &str,
+        refs: be_block_client::RefsDb,
+    ) -> Self {
         let someone =
             Someone::register(&harness.directory.join("server"), &harness.url, email, name);
         let code = made_link(None);
         let runtime = runtime();
-        let peer = runtime.block_on(someone.peer(&harness.url, personal));
+        let peer = runtime.block_on(someone.peer_keeping(&harness.url, personal, refs));
         runtime
             .block_on(be_block_client::contacts::open_link(
                 &peer.connection(),

@@ -416,6 +416,12 @@ downloads = {
         "size_bytes": 90528,
         "version": "0.3.77",
     },
+    "base16ct-0.2.0": {
+        "name": "base16ct",
+        "sha256": "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf",
+        "size_bytes": 10240,
+        "version": "0.2.0",
+    },
     "base64-0.22.1": {
         "name": "base64",
         "sha256": "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6",
@@ -1058,6 +1064,12 @@ downloads = {
         "size_bytes": 3887,
         "version": "0.2.4",
     },
+    "crypto-bigint-0.5.5": {
+        "name": "crypto-bigint",
+        "sha256": "0dc92fb57ca44df6db8059111ab3af99a63d5d0f8375d9972e319a379c6bab76",
+        "size_bytes": 83384,
+        "version": "0.5.5",
+    },
     "crypto-common-0.1.7": {
         "name": "crypto-common",
         "sha256": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a",
@@ -1256,6 +1268,12 @@ downloads = {
         "size_bytes": 6859,
         "version": "0.1.5",
     },
+    "ecdsa-0.16.9": {
+        "name": "ecdsa",
+        "sha256": "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca",
+        "size_bytes": 31406,
+        "version": "0.16.9",
+    },
     "ed25519-2.2.3": {
         "name": "ed25519",
         "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
@@ -1273,6 +1291,12 @@ downloads = {
         "sha256": "9e5e8f6c15a24b9a3ee5efec809ccd006d3b30e8b3bb63c39af737c7f87daa1d",
         "size_bytes": 21820,
         "version": "1.17.0",
+    },
+    "elliptic-curve-0.13.8": {
+        "name": "elliptic-curve",
+        "sha256": "b5e6043086bf7973472e0c7dff2142ea0b680d30e18d9cc40f267efbf222bd47",
+        "size_bytes": 63198,
+        "version": "0.13.8",
     },
     "embedded-io-0.4.0": {
         "name": "embedded-io",
@@ -1399,6 +1423,12 @@ downloads = {
         "sha256": "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c",
         "size_bytes": 27188,
         "version": "0.3.7",
+    },
+    "ff-0.13.1": {
+        "name": "ff",
+        "sha256": "c0b50bfb653653f9ca9095b427bed08ab8d75a137839d9ad64eb11810d5b6393",
+        "size_bytes": 18607,
+        "version": "0.13.1",
     },
     "fiat-crypto-0.2.9": {
         "name": "fiat-crypto",
@@ -1705,6 +1735,12 @@ downloads = {
         "sha256": "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91",
         "size_bytes": 2169,
         "version": "0.2.0",
+    },
+    "group-0.13.0": {
+        "name": "group",
+        "sha256": "f0f9ef7462f7c099f518d754361858f86d8a07af53ba9af0fe635bbccb151a63",
+        "size_bytes": 16526,
+        "version": "0.13.0",
     },
     "gvdb-0.10.1": {
         "name": "gvdb",
@@ -2822,6 +2858,12 @@ downloads = {
         "size_bytes": 67773,
         "version": "0.4.1",
     },
+    "p256-0.13.2": {
+        "name": "p256",
+        "sha256": "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b",
+        "size_bytes": 63434,
+        "version": "0.13.2",
+    },
     "parking-2.2.1": {
         "name": "parking",
         "sha256": "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba",
@@ -3085,6 +3127,12 @@ downloads = {
         "sha256": "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b",
         "size_bytes": 72033,
         "version": "0.2.37",
+    },
+    "primeorder-0.13.6": {
+        "name": "primeorder",
+        "sha256": "353e1ca18966c16d9deb1c69278edbc5f194139612772bd9537af60ac231e1e6",
+        "size_bytes": 21296,
+        "version": "0.13.6",
     },
     "proc-macro-crate-3.5.0": {
         "name": "proc-macro-crate",
@@ -3571,6 +3619,12 @@ downloads = {
         "sha256": "1f8ea028b7cb32e2f577b0a55a7b54cb206376bdb1221bd5c81dcf20b68db1fb",
         "size_bytes": 63639,
         "version": "0.12.0",
+    },
+    "sec1-0.7.3": {
+        "name": "sec1",
+        "sha256": "d3e97a565f76233a6003f9f5c54be1d9c5bdfa3eccfb189469f11ec4901c47dc",
+        "size_bytes": 17979,
+        "version": "0.7.3",
     },
     "semver-1.0.28": {
         "name": "semver",
