@@ -207,12 +207,15 @@ impl Board {
         true
     }
 
-    /// "over the left basket, place 1 of 3": the place the carry has chosen, if it is one of
-    /// the fixed places, for a screen reader.
+    /// "over the left basket, place 1 of 3": the place the carry has chosen, for a screen
+    /// reader; "over a place" for one that is not fixed (free or a nested site), none when it
+    /// chose nothing.
     fn over_chosen(&self) -> Option<String> {
         let chosen = self.placing.borrow().as_ref()?.frame.chosen?;
         let rests = self.rests();
-        let at = rests.iter().position(|rest| rest.id == chosen)?;
+        let Some(at) = rests.iter().position(|rest| rest.id == chosen) else {
+            return Some("over a place".to_owned());
+        };
         let name = rests[at].label.clone().unwrap_or_else(|| "a place".to_owned());
         Some(format!("over {name}, place {} of {}", at + 1, rests.len()))
     }
