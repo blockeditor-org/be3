@@ -82,9 +82,6 @@ enum Announcing {
     Dropped,
 }
 
-/// How long, in milliseconds, the server takes to answer a submission.
-const ROUND_TRIP: u64 = 100;
-
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
@@ -93,10 +90,9 @@ struct Inner {
     host: Connection,
     clock: Outlets<()>,
     sleeping: Vec<Reply<()>>,
-    /// Submissions on their way to the server, with when they were sent: it takes each once
-    /// the clock is `ROUND_TRIP` on, so an edit shows as sent before the server holds it.
-    submitting: Vec<(u64, Option<Uuid>, Call)>,
-    taking_submissions: bool,
+    /// Whether the server holds submissions back (`hold_submissions`), and those it holds.
+    hold_submissions: bool,
+    held_submissions: Vec<(Option<Uuid>, Call)>,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     /// Each type's blank content, as the module's start listed it.
@@ -158,8 +154,8 @@ impl Default for Inner {
             host: Connection::new(Side::Host),
             clock: Outlets::default(),
             sleeping: Vec::new(),
-            submitting: Vec::new(),
-            taking_submissions: false,
+            hold_submissions: false,
+            held_submissions: Vec::new(),
             now: 0,
             replicas: BTreeMap::new(),
             blanks: BTreeMap::new(),
@@ -307,21 +303,6 @@ impl Inner {
             }
             Incoming::Yielded { .. } => {}
         }
-    }
-
-    /// The server takes the submissions on their way (`submitting`) whose round trip is over.
-    fn take_submissions(&mut self) {
-        let now = self.now;
-        let (due, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut self.submitting)
-            .into_iter()
-            .partition(|(sent, ..)| now >= sent + ROUND_TRIP);
-        self.submitting = waiting;
-        self.taking_submissions = true;
-        for (_, block, call) in due {
-            self.act(block, call);
-        }
-        self.taking_submissions = false;
-        self.run();
     }
 
     fn act(&mut self, block: Option<Uuid>, call: Call) {
@@ -483,8 +464,8 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
-            call @ Call::Submit { .. } if !self.offline && !self.taking_submissions => {
-                self.submitting.push((self.now, block, call));
+            call @ Call::Submit { .. } if !self.offline && self.hold_submissions => {
+                self.held_submissions.push((block, call));
             }
             Call::Submit {
                 reply,
@@ -1017,7 +998,6 @@ impl ContentStore {
         if now > inner.now {
             inner.now = now;
             let inner = &mut *inner;
-            inner.take_submissions();
             let _ = inner.clock.send(&mut inner.host, &now, |_| true);
             inner.run();
         }
@@ -1052,6 +1032,19 @@ impl ContentStore {
     /// look at what an editor shows while only some of the parts it asked for were read.
     pub fn hold_reads(&self, hold: bool) {
         self.0.borrow_mut().hold_reads = hold;
+    }
+
+    /// Holds submissions back, as a server that has not answered yet; released, it takes those
+    /// it held in order, so a test can look at an edit sent and not yet held by the server.
+    pub fn hold_submissions(&self, hold: bool) {
+        let mut inner = self.0.borrow_mut();
+        inner.hold_submissions = hold;
+        if !hold {
+            for (block, call) in std::mem::take(&mut inner.held_submissions) {
+                inner.act(block, call);
+            }
+            inner.run();
+        }
     }
 
     /// Lets the oldest held part read through; false when none is held.

@@ -3349,8 +3349,6 @@ where
     }
 
     /// Lets go of `replacing_from` once no replacement is queued or on its way.
-
-    /// Lets go of `replacing_from` once no replacement is queued or on its way.
     fn replace_settled(&mut self) {
         let queued = self
             .jobs
