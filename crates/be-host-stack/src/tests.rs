@@ -205,26 +205,26 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
         }
     }
 
-    fn wait(&mut self, _what: &str, done: impl Fn(&C) -> bool) {
+    fn wait(&mut self, what: &str, done: impl Fn(&C) -> bool) {
         let id = self.id;
         loop {
             self.pump();
             if self.mirror.content().is_some_and(&done) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_until(what, |shared| shared.editor_frames.contains_key(&id).then_some(()));
         }
     }
 
     /// Waits for frames until `done` holds of the editor.
-    fn until(&mut self, _what: &str, done: impl Fn(&Self) -> bool) {
+    fn until(&mut self, what: &str, done: impl Fn(&Self) -> bool) {
         let id = self.id;
         loop {
             self.pump();
             if done(self) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_until(what, |shared| shared.editor_frames.contains_key(&id).then_some(()));
         }
     }
 
@@ -328,7 +328,7 @@ impl Harness {
     }
 
     fn miss_a_ping(&self) {
-        let mut due = crate::wait_until(|shared| {
+        let mut due = crate::wait_until("connected, with a ping due", |shared| {
             shared
                 .connected
                 .then(|| shared.connection_due.clone())
@@ -669,7 +669,7 @@ fn counted(shared: &Shared, block: Uuid) -> Option<i64> {
 
 #[track_caller]
 fn wait_for_count(block: Uuid, expected: i64) {
-    crate::wait_until(|shared| (counted(shared, block) == Some(expected)).then_some(()));
+    crate::wait_until(&format!("counted {expected}"), |shared| (counted(shared, block) == Some(expected)).then_some(()));
 }
 
 fn ask_for(queries: Vec<Query>) {
@@ -680,8 +680,8 @@ fn ask_for(queries: Vec<Query>) {
 }
 
 #[track_caller]
-fn wait_until(_what: &str, ready: impl Fn(&Shared) -> bool) {
-    crate::wait_until(|shared| ready(shared).then_some(()));
+fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
+    crate::wait_until(what, |shared| ready(shared).then_some(()));
 }
 
 fn add(block: Uuid, by: i64) {

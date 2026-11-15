@@ -49,7 +49,7 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
             block_id: folder.into_bytes(),
         },
     );
-    let error = crate::wait_until(|shared| {
+    let error = crate::wait_until("versioned the folder or failed to", |shared| {
         version_status(shared, repository)
             .filter(|status| {
                 !status.busy && (!status.branches.is_empty() || status.error.is_some())

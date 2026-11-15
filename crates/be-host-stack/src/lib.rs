@@ -980,10 +980,11 @@ pub const WAIT_LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
 pub const WAIT_CAP: std::time::Duration = std::time::Duration::from_secs(300);
 
 /// Waits until `read` finds what it wants in the stack's state, and panics at the caller after
-/// `WAIT_LIMIT` without progress from the stack, or `WAIT_CAP` in all.
+/// `WAIT_LIMIT` without progress from the stack, or `WAIT_CAP` in all, naming `what` it waited
+/// for ("opened the note").
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
 #[track_caller]
-pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
+pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     let (shared, changed) = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -1044,7 +1045,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
             );
             drop(held);
             panic!(
-                "the stack never reached what this waits for: it made no progress for {} s, or the wait took {} s in all ({state})",
+                "the stack never reached {what}: it made no progress for {} s, or the wait took {} s in all ({state})",
                 WAIT_LIMIT.as_secs(),
                 WAIT_CAP.as_secs()
             );
@@ -1068,7 +1069,7 @@ pub fn flush_and_send() {
     flush();
     // A flush that kept anything has already set `draining`, and its command `recounting`, so
     // `unsynced` is not empty before the outbox has been read again.
-    wait_until(|shared| shared.unsynced().is_empty().then_some(()));
+    wait_until("the server holds what the flush kept", |shared| shared.unsynced().is_empty().then_some(()));
 }
 
 #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]

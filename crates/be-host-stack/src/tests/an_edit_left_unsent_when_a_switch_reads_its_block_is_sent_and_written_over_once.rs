@@ -46,7 +46,7 @@ fn an_edit_left_unsent_when_a_switch_reads_its_block_is_sent_and_written_over_on
     crate::hold_drains(true);
     type_text(versioned.note, 0, "Oh\n");
     flush();
-    let unsent = crate::wait_until(|shared| {
+    let unsent = crate::wait_until("sealed the typed line into the outbox", |shared| {
         let peer = shared.peer.as_ref()?;
         peer.pending_commits(versioned.note).last().copied()
     });
