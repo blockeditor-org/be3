@@ -666,7 +666,10 @@ impl std::fmt::Display for Owing {
             self.journaled,
             self.unjournaled
                 .as_ref()
-                .map_or_else(String::new, |held| format!(", {}", unjournaled(held, self.now))),
+                .map_or_else(String::new, |held| format!(
+                    ", {}",
+                    unjournaled(held, self.now)
+                )),
             self.unreported,
             self.publishing,
             self.joining,

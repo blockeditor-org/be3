@@ -53,10 +53,10 @@ fn a_deleted_database_row_is_no_longer_found() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(block)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(block)
+    )));
     open(block, DatabaseContent::CONTENT_TYPE);
     flush();
     finds("plumber", &[block]);

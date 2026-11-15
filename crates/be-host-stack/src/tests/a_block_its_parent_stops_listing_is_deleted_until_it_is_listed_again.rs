@@ -37,10 +37,10 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
     });
 
     assert!(made(change_child(
-            folder,
-            FolderContent::CONTENT_TYPE,
-            ChildChange::Delete(note)
-        )));
+        folder,
+        FolderContent::CONTENT_TYPE,
+        ChildChange::Delete(note)
+    )));
     wait_until("took the note out of the folder", |shared| {
         deleted(shared) == Some(note)
     });
@@ -50,6 +50,10 @@ fn a_block_its_parent_stops_listing_is_deleted_until_it_is_listed_again() {
         "deleting it leaves its parent as it was"
     );
 
-    assert!(made(change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(note))));
+    assert!(made(change_child(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     wait_until("listed the note again", |shared| deleted(shared).is_none());
 }

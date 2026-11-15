@@ -44,10 +44,10 @@ fn workspace_with_note(name: &str, text: &str) -> (Uuid, Uuid) {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     flush();
     (workspace, note)
 }

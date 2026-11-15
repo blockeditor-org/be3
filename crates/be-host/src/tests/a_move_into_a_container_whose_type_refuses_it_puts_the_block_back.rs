@@ -17,11 +17,29 @@ fn a_move_into_a_container_whose_type_refuses_it_puts_the_block_back() {
     for held in [first, child, last] {
         listing.apply(&listing.root().add(held));
     }
-    make(folder, FolderContent::CONTENT_TYPE, BlockParent::Root, "Folder", listing.encode());
+    make(
+        folder,
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Root,
+        "Folder",
+        listing.encode(),
+    );
     for (held, name) in [(first, "First"), (child, "Child"), (last, "Last")] {
-        make(held, text, BlockParent::Block(folder), name, TextBlock::of(name).encode());
+        make(
+            held,
+            text,
+            BlockParent::Block(folder),
+            name,
+            TextBlock::of(name).encode(),
+        );
     }
-    make(notes, text, BlockParent::Root, "Notes", TextBlock::of("notes").encode());
+    make(
+        notes,
+        text,
+        BlockParent::Root,
+        "Notes",
+        TextBlock::of("notes").encode(),
+    );
     synced();
     let _apps = known(&[text, FolderContent::CONTENT_TYPE]);
     // As the file tree does, which lists the folder, so the child's name is known.
@@ -48,7 +66,12 @@ fn a_move_into_a_container_whose_type_refuses_it_puts_the_block_back() {
     be_host_stack::wait_until("the folder holds the child where it sat", |shared| {
         let held = shared.blocks.get(&folder)?;
         let content = FolderContent::decode(held.bytes()).ok()?;
-        let order: Vec<Uuid> = content.root().entries.iter().map(|entry| entry.block.0).collect();
+        let order: Vec<Uuid> = content
+            .root()
+            .entries
+            .iter()
+            .map(|entry| entry.block.0)
+            .collect();
         (order == [first, child, last]).then_some(())
     });
     assert_eq!(

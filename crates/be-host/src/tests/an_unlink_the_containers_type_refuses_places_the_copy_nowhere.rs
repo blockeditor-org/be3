@@ -12,8 +12,20 @@ fn an_unlink_the_containers_type_refuses_places_the_copy_nowhere() {
     harness.connect();
     let (source, notes) = (Uuid::new_v4(), Uuid::new_v4());
     let text = TextContent::CONTENT_TYPE;
-    make(source, text, BlockParent::Root, "Source", TextBlock::of("source").encode());
-    make(notes, text, BlockParent::Root, "Unlinked notes", TextBlock::of("no link").encode());
+    make(
+        source,
+        text,
+        BlockParent::Root,
+        "Source",
+        TextBlock::of("source").encode(),
+    );
+    make(
+        notes,
+        text,
+        BlockParent::Root,
+        "Unlinked notes",
+        TextBlock::of("no link").encode(),
+    );
     synced();
     let _apps = known(&[text]);
     let mut core = core();

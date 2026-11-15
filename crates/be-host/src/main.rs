@@ -2588,7 +2588,8 @@ impl HostCore {
                 && let (Some(after), Some(source)) = (transfer.was_after, transfer.destination)
                 && self.keeps_order(source)
                 && after.is_none_or(|sibling| {
-                    be_host_stack::node(source).is_some_and(|node| node.contents().contains(&sibling))
+                    be_host_stack::node(source)
+                        .is_some_and(|node| node.contents().contains(&sibling))
                 })
             {
                 self.queue_reorder(transfer.child, source, after);
@@ -2632,10 +2633,7 @@ impl HostCore {
                 Some(SidebarDragSource::Root) => {
                     be_host_stack::set_parent(transfer.child, BlockParent::Root);
                 }
-                Some(
-                    SidebarDragSource::Unfiled | SidebarDragSource::Orphaned,
-                )
-                | None => {}
+                Some(SidebarDragSource::Unfiled | SidebarDragSource::Orphaned) | None => {}
             }
         }
         if transfer.putting_back {
@@ -4609,14 +4607,15 @@ fn sibling_before(container: Uuid, child: Uuid) -> Option<Option<Uuid>> {
 /// A source that let a block go refused to take it back after its destination refused it.
 fn refuse_put_back(source: Uuid, child: &str) {
     let source = name_of(source, "Its folder");
-    notices::refuse(format!(
-        "{source} couldn't take {child} back either."
-    ));
+    notices::refuse(format!("{source} couldn't take {child} back either."));
 }
 
 /// A container's type refused to put `child` somewhere else in its order.
 fn refuse_reorder(container: Uuid, child: Uuid) {
-    let (container, child) = (name_of(container, "That block"), name_of(child, "that block"));
+    let (container, child) = (
+        name_of(container, "That block"),
+        name_of(child, "that block"),
+    );
     notices::refuse(format!(
         "{container} can't move {child} within it, so it stays where it was."
     ));

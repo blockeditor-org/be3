@@ -34,10 +34,10 @@ fn a_search_index_write_that_fails_is_queued_again() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     open(note, TextContent::CONTENT_TYPE);
     type_text(note, 0, "apples and pears");
     flush();

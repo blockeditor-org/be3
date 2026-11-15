@@ -48,10 +48,10 @@ fn a_search_finds_what_another_device_indexes_while_this_one_is_online() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(apples)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(apples)
+    )));
     open(apples, TextContent::CONTENT_TYPE);
     type_text(apples, 0, "apples");
     flush();

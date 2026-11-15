@@ -45,10 +45,10 @@ fn note(workspace: Uuid, text: &str) -> Uuid {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(block)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(block)
+    )));
     open(block, TextContent::CONTENT_TYPE);
     type_text(block, 0, text);
     flush();

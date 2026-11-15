@@ -49,10 +49,10 @@ fn a_block_is_indexed_by_the_name_its_commit_carries() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     open(note, TextContent::CONTENT_TYPE);
     type_text(note, 0, "socks");
     flush();

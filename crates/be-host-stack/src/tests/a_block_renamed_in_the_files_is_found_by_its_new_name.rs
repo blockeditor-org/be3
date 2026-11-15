@@ -45,10 +45,10 @@ fn a_block_renamed_in_the_files_is_found_by_its_new_name() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(note)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(note)
+    )));
     flush();
     // The files list the workspace's children, as the files pane shows the note to rename.
     want(Owner::Host, vec![Query::Children(workspace)]);

@@ -12,8 +12,20 @@ fn a_reorder_its_container_refuses_is_reported() {
     harness.connect();
     let (notes, child) = (Uuid::new_v4(), Uuid::new_v4());
     let text = TextContent::CONTENT_TYPE;
-    make(notes, text, BlockParent::Root, "Notes", TextBlock::of("notes").encode());
-    make(child, text, BlockParent::Root, "Child", TextBlock::of("child").encode());
+    make(
+        notes,
+        text,
+        BlockParent::Root,
+        "Notes",
+        TextBlock::of("notes").encode(),
+    );
+    make(
+        child,
+        text,
+        BlockParent::Root,
+        "Child",
+        TextBlock::of("child").encode(),
+    );
     synced();
     let _apps = known(&[text]);
     let mut core = core();

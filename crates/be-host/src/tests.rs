@@ -1,11 +1,11 @@
 use super::*;
 mod a_crash_report_does_not_leave_a_dev_run_busy;
+mod a_leave_asked_while_another_is_pending_does_not_change_what_confirm_leaves;
 mod a_move_into_a_container_whose_type_refuses_it_puts_the_block_back;
 mod a_reorder_its_container_refuses_is_reported;
+mod an_editor_closes_only_itself_and_the_children_it_placed;
 mod an_unlink_the_containers_type_makes_places_the_copy_in_it;
 mod an_unlink_the_containers_type_refuses_places_the_copy_nowhere;
-mod a_leave_asked_while_another_is_pending_does_not_change_what_confirm_leaves;
-mod an_editor_closes_only_itself_and_the_children_it_placed;
 mod restore_puts_a_block_back_in_unfiled_and_falls_back_to_it;
 mod unlinking_into_a_container_that_cannot_replace_a_child_ends_with_a_notice;
 
@@ -77,19 +77,21 @@ fn make(block: Uuid, content_type: Uuid, parent: BlockParent, name: &str, conten
 
 /// What the core sent to containers' types and waits to hear back.
 fn awaited(core: &HostCore) -> Vec<be_host_stack::ChildChanged> {
-    let copies = core.pending_copies.iter().filter_map(|copy| match &copy.stage {
-        CopyStage::Replacing { answer, .. } => Some(answer.clone()),
-        _ => None,
-    });
-    let transfers = core
-        .pending_transfers
+    let copies = core
+        .pending_copies
         .iter()
-        .filter_map(|transfer| match &transfer.stage {
-            TransferStage::DeletingSource(answer) | TransferStage::AddingDestination(answer) => {
-                Some(answer.clone())
-            }
+        .filter_map(|copy| match &copy.stage {
+            CopyStage::Replacing { answer, .. } => Some(answer.clone()),
             _ => None,
         });
+    let transfers =
+        core.pending_transfers
+            .iter()
+            .filter_map(|transfer| match &transfer.stage {
+                TransferStage::DeletingSource(answer)
+                | TransferStage::AddingDestination(answer) => Some(answer.clone()),
+                _ => None,
+            });
     let reorders = core
         .pending_reorders
         .iter()
@@ -151,33 +153,31 @@ fn pending(core: &HostCore) -> String {
         }
         .to_owned()
     });
-    let transfers = core
-        .pending_transfers
-        .iter()
-        .map(|transfer| {
-            let stage = match transfer.stage {
-                TransferStage::DeleteSource => "to delete from its source",
-                TransferStage::DeletingSource(_) => "deleting from its source",
-                TransferStage::AddDestination => "to add to its destination",
-                TransferStage::AddingDestination(_) => "adding to its destination",
-            };
-            let what = match transfer.putting_back {
-                true => "a transfer putting a block back",
-                false => "a transfer",
-            };
-            format!("{what} {stage} {:?}", transfer.destination)
-        });
-    let reorders = core
-        .pending_reorders
-        .iter()
-        .map(|reorder| {
-            match reorder.answer {
-                Some(_) => "a reorder sent",
-                None => "a reorder to send",
-            }
-            .to_owned()
-        });
-    copies.chain(transfers).chain(reorders).collect::<Vec<_>>().join(", ")
+    let transfers = core.pending_transfers.iter().map(|transfer| {
+        let stage = match transfer.stage {
+            TransferStage::DeleteSource => "to delete from its source",
+            TransferStage::DeletingSource(_) => "deleting from its source",
+            TransferStage::AddDestination => "to add to its destination",
+            TransferStage::AddingDestination(_) => "adding to its destination",
+        };
+        let what = match transfer.putting_back {
+            true => "a transfer putting a block back",
+            false => "a transfer",
+        };
+        format!("{what} {stage} {:?}", transfer.destination)
+    });
+    let reorders = core.pending_reorders.iter().map(|reorder| {
+        match reorder.answer {
+            Some(_) => "a reorder sent",
+            None => "a reorder to send",
+        }
+        .to_owned()
+    });
+    copies
+        .chain(transfers)
+        .chain(reorders)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// How far the running stack has got (`Shared::progressed`).

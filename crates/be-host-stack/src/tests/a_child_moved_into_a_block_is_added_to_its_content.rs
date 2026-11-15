@@ -27,22 +27,22 @@ fn a_child_moved_into_a_block_is_added_to_its_content() {
         is_known(PresentationContent::CONTENT_TYPE)
     });
     assert!(made(change_child(
-            block,
-            PresentationContent::CONTENT_TYPE,
-            ChildChange::Add(first)
-        )));
+        block,
+        PresentationContent::CONTENT_TYPE,
+        ChildChange::Add(first)
+    )));
     wait_until("added the child", |shared| {
         slides_of(shared, block) == Some(vec![Some(first)])
     });
 
     assert!(made(change_child(
-            block,
-            PresentationContent::CONTENT_TYPE,
-            ChildChange::Replace {
-                old: first,
-                new: second
-            }
-        )));
+        block,
+        PresentationContent::CONTENT_TYPE,
+        ChildChange::Replace {
+            old: first,
+            new: second
+        }
+    )));
     wait_until("replaced the child", |shared| {
         slides_of(shared, block) == Some(vec![Some(second)])
     });

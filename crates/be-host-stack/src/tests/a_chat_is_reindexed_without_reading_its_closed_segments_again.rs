@@ -51,10 +51,10 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
         false,
     );
     assert!(made(change_child(
-            workspace,
-            WorkspaceContent::CONTENT_TYPE,
-            ChildChange::Add(chat)
-        )));
+        workspace,
+        WorkspaceContent::CONTENT_TYPE,
+        ChildChange::Add(chat)
+    )));
     open(chat, ChatContent::CONTENT_TYPE);
     let mut editor = Editor::<ChatContent>::attach(chat);
     editor.wait("was sent the chat", |_| true);

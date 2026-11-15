@@ -39,7 +39,11 @@ fn a_child_reordered_in_a_folder_is_listed_in_its_new_place() {
         is_known(FolderContent::CONTENT_TYPE)
     });
     for child in children {
-        assert!(made(change_child(folder, FolderContent::CONTENT_TYPE, ChildChange::Add(child))));
+        assert!(made(change_child(
+            folder,
+            FolderContent::CONTENT_TYPE,
+            ChildChange::Add(child)
+        )));
     }
     let [first, second, third] = children;
     wait_until(

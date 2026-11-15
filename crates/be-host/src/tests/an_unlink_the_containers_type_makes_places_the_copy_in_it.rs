@@ -12,8 +12,20 @@ fn an_unlink_the_containers_type_makes_places_the_copy_in_it() {
     let (source, notes) = (Uuid::new_v4(), Uuid::new_v4());
     let text = TextContent::CONTENT_TYPE;
     let link = be_block_content::block_url::block_url("https://be3.example/", Uuid::nil(), source);
-    make(source, text, BlockParent::Root, "Source", TextBlock::of("source").encode());
-    make(notes, text, BlockParent::Root, "Notes", TextBlock::of(&link).encode());
+    make(
+        source,
+        text,
+        BlockParent::Root,
+        "Source",
+        TextBlock::of("source").encode(),
+    );
+    make(
+        notes,
+        text,
+        BlockParent::Root,
+        "Notes",
+        TextBlock::of(&link).encode(),
+    );
     synced();
     let _apps = known(&[text]);
     let mut core = core();

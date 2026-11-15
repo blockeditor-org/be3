@@ -462,7 +462,11 @@ impl AppEditor {
 
     /// Puts `new` in place of the child `old`, refused at once by a type whose manifest does not
     /// take it.
-    pub(crate) fn replace_child(&self, old: Uuid, new: Uuid) -> Option<be_host_stack::ChildChanged> {
+    pub(crate) fn replace_child(
+        &self,
+        old: Uuid,
+        new: Uuid,
+    ) -> Option<be_host_stack::ChildChanged> {
         if !self.takes_replace()? {
             return Some(be_host_stack::ChildChanged::refused());
         }
