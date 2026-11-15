@@ -93,14 +93,13 @@ pub(crate) fn Notes(
     timeline: ReadSignal<Loaded<Vec<Entry>>>,
 ) -> NodeId {
     let slot = Slot::PullRequest(pull_request.get_untracked().number);
-    let fork = create_memo(move || !pull_request.get().same_repository);
     let deleted = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => branch_deleted(&entries),
         _ => false,
     });
     view! {
         <List spacing=Space::Md>
-            <Show condition={fork}>
+            <Show condition={move || !pull_request.with(|pull_request| pull_request.same_repository)}>
                 <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>

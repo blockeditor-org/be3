@@ -144,7 +144,7 @@ fn Sidebar(model: Model) -> NodeId {
         Loaded::Failed(error) => error,
         _ => String::new(),
     });
-    let failed = create_memo(move || !error.get().is_empty());
+    let failed = create_memo(move || !error.with(String::is_empty));
     let visible = create_memo(move || {
         let query = model.query.get().to_lowercase();
         let pull_requests = model.pull_requests;
@@ -160,10 +160,10 @@ fn Sidebar(model: Model) -> NodeId {
             })
             .collect::<Vec<u64>>()
     });
-    let empty = create_memo(move || visible.get().is_empty() && !loading.get() && !failed.get());
+    let empty = create_memo(move || visible.with(Vec::is_empty) && !loading.get() && !failed.get());
     let empty_text =
         create_memo(
-            move || match (model.filter.get(), model.query.get().is_empty()) {
+            move || match (model.filter.get(), model.query.with(String::is_empty)) {
                 (_, false) => "Nothing matches the filter".to_owned(),
                 (Filter::Open, true) => "No open pull requests".to_owned(),
                 (Filter::Closed, true) => "No closed pull requests".to_owned(),

@@ -84,7 +84,6 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
         Loaded::Failed(error) => error,
         _ => String::new(),
     });
-    let failed = create_memo(move || !error.get().is_empty());
     let entries = create_memo(move || match timeline.get() {
         Loaded::Ready(entries) => entries,
         _ => Vec::new(),
@@ -141,7 +140,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 <Text style=TextStyle::CAPTION>"Loading the conversation"</Text>
                             </List>
                         </Show>
-                        <Show condition={failed}>
+                        <Show condition={move || !error.with(String::is_empty)}>
                             <Text color=TextColor::Danger>{error}</Text>
                         </Show>
                     </List>
