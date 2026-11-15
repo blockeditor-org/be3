@@ -153,20 +153,18 @@ pub fn ChoiceMark(
     let dot = Size::Custom(size.icon_px() * 0.5);
     view! {
         <Frame width=mark height=mark>
-            <Layers>
-                <Show
-                    condition={move || glyph.get().is_some()}
-                    fallback={move || view! {
-                        <Frame align=Align::Center>
-                            <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />
-                        </Frame>
-                    }}
-                >
-                    <Text size color={color} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
-                </Show>
-            </Layers>
+            <Show
+                condition={move || glyph.get().is_some()}
+                fallback={move || view! {
+                    <Frame align=Align::Center>
+                        <Frame width=dot height=dot radius=Radius::Full fill={dot_color} />
+                    </Frame>
+                }}
+            >
+                <Text size color={color} align=TextAlign::Center>
+                    <Icon glyph={glyph} />
+                </Text>
+            </Show>
         </Frame>
     }
 }

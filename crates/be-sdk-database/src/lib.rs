@@ -155,7 +155,7 @@ fn DatabaseValueControl(
     on_change: Callback<DatabaseValueChange>,
     on_pick: Callback<DatabaseBlockPickRequest>,
     on_submit: Callback<Uuid>,
-) -> NodeId {
+) -> DynamicSegment<ListItem> {
     let kind = create_memo(move || {
         field.with(|field| {
             field.as_ref().map(|field| match field.field_type {
@@ -165,8 +165,7 @@ fn DatabaseValueControl(
         })
     });
     view! {
-        <List spacing=Space::None>
-            <Dynamic value={kind} fallback={|| view! { <Frame /> }}>|kind: Option<DatabaseFieldType>| {
+        <Dynamic value={kind} fallback={|| view! { <Frame /> }}>|kind: Option<DatabaseFieldType>| {
                 let test_id = id.clone();
                 let on_change = forward(on_change);
                 let on_pick = forward(on_pick);
@@ -259,7 +258,6 @@ fn DatabaseValueControl(
                     },
                 }
             }</Dynamic>
-        </List>
     }
 }
 
