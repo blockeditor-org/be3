@@ -239,8 +239,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      with its pane in the preview.
 
    - **Panels stay built.** A pane whose panel moves to another place in the layout keeps its
-     panel; today that is the dock's own `panels` map, and the `KeepAlive`/`Kept` of the queued
-     control-flow spec once it replaces it.
+     panel; today that is the dock's own `panels` map, as nothing in beui's control flow keeps a
+     subtree alive across parents.
 
    Expect a different feel, not a copy: replace the drop-highlight tests and paintings with ones
    that show the dock parting for a carried tab.
@@ -287,9 +287,8 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 - **Moving between sites.** The receiving site's `commit` inserts the item; the source's removal
   is a tentative edit it commits on the drop. Whether `Carry` hears that through a `moved_away`
   callback or the payload carries its own removal is decided in step 2. Within one tree, a row
-  could move without being rebuilt by being `Kept` (the `KeepAlive` in the user's queued
-  control-flow spec, `ForEachRef`) under its key in both lists; decide in step 2
-  whether that is worth it.
+  could move without being rebuilt if control flow could keep a row alive under its key from one
+  list to another, which nothing does yet; decide in step 2 whether that is worth adding.
 - **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
   or close it (today a flicked-out row leaves at once)? Decide in step 2.
 - **Rows a `VirtualList` has not built** have no rects. Either `slots_in` uses its estimates, or

@@ -228,18 +228,23 @@ where
     // Each option's value, place and the node its `item` built, for `handle`.
     let built_rows = Rc::new(RefCell::new(Vec::<(T, ReadSignal<usize>, NodeId)>::new()));
     let rows_changed = create_trigger();
-    if let Some(handle) = handle {
+    if let Some(fill) = handle.map(|handle| handle.claim()) {
         let built_rows = Rc::clone(&built_rows);
         let among = options.clone();
         create_effect(move || {
             rows_changed.track();
-            let values = among.items().iter().map(|option| option.value.clone()).collect();
-            let rows = built_rows
+            fill.keys(among.items().iter().map(|option| option.value.clone()).collect());
+            let mut rows: Vec<ShownRow<T, NodeId>> = built_rows
                 .borrow()
                 .iter()
-                .map(|(value, index, node)| (value.clone(), *index, vec![*node]))
+                .map(|(value, index, node)| ShownRow {
+                    key: value.clone(),
+                    index: *index,
+                    nodes: vec![*node],
+                })
                 .collect();
-            handle.show(values, rows);
+            rows.sort_by_key(|row| row.index.get_untracked());
+            fill.rows(rows);
         });
     }
     let buttons = options.build_keyed(

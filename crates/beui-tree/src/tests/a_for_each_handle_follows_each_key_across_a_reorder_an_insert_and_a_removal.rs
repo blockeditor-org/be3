@@ -27,14 +27,14 @@ fn a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal()
             .map(DomNode::html)
             .collect::<Vec<_>>()
     };
-    assert_eq!(rows.keys(), vec![1, 2, 3]);
+    assert_eq!(*rows.keys(), [1, 2, 3]);
     assert_eq!(rows.index_of(&3), Some(2));
     let first = html(1);
     assert_eq!(first.len(), 1, "a row of one child holds one");
 
     keys.set(vec![3, 1, 2]);
     flush();
-    assert_eq!(rows.keys(), vec![3, 1, 2]);
+    assert_eq!(*rows.keys(), [3, 1, 2]);
     assert_eq!(rows.index_of(&1), Some(1), "a key's place follows it");
     assert_eq!(html(1), first, "and so do the children its row built, unbuilt again");
     let index = rows.index(&1).expect("a shown key has a place");

@@ -4,6 +4,7 @@ use crate::core::selection::SelectableRows;
 use crate::core::selection::register_rows;
 use crate::core::selection::unregister_rows;
 use crate::reactive::Callback;
+use crate::reactive::ForEachFill;
 use crate::reactive::ForEachRef;
 use crate::reactive::Get;
 use crate::reactive::OwnedSignal;
@@ -12,7 +13,10 @@ use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
+use crate::reactive::ShownRow;
+use crate::reactive::Trigger;
 use crate::reactive::create_effect;
+use crate::reactive::create_trigger;
 use crate::reactive::on_cleanup;
 use crate::reactive::owner_scope;
 use crate::reactive::untrack;
@@ -29,6 +33,8 @@ use std::rc::Weak;
 struct Slot<K: 'static> {
     node: NodeId,
     key: OwnedSignal<K>,
+    /// Which of its key's rows this is, for a key shown more than once.
+    repeat: usize,
     index: OwnedSignal<usize>,
     scope: Scope,
 }
@@ -68,16 +74,18 @@ where
         pool: Rc::clone(&pool),
         text,
         watchers: RefCell::new(Vec::new()),
-        handle,
+        fill: handle.map(|handle| handle.claim()),
+        built: create_trigger(),
     });
     let owner = owner_scope();
     let building = Rc::clone(&pool);
     let announcing = Rc::clone(&rows);
     let list = with_document(|document| {
-        document.create_virtual_list(move |key: K| {
-            let index = announcing.position(&key).unwrap_or(0);
+        document.create_virtual_list(move |key: K, repeat: usize| {
+            let index = announcing.place(&key, repeat).unwrap_or(0);
             let slot = match reusable(&building, &key) {
-                Some(slot) => {
+                Some(mut slot) => {
+                    slot.repeat = repeat;
                     slot.key.set(key);
                     slot.index.set(index);
                     slot.scope.resume();
@@ -98,6 +106,7 @@ where
                     Slot {
                         node,
                         key: signal,
+                        repeat,
                         index: place,
                         scope,
                     }
@@ -127,10 +136,10 @@ where
                         held.free.push(slot);
                     }
                 }
-                leaving.report();
+                leaving.built.notify();
             });
             announcing.announce(node, shown_key);
-            announcing.report();
+            announcing.built.notify();
             node
         })
     });
@@ -155,14 +164,26 @@ where
         let direction = direction.get();
         with_document(|document| document.set_virtual_list_direction::<K>(list, direction))
     });
+    if rows.fill.is_some() {
+        let rows = Rc::clone(&rows);
+        create_effect(move || {
+            rows.built.track();
+            untrack(|| rows.report());
+        });
+    }
     create_effect(move || {
         let keys = keys.get();
         let changed = rows.set_keys(keys.clone());
+        if changed.is_some()
+            && let Some(fill) = rows.fill
+        {
+            fill.keys(Rc::from(keys.as_slice()));
+        }
         with_document(|document| document.set_virtual_list_keys(list, keys));
         if let Some(previous) = changed {
             untrack(|| {
                 rows.place_shown();
-                rows.report();
+                rows.built.notify();
                 rows.keys_changed(previous);
             });
         }
@@ -200,12 +221,17 @@ fn reusable<K: Eq>(pool: &Rc<RefCell<Pool<K>>>, key: &K) -> Option<Slot<K>> {
 struct Rows<K: 'static> {
     list: Cell<Option<NodeId>>,
     keys: RefCell<Vec<K>>,
-    indices: RefCell<Option<HashMap<K, usize>>>,
+    /// Each row's place, by its key and which of the key's rows it is.
+    indices: RefCell<Option<HashMap<(K, usize), usize>>>,
     previous: RefCell<Option<Vec<K>>>,
     pool: Rc<RefCell<Pool<K>>>,
     text: Callback<K, String>,
     watchers: RefCell<Vec<Weak<dyn RowWatcher>>>,
-    handle: Option<ForEachRef<K, NodeId>>,
+    /// The handle this list fills, if given one.
+    fill: Option<ForEachFill<K, NodeId>>,
+    /// Notified when a row is built or let go, or the keys change, so the handle hears of
+    /// the rows once per flush however many changed.
+    built: Trigger,
 }
 
 impl<K: Clone + Hash + Eq + 'static> Rows<K> {
@@ -247,7 +273,7 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
                 continue;
             };
             let key = slot.key.with_untracked(Clone::clone);
-            if let Some(index) = self.position(&key)
+            if let Some(index) = self.place(&key, slot.repeat)
                 && slot.index.get_untracked() != index
             {
                 slot.index.set(index);
@@ -255,12 +281,12 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         }
     }
 
-    /// Tells the handle, if any, the keys and the rows built.
+    /// Tells the handle, if any, the rows built, in the order shown.
     fn report(&self) {
-        let Some(handle) = self.handle else {
+        let Some(fill) = self.fill else {
             return;
         };
-        let rows = self
+        let mut rows: Vec<ShownRow<K, NodeId>> = self
             .pool
             .borrow()
             .shown
@@ -268,14 +294,15 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
             .filter_map(|held| {
                 let held = held.borrow();
                 let slot = held.as_ref()?;
-                Some((
-                    slot.key.with_untracked(Clone::clone),
-                    slot.index.read_only(),
-                    vec![slot.node],
-                ))
+                Some(ShownRow {
+                    key: slot.key.with_untracked(Clone::clone),
+                    index: slot.index.read_only(),
+                    nodes: vec![slot.node],
+                })
             })
             .collect();
-        handle.show(self.keys.borrow().clone(), rows);
+        rows.sort_by_key(|row| row.index.get_untracked());
+        fill.rows(rows);
     }
 
     fn announce(&self, node: NodeId, key: K) {
@@ -287,17 +314,26 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         }
     }
 
+    /// Where `key` sits: its first place, if it repeats.
     fn position(&self, key: &K) -> Option<usize> {
+        self.place(key, 0)
+    }
+
+    /// Where the `repeat`th row of `key` sits.
+    fn place(&self, key: &K, repeat: usize) -> Option<usize> {
         let mut indices = self.indices.borrow_mut();
         let indices = indices.get_or_insert_with(|| {
-            let mut indices =
-                HashMap::with_capacity_and_hasher(self.keys.borrow().len(), Default::default());
-            for (index, key) in self.keys.borrow().iter().enumerate() {
-                indices.entry(key.clone()).or_insert(index);
+            let keys = self.keys.borrow();
+            let mut indices = HashMap::with_capacity_and_hasher(keys.len(), Default::default());
+            let mut repeats = HashMap::<&K, usize>::default();
+            for (index, key) in keys.iter().enumerate() {
+                let repeat = repeats.entry(key).or_default();
+                indices.insert((key.clone(), *repeat), index);
+                *repeat += 1;
             }
             indices
         });
-        indices.get(key).copied()
+        indices.get(&(key.clone(), repeat)).copied()
     }
 }
 

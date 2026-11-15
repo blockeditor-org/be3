@@ -90,6 +90,9 @@ pub fn Fixture(name: String) -> Root {
         "virtual_list" => view! {
             <VirtualListFixture />
         },
+        "virtual_handle" => view! {
+            <VirtualHandleFixture />
+        },
         "paste" => view! {
             <PasteFixture />
         },
@@ -782,6 +785,42 @@ fn VirtualListFixture() -> NodeId {
                 </Offset>
             </Frame>
             <Button id="rows.end" label="To the end" on_click={move || offset.set(29800.0)} />
+        </List>
+    }
+}
+
+/// A virtual list's handle, as both cores fill it: each built row's key and place, a key
+/// shown twice known by its first place, and nothing once the list is gone.
+#[component]
+fn VirtualHandleFixture() -> NodeId {
+    let keys = create_signal(vec![0_u32, 1, 0, 2]);
+    let shown = create_signal(true);
+    let rows = ForEachRef::<u32, NodeId>::new();
+    let report = create_memo(move || {
+        rows.keys();
+        let mut built = Vec::new();
+        rows.for_each_row(|row| built.push(format!("{}@{}", row.key, row.index.get())));
+        match rows.index_of(&0) {
+            Some(first) => format!("Handle: 0 first at {first}, rows {}", built.join(" ")),
+            None => "Handle: empty".to_owned(),
+        }
+    });
+    view! {
+        <List spacing=12.0>
+            <Frame width=160.0 height=200.0>
+                <Show value={shown}>
+                    <VirtualList value={keys} handle={rows} item_size=20.0>|row: ReadSignal<u32>|
+                        <Frame height=20.0 fill={if row.get_untracked() == 0 { BLUE } else { GREEN }} />
+                    </VirtualList>
+                </Show>
+            </Frame>
+            <Button
+                id="handle.rotate"
+                label="Rotate"
+                on_click={move || keys.update(|keys| keys.rotate_right(1))}
+            />
+            <Button id="handle.hide" label="Hide" on_click={move || shown.set(false)} />
+            <Text>{report}</Text>
         </List>
     }
 }

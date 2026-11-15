@@ -1,7 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
-use std::time::Duration;
 
 use be_lib_stable_hash::HashMap;
 
@@ -95,11 +94,10 @@ struct State<K: 'static, P: 'static> {
     glides: RefCell<HashMap<NodeId, (NodeId, GlideApi)>>,
     /// The rows shown, as the `ForEach` or `VirtualList` that shows them reports them.
     rows: ForEachRef<K, NodeId>,
-    /// Set while a move the `Reorder` makes (a drag, a drop, a step) is laid out: rows glide
-    /// only then, so an order changed for any other reason snaps, as any list does.
-    moving: Cell<bool>,
-    /// Clears `moving` once the frame that made the move is laid out.
-    moved: Cell<Option<Timer>>,
+    /// Counts the moves the `Reorder` makes (a drag, a drop, a step): rows glide only for an
+    /// order or gap changed by one, so an order changed for any other reason snaps, as any
+    /// list does.
+    moves: Signal<u64>,
     board: Rc<Board>,
     gone: Cell<bool>,
     returning: Cell<bool>,
@@ -109,6 +107,10 @@ struct State<K: 'static, P: 'static> {
 
 pub struct ReorderHandle<K: 'static, P: 'static> {
     state: Stored<State<K, P>>,
+    /// Each key's place in `order`.
+    places: Memo<Rc<HashMap<K, usize>>>,
+    /// Whether the last change of `order` or `gap` came of a move the `Reorder` made.
+    armed: Memo<bool>,
     pub order: Memo<Vec<K>>,
     /// Hand this to the `ForEach` or `VirtualList` that shows `order`, as its `handle`: it is
     /// how the list finds its rows.
@@ -177,29 +179,22 @@ fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
 
 /// Marks a move the `Reorder` makes, so the rows it moves glide.
 fn mark_move<K, P>(state: &State<K, P>) {
-    state.moving.set(true);
-    if let Some(moved) = state.moved.get() {
-        moved.restart(Duration::ZERO);
-    }
+    state.moves.update(|moves| *moves += 1);
 }
 
 /// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
+/// Walks the rows the list built, not every key it has.
 fn shown_glides<K: Clone + PartialEq, P>(state: &State<K, P>) -> Vec<(K, NodeId, NodeId, GlideApi)> {
     let glides = state.glides.borrow();
-    untrack(|| state.rows.keys())
-        .into_iter()
-        .flat_map(|key| {
-            state
-                .rows
-                .nodes_of(&key)
-                .into_iter()
-                .filter_map(|node| {
-                    let (inner, glide) = glides.get(&node)?;
-                    Some((key.clone(), node, *inner, *glide))
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect()
+    let mut shown = Vec::new();
+    state.rows.for_each_row(|row| {
+        for node in &row.nodes {
+            if let Some((inner, glide)) = glides.get(node) {
+                shown.push((row.key.clone(), *node, *inner, *glide));
+            }
+        }
+    });
+    shown
 }
 
 fn glide_of<K: Clone + PartialEq, P>(
@@ -335,7 +330,7 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
     })
 }
 
-fn slot_at<K: Clone + PartialEq, P>(
+fn slot_at<K: Clone + Eq + Hash, P>(
     state: &State<K, P>,
     rest: &[K],
     own: Option<&K>,
@@ -345,6 +340,7 @@ fn slot_at<K: Clone + PartialEq, P>(
 ) -> usize {
     let direction = state.direction.get_untracked();
     let glides = shown_glides(state);
+    let places: HashMap<&K, usize> = rest.iter().enumerate().map(|(at, key)| (key, at)).collect();
     let mut mounted: Vec<(f32, usize)> = Vec::new();
     let mut split = f32::INFINITY;
     let mut opened = 0.0;
@@ -356,7 +352,7 @@ fn slot_at<K: Clone + PartialEq, P>(
             split = split.min(along(direction, rect.center()));
             continue;
         }
-        let Some(index) = rest.iter().position(|shown| shown == key) else {
+        let Some(&index) = places.get(key) else {
             continue;
         };
         let start = along(direction, rect.min);
@@ -980,8 +976,7 @@ where
         arrival: RefCell::new(None),
         glides: RefCell::new(HashMap::default()),
         rows: ForEachRef::new(),
-        moving: Cell::new(false),
-        moved: Cell::new(None),
+        moves: create_signal(0),
         board: drag_board(),
         gone: Cell::new(false),
         returning: Cell::new(false),
@@ -1014,11 +1009,28 @@ where
         move || settle_gap(state),
     );
     state.with(|state| state.frames.set(Some(frames)));
-    let moved = create_timer(move || {
-        state.with(|state| state.moving.set(false));
-        None
+    // Each key's place in `order`, made once per order rather than by each row.
+    let places = create_memo(move || {
+        order.with(|order| {
+            let mut places = HashMap::<K, usize>::default();
+            for (at, key) in order.iter().enumerate() {
+                places.entry(key.clone()).or_insert(at);
+            }
+            Rc::new(places)
+        })
     });
-    state.with(|state| state.moved.set(Some(moved)));
+    // Whether the order or gap changed in this flush came of a move the `Reorder` made: a
+    // move since the last change. Kept current by an effect, so a move that changed nothing
+    // is spent before any later change.
+    let moves = state.with(|state| state.moves);
+    let seen = Rc::new(Cell::new(0u64));
+    let armed = create_memo(move || {
+        order.track();
+        gap.track();
+        let moves = moves.get();
+        moves != seen.replace(moves)
+    });
+    create_effect(move || armed.track());
     create_effect(move || {
         keys.track();
         state.with(|state| {
@@ -1029,6 +1041,8 @@ where
     });
     let handle = ReorderHandle {
         state,
+        places,
+        armed,
         order,
         rows: state.with(|state| state.rows),
         dragging,
@@ -1187,25 +1201,26 @@ where
         })
     });
     let order = reorder.order;
+    let places = reorder.places;
     // A row's glides arm when a move the `Reorder` makes moves its key in the order, or moves
     // the gap it holds open past it: rows a gap passes shift with no change of place. A row a
     // `VirtualList` hands another key has not moved: it shows another row now.
-    let place = create_memo(move || order.with(|order| key.with(|key| order.iter().position(|shown| shown == key))));
+    let place = create_memo(move || places.with(|places| key.with(|key| places.get(key).copied())));
     let below_gap = create_memo(move || {
         gap.with(|gap| match gap {
-            Some(ReorderGap { before: Some(before), .. }) => order.with(|order| {
-                let at = order.iter().position(|shown| shown == before);
+            Some(ReorderGap { before: Some(before), .. }) => {
+                let at = places.with(|places| places.get(before).copied());
                 at.zip(place.get()).is_some_and(|(at, place)| at <= place)
-            }),
+            }
             _ => false,
         })
     });
     let shifted = create_trigger();
+    let armed = reorder.armed;
     create_effect_on_change(
         move || (key.get(), place.get(), below_gap.get()),
         move |(key, place, gap), (was_key, was_place, was_gap)| {
-            let moving = state.with(|state| state.moving.get());
-            if moving && key == was_key && (place != was_place || gap != was_gap) {
+            if armed.get_untracked() && key == was_key && (place != was_place || gap != was_gap) {
                 shifted.notify();
             }
         },
@@ -1331,6 +1346,22 @@ where
         measure(node);
     }
     state.with(|state| state.glides.borrow_mut().insert(glide, (inner, api.get())));
+    // A row the list reports with other nodes than this glide is wired wrong: the `Reorder`
+    // could not find it to measure or glide it.
+    #[cfg(debug_assertions)]
+    {
+        let rows = reorder.rows;
+        create_effect(move || {
+            rows.keys();
+            let key = key.get_untracked();
+            let nodes = rows.nodes_of(&key);
+            debug_assert!(
+                nodes.is_empty() || nodes.contains(&glide),
+                "a ReorderItem's glide is not among the nodes its list reports for its key; hand \
+                 the list the ReorderItem as its row"
+            );
+        });
+    }
     create_effect(move || {
         key.track();
         if untrack(|| lifted.get()) {
