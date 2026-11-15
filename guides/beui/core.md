@@ -17,34 +17,57 @@ fragment, `Show` or `ForEach` fills places among siblings it does not own. A
 `Vec` of nodes does not fill a slot; write a `ForEach` over the keys inside the
 same `view!`.
 
-**Control flow and its forms.** `Show`, `Dynamic`, `Keyed` and `Loading`
-return a lazy form whose type says how many children it builds, read from what
-the branches build: `OneOf<C>` (exactly one: a `Show` with a `fallback` whose
-branches each build one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>`
-(a `Show` without a `fallback`, or a `Dynamic` or `Keyed` over an `Option`
-given `fallback=()`, which builds nothing on `None` and hands its render the
-value inside), or a run, `DynamicSegment<C>` (several
-children, `ForEach`). Among a parent's run every form fills its place with no
-node of its own, so a hidden `Show` takes no room and no spacing. In a slot
-that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
-`Option<Child>`) becomes a host node holding the child it swaps: natively a
+**Control flow.** Every control-flow component reads its value from `value`,
+takes its children as its body, and takes a `fallback` for when there is
+nothing to show:
+
+- `Show` shows its body while `value` is `true` or `Some`. Over an `Option` the
+  body is handed a `ReadSignal` of what is in it: `<Show value={picked}>|item:
+  ReadSignal<Item>| ..</Show>`.
+- `Match` shows the first `Case` that holds for `value`: `<Case is={Shape::Circle}>`,
+  `<Case when={|shape: &Shape| shape.round()}>`, or both.
+- `Dynamic` builds its body from `value`, again when it changes to one that
+  differs (`PartialEq`).
+- `Keyed` builds once per `key={|value: &V| ..}` and hands its body a signal.
+- `ForEach` builds a row per item of `value`, in order, and keeps a row while
+  its item stays. Without a `key` an item is its own key; with
+  `key={|item: &T| item.id}` a row stays while its item changes. A row may also
+  take its place, `|item: T, index: ReadSignal<usize>|`, and builds any number
+  of children, moved together when the rows reorder. The `fallback` shows while
+  the list is empty.
+- `Loading` shows its `fallback` until what its body made has arrived.
+
+What a body is handed follows one rule: a body built again on every change gets
+the value (`Dynamic`, a `Case`, a `ForEach` row without a `key`); a body kept
+while the value changes gets a signal of it (`Show` over an `Option`, `Keyed`, a
+`ForEach` row with a `key`). A `||` body ignores what it is handed. A value
+whose type comes only from what is passed (`Show`'s, `Dynamic`'s, `Keyed`'s)
+takes a signal, memo or closure, never a plain value: a condition fixed when
+the view is built is plain Rust, `cond.then(|| view! {..})`, since a plain
+`Option` of a child (or of `Children`) fills a run but is built once. With a
+`fallback`, a `Dynamic` or `Keyed` `value` must already be an `Option`.
+
+**Their forms.** `Show`, `Dynamic`, `Keyed` and `Loading` return a lazy form
+whose type says how many children it builds, read from what the branches build:
+`OneOf<C>` (exactly one: a `Show` with a `fallback` whose branches each build
+one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>` (a `Show` without a
+`fallback`, or a `Dynamic` or `Keyed` over an `Option` given `fallback=()`,
+which builds nothing on `None`), or a run, `DynamicSegment<C>` (several
+children; `ForEach` and `Match` always). Among a parent's run every form fills
+its place with no node of its own, so a hidden `Show` takes no room and no
+spacing. In a slot that takes one node, `OneOf` (and `ZeroOrOne` where the slot
+is `Option<Child>`) becomes a host node holding the child it swaps: natively a
 bare `Frame` that sizes to its child, on HTML a `display: contents` element
 that passes its placed styles on to its child. `@test_id` and `@node_ref` on
 `OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run;
-focusing a host focuses the child it holds. A plain `Option` of a child (or of
-`Children`) also fills a run, but it is built once and is not reactive: write
-`cond.then(|| view! {..})` only for a condition fixed when the view is built,
-and a `Show` for one that changes. With a `fallback`, a `Dynamic` or `Keyed`
-`value` must already be an `Option`: it is not lifted from a plain value, which
-would never show the fallback.
-A run where one node goes, and a `Show` without a `fallback` where a node must
-always be, are compile errors saying what to add. A `ForEach` row that is a
-one-child `Show` costs a host per row, and a `ZeroOrOne` row there is a host that
-stays empty while it builds nothing. An either/or is one `Show` with a
-`fallback`, never two `Show`s on a condition and its negation
-([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)). A component
-whose whole view is control flow returns `DynamicSegment<ListItem>` (for a run)
-or `NodeId` (a host), which `#[component]` turns it into
+focusing a host focuses the child it holds. A run where one node goes, and a
+`Show` without a `fallback` where a node must always be, are compile errors
+saying what to add. An either/or is one `Show` with a `fallback`, never two
+`Show`s on a condition and its negation, and a choice among several is a
+`Match`, never a `Show` per case
+([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)).
+A component whose whole view is control flow returns `DynamicSegment<ListItem>`
+(for a run) or `NodeId` (a host), which `#[component]` turns it into
 (`ComponentOutput`). That conversion hides the body's type from inference, so a
 body ending in `x.into()` or `Default::default()` names its type
 (`NodeId::from(x)`).
