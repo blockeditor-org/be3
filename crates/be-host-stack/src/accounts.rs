@@ -307,7 +307,7 @@ pub async fn invitation(
 }
 
 /// An invitation as anyone holding its link reads it before signing in: whose it is, into what,
-/// and where it stands.
+/// and where it stands; an ended one names neither, so both are empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InvitationPreview {
     pub organization_name: String,
@@ -323,7 +323,7 @@ pub async fn preview_invitation(
     let (preview, card) = be_block_client::contacts::preview_invitation(&server_url, &code).await?;
     Ok(InvitationPreview {
         organization_name: preview.organization_name,
-        inviter: named(&card),
+        inviter: card.as_ref().map(named).unwrap_or_default(),
         state: preview.state,
     })
 }

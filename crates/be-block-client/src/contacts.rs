@@ -464,16 +464,22 @@ pub async fn invite(
 }
 
 /// An invitation as the holder of its code reads it, signed in or not (a one-shot call): where
-/// it stands, its organization's name, and its inviter's card opened with the code.
+/// it stands and, while it is open, its organization's name and its inviter's card opened with
+/// the code; an ended one answers its state alone.
 pub async fn preview_invitation(
     server_url: &str,
     code: &InviteCode,
-) -> Result<(be_block_protocol::InvitationPreview, ContactCard), ClientError> {
+) -> Result<(be_block_protocol::InvitationPreview, Option<ContactCard>), ClientError> {
     let id = link_id(code);
     let preview =
         crate::call_once(server_url, move |peer| client::contacts::read_invitation(peer, id))
             .await?;
-    let card = ContactCard::open(code, CardRole::Owner, &preview.card).map_err(|_| tampered())?;
+    let card = match preview.card.is_empty() {
+        true => None,
+        false => Some(
+            ContactCard::open(code, CardRole::Owner, &preview.card).map_err(|_| tampered())?,
+        ),
+    };
     Ok((preview, card))
 }
 
