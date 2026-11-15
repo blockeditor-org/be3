@@ -131,6 +131,7 @@ mod web {
 
     /// A change the host's worker could not keep: what it was, in words for the person
     /// (`Write::what`), and why.
+    #[derive(serde::Deserialize, serde::Serialize)]
     pub(crate) struct Unkept {
         pub(crate) what: String,
         pub(crate) error: String,
@@ -139,7 +140,7 @@ mod web {
     /// A change the page sends the host's worker to keep.
     pub(crate) enum Job {
         /// Where to tell the page of a change that could not be kept.
-        ReportTo(be_host_base::host::Post<Unkept>),
+        ReportTo(be_host_base::host::Across<Unkept>),
         State(Write),
         /// Deletes `host.sqlite3` and keeps the changes after in a fresh one.
         ForgetState,
@@ -172,7 +173,7 @@ mod web {
     ) -> Result<(HostStateStore, WorkspaceCache), String> {
         let (answer, answered) = oneshot::channel::<Opened>();
         let (jobs, taken) = mpsc::unbounded_channel();
-        let _ = jobs.send(Job::ReportTo(report));
+        let _ = jobs.send(Job::ReportTo(report.across()));
         be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken)));
         let (held, listed) = answered.await.map_err(|_| {
             "the host's worker stopped before it read the host's files".to_owned()
@@ -200,7 +201,7 @@ mod web {
         keeper: Option<Keeper>,
         refs: Option<be_block_client::RefsDb>,
         taken: mpsc::UnboundedReceiver<Job>,
-        report: Option<be_host_base::host::Post<Unkept>>,
+        report: Option<be_host_base::host::Across<Unkept>>,
     }
 
     impl Kept {
