@@ -208,7 +208,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<Li
                             <ListItem grow=1.0>
                                 <Scroll direction=Direction::Horizontal>
                                     <Frame padding=FORMAT_PADDING>
-                                        <Show value={markdown} then={controls} />
+                                        <Show value={markdown} then={move |_| controls()} />
                                     </Frame>
                                 </Scroll>
                             </ListItem>
@@ -230,7 +230,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<Li
         }
     };
     view! {
-        <Show value={shown} then={bar} />
+        <Show value={shown} then={move |_| bar()} />
     }
 }
 

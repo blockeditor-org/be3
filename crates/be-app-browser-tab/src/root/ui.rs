@@ -65,7 +65,7 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
+            <Keyed value={chrome} key={|shown: &bool| *shown}>|chrome: ReadSignal<bool>| {
                 match chrome.get_untracked() {
                     true => view! {
                         <ListItem grow=1.0>

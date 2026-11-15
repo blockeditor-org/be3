@@ -314,9 +314,9 @@ fn PendingChip(editor: Editor, pending: Pending, link_id: String) -> NodeId {
                 " "
                 {name}
             </Text>
-            <Show value={made}>
+            {made.then(|| view! {
                 <Text size=TextSize::Xs color=TextColor::Muted>"New"</Text>
-            </Show>
+            })}
         </List>
     }
 }

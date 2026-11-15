@@ -45,9 +45,9 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                     >
                         <Text style=TextStyle::CAPTION>{short_id(&change)}</Text>
                         <Text>{message}</Text>
-                        <beui::reactive::Show value={conflicted}>
+                        {conflicted.then(|| view! {
                             <Text style=TextStyle::CAPTION>"still has clashing edits"</Text>
-                        </beui::reactive::Show>
+                        })}
                     </List>
                 }
             }</ForEach>
@@ -95,9 +95,9 @@ pub fn VersionSteps(
                         <ListItem grow=1.0>
                             <Text>{description}</Text>
                         </ListItem>
-                        <beui::reactive::Show value={undone}>
+                        {undone.then(|| view! {
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
-                        </beui::reactive::Show>
+                        })}
                         <Button
                             label="Undo"
                             glyph=ICON_UNDO_2
