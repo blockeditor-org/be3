@@ -314,12 +314,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <Show value={error}>|error: ReadSignal<String>|
                     <Text style=TextStyle::CAPTION>{error}</Text>
                 </Show>
-                <Show value={loading}>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <Progress width=INLINE_PROGRESS_WIDTH />
-                        <Text style=TextStyle::CAPTION>"Loading members…"</Text>
-                    </List>
-                </Show>
                 <TextInput
                     value={Binding::new(query, move |value: String| act.call(ShareAction::Query(value)))}
                     placeholder="Add contacts by name or email"
@@ -433,6 +427,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </List>
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>
+                <Show value={loading}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
+                        <Text style=TextStyle::CAPTION>"Loading members…"</Text>
+                    </List>
+                </Show>
                 <Show value={company}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text size=TextSize::Sm align=TextAlign::Center>
