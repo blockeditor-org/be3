@@ -196,7 +196,6 @@ interface types {
     enum top-bar {
         hidden,
         shown,
-        phone,
     }
 
     /// How a frame shown as a dialog is laid out. The editor draws the
@@ -229,6 +228,9 @@ interface types {
         /// with no control of its own, from a shortcut or the palette,
         /// points at it.
         anchor: option<rect>,
+        /// Laid out as on a phone: set by the host on every frame from what the shell says of
+        /// itself (`set-phone-layout`), so every editor, placed or joined, agrees.
+        phone: bool,
     }
 
     record viewport-metrics {

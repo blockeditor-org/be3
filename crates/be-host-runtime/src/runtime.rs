@@ -1995,10 +1995,50 @@ pub fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
     })
 }
 
+thread_local! {
+    /// What the shell last said of its phone layout, which every frame spec carries.
+    static PHONE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Asks to set it, heard while an app's runtime is busy, taken at the next `poll`.
+    static PHONE_ASKED: RefCell<Vec<(String, EditorInstanceId, bool)>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// An app says it lays out as on a phone (`set-phone-layout`); only the shell is heard.
+pub(crate) fn ask_phone_layout(app_id: &str, instance: EditorInstanceId, on: bool) {
+    PHONE_ASKED.with_borrow_mut(|asked| asked.push((app_id.to_owned(), instance, on)));
+    host::request_repaint();
+}
+
+fn take_phone_asks(host: &mut Host) {
+    let asked = PHONE_ASKED.with_borrow_mut(std::mem::take);
+    let shell = host.shell.clone();
+    let mut changed = false;
+    for (app_id, instance, on) in asked {
+        if shell.as_ref() == Some(&(app_id, instance)) && PHONE.replace(on) != on {
+            changed = true;
+        }
+    }
+    if changed {
+        place_every_offer(host);
+    }
+}
+
+/// Places every view again, so each frame spec carries the phone layout as it now is.
+fn place_every_offer(host: &mut Host) {
+    for (app_id, runtime) in &mut host.runtimes {
+        let placed: Vec<(EditorInstanceId, ViewId)> = runtime.offers.keys().copied().collect();
+        for (instance, region) in placed {
+            apply_offers(runtime, instance, region);
+        }
+        mark(app_id);
+    }
+}
+
 pub fn poll() {
     let pass = host::pass();
     HOST.with(|host| {
         let mut host = host.borrow_mut();
+        take_phone_asks(&mut host);
         for runtime in host.runtimes.values_mut() {
             runtime.contain(|runtime| {
                 if std::mem::take(&mut runtime.restart_asked) {
@@ -2262,6 +2302,10 @@ pub fn set_shell(shell: Option<(&str, EditorInstanceId)>) {
             return;
         }
         host.shell = shell.clone();
+        // A new shell says again how it lays out; until it does, frames lay out as on a desktop.
+        if PHONE.replace(false) {
+            place_every_offer(&mut host);
+        }
         for (app_id, runtime) in &mut host.runtimes {
             let instance = shell
                 .as_ref()
@@ -2868,8 +2912,11 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: ViewI
         .fit
         .filter(|fit| region != ViewId::PREVIEW && fit.x > 0.0 && fit.y > 0.0);
     let inert = offers.iter().all(|offer| offer.inert);
-    let frame = chosen.frame;
-    let view = chosen.view;
+    let frame = chosen.frame.clone().map(|frame| FrameSpec {
+        phone: PHONE.get(),
+        ..frame
+    });
+    let view = chosen.view.clone();
     let ViewPlace {
         rect, clip, zoom, ..
     } = chosen.placement;

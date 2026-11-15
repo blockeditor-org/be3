@@ -192,6 +192,7 @@ fn screens() -> Vec<ScreenRequest> {
                 top_bar: be_sdk_api::TopBar::Hidden,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             metrics: metrics(),
             windows: false,
