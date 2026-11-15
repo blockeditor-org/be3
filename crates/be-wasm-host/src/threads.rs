@@ -18,6 +18,7 @@ use crate::instance::{self, Answers, Role};
 use crate::interrupt::Interrupt;
 use crate::state::{Device, Memory, State, state_of};
 use crate::wake::Wake;
+use crate::wasi::Wasi;
 
 const MODULE: &str = "wasi";
 const SPAWN: &str = "thread-spawn";
@@ -109,6 +110,7 @@ pub(crate) struct Spawner {
     linked: OnceLock<Arc<Linked>>,
     memory: Option<Share>,
     wake: Arc<Wake>,
+    wasi: Arc<Wasi>,
     interrupt: Arc<Interrupt>,
     next: AtomicI32,
     stopped: AtomicBool,
@@ -125,6 +127,7 @@ impl Spawner {
         program: Program,
         memory: Option<Share>,
         wake: Arc<Wake>,
+        wasi: Arc<Wasi>,
         interrupt: Arc<Interrupt>,
         main: v8::IsolateHandle,
     ) -> Arc<Self> {
@@ -133,6 +136,7 @@ impl Spawner {
             linked: OnceLock::new(),
             memory,
             wake,
+            wasi,
             interrupt,
             next: AtomicI32::new(1),
             stopped: AtomicBool::new(false),
@@ -311,6 +315,7 @@ impl Spawner {
             transport: Default::default(),
             threads: Arc::clone(self),
             wake: Arc::clone(&self.wake),
+            wasi: Arc::clone(&self.wasi),
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
             isolate: handle,

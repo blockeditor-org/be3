@@ -1,23 +1,20 @@
 //! Lays out a program as it runs (buck/program/defs.bzl's program): the
 //! executable under cargo's name, each --file beside it as it is, and each
-//! app's manifest renamed <id>.app.json with the module it names and its
-//! .cwasm, and --data, the app's read-only data (app_data), under data/<id>/.
+//! app's manifest renamed <id>.app.json with the module it names, and --data,
+//! the app's read-only data (app_data), under data/<id>/.
 //! Each --library is a library the modules are linked against
 //! (guides/app_libraries.md), staged as lib-<its SHA-256>.wasm, which is the
-//! name a module finds it by, with --library-artifact, its .cwasm. --index
+//! name a module finds it by. --index
 //! writes apps.json, the list of manifests the app finds its apps through.
 //! For the web bundle, --tree stages what wasm-bindgen wrote. --app-type,
 //! after an app's MANIFEST=MODULE, stages that app's type module
 //! (guides/type_modules.md) under the name its manifest's block_types give
-//! it, with its SHA-256 as NAME.sha256 (the tag of its sessions) and, with
-//! --type-artifact, its .cwasm. --compiled-only leaves out each module that
-//! has a .cwasm, for the APK, which only falls back to one. With an
+//! it, with its SHA-256 as NAME.sha256 (the tag of its sessions). With an
 //! executable, program-files.txt lists every file staged, which is what
 //! --install-login-session installs.
 //!
-//! The arguments are read in order: an --artifact, --library-artifact or
-//! --type-artifact is the .cwasm of the module staged just before it, and a
-//! --data or --app-type belongs to the app named just before it.
+//! The arguments are read in order: a --data or --app-type belongs to the app
+//! named just before it.
 //!
 //! The stage writes only what it makes itself into OUT (the .sha256 tags,
 //! apps.json and program-files.txt) and, at LAYOUT, every path of the program
@@ -26,7 +23,7 @@
 //! within a --tree or --data directory). The rule then lays the program out
 //! from that, linking each file rather than copying it. It reads only the
 //! manifests, libraries, type modules and directories, so an executable,
-//! --file, module or .cwasm may be given by its file name alone.
+//! --file or module may be given by its file name alone.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -35,8 +32,7 @@ use std::process::ExitCode;
 use sha2::{Digest, Sha256};
 
 const USAGE: &str = "usage: stage OUT LAYOUT [--executable=EXECUTABLE=NAME] [--file=FILE]... [--tree=DIR]... \
-[--index] [--compiled-only] [--library=MODULE [--library-artifact=CWASM]]... \
-(MANIFEST=MODULE [--data=DIR] [--artifact=CWASM] [--app-type=MODULE [--type-artifact=CWASM]])...";
+[--index] [--library=MODULE]... (MANIFEST=MODULE [--data=DIR] [--app-type=MODULE])...";
 
 /// What one path in the program is.
 #[derive(Debug, PartialEq, Eq)]
@@ -71,11 +67,8 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
     let mut layout = Layout::new();
     let mut index = false;
     let mut executable = false;
-    let mut compiled_only = false;
     let mut manifests = Vec::new();
-    // The module the next .cwasm belongs to, and the app the next --data or
-    // --app-type does: its manifest and id.
-    let mut staged: Option<String> = None;
+    // The app the next --data or --app-type belongs to: its manifest and id.
     let mut app: Option<(String, serde_json::Value, String)> = None;
     for (position, argument) in arguments.iter().enumerate() {
         let input = |part: usize| Entry::Input {
@@ -100,21 +93,8 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
             }
             "--tree" => tree(Path::new(value), position, "", "", &mut layout)?,
             "--index" => index = true,
-            "--compiled-only" => compiled_only = true,
             "--library" => {
-                let name = format!("lib-{}.wasm", sha256(value)?);
-                layout.insert(name.clone(), input(0));
-                staged = Some(name);
-            }
-            "--library-artifact" | "--artifact" | "--type-artifact" => {
-                let module = staged
-                    .as_ref()
-                    .ok_or_else(|| format!("{argument} follows no module"))?;
-                let artifact = format!("{}.cwasm", module.strip_suffix(".wasm").unwrap_or(module));
-                layout.insert(artifact, input(0));
-                if compiled_only {
-                    layout.remove(module);
-                }
+                layout.insert(format!("lib-{}.wasm", sha256(value)?), input(0));
             }
             "--app-type" => {
                 let (path, manifest, _) = app
@@ -131,8 +111,7 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                     tag,
                     Entry::Write(format!("{}\n", sha256(value)?).into_bytes()),
                 );
-                layout.insert(named.clone(), input(0));
-                staged = Some(named);
+                layout.insert(named, input(0));
             }
             "--data" => {
                 let (_, _, id) = app
@@ -159,8 +138,7 @@ pub fn layout(arguments: &[String]) -> Result<Layout, String> {
                 let name = format!("{id}.app.json");
                 layout.insert(name.clone(), input(0));
                 manifests.push(name);
-                layout.insert(entry_point.clone(), input(1));
-                staged = Some(entry_point);
+                layout.insert(entry_point, input(1));
                 app = Some((path.to_owned(), manifest, id));
             }
         }

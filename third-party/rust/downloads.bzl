@@ -56,12 +56,6 @@ downloads = {
         "size_bytes": 59770,
         "version": "0.34.0",
     },
-    "addr2line-0.26.1": {
-        "name": "addr2line",
-        "sha256": "59317f77929f0e679d39364702289274de2f0f0b22cbf50b2b8cff2169a0b27a",
-        "size_bytes": 43193,
-        "version": "0.26.1",
-    },
     "addr2line-0.27.1": {
         "name": "addr2line",
         "sha256": "e567177890eb1617b1f774005b66b26b2377afd138a2ca37aae7d8f0c81429d4",
@@ -134,12 +128,6 @@ downloads = {
         "size_bytes": 32748,
         "version": "0.3.1",
     },
-    "ambient-authority-0.0.2": {
-        "name": "ambient-authority",
-        "sha256": "e9d4ee0d472d1cd2e28c97dfa124b3d8d992e10eb0a035f33f5d12e3a177ba3b",
-        "size_bytes": 14867,
-        "version": "0.0.2",
-    },
     "android-activity-0.6.1": {
         "name": "android-activity",
         "sha256": "0f2a1bb052857d5dd49572219344a7332b31b76405648eabac5bc68978251bcd",
@@ -205,12 +193,6 @@ downloads = {
         "sha256": "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278",
         "size_bytes": 14280,
         "version": "0.4.0",
-    },
-    "arbitrary-1.4.2": {
-        "name": "arbitrary",
-        "sha256": "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1",
-        "size_bytes": 38307,
-        "version": "1.4.2",
     },
     "arboard-3.6.1": {
         "name": "arboard",
@@ -644,24 +626,6 @@ downloads = {
         "size_bytes": 11247,
         "version": "0.4.1",
     },
-    "cap-fs-ext-4.0.3": {
-        "name": "cap-fs-ext",
-        "sha256": "56ff379b70af8e08307a8f65e7040c7301cb4a572538ade16b4984f0da77847f",
-        "size_bytes": 16995,
-        "version": "4.0.3",
-    },
-    "cap-primitives-4.0.3": {
-        "name": "cap-primitives",
-        "sha256": "8b5f74729fd2f44701d1a8eb47e906cdb3ccd9ec0f02baad85a744b791940b18",
-        "size_bytes": 93618,
-        "version": "4.0.3",
-    },
-    "cap-std-4.0.3": {
-        "name": "cap-std",
-        "sha256": "c1ec78e242cfa2cfe276807ac2ecc00315a6c97786977414bcd1c3963b6c91b8",
-        "size_bytes": 36964,
-        "version": "4.0.3",
-    },
     "caseless-0.2.2": {
         "name": "caseless",
         "sha256": "8b6fd507454086c8edfd769ca6ada439193cdb209c7681712ef6275cccbfe5d8",
@@ -956,12 +920,6 @@ downloads = {
         "size_bytes": 100083,
         "version": "0.15.3",
     },
-    "cpp_demangle-0.5.1": {
-        "name": "cpp_demangle",
-        "sha256": "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def",
-        "size_bytes": 83067,
-        "version": "0.5.1",
-    },
     "cpubits-0.1.1": {
         "name": "cpubits",
         "sha256": "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae",
@@ -979,84 +937,6 @@ downloads = {
         "sha256": "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201",
         "size_bytes": 14156,
         "version": "0.3.0",
-    },
-    "cranelift-assembler-x64-0.135.1": {
-        "name": "cranelift-assembler-x64",
-        "sha256": "9903e767cc0a95a59950de099a6b1d61e1476f774be1cdfa06d7ccdc9bfae56f",
-        "size_bytes": 30896,
-        "version": "0.135.1",
-    },
-    "cranelift-assembler-x64-meta-0.135.1": {
-        "name": "cranelift-assembler-x64-meta",
-        "sha256": "e777252ea3ec9daffa71408fbfe0793ab0a7b7bc3b2cf0f417dd0fa33964b8ef",
-        "size_bytes": 49676,
-        "version": "0.135.1",
-    },
-    "cranelift-bforest-0.135.1": {
-        "name": "cranelift-bforest",
-        "sha256": "7828208a36e6627481cea61bd24c6234e31411d5c58b48e80ca094a1d593b944",
-        "size_bytes": 34212,
-        "version": "0.135.1",
-    },
-    "cranelift-bitset-0.135.1": {
-        "name": "cranelift-bitset",
-        "sha256": "a58c8447cc59ef98c49096679f81392ad0acec2224cea2bef52011f5169f9d02",
-        "size_bytes": 9195,
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-0.135.1": {
-        "name": "cranelift-codegen",
-        "sha256": "ce520e899df1de583e7b564eafd66760fbc147d72894d2278ddac57a1489fcc0",
-        "size_bytes": 1189075,
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-meta-0.135.1": {
-        "name": "cranelift-codegen-meta",
-        "sha256": "8d8ab23e63d78ea6bbda18ae1ed9c958bc1cb88d90fb5e95f5ba62e9c019474b",
-        "size_bytes": 93812,
-        "version": "0.135.1",
-    },
-    "cranelift-codegen-shared-0.135.1": {
-        "name": "cranelift-codegen-shared",
-        "sha256": "24319a996b1ef40ebf8af69b39c868c790b35a42cfe38edacfd8c9deb75ea712",
-        "size_bytes": 6192,
-        "version": "0.135.1",
-    },
-    "cranelift-control-0.135.1": {
-        "name": "cranelift-control",
-        "sha256": "cf9856d68cc2cefb83229cb2c55b620dd38427555c2fe87d73f8a4421616f628",
-        "size_bytes": 8297,
-        "version": "0.135.1",
-    },
-    "cranelift-entity-0.135.1": {
-        "name": "cranelift-entity",
-        "sha256": "e0ec225d6b79c5d61358cb5ea081a1384ec541dbf8c1a8c618d187875af326ad",
-        "size_bytes": 31193,
-        "version": "0.135.1",
-    },
-    "cranelift-frontend-0.135.1": {
-        "name": "cranelift-frontend",
-        "sha256": "7d3a96a09bd9bd3cf6df2de2ea15d7418f493e946a8eaa1acfe39297a67ed3f3",
-        "size_bytes": 61662,
-        "version": "0.135.1",
-    },
-    "cranelift-isle-0.135.1": {
-        "name": "cranelift-isle",
-        "sha256": "bd28f593c36afbdc9aa17305c0bb66c39ce0530e1caffcf389fbec053950083e",
-        "size_bytes": 89672,
-        "version": "0.135.1",
-    },
-    "cranelift-native-0.135.1": {
-        "name": "cranelift-native",
-        "sha256": "2987ca47affc261aa31ac643fb80dd7f8274cebf878003ba9f50cd6ff2c1055f",
-        "size_bytes": 11448,
-        "version": "0.135.1",
-    },
-    "cranelift-srcgen-0.135.1": {
-        "name": "cranelift-srcgen",
-        "sha256": "b7431dd8c9def94aca43b27915dee0d42103d9b13922cfb044febcd975547d68",
-        "size_bytes": 6127,
-        "version": "0.135.1",
     },
     "crc-fast-1.10.0": {
         "name": "crc-fast",
@@ -1700,12 +1580,6 @@ downloads = {
         "size_bytes": 3877697,
         "version": "0.20.1",
     },
-    "fs-set-times-0.20.3": {
-        "name": "fs-set-times",
-        "sha256": "94e7099f6313ecacbe1256e8ff9d617b75d1bcb16a6fddef94866d225a01a14a",
-        "size_bytes": 15964,
-        "version": "0.20.3",
-    },
     "fsevent-sys-4.1.0": {
         "name": "fsevent-sys",
         "sha256": "76ee7a02da4d231650c7cea31349b889be2f45ddb3ef3032d2ec8185f6313fd2",
@@ -1831,12 +1705,6 @@ downloads = {
         "sha256": "ee8cfcc411d9adbbaba82fb72661cc1bcca13e8bba98b364e62b2dba8f960159",
         "size_bytes": 38710,
         "version": "0.14.2",
-    },
-    "gimli-0.33.0": {
-        "name": "gimli",
-        "sha256": "0bf7f043f89559805f8c7cacc432749b2fa0d0a0a9ee46ce47164ed5ba7f126c",
-        "size_bytes": 330197,
-        "version": "0.33.0",
     },
     "gimli-0.34.0": {
         "name": "gimli",
@@ -2324,35 +2192,11 @@ downloads = {
         "size_bytes": 17134,
         "version": "0.7.2",
     },
-    "io-extras-0.19.0": {
-        "name": "io-extras",
-        "sha256": "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f",
-        "size_bytes": 34951,
-        "version": "0.19.0",
-    },
     "io-lifetimes-1.0.11": {
         "name": "io-lifetimes",
         "sha256": "eae7b9aee968036d54dce06cebaefd919e4472e753296daccd6d344e3e2df0c2",
         "size_bytes": 37346,
         "version": "1.0.11",
-    },
-    "io-lifetimes-2.0.4": {
-        "name": "io-lifetimes",
-        "sha256": "06432fb54d3be7964ecd3649233cddf80db2832f47fec34c01f65b3d9d774983",
-        "size_bytes": 28501,
-        "version": "2.0.4",
-    },
-    "io-lifetimes-3.0.1": {
-        "name": "io-lifetimes",
-        "sha256": "2f0fb0570afe1fed943c5c3d4102d5358592d8625fda6a0007fdbe65a92fba96",
-        "size_bytes": 28589,
-        "version": "3.0.1",
-    },
-    "ipnet-2.12.1": {
-        "name": "ipnet",
-        "sha256": "6a756c3fac73139e83f14c2d742155dd2b78d3ee56597b419a0579b7bdd6dd78",
-        "size_bytes": 31069,
-        "version": "2.12.1",
     },
     "is_terminal_polyfill-1.70.2": {
         "name": "is_terminal_polyfill",
@@ -2534,12 +2378,6 @@ downloads = {
         "size_bytes": 14025,
         "version": "1.5.0",
     },
-    "leb128-0.2.7": {
-        "name": "leb128",
-        "sha256": "c83bff1d572d6b9aeef67ddfc8448e4a3737909cb28e81f97c791b9018703e52",
-        "size_bytes": 13874,
-        "version": "0.2.7",
-    },
     "leb128fmt-0.1.0": {
         "name": "leb128fmt",
         "sha256": "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2",
@@ -2672,23 +2510,11 @@ downloads = {
         "size_bytes": 22180,
         "version": "0.4.3",
     },
-    "mach2-0.6.0": {
-        "name": "mach2",
-        "sha256": "dae608c151f68243f2b000364e1f7b186d9c29845f7d2d85bd31b9ad77ad552b",
-        "size_bytes": 33580,
-        "version": "0.6.0",
-    },
     "matchers-0.2.0": {
         "name": "matchers",
         "sha256": "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9",
         "size_bytes": 7075,
         "version": "0.2.0",
-    },
-    "maybe-owned-0.3.4": {
-        "name": "maybe-owned",
-        "sha256": "4facc753ae494aeb6e3c22f839b158aebd4f9270f55cd3c79906c45476c47ab4",
-        "size_bytes": 14308,
-        "version": "0.3.4",
     },
     "md-5-0.11.0": {
         "name": "md-5",
@@ -2707,12 +2533,6 @@ downloads = {
         "sha256": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
         "size_bytes": 99165,
         "version": "2.8.3",
-    },
-    "memfd-0.6.5": {
-        "name": "memfd",
-        "sha256": "ad38eb12aea514a0466ea40a80fd8cc83637065948eb4a426e4aa46261175227",
-        "size_bytes": 12909,
-        "version": "0.6.5",
     },
     "memmap2-0.9.10": {
         "name": "memmap2",
@@ -3019,12 +2839,6 @@ downloads = {
         "sha256": "d87d638e33c06f577498cbcc50491496a3ed4246998a7fbba7ccb98b1e7eab22",
         "size_bytes": 551453,
         "version": "0.3.2",
-    },
-    "object-0.39.1": {
-        "name": "object",
-        "sha256": "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b",
-        "size_bytes": 360376,
-        "version": "0.39.1",
     },
     "object-0.40.0": {
         "name": "object",
@@ -3476,18 +3290,6 @@ downloads = {
         "size_bytes": 6333,
         "version": "1.0.18",
     },
-    "pulley-interpreter-48.0.1": {
-        "name": "pulley-interpreter",
-        "sha256": "f755d75e0809a4738a3e4880eeeb852fadbe1de5a437505b84f09c381657012a",
-        "size_bytes": 66751,
-        "version": "48.0.1",
-    },
-    "pulley-macros-48.0.1": {
-        "name": "pulley-macros",
-        "sha256": "c7e69fa1c4a555946f82e7894a7df88b0e9ee03b4266829b4811467c616ce51d",
-        "size_bytes": 2345,
-        "version": "48.0.1",
-    },
     "pulseaudio-0.3.1": {
         "name": "pulseaudio",
         "sha256": "d70623bd7967a9ca4c2ae0e807fc380b291f98480fc037042305ec643a4d3373",
@@ -3650,18 +3452,6 @@ downloads = {
         "size_bytes": 15277,
         "version": "1.1.0",
     },
-    "rayon-1.12.0": {
-        "name": "rayon",
-        "sha256": "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d",
-        "size_bytes": 183391,
-        "version": "1.12.0",
-    },
-    "rayon-core-1.13.0": {
-        "name": "rayon-core",
-        "sha256": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
-        "size_bytes": 73151,
-        "version": "1.13.0",
-    },
     "rc2-0.9.0": {
         "name": "rc2",
         "sha256": "ceda21af1ae61033b63175653a1af86cae399d79cd03ca80ba347eb3a6c4a7fe",
@@ -3709,12 +3499,6 @@ downloads = {
         "sha256": "92ecd8964f8453721699a1ed72037b0db49ce2f5a5138486ee89bed6f67cdf3a",
         "size_bytes": 10194,
         "version": "1.0.27",
-    },
-    "regalloc2-0.15.2": {
-        "name": "regalloc2",
-        "sha256": "757712e8e61590d6d4f5d563483755538b5aa13467837a3b41cd9832509a7f85",
-        "size_bytes": 150949,
-        "version": "0.15.2",
     },
     "regex-1.13.1": {
         "name": "regex",
@@ -3865,12 +3649,6 @@ downloads = {
         "sha256": "b6fe4565b9518b83ef4f91bb47ce29620ca828bd32cb7e408f0062e9930ba190",
         "size_bytes": 425241,
         "version": "1.1.4",
-    },
-    "rustix-linux-procfs-0.1.1": {
-        "name": "rustix-linux-procfs",
-        "sha256": "2fc84bf7e9aa16c4f2c758f27412dc9841341e16aa682d9c7ac308fe3ee12056",
-        "size_bytes": 17465,
-        "version": "0.1.1",
     },
     "rustls-0.23.43": {
         "name": "rustls",
@@ -4429,12 +4207,6 @@ downloads = {
         "sha256": "901704edd0dfe137f1987838ee4f259e4e063c31371bdb423f7ae38ec6f77f02",
         "size_bytes": 19010,
         "version": "0.14.0",
-    },
-    "target-lexicon-0.13.5": {
-        "name": "target-lexicon",
-        "sha256": "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca",
-        "size_bytes": 26928,
-        "version": "0.13.5",
     },
     "tempfile-3.27.0": {
         "name": "tempfile",
@@ -5000,12 +4772,6 @@ downloads = {
         "size_bytes": 85804,
         "version": "0.244.0",
     },
-    "wasm-encoder-0.254.0": {
-        "name": "wasm-encoder",
-        "sha256": "09480d646178e5fdd12bb06e812d0af9a3a191dbc9cd697fdc86687beade7393",
-        "size_bytes": 91925,
-        "version": "0.254.0",
-    },
     "wasm-encoder-0.257.1": {
         "name": "wasm-encoder",
         "sha256": "7d8ad9f0a39050867bda22e6486c316e2e52d20a42154d5bc433934bf738d085",
@@ -5017,12 +4783,6 @@ downloads = {
         "sha256": "bb0e353e6a2fbdc176932bbaab493762eb1255a7900fe0fea1a2f96c296cc909",
         "size_bytes": 21500,
         "version": "0.244.0",
-    },
-    "wasm-metadata-0.254.0": {
-        "name": "wasm-metadata",
-        "sha256": "b01df5f3b4ca7881e843f3bc0fb8a3905d79c68692250dcb8e33e698705ccdb6",
-        "size_bytes": 27246,
-        "version": "0.254.0",
     },
     "wasmi-1.1.0": {
         "name": "wasmi",
@@ -5060,131 +4820,17 @@ downloads = {
         "size_bytes": 265607,
         "version": "0.244.0",
     },
-    "wasmparser-0.254.0": {
-        "name": "wasmparser",
-        "sha256": "d5769a29f799fbab136aaf65b4fe5384cd7d93fe6fc9ba0dcb6c8382a1f16e27",
-        "size_bytes": 277351,
-        "version": "0.254.0",
-    },
     "wasmparser-0.257.1": {
         "name": "wasmparser",
         "sha256": "d92fc335fb6d48f46bda1d8b26b69e28320c15ac3272208333833d6e217e2b4a",
         "size_bytes": 278931,
         "version": "0.257.1",
     },
-    "wasmprinter-0.254.0": {
-        "name": "wasmprinter",
-        "sha256": "64e3ba11e024f504698f87b629b2b66c22a1231758de7607754963f7d198be39",
-        "size_bytes": 50038,
-        "version": "0.254.0",
-    },
-    "wasmtime-48.0.1": {
-        "name": "wasmtime",
-        "sha256": "1bd39f78fe9bc82cee4025ec9d52118269e9a1498016cc60119b14f2e1d86a8d",
-        "size_bytes": 1044326,
-        "version": "48.0.1",
-    },
-    "wasmtime-environ-48.0.1": {
-        "name": "wasmtime-environ",
-        "sha256": "00c1070d95484d048994ec109cd42c4932ac07e6ee3cc1886fb90c7a18ec29da",
-        "size_bytes": 310872,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-cache-48.0.1": {
-        "name": "wasmtime-internal-cache",
-        "sha256": "9d447fd40f3e149cda8c0cd808660a1d1de438f3ff28627abb9bcda90dfb4895",
-        "size_bytes": 36985,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-component-macro-48.0.1": {
-        "name": "wasmtime-internal-component-macro",
-        "sha256": "f3d2b2f9f89a65bb2277d82fbdd49263d27d8233bc717d750c4b13a23d57721c",
-        "size_bytes": 254908,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-component-util-48.0.1": {
-        "name": "wasmtime-internal-component-util",
-        "sha256": "2c0fe8292115fda08875f29064ae9f7f0b2c1ffbb323146eae538ae34b8a613f",
-        "size_bytes": 2783,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-core-48.0.1": {
-        "name": "wasmtime-internal-core",
-        "sha256": "821385794cf44baf2967fd2515368429ed2bff9b9b256f62d09a0f1301474fd8",
-        "size_bytes": 55143,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-cranelift-48.0.1": {
-        "name": "wasmtime-internal-cranelift",
-        "sha256": "0238b4a52773457ad1b8a1a26be90486e0ca0108cf46b9be16cc1d8d8cabdfa1",
-        "size_bytes": 263109,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-fiber-48.0.1": {
-        "name": "wasmtime-internal-fiber",
-        "sha256": "596f1d85e06cbf9c9add9c78ea135171c5753264ffe94a83dcc082a1ff49fc9b",
-        "size_bytes": 34204,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-jit-debug-48.0.1": {
-        "name": "wasmtime-internal-jit-debug",
-        "sha256": "365faed74827bb0116785bab5872372df1baaec9ec0003c83bc99ccdc595f689",
-        "size_bytes": 10078,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-jit-icache-coherence-48.0.1": {
-        "name": "wasmtime-internal-jit-icache-coherence",
-        "sha256": "3cce25afd9e7ac4957292a5c6a219951dd0f140b8417e7378a97f50b67c3b96f",
-        "size_bytes": 7155,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-unwinder-48.0.1": {
-        "name": "wasmtime-internal-unwinder",
-        "sha256": "a1fdea09d51e39c774984ca68a7d7486767e5b2935f5e686fa654aabcfc3c42d",
-        "size_bytes": 24826,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-versioned-export-macros-48.0.1": {
-        "name": "wasmtime-internal-versioned-export-macros",
-        "sha256": "97e48a5f514c38c2f74249724cb3501e45548d3311ca9e3881694859fd6ba116",
-        "size_bytes": 2305,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-winch-48.0.1": {
-        "name": "wasmtime-internal-winch",
-        "sha256": "5273668f321005b9c75532ed073c0f6c3fd1147f3736a544c9e3070c47876489",
-        "size_bytes": 15049,
-        "version": "48.0.1",
-    },
-    "wasmtime-internal-wit-bindgen-48.0.1": {
-        "name": "wasmtime-internal-wit-bindgen",
-        "sha256": "07429ab53576255be2d298e04b2e1f381e39645465adbaebd69314b5430165c0",
-        "size_bytes": 38685,
-        "version": "48.0.1",
-    },
-    "wasmtime-wasi-48.0.1": {
-        "name": "wasmtime-wasi",
-        "sha256": "85dd81ee95792682ea5b279c9ed352f6b8a2cba084c2f8abdb225e6933323fed",
-        "size_bytes": 227052,
-        "version": "48.0.1",
-    },
-    "wasmtime-wasi-io-48.0.1": {
-        "name": "wasmtime-wasi-io",
-        "sha256": "6a557bc8a7232cd079f6b423a9bb385f3ff9148824f3c26c07a028b499fab2bf",
-        "size_bytes": 19389,
-        "version": "48.0.1",
-    },
     "wast-257.0.1": {
         "name": "wast",
         "sha256": "3c416ee8044cf88c5280e3d87c322b009525eb25142cf7428f0a90ea88febc3b",
         "size_bytes": 169961,
         "version": "257.0.1",
-    },
-    "wast-35.0.2": {
-        "name": "wast",
-        "sha256": "2ef140f1b49946586078353a453a1d28ba90adfc54dde75710bc1931de204d68",
-        "size_bytes": 90940,
-        "version": "35.0.2",
     },
     "wat-1.257.1": {
         "name": "wat",
@@ -5378,24 +5024,6 @@ downloads = {
         "size_bytes": 16937,
         "version": "6.0.3",
     },
-    "wiggle-48.0.1": {
-        "name": "wiggle",
-        "sha256": "b871ea219ad85c1e59ee7d013563814e86d2e6aa094d3bc66b7675ec4ca58bb7",
-        "size_bytes": 29595,
-        "version": "48.0.1",
-    },
-    "wiggle-generate-48.0.1": {
-        "name": "wiggle-generate",
-        "sha256": "ed981675756e748a4725286a4059c9be006749a8db4120d54e2021d0f167bac3",
-        "size_bytes": 27252,
-        "version": "48.0.1",
-    },
-    "wiggle-macro-48.0.1": {
-        "name": "wiggle-macro",
-        "sha256": "7f3927729af874585c58b85710128e40d459a7064bb9aea9b0b420fb5eafd555",
-        "size_bytes": 12284,
-        "version": "48.0.1",
-    },
     "winapi-0.3.9": {
         "name": "winapi",
         "sha256": "5c839a674fcd7a98952e593242ea400abe93992746761e38641405d28b00f419",
@@ -5419,12 +5047,6 @@ downloads = {
         "sha256": "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f",
         "size_bytes": 2947998,
         "version": "0.4.0",
-    },
-    "winch-codegen-48.0.1": {
-        "name": "winch-codegen",
-        "sha256": "5b223d6350e387101a19062dd25b1c1763b0c28b26b8eeedde2e7568cab1b07c",
-        "size_bytes": 182781,
-        "version": "48.0.1",
     },
     "windows-0.54.0": {
         "name": "windows",
@@ -5840,12 +5462,6 @@ downloads = {
         "size_bytes": 492820,
         "version": "0.0.19",
     },
-    "winx-0.36.4": {
-        "name": "winx",
-        "sha256": "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d",
-        "size_bytes": 13838,
-        "version": "0.36.4",
-    },
     "wit-bindgen-0.51.0": {
         "name": "wit-bindgen",
         "sha256": "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5",
@@ -5882,12 +5498,6 @@ downloads = {
         "size_bytes": 256882,
         "version": "0.244.0",
     },
-    "wit-component-0.254.0": {
-        "name": "wit-component",
-        "sha256": "b0e65bb94c369b3c4741ce3d1d2704b1fec93db7c540df0e521a097e7ceeb5be",
-        "size_bytes": 273186,
-        "version": "0.254.0",
-    },
     "wit-parser-0.244.0": {
         "name": "wit-parser",
         "sha256": "ecc8ac4bc1dc3381b7f59c34f00b67e18f910c2c0f50015669dde7def656a736",
@@ -5899,12 +5509,6 @@ downloads = {
         "sha256": "1655131e4f7d3f0cb141f6eca71315ca40eff0f3d4de7cff0a82bacedd8c89b4",
         "size_bytes": 188327,
         "version": "0.254.0",
-    },
-    "witx-0.9.1": {
-        "name": "witx",
-        "sha256": "e366f27a5cabcddb2706a78296a40b8fcc451e1a6aba2fc1d94b4a01bdaaef4b",
-        "size_bytes": 45928,
-        "version": "0.9.1",
     },
     "wnaf-0.14.1": {
         "name": "wnaf",

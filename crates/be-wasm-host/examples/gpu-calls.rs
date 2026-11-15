@@ -168,7 +168,7 @@ fn guest() -> String {
 
 fn main() {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
-    let host = Host::new(device, queue, None).expect("the host should start");
+    let host = Host::new(device, queue).expect("the host should start");
     let mut app = host
         .load_bytes(guest().as_bytes())
         .expect("the guest should load");

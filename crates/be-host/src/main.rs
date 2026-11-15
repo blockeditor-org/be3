@@ -926,25 +926,6 @@ struct PendingCopy {
     stage: CopyStage,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-const CACHES: [&str; 1] = ["app-cache"];
-
-#[cfg(not(target_arch = "wasm32"))]
-fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
-    let stamp = data_dir.join("build-id");
-    let current = be_lib_build_id::current().map_err(io::Error::other)?;
-    if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
-        return Ok(());
-    }
-    for cache in CACHES {
-        match std::fs::remove_dir_all(data_dir.join(cache)) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => return Err(error),
-            _ => {}
-        }
-    }
-    std::fs::write(stamp, current)
-}
-
 #[derive(Clone)]
 enum CopyStage {
     Duplicate,
@@ -964,9 +945,7 @@ impl HostCore {
             .or_else(storage_dir)
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
-        forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
-        be_host_runtime::cache_in(data_dir.join("app-cache"));
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut core = Self::with_state(host_state)?;
         core.workspaces = host_files::WorkspaceCache::open(&data_dir, &core.accounts);
