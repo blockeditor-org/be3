@@ -15,7 +15,7 @@ fn an_unlink_the_containers_type_makes_places_the_copy_in_it() {
     make(source, text, BlockParent::Root, "Source", TextBlock::of("source").encode());
     make(notes, text, BlockParent::Root, "Notes", TextBlock::of(&link).encode());
     synced();
-    known(&[text]);
+    let _apps = known(&[text]);
     let mut core = core();
     core.block_types.insert(source, text);
     core.block_types.insert(notes, text);

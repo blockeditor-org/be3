@@ -177,18 +177,35 @@ fn install(apps: Apps) {
 }
 
 /// Puts these manifests, `(source, document)`, in place of the apps found, for a test whose host
-/// stages none. Fails on one discovery would refuse.
+/// stages none, until the answer is dropped: the apps found are the process's, which other tests
+/// in it share. Fails on one discovery would refuse.
 #[cfg(any(test, feature = "testing"))]
-pub fn install_for_testing(manifests: &[(&str, &str)]) {
+#[must_use = "the manifests are in place only while this is held"]
+pub fn install_for_testing(manifests: &[(&str, &str)]) -> InstalledForTesting {
     let mut apps = Apps::default();
     for (source, document) in manifests {
         apps.add(source, document);
     }
     apps.settle();
     assert!(apps.errors.is_empty(), "{:?}", apps.errors);
-    *APPS
+    let before = APPS
         .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(apps));
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .replace(Arc::new(apps));
+    InstalledForTesting(before)
+}
+
+/// Manifests a test put in place (`install_for_testing`), until it is dropped.
+#[cfg(any(test, feature = "testing"))]
+pub struct InstalledForTesting(Option<Arc<Apps>>);
+
+#[cfg(any(test, feature = "testing"))]
+impl Drop for InstalledForTesting {
+    fn drop(&mut self) {
+        *APPS
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = self.0.take();
+    }
 }
 
 pub fn block_type(content_type: Uuid) -> Option<BlockTypeDescriptor> {
