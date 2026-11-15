@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use be_wasm_host::{Host, precompile, precompile_to};
+use be_wasm_host::Host;
 
 const GUEST_PATHS: [&str; 2] = ["CARGO_MANIFEST_DIR", "MADE_PAINTINGS"];
 
@@ -11,48 +11,13 @@ fn main() {
     let Some(first) = arguments.next() else {
         usage(&program);
     };
-    if first == "--precompile-to" {
-        let mut target = None;
-        let mut quick = false;
-        let mut paths = Vec::new();
-        while let Some(argument) = arguments.next() {
-            match argument.as_str() {
-                "--target" => target = arguments.next(),
-                "--quick" => quick = true,
-                _ => paths.push(PathBuf::from(argument)),
-            }
-        }
-        let [artifact, wasm] = paths.as_slice() else {
-            usage(&program);
-        };
-        if let Err(message) = precompile_to(wasm, artifact, target.as_deref(), quick) {
-            eprintln!("{message}");
-            std::process::exit(1);
-        }
-        return;
-    }
-    if first == "--precompile" {
-        let modules: Vec<PathBuf> = arguments.map(PathBuf::from).collect();
-        if modules.is_empty() {
-            usage(&program);
-        }
-        if let Err(message) = precompile(&modules, None) {
-            eprintln!("{message}");
-            std::process::exit(1);
-        }
-        return;
-    }
-    let mut precompiled = None;
     let mut libraries = Vec::new();
     let mut first = first;
-    while first == "--precompiled" || first == "--library" {
+    while first == "--library" {
         let (Some(path), Some(next)) = (arguments.next(), arguments.next()) else {
             usage(&program);
         };
-        match first.as_str() {
-            "--precompiled" => precompiled = Some(PathBuf::from(path)),
-            _ => libraries.push(PathBuf::from(path)),
-        }
+        libraries.push(PathBuf::from(path));
         first = next;
     }
     let wasm = PathBuf::from(first);
@@ -69,7 +34,7 @@ fn main() {
         arguments.push("--nocapture".to_owned());
     }
 
-    match run(&wasm, &arguments, precompiled.as_deref(), &libraries) {
+    match run(&wasm, &arguments, &libraries) {
         Ok(code) => std::process::exit(code),
         Err(message) => {
             eprintln!("{message}");
@@ -94,26 +59,14 @@ fn absolute_guest_paths() {
 }
 
 fn usage(program: &str) -> ! {
-    eprintln!(
-        "Usage: {program} [--precompiled TESTS.cwasm] [--library LIBRARY.wasm|.cwasm]... \
-         TESTS.wasm [test arguments...]"
-    );
-    eprintln!("       {program} --precompile TESTS.wasm...");
-    eprintln!(
-        "       {program} --precompile-to [--target TRIPLE] [--quick] TESTS.cwasm TESTS.wasm"
-    );
+    eprintln!("Usage: {program} [--library LIBRARY.wasm]... TESTS.wasm [test arguments...]");
     std::process::exit(2);
 }
 
-fn run(
-    wasm: &Path,
-    arguments: &[String],
-    precompiled: Option<&Path>,
-    libraries: &[PathBuf],
-) -> Result<i32, String> {
+fn run(wasm: &Path, arguments: &[String], libraries: &[PathBuf]) -> Result<i32, String> {
     let directories = guest_directories()?;
-    let host = Host::on_demand(gpu, None)?;
-    host.run_tests(wasm, arguments, &directories, precompiled, libraries)
+    let host = Host::on_demand(gpu)?;
+    host.run_tests(wasm, arguments, &directories, libraries)
 }
 
 fn guest_directories() -> Result<Vec<PathBuf>, String> {
