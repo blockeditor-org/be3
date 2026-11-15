@@ -5,6 +5,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-block-commit = { path = "../be-block-commit" }
+beui-core = { path = "../beui-core" }
 be-block-fault-relay = { path = "../be-block-fault-relay" }
 be-server = { path = "../be-server" }
 tokio = { version = "1", features = ["rt-multi-thread"] }
