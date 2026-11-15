@@ -9,7 +9,7 @@ use be_block_session::{
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
     Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, JournalEntry, Merging,
-    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Written,
+    Recipients, RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
 
@@ -3298,49 +3298,23 @@ where
     }
 
     /// What keeps edits out of the journal (`Status::unjournaled`), with the timers it waits on.
-    fn unjournaled(&self) -> String {
-        let mut waits = Vec::new();
-        if !self.loaded {
-            waits.push("not loaded".to_owned());
+    fn unjournaled(&self) -> Unjournaled {
+        let owner = self.is_owner();
+        Unjournaled {
+            loaded: self.loaded,
+            unappended: match owner {
+                true => u32::try_from(self.unappended.len()).unwrap_or(u32::MAX),
+                false => 0,
+            },
+            held: u32::try_from(self.held.len()).unwrap_or(u32::MAX),
+            putting: self.putting(),
+            unsettled: !owner && self.unsettled() > 0,
+            append_at: self.append_at,
+            put_retry_at: self.put_retry_at,
+            merge_retry_at: self.merge_retry_at,
+            seal_retry_at: self.seal_retry_at,
+            merge_failures: self.merge_failures,
         }
-        match &self.role {
-            Role::Owner(_) => {
-                if !self.unappended.is_empty() {
-                    waits.push(format!(
-                        "{} sequenced to append at {:?}",
-                        self.unappended.len(),
-                        self.append_at
-                    ));
-                }
-                if !self.held.is_empty() {
-                    waits.push(format!(
-                        "{} held back{}",
-                        self.held.len(),
-                        match self.putting() {
-                            true => " behind a part being put",
-                            false => "",
-                        }
-                    ));
-                }
-            }
-            Role::Follower(_) => waits.push(format!(
-                "a follower with {} unsettled",
-                self.unsettled()
-            )),
-        }
-        for (what, at) in [
-            ("put retry", self.put_retry_at),
-            ("merge retry", self.merge_retry_at),
-            ("seal retry", self.seal_retry_at),
-        ] {
-            if let Some(at) = at {
-                waits.push(format!("{what} at {at}"));
-            }
-        }
-        if self.merge_failures > 0 {
-            waits.push(format!("{} merge failure(s)", self.merge_failures));
-        }
-        waits.join(", ")
     }
 
     fn report(&mut self) {
