@@ -105,7 +105,7 @@ Traps:
 ### Local interfaces
 
 An interface whose host runs inside the guest's own worker or thread on every
-platform (the GPU device: be-wasm-gpu-shim on the web, wasmtime host functions
+platform (the GPU device: be-wasm-gpu-shim on the web, V8 fast-API functions
 natively) is named in `local`. Its functions are plain wasm imports returning
 their results: scalars and records of them flattened into wasm arguments,
 strings and lists as pointer and length, anything else postcard. A
@@ -574,12 +574,12 @@ follows each editor with an `EditorMirror`, and moves time only through
 
 ## Hosts
 
-`crates/be-block-type-host` is the host half, natively under wasmtime and in
-process in tests:
+`crates/be-block-type-host` is the host half, natively on V8 (be-wasm-host)
+and in process in tests:
 
 - `modules`: the process-wide registry of what each type is (`kind_of`), and
   `Modules`, which routes each type to its module, starts and restarts each
-  `Source` (in process, wasmtime, or a web worker), and answers clocks and
+  `Source` (in process, V8, or a web worker), and answers clocks and
   sleeps. A source that declares its types starts lazily, on the first call
   to it, so a host runs only the modules its blocks use; what a host must
   know without running one (names, icons, `plain_file`) comes from the
@@ -595,7 +595,7 @@ process in tests:
 
 be-host stages each app's type module beside the app. `be` carries every
 app's manifest and type module inside its executable (`APP_TYPES`), so its
-release stays one file (guides/bootstrap.md), and compiles them once into
-`BE3_CACHE/modules`. A module's session tag is its SHA-256, so a `be` and a
+release stays one file (guides/bootstrap.md), and V8 compiles each as it
+loads. A module's session tag is its SHA-256, so a `be` and a
 be-host built from one tree share sessions. Tests run every first-party types
 crate in process with `be_type_bundle::sources()`.

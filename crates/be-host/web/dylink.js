@@ -8,8 +8,9 @@
 // data through "GOT.mem", the table slots of their functions through
 // "GOT.func" and their thread-locals through "GOT.tls". Where everything goes
 // is planned by crates/be-wasm-dylink, the same plan crates/be-wasm-host
-// follows under wasmtime, which the app worker reaches through
-// be-wasm-gpu-shim; this only carries the plan out. The app worker plans
+// carries out natively on V8 through the same WebAssembly API, called from
+// Rust. The app worker reaches the planner through be-wasm-gpu-shim; this only
+// carries the plan out. The app worker plans
 // once, and every thread links the whole list again from the same plan, which
 // is plain data, each with thread-local blocks of its own.
 

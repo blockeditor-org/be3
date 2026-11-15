@@ -19,3 +19,9 @@ So the saving would cost a change to how everything links, for a minority of eac
 
 - the prelude can link one target's Rust dependencies as shared objects without the toolchain-wide setting; or
 - the toolchain gets explicit sysroot dependencies for another reason (a custom standard library, build-std), so only the switch and the test launcher's library path remain.
+
+## Since
+
+November 2026: guests now run on V8 (plans/wasm_on_v8.md), so wasmtime and Cranelift are no
+longer among the crates a test binary links; be-host links rusty_v8's prebuilt static library
+instead. The decision stands.

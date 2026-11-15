@@ -11,15 +11,15 @@ instance of its own, spawned through the sandbox API, talking to its spawner by 
 
 Why:
 
-- `wasi-threads` is a legacy proposal: wasmtime treats it as experimental and it does not work
+- `wasi-threads` is a legacy proposal, experimental where it is implemented, and it does not work
   with the component model. The threads expected to replace it ("shared-everything threads")
   have thread-local globals and spawn threads through the component model, so the machinery
   built for today's threads would mostly not carry over.
 - Supporting threads costs code in every layer: the linker's rewriting of thread-local accesses
   (`GOT.tls`, guides/app_libraries.md, Thread-locals), relinking every library on every thread,
-  `thread-spawn` on wasmtime (`be-wasm-host/src/threads.rs`) and in the browser
-  (`be-host/web/threads.js`, `thread.js`, the locked list of thread-local blocks in `dylink.js`),
-  and a V8 runtime (plans/wasm_on_v8.md) would have to implement it again.
+  `thread-spawn` natively (`be-wasm-host/src/threads.rs`, an OS thread and a V8 isolate per
+  thread) and in the browser (`be-host/web/threads.js`, `thread.js`, the locked list of
+  thread-local blocks in `dylink.js`).
 - A shared memory only grows, so an instance keeps whatever its busiest thread needed, and its
   allocator takes a lock.
 
