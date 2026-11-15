@@ -10,16 +10,30 @@ use crate::{Change, Field, FieldRef, Object, ObjectId, Shape, Tree, Value};
 /// its origin, and the highest is kept, live or in a merge. A plain write keeps the rank it
 /// replaces (`after`), so the later write wins; a write given a rank (`ranked`) is replaced
 /// only by one ranked as high or higher, so it never goes down, whatever a clock says.
+/// Its fields are read, not set, outside this crate: a stamp is made after the one it
+/// replaces (`after`, `LatestMap::next`), so no write builds one that loses to a ranked value.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
 pub struct Stamp {
-    pub rank: u64,
-    pub time: u64,
-    pub origin: Uuid,
+    pub(crate) rank: u64,
+    pub(crate) time: u64,
+    pub(crate) origin: Uuid,
 }
 
 impl Stamp {
+    pub const fn rank(self) -> u64 {
+        self.rank
+    }
+
+    pub const fn time(self) -> u64 {
+        self.time
+    }
+
+    pub const fn origin(self) -> Uuid {
+        self.origin
+    }
+
     /// A stamp after this one, at its rank.
     pub fn after(self, time: u64, origin: Uuid) -> Self {
         Self {

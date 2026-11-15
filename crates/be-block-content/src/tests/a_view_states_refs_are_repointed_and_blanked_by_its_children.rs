@@ -77,5 +77,5 @@ fn a_view_states_refs_are_repointed_and_blanked_by_its_children() {
     assert_eq!(read.focused.and_then(ViewRef::block), None);
     assert_eq!(read.scrolled, 7);
     assert_eq!(deleted.root().references().len(), 2);
-    assert!(deleted.root().state.stamp(&Tabs::ID).time > 10);
+    assert!(deleted.root().state.stamp(&Tabs::ID).time() > 10);
 }
