@@ -26,5 +26,5 @@ fn reordering_a_keyed_store_keeps_the_item_signals() {
     flush();
     assert_eq!(item_runs.get(), 1);
     assert_eq!(key_runs.get(), 2);
-    assert!(first.ptr_eq(&store.get(&0)));
+    assert_eq!(first, store.get(&0));
 }

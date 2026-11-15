@@ -853,9 +853,7 @@ impl Workspace {
                 titles.insert(tab, title);
             }
         }
-        if self.titles.with_untracked(|held| *held != titles) {
-            self.titles.set(titles);
-        }
+        self.titles.set(titles);
     }
 
     fn report_focus(&self) {

@@ -475,15 +475,9 @@ impl MenuMirror {
                         mirrored.enabled.handle(),
                         mirrored.checked.handle(),
                     );
-                    if label.get_untracked() != command.label {
-                        label.set(command.label.clone());
-                    }
-                    if enabled.get_untracked() != command.enabled {
-                        enabled.set(command.enabled);
-                    }
-                    if ticked.get_untracked() != checked {
-                        ticked.set(checked);
-                    }
+                    label.set(command.label.clone());
+                    enabled.set(command.enabled);
+                    ticked.set(checked);
                     Shape::Command {
                         id: command.id.clone(),
                         label: None,

@@ -92,9 +92,7 @@ fn floating_surface(state: &DockState, tab: TabId) -> Option<SurfaceId> {
 
 impl DockHostLayout {
     pub fn set_areas(&self, areas: Vec<DockArea>) {
-        if self.areas.with_untracked(|held| *held != areas) {
-            self.areas.set(areas);
-        }
+        self.areas.set(areas);
     }
 
     /// The work areas (`DockArea::work`), one per display; a dock given none has its own `area`.

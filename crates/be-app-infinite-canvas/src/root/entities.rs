@@ -376,9 +376,7 @@ impl Entities {
             {
                 entities.embedding.set(catalogued.embedding);
             }
-            if entities.extent.get_untracked() != catalogued.extent {
-                entities.extent.set(catalogued.extent);
-            }
+            entities.extent.set(catalogued.extent);
         });
         create_effect(move || {
             ids.with(|_| ());

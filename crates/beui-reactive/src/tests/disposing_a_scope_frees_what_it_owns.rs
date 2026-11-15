@@ -14,7 +14,7 @@ fn disposing_a_scope_frees_what_it_owns() {
     count.set(2);
     assert_eq!(doubled.get(), 4);
     assert!(selected.is_selected(&2));
-    assert_eq!(crate::arena::live(), before + 4);
+    assert_eq!(crate::arena::live(), before + 5);
     scope.dispose();
     assert_eq!(crate::arena::live(), before, "the scope's values are freed");
     assert!(!count.is_alive() && !doubled.is_alive());

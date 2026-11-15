@@ -1112,8 +1112,6 @@ fn part<K>(
         parted.hover(None);
         return;
     };
-    if state.group.with_untracked(|shown| *shown != group) {
-        state.group.set(group);
-    }
+    state.group.set(group);
     parted.part(Some(ReorderGap { before, size }));
 }

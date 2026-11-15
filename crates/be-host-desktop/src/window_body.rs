@@ -183,9 +183,7 @@ pub fn WindowBody(
     create_effect(move || {
         if let Some(measured) = measured.get() {
             let size = measured.rect.size();
-            if shown.get_untracked() != size {
-                shown.set(size);
-            }
+            shown.set(size);
         }
     });
     built

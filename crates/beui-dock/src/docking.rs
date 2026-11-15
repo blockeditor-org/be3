@@ -700,12 +700,8 @@ impl<K: DockKey> DockingLayout<K> {
     fn mirror(&self, hosted: Option<DockHosted>) {
         let inner = self.inner();
         if let Some(hosted) = &hosted {
-            if self.state.with_untracked(|state| *state != hosted.state) {
-                self.state.set(hosted.state.clone());
-            }
-            if self.mode.get_untracked() != hosted.mode {
-                self.mode.set(hosted.mode);
-            }
+            self.state.set(hosted.state.clone());
+            self.mode.set(hosted.mode);
         }
         inner.hosted.set(hosted);
         let grafted = self

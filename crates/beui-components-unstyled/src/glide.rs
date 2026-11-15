@@ -73,9 +73,7 @@ impl GlideApi {
         else {
             return;
         };
-        if self.shown.get_untracked() != displacement {
-            self.shown.set(displacement);
-        }
+        self.shown.set(displacement);
     }
 
     fn start(self) {

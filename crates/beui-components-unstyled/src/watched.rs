@@ -72,8 +72,6 @@ impl<T> Drop for WatchedMut<'_, T> {
     fn drop(&mut self) {
         let test = self.test;
         let now = self.value.take().is_some_and(|value| test(&value));
-        if self.flag.get_untracked() != now {
-            self.flag.set(now);
-        }
+        self.flag.set(now);
     }
 }

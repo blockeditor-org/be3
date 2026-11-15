@@ -2059,9 +2059,7 @@ impl ChildNodes {
                 .map(|built| (built.node, built.holder))
         });
         if let Some((node, holder)) = held {
-            if holder.is_alive() && holder.get_untracked() != self.mount {
-                holder.set(self.mount);
-            }
+            holder.set(self.mount);
             return node;
         }
         let (views, region) = self.shared.with(|held| (held.views, held.region.clone()));

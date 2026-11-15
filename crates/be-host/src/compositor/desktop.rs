@@ -619,9 +619,7 @@ pub(crate) fn apply() {
         });
     let displays = untrack(desktop_displays);
     keep_in_work_areas(&mut windows, &displays, moving.as_ref());
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -674,9 +672,7 @@ pub(crate) fn begin(key: &FloatedKey, kind: Kind) -> bool {
         return false;
     };
     let gesture = begin_on(window, kind);
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
     if let Some(gesture) = gesture {
         began(gesture);
     }
@@ -1195,9 +1191,7 @@ fn raise(key: &FloatedKey) {
     if let Some(index) = windows.iter().position(|window| window.key == *key) {
         be_sdk_window_stack::raise(&mut windows, index);
     }
-    if floated.with_untracked(|held| *held != windows) {
-        floated.set(windows);
-    }
+    floated.set(windows);
 }
 
 pub(crate) fn merged_statuses(

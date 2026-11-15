@@ -190,9 +190,7 @@ impl State {
 
     pub fn refresh_embeds(&self) {
         let resolved = resolve_embeds(self);
-        if self.embeds.get_untracked() != resolved {
-            self.embeds.set(resolved);
-        }
+        self.embeds.set(resolved);
     }
 
     pub fn toggle_hex_view(&self) {

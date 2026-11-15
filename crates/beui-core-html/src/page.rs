@@ -59,9 +59,7 @@ pub fn set_preference_layer(source: PreferenceSource, layer: PreferenceLayer) {
     let layers = signals().layers;
     let mut changed = layers.get_untracked();
     *changed.layer_mut(source) = layer;
-    if changed != layers.get_untracked() {
-        layers.set(changed);
-    }
+    layers.set(changed);
 }
 
 pub fn chosen_theme() -> Memo<Option<ThemeKind>> {
@@ -197,18 +195,10 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
                     .unwrap_or_default() as f32,
             );
             let scale = window.device_pixel_ratio() as f32;
-            if signals.theme.get_untracked() != theme {
-                signals.theme.set(theme);
-            }
-            if signals.motion.get_untracked() != motion {
-                signals.motion.set(motion);
-            }
-            if signals.viewport.get_untracked() != size {
-                signals.viewport.set(size);
-            }
-            if signals.pixels_per_point.get_untracked() != scale {
-                signals.pixels_per_point.set(scale);
-            }
+            signals.theme.set(theme);
+            signals.motion.set(motion);
+            signals.viewport.set(size);
+            signals.pixels_per_point.set(scale);
             crate::frame::request_frame();
         }
     };

@@ -170,15 +170,9 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         if external[1] {
             right.sync();
         }
-        if flight.get_untracked() != counts {
-            flight.set(counts);
-        }
-        if same.get_untracked() != matching {
-            same.set(matching);
-        }
-        if seen.get_untracked() != carets {
-            seen.set(carets);
-        }
+        flight.set(counts);
+        same.set(matching);
+        seen.set(carets);
         if let (Some(due), Some(timer)) = (due, timer.get()) {
             timer.start(due.saturating_duration_since(now));
         }
