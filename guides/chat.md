@@ -210,12 +210,18 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   place (after `Deletion::after` among the recent messages, where it was in a
   closed segment read back), while a signed one leaves none. A recent message
   removed outright, which no deletion records, is told by the later messages
-  that name it (`seen`, `own_previous`; `ChatContent::missing_before`): a
-  muted, italic "A message that was here is no longer in the chat" row takes
-  its place, before the first message naming it. A named message that may be
-  in a closed segment counts as there, rows read back from closed segments are
-  not checked, and one removed after its author's last message is named by
-  none, so it shows nothing.
+  that name it (`seen`, `own_previous`; `ChatContent::gaps`): a muted, italic
+  "A message that was here is no longer in the chat" row takes its place,
+  before the first message naming it (`missing_messages`). A gap shows only
+  once the naming message's signature verifies, so a forged message claims
+  none. When a closed segment's filter says it may hold the missing message,
+  the gap waits for that segment to be read and shows only if it is not there;
+  the first recent message usually names the newest closed one, so an open
+  chat with segments reads that segment once. A filter more than three
+  quarters full (`Segment::over_full`) excuses nothing, since anyone with Edit
+  can write one. Rows read back from closed segments are not checked, and the
+  newest messages removed together, after their authors' last ones, are named
+  by none, so they show nothing.
 
 ## Notifications
 

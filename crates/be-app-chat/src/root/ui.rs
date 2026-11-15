@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use be_sdk_beui::be_block_content::be_block_model::BlockRef;
@@ -18,7 +18,7 @@ use be_sdk_beui::{
     LayeredSettings, PickedFile, Signer, utc_offset, watch_block_label,
 };
 use be_type_chat::{
-    ChatContent, ChatReads, Deletion, Message, MessageEdit, Reaction, ReactionKey, ReadPlace,
+    ChatContent, ChatReads, Deletion, Gap, Message, MessageHash, MessageEdit, Reaction, ReactionKey, ReadPlace,
     Segment, Shown, Signature,
 };
 use beui::{Align, Direction, ScrollPosition};
@@ -59,7 +59,7 @@ struct Row {
     /// who claims to have deleted it, and takes no reply, reaction or edit.
     deleted: bool,
     /// The row of a message removed outright, which a later message names
-    /// (`ChatContent::missing_before`): a line saying so, in its place.
+    /// (`ChatContent::gaps`): a line saying so, in its place.
     missing: bool,
 }
 
@@ -338,13 +338,22 @@ pub fn Chat(editor: Editor) -> NodeId {
     });
     on_cleanup(move || asking.cancel());
     let forged = forged_deletions(editor, chat, signing);
+    let missing = missing_messages(editor, chat, signing);
     let rows: KeyedStore<ObjectId, Row> = KeyedStore::new();
     create_effect(move || {
         chat.track();
         let forged = forged.get();
-        if let Ok(rows_now) =
-            chat.read(|content| row_list(content, &content.shown(), me, &forged, None))
-        {
+        let missing = missing.get();
+        if let Ok(rows_now) = chat.read(|content| {
+            let mut rows = row_list(content, &content.shown(), me, &forged, None);
+            // Before the first message that names it.
+            for (naming, gone) in missing {
+                if let Some(at) = rows.iter().position(|(id, _)| *id == naming) {
+                    rows.insert(at, (gone, missing_row()));
+                }
+            }
+            rows
+        }) {
             rows.reconcile_owned(rows_now);
         }
     });
@@ -807,48 +816,60 @@ impl Older {
         let Some(index) = unread_segment(&segments, &read) else {
             return;
         };
-        self.read_segment_at(&segments[index], true);
+        self.read_segment_at(&segments[index]);
     }
 
-    /// Reads `segment`, by the range the header held now gives it. The
-    /// replica's header can differ from this one's while the chat is busy, which moves the range
-    /// and fails the check against the index; the read is tried once more then.
-    fn read_segment_at(&self, segment: &Segment, retry: bool) {
-        let live = self.chat.live();
-        let Ok(Some((index, range))) = self.chat.read(|content| {
-            let index = content.segments().iter().position(|held| held == segment)?;
-            Some((index, content.segment_ranges().get(index).cloned()?))
-        }) else {
-            return;
-        };
+    fn read_segment_at(&self, segment: &Segment) {
         self.reading.set(true);
         self.failed.set(false);
         let this = *self;
-        let segment = segment.clone();
-        let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
-        self.editor
-            .then(async move { Some(reading.await) }, move |bytes| {
-                let messages = bytes.ok().and_then(|bytes| {
-                    this.chat
-                        .read(|content| content.read_segment(index, &bytes))
-                        .ok()
-                        .flatten()
-                });
-                match messages {
-                    Some(messages) => {
-                        this.reading.set(false);
-                        let mut read = this.read.get_untracked();
-                        read.push((segment, messages));
-                        this.read.set(read);
-                    }
-                    None if retry => this.read_segment_at(&segment, false),
-                    None => {
-                        this.reading.set(false);
-                        this.failed.set(true);
-                    }
+        let held = segment.clone();
+        read_segment(self.editor, self.chat, segment, true, move |messages| {
+            this.reading.set(false);
+            match messages {
+                Some(messages) => {
+                    let mut read = this.read.get_untracked();
+                    read.push((held, messages));
+                    this.read.set(read);
                 }
-            });
+                None => this.failed.set(true),
+            }
+        });
     }
+}
+
+/// Reads `segment`'s messages, by the range the header held now gives it, and hands them to
+/// `done`, or `None` when the segment is gone or its part could not be read. The replica's
+/// header can differ from this one's while the chat is busy, which moves the range and fails
+/// the check against the index; the read is tried once more then.
+fn read_segment(
+    editor: Editor,
+    chat: Chat,
+    segment: &Segment,
+    retry: bool,
+    done: impl FnOnce(Option<Vec<(ObjectId, Message)>>) + 'static,
+) {
+    let live = chat.live();
+    let Ok(Some((index, range))) = chat.read(|content| {
+        let index = content.segments().iter().position(|held| held == segment)?;
+        Some((index, content.segment_ranges().get(index).cloned()?))
+    }) else {
+        done(None);
+        return;
+    };
+    let segment = segment.clone();
+    let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
+    editor.then(async move { Some(reading.await) }, move |bytes| {
+        let messages = bytes.ok().and_then(|bytes| {
+            chat.read(|content| content.read_segment(index, &bytes))
+                .ok()
+                .flatten()
+        });
+        match messages {
+            None if retry => read_segment(editor, chat, &segment, false, done),
+            messages => done(messages),
+        }
+    });
 }
 
 /// The newest segment of `segments` not in `read`: segments are told apart by their whole index
@@ -912,16 +933,113 @@ fn row_list(
             rows.insert(at, (*message, deleted_row(*message, deletion, me, today)));
         }
     }
-    // A recent message removed outright, before the first message that names it: rows read
-    // back from closed segments are not checked.
-    if order.is_none() {
-        for (before, gone) in content.missing_before() {
-            if let Some(at) = rows.iter().position(|(id, _)| *id == before) {
-                rows.insert(at, (gone, missing_row()));
-            }
-        }
-    }
     rows
+}
+
+/// The recent messages removed outright, each as `(the message that names it, the missing
+/// one)` (`ChatContent::gaps`). A gap counts once the naming message's signature verifies,
+/// so a forged message claims none, and, when a closed segment's filter says it may hold the
+/// missing one, once that segment is read and does not. Each naming message is asked about
+/// once and each such segment read once; until then, or when a read fails, nothing shows.
+fn missing_messages(
+    editor: Editor,
+    chat: Chat,
+    signing: Signal<Uuid>,
+) -> Memo<Vec<(ObjectId, ObjectId)>> {
+    type Verdicts = HashMap<ObjectId, (MessageHash, Option<Signer>)>;
+    let verdicts: Signal<Verdicts> = create_signal(HashMap::new());
+    let read: Signal<HashMap<Segment, Option<HashSet<ObjectId>>>> = create_signal(HashMap::new());
+    let gaps: Signal<Vec<(Gap, MessageHash, Vec<Segment>)>> = create_signal(Vec::new());
+    create_effect(move || {
+        chat.track();
+        let block = signing.get();
+        let Ok(found) = chat.read(|content| {
+            content
+                .gaps()
+                .into_iter()
+                .filter_map(|gap| {
+                    let message = content.message(gap.naming)?;
+                    let segments = gap
+                        .closed_in
+                        .iter()
+                        .filter_map(|index| content.segments().get(*index).cloned())
+                        .collect();
+                    Some((gap, message, segments))
+                })
+                .collect::<Vec<_>>()
+        }) else {
+            return;
+        };
+        let mut held = Vec::new();
+        for (gap, message, segments) in found {
+            let naming = gap.naming;
+            let hash = message.hash(block, naming);
+            let asked = verdicts
+                .with_untracked(|verdicts| verdicts.get(&naming).is_some_and(|(at, _)| *at == hash));
+            if !asked {
+                verdicts.update(|verdicts| {
+                    verdicts.insert(naming, (hash, None));
+                });
+                let asking = editor.host().verify(
+                    message.author,
+                    message.signed_bytes(block, naming),
+                    message.signature.0.clone(),
+                );
+                editor.then(asking, move |found| {
+                    let Ok(signer) = found else {
+                        return;
+                    };
+                    verdicts.update(|verdicts| {
+                        if let Some((at, verdict)) = verdicts.get_mut(&naming)
+                            && *at == hash
+                        {
+                            *verdict = Some(signer);
+                        }
+                    });
+                });
+            }
+            for segment in &segments {
+                if read.with_untracked(|read| read.contains_key(segment)) {
+                    continue;
+                }
+                read.update(|read| {
+                    read.insert(segment.clone(), None);
+                });
+                let key = segment.clone();
+                read_segment(editor, chat, segment, true, move |messages| {
+                    if let Some(messages) = messages {
+                        let ids = messages.into_iter().map(|(id, _)| id).collect();
+                        read.update(|read| {
+                            read.insert(key, Some(ids));
+                        });
+                    }
+                });
+            }
+            held.push((gap, hash, segments));
+        }
+        gaps.set(held);
+    });
+    create_memo(move || {
+        gaps.with(|gaps| {
+            verdicts.with(|verdicts| {
+                read.with(|read| {
+                    gaps.iter()
+                        .filter(|(gap, hash, segments)| {
+                            let verified = verdicts.get(&gap.naming)
+                                == Some(&(*hash, Some(Signer::Verified)));
+                            let not_closed = segments.iter().all(|segment| {
+                                read.get(segment)
+                                    .and_then(Option::as_ref)
+                                    .is_some_and(|ids| !ids.contains(&gap.gone))
+                            });
+                            verified && not_closed
+                        })
+                        .map(|(gap, _, _)| (gap.naming, gap.gone))
+                        .collect()
+                })
+            })
+        })
+    })
 }
 
 /// The row of a message removed outright (`Row::missing`).
