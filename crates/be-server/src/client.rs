@@ -95,6 +95,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             organizations::Call::ListOrganizations { .. }
             | organizations::Call::CreateOrganization { .. }
             | organizations::Call::OpenOrganization { .. } => Rule::SignedIn,
+            organizations::Call::GetOrganizationLog { .. } => Rule::Organization,
         },
         Call::Members(call) => match call {
             members::Call::SetRole { .. } => Rule::Administrator,
@@ -146,6 +147,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
+            | blocks::Call::GetAccessLog { block: of, .. }
             | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
@@ -233,7 +235,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         },
         Call::Organizations(call) => match call {
             organizations::Call::ListOrganizations { .. }
-            | organizations::Call::OpenOrganization { .. } => true,
+            | organizations::Call::OpenOrganization { .. }
+            | organizations::Call::GetOrganizationLog { .. } => true,
             organizations::Call::CreateOrganization { .. } => false,
         },
         Call::Members(call) => match call {
@@ -279,6 +282,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
+            | blocks::Call::GetAccessLog { .. }
             | blocks::Call::ChangedSince { .. }
             | blocks::Call::Changes { .. } => true,
             blocks::Call::SetAccess { .. }
@@ -1208,17 +1212,33 @@ impl Client {
                 .await;
                 self.reply(reply, listed);
             }
-            Call::CreateOrganization { reply, name } => {
+            Call::CreateOrganization {
+                reply,
+                id,
+                name,
+                root,
+                pinned,
+            } => {
                 let connection = &self.connection;
                 let created = async {
                     prelude?;
                     connection
                         .store
-                        .create_organization(connection.account()?, &name)
+                        .create_organization(connection.account()?, id, &name, root, pinned)
                         .await
                 }
                 .await;
                 self.reply(reply, created);
+            }
+            Call::GetOrganizationLog { reply } => {
+                let connection = &self.connection;
+                let log = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.store.organization_log(identity.organization).await
+                }
+                .await;
+                self.reply(reply, log);
             }
             Call::OpenOrganization {
                 reply,
@@ -1625,6 +1645,7 @@ impl Client {
                 key,
                 keys,
                 owner_only,
+                root,
             } => {
                 let created = async {
                     prelude?;
@@ -1641,6 +1662,7 @@ impl Client {
                             key,
                             keys,
                             owner_only,
+                            root,
                         )
                         .await?;
                     let mut announced = vec![block.id];
@@ -1651,6 +1673,15 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, created);
+            }
+            Call::GetAccessLog { reply, block } => {
+                let log = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.store.access_log(identity, block).await
+                }
+                .await;
+                self.reply(reply, log);
             }
             Call::SetMetadata {
                 reply,

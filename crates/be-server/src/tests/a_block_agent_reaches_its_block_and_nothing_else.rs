@@ -47,6 +47,7 @@ const CONNECTING: &[&str] = &[
     "ping",
     "open-organization",
     "list-organizations",
+    "get-organization-log",
     "list-contacts",
     "contacts-changed",
     "upload-urls",
@@ -124,6 +125,7 @@ async fn a_block_agent_reaches_its_block_and_nothing_else() {
                 KEY,
                 KeySet::default(),
                 false,
+                Vec::new(),
             )
         })
         .await;

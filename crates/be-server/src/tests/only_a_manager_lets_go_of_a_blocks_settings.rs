@@ -26,6 +26,7 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
     let workspace = owner.create_block(BlockParent::Root).await;
     let settings = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = owner.root(settings);
     let created = owner
         .call(|peer| {
             client::blocks::create_block(
@@ -41,6 +42,7 @@ async fn only_a_manager_lets_go_of_a_blocks_settings() {
                     wrapped: Vec::new(),
                 },
                 false,
+                root,
             )
         })
         .await;

@@ -497,6 +497,7 @@ impl ServerStore {
         key: Uuid,
         keys: KeySet,
         owner_only: bool,
+        root: Vec<u8>,
     ) -> Result<BlockSummary, ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
@@ -552,6 +553,13 @@ impl ServerStore {
                     owner_only,
                 ],
             )?;
+            crate::access::store_root(
+                &transaction,
+                identity.organization,
+                identity.account,
+                block,
+                &root,
+            )?;
             crate::changes::touch(&transaction, identity.organization, &[block])?;
             store_edges(
                 &transaction,
@@ -570,6 +578,19 @@ impl ServerStore {
             transaction.commit()?;
             graph.set_references(block, &references)?;
             summary(graph, identity, block).ok_or(ServerError::Corrupt)
+        })
+        .await
+    }
+
+    /// The block's access log, root first (`get-access-log`).
+    pub async fn access_log(
+        &self,
+        identity: Identity,
+        block: Uuid,
+    ) -> Result<Vec<Vec<u8>>, ServerError> {
+        self.with_graph(identity.organization, move |_, graph, database| {
+            require(graph, &visibility(identity), block, Access::View, "visible")?;
+            crate::access::log_of(database, identity.organization, block)
         })
         .await
     }

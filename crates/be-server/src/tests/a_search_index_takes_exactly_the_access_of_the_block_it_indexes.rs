@@ -7,6 +7,7 @@ async fn create_index(
 ) -> (Uuid, Result<BlockSummary, Error>) {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
     let response = client
         .call(|peer| {
             client::blocks::create_block(
@@ -22,6 +23,7 @@ async fn create_index(
                     wrapped: Vec::new(),
                 },
                 false,
+                root,
             )
         })
         .await;

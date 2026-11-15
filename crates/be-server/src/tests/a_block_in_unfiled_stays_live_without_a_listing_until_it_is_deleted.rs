@@ -78,6 +78,7 @@ pub(super) async fn make(
         keys: vec![row(key, block, KeyKind::Data)],
         wrapped: Vec::new(),
     };
+    let root = client.root(block);
     client
         .call(|peer| {
             client::blocks::create_block(
@@ -90,6 +91,7 @@ pub(super) async fn make(
                 key,
                 keys,
                 false,
+                root,
             )
         })
         .await

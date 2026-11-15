@@ -65,6 +65,7 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
         .await;
     let secret = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = owner.root(secret);
     let made = owner
         .call(|peer| {
             client::blocks::create_block(
@@ -80,6 +81,7 @@ async fn changed_since_does_not_name_what_only_its_author_may_read() {
                     wrapped: Vec::new(),
                 },
                 true,
+                root.clone(),
             )
         })
         .await;

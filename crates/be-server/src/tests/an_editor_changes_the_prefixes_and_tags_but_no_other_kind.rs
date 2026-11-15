@@ -8,6 +8,7 @@ async fn create_under(
 ) -> Result<BlockSummary, Error> {
     let block = Uuid::new_v4();
     let key = Uuid::new_v4();
+    let root = client.root(block);
     client
         .call(|peer| {
             client::blocks::create_block(
@@ -23,6 +24,7 @@ async fn create_under(
                     wrapped: Vec::new(),
                 },
                 false,
+                root,
             )
         })
         .await
