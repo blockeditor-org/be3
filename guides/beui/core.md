@@ -149,7 +149,10 @@ disposed when the `KeepAlive` goes. Keys of any `Hash + Eq` type share one
 built last is. A `Kept` inside another one's subtree pauses and resumes with
 it. A key in `awake` keeps running while hidden and reads as shown, for a
 subtree whose purpose is shown elsewhere (a dock tab whose own dock joined);
-it is still dropped once `keep` no longer lists it.
+it is still dropped once `keep` no longer lists it. A `Kept` that goes hands
+its subtree back once the change that removed it settles, so a view built
+again in that change with a `Kept` of the same key takes it over without its
+pausing or reading as hidden in between.
 
 A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
 so it reads the context provided around the `KeepAlive`, not what is provided
