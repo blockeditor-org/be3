@@ -34,7 +34,6 @@ fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>
     scope
 }
 
-type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 
 /// What a `Show` shows on: a `bool`, or an `Option`, whose value it hands its children as a
 /// signal while it is `Some`, so a new value updates them in place.
@@ -91,9 +90,8 @@ impl<T: Clone + 'static> ShowValue for Option<T> {
 /// Shows its children while `value` is `true` or `Some`, and `fallback`, if given, while it
 /// is not. Given an `Option`, the children are handed a signal of what is in it, which
 /// changes in place while it stays `Some`: `<Show value={picked}>|item: ReadSignal<Item>|`.
-/// By default a branch is built each time it is shown and dropped when it is not. With
-/// `keep_alive` each is built once, the first time it shows, and kept while hidden, paused,
-/// so nothing in it runs until it shows again.
+/// A branch is built each time it is shown and dropped when it is not; to keep one while
+/// hidden, show a `Kept` (in `beui-view`) in it.
 ///
 /// A `Show` fills a run among its parent's children. When it has a `fallback` and both
 /// branches build exactly one child, it also fills a slot that takes one `Child`; without a
@@ -101,7 +99,6 @@ impl<T: Clone + 'static> ShowValue for Option<T> {
 #[component]
 pub fn Show<V, C, B, F>(
     value: Prop<V>,
-    #[prop(default = false)] keep_alive: bool,
     fallback: F,
     #[prop(children)] then: RenderFn<V::Handed, B>,
 ) -> FormOf<C, <B as Counted>::Count, F::Count>
@@ -132,10 +129,7 @@ where
         }
     };
     <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(
-        move |slot: ChildSlot<C>| match keep_alive {
-            false => show(visible, [fallback, Some(shown)], refresh, slot),
-            true => keep(visible, [fallback, Some(shown)], refresh, slot),
-        },
+        move |slot: ChildSlot<C>| show(visible, [fallback, Some(shown)], refresh, slot),
     ))
 }
 
@@ -162,71 +156,6 @@ fn show<C: SlotChild>(
             slot.fill(Vec::new());
         }
         drop(held.replace((visible, built)));
-    });
-}
-
-/// Whether the branch of a `Show` with `keep_alive` around the caller is shown, and every such
-/// branch around that: `None` outside any. What a kept branch holds outside itself while hidden (a
-/// dock it joined) lets go by it, and takes back when it shows again.
-pub fn kept_shown() -> Option<Memo<bool>> {
-    use_context::<KeptShown>().map(|KeptShown(shown)| shown)
-}
-
-#[derive(Clone, Copy)]
-struct KeptShown(Memo<bool>);
-
-fn keep<C: SlotChild>(
-    condition: Prop<bool>,
-    branches: [Option<Built<C>>; 2],
-    refresh: impl Fn() + 'static,
-    slot: ChildSlot<C>,
-) {
-    let held = store(RefCell::new([None, None] as [Kept<C>; 2]));
-    let shown = StoredCell::new(None::<bool>);
-    let outer = kept_shown();
-    let showing = [create_signal(false), create_signal(false)];
-    let branch_shown =
-        showing.map(|own| create_memo(move || own.get() && outer.is_none_or(|outer| outer.get())));
-    create_binding(move || {
-        let visible = condition.get();
-        if shown.get() == Some(visible) {
-            if visible {
-                untrack(&refresh);
-            }
-            return;
-        }
-        shown.set(Some(visible));
-        let visible = usize::from(visible);
-        let held = held.value();
-        let mut held = held.borrow_mut();
-        if let Some((host, scope)) = held[1 - visible].as_ref() {
-            host.set_visible(false);
-            // Told before it pauses, so an effect it wakes still runs.
-            untrack(|| showing[1 - visible].set(false));
-            scope.pause();
-        }
-        // Shown before it is built, so what a first build claims (a dock it joins) holds on.
-        untrack(|| showing[visible].set(true));
-        let built = held[visible].is_some();
-        if !built && let Some(branch) = branches[visible] {
-            let scope = Scope::detached().pausable();
-            let shown_here = branch_shown[visible];
-            let host = scope.context().run(|| {
-                provide_context(KeptShown(shown_here));
-                branch.call(()).mount_in(slot.clone())
-            });
-            held[visible] = Some((host, scope));
-        }
-        match held[visible].as_ref() {
-            Some((host, scope)) => {
-                if built && visible == 1 {
-                    untrack(&refresh);
-                }
-                host.set_visible(true);
-                scope.resume();
-            }
-            None => slot.fill(Vec::new()),
-        }
     });
 }
 

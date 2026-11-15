@@ -141,7 +141,11 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true value={open}>{content.call(())}</Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>{content.call(())}</Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }
@@ -256,7 +260,11 @@ pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true value={open}>{content.call(())}</Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>{content.call(())}</Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }
