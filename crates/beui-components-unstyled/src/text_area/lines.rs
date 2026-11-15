@@ -71,7 +71,11 @@ pub(super) fn Lines(cx: Context) -> NodeId {
         >
             <List spacing=0.0>
                 <Frame height=top />
-                <VirtualList @node_ref=&list value={keys} item_size=estimate>|line: ReadSignal<usize>|
+                <VirtualList
+                    @node_ref=&list
+                    value={keys}
+                    item_size=estimate
+                >|line: ReadSignal<usize>|
                     <AreaRow cx={cx} line />
                 </VirtualList>
                 <Frame height=bottom />
@@ -779,36 +783,34 @@ enum PieceKey {
 fn piece_keys(row: &Row) -> Vec<PieceKey> {
     row.spans
         .iter()
-        .map(|span| {
-            match span.kind {
-                SpanKind::Text => {
-                    let style = span.style;
-                    PieceKey::Text {
-                        text: row
-                            .display
-                            .get(span.range.clone())
-                            .unwrap_or_default()
-                            .to_owned(),
-                        font: (
-                            style.font.size.to_bits(),
-                            style.font.family,
-                            style.font.bold,
-                            style.font.italic,
-                        ),
-                        color: style.color,
-                        underline: style.underline,
-                        strikethrough: style.strikethrough,
-                        leaf: span.leaf,
-                    }
+        .map(|span| match span.kind {
+            SpanKind::Text => {
+                let style = span.style;
+                PieceKey::Text {
+                    text: row
+                        .display
+                        .get(span.range.clone())
+                        .unwrap_or_default()
+                        .to_owned(),
+                    font: (
+                        style.font.size.to_bits(),
+                        style.font.family,
+                        style.font.bold,
+                        style.font.italic,
+                    ),
+                    color: style.color,
+                    underline: style.underline,
+                    strikethrough: style.strikethrough,
+                    leaf: span.leaf,
                 }
-                SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
-                SpanKind::Inline(index) => PieceKey::Inline(
-                    index,
-                    row.inline
-                        .get(index)
-                        .map_or(InlineKind::Quote, InlineKind::of),
-                ),
             }
+            SpanKind::Space(width) => PieceKey::Space(width.to_bits()),
+            SpanKind::Inline(index) => PieceKey::Inline(
+                index,
+                row.inline
+                    .get(index)
+                    .map_or(InlineKind::Quote, InlineKind::of),
+            ),
         })
         .collect()
 }

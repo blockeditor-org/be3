@@ -2680,18 +2680,8 @@ fn DockTreeCanvas(
                 }
             }</ForEach>
             {marked_surface.map(|surface| view! {
-                <DockDropMarker
-                    dock={dock}
-                    surface
-                    origin={pane_origin}
-                    refused=false
-                />
-                <DockDropMarker
-                    dock={dock}
-                    surface
-                    origin={pane_origin}
-                    refused=true
-                />
+                <DockDropMarker dock={dock} surface origin={pane_origin} refused=false />
+                <DockDropMarker dock={dock} surface origin={pane_origin} refused=true />
             })}
         </Canvas>
     };
@@ -3990,9 +3980,11 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     }}
                                                 >
                                                     <List spacing=0.0>
-                                                        <Dynamic value={move || {
-                                                            hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
-                                                        }}>|vertical: bool| {
+                                                        <Dynamic
+                                                            value={move || {
+                                                                hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
+                                                            }}
+                                                        >|vertical: bool| {
                                                             let dock = dock;
                                                             let grip_face = dock.grip.call(DockGripHandle {
                                                                 floating: true,

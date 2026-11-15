@@ -659,8 +659,16 @@ fn CounterList() -> NodeId {
         count: u32,
     }
     let counters = create_signal(vec![
-        Counter { id: 1, name: "Apples", count: 0 },
-        Counter { id: 2, name: "Pears", count: 0 },
+        Counter {
+            id: 1,
+            name: "Apples",
+            count: 0,
+        },
+        Counter {
+            id: 2,
+            name: "Pears",
+            count: 0,
+        },
     ]);
     view! {
         <List spacing={SECTION_SPACING.px()}>
@@ -676,8 +684,13 @@ fn CounterList() -> NodeId {
                     on_click={move || counters.update(|counters| counters.swap(0, 1))}
                 />
             </List>
-            <ForEach value={counters} key={|counter: &Counter| counter.id}>|counter: ReadSignal<Counter>|
-                <Tile label={move || counter.with(|counter| format!("{}: {}", counter.name, counter.count))} />
+            <ForEach
+                value={counters}
+                key={|counter: &Counter| counter.id}
+            >|counter: ReadSignal<Counter>|
+                <Tile
+                    label={move || counter.with(|counter| format!("{}: {}", counter.name, counter.count))}
+                />
             </ForEach>
         </List>
     }
@@ -720,7 +733,9 @@ fn MatchShape() -> NodeId {
                 <Case is={Shape::Circle}>
                     <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                 </Case>
-                <Case when={|shape: &Shape| matches!(shape, Shape::Wide(_))}>|shape: ReadSignal<Shape>|
+                <Case
+                    when={|shape: &Shape| matches!(shape, Shape::Wide(_))}
+                >|shape: ReadSignal<Shape>|
                     <Frame
                         width={move || match shape.get() {
                             Shape::Wide(wide) => Extent::px(SWATCH * f32::from(wide)),

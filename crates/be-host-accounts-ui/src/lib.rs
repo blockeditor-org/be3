@@ -68,7 +68,9 @@ pub fn AccountsScreen(
                 value={keys}
                 fallback={|| view! {
                     <Card>
-                        <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
+                        <Text style=TextStyle::CAPTION>
+                            "No accounts yet. Add one to get started."
+                        </Text>
                     </Card>
                 }}
             >|key: String| {

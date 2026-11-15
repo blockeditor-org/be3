@@ -241,7 +241,10 @@ where
     let documents = document.documents;
     view! {
         <List spacing=0.0>
-            <Keyed value={document.content} key={move |content: &T| documents.identity(content)}>|content: ReadSignal<T>| {
+            <Keyed
+                value={document.content}
+                key={move |content: &T| documents.identity(content)}
+            >|content: ReadSignal<T>| {
                 let body = body.call(content);
                 view! {
                     <ListItem grow=1.0>{body}</ListItem>

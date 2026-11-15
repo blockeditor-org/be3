@@ -169,7 +169,10 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
-                <ForEach value={rows} key={|member: &MemberRow| member.account}>|row: ReadSignal<MemberRow>| {
+                <ForEach
+                    value={rows}
+                    key={|member: &MemberRow| member.account}
+                >|row: ReadSignal<MemberRow>| {
                     let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || row.get().detail);
@@ -626,7 +629,9 @@ fn InvitePanel(
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>
                 <ErrorText text={error} />
-                <Show value={move || invite.get().and_then(|invite| invite.link)}>|link: ReadSignal<String>|
+                <Show
+                    value={move || invite.get().and_then(|invite| invite.link)}
+                >|link: ReadSignal<String>|
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."

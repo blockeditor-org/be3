@@ -127,7 +127,10 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
     view! {
         <List spacing=Space::Xs2>
             <ForEach value={lines}>|line: String|
-                <Text size=TextSize::Sm family={if monospace { Family::Mono } else { Family::Sans }}>
+                <Text
+                    size=TextSize::Sm
+                    family={if monospace { Family::Mono } else { Family::Sans }}
+                >
                     {line}
                 </Text>
             </ForEach>

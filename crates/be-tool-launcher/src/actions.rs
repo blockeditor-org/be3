@@ -44,7 +44,9 @@ fn RunButton(
             menu_label="More ways to run it"
             disabled
             items={view! {
-                <ForEach value={MORE.to_vec()}>|(label, product, fresh): (&'static str, Product, bool)|
+                <ForEach
+                    value={MORE.to_vec()}
+                >|(label, product, fresh): (&'static str, Product, bool)|
                     <MenuItem
                         label
                         on_click={move || runs.run(slot, commit.get_untracked(), product, fresh)}
@@ -96,9 +98,7 @@ pub(crate) fn Notes(
     });
     view! {
         <List spacing=Space::Md>
-            <Show
-                value={move || !pull_request.with(|pull_request| pull_request.same_repository)}
-            >
+            <Show value={move || !pull_request.with(|pull_request| pull_request.same_repository)}>
                 <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>

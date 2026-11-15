@@ -8,7 +8,9 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
-use super::{AccountForm, ErrorAction, HostUiStore, JoiningRow, OrganizationsState, UiCommand, send};
+use super::{
+    AccountForm, ErrorAction, HostUiStore, JoiningRow, OrganizationsState, UiCommand, send,
+};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
 use beui::{Align, Direction};
@@ -313,39 +315,39 @@ pub(super) fn AddAccountDialog(
                     <List spacing=Space::Xl>
                         <Match value={selection}>
                             <Case is={Some(1)}>
-                            <List spacing=Space::Xl>
-                                <Text style=TextStyle::PARAGRAPH>
-                                    "Your data stays on this device. You only need a display name."
-                                </Text>
+                                <List spacing=Space::Xl>
+                                    <Text style=TextStyle::PARAGRAPH>
+                                        "Your data stays on this device. You only need a display name."
+                                    </Text>
+                                    <List spacing=Space::Sm>
+                                        <Text style=TextStyle::CAPTION>"Display name"</Text>
+                                        <TextInput
+                                            value={display_name}
+                                            label="Display name"
+                                            placeholder="Your name"
+                                            @test_id="account.name"
+                                            on_submit={move |_| submit()}
+                                        />
+                                    </List>
+                                </List>
+                            </Case>
+                            <Case is={Some(0)}>
+                                <List spacing=Space::Xs>
+                                    <Text size=TextSize::Lg>{default_name}</Text>
+                                    <Text style=TextStyle::CAPTION>{server_name}</Text>
+                                </List>
+                            </Case>
+                            <Case is={Some(2)}>
                                 <List spacing=Space::Sm>
-                                    <Text style=TextStyle::CAPTION>"Display name"</Text>
+                                    <Text style=TextStyle::CAPTION>"Server address"</Text>
                                     <TextInput
-                                        value={display_name}
-                                        label="Display name"
-                                        placeholder="Your name"
-                                        @test_id="account.name"
+                                        value={remote_url}
+                                        label="Server address"
+                                        placeholder="https://example.com"
+                                        @test_id="account.server"
                                         on_submit={move |_| submit()}
                                     />
                                 </List>
-                            </List>
-                            </Case>
-                            <Case is={Some(0)}>
-                            <List spacing=Space::Xs>
-                                <Text size=TextSize::Lg>{default_name}</Text>
-                                <Text style=TextStyle::CAPTION>{server_name}</Text>
-                            </List>
-                            </Case>
-                            <Case is={Some(2)}>
-                            <List spacing=Space::Sm>
-                                <Text style=TextStyle::CAPTION>"Server address"</Text>
-                                <TextInput
-                                    value={remote_url}
-                                    label="Server address"
-                                    placeholder="https://example.com"
-                                    @test_id="account.server"
-                                    on_submit={move |_| submit()}
-                                />
-                            </List>
                             </Case>
                         </Match>
                         <Show value={move || remote.get() && platform::SENDS_HEADERS}>
@@ -599,29 +601,29 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                 let title = create_memo(move || row.with(|row| format!("Join {} as {}?", row.organization, row.role)));
                 let invited = create_memo(move || row.with(|row| format!("Invited as {}", row.email)));
                 view! {
-                <Card>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                        <ListItem grow=1.0>
-                            <List spacing=Space::Xs2>
-                                <Text size=TextSize::Lg>{title}</Text>
-                                <Text style=TextStyle::CAPTION>{invited}</Text>
-                            </List>
-                        </ListItem>
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            disabled={busy}
-                            on_click={|| send(UiCommand::CancelJoin)}
-                        />
-                        <Button
-                            label="Join"
-                            variant=ButtonVariant::Primary
-                            disabled={busy}
-                            @test_id={"host.join.confirm"}
-                            on_click={|| send(UiCommand::JoinInvited)}
-                        />
-                    </List>
-                </Card>
+                    <Card>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text size=TextSize::Lg>{title}</Text>
+                                    <Text style=TextStyle::CAPTION>{invited}</Text>
+                                </List>
+                            </ListItem>
+                            <Button
+                                label="Cancel"
+                                variant=ButtonVariant::Secondary
+                                disabled={busy}
+                                on_click={|| send(UiCommand::CancelJoin)}
+                            />
+                            <Button
+                                label="Join"
+                                variant=ButtonVariant::Primary
+                                disabled={busy}
+                                @test_id={"host.join.confirm"}
+                                on_click={|| send(UiCommand::JoinInvited)}
+                            />
+                        </List>
+                    </Card>
                 }
             }</Show>
         </List>
@@ -770,27 +772,27 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Match value={state}>
-            <Case is={OrganizationsState::Loaded}>
-                <Text style=TextStyle::CAPTION>
-                    "You do not have any organizations yet. Create one below."
-                </Text>
-            </Case>
-            <Case is={OrganizationsState::Failed}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
-                    <Button
-                        label="Retry"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::ReloadOrganizations)}
-                    />
-                </List>
-            </Case>
-            <Case is={OrganizationsState::Loading}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                    <Progress width=INLINE_PROGRESS_WIDTH />
-                    <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
-                </List>
-            </Case>
+                <Case is={OrganizationsState::Loaded}>
+                    <Text style=TextStyle::CAPTION>
+                        "You do not have any organizations yet. Create one below."
+                    </Text>
+                </Case>
+                <Case is={OrganizationsState::Failed}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
+                        <Button
+                            label="Retry"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| send(UiCommand::ReloadOrganizations)}
+                        />
+                    </List>
+                </Case>
+                <Case is={OrganizationsState::Loading}>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                        <Progress width=INLINE_PROGRESS_WIDTH />
+                        <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
+                    </List>
+                </Case>
             </Match>
         </List>
     }

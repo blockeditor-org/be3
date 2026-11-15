@@ -57,10 +57,7 @@ pub fn Table(
 }
 
 #[component]
-fn TableHeader(
-    heading: Memo<TableColumn>,
-    columns: Memo<Vec<TableColumn>>,
-) -> NodeId {
+fn TableHeader(heading: Memo<TableColumn>, columns: Memo<Vec<TableColumn>>) -> NodeId {
     view! {
         <unstyled::TableRow>
             <Frame padding=CELL_PADDING>

@@ -870,7 +870,9 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show value={move || comparison.get().and_then(|comparison| comparison.error)}>|error: ReadSignal<String>|
+                <Show
+                    value={move || comparison.get().and_then(|comparison| comparison.error)}
+                >|error: ReadSignal<String>|
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>

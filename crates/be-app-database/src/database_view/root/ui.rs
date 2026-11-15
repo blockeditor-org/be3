@@ -106,9 +106,7 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                     </DockPane>
                 </Show>
             </DockSplit>
-            <Show
-                value={move || chrome.get() && data.kind.get() == DatabaseViewKind::Spreadsheet}
-            >
+            <Show value={move || chrome.get() && data.kind.get() == DatabaseViewKind::Spreadsheet}>
                 <DockBar
                     id=CELL_BAR
                     parent=STAGE

@@ -10,6 +10,8 @@ fn a_type_names_a_parameter_bare_only_outside_a_projection() {
     assert!(names(syn::parse_quote!((V, usize))));
     assert!(!names(syn::parse_quote!(V::Handed)));
     assert!(!names(syn::parse_quote!(RenderFn<V::Handed, B>)));
-    assert!(!names(syn::parse_quote!(Children<CaseOf<<V as Matched>::Value, C>>)));
+    assert!(!names(syn::parse_quote!(
+        Children<CaseOf<<V as Matched>::Value, C>>
+    )));
     assert!(!names(syn::parse_quote!(Vec<Value>)));
 }

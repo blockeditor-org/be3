@@ -394,34 +394,39 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                 <List spacing=Space::None>
                     <Match value={notes}>
                         <Case is={Notes::None}>
-                        <Frame padding=NOTES_PADDING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::Md
-                            >
-                                <Text style=TextStyle::CAPTION>
-                                    "This slide has no speaker notes."
-                                </Text>
-                                <Button
-                                    glyph=ICON_STICKY_NOTE_PLUS
-                                    label="Add notes"
-                                    disabled={read_only}
-                                    on_click={add}
-                                    @test_id={"presentation.notes.add"}
-                                />
-                            </List>
-                        </Frame>
+                            <Frame padding=NOTES_PADDING>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::Md
+                                >
+                                    <Text style=TextStyle::CAPTION>
+                                        "This slide has no speaker notes."
+                                    </Text>
+                                    <Button
+                                        glyph=ICON_STICKY_NOTE_PLUS
+                                        label="Add notes"
+                                        disabled={read_only}
+                                        on_click={add}
+                                        @test_id={"presentation.notes.add"}
+                                    />
+                                </List>
+                            </Frame>
                         </Case>
-                        <Case when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}>|notes: ReadSignal<Notes>|
-                        <Frame padding=NOTES_PADDING>
-                            <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
-                                {create_memo(move || match notes.with(|notes| matches!(notes, Notes::Loading)) {
-                                    true => "Loading the notes…".to_owned(),
-                                    false => "This slide's notes could not be found.".to_owned(),
-                                })}
-                            </Text>
-                        </Frame>
+                        <Case
+                            when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}
+                        >|notes: ReadSignal<Notes>|
+                            <Frame padding=NOTES_PADDING>
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    @test_id={"presentation.notes.status"}
+                                >
+                                    {create_memo(move || match notes.with(|notes| matches!(notes, Notes::Loading)) {
+                                        true => "Loading the notes…".to_owned(),
+                                        false => "This slide's notes could not be found.".to_owned(),
+                                    })}
+                                </Text>
+                            </Frame>
                         </Case>
                     </Match>
                 </List>

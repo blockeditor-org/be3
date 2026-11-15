@@ -656,7 +656,9 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
     view! {
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=Space::None>
-                <ForEach value={move || row.get().map(|row| row.0).unwrap_or_default()}>|cell: (String, Option<bool>)|
+                <ForEach
+                    value={move || row.get().map(|row| row.0).unwrap_or_default()}
+                >|cell: (String, Option<bool>)|
                     <TickCell cell={cell} />
                 </ForEach>
             </List>

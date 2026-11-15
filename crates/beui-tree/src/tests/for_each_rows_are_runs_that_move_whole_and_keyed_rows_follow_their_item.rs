@@ -30,9 +30,17 @@ fn for_each_rows_are_runs_that_move_whole_and_keyed_rows_follow_their_item() {
     };
     assert_eq!(text(&page), "1 2");
     marked.set(true);
-    assert_eq!(text(&page), "1 1! 2 2!", "a row is a run: what it adds stays with it");
+    assert_eq!(
+        text(&page),
+        "1 1! 2 2!",
+        "a row is a run: what it adds stays with it"
+    );
     keys.set(vec![2, 1]);
-    assert_eq!(text(&page), "2 2! 1 1!", "reordering moves each row's whole run");
+    assert_eq!(
+        text(&page),
+        "2 2! 1 1!",
+        "reordering moves each row's whole run"
+    );
     marked.set(false);
     assert_eq!(text(&page), "2 1");
 
@@ -50,10 +58,16 @@ fn for_each_rows_are_runs_that_move_whole_and_keyed_rows_follow_their_item() {
         let built = built.clone();
         view! {
             <Element tag="ol">
-                <ForEach value={items} key={|item: &Item| item.id}>|item: ReadSignal<Item>, index: ReadSignal<usize>| {
+                <ForEach
+                    value={items}
+                    key={|item: &Item| item.id}
+                >|item: ReadSignal<Item>, index: ReadSignal<usize>| {
                     built.set(built.get() + 1);
                     view! {
-                        <Element tag="li" text={create_memo(move || format!("{}:{}", index.get(), item.get().name))} />
+                        <Element
+                            tag="li"
+                            text={create_memo(move || format!("{}:{}", index.get(), item.get().name))}
+                        />
                     }
                 }</ForEach>
             </Element>
@@ -61,7 +75,10 @@ fn for_each_rows_are_runs_that_move_whole_and_keyed_rows_follow_their_item() {
     });
     assert_eq!(text(&page), "0:one 1:two");
     items.set(vec![
-        Item { id: 2, name: "deux" },
+        Item {
+            id: 2,
+            name: "deux",
+        },
         Item { id: 1, name: "one" },
     ]);
     assert_eq!(

@@ -11,7 +11,10 @@ fn a_for_each_builds_a_row_for_each_repeat_of_an_item() {
         view! {
             <Element tag="ol">
                 <ForEach value={items}>|item: &'static str, index: ReadSignal<usize>|
-                    <Element tag="li" text={create_memo(move || format!("{}{item}", index.get()))} />
+                    <Element
+                        tag="li"
+                        text={create_memo(move || format!("{}{item}", index.get()))}
+                    />
                 </ForEach>
             </Element>
         }
@@ -24,7 +27,11 @@ fn a_for_each_builds_a_row_for_each_repeat_of_an_item() {
             .collect::<Vec<_>>()
             .join(" ")
     };
-    assert_eq!(text(&page), "0a 1b 2a", "each repeat is a row of its own, built at its own place");
+    assert_eq!(
+        text(&page),
+        "0a 1b 2a",
+        "each repeat is a row of its own, built at its own place"
+    );
     items.set(vec!["a", "a", "b", "a"]);
     assert_eq!(text(&page), "0a 1a 2b 3a");
     items.set(vec!["b", "a"]);

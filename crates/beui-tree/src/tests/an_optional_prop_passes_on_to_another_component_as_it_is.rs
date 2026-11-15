@@ -33,10 +33,26 @@ fn Outer(
 fn an_optional_prop_passes_on_to_another_component_as_it_is() {
     let _root = ::beui_reactive::RootScope::new();
     fresh_ids();
-    assert!(view! { <Outer /> }.html().contains(">none</p>"));
-    assert!(view! { <Outer label="given" /> }.html().contains(">given</p>"));
+    assert!(
+        view! {
+            <Outer />
+        }
+        .html()
+        .contains(">none</p>")
+    );
+    assert!(
+        view! {
+            <Outer label="given" />
+        }
+        .html()
+        .contains(">given</p>")
+    );
     let page = view! {
-        <Outer after={|| view! { <Element tag="b" text="after" /> }} />
+        <Outer
+            after={|| view! {
+                <Element tag="b" text="after" />
+            }}
+        />
     };
     assert!(page.html().contains(">after</b>"), "{}", page.html());
 }

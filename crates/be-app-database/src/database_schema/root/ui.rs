@@ -225,7 +225,9 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach value={FIELD_TYPES.map(|(_, label, _)| label).to_vec()}>|label: &'static str|
+                                <ForEach
+                                    value={FIELD_TYPES.map(|(_, label, _)| label).to_vec()}
+                                >|label: &'static str|
                                     <ChoiceOption label={label} />
                                 </ForEach>
                             }}
@@ -268,40 +270,50 @@ fn FieldRow(
                 />
             </List>
             <Show value={kind}>|kind: ReadSignal<DatabaseFieldType>|
-            <Match value={kind}>
-            <Case is={DatabaseFieldType::Number}>
-                <Interactive capture_presses=true>
-                    <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
-                </Interactive>
-            </Case>
-            <Case is={DatabaseFieldType::Enum}>
-                <Interactive capture_presses=true>
-                    <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
-                </Interactive>
-            </Case>
-            <Case is={DatabaseFieldType::Block}>
-                <Interactive capture_presses=true>
-                    <BlockOptions
-                        editor={editor}
-                        schema={schema}
-                        id={id}
-                        field={field}
-                        read_only={read_only}
-                    />
-                </Interactive>
-            </Case>
-            <Case is={DatabaseFieldType::Relation}>
-                <Interactive capture_presses=true>
-                    <RelationOptions
-                        editor={editor}
-                        schema={schema}
-                        id={id}
-                        field={field}
-                        read_only={read_only}
-                    />
-                </Interactive>
-            </Case>
-            </Match>
+                <Match value={kind}>
+                    <Case is={DatabaseFieldType::Number}>
+                        <Interactive capture_presses=true>
+                            <NumberOptions
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Enum}>
+                        <Interactive capture_presses=true>
+                            <EnumOptions
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Block}>
+                        <Interactive capture_presses=true>
+                            <BlockOptions
+                                editor={editor}
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                    <Case is={DatabaseFieldType::Relation}>
+                        <Interactive capture_presses=true>
+                            <RelationOptions
+                                editor={editor}
+                                schema={schema}
+                                id={id}
+                                field={field}
+                                read_only={read_only}
+                            />
+                        </Interactive>
+                    </Case>
+                </Match>
             </Show>
             <Separator />
         </List>
@@ -365,7 +377,9 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach value={NUMBER_SCALES.map(|(_, label)| label).to_vec()}>|label: &'static str|
+                                <ForEach
+                                    value={NUMBER_SCALES.map(|(_, label)| label).to_vec()}
+                                >|label: &'static str|
                                     <ChoiceOption label={label} />
                                 </ForEach>
                             }}
@@ -499,7 +513,10 @@ fn EnumOptions(
     view! {
         <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
-                <ForEach value={options} key={|option: &DatabaseEnumOption| option.id}>|option: ReadSignal<DatabaseEnumOption>|
+                <ForEach
+                    value={options}
+                    key={|option: &DatabaseEnumOption| option.id}
+                >|option: ReadSignal<DatabaseEnumOption>|
                     <EnumOptionRow
                         schema={schema}
                         id={id}
@@ -607,16 +624,14 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
-                    <ForEach value={ChoiceIcon::ALL.to_vec()}>|icon: ChoiceIcon| {
-                        view! {
-                            <MenuItem
-                                label={choice_icon_label(icon)}
-                                glyph={choice_glyph(icon)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
-                                on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
-                            />
-                        }
-                    }</ForEach>
+                    <ForEach value={ChoiceIcon::ALL.to_vec()}>|icon: ChoiceIcon|
+                        <MenuItem
+                            label={choice_icon_label(icon)}
+                            glyph={choice_glyph(icon)}
+                            row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
+                            on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
+                        />
+                    </ForEach>
                 }}
             />
             <Frame width=NAME_WIDTH>
@@ -639,15 +654,13 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
-                    <ForEach value={ChoiceColor::ALL.to_vec()}>|color: ChoiceColor| {
-                        view! {
-                            <MenuItem
-                                label={choice_color_label(color)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
-                                on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
-                            />
-                        }
-                    }</ForEach>
+                    <ForEach value={ChoiceColor::ALL.to_vec()}>|color: ChoiceColor|
+                        <MenuItem
+                            label={choice_color_label(color)}
+                            row_test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
+                            on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
+                        />
+                    </ForEach>
                 }}
             />
             <ToggleButton

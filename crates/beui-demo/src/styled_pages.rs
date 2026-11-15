@@ -2385,7 +2385,9 @@ fn NewBlockMenu() -> NodeId {
                             page=true
                             row_test_id="demo.new.more"
                         >
-                            <ForEach value={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
+                            <ForEach
+                                value={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}
+                            >|kind: usize|
                                 <MenuItem
                                     label={MORE_BLOCKS[kind]}
                                     on_click={move || add(MORE_BLOCKS[kind])}

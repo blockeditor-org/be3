@@ -39,5 +39,8 @@ fn a_show_over_an_option_hands_its_children_a_signal_of_what_is_in_it() {
 
     picked.set(None);
     let html = page.html();
-    assert!(html.contains(">none</i>") && !html.contains("</p>"), "{html}");
+    assert!(
+        html.contains(">none</i>") && !html.contains("</p>"),
+        "{html}"
+    );
 }

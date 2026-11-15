@@ -560,7 +560,11 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { value: impl Into<Option<#item>> },
             quote! { value.into() },
         )
-    } else if prop.optional_render.as_ref().is_some_and(|render| !render.raw) {
+    } else if prop
+        .optional_render
+        .as_ref()
+        .is_some_and(|render| !render.raw)
+    {
         let inner = prop
             .inner_ty
             .as_ref()
@@ -814,13 +818,15 @@ fn mentions_bare(ty: &Type, param: &Ident) -> bool {
     let tokens: Vec<proc_macro2::TokenTree> = quote! { #ty }.into_iter().collect();
     fn walk(tokens: &[proc_macro2::TokenTree], param: &Ident) -> bool {
         tokens.iter().enumerate().any(|(index, token)| match token {
-            proc_macro2::TokenTree::Ident(ident) if ident == param => !matches!(
-                tokens.get(index + 1),
-                Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
-            ) && !matches!(
-                tokens.get(index + 1),
-                Some(proc_macro2::TokenTree::Ident(next)) if next == "as"
-            ),
+            proc_macro2::TokenTree::Ident(ident) if ident == param => {
+                !matches!(
+                    tokens.get(index + 1),
+                    Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
+                ) && !matches!(
+                    tokens.get(index + 1),
+                    Some(proc_macro2::TokenTree::Ident(next)) if next == "as"
+                )
+            }
             proc_macro2::TokenTree::Group(group) => {
                 let inner: Vec<_> = group.stream().into_iter().collect();
                 walk(&inner, param)

@@ -24,8 +24,11 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
 
     let no_back = create_memo(move || back.get().is_none());
     let no_forward = create_memo(move || forward.get().is_none());
-    let page =
-        create_memo(move || error.with(Option::is_none).then_some(SubregionContent::WebView(PAGE)));
+    let page = create_memo(move || {
+        error
+            .with(Option::is_none)
+            .then_some(SubregionContent::WebView(PAGE))
+    });
 
     let go_back = move || {
         if let Some(index) = back.get_untracked() {

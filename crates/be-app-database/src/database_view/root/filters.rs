@@ -573,7 +573,10 @@ fn ValueChoices(
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=Space::Xs2>
-                    <ForEach value={choices} key={Choice::key}>|choice: ReadSignal<Choice>, index: ReadSignal<usize>| {
+                    <ForEach
+                        value={choices}
+                        key={Choice::key}
+                    >|choice: ReadSignal<Choice>, index: ReadSignal<usize>| {
                         let label = create_memo(move || choice.with(|choice| choice.label.clone()));
                         let count = create_memo(move || choice.with(|choice| choice.count.to_string()));
                         let option = create_memo(move || choice.with(|choice| choice.option.clone()));
@@ -680,7 +683,9 @@ pub fn FilterList(data: Data) -> NodeId {
                                     value={names}
                                     key={|field: &DatabaseField| field.id}
                                 >|field: ReadSignal<DatabaseField>|
-                                    <ChoiceOption label={move || field.with(|field| field.name.clone())} />
+                                    <ChoiceOption
+                                        label={move || field.with(|field| field.name.clone())}
+                                    />
                                 </ForEach>
                             }}
                             selected={Binding::new(None, add)}
