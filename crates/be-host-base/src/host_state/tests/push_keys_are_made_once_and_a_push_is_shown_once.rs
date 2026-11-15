@@ -11,9 +11,10 @@ fn push_keys_are_made_once_and_a_push_is_shown_once() {
     store.set_push_endpoint(Some("https://push.example/a")).unwrap();
     assert_eq!(store.push_endpoint().unwrap(), None);
 
-    let keys = store.push_keys_or_make(|| vec![1; 48]).unwrap();
-    assert_eq!(keys, vec![1; 48]);
-    assert_eq!(other.push_keys_or_make(|| vec![2; 48]).unwrap(), keys);
+    store.keep_push_keys(&[1; 48]).unwrap();
+    other.keep_push_keys(&[2; 48]).unwrap();
+    let keys = vec![1; 48];
+    assert_eq!(other.push_keys().unwrap(), Some(keys.clone()));
     store.set_push_endpoint(Some("https://push.example/a")).unwrap();
     assert_eq!(
         other.push_endpoint().unwrap().as_deref(),

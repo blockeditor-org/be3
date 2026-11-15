@@ -68,10 +68,39 @@ mod receiving {
 
     /// This device's push keys, made and kept the first time.
     pub fn keys(state: &HostStateStore) -> Result<DeviceKeys, String> {
-        let kept = state
-            .push_keys_or_make(|| DeviceKeys::generate().to_bytes())
+        let failed = |error: be_host_base::host_state::HostStateError| error.to_string();
+        if state.push_keys().map_err(failed)?.is_none() {
+            let mut made = DeviceKeys::generate().to_bytes();
+            let kept = state.keep_push_keys(&made);
+            be_lib_web_push::forget(&mut made);
+            kept.map_err(failed)?;
+        }
+        let mut kept = state
+            .push_keys()
+            .map_err(failed)?
+            .ok_or_else(|| "the push keys were not kept".to_owned())?;
+        let keys = DeviceKeys::from_bytes(&kept);
+        be_lib_web_push::forget(&mut kept);
+        keys.ok_or_else(|| "the kept push keys are corrupt".to_owned())
+    }
+
+    /// The endpoint to register with the server for each organization the host opens: the one
+    /// the distributor gave, while pushes are on here.
+    pub fn registration(state: &HostStateStore) -> Result<Option<PushEndpoint>, String> {
+        let Some(address) = state.push_endpoint().map_err(|error| error.to_string())? else {
+            return Ok(None);
+        };
+        Ok(Some(endpoint(&keys(state)?, address)))
+    }
+
+    /// Turning pushes off here: forgets the endpoint, so no organization registers it again,
+    /// and answers its address, for the server to forget where it can now.
+    pub fn turn_off(state: &HostStateStore) -> Result<Option<String>, String> {
+        let address = state.push_endpoint().map_err(|error| error.to_string())?;
+        state
+            .set_push_endpoint(None)
             .map_err(|error| error.to_string())?;
-        DeviceKeys::from_bytes(&kept).ok_or_else(|| "the kept push keys are corrupt".to_owned())
+        Ok(address)
     }
 
     /// The endpoint a distributor gave this device, as the server registers it: a Web Push URL
@@ -86,9 +115,10 @@ mod receiving {
     }
 
     /// Turns the body of a push the distributor handed this device into the notification to
-    /// show, or `None` for a push already shown, which the server can send again within
-    /// `MAX_NOTIFICATION_AGE_MILLISECONDS`. A push that does not decrypt, or that no saved
-    /// account here can open, shows `Shown::generic`. `data_dir` holds the refs database
+    /// show, or `None` for a push to drop: one that does not decrypt to a `PushMessage` with
+    /// this device's keys, as a browser drops it, or one already shown, which the server can
+    /// send again within `MAX_NOTIFICATION_AGE_MILLISECONDS`. A push no saved account here can
+    /// open shows `Shown::generic`. `data_dir` holds the refs database
     /// (`refs_in`); `now` is in Unix milliseconds.
     pub fn receive(
         state: &HostStateStore,
@@ -96,16 +126,10 @@ mod receiving {
         body: &[u8],
         now: i64,
     ) -> Option<Shown> {
-        let Some(message) = state
-            .push_keys()
-            .ok()
-            .flatten()
-            .and_then(|kept| DeviceKeys::from_bytes(&kept))
-            .and_then(|keys| keys.open(body))
-            .and_then(|plain| PushMessage::decode(&plain))
-        else {
-            return Some(Shown::generic());
-        };
+        let mut kept = state.push_keys().ok().flatten()?;
+        let keys = DeviceKeys::from_bytes(&kept);
+        be_lib_web_push::forget(&mut kept);
+        let message = PushMessage::decode(&keys?.open(body)?)?;
         let digest: [u8; 32] = <sha2::Sha256 as sha2::Digest>::digest(&message.sealed).into();
         let forget_before = now.saturating_sub(be_block_client::MAX_NOTIFICATION_AGE_MILLISECONDS);
         // A store that cannot be read shows it: it may show twice.
