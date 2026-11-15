@@ -312,7 +312,7 @@ pub(super) fn AddAccountDialog(
                 <Show value={editing}>
                     <List spacing=Space::Xl>
                         <Match value={selection}>
-                            <Case is={Some(1)}>
+                            <Case when={|selection: &Option<u8>| *selection == Some(1)}>
                             <List spacing=Space::Xl>
                                 <Text style=TextStyle::PARAGRAPH>
                                     "Your data stays on this device. You only need a display name."
@@ -329,13 +329,13 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                             </Case>
-                            <Case is={Some(0)}>
+                            <Case when={|selection: &Option<u8>| *selection == Some(0)}>
                             <List spacing=Space::Xs>
                                 <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                             </Case>
-                            <Case is={Some(2)}>
+                            <Case when={|selection: &Option<u8>| *selection == Some(2)}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
@@ -595,17 +595,16 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                         </List>
                     </List>
                 }}
-            >|row: ReadSignal<JoiningRow>|
+            >|row: ReadSignal<JoiningRow>| {
+                let title = create_memo(move || row.with(|row| format!("Join {} as {}?", row.organization, row.role)));
+                let invited = create_memo(move || row.with(|row| format!("Invited as {}", row.email)));
+                view! {
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <ListItem grow=1.0>
                             <List spacing=Space::Xs2>
-                                <Text size=TextSize::Lg>
-                                    {move || row.with(|row| format!("Join {} as {}?", row.organization, row.role))}
-                                </Text>
-                                <Text style=TextStyle::CAPTION>
-                                    {move || row.with(|row| format!("Invited as {}", row.email))}
-                                </Text>
+                                <Text size=TextSize::Lg>{title}</Text>
+                                <Text style=TextStyle::CAPTION>{invited}</Text>
                             </List>
                         </ListItem>
                         <Button
@@ -623,7 +622,8 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                         />
                     </List>
                 </Card>
-            </Show>
+                }
+            }</Show>
         </List>
     }
 }
