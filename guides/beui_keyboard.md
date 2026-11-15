@@ -101,8 +101,8 @@ window for everything but media keys.
 
 A key command is an action registered under an `action_scope`: it runs after the
 focused control declines the key, and `.capture()` makes it run before the focused
-control instead (the dock's Ctrl+Tab, which works from a text input in a pane but not
-past a dialog; guides/beui/docking.md). A plain-letter chord is skipped while text is
+control instead (the dock's Next tab, which works from a text input in a pane;
+guides/beui/docking.md). A plain-letter chord is skipped while text is
 being typed. A listener that must see raw presses, held keys or releases is
 `on_key(KeyAt::Node(component_node()), KeyPhase::Capture, KeyReveal::Focus, handler)`,
 and `on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, handler)` is the
@@ -180,7 +180,8 @@ its repeats and release, back as `Event::InterceptedKey` (taps as
 released, which is how Alt+Tab works over any window. be-host takes intercepted
 keys only from the shell's frame, and not while the view has the keyboard
 itself (`be_host_runtime::view_has_keyboard`), when it hears them in order
-instead. A document with a focus-trapping layer open reports
+instead, nor while one of be-host's own layers takes the keyboard (its palette, a
+prompt; the lock screen excepted, which limits keys itself). A document with a focus-trapping layer open reports
 `WindowRequests::wants_keyboard` (guides/apps/framework.md, Views), so be-host gives an app's view the focus
 while its dialog is open.
 
@@ -259,7 +260,8 @@ hidden or removed node loses the focus and hears `on_focus_change(false)`.
 control built on one makes a press anywhere inside it leave the focus, and a
 text field's caret, where they are; put it on a whole toolbar, not on each
 button, so its padding keeps the focus too. `Document::watch_focused` signals
-the focus and `holds_focus(node_ref)` is a memo of whether it is inside a node.
+the focus and `holds_focus(node_ref)` is a memo of whether it is inside a node;
+`focus_held()` is one of whether any node has it.
 
 `Input::Focus(false)` from a host means the window lost the keyboard only: the
 runner lets go of modifiers and beui of held keys, but a press continues. A

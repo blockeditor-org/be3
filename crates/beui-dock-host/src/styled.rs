@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 
 use crate::unstyled as dock;
 pub use crate::unstyled::{
-    DockApi, DockArea, DockHostLayout, DockSnap, DockWindowActions, HiddenBand,
+    DockApi, DockArea, DockHostLayout, DockSnap, DockTabKeys, DockWindowActions, HiddenBand,
 };
 use crate::unstyled::{
     DockAwayHandle, DockBarBandHandle, DockBarHandle, DockChromeHandle, DockDialogHandle,
@@ -88,6 +88,7 @@ pub fn DockHost(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DockApi>,
     bars: Option<Rc<dyn DockHostLink>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = DockTabKeys::CTRL)] tab_keys: Prop<DockTabKeys>,
     #[prop(children)] content: Render,
 ) -> NodeId {
     let mode = layout.mode();
@@ -107,6 +108,7 @@ pub fn DockHost(
             short_below=SHORT_HEIGHT
             short_narrower_than=PHONE_LANDSCAPE_WIDTH
             drag_modifier
+            tab_keys
             splitter_thickness=SPLITTER_LINE
             splitter_reach=SPLITTER_REACH
             icon_sidebar_width=ICON_SIDEBAR
