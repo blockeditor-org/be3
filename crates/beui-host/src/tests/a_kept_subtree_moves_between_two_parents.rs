@@ -31,6 +31,7 @@ fn a_kept_subtree_moves_between_two_parents() {
                 </List>
             </KeepAlive>
         }
+        .into_child()
     });
 
     let (left, right) = (left.get(), right.get());
