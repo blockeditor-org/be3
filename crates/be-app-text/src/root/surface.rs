@@ -78,7 +78,6 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
 
     select_where_opened(state);
     caret_when_given_the_keyboard(state);
-    let typing = state.typing;
     view! {
         <TextArea
             state={state.text}
@@ -88,7 +87,6 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             read_only={state.editor.read_only()}
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
-            on_focus_change={typing}
             on_image_paste={move |image: PickedFile| paste_image(state, image)}
             block={embed_row}
             selected_widget={open_row}

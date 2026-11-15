@@ -79,7 +79,9 @@ writes nothing for phones. `DockingLayout::show` brings a folded pane
 forward, as the canvas's selection bar does with the Inspector.
 
 Prefer one layout for both. The canvas keeps tools and zoom in `DockBar`s the
-user can move to any edge or window. `be_sdk_beui::Toolbar` is for a band
+user can move to any edge or window, and the text editor its format bar, in a
+band beside its bottom edge (`DockBarPlacement::Beside`), so on a phone it sits
+above the on-screen keyboard and never covers the text. `be_sdk_beui::Toolbar` is for a band
 outside a dock (the file tree's); its buttons scroll sideways on a narrow
 frame. `narrow_chrome()` tests the frame's width, which a desktop pane can be
 too; `phone_layout()` says the host itself is on a phone.

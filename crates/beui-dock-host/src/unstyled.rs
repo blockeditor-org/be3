@@ -1702,6 +1702,7 @@ pub(crate) struct DockConfig {
     pub(crate) short_narrower_than: f32,
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
+    pub(crate) tab_keys: Prop<DockTabKeys>,
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
@@ -1764,6 +1765,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         short_narrower_than,
         mode: published,
         drag_modifier,
+        tab_keys,
         splitter_thickness,
         splitter_reach,
         group_inset,
@@ -1983,7 +1985,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     dock.forget_content_keyboard_when_taken();
     api.fill(DockApi(dock));
     let area = NodeRef::new();
-    tab_actions(dock, area);
+    tab_actions(dock, tab_keys);
     create_effect(move || {
         let mut tabs = state.with(DockState::all_tabs);
         tabs.extend(hosts.get());
@@ -4237,7 +4239,32 @@ fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
 /// The dock's tab keys as actions, answering while the focus is anywhere in the dock and
 /// before the focused control (`.capture()`), so they work from a text input in a pane but
 /// not past a dialog; a palette lists them.
-fn tab_actions(dock: State, area: NodeRef) {
+/// The chords of the dock's Next tab and Previous tab. `CTRL` (Ctrl+Tab, Ctrl+Shift+Tab) is the
+/// default; a desktop, whose programs must keep Ctrl+Tab, binds `SUPER`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DockTabKeys {
+    pub next: Chord,
+    pub previous: Chord,
+}
+
+impl DockTabKeys {
+    pub const CTRL: Self = Self {
+        next: Chord::ctrl(Key::Tab),
+        previous: Chord::ctrl(Key::Tab).shift(),
+    };
+    pub const SUPER: Self = Self {
+        next: Chord::logo(Key::Tab),
+        previous: Chord::logo(Key::Tab).shift(),
+    };
+}
+
+impl Default for DockTabKeys {
+    fn default() -> Self {
+        Self::CTRL
+    }
+}
+
+fn tab_actions(dock: State, keys: Prop<DockTabKeys>) {
     let several = create_memo(move || {
         dock.state.with(|state| {
             state
@@ -4250,21 +4277,29 @@ fn tab_actions(dock: State, area: NodeRef) {
         dock.shown_entry()
             .is_some_and(|(_, entry)| dock.entry_closable(entry))
     });
-    let at = KeyAt::Node(area);
-    Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))
-        .shortcut(Chord::ctrl(Key::Tab))
-        .enabled(several)
-        .at(at.clone())
-        .capture()
-        .register();
-    Action::new("dock.tab.previous", "Previous tab", move || {
-        dock.cycle(true)
-    })
-    .shortcut(Chord::ctrl(Key::Tab).shift())
-    .enabled(several)
-    .at(at)
-    .capture()
-    .register();
+    // At the window, capturing: so they answer from a text input in a pane and over an embedded
+    // editor's view (a program), whose keys only window and host capture listeners hear. Bound
+    // again whenever the owner changes the chords: the effect's scope, and with it the actions, is
+    // dropped on every rerun.
+    create_effect(move || {
+        let keys = keys.get();
+        untrack(|| {
+            Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))
+                .shortcut(keys.next)
+                .enabled(several)
+                .at(KeyAt::Window)
+                .capture()
+                .register();
+            Action::new("dock.tab.previous", "Previous tab", move || {
+                dock.cycle(true)
+            })
+            .shortcut(keys.previous)
+            .enabled(several)
+            .at(KeyAt::Window)
+            .capture()
+            .register();
+        });
+    });
     Action::new("dock.tab.split-right", "Split right", move || {
         dock.split_shown(Side::Right)
     })

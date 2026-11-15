@@ -23,6 +23,7 @@ use beui_view::types::{Color, Modifiers, Pos2, Rect};
 
 use super::dialog::{DialogParts, DockDialogHandle};
 use super::{
+    DockTabKeys,
     BarCovers, BarFloats, Dock, DockApi, DockAwayHandle, DockBarBandHandle, DockBarHandle,
     DockChromeHandle, DockConfig, DockGripHandle, DockHighlightHandle, DockPreviewHandle,
     DockSplitterHandle, DockStackHandle, DockStripHandle, DockSwitchHandle, DockSwitcherHandle,
@@ -541,6 +542,7 @@ struct HostStyle {
     short_below: f32,
     short_narrower_than: f32,
     drag_modifier: Prop<Option<Modifiers>>,
+    tab_keys: Prop<DockTabKeys>,
     menu: MenuStyle,
     splitter_thickness: f32,
     splitter_reach: f32,
@@ -641,6 +643,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         short_below,
         short_narrower_than,
         drag_modifier,
+        tab_keys,
         menu,
         splitter_thickness,
         splitter_reach,
@@ -825,6 +828,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
                 short_narrower_than,
                 mode: layout.mode,
                 drag_modifier,
+                tab_keys,
                 splitter_thickness,
                 splitter_reach,
                 group_inset,
@@ -920,7 +924,8 @@ fn join_bars(layout: DockHostLayout, link: Rc<dyn DockHostLink>) {
 /// Given `bars` (or inside a `DockHost` that was), it is joined by bars only: it declares its owned
 /// bars to that link and draws none of them while the link hosts them. `drag_modifier` (none by
 /// default) turns a drag anywhere in a floating window into a move, and a secondary drag into a
-/// resize, while those modifiers are held.
+/// resize, while those modifiers are held. `tab_keys` are the chords of Next tab and Previous tab
+/// (`DockTabKeys::CTRL` by default).
 #[component]
 pub fn DockHost(
     #[prop(default = DockHostLayout::new())] layout: DockHostLayout,
@@ -930,6 +935,7 @@ pub fn DockHost(
     #[prop(default = 0.0)] short_below: f32,
     #[prop(default = 0.0)] short_narrower_than: f32,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
+    #[prop(default = DockTabKeys::CTRL)] tab_keys: Prop<DockTabKeys>,
     menu: MenuStyle,
     splitter_thickness: f32,
     #[prop(default = 0.0)] splitter_reach: f32,
@@ -973,6 +979,7 @@ pub fn DockHost(
         short_below,
         short_narrower_than,
         drag_modifier,
+        tab_keys,
         menu,
         splitter_thickness,
         splitter_reach,

@@ -142,6 +142,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                         @test_id={format!("desktop.dock.{display}")}
                         layout=host
                         drag_modifier={Some(Modifiers::LOGO)}
+                        tab_keys={window_keys::tab_keys(editor)}
                     >
                         <Docking layout>
                             <DockPane id={"desktop".to_owned()} bare=true></DockPane>
@@ -231,6 +232,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                         @test_id={"desktop.dock"}
                         layout=host
                         drag_modifier={Some(Modifiers::LOGO)}
+                        tab_keys={window_keys::tab_keys(editor)}
                     >
                         <Docking layout>
                             <DockPane
