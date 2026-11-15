@@ -1,6 +1,8 @@
 use super::*;
 
 mod a_failure_releases_what_the_remaps_held_down;
+mod a_key_held_before_the_remaps_saw_it_is_released_as_it_is;
+mod a_modifier_a_session_chord_pressed_is_let_go_with_its_release;
 mod a_module_that_never_answers_runs_out_of_fuel_and_input_passes_through;
 mod new_rules_apply_from_the_next_key;
 mod remaps_that_do_not_read_stay_off_until_they_change;

@@ -69,7 +69,9 @@ Whatever runs on the other terminal reprograms CRTCs, connectors and planes, so 
 platform cached survives. `recovery.rs` drops every output while the device is paused, resets the
 device to everything off on return, and builds outputs again for what is connected, so the first
 frame is a full modeset. A frame that cannot be shown rebuilds its output once; a second failure
-stops that output and is reported once through `Problems`.
+stops that output and is reported once through `Problems`. Keys held when the session left are
+released on return, since their releases went to the other terminal; a new keymap likewise takes
+over the keys held under the old one.
 
 ## Power and logging out
 
@@ -149,7 +151,10 @@ by a *remapper*: a WebAssembly module an app ships as data, given a config the a
   through, toasts, and restarts the module on the next input; after three failures in a minute, or
   an unreadable config, it stays off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>,
   Super+L and Super+Escape never reach the module, and nothing does while the screen is locked, so a
-  module can neither trap the session nor read the password.
+  module can neither trap the session nor read the password. Those keys go out with the modifiers
+  physically held, and a modifier so pressed is released with its own release, whatever the rules
+  make of it. The release of a key the remapper never saw go down (it was installed, or the session
+  came back to its terminal, while the key was held) passes through as it is.
 - **In the host.** be-host-desktop's `remap/linux.rs` fetches the module (only from an app with an
   `InputRemapper` editor), reconfigures it when only the config changes (the next input runs
   the new rules), fetches it again with the next change if it could not be fetched or loaded, and caches the last module
