@@ -67,24 +67,20 @@ fn Problem(content: Prop<String>) -> NodeId {
 
 #[component]
 fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
-    let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
-    let empty = create_memo(move || keys.with(Vec::is_empty));
     view! {
         <List spacing=Space::Xs>
-            <Show value={empty}>
-                <Text style=TextStyle::CAPTION>"None"</Text>
-            </Show>
-            <ForEach value={keys}>|index: usize| {
-                let label = create_memo(move || {
-                    rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
-                });
-                let value = create_memo(move || {
-                    rows.with(|rows| rows.get(index).map(|row| row.1.clone()).unwrap_or_default())
-                });
-                view! {
-                    <Field label={label} value={value} />
-                }
-            }</ForEach>
+            <ForEach
+                value={rows}
+                key={|row: &(String, String)| row.0.clone()}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"None"</Text>
+                }}
+            >|row: ReadSignal<(String, String)>|
+                <Field
+                    label={move || row.with(|row| row.0.clone())}
+                    value={move || row.with(|row| row.1.clone())}
+                />
+            </ForEach>
         </List>
     }
 }
@@ -640,21 +636,15 @@ fn ChallengePanel(session: Session) -> NodeId {
 
 #[component]
 fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
-    let keys = create_memo(move || (0..cells.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <ForEach value={keys}>|index: usize| {
-                let text = create_memo(move || {
-                    cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
-                });
-                view! {
-                    <ListItem length=CELL_WIDTH>
-                        <Frame padding={Padding::horizontal(Space::Xs2)}>
-                            <Text>{text}</Text>
-                        </Frame>
-                    </ListItem>
-                }
-            }</ForEach>
+            <ForEach value={cells}>|text: String|
+                <ListItem length=CELL_WIDTH>
+                    <Frame padding={Padding::horizontal(Space::Xs2)}>
+                        <Text>{text}</Text>
+                    </Frame>
+                </ListItem>
+            </ForEach>
         </List>
     }
 }
@@ -662,32 +652,26 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
 #[component]
 fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId {
     let active = create_memo(move || row.get().is_some_and(|row| row.1));
-    let keys = create_memo(move || (0..row.get().map_or(0, |row| row.0.len())).collect::<Vec<_>>());
     let seek = move || session.update(|model| model.challenge_test_seek(tick));
     view! {
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=Space::None>
-                <ForEach value={keys}>|index: usize| {
-                    let cell = create_memo(move || {
-                        row.get().and_then(|row| row.0.get(index).cloned())
-                    });
-                    view! {
-                        <TickCell cell={cell} />
-                    }
-                }</ForEach>
+                <ForEach value={move || row.get().map(|row| row.0).unwrap_or_default()}>|cell: (String, Option<bool>)|
+                    <TickCell cell={cell} />
+                </ForEach>
             </List>
         </ListRow>
     }
 }
 
 #[component]
-fn TickCell(cell: Memo<Option<(String, Option<bool>)>>) -> NodeId {
-    let text = create_memo(move || cell.get().map(|cell| cell.0).unwrap_or_default());
-    let color = create_memo(move || match cell.get().and_then(|cell| cell.1) {
+fn TickCell(cell: (String, Option<bool>)) -> NodeId {
+    let (text, passed) = cell;
+    let color = match passed {
         Some(true) => TextColor::Default,
         Some(false) => TextColor::Danger,
         None => TextColor::Muted,
-    });
+    };
     view! {
         <Frame width={Size::Custom(CELL_WIDTH)} padding={Padding::horizontal(Space::Xs2)}>
             <Text style=TextStyle::CODE color={color}>{text}</Text>
@@ -800,51 +784,41 @@ fn DebuggerPanel(session: Session) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let valid = create_memo(move || errors.with(Vec::is_empty));
-    let error_keys = create_memo(move || (0..errors.with(Vec::len)).collect::<Vec<_>>());
     let entities = create_memo(move || session.read(LogicGridEditor::entity_rows));
-    let entity_keys = create_memo(move || {
-        entities.with(|rows| rows.iter().map(|row| row.entity).collect::<Vec<_>>())
-    });
-    let empty = create_memo(move || entity_keys.with(Vec::is_empty));
     view! {
         <List spacing=SPACING>
             <Rows rows={summary} />
             <Separator />
             <Text>"Validation errors"</Text>
-            <Show value={valid}>
-                <Text style=TextStyle::CAPTION>"No validation errors"</Text>
-            </Show>
-            <ForEach value={error_keys}>|index: usize| {
-                let text = create_memo(move || {
-                    errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
-                });
-                view! {
-                    <Problem content={text} />
-                }
-            }</ForEach>
+            <ForEach
+                value={errors}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"No validation errors"</Text>
+                }}
+            >|text: String|
+                <Problem content={text} />
+            </ForEach>
             <Separator />
             <Text>"Entities"</Text>
-            <Show value={empty}>
-                <Text style=TextStyle::CAPTION>"No entities"</Text>
-            </Show>
-            <ForEach value={entity_keys}>|entity: DebugEntity| {
-                let row = create_memo(move || {
-                    entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
-                });
-                view! {
-                    <EntityPanel session={session} row={row} entity={entity} />
-                }
-            }</ForEach>
+            <ForEach
+                value={entities}
+                key={|row: &EntityRow| row.entity}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"No entities"</Text>
+                }}
+            >|row: ReadSignal<EntityRow>|
+                <EntityPanel session={session} row={row} />
+            </ForEach>
         </List>
     }
 }
 
 #[component]
-fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEntity) -> NodeId {
+fn EntityPanel(session: Session, row: ReadSignal<EntityRow>) -> NodeId {
+    let entity = row.with_untracked(|row| row.entity);
     let open = create_signal(false);
-    let title = create_memo(move || row.get().map(|row| row.title).unwrap_or_default());
-    let details = create_memo(move || row.get().map(|row| row.details).unwrap_or_default());
+    let title = create_memo(move || row.with(|row| row.title.clone()));
+    let details = create_memo(move || row.with(|row| row.details.clone()));
     let hovered = move |over: bool| {
         let current = session.debug_hover.get_untracked();
         if over {
