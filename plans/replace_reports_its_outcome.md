@@ -11,8 +11,10 @@ text, open and closed. What is left:
 
 ## 1. An offline text refuses a replaced child
 
-A text made on this device and not yet on the server refuses every child change it would
-take once synced: an offline replica edits as `OFFLINE_CLIENT` (0,
+A local account's replicas, which never join a session, edit as a fresh client of their own
+each time they open (`unjoined_client`), so this is a server account's gap only. A text made
+on this device and not yet on the server refuses every child change it would take once
+synced: an offline replica edits as `OFFLINE_CLIENT` (0,
 `crates/be-block-type-host/src/replicas.rs`), which is the sequence library's `LOADED`, and
 `Sequence::replace` refuses an edit made as `LOADED`. So unlinking a reference in a text made
 offline, or just made, is refused. The same id makes the host's other edits through an
