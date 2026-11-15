@@ -176,7 +176,6 @@ impl RevisionHistory {
         let state = self.state.value();
         state.generation.set(state.generation.get() + 1);
         self.busy.set(true);
-        self.error.set(None);
         let generation = state.generation.get();
         let block = item.id;
         let asked = self.editor.host().preview_revision(block, revision.commit);
@@ -195,7 +194,10 @@ impl RevisionHistory {
                     }));
                     self.state.value().preview.replace(Some(preview));
                 }
-                Err(error) => self.error.set(Some(error.to_string())),
+                Err(error) => self
+                    .editor
+                    .host()
+                    .report_failure(format!("The revision could not be shown. {error}")),
             }
         });
     }
@@ -218,7 +220,6 @@ impl RevisionHistory {
         };
         self.busy.set(true);
         self.confirm.set(false);
-        self.error.set(None);
         let generation = self.state.value().generation.get();
         let asked = self
             .editor
@@ -234,7 +235,10 @@ impl RevisionHistory {
                     self.current();
                     self.load();
                 }
-                Err(error) => self.error.set(Some(error.to_string())),
+                Err(error) => self
+                    .editor
+                    .host()
+                    .report_failure(format!("The revision could not be restored. {error}")),
             }
         });
     }
@@ -375,8 +379,6 @@ pub(crate) fn RevisionPreviewBar(
             .map(|selected| format!("Revision from {} · Read only", revision_time(selected.time)))
             .unwrap_or_default()
     });
-    let failed = create_memo(move || history.error.get().is_some());
-    let error = create_memo(move || history.error.get().unwrap_or_default());
     let can_restore = create_memo(move || {
         history
             .target
@@ -407,9 +409,6 @@ pub(crate) fn RevisionPreviewBar(
                                 />
                             </Show>
                         </List>
-                        <Show condition={failed}>
-                            <Text style=TextStyle::CAPTION>{error}</Text>
-                        </Show>
                         <Show condition={history.confirm}>
                             <List spacing=Space::Md>
                                 <Text style=TextStyle::CAPTION>

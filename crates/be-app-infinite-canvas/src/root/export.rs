@@ -319,9 +319,9 @@ impl Exporter {
                     }
                     (Ok(data), _) => data,
                     (Err(error), _) => {
-                        state
-                            .import_error
-                            .set(Some(format!("Could not export: {error}")));
+                        editor
+                            .host()
+                            .report_failure(format!("The canvas could not be exported. {error}"));
                         return;
                     }
                 };
@@ -344,9 +344,9 @@ impl Exporter {
                         });
                         editor.then(asked, move |saved| {
                             if let FileSave::Failed(failure) = saved {
-                                state
-                                    .import_error
-                                    .set(Some(format!("Could not export: {failure}")));
+                                editor.host().report_failure(format!(
+                                    "The canvas could not be exported. {failure}"
+                                ));
                             }
                         });
                     }
@@ -365,7 +365,6 @@ impl Exporter {
         let Some(scene) = scene else {
             return;
         };
-        self.state.import_error.set(None);
         self.job.set(Some(Job {
             scene,
             format,

@@ -95,12 +95,19 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         .expect("restore names the source block and revision");
     fixture.test.answer(
         request,
-        Err(be_sdk_beui::Failure::Failed("Could not restore".to_owned())),
+        Err(be_sdk_beui::Failure::Failed(
+            "The server can't be reached.".to_owned(),
+        )),
     );
     fixture.settle();
     assert!(
         fixture.shown().contains(&preview),
         "failure preserves the preview"
+    );
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The revision could not be restored. The server can't be reached."],
+        "the host says why the restore failed"
     );
     fixture.test.click("workspace.revision.current");
     fixture.settle();

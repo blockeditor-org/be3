@@ -71,9 +71,6 @@ fn MapSidebar(state: MapState) -> NodeId {
     let selected = create_memo(move || state.selected.get());
     let listing = create_memo(move || selected.get().is_none());
     let chosen = create_memo(move || selected.get().is_some());
-    let error = state.import_error;
-    let failed = create_memo(move || error.get().is_some());
-    let reason = create_memo(move || error.get().unwrap_or_default());
 
     view! {
         <List spacing=Space::Md>
@@ -86,16 +83,6 @@ fn MapSidebar(state: MapState) -> NodeId {
             </Show>
             <Show condition={chosen}>
                 <PointDetails state={state} selected={selected} />
-            </Show>
-            <Show condition={failed}>
-                <List spacing=Space::Xs>
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
-                    <Button
-                        label="Dismiss"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || state.dismiss_import_error()}
-                    />
-                </List>
             </Show>
         </List>
     }

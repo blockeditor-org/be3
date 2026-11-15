@@ -531,7 +531,6 @@ pub(crate) struct CanvasState {
     pub(crate) gesture: Signal<Option<Gesture>>,
     pub(crate) focused_editor: Signal<Option<Uuid>>,
     pub(crate) editing_text: Signal<Option<Uuid>>,
-    pub(crate) import_error: Signal<Option<String>>,
     labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
     types: Memo<HashMap<Uuid, Uuid>>,
     thumbhashes: Memo<HashMap<Uuid, Thumbhash>>,
@@ -575,7 +574,6 @@ impl CanvasState {
         let gesture = create_signal(None);
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
-        let import_error = create_signal(None);
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
@@ -685,7 +683,6 @@ impl CanvasState {
             gesture,
             focused_editor,
             editing_text,
-            import_error,
             labels,
             types,
             thumbhashes,
@@ -1422,10 +1419,6 @@ impl CanvasState {
         self.cells.value().retapped.take()
     }
 
-    pub(crate) fn dismiss_import_error(&self) {
-        self.import_error.set(None);
-    }
-
     pub(crate) fn request_fit_selection(&self) {
         if let Some(bounds) = self.selected_bounds() {
             self.fit_into_view(bounds);
@@ -2149,8 +2142,9 @@ impl CanvasState {
         let encoded = match serde_json::to_vec(&blank) {
             Ok(encoded) => encoded,
             Err(error) => {
-                self.import_error
-                    .set(Some(format!("Could not copy canvas objects: {error}")));
+                self.editor
+                    .host()
+                    .report_failure(format!("The canvas objects could not be copied. {error}"));
                 return false;
             }
         };
@@ -2214,10 +2208,9 @@ impl CanvasState {
                     .flat_map(CanvasEntity::blocks_mut)
                     .collect::<Vec<_>>();
                 if named.len() != items.blocks.len() {
-                    return self.import_error.set(Some(
-                        "Could not paste canvas objects: the clip names the wrong number of blocks"
-                            .to_owned(),
-                    ));
+                    return self.editor.host().report_failure(
+                        "The canvas objects could not be pasted. The clip names the wrong number of blocks.",
+                    );
                 }
                 for (block, from) in named.iter_mut().zip(items.blocks) {
                     **block = from;
@@ -2255,8 +2248,9 @@ impl CanvasState {
             }
             Ok(_) => {}
             Err(error) => self
-                .import_error
-                .set(Some(format!("Could not paste canvas objects: {error}"))),
+                .editor
+                .host()
+                .report_failure(format!("The canvas objects could not be pasted. {error}")),
         }
     }
 
@@ -2341,9 +2335,7 @@ impl CanvasState {
         let state = self;
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.place_picked_block(picked.id(), center);
                 }
             });
@@ -2385,9 +2377,7 @@ impl CanvasState {
             },
             anchor,
             move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.attach_picked_component(&selected, picked.id());
                 }
             },
@@ -2417,9 +2407,7 @@ impl CanvasState {
         let state = self;
         self.editor
             .pick_block(filter, request.anchor, move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
+                if state.is_alive() {
                     state.set_picked_value(&selected, schema_id, field_id, picked.id());
                 }
             });
@@ -3046,7 +3034,6 @@ impl CanvasState {
     fn take_image_pick(&self, pick: FilePick) {
         match pick.map(|file| file.map(imported_image)) {
             Ok(Some(image)) => {
-                self.import_error.set(None);
                 let center = self
                     .cells
                     .value()
@@ -3058,7 +3045,9 @@ impl CanvasState {
             }
             Err(error) => {
                 self.cells.value().pending_image_center.set(None);
-                self.import_error.set(Some(error));
+                self.editor
+                    .host()
+                    .report_failure(format!("The image could not be added. {error}"));
             }
             Ok(None) => self.cells.value().pending_image_center.set(None),
         }
@@ -3086,12 +3075,15 @@ impl CanvasState {
             DropAction::Copy => {
                 let state = *self;
                 let asked = self.editor.host().copy_blocks(drag.block_id, here);
-                self.editor.then(asked, move |copied| {
-                    if let Ok(Some((copy, _))) = copied
-                        && state.is_alive()
-                    {
+                self.editor.then(asked, move |copied| match copied {
+                    Ok(Some((copy, _))) if state.is_alive() => {
                         state.add_direct_editor(copy, center);
                     }
+                    Err(failure) => state
+                        .editor
+                        .host()
+                        .report_failure(format!("The block could not be copied here. {failure}")),
+                    Ok(_) => {}
                 });
             }
         }
@@ -3110,7 +3102,6 @@ impl CanvasState {
             self.cells.value().pending_file_drop.set(Some(at));
             return;
         }
-        self.import_error.set(None);
         let base = self.cells.value().pending_file_drop.take().unwrap_or(at);
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
@@ -3129,7 +3120,6 @@ impl CanvasState {
             return self.paste_blocks(blocks);
         }
         if pasted.format == formats::PNG {
-            self.import_error.set(None);
             let center = self.paste_center();
             self.add_imported_image(
                 ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),

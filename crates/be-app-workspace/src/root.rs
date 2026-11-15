@@ -19,8 +19,8 @@ use be_sdk_beui::{
     TopBar,
 };
 use be_sdk_shell::{
-    BlockTab, Failure, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows,
-    WindowDialog, Workspace, WorkspaceDialogs,
+    BlockTab, PanelStatus, PanelWindow, ProgramTab, ProgramWindow, UnshownWindows, WindowDialog,
+    Workspace, WorkspaceDialogs,
 };
 use beui::{Align, Key};
 use uuid::Uuid;
@@ -155,9 +155,6 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     let surface = NodeRef::new();
     workspace.editor().content(&surface);
     workspace_actions(workspace);
-    let failure = workspace.error();
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.program_tabs();
     let opens = opens_windows();
@@ -174,7 +171,6 @@ fn WorkspaceBody(shell: Shell) -> NodeId {
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
-                <Failure failed={failed} reason={reason} />
                 <ListItem grow=1.0>
                     <DockHost layout={workspace.dock_host()}>
                         <Docking layout>

@@ -294,14 +294,3 @@ fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeI
         />
     }
 }
-
-#[component]
-pub(crate) fn ImportError(state: CanvasState) -> NodeId {
-    view! {
-        <Banner
-            message={state.import_error}
-            id="infinite-canvas.import-error"
-            on_dismiss={move || state.dismiss_import_error()}
-        />
-    }
-}

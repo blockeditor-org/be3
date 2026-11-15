@@ -80,6 +80,11 @@ fn a_block_tabs_menu_mutes_its_notifications() {
         menu_says(&mut fixture, "Notifications: All"),
         "a change the host refused goes back to the mode it publishes"
     );
+    assert_eq!(
+        fixture.test.take_reported_failures(),
+        ["The notifications setting could not be changed. The host refused this request."],
+        "the host says why the change did not take"
+    );
 
     fixture
         .test

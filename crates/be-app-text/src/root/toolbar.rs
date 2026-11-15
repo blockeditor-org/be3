@@ -380,10 +380,7 @@ fn pick_block(state: State) {
             place: None,
         },
         anchor,
-        move |result| {
-            let Ok(block) = result else {
-                return;
-            };
+        move |block| {
             if !state.is_alive() {
                 return;
             }
