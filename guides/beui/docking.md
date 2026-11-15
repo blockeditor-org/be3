@@ -137,7 +137,8 @@ it is on a phone; thresholds are the styled `Docking`'s `NARROW_WIDTH`, `SHORT_H
 ## Menus and pinned actions
 
 A tab hands the dock its menu with `dock_menu(items)`, shown behind More; actions marked `.pin(..)`
-go into the bar. A menu is data, not a node, so a dock showing another app's tabs draws it from rows
+go into the bar. A horizontal bar too narrow for labels (a pane under `ROOMY_BAR`, or a phone's
+stacked bar) leaves `Pin::Label` actions to More; an icons-only sidebar shows them as icons, and leaves one with no glyph to More. A menu is data, not a node, so a dock showing another app's tabs draws it from rows
 it was sent (`ActionBuilder::detached`) and passes the pick back. `unstyled::ActionBar` does the
 split between bar and More for any toolbar.
 

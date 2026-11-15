@@ -835,8 +835,8 @@ pub(crate) enum BarRoom {
 pub(crate) fn DockMenu(menu: Memo<Vec<MenuNode>>, room: BarRoom, test_prefix: String) -> NodeId {
     let labels = match room {
         BarRoom::Wide => ActionLabels::Shown,
-        BarRoom::Narrow | BarRoom::Column => ActionLabels::Icons,
-        BarRoom::Phone => ActionLabels::Overflow,
+        BarRoom::Column => ActionLabels::Icons,
+        BarRoom::Narrow | BarRoom::Phone => ActionLabels::Overflow,
     };
     let direction = match room {
         BarRoom::Column => Direction::Vertical,

@@ -362,14 +362,24 @@ fn EditCounter() -> NodeId {
     .glyph(ICON_PENCIL)
     .pin(Pin::Icon)
     .detached();
+    let reset = Action::new("demo.reset", "Reset", move || count.set(0))
+        .pin(Pin::Label)
+        .enabled(moved)
+        .detached();
     let pinned = edit.clone();
-    dock_menu(create_memo(move || vec![MenuNode::action(&pinned)]));
+    dock_menu(create_memo(move || {
+        vec![MenuNode::action(&pinned), MenuNode::action(&reset)]
+    }));
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Button action={edit} variant=ButtonVariant::Secondary />
                 <Text style=TextStyle::CAPTION>{counted}</Text>
             </List>
+            <Text style=TextStyle::CAPTION>
+                "Edit is pinned to the pane's bar as an icon, and Reset with its label. \
+                 A pane too narrow for the label moves Reset into the bar's menu."
+            </Text>
             <Show condition={moved}>
                 <Text style=TextStyle::CAPTION>
                     "Drag this tab somewhere else: the count comes with it."
@@ -1830,11 +1840,17 @@ fn EditorActions() -> NodeId {
     let share = action("toolbar.share", "Share", ICON_SHARE_2)
         .pin(Pin::Label)
         .detached();
+    let publish = Action::new("toolbar.publish", "Publish", move || {
+        said.set("Ran Publish".to_owned())
+    })
+    .pin(Pin::Label)
+    .detached();
     let rename = action("toolbar.rename", "Rename", ICON_PENCIL).detached();
     let delete = action("toolbar.delete", "Delete", ICON_TRASH).detached();
     let menu = vec![
         MenuNode::action(&undo),
         MenuNode::action(&share),
+        MenuNode::action(&publish),
         MenuNode::Separator,
         MenuNode::action(&rename),
         MenuNode::action(&delete),
@@ -1843,10 +1859,16 @@ fn EditorActions() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::PARAGRAPH>
                 "An action bar shows the actions pinned to it and offers the rest under More. \
-                 Where there is no room for labels, the actions pinned with one move into the \
-                 menu too."
+                 A bar of icons shows a labelled action by its icon, and one with no icon \
+                 (Publish) in the menu. Where there is no room for labels, the actions pinned \
+                 with one move into the menu too."
             </Text>
             <ActionBar menu={menu.clone()} test_prefix={"bar".to_owned()} />
+            <ActionBar
+                menu={menu.clone()}
+                labels=ActionLabels::Icons
+                test_prefix={"bar.icons".to_owned()}
+            />
             <ActionBar
                 menu
                 labels=ActionLabels::Overflow

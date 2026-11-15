@@ -7,6 +7,21 @@ fn the_action_bar_sample_pins_what_fits_and_offers_the_rest() {
     reveal(&mut test, "bar.narrow.menu");
     assert!(test.shows("bar.pin.toolbar.undo"));
     assert!(test.shows("bar.pin.toolbar.share"));
+    assert!(test.shows("bar.pin.toolbar.publish"));
+    assert!(
+        test.shows("bar.icons.pin.toolbar.share"),
+        "a bar of icons shows a labelled action by its icon"
+    );
+    assert!(
+        !test.shows("bar.icons.pin.toolbar.publish"),
+        "and leaves one with no icon to its menu"
+    );
+    test.click("bar.icons.menu");
+    test.frame(Vec::new());
+    assert!(test.shows("bar.icons.menu.toolbar.publish"));
+    assert!(!test.shows("bar.icons.menu.toolbar.share"));
+    press_key(&mut test, beui::Key::Escape);
+    test.frame(Vec::new());
     assert!(test.shows("bar.narrow.pin.toolbar.undo"));
     assert!(
         !test.shows("bar.narrow.pin.toolbar.share"),
