@@ -13,9 +13,11 @@ pub mod reactive {
     pub use crate::callback::{Callback, IntoCallback, IntoUnitCallback};
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{
-        AtMostOneChild, ChildSegment, ChildSlot, Children, ChildrenSlot, DynamicSegment,
-        FixedChild, IntoChild, IntoSegment, IntoSegments, IntoSlotHost, OneChild, Run, SingleChild,
-        SlotChild, SlotHost, into_child, into_segment,
+        AtMostOneChild, Branch, ChildSegment, ChildSlot, Children, ChildrenSlot, ComponentOutput,
+        Count, CountMany, CountNone, CountOne, CountZero, CountZeroOrOne, Counted, DynamicSegment,
+        Fallback, FixedChild, FormOf, HostedNode, IntoChild, IntoSegment, IntoSegments,
+        IntoSlotHost, LazyChild, NeedsFallback, OneChild, OneOf, Or, Run, SingleChild, SlotChild,
+        SlotHost, ValueFallback, ZeroOrOne, into_child, into_segment,
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
@@ -24,7 +26,9 @@ pub mod reactive {
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Loading, Show};
     pub use crate::into_prop_via;
-    pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};
+    pub use crate::prop::{
+        ByClosure, ByClosureLifted, ByLift, ByValue, Exact, Func, Getter, IntoFunc, IntoLiftedProp, IntoProp, IntoPropWith, Prop,
+    };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
         Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,

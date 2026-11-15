@@ -10,14 +10,23 @@ use crate::reactive::{
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
 mod a_callback_given_a_signal_sets_it;
 mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
+mod a_closure_is_a_prop_read_as_a_getter;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
+mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
+mod a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one;
+mod a_kept_alive_show_whose_condition_reruns_unchanged_leaves_its_slot_alone;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
 mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
+mod a_show_among_a_run_adds_no_host_node;
+mod a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it;
+mod a_show_with_a_fallback_swaps_runs_of_different_lengths;
+mod a_show_without_a_fallback_fills_an_optional_single_slot;
 mod a_tracked_read_in_a_component_body_panics_naming_its_type;
 mod components_can_return_and_collect_child_runs;
+mod dynamic_and_keyed_show_their_fallback_while_the_value_is_none;
 mod handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic;
 mod modifiers_are_functions_on_built_values;
 mod modifiers_run_after_props_and_inside_render_slots;
@@ -127,6 +136,56 @@ fn Element(
     });
     children.mount(&element);
     element
+}
+
+type Child = DomNode;
+
+/// An element that keeps one child, as a frame does.
+#[component]
+fn Holder(tag: &'static str, children: Child) -> DomNode {
+    let element = DomNode::new(tag);
+    element.0.children.borrow_mut().push(children);
+    element
+}
+
+#[component]
+fn MaybeHolder(tag: &'static str, children: Option<Child>) -> DomNode {
+    let element = DomNode::new(tag);
+    if let Some(child) = children {
+        element.0.children.borrow_mut().push(child);
+    }
+    element
+}
+
+/// What a core does with control flow in a slot that takes one node: a host node holding
+/// the child it swaps.
+fn host(child: crate::reactive::LazyChild<DomNode>) -> DomNode {
+    let host = DomNode::new("host");
+    let held = Rc::downgrade(&host.0);
+    child.mount(move |child| {
+        if let Some(held) = held.upgrade() {
+            let mut children = held.children.borrow_mut();
+            *children = ChildList::default();
+            if let Some(child) = child {
+                children.push(child);
+            }
+        }
+    });
+    host
+}
+
+impl crate::reactive::IntoChild<DomNode> for crate::reactive::OneOf<DomNode> {
+    fn into_child(self) -> DomNode {
+        host(self.into_lazy())
+    }
+}
+
+impl crate::reactive::AtMostOneChild<DomNode>
+    for crate::reactive::SingleChild<crate::reactive::ZeroOrOne<DomNode>>
+{
+    fn at_most_one_child(self) -> Option<DomNode> {
+        Some(host(self.0.into_lazy()))
+    }
 }
 
 mod modifiers {

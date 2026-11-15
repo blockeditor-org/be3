@@ -5,10 +5,10 @@ use beui_html::{
 };
 use wasm_bindgen::JsCast;
 
-type Checked = Result<(), String>;
+pub(super) type Checked = Result<(), String>;
 
 pub fn run() -> String {
-    let checks: [(&str, fn() -> Checked); 9] = [
+    let checks: [(&str, fn() -> Checked); 10] = [
         (
             "mounting_keeps_nodes_while_bindings_update",
             mounting_keeps_nodes,
@@ -29,6 +29,10 @@ pub fn run() -> String {
         (
             "a_slot_opened_on_a_mounted_element_fills_and_empties",
             a_slot_opened_on_a_mounted_element,
+        ),
+        (
+            "hydrating_claims_host_nodes_even_an_empty_one",
+            super::hosts::hydrating_claims_host_nodes,
         ),
     ];
     let mut report = String::new();
@@ -54,7 +58,7 @@ fn host() -> web_sys::Element {
     host
 }
 
-fn every_node(under: &web_sys::Node) -> Vec<web_sys::Node> {
+pub(super) fn every_node(under: &web_sys::Node) -> Vec<web_sys::Node> {
     let mut found = Vec::new();
     let mut child = under.first_child();
     while let Some(node) = child {
@@ -65,11 +69,11 @@ fn every_node(under: &web_sys::Node) -> Vec<web_sys::Node> {
     found
 }
 
-fn expect(holds: bool, why: impl FnOnce() -> String) -> Checked {
+pub(super) fn expect(holds: bool, why: impl FnOnce() -> String) -> Checked {
     if holds { Ok(()) } else { Err(why()) }
 }
 
-fn same(a: &web_sys::Node, b: &web_sys::Node) -> bool {
+pub(super) fn same(a: &web_sys::Node, b: &web_sys::Node) -> bool {
     a.is_same_node(Some(b))
 }
 

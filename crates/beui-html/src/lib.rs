@@ -475,20 +475,20 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
     }
 }
 
-pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
-    bind_attribute(&node, name, value.into_prop());
+pub fn attr<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
+    bind_attribute(&node, name, value.into_prop_with());
     node
 }
 
-pub fn data(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn data<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
     assert!(valid_name(name), "invalid data attribute name");
-    bind_attribute(&node, format!("data-{name}"), value.into_prop());
+    bind_attribute(&node, format!("data-{name}"), value.into_prop_with());
     node
 }
 
-pub fn aria(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+pub fn aria<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<Option<String>, M>)) -> Node {
     assert!(valid_name(name), "invalid ARIA attribute name");
-    bind_attribute(&node, format!("aria-{name}"), value.into_prop());
+    bind_attribute(&node, format!("aria-{name}"), value.into_prop_with());
     node
 }
 
@@ -519,8 +519,8 @@ pub fn Script(kind: &'static str, source: String) -> Node {
     }
 }
 
-pub fn flag(node: Node, (name, value): (&'static str, impl IntoProp<bool>)) -> Node {
-    bind_flag(&node, name, value.into_prop());
+pub fn flag<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<bool, M>)) -> Node {
+    bind_flag(&node, name, value.into_prop_with());
     node
 }
 

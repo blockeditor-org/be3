@@ -19,7 +19,6 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         .at(KeyAt::Window)
         .capture()
         .register();
-        let open = create_memo(move || open.get());
         Action::new("test.cancel", "Cancel", || {})
             .shortcut(Chord::key(Key::Escape).alt())
             .enabled(open)

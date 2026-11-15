@@ -211,6 +211,16 @@ impl Span {
     }
 }
 
+macro_rules! text_counted {
+    ($($ty:ty),*) => {
+        $(impl crate::reactive::Counted for $ty {
+            type Count = crate::reactive::CountOne;
+        })*
+    };
+}
+
+text_counted!(Span, Gap, Break, TextItem);
+
 impl IntoSegment<TextChild> for Phrase {
     fn into_segment(self) -> ChildSegment<TextChild> {
         ChildSegment::Many(

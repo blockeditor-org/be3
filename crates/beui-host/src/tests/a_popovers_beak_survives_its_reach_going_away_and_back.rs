@@ -12,7 +12,6 @@ fn a_popovers_beak_survives_its_reach_going_away_and_back() {
                 <Frame @node_ref=&button width=40.0 height=20.0 />
                 <Show condition={shown}>|| {
                     let pointer = NodeRef::new();
-                    let beak = create_memo(move || if carded.get() { 10.0 } else { 0.0 });
                     let placement = create_memo(move || if carded.get() { Placement::Popover { gap: 4, margin: 8 } } else { Placement::BelowStart });
                     let inner = view! {
                         <Overlay
@@ -21,7 +20,7 @@ fn a_popovers_beak_survives_its_reach_going_away_and_back() {
                             policy=LayerPolicy::Pass
                             traps_focus=false
                             pointer={pointer}
-                            beak
+                            beak={move || if carded.get() { 10.0 } else { 0.0 }}
                             open=true
                             on_dismiss={|_: Dismiss| {}}
                         >

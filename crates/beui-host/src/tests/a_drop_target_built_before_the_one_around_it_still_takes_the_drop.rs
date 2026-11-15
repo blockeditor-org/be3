@@ -3,7 +3,7 @@ use crate::reactive::*;
 use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 
 #[component]
-fn Column(landed: Signal<Vec<&'static str>>, slot: Child) -> NodeId {
+fn Column(landed: Signal<Vec<&'static str>>, slot: NodeId) -> NodeId {
     view! {
         <DropTarget
             on_drop={move |(_, _): (u32, DragPoint)| landed.update(|landed| landed.push("column"))}

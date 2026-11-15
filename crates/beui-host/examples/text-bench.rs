@@ -164,7 +164,7 @@ fn resize_paragraphs(frames: usize) -> Report {
             let text = PARAGRAPH.repeat(4);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                    <Frame width={move || Length::Size(Size::Custom(read.get()))}>
                         <List spacing=Space::Md>
                             <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
                                 let text = text.clone(); view! {
@@ -201,7 +201,7 @@ fn resize_labels(frames: usize) -> Report {
             *width.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Frame width={create_memo(move || Length::Size(Size::Custom(read.get())))}>
+                    <Frame width={move || Length::Size(Size::Custom(read.get()))}>
                         <List spacing=Space::None>
                             <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
                                 <Text overflow=Overflow::Ellipsis>

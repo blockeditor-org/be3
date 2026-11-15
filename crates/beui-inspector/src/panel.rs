@@ -323,7 +323,6 @@ fn TreePanel(
     let count_text = create_memo(move || total_label(total.get(), noun));
     let bounds_text = create_memo(move || summary.with(|summary| summary.bounds.clone()));
     let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
-    let has_properties = create_memo(move || properties.with(|properties| !properties.is_empty()));
     let selected = create_memo(move || selection.with(|path| path.last().copied()));
     let picking = create_memo(move || summary.with(|summary| summary.picking));
     let pick = Action::new(PICK, "Pick", move || state.value().toggle_picking())
@@ -363,7 +362,7 @@ fn TreePanel(
                             <TreeCells row_key={row.key} entries={entries} />
                         </Tree>
                     </ListItem>
-                    <Show condition={has_properties}>
+                    <Show condition={move || properties.with(|properties| !properties.is_empty())}>
                         <ListItem grow=PROPERTIES_SHARE>
                             <Frame @test_id={"inspector.properties"}>
                                 <PropertiesSection properties />
@@ -840,11 +839,10 @@ fn PerformancePanel(
 
 #[component]
 fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
-    let missing = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show condition={missing}>
+            <Show condition={move || rows.with(Vec::is_empty)}>
                 <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>
             <ForEach keys={rows}>|(label, value): (&'static str, String)|

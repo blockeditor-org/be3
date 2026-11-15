@@ -867,7 +867,7 @@ impl Arena {
         self.element_mut(id)
     }
 
-    fn downcast_mut<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
+    pub(crate) fn downcast_mut<T: Element>(&mut self, node: NodeOf<T>) -> &mut T {
         self.element_mut(node.id)
             .as_any_mut()
             .downcast_mut::<T>()

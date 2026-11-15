@@ -48,9 +48,7 @@ pub(crate) fn frame(
 ) -> NodeId {
     let frame = with_document(|document| {
         let frame = document.create_frame();
-        if let Some(child) = children {
-            document.set_frame_child(frame, child);
-        }
+        document.set_frame_child(frame, children);
         frame
     });
     bind(frame, width, Document::set_frame_width);
