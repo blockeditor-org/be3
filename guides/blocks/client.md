@@ -125,7 +125,8 @@ commit holds which sequence number.
   agree. A replica whose build is not the session's is diverged and refuses to
   edit or seal.
 - **Offline**, there is no server to order: the device numbers submissions in its
-  own order over its own journal (`Refs::number_offline`), and the replica, which
+  own order over its own journal (`Refs::number_offline`, which numbers an OpId
+  once, as the server does), and the replica, which
   holds the made-up session's lease, seals what it orders into commits the outbox
   keeps. Before it rejoins, the host seals it, so the work reaches the session as
   a commit that merges, not as operations.

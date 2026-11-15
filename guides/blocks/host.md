@@ -167,7 +167,15 @@ the connection a stopping stack closed.
   and a replica opened later is given them under that origin. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
-  they could land twice. Once joined, the order says which it holds.
+  they could land twice. Once joined, the order says which it holds, even after
+  a seal trimmed the entries that held them: the journal's base and each reload
+  carry each recent origin's highest `through` (`wire::BaseState`, sealed with
+  the rest of the base). Kept edits made before a restart the order had since
+  (`opening.kept-restart`, against the base's last restart) are dropped, each
+  told to its editor as not sent.
+- **A lost entry.** The host tracks the last number of the order it heard per
+  open block (`Open::heard_through`); an entry past the next makes the replica
+  rejoin and open again on the server's journal.
 - **Opening early.** A block this device knows opens from its local head in a
   session a placeholder holds (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
