@@ -110,6 +110,11 @@ impl Signed {
         self
     }
 
+    pub(crate) fn count(&mut self, count: u64) -> &mut Self {
+        self.0.extend_from_slice(&count.to_be_bytes());
+        self
+    }
+
     pub(crate) fn flag(&mut self, flag: bool) -> &mut Self {
         self.0.push(u8::from(flag));
         self

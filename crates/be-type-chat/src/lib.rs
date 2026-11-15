@@ -4,7 +4,7 @@ mod segment;
 mod signed;
 
 pub use chat::{
-    Carried, ChatContent, ChatHeader, ChatOp, Closing, Deletion, Draft, Gap, Message, MessageEdit,
+    Carried, ChatContent, ChatHeader, ChatOp, Closing, Counted, Deletion, Draft, EditSlot, Gap, Head, Message, MessageEdit,
     OFFLINE_AFTER, Reaction, ReactionKey, Segment, Shown, Signature,
 };
 pub use reads::{ChatReads, ChatReadsContent, ReadPlace};
