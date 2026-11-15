@@ -12,6 +12,8 @@ use crate::{Change, Field, FieldRef, Object, ObjectId, Shape, Tree, Value};
 /// only by one ranked as high or higher, so it never goes down, whatever a clock says.
 /// Its fields are read, not set, outside this crate: a stamp is made after the one it
 /// replaces (`after`, `LatestMap::next`), so no write builds one that loses to a ranked value.
+/// `Stamp::default()` is the stamp of nothing held, which every write is made after, not
+/// one to write with.
 #[derive(
     Clone, Copy, Debug, Default, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize,
 )]
