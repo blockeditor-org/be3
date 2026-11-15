@@ -70,8 +70,10 @@ platform cached survives. `recovery.rs` drops every output while the device is p
 device to everything off on return, and builds outputs again for what is connected, so the first
 frame is a full modeset. A frame that cannot be shown rebuilds its output once; a second failure
 stops that output and is reported once through `Problems`. Keys held when the session left are
-released on return, since their releases went to the other terminal; a new keymap likewise takes
-over the keys held under the old one.
+released on return, since their releases went to the other terminal, except the key that
+switched, whose press the session kept; a new keymap likewise takes over the keys held under the
+old one. A key goes into the session only on its first press and last release across the seat
+(libinput's `seat_key_count`), so with two keyboards holding it, letting go on one keeps it held.
 
 ## Power and logging out
 

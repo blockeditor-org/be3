@@ -23,6 +23,20 @@ pub struct Keyboard {
     /// once down and once up instead: a press of a held key and a release of a key not held
     /// are dropped, so pressing and releasing a key always lets it go.
     held: BTreeSet<u32>,
+    /// Held keys whose press the session kept for itself (the F2 of Ctrl+Alt+F2), so their
+    /// release is not passed on either.
+    kept: BTreeSet<u32>,
+}
+
+/// Whether a key event from libinput, with the number of keys of its code down across the seat
+/// after it (`seat_key_count`), presses or releases the seat's key. With two keyboards holding
+/// the same key, only the first press and the last release do, so letting go on one keyboard
+/// leaves the key held on the other.
+pub fn seat_edge(pressed: bool, count: u32) -> bool {
+    match pressed {
+        true => count == 1,
+        false => count == 0,
+    }
 }
 
 impl Keyboard {
@@ -41,6 +55,7 @@ impl Keyboard {
             state: xkb::State::new(&keymap),
             modifiers: Modifiers::NONE,
             held: BTreeSet::new(),
+            kept: BTreeSet::new(),
         };
         keyboard.set_layout(config.active_layout);
         Some(keyboard)
@@ -72,6 +87,7 @@ impl Keyboard {
                 .update_key(xkb::Keycode::new(code + 8), xkb::KeyDirection::Down);
         }
         self.held.clone_from(&old.held);
+        self.kept.clone_from(&old.kept);
         self.modifiers = old.modifiers;
         self.settle()
     }
@@ -110,6 +126,16 @@ impl Keyboard {
             out.terminal = virtual_terminal(sym);
             out.quit = held.ctrl && held.alt && sym == keysyms::KEY_BackSpace;
         }
+        let kept = match pressed {
+            true => out.terminal.is_some() || out.quit,
+            false => self.kept.remove(&code),
+        };
+        if kept {
+            if pressed {
+                self.kept.insert(code);
+            }
+            return out;
+        }
         let key = key(sym, code).unwrap_or(Key::Unidentified);
         let stroke = Keystroke {
             key: Some(key),
@@ -118,7 +144,7 @@ impl Keyboard {
             evdev: Some(code),
             text: Some(text),
         };
-        if pressed && !key.is_modifier() && out.terminal.is_none() {
+        if pressed && !key.is_modifier() {
             out.repeat = Some(Keystroke {
                 repeat: true,
                 ..stroke.clone()

@@ -1116,7 +1116,8 @@ impl State {
         let keyboard = self.keyboard();
         keyboard.set_focus(self, focus, SERIAL_COUNTER.next_serial());
         if id.is_none() {
-            // The keys held now reach no window, so their releases will not come here.
+            // The keys held now reach no window, so their releases will not come here. This runs
+            // after `set_focus(None)`, or the window that had the keyboard would hear them let go.
             self.release_keys();
         }
         self.settle_inhibitors();
@@ -1216,7 +1217,8 @@ impl State {
         self.remove_overlays(id);
         self.forget_icon(id);
         if self.keyboard_window == Some(id) {
-            self.keyboard_window = None;
+            // The keys held in the closed window (the Ctrl of Ctrl+W) are let go with it.
+            self.focus_keyboard(None);
         }
         if self.pointer_window == Some(id) {
             self.pointer_window = None;
