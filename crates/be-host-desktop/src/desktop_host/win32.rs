@@ -60,7 +60,8 @@ struct Captured {
 #[derive(Clone, Copy)]
 struct Signals {
     snapshot: Signal<Arc<Snapshot>>,
-    notes: Signal<u64>,
+    /// `NOTES` as of the last `before`, for the window bodies.
+    notes: Signal<Notes>,
 }
 
 struct Host {
@@ -79,9 +80,10 @@ thread_local! {
     static NEXT_USER: Cell<u64> = const { Cell::new(0) };
     static SHAPING: RefCell<Shaping> = RefCell::new(Shaping::default());
     static CHANGES: Cell<u64> = const { Cell::new(0) };
+    /// Edited from anywhere, in or out of the document; `before` publishes it to
+    /// `Signals::notes` inside the document.
     static NOTES: RefCell<Notes> = RefCell::new(Notes::default());
     static NAMES: RefCell<ProgramNames> = RefCell::new(ProgramNames::default());
-    static NOTED: Cell<u64> = const { Cell::new(0) };
 }
 
 fn edit_notes(change: impl FnOnce(&mut Notes)) {
@@ -91,7 +93,6 @@ fn edit_notes(change: impl FnOnce(&mut Notes)) {
         *notes != before
     });
     if edited {
-        NOTED.set(NOTED.get() + 1);
         changed();
     }
 }
@@ -122,7 +123,7 @@ impl DesktopHost for Win32 {
     fn create() {
         SIGNALS.set(Some(Signals {
             snapshot: create_signal(Arc::new(Snapshot::default())),
-            notes: create_signal(0),
+            notes: create_signal(Notes::default()),
         }));
     }
 
@@ -302,7 +303,7 @@ impl DesktopHost for Win32 {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
-            signals.notes.set(NOTED.get());
+            signals.notes.set(NOTES.with_borrow(Notes::clone));
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }
@@ -357,13 +358,12 @@ impl DesktopHost for Win32 {
 
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let signals = signals()?;
-        signals.notes.get();
         let id = entry_id(window);
         signals.snapshot.with(|snapshot| {
             let entry = snapshot.entry(id)?;
             let parent = entry.parent.and_then(|parent| snapshot.entry(parent));
             SHAPING.with_borrow(|shaping| {
-                NOTES.with_borrow(|notes| {
+                signals.notes.with(|notes| {
                     NAMES.with_borrow(|names| {
                         let record =
                             win32_map::known_window(snapshot, entry, shaping, notes, names);

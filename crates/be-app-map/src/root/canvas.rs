@@ -30,16 +30,16 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
     let world = create_memo(move || {
-        state.displayed_region.with(|_| ());
-        sized.with(|_| ());
-        laid_out.with(|_| ());
-        state.anchor.with(|_| ());
+        state.displayed_region.track();
+        sized.track();
+        laid_out.track();
+        state.anchor.track();
         state.view()
     });
     let camera = create_memo(move || state.camera());
     let scale = create_memo(move || camera.get().map_or(1.0, |camera| camera.scale));
     let visible = create_memo(move || {
-        sized.with(|_| ());
+        sized.track();
         state.visible()
     });
     let covering = create_memo(move || {
