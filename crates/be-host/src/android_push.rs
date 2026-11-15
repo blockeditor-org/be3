@@ -121,16 +121,16 @@ fn enable(vapid: Option<String>) {
 }
 
 fn base64url(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut text = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
-        let joined = chunk
-            .iter()
-            .enumerate()
-            .fold(0u32, |joined, (at, byte)| joined | u32::from(*byte) << (16 - 8 * at));
+        let joined = chunk.iter().enumerate().fold(0u32, |joined, (at, byte)| {
+            joined | u32::from(*byte) << (16 - 8 * at)
+        });
         for at in 0..=chunk.len() {
-            text.push(char::from(ALPHABET[(joined >> (18 - 6 * at)) as usize & 63]));
+            text.push(char::from(
+                ALPHABET[(joined >> (18 - 6 * at)) as usize & 63],
+            ));
         }
     }
     text
@@ -185,7 +185,12 @@ pub(crate) fn sync(state: &HostStateStore) {
 /// `unsubscribe` (no saved account is left to use it), then ends the account's session naming
 /// the endpoint, which the server forgets for the account in every organization, as
 /// `web_push::sign_out` does.
-pub(crate) fn sign_out(state: &HostStateStore, server_url: String, token: String, unsubscribe: bool) {
+pub(crate) fn sign_out(
+    state: &HostStateStore,
+    server_url: String,
+    token: String,
+    unsubscribe: bool,
+) {
     let address = state.push_endpoint().ok().flatten();
     if unsubscribe {
         let disabled = on_activity(|env, activity| {
@@ -296,7 +301,9 @@ pub extern "system" fn Java_com_be3_host_PushReceiver_nativeMessage<'local>(
 fn now_milliseconds() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |since| i64::try_from(since.as_millis()).unwrap_or(i64::MAX))
+        .map_or(0, |since| {
+            i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+        })
 }
 
 /// A notification was pressed (`MainActivity`): the host opens its block.

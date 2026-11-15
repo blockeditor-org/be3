@@ -8,14 +8,18 @@ fn push_keys_are_made_once_and_a_push_is_shown_once() {
     let store = HostStateStore::open(&path).unwrap();
     let other = HostStateStore::open(&path).unwrap();
     assert_eq!(store.push_keys().unwrap(), None);
-    store.set_push_endpoint(Some("https://push.example/a")).unwrap();
+    store
+        .set_push_endpoint(Some("https://push.example/a"))
+        .unwrap();
     assert_eq!(store.push_endpoint().unwrap(), None);
 
     store.keep_push_keys(&[1; 48]).unwrap();
     other.keep_push_keys(&[2; 48]).unwrap();
     let keys = vec![1; 48];
     assert_eq!(other.push_keys().unwrap(), Some(keys.clone()));
-    store.set_push_endpoint(Some("https://push.example/a")).unwrap();
+    store
+        .set_push_endpoint(Some("https://push.example/a"))
+        .unwrap();
     assert_eq!(
         other.push_endpoint().unwrap().as_deref(),
         Some("https://push.example/a")

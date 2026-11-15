@@ -34,6 +34,15 @@ Fixed items are removed as they land.
   callers fall back as the merge base walk does, shown by a be-block-commit
   test with a middle commit missing.
 
+- **A settings change stalls an adopt.** When another device saves the
+  organization's settings (a new policies block under them) just after a stack
+  connects, a version `Adopt` that follows never settles: the stack logs that
+  the mirror cannot place a block (`is not indexed: the mirror cannot place
+  it`) and makes no more progress. `edits_deeper_than_the_merge_base_walk_...`
+  hung so every time run locally until it saved the settings before connecting.
+  Done: a stack test that saves the settings from outside after connecting,
+  then adopts a folder, settles.
+
 ## 10. Commit times
 
 Depends on #686 (session catch-ups replaced by server ordering).

@@ -87,8 +87,9 @@ fn a_device_opens_a_push_from_its_refs_database_with_its_stack_stopped() {
 
     // The sender's connection lives on the runtime it was made on.
     let sending = runtime();
-    let sender =
-        sending.block_on(outside_peer(harness.outside_config().organization(Some(personal))));
+    let sender = sending.block_on(outside_peer(
+        harness.outside_config().organization(Some(personal)),
+    ));
     sending
         .block_on(sender.notify(block, "Noon at the usual place", Vec::new(), Vec::new()))
         .expect("the notification is sent");

@@ -1,8 +1,8 @@
 use beui_reactive::Set;
-#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
-mod arguments;
 #[cfg(target_os = "android")]
 mod android_push;
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+mod arguments;
 mod compositor;
 mod contacts;
 mod debug;
@@ -16,10 +16,10 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
-#[cfg(any(target_arch = "wasm32", target_os = "android"))]
-mod pressed_notifications;
 #[cfg(target_os = "linux")]
 mod memory;
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+mod pressed_notifications;
 mod reveals;
 mod root_settings;
 mod shell_route;

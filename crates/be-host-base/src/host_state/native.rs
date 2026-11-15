@@ -416,10 +416,8 @@ impl HostStateStore {
 
     /// Keeps the endpoint with the keys it was made for: nothing is kept without keys.
     pub fn set_push_endpoint(&self, endpoint: Option<&str>) -> Result<(), HostStateError> {
-        self.connection.execute(
-            "UPDATE push_receiver SET endpoint = ?1",
-            params![endpoint],
-        )?;
+        self.connection
+            .execute("UPDATE push_receiver SET endpoint = ?1", params![endpoint])?;
         Ok(())
     }
 
