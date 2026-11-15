@@ -51,8 +51,6 @@ async fn key_rows_are_served_only_to_who_may_see_their_block() {
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: "guest@example.com".into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
             )

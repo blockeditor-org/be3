@@ -20,6 +20,9 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod an_expired_or_revoked_invitation_is_refused;
+mod an_invitation_is_read_before_sign_in_and_listed_as_it_goes;
+mod an_invitation_joins_any_account_as_an_editor_once;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -1201,14 +1204,12 @@ impl TestClient {
     }
 
     /// Invites `email` into `organization` as an editor; answers the link, or the refusal.
-    async fn invite(&mut self, organization: Uuid, email: &str) -> Result<Uuid, Error> {
+    async fn invite(&mut self, organization: Uuid) -> Result<Uuid, Error> {
         let link = Uuid::new_v4();
         self.create_link(
             link,
             be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                 organization,
-                email: email.into(),
-                role: OrganizationRole::Editor,
                 escrow: Vec::new(),
             }),
         )

@@ -42,8 +42,6 @@ async fn a_block_shared_from_a_hidden_folder_is_listed_as_shared() {
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: "guest@example.com".into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
             )

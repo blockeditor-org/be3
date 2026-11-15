@@ -1,0 +1,47 @@
+use super::*;
+
+#[tokio::test]
+async fn an_invitation_joins_any_account_as_an_editor_once() {
+    let harness = Harness::start().await;
+    let mut admin = harness.client().await;
+    admin.register("admin@example.com").await;
+    let organization = admin.organization("team").await;
+    let link = admin.invite(organization).await.expect("an administrator invites");
+    // Bound to no email: whoever holds the link reads and accepts it.
+    let mut anyone = harness.member("anyone@elsewhere.example").await;
+    let found = anyone
+        .call(|peer| client::contacts::get_link(peer, link))
+        .await;
+    assert!(
+        matches!(&found, Ok(found) if found.organization_name == "team"),
+        "{found:?}"
+    );
+    let accepted = anyone
+        .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+        .await;
+    assert!(matches!(accepted, Ok(())), "{accepted:?}");
+    let members = admin
+        .call(|peer| client::members::list_members(peer))
+        .await
+        .expect("the members are listed");
+    let joined = members
+        .iter()
+        .find(|member| member.email == "anyone@elsewhere.example")
+        .expect("the accepter joined");
+    assert_eq!(joined.role, OrganizationRole::Editor);
+    // Opened a second time, by anyone, it is used up.
+    let mut second = harness.member("second@example.com").await;
+    let again = second
+        .call(|peer| client::contacts::get_link(peer, link))
+        .await;
+    assert!(
+        matches!(&again, Err(error) if error.code == ErrorCode::LinkNotFound
+            && error.message.contains("already used")),
+        "{again:?}"
+    );
+    let accepted = second
+        .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+        .await;
+    assert!(refused_as(&accepted, ErrorCode::LinkNotFound), "{accepted:?}");
+    harness.stop().await;
+}

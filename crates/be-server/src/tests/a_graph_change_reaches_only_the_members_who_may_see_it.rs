@@ -19,8 +19,6 @@ pub(super) async fn join(
                 Vec::new(),
                 be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                     organization,
-                    email: email.into(),
-                    role: OrganizationRole::Editor,
                     escrow: Vec::new(),
                 }),
             )

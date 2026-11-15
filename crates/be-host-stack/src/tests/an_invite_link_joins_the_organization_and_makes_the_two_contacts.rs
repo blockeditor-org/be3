@@ -18,10 +18,7 @@ fn an_invite_link_joins_the_organization_and_makes_the_two_contacts() {
     );
     harness.connect();
     let link = runtime()
-        .block_on(crate::invite(
-            "guest@example.com".to_owned(),
-            be_block_protocol::OrganizationRole::Editor,
-        ))
+        .block_on(crate::invite())
         .expect("the owner invites the guest");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
     assert!(parsed.is_for(&crate::accounts::link_base(&url)), "{link}");

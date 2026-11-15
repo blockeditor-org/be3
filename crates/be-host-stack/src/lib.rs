@@ -1571,19 +1571,48 @@ fn own_agents(
         .collect())
 }
 
-pub async fn invite(
-    email: String,
-    role: be_block_protocol::OrganizationRole,
-) -> Result<String, String> {
+/// Makes an invitation into the organization open, as an editor, and answers its link.
+pub async fn invite() -> Result<String, String> {
     let (reply, made) = tokio::sync::oneshot::channel();
-    send(Command::Invite {
-        email,
-        role,
-        reply: Box::new(move |made| {
+    send(Command::Invitations(worker::InvitationsCommand::Create(
+        Box::new(move |made| {
             let _ = reply.send(made);
         }),
-    });
+    )));
     made.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))
+}
+
+/// An invitation in the organization's invite list.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Invite {
+    pub id: Uuid,
+    /// Who made it.
+    pub inviter: String,
+    /// Its link, for one the person made; the code is sealed to its inviter alone.
+    pub link: Option<String>,
+    pub state: be_block_protocol::InvitationState,
+    /// Who accepted it, once accepted.
+    pub accepter: String,
+    /// In milliseconds since the epoch; `opened` and `ended` are 0 for not yet.
+    pub created: i64,
+    pub expires: i64,
+    pub opened: i64,
+    pub ended: i64,
+}
+
+type InvitationsReply = Box<dyn FnOnce(Result<Vec<Invite>, String>) + Send>;
+
+/// The organization's invitations, newest first; an administrator's only.
+pub fn list_invitations(reply: InvitationsReply) {
+    send(Command::Invitations(worker::InvitationsCommand::List(reply)));
+}
+
+/// Revokes an invitation still outstanding, and answers the list after.
+pub fn revoke_invitation(link: Uuid, reply: InvitationsReply) {
+    send(Command::Invitations(worker::InvitationsCommand::Revoke {
+        link,
+        reply,
+    }));
 }
 
 pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredentials, String> {
