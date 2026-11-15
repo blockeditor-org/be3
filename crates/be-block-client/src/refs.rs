@@ -51,10 +51,11 @@ pub(crate) enum Table {
     LetGo,
     ContactNames,
     OpenEdits,
+    SetAside,
 }
 
 impl Table {
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 20] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -74,6 +75,7 @@ impl Table {
         Self::LetGo,
         Self::ContactNames,
         Self::OpenEdits,
+        Self::SetAside,
     ];
 
     pub fn code(self) -> u8 {
@@ -97,6 +99,7 @@ impl Table {
             Self::LetGo => 17,
             Self::ContactNames => 18,
             Self::OpenEdits => 19,
+            Self::SetAside => 20,
         }
     }
 
@@ -355,6 +358,7 @@ struct State {
     /// catch-up listed of them: read again when the next catch-up starts, across restarts.
     let_go: HashMap<Uuid, Option<ListedBlock>>,
     open_edits: HashMap<Uuid, OpenEdits>,
+    set_aside: HashMap<Uuid, Vec<SetAside>>,
     next: u64,
 }
 
@@ -386,6 +390,15 @@ pub struct OpenEdits {
     pub restarts: u64,
     /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
     pub edits: Vec<Vec<u8>>,
+}
+
+/// Kept edits of a block that could not be read when it opened (`Refs::set_aside`): never
+/// sent, and never deleted, so what they held is still there to recover.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SetAside {
+    pub kept: OpenEdits,
+    /// Whether they were read since and told as recovered, not sent.
+    pub recovered: bool,
 }
 
 /// A local edit the host gave a replica: an editor's frame, or a change the host made.
@@ -520,6 +533,9 @@ impl State {
             Table::Workspaces => {}
             Table::OpenEdits => {
                 self.open_edits.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::SetAside => {
+                self.set_aside.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
@@ -1194,6 +1210,54 @@ impl Refs {
         state.open_edits.insert(block, edits.clone());
         drop(state);
         self.write(vec![row(Table::OpenEdits, block.as_bytes().to_vec(), &edits)])
+    }
+
+    /// Moves `block`'s kept edits aside (`SetAside`), for a replica to open under a fresh origin.
+    pub fn set_aside(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(kept) = state.open_edits.remove(&block) else {
+            return Ok(());
+        };
+        let aside = state.set_aside.entry(block).or_default();
+        aside.push(SetAside {
+            kept,
+            recovered: false,
+        });
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![
+            row(Table::SetAside, block.as_bytes().to_vec(), &aside),
+            Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            },
+        ])
+    }
+
+    /// Every block's kept edits set aside.
+    pub fn set_aside_edits(&self) -> Vec<(Uuid, Vec<SetAside>)> {
+        let state = self.state.lock().unwrap();
+        state
+            .set_aside
+            .iter()
+            .map(|(block, aside)| (*block, aside.clone()))
+            .collect()
+    }
+
+    /// Marks `block`'s set-aside edits at `index` as recovered and told.
+    pub fn recovered(&self, block: Uuid, index: usize) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(aside) = state.set_aside.get_mut(&block) else {
+            return Ok(());
+        };
+        let Some(entry) = aside.get_mut(index) else {
+            return Ok(());
+        };
+        entry.recovered = true;
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![row(Table::SetAside, block.as_bytes().to_vec(), &aside)])
     }
 
     /// The blocks the search indexer let go (`let_go`).

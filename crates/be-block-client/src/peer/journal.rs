@@ -148,6 +148,38 @@ impl<S: ObjectStore> Peer<S> {
         Some((kept, edits))
     }
 
+    /// Moves `block`'s kept edits aside, unread and never sent, so a replica opens it under a
+    /// fresh origin (`refs::SetAside`).
+    pub fn set_aside_open_edits(&self, block: Uuid) -> Result<(), ClientError> {
+        Ok(self.refs.set_aside(block)?)
+    }
+
+    /// Kept edits set aside and not yet recovered that read now: each block's count of them,
+    /// marked recovered, to be told as recovered and not sent.
+    pub fn recover_set_aside(&self) -> Vec<(Uuid, usize)> {
+        let mut recovered = Vec::new();
+        for (block, aside) in self.refs.set_aside_edits() {
+            for (index, entry) in aside.iter().enumerate() {
+                if entry.recovered {
+                    continue;
+                }
+                let opened: Result<Vec<crate::KeptEdit>, ClientError> = entry
+                    .kept
+                    .edits
+                    .iter()
+                    .map(|sealed| {
+                        let plain = self.commits.vault().open(sealed).map_err(locked)?;
+                        Ok(be_block_store::decode_value(&plain)?)
+                    })
+                    .collect();
+                if opened.is_ok() && self.refs.recovered(block, index).is_ok() {
+                    recovered.push((block, entry.kept.edits.len()));
+                }
+            }
+        }
+        recovered
+    }
+
     /// Keeps `kept` as `block`'s, its edits sealed already, as another device kept them.
     #[cfg(test)]
     pub(crate) fn keep_sealed_open_edits(&self, block: Uuid, kept: crate::OpenEdits) {

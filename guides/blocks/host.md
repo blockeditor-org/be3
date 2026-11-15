@@ -166,9 +166,14 @@ the connection a stopping stack closed.
   (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`,
   and before any submission past the `submitted_through` last written, which fails
   if it cannot be written), and a replica opened later is given them under that
-  origin. Kept edits that do not open (their key is not on the device yet) stay
-  as they are, and the block waits locked until keys arrive (`Replicas::lock`),
-  so no replica writes over them. Opened before it
+  origin. Kept edits that do not open while the block's own key is not on the
+  device stay as they are, and the block waits locked until keys arrive
+  (`Replicas::lock`), so no replica writes over them. Ones that do not open
+  otherwise (unreadable, or under a key that has not come though the block's
+  has) are set aside (`refs::SetAside`, never deleted, never sent) with an error
+  naming how many, and the block opens under a fresh origin; once keys arrive,
+  set-aside edits that read are told as recovered and not sent
+  (`Replicas::recover_set_aside`). Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after
@@ -251,7 +256,8 @@ device (`refs::OpenEdits`), so two processes on one data directory would number 
 the same origin. `be_host_stack::refs_in` locks `be-refs.lock` in the directory for the
 process: the hosts of one process share the database, and another process is refused with
 "Another be-host is using this data directory". The be-host binary hands a second launch over
-to the first before that (`instance.lock`).
+to the first before that (`instance.lock`). The web build takes no file lock: the `block-files`
+Web Lock already keeps one tab the owner.
 
 **Create, define, move and duplicate** are kept on the device and wait in the
 outbox, online as offline (`Peer::keep_creation`, `keep_definition`,

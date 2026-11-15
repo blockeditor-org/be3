@@ -703,6 +703,10 @@ pub struct Replicas<H: Host> {
     /// How many searches for keys relayed messages started.
     #[cfg(test)]
     key_searches: usize,
+    /// Holds back the idle pass's `keep_edits`, so a test can stop the host between handling a
+    /// submission and keeping its edits, as a crash there would.
+    #[cfg(test)]
+    pub(crate) hold_kept_edits: bool,
     /// What peers' relayed messages said, unsealed.
     #[cfg(test)]
     heard_from_peers: Vec<Vec<u8>>,
@@ -757,6 +761,8 @@ impl<H: Host> Replicas<H> {
             forwarded: HashMap::new(),
             #[cfg(test)]
             key_searches: 0,
+            #[cfg(test)]
+            hold_kept_edits: false,
             #[cfg(test)]
             heard_from_peers: Vec::new(),
             leaving: Vec::new(),
@@ -1040,22 +1046,36 @@ impl<H: Host> Replicas<H> {
             return;
         };
         let arrivals = peer.arrivals();
-        // Edits this device kept of the block that do not open yet stay kept, and the block
-        // waits for their key as one whose content is locked does: opened without them, the
-        // replica's next kept edits would write over them.
-        match peer.open_edits(block) {
-            Some((_, Err(ClientError::Locked(_)))) if peer.arrivals() == arrivals => {
-                self.lock(shared, block);
-                return;
-            }
-            Some((_, Err(ClientError::Locked(_)))) => {
+        // Edits this device kept of the block that do not open while its key is not here stay
+        // kept, and the block waits for keys as one whose content is locked does: opened
+        // without them, the replica's next kept edits would write over them. Ones that do not
+        // open otherwise (unreadable, or under a key that has not come though the block's
+        // has) are set aside, never sent, and the block opens under a fresh origin.
+        if let Some((kept, Err(error))) = peer.open_edits(block) {
+            let content_opens = match error {
+                ClientError::Locked(_) => peer.sealing_key(block).await.is_ok(),
+                _ => true,
+            };
+            if !content_opens {
+                if peer.arrivals() == arrivals {
+                    self.lock(shared, block);
+                    return;
+                }
                 return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
-            Some((_, Err(error))) => {
+            if let Err(error) = peer.set_aside_open_edits(block) {
                 H::record(shared, error);
                 return;
             }
-            _ => {}
+            H::report(
+                shared,
+                Some(block),
+                format!(
+                    "{} edits this device kept of this block could not be read ({error}) and \
+                     were not sent; they are set aside",
+                    kept.edits.len()
+                ),
+            );
         }
         let owned = !kind.frozen && H::owned(shared, block);
         let known = peer
@@ -1767,6 +1787,21 @@ impl<H: Host> Replicas<H> {
     /// every block found locked is no longer, an open one reads again (`read_again`), and
     /// relayed messages search for their keys again. Answers the locked blocks that are not
     /// open, for the host to open again if it still wants them.
+    /// Keys arrived: kept edits set aside that read now are told as recovered and not sent
+    /// (`Peer::recover_set_aside`). They are never sent: what they were made on may be gone.
+    pub fn recover_set_aside(&self, peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
+        for (block, count) in peer.recover_set_aside() {
+            H::report(
+                shared,
+                Some(block),
+                format!(
+                    "{count} edits this device set aside of this block read now: recovered, \
+                     not sent"
+                ),
+            );
+        }
+    }
+
     pub fn unlock(&mut self, shared: &Arc<Mutex<H>>) -> Vec<Uuid> {
         self.searched.clear();
         let mut closed = Vec::new();
@@ -1963,6 +1998,10 @@ impl<H: Host> Replicas<H> {
     /// Keeps on the device each open block's local edits no journal holds yet, as they changed,
     /// so a replica opened after the host stops is given them again (`refs::OpenEdits`).
     async fn keep_edits(&mut self, peer: &Arc<Peer<H::Store>>) {
+        #[cfg(test)]
+        if self.hold_kept_edits {
+            return;
+        }
         for open in self.open.values_mut() {
             if !std::mem::take(&mut open.edits_changed) {
                 continue;
