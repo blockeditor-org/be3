@@ -23,6 +23,16 @@ unsafe extern "C" {
     fn be_worker_start(entry: usize);
 }
 
+/// Runs `work` in the host's worker (`web/be-worker.js`), as a future beside the block stacks it
+/// runs: the host's own work that reads files, which the page may not (be-host's
+/// `host_files`).
+pub fn run_in_worker(work: impl FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + Send + 'static) {
+    let entry: Entry = Box::new(work);
+    let entry = Box::into_raw(Box::new(entry)) as usize;
+    // unsafe(ffi)
+    unsafe { be_worker_start(entry) };
+}
+
 /// Told, or dropped, when the stack started last has ended: the next waits for it, so two
 /// stacks never serve the same files at once. A trap (panic=abort) ends the worker without
 /// dropping it, so the next stack never starts after one, as before. Only the page starts

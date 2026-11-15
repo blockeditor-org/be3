@@ -3,9 +3,11 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-mod native;
+mod kept;
+mod store;
 
-pub use native::HostStateStore;
+pub use kept::{Keeper, Write};
+pub use store::{Held, HostStateStore};
 
 #[derive(Clone, Debug)]
 pub struct HostStateError(String);
