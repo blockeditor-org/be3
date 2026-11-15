@@ -726,9 +726,8 @@ impl Workspace {
         self.ready.set(true);
     }
 
-    pub fn unreadable_layout(&self) -> Memo<Option<String>> {
-        let unreadable = self.unreadable;
-        create_memo(move || unreadable.get())
+    pub fn unreadable_layout(&self) -> ReadSignal<Option<String>> {
+        self.unreadable.read_only()
     }
 
     pub fn reset_layout(&self) {
@@ -1357,7 +1356,6 @@ pub fn Failure(failed: Memo<bool>, reason: Memo<String>) -> DynamicSegment<ListI
 
 #[component]
 pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
-    let shown = create_memo(move || state.with(|state| !state.available || state.error.is_some()));
     let message = create_memo(move || {
         state.with(|state| match &state.error {
             Some(error) => error.clone(),
@@ -1366,7 +1364,7 @@ pub fn PanelStatus(state: ReadSignal<ChildState>, loading: String) -> NodeId {
     });
     view! {
         <Layers>
-            <Show condition={shown}>
+            <Show condition={move || state.with(|state| !state.available || state.error.is_some())}>
                 <Frame padding=PANEL_PADDING>
                     <List spacing=PANEL_SPACING>
                         <Text style=TextStyle::CAPTION>{message}</Text>

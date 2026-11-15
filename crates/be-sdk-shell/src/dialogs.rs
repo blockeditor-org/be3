@@ -43,10 +43,9 @@ pub fn WorkspaceDialogs(workspace: Workspace) -> NodeId {
 #[component]
 fn UnreadableLayoutDialog(workspace: Workspace) -> NodeId {
     let report = workspace.unreadable_layout();
-    let open = create_memo(move || report.get().is_some());
     view! {
         <Dialog
-            open={open}
+            open={move || report.with(Option::is_some)}
             kind=DialogKind::Alert
             title="The layout of this session could not be read"
             width=Size::Dialog
@@ -85,10 +84,9 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
         OpenDialog::Unlink(block) => Some(block),
         _ => None,
     });
-    let open = create_memo(move || block.get().is_some());
     view! {
         <Dialog
-            open={open}
+            open={move || block.with(Option::is_some)}
             kind=DialogKind::Alert
             title="Unlink from the source block?"
             width=Size::Dialog
@@ -119,12 +117,11 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
         OpenDialog::ArtifactSettings(block) => Some(block),
         _ => None,
     });
-    let open = create_memo(move || block.get().is_some());
-    let placed = create_memo(move || {
+    let placed = move || {
         block
             .get()
             .map(|block| SubregionContent::ArtifactSettings { block })
-    });
+    };
     let child = create_signal(None::<ChildId>);
     let height = create_signal(SETTINGS_HEIGHT);
     let answered = Callback::new(move |state: ChildState| {
@@ -152,14 +149,13 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
     let editor = workspace.editor();
     view! {
         <DialogFrame
-            open={open}
+            open={move || block.with(Option::is_some)}
             size=DialogSize::Large
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={dismiss}
         >|| {
-            let height = create_memo(move || Length::Size(Size::Custom(height.get())));
             view! {
-                <Frame height>
+                <Frame height={move || Length::Size(Size::Custom(height.get()))}>
                     <Subregion
                         editor={editor}
                         placed={placed}
@@ -218,7 +214,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             })
         })
     });
-    let has_error = create_memo(move || error.get().is_some());
     let error_text = create_memo(move || error.get().unwrap_or_default());
     let query = create_memo(move || {
         state.with(|share| {
@@ -230,12 +225,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     let suggestions = create_memo(move || {
         state.with(|share| share.as_ref().and_then(|share| share.suggestions(me)))
-    });
-    let searching = create_memo(move || suggestions.get().is_some());
-    let unmatched = create_memo(move || {
-        suggestions
-            .get()
-            .is_some_and(|suggestions| suggestions.is_empty())
     });
     let suggestion_keys = create_memo(move || {
         suggestions
@@ -260,7 +249,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .map(|person| person.id)
             .collect::<Vec<_>>()
     });
-    let has_pending = create_memo(move || !pending_keys.get().is_empty());
     let pending_access = create_memo(move || {
         state.with(|share| {
             share.as_ref().map_or(Some(1), |share| {
@@ -296,7 +284,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     let inside =
         create_memo(move || state.with(|share| share.as_ref().and_then(Share::inside_note)));
-    let has_inside = create_memo(move || inside.get().is_some());
     let inside_text = create_memo(move || inside.get().unwrap_or_default());
     let member_keys = create_memo(move || {
         members
@@ -320,7 +307,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let invited = create_memo(move || !invite_link.get().is_empty());
     let act = Callback::new(move |action: ShareAction| {
         if let Some(block) = shown.get_untracked() {
             workspace.share_action(block, action);
@@ -332,12 +318,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             title={title}
             width={Size::Custom(460.0)}
             size=DialogSize::Large
-            anchor={create_memo(move || DialogAnchor::Rect(tab.get()))}
+            anchor={move || DialogAnchor::Rect(tab.get())}
             id="share"
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=Space::Md>
-                <Show condition={has_error}>
+                <Show condition={move || error.with(Option::is_some)}>
                     <Text style=TextStyle::CAPTION>{error_text}</Text>
                 </Show>
                 <Show condition={loading}>
@@ -353,10 +339,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     @test_id={"share.query"}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
-                <Show condition={searching}>
+                <Show condition={move || suggestions.with(Option::is_some)}>
                     <Card>
                         <List spacing=Space::Xs>
-                            <Show condition={unmatched}>
+                            <Show condition={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}>
                                 <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
                             </Show>
                             <ForEach keys={suggestion_keys}>|id: Uuid| {
@@ -374,7 +360,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                     </Card>
                 </Show>
-                <Show condition={has_pending}>
+                <Show condition={move || pending_keys.with(|keys| !keys.is_empty())}>
                     <List spacing=Space::Md>
                         <List direction=Direction::Horizontal spacing=Space::Sm wrap=true>
                             <ForEach keys={pending_keys}>|id: Uuid| {
@@ -440,7 +426,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         on_click={move || act.call(ShareAction::InviteNew)}
                     />
                 </List>
-                <Show condition={invited}>
+                <Show condition={move || invite_link.with(|link| !link.is_empty())}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION @test_id={"share.invite.help"}>
                             "Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
@@ -453,7 +439,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         />
                     </List>
                 </Show>
-                <Show condition={has_inside}>
+                <Show condition={move || inside.with(Option::is_some)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_TRIANGLE_ALERT />
@@ -498,7 +484,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
 
 #[component]
 fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
-    let label = create_memo(move || {
+    let label = move || {
         person
             .get()
             .map(|person| {
@@ -509,7 +495,7 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
                 }
             })
             .unwrap_or_default()
-    });
+    };
     view! {
         <Button
             label={label}
@@ -530,17 +516,15 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
     let email = create_memo(move || member.get().map(|member| member.email).unwrap_or_default());
     let fixed = create_memo(move || member.get().and_then(|member| member.fixed));
     let is_fixed = create_memo(move || fixed.get().is_some());
-    let editable = create_memo(move || !is_fixed.get());
     let fixed_text = create_memo(move || fixed.get().unwrap_or_default());
     let note = create_memo(move || member.get().and_then(|member| member.note));
-    let has_note = create_memo(move || note.get().is_some());
     let note_text = create_memo(move || note.get().unwrap_or_default());
-    let access_label = create_memo(move || {
+    let access_label = move || {
         member
             .get()
             .map(|member| member.access.label().to_owned())
             .unwrap_or_default()
-    });
+    };
     let choices = create_memo(move || {
         member
             .get()
@@ -551,7 +535,6 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
         let access = member.get()?.access;
         choices.get().iter().position(|choice| *choice == access)
     });
-    let removable = create_memo(move || member.get().is_some_and(|member| member.removable));
     view! {
         <Frame padding={Padding::vertical(Space::Xs)}>
             <Card>
@@ -581,12 +564,35 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     <Text style=TextStyle::CAPTION>{fixed_text}</Text>
                                 </List>
                             </Show>
-                            <Show condition={has_note}>
+                            <Show condition={move || note.with(Option::is_some)}>
                                 <Text style=TextStyle::CAPTION>{note_text}</Text>
                             </Show>
                         </List>
                     </ListItem>
-                    <Show condition={is_fixed}>
+                    <Show
+                        condition={is_fixed}
+                        fallback={move || view! {
+                            <Select
+                                selected={Binding::new(selected, move |index: Option<usize>| {
+                                    let Some(member) = member.get_untracked() else {
+                                        return;
+                                    };
+                                    let Some(access) = index.and_then(|index| choices.get_untracked().get(index).copied()) else {
+                                        return;
+                                    };
+                                    if let Some(access) = member.choose(access) {
+                                        act.call(ShareAction::SetAccess(member.id, access));
+                                    }
+                                })}
+                                label="Access"
+                                options={view! {
+                                    <ForEach keys={choices}>|level: AccessLevel|
+                                        <ChoiceOption label={level.label()} />
+                                    </ForEach>
+                                }}
+                            />
+                        }}
+                    >
                         <Button
                             label={access_label}
                             variant=ButtonVariant::Secondary
@@ -594,28 +600,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             on_click={|| {}}
                         />
                     </Show>
-                    <Show condition={editable}>
-                        <Select
-                            selected={Binding::new(selected, move |index: Option<usize>| {
-                                let Some(member) = member.get_untracked() else {
-                                    return;
-                                };
-                                let Some(access) = index.and_then(|index| choices.get_untracked().get(index).copied()) else {
-                                    return;
-                                };
-                                if let Some(access) = member.choose(access) {
-                                    act.call(ShareAction::SetAccess(member.id, access));
-                                }
-                            })}
-                            label="Access"
-                            options={view! {
-                                <ForEach keys={choices}>|level: AccessLevel|
-                                    <ChoiceOption label={level.label()} />
-                                </ForEach>
-                            }}
-                        />
-                    </Show>
-                    <Show condition={removable}>
+                    <Show condition={move || member.with(|member| member.as_ref().is_some_and(|member| member.removable))}>
                         <Button
                             icon_only=true
                             glyph=ICON_X

@@ -249,45 +249,37 @@ pub(crate) fn BlockPanel(
             <List spacing=Space::None>
                 <Show condition={!session}>
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
                     <DeletedBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <TabBar bar={move || bar.call(())} own=true />
                 <Show keep_alive=true condition={live}>
-                    <ListItem grow=1.0>
-                        <List spacing=Space::None>
-                            <Dynamic value={content}>|content: Content| {
-                                match content {
-                                    Content::Denied => view! {
-                                        <ListItem grow=1.0>
-                                            <AccessDenied info={info.read_only()} />
-                                        </ListItem>
-                                    },
-                                    Content::OutOfReach => view! {
-                                        <ListItem grow=1.0>
-                                            <OutOfReach />
-                                        </ListItem>
-                                    },
-                                    Content::Block => view! {
-                                        <ListItem grow=1.0>
-                                            <BlockChild
-                                                editor={editor}
-                                                info={info.read_only()}
-                                                menu={child_menu}
-                                                docked_tab
-                                                top_bar={top_bar}
-                                                on_details={on_details}
-                                            />
-                                        </ListItem>
-                                    },
-                                }
-                            }</Dynamic>
-                        </List>
-                    </ListItem>
+                    <Dynamic value={content}>|content: Content| {
+                        match content {
+                            Content::Denied => view! {
+                                <ListItem grow=1.0>
+                                    <AccessDenied info={info.read_only()} />
+                                </ListItem>
+                            },
+                            Content::OutOfReach => view! {
+                                <ListItem grow=1.0>
+                                    <OutOfReach />
+                                </ListItem>
+                            },
+                            Content::Block => view! {
+                                <ListItem grow=1.0>
+                                    <BlockChild
+                                        editor={editor}
+                                        info={info.read_only()}
+                                        menu={child_menu}
+                                        docked_tab
+                                        top_bar={top_bar}
+                                        on_details={on_details}
+                                    />
+                                </ListItem>
+                            },
+                        }
+                    }</Dynamic>
                 </Show>
                 <Show condition={previewing}>
                     <ListItem grow=1.0>
@@ -386,11 +378,7 @@ fn DockedBlockTab(
         <List spacing=Space::None>
             <Show condition={!session}>
                 <ArtifactBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
                 <DeletedBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
                 <LinkedBar workspace={workspace} info={info} />
             </Show>
             <TabBar bar={move || bar.call(())} own />
