@@ -47,6 +47,12 @@ Fixed items are removed as they land.
   `navigator.share`, Android's send intent) and says whether it has one, with
   a Share button in the Invite member dialog where it does, and in beui-demo.
 
+- **A view shown again on the web.** A dock tab or bar shown again (a text's format bar after
+  a tab switch) can draw empty for a frame in a browser: the native host keeps a hidden view's
+  last frame until its app draws it anew (guides/apps/runtime.md), but the web's surfaces are the
+  app worker's canvases and it keeps none. Done when the web keeps a hidden view's last canvas
+  frame the same way, with a web test that shows it again before its app answers.
+
 ## 7. Sessions
 
 - **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
