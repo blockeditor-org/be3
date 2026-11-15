@@ -2796,6 +2796,11 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     let closable = dock.all_closable(move |_| vec![leaf]);
     let claimed = modifier_claims(dock.drag_modifier);
     let resized = modifier_resize(dock, Resized::Docked);
+    let shape = move || {
+        let bare = state.with(|state| state.is_bare(leaf));
+        let vertical = !hoisted && !bare && state.with(|state| state.is_vertical(leaf));
+        (vertical, bare)
+    };
     view! {
         <Interactive
             claims_touch=false
@@ -2817,11 +2822,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             }}
         >
             <List spacing=0.0>
-                <Dynamic value={move || {
-        let bare = state.with(|state| state.is_bare(leaf));
-        let vertical = !hoisted && !bare && state.with(|state| state.is_vertical(leaf));
-        (vertical, bare)
-    }}>|(vertical, bare): (bool, bool)| {
+                <Dynamic value={shape}>|(vertical, bare): (bool, bool)| {
                     let dock = dock;
                     let bar = (!hoisted && !bare).then(|| DockBarHandle {
                         floating,
