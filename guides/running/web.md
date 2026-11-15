@@ -119,7 +119,7 @@ survives a reload. Traps that shape this code:
   real everywhere else), and the page's file calls spin until `files.js` answers. Don't add a
   third: a page that needs something another thread holds asks for it with a message. The
   stack's state is not one of those locks: the page reads the `Seen` the worker hands over
-  through an atomic slot (guides/blocks/host.md, "What the page reads").
+  in bytes through a lock-free stack (guides/blocks/host.md, "What the page reads").
 - A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Post::send`,
   guides/desktop.md) takes no lock the page takes: the worker posts its address on a
   `BroadcastChannel` whose name only the page's workers are given (`web/threads.js`,

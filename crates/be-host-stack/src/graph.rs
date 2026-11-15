@@ -11,6 +11,8 @@ use be_block_repository::{local_id, masked, scope_mask};
 use be_sdk_api::BlockIdRole;
 use uuid::Uuid;
 
+use crate::diff::Diff;
+
 #[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 #[cfg_attr(not(test), derive(Clone))]
 pub struct Node {
@@ -126,9 +128,9 @@ enum Fetch {
     Failed(String),
 }
 
-#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Deserialize, serde::Serialize)]
 struct Listed {
-    members: imbl::HashSet<Uuid>,
+    members: imbl::OrdSet<Uuid>,
     fetch: Fetch,
     /// Asked for again while a fetch was under way, whose answer may be from before the change
     /// that asked: fetched once more when it lands (`relist`).
@@ -142,41 +144,166 @@ pub struct Graph {
     pub revision: u64,
     /// Persistent maps of shared nodes, so a change copies the path to what it changes rather
     /// than the whole graph a `Seen` handed over shares.
-    nodes: imbl::HashMap<Uuid, Arc<Node>>,
+    nodes: imbl::OrdMap<Uuid, Arc<Node>>,
     wants: HashMap<Owner, Vec<Query>>,
-    listings: imbl::HashMap<Listing, Listed>,
+    listings: imbl::OrdMap<Listing, Listed>,
     unlisted: Vec<Listing>,
-    heard: imbl::HashMap<Uuid, u64>,
+    heard: imbl::OrdMap<Uuid, u64>,
     floor: u64,
-    pending: imbl::HashMap<Uuid, u32>,
+    pending: imbl::OrdMap<Uuid, u32>,
     /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
-    unpublished: imbl::HashSet<Uuid>,
+    unpublished: imbl::OrdSet<Uuid>,
     /// Nodes added, changed or removed since the worker last took them (`take_nodes_moved`).
-    nodes_moved: imbl::HashSet<Uuid>,
+    #[serde(skip)]
+    nodes_moved: imbl::OrdSet<Uuid>,
     /// Nodes a change copied because a `Seen` handed over still shared them (`node_mut`), for a
     /// test to count.
     #[cfg(test)]
+    #[serde(skip)]
     pub(crate) copied_on_write: u64,
-    derived: imbl::HashMap<Uuid, Entries>,
-    referenced: imbl::HashMap<Uuid, Vec<Uuid>>,
+    derived: imbl::OrdMap<Uuid, Entries>,
+    referenced: imbl::OrdMap<Uuid, Vec<Uuid>>,
     /// The head an open block's replica last reported, which what the server lists of it does not
     /// outrun: a listing or an event made before the commit reached the server says the head
     /// it had, and the replica says nothing more until the head changes again.
-    reported: imbl::HashMap<Uuid, CommitId>,
+    reported: imbl::OrdMap<Uuid, CommitId>,
     placing: std::collections::HashSet<Uuid>,
     /// The last children whose parent's references took them in (`placed`), with that parent,
     /// so a child that drops out of them again while it still names the parent is noticed
     /// (`dropped`): a block that then reads as deleted.
+    #[serde(skip)]
     placed_recently: std::collections::VecDeque<(Uuid, Uuid)>,
     /// Children that dropped out of their parent's references after they were placed there, for
     /// the worker to log with what it knows of the parent (`take_dropped`).
+    #[serde(skip)]
     dropped: Vec<Dropped>,
     /// Blocks a listing's answer left out while this device held them as belonging there, for
     /// the worker to log (`take_unlisted_held`): what makes a list show one entry fewer than it
     /// should.
+    #[serde(skip)]
     unlisted_held: Vec<UnlistedHeld>,
+}
+
+/// What the page reads of the graph, by what changed (`diff::Diff`). What only the worker
+/// reads, the moved nodes it works reach out again for and what it logs, stays behind.
+#[derive(Default, serde::Deserialize, serde::Serialize)]
+pub(crate) struct GraphDelta {
+    revision: Option<u64>,
+    nodes: Option<<imbl::OrdMap<Uuid, Arc<Node>> as Diff>::Delta>,
+    wants: Option<HashMap<Owner, Vec<Query>>>,
+    listings: Option<<imbl::OrdMap<Listing, Listed> as Diff>::Delta>,
+    unlisted: Option<Vec<Listing>>,
+    heard: Option<<imbl::OrdMap<Uuid, u64> as Diff>::Delta>,
+    floor: Option<u64>,
+    pending: Option<<imbl::OrdMap<Uuid, u32> as Diff>::Delta>,
+    unpublished: Option<<imbl::OrdSet<Uuid> as Diff>::Delta>,
+    derived: Option<<imbl::OrdMap<Uuid, Entries> as Diff>::Delta>,
+    referenced: Option<<imbl::OrdMap<Uuid, Vec<Uuid>> as Diff>::Delta>,
+    reported: Option<<imbl::OrdMap<Uuid, CommitId> as Diff>::Delta>,
+    placing: Option<std::collections::HashSet<Uuid>>,
+}
+
+fn changed<T: Clone + PartialEq>(old: &T, new: &T) -> Option<T> {
+    (old != new).then(|| new.clone())
+}
+
+impl Diff for Graph {
+    type Delta = GraphDelta;
+
+    fn diff(old: &Self, new: &Self) -> Option<GraphDelta> {
+        let delta = GraphDelta {
+            revision: changed(&old.revision, &new.revision),
+            nodes: Diff::diff(&old.nodes, &new.nodes),
+            wants: changed(&old.wants, &new.wants),
+            listings: Diff::diff(&old.listings, &new.listings),
+            unlisted: changed(&old.unlisted, &new.unlisted),
+            heard: Diff::diff(&old.heard, &new.heard),
+            floor: changed(&old.floor, &new.floor),
+            pending: Diff::diff(&old.pending, &new.pending),
+            unpublished: Diff::diff(&old.unpublished, &new.unpublished),
+            derived: Diff::diff(&old.derived, &new.derived),
+            referenced: Diff::diff(&old.referenced, &new.referenced),
+            reported: Diff::diff(&old.reported, &new.reported),
+            placing: changed(&old.placing, &new.placing),
+        };
+        let changed = delta.revision.is_some()
+            || delta.nodes.is_some()
+            || delta.wants.is_some()
+            || delta.listings.is_some()
+            || delta.unlisted.is_some()
+            || delta.heard.is_some()
+            || delta.floor.is_some()
+            || delta.pending.is_some()
+            || delta.unpublished.is_some()
+            || delta.derived.is_some()
+            || delta.referenced.is_some()
+            || delta.reported.is_some()
+            || delta.placing.is_some();
+        changed.then_some(delta)
+    }
+
+    fn apply(&mut self, delta: GraphDelta) {
+        if let Some(revision) = delta.revision {
+            self.revision = revision;
+        }
+        if let Some(nodes) = delta.nodes {
+            self.nodes.apply(nodes);
+        }
+        if let Some(wants) = delta.wants {
+            self.wants = wants;
+        }
+        if let Some(listings) = delta.listings {
+            self.listings.apply(listings);
+        }
+        if let Some(unlisted) = delta.unlisted {
+            self.unlisted = unlisted;
+        }
+        if let Some(heard) = delta.heard {
+            self.heard.apply(heard);
+        }
+        if let Some(floor) = delta.floor {
+            self.floor = floor;
+        }
+        if let Some(pending) = delta.pending {
+            self.pending.apply(pending);
+        }
+        if let Some(unpublished) = delta.unpublished {
+            self.unpublished.apply(unpublished);
+        }
+        if let Some(derived) = delta.derived {
+            self.derived.apply(derived);
+        }
+        if let Some(referenced) = delta.referenced {
+            self.referenced.apply(referenced);
+        }
+        if let Some(reported) = delta.reported {
+            self.reported.apply(reported);
+        }
+        if let Some(placing) = delta.placing {
+            self.placing = placing;
+        }
+    }
+}
+
+/// Equal in what the page reads of it (`GraphDelta`).
+impl PartialEq for Graph {
+    fn eq(&self, other: &Self) -> bool {
+        self.revision == other.revision
+            && self.nodes == other.nodes
+            && self.wants == other.wants
+            && self.listings == other.listings
+            && self.unlisted == other.unlisted
+            && self.heard == other.heard
+            && self.floor == other.floor
+            && self.pending == other.pending
+            && self.unpublished == other.unpublished
+            && self.derived == other.derived
+            && self.referenced == other.referenced
+            && self.reported == other.reported
+            && self.placing == other.placing
+    }
 }
 
 /// How many placed children `Graph::placed_recently` remembers.
@@ -229,14 +356,19 @@ impl Graph {
             }
         }
         let before = self.listings.len();
-        let unlisted = &mut self.unlisted;
-        self.listings.retain(|listing, listed| {
-            let kept = desired.contains(listing);
-            if !kept && listed.fetch != Fetch::Wanted {
-                unlisted.push(*listing);
+        let dropped: Vec<Listing> = self
+            .listings
+            .keys()
+            .filter(|listing| !desired.contains(*listing))
+            .copied()
+            .collect();
+        for listing in dropped {
+            if let Some(listed) = self.listings.remove(&listing)
+                && listed.fetch != Fetch::Wanted
+            {
+                self.unlisted.push(listing);
             }
-            kept
-        });
+        }
         let mut changed = self.listings.len() != before;
         for listing in desired {
             if self.listings.contains_key(&listing) {
@@ -496,8 +628,16 @@ impl Graph {
     pub fn relist_all(&mut self) {
         self.heard.clear();
         self.floor = 0;
-        for (_, listed) in self.listings.iter_mut() {
-            listed.fetch = Fetch::Wanted;
+        let fetched: Vec<Listing> = self
+            .listings
+            .iter()
+            .filter(|(_, listed)| listed.fetch != Fetch::Wanted)
+            .map(|(listing, _)| *listing)
+            .collect();
+        for listing in fetched {
+            if let Some(listed) = self.listings.get_mut(&listing) {
+                listed.fetch = Fetch::Wanted;
+            }
         }
     }
 
@@ -625,9 +765,9 @@ impl Graph {
     /// Takes the nodes added, changed or removed since the last take (`nodes_moved`), for the
     /// worker to work out again what it derives from them alone. Asks first, so a graph with
     /// nothing moved is not written.
-    pub(crate) fn take_nodes_moved(&mut self) -> imbl::HashSet<Uuid> {
+    pub(crate) fn take_nodes_moved(&mut self) -> imbl::OrdSet<Uuid> {
         if self.nodes_moved.is_empty() {
-            return imbl::HashSet::new();
+            return imbl::OrdSet::new();
         }
         std::mem::take(&mut self.nodes_moved)
     }
@@ -1210,7 +1350,7 @@ impl Graph {
     }
 }
 
-fn member(listing: Listing, node: &Node, nodes: &imbl::HashMap<Uuid, Arc<Node>>) -> Option<bool> {
+fn member(listing: Listing, node: &Node, nodes: &imbl::OrdMap<Uuid, Arc<Node>>) -> Option<bool> {
     match listing {
         Listing::Children(parent) => Some(node.parent == Some(parent)),
         Listing::Deleted => Some(node.parent.is_some() && !node.held),

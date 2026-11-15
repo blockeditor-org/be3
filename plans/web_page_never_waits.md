@@ -15,8 +15,8 @@ remain on the page (guides/running/web.md, "Files and offline"):
   takes only when a reply to the page calls back into `lib.rs`, as `import_file`'s does), the
   `RefsDb` connection (`be-block-client/src/refs/sqlite.rs`), be-block-type-host's
   `REGISTRY` and `DECLARED`, and be-host-base's `notices`. The stack's own state is not among
-  them: the page reads the `Seen` the worker hands over through an atomic slot, and what it
-  changes goes as commands (guides/blocks/host.md, "What the page reads").
+  them: the page reads the `Seen` the worker hands over in bytes through a lock-free stack,
+  and what it changes goes as commands (guides/blocks/host.md, "What the page reads").
 - The page's file calls (`web/wasi.js`, `forward`) spin until `web/files.js` answers. The page
   makes none as it starts and runs any more: the host's worker keeps the host state and the
   refs database's organization list from start-up, and the page reads the copy it hands over
@@ -64,9 +64,9 @@ a thread that runs beside it.
    then fails loudly. be-host-runtime's two file reads on the page, `input.rs`'s `read_path`
    and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer and its `Write`s, and the organization
    lists, become messages too. The stack's commands are bytes already, and replies numbers
-   answered with bytes (guides/blocks/host.md, "What the page reads"). The handed-over `Seen` then
-   becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker
-   wrote since the last), and the page's `Edit`s and replies travel as they do now. A
+   answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
+   changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
+   bytes to travel by `postMessage` rather than through the shared heap. A
    worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
    `letters_web.rs`), but as the address of a value in the shared heap, which the page takes
    and frees: with a memory of its own, the worker sends the letter's bytes instead. The page
