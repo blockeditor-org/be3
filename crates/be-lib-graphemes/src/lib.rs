@@ -5,7 +5,8 @@ text-editor-core's cursor stops and beui-core's galley cursors both use it.
 `grapheme_boundaries` walks a whole text forward in one pass, for layout.
 It also holds the one word rule: text-editor-core's word stops and double
 click, and beui-view's selectable text, all use word_classes and word_around,
-and be-lib-search splits text into terms with words.
+and be-lib-search splits text into terms with words. A word is a run of clusters
+that are alphanumeric or `_`, joined across an apostrophe between two of them.
 
 A query is one byte offset, inside a scalar or not, and malformed UTF-8 is one
 U+FFFD per byte, as text-editor-core edits raw bytes. It reads only as far back

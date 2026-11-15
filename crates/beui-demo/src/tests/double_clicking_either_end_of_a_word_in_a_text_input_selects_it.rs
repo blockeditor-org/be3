@@ -23,18 +23,19 @@ fn double_clicking_either_end_of_a_word_in_a_text_input_selects_it() {
         .into_iter()
         .find(|text| test.document().text(*text) == "Weekend trip")
         .expect("the field shows its value");
-    // Just after "Weekend", before the space, and past the end of "trip".
-    for (index, beyond, selected) in [(7, 0.0, 0..7), (12, 24.0, 8..12)] {
+    let double_click = |test: &mut DocumentTest, index: usize, beyond: f32| {
         let caret = test.document().text_caret_rect(text, index, 2.0).unwrap();
         test.double_click(Target::point(pos2(caret.center().x + beyond, caret.center().y)));
         test.leave();
-        let selection = test
-            .document()
+        test.document()
             .api::<beui::unstyled::TextInputApi>(input)
-            .selection();
-        assert_eq!(selection, [selected]);
-        test.record();
-        test.advance(Duration::from_secs(1));
-    }
+            .selection()
+    };
+    // Just after "Weekend", before the space, the word before it.
+    assert_eq!(double_click(&mut test, 7, 0.0), [0..7]);
+    test.record();
+    // A double click a second later is a new gesture. Past the end, the last word.
+    test.advance(Duration::from_secs(1));
+    assert_eq!(double_click(&mut test, 12, 24.0), [8..12]);
     test.snapshot("double_clicking_either_end_of_a_word_in_a_text_input_selects_it");
 }
