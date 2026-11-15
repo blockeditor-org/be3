@@ -76,9 +76,13 @@ impl<S: ObjectStore> Peer<S> {
         let Some(escrow) = self.keys.unpinned() else {
             return Ok(());
         };
-        let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &escrow);
+        let pinned = crate::contacts::Pinned {
+            root: self.keys.organization_root(),
+            escrow: Some(escrow),
+        };
+        let sealed = crate::contacts::seal_pin(self.keys.identity(), self.organization, &pinned);
         client::keys::pin_escrow(&self.connection(), sealed).await??;
-        self.adopt_pinned(Some(escrow));
+        self.adopt_pinned(pinned);
         Ok(())
     }
 

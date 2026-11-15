@@ -19,6 +19,9 @@ pub struct KeyBook {
     escrow: Mutex<Escrow>,
     server: Mutex<Option<(Uuid, RecoveryPublic)>>,
     roots: Mutex<Roots>,
+    /// The hash of the organization's access log root, pinned from making it or an
+    /// invitation (`crate::contacts::Pinned`).
+    organization_root: Mutex<Option<EntryHash>>,
 }
 
 /// Which block each content key is a key of, and the access log root each block's keys carry
@@ -167,6 +170,7 @@ impl KeyBook {
             escrow: Mutex::new(Escrow::default()),
             server: Mutex::new(None),
             roots: Mutex::new(Roots::default()),
+            organization_root: Mutex::new(None),
         }
     }
 
@@ -221,9 +225,25 @@ impl KeyBook {
         self.settle_escrow();
     }
 
-    pub fn set_pinned(&self, pinned: Option<EscrowKey>) {
-        self.escrow.lock().unwrap().pinned = pinned;
+    /// What this account pinned for the organization: the escrow key, and the root of the
+    /// organization's access log.
+    pub fn set_pinned(&self, pinned: Option<crate::contacts::Pinned>) {
+        let pinned = pinned.unwrap_or_default();
+        *self.organization_root.lock().unwrap() = pinned.root;
+        self.escrow.lock().unwrap().pinned = pinned.escrow;
         self.settle_escrow();
+    }
+
+    /// Everything pinned for the organization, as `set_pinned` took it.
+    pub fn pins(&self) -> crate::contacts::Pinned {
+        crate::contacts::Pinned {
+            root: self.organization_root(),
+            escrow: self.pinned(),
+        }
+    }
+
+    pub fn organization_root(&self) -> Option<EntryHash> {
+        *self.organization_root.lock().unwrap()
     }
 
     pub fn escrows(&self) -> Vec<EscrowKey> {

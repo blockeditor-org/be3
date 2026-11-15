@@ -47,6 +47,7 @@ const CONNECTING: &[&str] = &[
     "ping",
     "open-organization",
     "list-organizations",
+    "get-organization-log",
     "list-contacts",
     "contacts-changed",
     "upload-urls",

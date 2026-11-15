@@ -400,7 +400,9 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
   it holds the root: `CreateBlock` carries it, and the server takes it only
   signed by the caller with the keys `recovery_keys` holds for it now, so a
   good server and a device never disagree (guides/blocks/keys.md, "Access
-  logs").
+  logs"). A company organization's log (`organization_log`) is rooted the same
+  way by `create-organization`, whose caller picks the organization's id, and
+  served to its members by `get-organization-log`.
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks

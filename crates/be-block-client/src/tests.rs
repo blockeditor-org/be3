@@ -111,6 +111,7 @@ mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
 mod an_offline_edit_merges_against_the_head_it_left_after_the_server_pruned_it;
 mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
+mod an_organization_whose_root_the_server_swaps_is_refused;
 mod an_owner_only_block_is_read_by_its_author_alone;
 mod collecting_a_removed_members_settings_takes_what_only_they_read;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
@@ -186,7 +187,7 @@ impl Harness {
     }
 
     async fn member(&self, admin: &Peer<MemoryStore>, email: &str) -> Peer<MemoryStore> {
-        self.member_pinning(admin, email, admin.keys().escrow().as_ref())
+        self.member_pinning(admin, email, admin.keys().escrow())
             .await
     }
 
@@ -194,7 +195,7 @@ impl Harness {
         &self,
         admin: &Peer<MemoryStore>,
         email: &str,
-        escrow: Option<&be_block_protocol::EscrowKey>,
+        escrow: Option<be_block_protocol::EscrowKey>,
     ) -> Peer<MemoryStore> {
         let own = self.owner(email).await;
         let card = crate::contacts::card(
@@ -208,7 +209,10 @@ impl Harness {
             admin.keys().identity(),
             &card,
             admin.organization(),
-            escrow,
+            &crate::contacts::Pinned {
+                root: admin.keys().organization_root(),
+                escrow,
+            },
         )
         .await
         .unwrap();

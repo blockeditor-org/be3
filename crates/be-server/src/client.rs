@@ -92,6 +92,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             organizations::Call::ListOrganizations { .. }
             | organizations::Call::CreateOrganization { .. }
             | organizations::Call::OpenOrganization { .. } => Rule::SignedIn,
+            organizations::Call::GetOrganizationLog { .. } => Rule::Organization,
         },
         Call::Members(call) => match call {
             members::Call::SetRole { .. } => Rule::Administrator,
@@ -228,7 +229,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
         },
         Call::Organizations(call) => match call {
             organizations::Call::ListOrganizations { .. }
-            | organizations::Call::OpenOrganization { .. } => true,
+            | organizations::Call::OpenOrganization { .. }
+            | organizations::Call::GetOrganizationLog { .. } => true,
             organizations::Call::CreateOrganization { .. } => false,
         },
         Call::Members(call) => match call {
@@ -1155,17 +1157,33 @@ impl Client {
                 .await;
                 self.reply(reply, listed);
             }
-            Call::CreateOrganization { reply, name } => {
+            Call::CreateOrganization {
+                reply,
+                id,
+                name,
+                root,
+                pinned,
+            } => {
                 let connection = &self.connection;
                 let created = async {
                     prelude?;
                     connection
                         .store
-                        .create_organization(connection.account()?, &name)
+                        .create_organization(connection.account()?, id, &name, root, pinned)
                         .await
                 }
                 .await;
                 self.reply(reply, created);
+            }
+            Call::GetOrganizationLog { reply } => {
+                let connection = &self.connection;
+                let log = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.store.organization_log(identity.organization).await
+                }
+                .await;
+                self.reply(reply, log);
             }
             Call::OpenOrganization {
                 reply,

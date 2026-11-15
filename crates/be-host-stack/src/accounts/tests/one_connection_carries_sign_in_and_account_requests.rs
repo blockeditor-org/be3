@@ -25,7 +25,13 @@ async fn one_connection_carries_sign_in_and_account_requests() {
         .await
         .unwrap();
     keys(url.clone(), session.token.clone()).await.unwrap();
-    create_organization(url.clone(), session.token.clone(), "Shared".to_owned())
+    let me = Me {
+        account: session.account,
+        identity: be_block_keys::RecoveryPhrase::generate().secret().to_bytes(),
+        display_name: "Local".to_owned(),
+        email: String::new(),
+    };
+    create_organization(url.clone(), session.token.clone(), me, "Shared".to_owned())
         .await
         .unwrap();
     assert_eq!(accepted.load(std::sync::atomic::Ordering::SeqCst), 1);

@@ -199,7 +199,7 @@ pub(crate) struct Session {
     pub role: OrganizationRole,
     pub kind: OrganizationKind,
     pub escrows: Vec<EscrowKey>,
-    pub pinned: Option<EscrowKey>,
+    pub pinned: crate::contacts::Pinned,
     pub server: Option<be_block_protocol::ServerAccount>,
     /// The server's clock less this device's, as last measured (`Peer::server_now`), for
     /// stamping commits offline after a restart.

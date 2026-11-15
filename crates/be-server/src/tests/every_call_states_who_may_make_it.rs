@@ -89,7 +89,17 @@ impl TestClient {
             ),
             (
                 "create-organization",
-                answered(client::organizations::create_organization(peer, "mine".into()).await),
+                answered({
+                    let (id, root) = organization_root(self.account.unwrap_or_default());
+                    client::organizations::create_organization(
+                        peer,
+                        id,
+                        "mine".into(),
+                        root,
+                        Vec::new(),
+                    )
+                    .await
+                }),
             ),
             (
                 "create-link (invitation)",
@@ -284,6 +294,10 @@ impl TestClient {
             (
                 "unlist",
                 answered(client::blocks::unlist(peer, Listing::Children(BlockParent::Root)).await),
+            ),
+            (
+                "get-organization-log",
+                answered(client::organizations::get_organization_log(peer).await),
             ),
             (
                 "list-history",

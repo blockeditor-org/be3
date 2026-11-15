@@ -33,8 +33,28 @@ fn identity_of(connection: &Connection, account: Uuid) -> Result<Option<PublicId
     }))
 }
 
-/// Stores `root` as the first entry of a new block's log, once it checks: the well-formed root
-/// of `block`, made by `account` with the keys the server holds for it now.
+/// `root` as the first entry of the log of `log`, once it checks: well formed, made by `account`
+/// with the keys the server holds for it now.
+fn checked_root(
+    connection: &Connection,
+    account: Uuid,
+    log: Uuid,
+    root: &[u8],
+) -> Result<Entry, ServerError> {
+    let entry = Entry::decode(root).map_err(|_| refused("the root does not read"))?;
+    let checked = entry
+        .checked_root(log.into_bytes())
+        .map_err(|_| refused("the root is not signed by whom it names"))?;
+    if checked.creator != account.into_bytes() {
+        return Err(refused("a root names the account that makes it"));
+    }
+    if identity_of(connection, account)? != Some(checked.identity) {
+        return Err(refused("a root names the keys its creator holds now"));
+    }
+    Ok(entry)
+}
+
+/// Stores `root` as the first entry of a new block's log, once it checks (`checked_root`).
 pub(crate) fn store_root(
     connection: &Connection,
     organization: Uuid,
@@ -42,18 +62,7 @@ pub(crate) fn store_root(
     block: Uuid,
     root: &[u8],
 ) -> Result<(), ServerError> {
-    let entry = Entry::decode(root).map_err(|_| refused("the block's root does not read"))?;
-    let checked = entry
-        .checked_root(block.into_bytes())
-        .map_err(|_| refused("the block's root is not signed by whom it names"))?;
-    if checked.creator != account.into_bytes() {
-        return Err(refused("a block's root names the account that makes it"));
-    }
-    if identity_of(connection, account)? != Some(checked.identity) {
-        return Err(refused(
-            "a block's root names the keys its creator holds now",
-        ));
-    }
+    let entry = checked_root(connection, account, block, root)?;
     connection.execute(
         "INSERT INTO access_log (organization_id, block_id, position, entry) VALUES (?1, ?2, 0, ?3)",
         params![organization.to_string(), block.to_string(), entry.encode()],
@@ -89,4 +98,34 @@ pub(crate) fn root_hash(
         return Ok(None);
     };
     Ok(Some(Entry::decode(&root).map_err(|_| ServerError::Corrupt)?.hash()))
+}
+
+/// Stores `root` as the first entry of a new company organization's log, once it checks
+/// (`checked_root`).
+pub(crate) fn store_organization_root(
+    connection: &Connection,
+    account: Uuid,
+    organization: Uuid,
+    root: &[u8],
+) -> Result<(), ServerError> {
+    let entry = checked_root(connection, account, organization, root)?;
+    connection.execute(
+        "INSERT INTO organization_log (organization_id, position, entry) VALUES (?1, 0, ?2)",
+        params![organization.to_string(), entry.encode()],
+    )?;
+    Ok(())
+}
+
+/// The organization's log, root first: empty for the personal organization.
+pub(crate) fn organization_log(
+    connection: &Connection,
+    organization: Uuid,
+) -> Result<Vec<Vec<u8>>, ServerError> {
+    let mut statement = connection.prepare_cached(
+        "SELECT entry FROM organization_log WHERE organization_id = ?1 ORDER BY position",
+    )?;
+    let entries = statement
+        .query_map(params![organization.to_string()], |row| row.get::<_, Vec<u8>>(0))?
+        .collect::<Result<_, _>>()?;
+    Ok(entries)
 }

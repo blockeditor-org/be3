@@ -342,11 +342,13 @@ impl<S: ObjectStore> Peer<S> {
         let organization = match config.organization {
             Some(organization) => organization,
             None => {
-                client::organizations::create_organization(
+                crate::contacts::create_organization(
                     &connection,
+                    &config.identity,
+                    account,
                     config.organization_name.clone(),
                 )
-                .await??
+                .await?
                 .id
             }
         };
@@ -393,7 +395,7 @@ impl<S: ObjectStore> Peer<S> {
         );
         if let Some(session) = &session {
             keys.set_escrows(session.escrows.clone());
-            keys.set_pinned(session.pinned.clone());
+            keys.set_pinned(Some(session.pinned.clone()));
             if let Some(server) = session.server {
                 keys.set_server(server.account, RecoveryPublic(server.public));
             }
@@ -525,18 +527,7 @@ impl<S: ObjectStore> Peer<S> {
             .set_server(server.account, RecoveryPublic(server.public));
         let verified =
             crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
-        let public = client::keys::get_recovery_key(&connection).await??.public;
-        if public.is_none() {
-            client::keys::set_recovery_key(
-                &connection,
-                self.keys.identity().public().0,
-                self.keys.identity().signing().0,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-            .await??;
-        }
+        crate::contacts::register_identity(&connection, self.keys.identity()).await?;
         self.keys.set_pinned(crate::contacts::open_pin(
             self.keys.identity(),
             organization,
@@ -636,7 +627,7 @@ impl<S: ObjectStore> Peer<S> {
             role,
             kind,
             escrows: self.keys.escrows(),
-            pinned: self.keys.pinned(),
+            pinned: self.keys.pins(),
             server: self.server(),
             server_offset: self.server_clock.lock().unwrap().offset,
         })?)
@@ -647,9 +638,24 @@ impl<S: ObjectStore> Peer<S> {
         let _ = self.persist_session();
     }
 
-    pub(crate) fn adopt_pinned(&self, pinned: Option<EscrowKey>) {
-        self.keys.set_pinned(pinned);
+    pub(crate) fn adopt_pinned(&self, pinned: crate::contacts::Pinned) {
+        self.keys.set_pinned(Some(pinned));
         let _ = self.persist_session();
+    }
+
+    /// The organization's access log, root first, once its root checks against the one this
+    /// account pinned (`KeyBook::organization_root`): from making the organization or the
+    /// invitation it joined by. The personal organization has none.
+    pub async fn organization_log(&self) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+        let served = crate::ask(client::organizations::get_organization_log(&self.connection())).await?;
+        let organization = self.organization;
+        let Some(pinned) = self.keys.organization_root() else {
+            return match served.is_empty() {
+                true => Ok(Vec::new()),
+                false => Err(ClientError::Locked(organization)),
+            };
+        };
+        checked_log(organization, pinned, &served)
     }
 
     pub(crate) fn adopt_contacts(&self, contacts: &[crate::Contact]) {
@@ -1263,16 +1269,7 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
         let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
         let pinned = self.keys.root(block).ok_or(ClientError::Locked(block))?;
-        let entries = served
-            .iter()
-            .map(|entry| be_block_keys::Entry::decode(entry))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| ClientError::Forged(block))?;
-        let root = entries.first().ok_or(ClientError::Forged(block))?;
-        if root.hash() != pinned || root.checked_root(block.into_bytes()).is_err() {
-            return Err(ClientError::Forged(block));
-        }
-        Ok(entries)
+        checked_log(block, pinned, &served)
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -2755,4 +2752,22 @@ fn about(listing: Listing) -> Option<Uuid> {
         | Listing::Children(BlockParent::Block(block)) => Some(block),
         Listing::Children(_) | Listing::Shared | Listing::Deleted => None,
     }
+}
+
+/// The log of `log` as the server served it, once its root is the one pinned and checks.
+fn checked_log(
+    log: Uuid,
+    pinned: be_block_keys::EntryHash,
+    served: &[Vec<u8>],
+) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+    let entries = served
+        .iter()
+        .map(|entry| be_block_keys::Entry::decode(entry))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ClientError::Forged(log))?;
+    let root = entries.first().ok_or(ClientError::Forged(log))?;
+    if root.hash() != pinned || root.checked_root(log.into_bytes()).is_err() {
+        return Err(ClientError::Forged(log));
+    }
+    Ok(entries)
 }

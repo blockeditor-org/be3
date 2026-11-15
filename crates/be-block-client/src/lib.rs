@@ -173,7 +173,7 @@ impl fmt::Display for ClientError {
                 "this block is locked: its key has not been shared with this account yet",
             ),
             Self::Forged(_) => formatter.write_str(
-                "the server served access records for this block that its members did not sign",
+                "the server served access records its members did not sign",
             ),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(

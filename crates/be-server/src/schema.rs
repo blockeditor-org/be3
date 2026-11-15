@@ -115,6 +115,15 @@ const SCHEMA: &str = "
         change_sequence INTEGER NOT NULL DEFAULT 0
     );
 
+    -- A company organization's access log (plans/signed_access.md), in order,
+    -- as access_log keeps a block's.
+    CREATE TABLE organization_log (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, position)
+    );
+
     CREATE TABLE memberships (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

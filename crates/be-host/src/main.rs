@@ -1667,7 +1667,7 @@ impl HostCore {
                     }
                 }
                 OrganizationOperation::Create(name) => {
-                    accounts::create_organization(url, token, name)
+                    accounts::create_organization(url, token, me()?, name)
                         .await
                         .map(OrganizationResult::Created)
                 }

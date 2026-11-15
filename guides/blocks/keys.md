@@ -92,6 +92,16 @@ escrow or the server's seal pins nothing: its root is only carried on into
 keys an administrator makes for that block (`Roots::escrowed`), since anyone
 who knows the escrow's public key can seal to it.
 
+A company organization has a log too, rooted at its creator:
+`contacts::create_organization` picks the organization id, signs the root and
+sends it with `create-organization`, registering the account's keys first if
+the server holds none. What an account pins for an organization is
+`contacts::Pinned`, the root's hash and the escrow key, sealed to itself
+(`seal_pin`, kept by `pin-escrow` and in the session): the creator pins it on
+making it, a member from the invitation, which carries it sealed with the code,
+and an agent from its maker. `Peer::organization_log` refuses a log whose root
+is not the pinned one. The personal organization has no log.
+
 ### Rotation
 
 When an account stops being able to view a block (revoked, left, moved away,
@@ -170,9 +180,10 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   An invitation is a link of kind `invitation` (see Contacts below): the
   inviting device makes an `InviteCode` (200 bits) and names the link by
   `InviteCode::lookup`, so it is `{server}/#invite/{CODE}` (`invite_link.rs`).
-  It carries the inviter's card and escrow key sealed with the code; accepting
-  it returns the invitee's card as any link does, pins the escrow key and joins
-  the organization as an editor. It names no email: the link is a bearer
+  It carries the inviter's card and what the inviter pinned for the
+  organization (`Pinned`: its access log root and escrow key) sealed with the
+  code; accepting it returns the invitee's card as any link does, pins both
+  and joins the organization as an editor. It names no email: the link is a bearer
   secret, single use and good for `INVITATION_LIFETIME` (seven days), and the
   server mails nothing, so the inviter sends it themselves. It ends when its
   inviter stops administering the organization: demoting or removing them

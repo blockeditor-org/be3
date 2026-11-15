@@ -32,8 +32,8 @@ async fn signing_keys_are_served_only_for_accounts_the_caller_knows() {
     with_signing_key(&mut owner, [1; 32]).await;
     let mut stranger = harness.client().await;
     let stranger_account = stranger.register("stranger@example.com").await;
-    with_signing_key(&mut stranger, [9; 32]).await;
     stranger.organization("elsewhere").await;
+    with_signing_key(&mut stranger, [9; 32]).await;
     let mut expected = vec![
         SigningKey {
             account: me,

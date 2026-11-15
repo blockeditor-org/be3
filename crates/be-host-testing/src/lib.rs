@@ -44,10 +44,17 @@ impl Harness {
         )
         .expect("the embedded block server starts");
         let url = server.url.clone();
+        let phrase = be_block_keys::RecoveryPhrase::generate();
         let organization = runtime
             .block_on(be_host_stack::accounts::create_organization(
                 url.clone(),
                 token.clone(),
+                be_host_stack::accounts::Me {
+                    account: profile.account,
+                    identity: phrase.secret().to_bytes(),
+                    display_name: "Counter".to_owned(),
+                    email: "counter@example.com".to_owned(),
+                },
                 "Counters".to_owned(),
             ))
             .expect("the organization is created");
@@ -58,7 +65,7 @@ impl Harness {
             account: profile.account,
             token,
             organization: organization.id,
-            phrase: be_block_keys::RecoveryPhrase::generate(),
+            phrase,
             _one_stack: one_stack,
         }
     }

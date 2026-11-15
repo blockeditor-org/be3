@@ -214,12 +214,11 @@ instead.
 
 1. **Audit.** Done: the table above.
 2. **Roots and retirement.** Block roots, pinned from the creating device and
-   from every key (`CarriedKey`), are built (guides/blocks/keys.md, "Access
-   logs"). Left: organization roots, pinned from the invitation, and
-   retirement entries on a new phrase. Done: a test where a forging server
-   swaps an organization's root and the device refuses it; one where an
-   account takes a new phrase and a record signed with the old key after it is
-   refused. A root carried only by a key opened through escrow is not pinned
+   from every key (`CarriedKey`), and organization roots, pinned from making
+   the organization, the invitation and an agent's maker, are built
+   (guides/blocks/keys.md, "Access logs"). Left: retirement entries on a new
+   phrase. Done: a test where an account takes a new phrase and a record
+   signed with the old key after it is refused. A root carried only by a key opened through escrow is not pinned
    (anyone can seal to the escrow key); step 3 decides how an administrator
    checks a log it reaches only through escrow.
 3. **Signed grants and administrators.** Records, logs, proof paths, the

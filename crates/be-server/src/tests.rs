@@ -438,6 +438,39 @@ static SECRETS: std::sync::LazyLock<
     std::sync::Mutex<std::collections::HashMap<Uuid, be_block_keys::RecoverySecret>>,
 > = std::sync::LazyLock::new(Default::default);
 
+/// A new organization's id and the root of its log, made by `account` with its test keys.
+fn organization_root(account: Uuid) -> (Uuid, Vec<u8>) {
+    let id = Uuid::new_v4();
+    let root = be_block_keys::Entry::root(&test_secret(account), account.into_bytes(), id.into_bytes());
+    (id, root.encode())
+}
+
+/// Makes a company organization straight through the store, as `account`, whose test keys it
+/// registers first when it holds none.
+async fn signed_organization(
+    store: &ServerStore,
+    account: Uuid,
+    name: &str,
+) -> Result<be_block_protocol::Organization, ServerError> {
+    let identity = test_secret(account).identity();
+    if store.recovery_key(account).await?.0.is_none() {
+        store
+            .set_recovery_key(
+                account,
+                identity.public.0,
+                identity.signing.0,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+            .await?;
+    }
+    let (id, root) = organization_root(account);
+    store
+        .create_organization(account, id, name, root, Vec::new())
+        .await
+}
+
 /// Makes `secret` the one `account` signs with in tests from now on.
 fn remember_secret(account: Uuid, secret: be_block_keys::RecoverySecret) {
     SECRETS.lock().unwrap().insert(account, secret);
@@ -732,8 +765,12 @@ impl TestClient {
     }
 
     async fn organization(&mut self, name: &str) -> Uuid {
+        let account = self.account.expect("a client makes an organization once signed in");
         let response = self
-            .call(|peer| client::organizations::create_organization(peer, name.into()))
+            .call(|peer| {
+                let (id, root) = organization_root(account);
+                client::organizations::create_organization(peer, id, name.into(), root, Vec::new())
+            })
             .await;
         let Ok(organization) = response else {
             panic!("organization creation failed: {response:?}");
@@ -1474,9 +1511,7 @@ async fn fixture_account(
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(directory)?;
     let (profile, _) = store.register(email, name).await?;
-    let company = store
-        .create_organization(profile.account, organization)
-        .await?;
+    let company = signed_organization(&store, profile.account, organization).await?;
     Ok((profile.account, company.id))
 }
 
