@@ -514,6 +514,10 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     base: Option<CommitId>,
     sealed: u64,
     sealed_state: Vec<u8>,
+    /// Each origin's highest `through` the order holds, and the sequence holding it: carried in
+    /// the journal's base and in reloads (`wire::BaseState`), so a replica opened again knows its
+    /// own edits after the entries that held them were trimmed.
+    origins: BTreeMap<u64, (u64, u64)>,
     /// A seal the holder announced past what this replica applied, taken once it applies that
     /// far.
     heard_seal: Option<(CommitId, u64)>,
@@ -780,6 +784,7 @@ where
             state: opened.session,
             projected: Settling::new(empty.clone(), Vec::new()),
             sealed_state: Vec::new(),
+            origins: BTreeMap::new(),
             visible: empty.clone(),
             confirmed: empty,
             pending: VecDeque::new(),
@@ -1150,7 +1155,42 @@ where
     }
 
     fn is_holder(&self) -> bool {
-        self.state.is_owner(self.client)
+        self.state.is_holder(self.client)
+    }
+
+    /// Notes that the order holds `origin`'s local edits through `through` at `sequence`.
+    fn note_origin(&mut self, origin: u64, through: u64, sequence: u64) {
+        let noted = self.origins.entry(origin).or_insert((0, 0));
+        if through >= noted.0 {
+            *noted = (through, sequence);
+        }
+    }
+
+    /// `content`, the type's session state, with how far the order holds each origin as of
+    /// `sequence`: the most recently numbered `BaseState::KEPT_ORIGINS` of them.
+    fn base_state(&self, content: Vec<u8>, sequence: u64) -> Vec<u8> {
+        let mut origins: Vec<(u64, u64, u64)> = self
+            .origins
+            .iter()
+            .filter(|(_, (_, at))| *at <= sequence)
+            .map(|(origin, (through, at))| (*origin, *through, *at))
+            .collect();
+        origins.sort_by_key(|(_, _, at)| std::cmp::Reverse(*at));
+        origins.truncate(crate::wire::BaseState::KEPT_ORIGINS);
+        crate::wire::BaseState { content, origins }.encode()
+    }
+
+    /// Takes the origins a base or reload carries, this replica's own included, and answers the
+    /// type's session state in it; none when it does not decode.
+    fn adopt_base_state(&mut self, bytes: &[u8]) -> Option<Vec<u8>> {
+        let state = crate::wire::BaseState::decode(bytes)?;
+        for (origin, through, at) in state.origins {
+            self.note_origin(origin, through, at);
+            if origin == self.origin {
+                self.own_through = self.own_through.max(through);
+            }
+        }
+        Some(state.content)
     }
 
     /// Starts the journal from this holder's base: its last commit, the sequence it holds, and
@@ -1162,7 +1202,7 @@ where
             base: JournalBase {
                 commit: self.base,
                 sequence: self.sealed,
-                state: self.sealed_state.clone(),
+                state: self.base_state(self.sealed_state.clone(), self.sealed),
             },
         });
     }
@@ -2146,15 +2186,15 @@ where
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
         if let Some(journal) = journal {
-            if !journal.base.state.is_empty() {
-                if self
-                    .confirmed
-                    .adopt_session_state(&journal.base.state)
-                    .is_err()
-                {
-                    self.incompatible = true;
+            match self.adopt_base_state(&journal.base.state) {
+                Some(state) if !state.is_empty() => {
+                    if self.confirmed.adopt_session_state(&state).is_err() {
+                        self.incompatible = true;
+                    }
+                    self.sealed_state = state;
                 }
-                self.sealed_state = journal.base.state.clone();
+                Some(_) => {}
+                None => self.incompatible = true,
             }
             self.applied = journal.base.sequence;
             self.sealed = journal.base.sequence;
@@ -2205,6 +2245,7 @@ where
         self.ordered_bytes += ordered_bytes(&op);
         match Submitted::decode(&op.payload) {
             Some(Submitted { through, entry }) => {
+                self.note_origin(op.id.origin, through, sequence);
                 if mine {
                     self.own_through = self.own_through.max(through);
                     self.own_numbered.push_back((sequence, through));
@@ -2301,6 +2342,7 @@ where
             self.incompatible = true;
             return self.passed(&op, mine);
         };
+        self.note_origin(op.id.origin, through, op.sequence);
         if mine {
             self.own_through = self.own_through.max(through);
             self.own_numbered.push_back((op.sequence, through));
@@ -2461,8 +2503,14 @@ where
     ) {
         let mut content = content;
         let mine = op.id.origin == self.origin;
-        if !state.is_empty() && content.adopt_session_state(&state).is_err() {
-            self.incompatible = true;
+        match self.adopt_base_state(&state) {
+            Some(state) if !state.is_empty() => {
+                if content.adopt_session_state(&state).is_err() {
+                    self.incompatible = true;
+                }
+            }
+            Some(_) => {}
+            None => self.incompatible = true,
         }
         let sent = match mine {
             true => self.forget_sent(op.id),
@@ -2824,7 +2872,7 @@ where
             head,
             replace: replace && !restart,
             restart,
-            state,
+            state: self.base_state(state, self.applied),
         };
         let barrier = replace;
         let local = self
@@ -3241,8 +3289,8 @@ where
         self.tell_editor(editor, &ToEditor::Snapshot(snapshot));
     }
 
-    /// Tells the editors following `ToEditor::Lacking` what changed: a follower's edits the
-    /// owner accepted since, one that took the session over keeping its unaccepted edits.
+    /// Tells the editors following `ToEditor::Lacking` what changed: edits the order numbered,
+    /// or the server holds, since it last told them.
 
     /// Tells the editors following `ToEditor::Lacking` what changed.
     fn tell_lacking(&mut self) {
@@ -3374,7 +3422,7 @@ where
         });
         let status = Status {
             head: self.base,
-            owner: self.is_holder(),
+            holder: self.is_holder(),
             clean: self.is_clean(),
             journaled: !unconfirmed,
             owes_seal: self.loaded && self.seal_would_settle(),
@@ -3525,7 +3573,7 @@ where
         let held = self
             .state
             .owner
-            .is_some_and(|owner| self.state.participants.contains(&owner));
+            .is_some_and(|holder| self.state.participants.contains(&holder));
         if held || self.claimed == Some(self.state.generation) {
             return;
         }
@@ -3706,9 +3754,12 @@ pub(crate) fn replay<C: LiveEdit + Default>(
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
         None => C::default(),
     };
-    if !journal.base.state.is_empty() {
+    let state = crate::wire::BaseState::decode(&journal.base.state)
+        .ok_or("the journal's base state does not decode")?
+        .content;
+    if !state.is_empty() {
         content
-            .adopt_session_state(&journal.base.state)
+            .adopt_session_state(&state)
             .map_err(|error| error.to_string())?;
     }
     for entry in &journal.entries {

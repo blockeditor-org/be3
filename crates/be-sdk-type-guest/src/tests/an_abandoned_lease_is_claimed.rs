@@ -43,6 +43,6 @@ fn an_abandoned_lease_is_claimed() {
     let (granted, _) = lone.exchange();
     assert!(granted.iter().any(|call| matches!(
         call,
-        Call::ReportStatus { status, .. } if status.owner
+        Call::ReportStatus { status, .. } if status.holder
     )));
 }

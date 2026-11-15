@@ -217,7 +217,7 @@ impl Host {
             if let Err(error) = self.step(&mut session, &mut claim).await {
                 break Err(error);
             }
-            let claiming = !session.is_owner() && !standing_by(&session);
+            let claiming = !session.is_holder() && !standing_by(&session);
             let next = claim.max(Instant::now());
             tokio::select! {
                 () = shutdown.as_mut() => break Ok(()),
@@ -240,7 +240,7 @@ impl Host {
         };
         match outcome {
             Ok(()) => {
-                if session.is_owner() && self.writing {
+                if session.is_holder() && self.writing {
                     self.write(&mut session);
                 }
                 session.show(TerminalHost::ID, None);
@@ -257,7 +257,7 @@ impl Host {
         session: &mut Hosted<S>,
         claim: &mut Instant,
     ) -> Result<(), String> {
-        if !session.is_owner() {
+        if !session.is_holder() {
             if self.writing {
                 eprintln!("be: another client took over the terminal; standing by");
                 self.writing = false;
@@ -268,7 +268,7 @@ impl Host {
                 session.claim();
                 session.settle().await;
             }
-            if !session.is_owner() {
+            if !session.is_holder() {
                 return Ok(());
             }
         }

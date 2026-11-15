@@ -675,7 +675,7 @@ impl Inner {
                 bytes,
                 now,
                 Some(be_sdk_type_guest::api::Delivery {
-                    kind: be_sdk_type_guest::api::RelayKind::Edit,
+                    kind: be_sdk_type_guest::api::RelayKind::Seal,
                     received: now as i64,
                 }),
             );

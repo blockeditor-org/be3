@@ -80,7 +80,7 @@ mod a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it;
 mod a_picked_file_becomes_a_block_of_the_type_that_claims_it;
 mod a_queued_block_the_mirror_cannot_place_is_dropped_and_counted;
 mod a_reconnected_session_hears_the_edits_of_what_it_versions;
-mod a_restore_on_a_follower_keeps_the_state_it_replaced;
+mod a_restore_on_a_peer_keeps_the_state_it_replaced;
 mod a_saved_change_is_undone_and_later_edits_stay;
 mod a_seal_the_connection_loses_is_kept_and_published_after_reconnect;
 mod a_search_finds_what_another_device_indexes_while_this_one_is_online;
@@ -98,12 +98,14 @@ mod a_sync_error_clears_once_nothing_waits_to_be_sent;
 #[cfg(not(target_os = "android"))]
 mod a_terminal_host_answers_this_peer_through_the_blocks_session;
 #[cfg(not(target_os = "android"))]
-mod a_terminal_host_takes_over_a_session_this_peer_opened_first;
+mod a_terminal_host_takes_the_lease_of_a_session_this_peer_opened_first;
 mod a_terminal_hosts_be_is_the_deployments_or_one_built_here;
 mod a_transient_version_failure_is_retried_on_the_backoff_and_on_reconnecting;
 mod a_type_module_that_stops_is_started_again_with_the_edits_it_had_not_sealed;
 mod a_version_command_waiting_on_a_silent_server_holds_up_no_edit;
 mod a_version_status_that_failed_waits_for_its_inputs_or_its_kind_of_news;
+mod an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land;
+mod an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sealed_it;
 mod an_undo_made_while_the_server_is_silent_survives_a_crash;
 mod an_account_unlocks_with_its_recovery_phrase;
 mod an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator;
@@ -552,8 +554,8 @@ impl Outside {
         std::sync::Arc::clone(self.session().peer())
     }
 
-    fn is_owner(&mut self) -> bool {
-        self.session().is_owner()
+    fn is_holder(&mut self) -> bool {
+        self.session().is_holder()
     }
 
     fn claim(&mut self) {
@@ -565,7 +567,7 @@ impl Outside {
         let session = session.as_mut().expect("the outside peer has not left");
         local.block_on(runtime, async {
             session.claim();
-            while !session.is_owner() {
+            while !session.is_holder() {
                 let woken = session.next().await;
                 let heard = matches!(woken, be_tool_cli::replica::Woken::Event(_));
                 session

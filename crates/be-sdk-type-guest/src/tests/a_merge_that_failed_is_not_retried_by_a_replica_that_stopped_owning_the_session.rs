@@ -32,7 +32,7 @@ fn a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_sessi
     // Another device takes the session over; the old owner's timer passes and it asks for nothing.
     sim.claim(1);
     sim.settle();
-    assert!(!sim.devices[0].status.owner, "the old owner gave way");
+    assert!(!sim.devices[0].status.holder, "the old owner gave way");
     let resumed = sim.resumed[0];
     sim.advance(120_000);
     assert_eq!(

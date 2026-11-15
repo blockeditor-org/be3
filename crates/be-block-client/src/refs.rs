@@ -1337,6 +1337,14 @@ impl Refs {
             let mut state = self.state.lock().unwrap();
             let journal = Self::journaled(&mut state, block, tag);
             let be_block_session::OpId { origin, counter } = submission.id;
+            // Numbered before, as the server does: the entry it holds, not a second one.
+            if let Some(held) = journal
+                .entries
+                .values()
+                .find(|entry| entry.origin == origin && entry.counter == counter)
+            {
+                return Ok(held.clone());
+            }
             // Numbered on a copy: `append_journal` keeps the entry and moves the order past it.
             let mut order = journal.head.order;
             let op = order.number(submission, None);

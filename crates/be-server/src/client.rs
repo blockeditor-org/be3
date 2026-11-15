@@ -162,7 +162,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             embed::sessions::Call::SessionRelay { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
             }
-            embed::sessions::Call::SessionClaimOwnership { this, .. }
+            embed::sessions::Call::SessionClaimLease { this, .. }
             | embed::sessions::Call::SessionSubmit { this, .. }
             | embed::sessions::Call::SessionRebaseJournal { this, .. } => {
                 Rule::Session(this.op(), Access::Edit)
@@ -277,7 +277,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | sessions::Call::SessionJoin { .. }
             | sessions::Call::SessionHeartbeat { .. }
             | sessions::Call::SessionRelay { .. }
-            | sessions::Call::SessionClaimOwnership { .. }
+            | sessions::Call::SessionClaimLease { .. }
             | sessions::Call::SessionSubmit { .. }
             | sessions::Call::SessionRebaseJournal { .. } => true,
         },
@@ -1941,7 +1941,7 @@ impl Client {
                 };
                 let _ = streams.send(&mut lock, event, only);
             }
-            Call::SessionClaimOwnership {
+            Call::SessionClaimLease {
                 this,
                 reply,
                 generation,
@@ -1980,7 +1980,7 @@ impl Client {
                         .registry
                         .state(block)
                         .await
-                        .is_owner(connection.client)
+                        .is_holder(connection.client)
                         && connection
                             .store
                             .require_access(connection.identity()?, vec![block.block], Access::Edit)
@@ -2125,7 +2125,7 @@ impl Client {
                     // Kept only from the current holder of its generation: one whose lease
                     // lapsed or passed seals until the next `Lease` tells it, and the journal is
                     // the new holder's to trim.
-                    if !state.is_owner(connection.client) || state.generation != generation {
+                    if !state.is_holder(connection.client) || state.generation != generation {
                         return Ok(());
                     }
                     connection

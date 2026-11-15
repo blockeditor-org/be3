@@ -5,7 +5,7 @@ fn an_edit_made_across_a_takeover_is_kept() {
     let harness = Harness::start();
     let block = Uuid::new_v4();
     let mut owner = Outside::counter(&harness, block);
-    assert!(owner.is_owner());
+    assert!(owner.is_holder());
     let outside = owner.peer();
 
     harness.connect();

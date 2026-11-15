@@ -317,9 +317,9 @@ interface sessions {
     enum relay-kind {
         /// Presence and channel messages: any participant.
         peer,
-        /// Session state (a seal's news): only from a participant with edit
-        /// access.
-        edit,
+        /// A seal's news, which only the lease holder makes: only from a
+        /// participant with edit access.
+        seal,
     }
 
     /// What a session's `join` stream tells.
@@ -348,7 +348,7 @@ interface sessions {
         join: func() -> stream<session-event>;
 
         /// Claims the lease of `generation` once its holder left.
-        claim-ownership: async func(generation: u64) -> result<session-state, error>;
+        claim-lease: async func(generation: u64) -> result<session-state, error>;
 
         /// The lease holder's heartbeat, with the head it holds clean; answers
         /// the session's state either way.

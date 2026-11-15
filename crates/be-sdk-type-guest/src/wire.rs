@@ -13,6 +13,36 @@ pub struct Submitted {
     pub entry: Entry,
 }
 
+/// The session state a journal's base and a reload carry (`JournalBase::state`), which every
+/// replica opening there adopts: the type's own (`LiveEdit::session_state`), and how far the
+/// order holds each recent origin's local edits (`Submitted::through`), so a replica opened
+/// again there knows its own though the entries that held them were trimmed. Sealed with the
+/// block's key like the rest of the base: the server reads none of it.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct BaseState {
+    #[serde(with = "serde_bytes")]
+    pub content: Vec<u8>,
+    /// Origin, its highest `through`, and the sequence that holds it.
+    pub origins: Vec<(u64, u64, u64)>,
+}
+
+impl BaseState {
+    /// How many origins it keeps, the most recently numbered.
+    pub const KEPT_ORIGINS: usize = 64;
+
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).unwrap_or_default()
+    }
+
+    /// None reads as no state; bytes that do not decode as none.
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        match bytes.is_empty() {
+            true => Some(Self::default()),
+            false => postcard::from_bytes(bytes).ok(),
+        }
+    }
+}
+
 /// One entry of a session's order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Entry {
@@ -52,14 +82,14 @@ impl Submitted {
 pub fn kind(message: &SessionMessage) -> RelayKind {
     match message {
         SessionMessage::Presence { .. } | SessionMessage::Channel { .. } => RelayKind::Peer,
-        SessionMessage::Sealed { .. } => RelayKind::Edit,
+        SessionMessage::Sealed { .. } => RelayKind::Seal,
     }
 }
 
 /// Whether a message the server relayed as `kind` may say this: what the server checked covers
 /// what it asks for. A viewer could label a `Sealed` as presence; it is dropped.
 pub fn sent_as(message: &SessionMessage, as_kind: RelayKind) -> bool {
-    as_kind == RelayKind::Edit || kind(message) == RelayKind::Peer
+    as_kind == RelayKind::Seal || kind(message) == RelayKind::Peer
 }
 
 pub fn encode(message: &SessionMessage) -> Vec<u8> {

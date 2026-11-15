@@ -183,8 +183,13 @@ signed").
   carried in sessions, relays and commits, so two devices that meet compare
   what they were shown. The heads carried cover the session order too: each
   seal names the last sequence it holds and a digest of the order up to it,
-  signed by the holder, and a participant that applied a different order
-  through that sequence reports the fork.
+  signed by the holder, carried in the seal's sealed commit state as well as
+  in the relayed `Sealed`. The digest covers what the server assigned to each
+  entry (its sequence, floor and arrival) and what its author sent (its OpId,
+  base and payload), so a server that renumbers, restamps or reorders entries
+  is caught, not only one that alters them; a participant that applied a
+  different order through that sequence reports the fork. A participant who
+  leaves before the next seal is not checked against it.
 - A reader below Edit checks a sealer on a proof path, which can hide a later
   revocation of the sealer. That only lets a revoked editor hand a reader a
   key, and a reader below Edit never seals or wraps with it.

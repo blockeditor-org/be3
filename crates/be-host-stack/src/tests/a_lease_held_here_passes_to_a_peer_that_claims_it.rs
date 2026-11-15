@@ -17,7 +17,7 @@ fn a_lease_held_here_passes_to_a_peer_that_claims_it() {
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 0);
     let mut outside = Outside::joining(&harness, block);
-    assert!(!outside.is_owner(), "this peer opened the block first");
+    assert!(!outside.is_holder(), "this peer opened the block first");
     outside.claim();
 
     outside.add(5);

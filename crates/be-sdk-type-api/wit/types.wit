@@ -161,7 +161,7 @@ interface types {
     record status {
         head: option<commit-id>,
         /// Holds the lease, so seals.
-        owner: bool,
+        holder: bool,
         clean: bool,
         /// Every local edit is in the order: none waits to be submitted or
         /// numbered.
@@ -195,13 +195,13 @@ interface types {
     }
 
     /// What a message to peers carries, which the server checks against its
-    /// sender: `peer` for presence, channel messages and asking to catch up,
-    /// which any participant sends; `edit` for operations and session state,
-    /// only from a participant with edit access. The host passes it to the
+    /// sender: `peer` for presence and channel messages, which any participant
+    /// sends; `seal` for a seal's news, only from a participant with edit
+    /// access. The host passes it to the
     /// server and ignores it for an editor or itself.
     enum relay-kind {
         peer,
-        edit,
+        seal,
     }
 
     /// What the server says of a peer's message it relayed.

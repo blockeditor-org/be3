@@ -203,8 +203,8 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.status(self.block)
     }
 
-    pub fn is_owner(&self) -> bool {
-        self.status().is_some_and(|status| status.owner)
+    pub fn is_holder(&self) -> bool {
+        self.status().is_some_and(|status| status.holder)
     }
 
     pub fn client(&self) -> Option<ClientId> {

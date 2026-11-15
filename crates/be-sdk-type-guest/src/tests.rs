@@ -35,20 +35,21 @@ mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending;
 mod a_file_maps_to_a_block_and_back;
 mod a_peer_edit_numbered_first_goes_beneath_an_unconfirmed_edit;
-mod a_follower_keeps_its_unconfirmed_edit_through_a_reload;
-mod a_follower_reads_a_part_again_when_a_read_fails;
-mod a_follower_replaces_the_content_and_the_owner_takes_it;
-mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
-mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
-mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
-mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
-mod a_followers_edit_after_it_reopens_on_the_same_connection_lands;
+mod a_peer_keeps_its_unconfirmed_edit_through_a_reload;
+mod a_peer_reads_a_part_again_when_a_read_fails;
+mod a_peer_replaces_the_content_and_the_holder_takes_it;
+mod a_peer_takes_the_lease_with_what_the_holder_had_not_sealed;
+mod a_peer_that_takes_the_lease_after_a_seal_publishes_on_top_of_it;
+mod a_peer_that_takes_the_lease_saves_its_edit_too_large_to_relay;
+mod a_peer_typing_while_the_holder_types_keeps_both_runs_whole;
+mod a_peers_edit_after_it_reopens_on_the_same_connection_lands;
+mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_another_seals_it;
 mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
-mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
-mod a_followers_edit_too_large_to_relay_lands_once;
-mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
-mod a_followers_paste_too_large_to_relay_lands_once_over_the_owners_unsealed_edits_and_undoes_alone;
-mod a_followers_put_that_failed_is_tried_again;
+mod a_peers_edit_too_large_to_relay_is_lacking_until_the_holder_accepts_it;
+mod a_peers_edit_too_large_to_relay_lands_once;
+mod a_peers_edit_too_large_to_relay_lands_once_when_the_holder_leaves;
+mod a_peers_paste_too_large_to_relay_lands_once_over_the_holders_unsealed_edits_and_undoes_alone;
+mod a_peers_put_that_failed_is_tried_again;
 mod a_forged_arrival_is_replaced_by_the_orders;
 mod a_gesture_is_one_undo_step_and_quick_edits_absorb;
 mod a_head_written_offline_merges_once_its_replica_opens;
@@ -61,24 +62,24 @@ mod a_merge_that_failed_is_not_retried_by_a_replica_that_stopped_owning_the_sess
 mod a_merge_that_waits_for_something_other_than_a_part_is_reported_not_waited_for;
 mod an_entry_no_build_can_read_is_passed_over_by_every_replica;
 mod a_module_answers_stateless_requests;
-mod a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed;
-mod a_new_owner_replays_a_journaled_edit_by_its_part;
+mod a_new_holder_recovers_edits_from_the_journal_of_one_that_crashed;
+mod a_new_holder_replays_a_journaled_edit_by_its_part;
 mod a_part_longer_than_any_edit_is_not_read;
 mod a_peer_running_another_build_is_refused;
 mod a_refusal_that_leaves_the_commit_in_the_outbox_fails_the_edit_instead_of_settling_it;
 mod a_rejected_seal_merges_the_newer_head_and_publishes_again;
 mod a_replaced_file_takes_none_of_the_old_files_header;
-mod a_replacement_keeps_a_followers_unconfirmed_edits_in_history;
-mod a_replacement_made_while_the_owner_is_gone_reaches_every_peer;
-mod a_replacement_made_while_the_owner_is_gone_reaches_the_owner_that_takes_over;
+mod a_replacement_keeps_a_peers_unconfirmed_edits_in_history;
+mod a_replacement_made_while_the_holder_is_gone_reaches_every_peer;
+mod a_replacement_made_while_the_holder_is_gone_reaches_the_holder_that_takes_the_lease;
 mod a_replacement_on_its_way_is_not_counted_as_held_by_the_head;
 mod a_replica_that_loads_only_the_header_reads_the_payload_on_demand;
-mod a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors;
-mod a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling;
+mod a_restart_keeps_a_peers_pending_edit_and_the_peers_cursors;
+mod a_restart_waits_for_the_holder_to_be_alone_below_the_ceiling;
 mod a_seal_rejected_after_edits_journaled_during_it_merges_and_publishes_them_once;
 mod a_seal_that_failed_is_tried_again_on_a_timer_and_owes_nothing_meanwhile;
 mod a_seal_whose_journal_did_not_reach_the_server_opens_as_the_seal;
-mod a_small_edit_after_a_large_one_lands_in_order_when_the_owner_reads_late;
+mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod an_abandoned_lease_is_claimed;
@@ -88,20 +89,20 @@ mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_external_publish_merges_into_a_live_replica;
 mod an_hour_of_steady_edits_makes_about_twelve_commits;
 mod an_operation_adds_a_part_by_its_hash;
-mod an_owner_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_owner;
-mod an_owner_renews_its_lease_while_it_holds_the_session;
-mod an_owner_whose_lease_lapsed_follows_whoever_claims_it;
-mod an_owner_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
-mod an_owner_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
-mod an_owners_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
-mod an_owners_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
+mod a_holder_demoted_while_its_put_is_pending_sends_the_edit_to_the_new_holder;
+mod a_holder_renews_its_lease_while_it_holds_the_session;
+mod a_holder_whose_lease_lapsed_follows_whoever_claims_it;
+mod a_holder_whose_merge_cannot_read_its_parts_makes_no_due_seal_that_would_be_rejected;
+mod a_holder_whose_merge_cannot_read_its_parts_owes_no_seal_until_it_can;
+mod a_holders_edit_too_large_to_relay_goes_by_its_part_and_is_committed_at_once;
+mod a_holders_edit_too_large_to_relay_is_lacking_until_its_part_is_put_and_appended;
 mod arrivals;
 mod child_changes_become_edits_of_the_parent;
 mod closing_seals_and_releases;
 mod concurrent_edits_converge;
 mod edits_are_committed_once_they_rest_for_the_quiet_interval;
 mod edits_peer_ops_and_a_close_during_a_pending_merge_wait_behind_it_and_land_on_its_result;
-mod followers_keep_what_the_owner_typed_while_its_seal_was_out;
+mod peers_keep_what_the_holder_typed_while_its_seal_was_out;
 mod peer_messages_reach_one_peer_or_all_of_them;
 mod presence_reaches_late_joiners_and_leaves_with_its_client;
 mod every_replica_stamps_an_operation_with_when_the_server_took_it;
@@ -1033,7 +1034,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 let may_edit = self.devices[device].may_edit;
                 let allowed = match kind {
                     RelayKind::Peer => true,
-                    RelayKind::Edit => may_edit,
+                    RelayKind::Seal => may_edit,
                 };
                 if !allowed && !matches!(to, Recipients::One(Endpoint::Editor(_))) {
                     return;
@@ -1271,7 +1272,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             } => {
                 self.to(device, |host| reply.send(host, &()));
                 let state = self.lease.state();
-                if !state.is_owner(client) || state.generation != generation {
+                if !state.is_holder(client) || state.generation != generation {
                     return;
                 }
                 // Another build's entries go: the holder could not have applied them.

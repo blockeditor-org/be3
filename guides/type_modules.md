@@ -422,7 +422,7 @@ order: `Sealed`, presence and channel messages. The rules an agent most needs:
   a host that waits on the answer may be what would hand the replica the order.
 - **Who sends what.** The server takes submissions only from editors of the
   session's build. Relayed messages carry the kind the server checked
-  (`relay-kind`, `wire::kind`): `peer` for presence and channel messages, `edit`
+  (`relay-kind`, `wire::kind`): `peer` for presence and channel messages, `seal`
   for `Sealed`; a replica drops a message that asks for more than its stamped
   kind (`wire::sent_as`). Editors are trusted with the block's content and
   session; only viewers are kept out. The server holds a part for the whole

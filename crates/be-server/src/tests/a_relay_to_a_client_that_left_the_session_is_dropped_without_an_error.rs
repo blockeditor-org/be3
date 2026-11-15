@@ -43,13 +43,13 @@ async fn body() {
     assert!(gone, "the peer never left the session");
     let sealed = author.commits.vault().seal(KEY, b"sequenced").unwrap();
     let response = owner
-        .relay(block, Some(peer_id), RelayKind::Edit, sealed.clone())
+        .relay(block, Some(peer_id), RelayKind::Seal, sealed.clone())
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 
     // A client the session never had is the same.
     let response = owner
-        .relay(block, Some(9_999), RelayKind::Edit, sealed)
+        .relay(block, Some(9_999), RelayKind::Seal, sealed)
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
 

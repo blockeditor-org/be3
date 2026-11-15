@@ -246,6 +246,14 @@ pub fn rebase(
     let (org, id) = (organization.to_string(), block.to_string());
     let before = head(&transaction, organization, block)?;
     let other = before.as_ref().is_some_and(|head| head.tag != tag);
+    // A seal holds only what was numbered: a base past the order's last number would leave
+    // the order numbering below what is sealed.
+    if let Some(head) = &before
+        && !other
+        && base.sequence > head.order.sequence
+    {
+        return Err(refuse("the journal's base is past the order's last entry"));
+    }
     let order = match &before {
         Some(head) if !other && head.order.sequence > base.sequence.max(head.base.sequence) => {
             head.order

@@ -509,7 +509,7 @@ client that has left the session (or never joined) is dropped without an error:
 it is best-effort, and the sender cannot know the other left. Each relay reaches
 participants stamped with when the server took it (`received`, by its clock).
 The server cannot read a relay, so each names its `relay-kind`: `peer` (presence,
-channel messages) needs view access, and `edit` (a seal's news) edit access
+channel messages) needs view access, and `seal` (a seal's news) edit access
 (`rule`). The server stamps what it checked on what it delivers
 (`relayed.kind`), and receivers drop a message that asks for more, since the
 label is the sender's. Editors are trusted with the block's content and session.

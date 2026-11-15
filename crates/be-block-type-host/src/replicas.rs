@@ -541,6 +541,10 @@ struct Open {
     /// The last local edit submitted to the server online, which it may hold though the
     /// replica never heard so (`refs::OpenEdits::submitted_through`).
     submitted_through: u64,
+    /// The last number of the order this device heard for the block, from the journal it
+    /// opened on and each entry since: an entry past the next means one was lost, and the
+    /// replica rejoins to read them again. None until it is known.
+    heard_through: Option<u64>,
     /// Whether `replay`'s local edits or the counts beside them changed since they were kept
     /// on the device (`Replicas::keep_edits`).
     edits_changed: bool,
@@ -1203,6 +1207,7 @@ impl<H: Host> Replicas<H> {
             .as_ref()
             .map_or(0, |recovered| recovered.submitted_through);
         let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
+        let opening_journal = journal.clone().filter(|_| !before_join);
         let replay: Vec<Replayed> = recovered_edits
             .unwrap_or_default()
             .into_iter()
@@ -1309,6 +1314,7 @@ impl<H: Host> Replicas<H> {
                 origin,
                 given_up,
                 submitted_through,
+                heard_through: journal_through(opening_journal.as_ref()),
                 edits_changed: false,
                 reporting: None,
                 held: None,
@@ -1448,6 +1454,7 @@ impl<H: Host> Replicas<H> {
         };
         open.client = client;
         open.session = session.clone();
+        open.heard_through = journal_through(journal.as_ref());
         open.epoch += 1;
         open.publishing = 0;
         open.moved.clear();
@@ -2498,6 +2505,19 @@ impl<H: Host> Replicas<H> {
                 let Some(replica) = self.blocks.get(block).copied() else {
                     return;
                 };
+                if let Some(open) = self.open.get_mut(&replica)
+                    && !open.joining
+                {
+                    match open.heard_through {
+                        // One was lost: the replica reads them again on joining afresh.
+                        Some(through) if entry.sequence > through + 1 => {
+                            let rejoin = self.rejoins;
+                            return self.rejoin(peer, replica, rejoin);
+                        }
+                        Some(through) if entry.sequence <= through => return,
+                        _ => open.heard_through = Some(entry.sequence),
+                    }
+                }
                 let tag = self.open.get(&replica).map(|open| self.modules.tag(open.module));
                 let Some(tag) = tag else {
                     return;
@@ -3728,7 +3748,7 @@ impl<H: Host> Replicas<H> {
                 if !peer.is_attached() || made_up {
                     return false;
                 }
-                let claiming = peer.connection().claim_ownership(block, generation);
+                let claiming = peer.connection().claim_lease(block, generation);
                 let io = self.io.clone();
                 H::spawn(async move {
                     let claimed = claiming.await;
@@ -4110,6 +4130,17 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     let mut sealed = peer.sealed_journal(block)?;
     sealed.entries.clear();
     Some(sealed)
+}
+
+/// The last number of the order `journal` holds: its last entry's, or its base's.
+fn journal_through(journal: Option<&be_block_protocol::Journal>) -> Option<u64> {
+    let journal = journal?;
+    Some(
+        journal
+            .entries
+            .last()
+            .map_or(journal.base.sequence, |entry| entry.sequence),
+    )
 }
 
 /// What the device keeps of `open`'s local edits no journal holds yet (`refs::OpenEdits`): each,

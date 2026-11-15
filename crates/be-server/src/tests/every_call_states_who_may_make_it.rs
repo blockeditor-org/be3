@@ -460,8 +460,8 @@ impl TestClient {
         };
         answers.push(("session-join", joined));
         answers.push((
-            "session-claim-ownership",
-            answered(session.claim_ownership(1).await),
+            "session-claim-lease",
+            answered(session.claim_lease(1).await),
         ));
         answers.push((
             "session-heartbeat",
@@ -587,7 +587,7 @@ async fn every_call_states_who_may_make_it() {
         "set-access",
         "rotate",
         "session-join",
-        "session-claim-ownership",
+        "session-claim-lease",
         "session-heartbeat",
         "session-relay",
         "session-submit",

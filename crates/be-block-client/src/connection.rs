@@ -400,10 +400,10 @@ impl Connection {
         })
     }
 
-    pub fn claim_ownership(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
+    pub fn claim_lease(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
         let claimed = self
             .session(block)
-            .map(|session| session.claim_ownership(generation));
+            .map(|session| session.claim_lease(generation));
         Box::pin(async move { Ok(claimed?.await??) })
     }
 
