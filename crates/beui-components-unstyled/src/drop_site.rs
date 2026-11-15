@@ -98,7 +98,12 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
 /// row it would come after: read now from where the rows are laid out, relative to `list`
 /// (the node they sit in), so a scroll or a moving window carries them along. A row lands at
 /// the start of a row it passes going up, and at the end of one it passes going down, as the
-/// rows between close up behind it; rows of any length rest exactly.
+/// rows between close up behind it; rows of any length rest exactly, and a row of several
+/// children rests where all of them do.
+///
+/// Only a row of this list gets places: a key from another list (a move between sites) gets
+/// none until lists take items from each other (plans/declarative_dragging.md, step 2). A
+/// key shown more than once is carried as its first row; its other rows are left out.
 pub fn slots_in<K>(
     list: NodeRef,
     rows: ForEachRef<K, NodeId>,
@@ -125,10 +130,12 @@ where
         return Vec::new();
     };
     let keys = untrack(|| rows.keys());
+    // A row of several children rests where all of them do.
     let rect_of = |key: &K| {
-        let node = *rows.nodes_of(key).first()?;
-        let (rect, _) = space.placed(node)?;
-        Some(rect)
+        rows.nodes_of(key)
+            .into_iter()
+            .filter_map(|node| space.placed(node).map(|(rect, _)| rect))
+            .reduce(|all, rect| all.union(rect))
     };
     let Some(home) = keys.iter().position(|key| key == carried) else {
         return Vec::new();
