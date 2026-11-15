@@ -209,9 +209,15 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     be_host_stack::discovery::load().await;
     // The page makes no file call: the host's worker reads its files and answers, while the
     // page's start-up look stays up (`#status`), then the host shows its first screen.
+    // An error named `BeSavedData` tells the page (host.js) the saved data could not be read,
+    // not that drawing failed.
     let (host_state, workspaces) = host_files::open(PathBuf::from(WEB_DATA_DIR))
         .await
-        .map_err(|error| wasm_bindgen::JsValue::from_str(&error))?;
+        .map_err(|error| {
+            let error = web_sys::js_sys::Error::new(&error);
+            error.set_name("BeSavedData");
+            wasm_bindgen::JsValue::from(error)
+        })?;
     let mut core = HostCore::new(host_state, workspaces)
         .map_err(|error| wasm_bindgen::JsValue::from_str(&error.to_string()))?;
     if let Some(status) = web_sys::window()

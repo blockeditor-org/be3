@@ -193,9 +193,13 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
             } catch (error) {
                 console.error(error);
                 started.reject(error);
-                fail(
-                    "be-host could not start.",
-                    `${error}\n\nbe-host draws with WebGPU or WebGL through a canvas. ` +
-                        "Check the browser console for details.",
-                );
+                if (error?.name === "BeSavedData") {
+                    fail("be-host could not open its saved data:", error.message);
+                } else {
+                    fail(
+                        "be-host could not start.",
+                        `${error}\n\nbe-host draws with WebGPU or WebGL through a canvas. ` +
+                            "Check the browser console for details.",
+                    );
+                }
             }
