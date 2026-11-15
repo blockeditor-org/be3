@@ -337,7 +337,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     let forged = forged_deletions(editor, chat, signing);
     let rows: KeyedStore<ObjectId, Row> = KeyedStore::new();
     create_effect(move || {
-        let _ = chat.revision();
+        chat.track();
         let forged = forged.get();
         if let Ok(rows_now) =
             chat.read(|content| row_list(content, &content.shown(), me, &forged, None))
@@ -377,7 +377,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     // out of the chat (a move, a delete in the files pane, a send from another device).
     let restored = std::cell::Cell::new(false);
     create_effect(move || {
-        let _ = chat.revision();
+        chat.track();
         let Ok(drafted) = chat.read(|content| content.drafts_of(me)) else {
             return;
         };
@@ -513,7 +513,7 @@ pub fn Chat(editor: Editor) -> NodeId {
     let visible = editor.presence_visible();
     let lacking_any = create_memo(move || lacking.with(|lacking| !lacking.is_empty()));
     create_effect(move || {
-        let _ = chat.revision();
+        chat.track();
         let visible = visible.get();
         let unconfirmed = lacking_any.get();
         // Only while every edit of ours (a message, a close, an edit, a reaction) is confirmed: a
@@ -769,7 +769,7 @@ impl Older {
         });
         // What was read follows the edits, deletions and reactions made to it since.
         create_effect(move || {
-            let _ = chat.revision();
+            chat.track();
             let (segments, read, forged) = (segments.get(), read.get(), forged.get());
             let rows_now = chat
                 .read(|content| {
@@ -1151,7 +1151,7 @@ fn forged_deletions(
     type Verdicts = HashMap<ObjectId, (Deletion, Option<Signer>)>;
     let verdicts: Signal<Verdicts> = create_signal(HashMap::new());
     create_effect(move || {
-        let _ = chat.revision();
+        chat.track();
         let block = signing.get();
         let Ok(made) = chat.read(ChatContent::deletions_made) else {
             return;
