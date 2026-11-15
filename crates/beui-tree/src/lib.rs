@@ -32,7 +32,7 @@ pub mod reactive {
     pub use crate::into_prop_via;
     pub use crate::prop::{
         ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoFunc, IntoLiftedProp,
-        IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,
+        IntoOptionalFunc, IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{

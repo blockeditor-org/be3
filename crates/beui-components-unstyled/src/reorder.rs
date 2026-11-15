@@ -18,13 +18,6 @@ use beui_view::types::{
 use crate::drag::{DRAG_THRESHOLD, DropHandle, DropTarget};
 use crate::glide::{Glide, GlideApi, GlideHold};
 
-/// The spring rows and gaps settle by. It becomes a required prop once a styled
-/// `Reorder` can forward this one's optional props (plans/glide_on_a_signal.md).
-const SPRING: Spring = Spring {
-    stiffness: 500.0,
-    damping: 42.0,
-};
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReorderMove<K, P> {
     pub payload: P,
@@ -70,6 +63,7 @@ enum Arrival<K> {
 }
 
 struct State<K: 'static, P: 'static> {
+    spring: Spring,
     keys: Memo<Vec<K>>,
     direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
@@ -504,7 +498,7 @@ where
             let aim = state.aim.get();
             let mut offset = shown.size - aim;
             let mut speed = state.speed.get();
-            SPRING.advance(&mut offset, &mut speed, seconds);
+            state.spring.advance(&mut offset, &mut speed, seconds);
             state.speed.set(speed);
             shown.size = (aim + offset).max(0.0);
             let moving = offset != 0.0 || speed != 0.0;
@@ -904,6 +898,7 @@ where
 #[component]
 pub fn Reorder<K, P>(
     value: Prop<Vec<K>>,
+    spring: Spring,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
@@ -930,6 +925,7 @@ where
     let floating_at = create_signal(None::<DragPoint>);
     let announcement = create_signal(String::new());
     let state = store(State {
+        spring,
         keys,
         direction,
         payload,
@@ -1236,13 +1232,14 @@ where
         }
     };
     let long_press = state.with(|state| state.long_press);
+    let spring = state.with(|state| state.spring);
     let on_long_press = match long_press {
         Prop::Static(false) => Callback::empty(),
         _ => Callback::new(long_pressed),
     };
     let api = ComponentRef::<GlideApi>::new();
     let inner = view! {
-        <Glide spring=SPRING on={arm} within={Some(api)}>
+        <Glide spring on={arm} within={Some(api)}>
             <Interactive
                 cursor
                 capture_presses
@@ -1266,7 +1263,7 @@ where
     };
     let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row api spring=SPRING on={arm} from={from} raised={raised}>
+        <Glide @node_ref=&row api spring on={arm} from={from} raised={raised}>
             <Frame padding={padding}>{inner}</Frame>
         </Glide>
     };

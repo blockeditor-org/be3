@@ -11,7 +11,7 @@ use crate::scroll::{Bleed, Scroll};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
 use crate::theme::{Density, use_density};
-use crate::tokens::{Padding, Size, Space, Stroke};
+use crate::tokens::{Movement, Padding, Size, Space, Stroke};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
@@ -136,7 +136,7 @@ where
                             ancestors
                             spacing
                             editing
-                            reorder
+                            reorder={reorder.then(|| Movement::Settle.spring())}
                             pastes
                             on_paste={on_paste}
                             menu={menu.map(|menu| unstyled::TreeMenus::new(menu_style(), menu))}

@@ -3093,6 +3093,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     view! {
         <Reorder
             value={entries}
+            spring={dock.curves.settle}
             direction
             payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
             accepts={move |dragged: DockDragged| dock.bar_admits(leaf, dragged)}
@@ -4271,7 +4272,8 @@ fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
 }
 
 /// How the dock's motions look: the easing gaps open and close and a sidebar
-/// changes width on (`ease`), the spring a dropped bar lands on (`settle`), the
+/// changes width on (`ease`), the spring a dropped bar and reordered tabs land on
+/// (`settle`), the
 /// spring a floating window pulled past the edge comes back on (`pull`), the
 /// spring the default tab strip's tabs come back on when scrolled past an end
 /// (`rubber`), and how a pane slides away on back (`slide`).

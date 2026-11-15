@@ -181,6 +181,8 @@ type Nodes<K> = Stored<RefCell<HashMap<K, NodeRef>>>;
 /// the row is built (not reactive: a row whose formats change needs a new
 /// key), and a paste while it has the focus reports `on_paste` with its key.
 /// `TreeApi::focus` moves the focus to a row, so a menu can aim a paste at it.
+/// Given `reorder`, a dragged row parts the rows it passes, which settle on that
+/// spring.
 #[component]
 pub fn Tree<K>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TreeApi<K>>,
@@ -191,7 +193,7 @@ pub fn Tree<K>(
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
     #[prop(default = None)] menu: Option<TreeMenus<K>>,
-    #[prop(default = false)] reorder: bool,
+    #[prop(default = None)] reorder: Option<Spring>,
     #[prop(default = None)] pastes: Option<Func<K, Vec<String>>>,
     on_paste: Callback<(K, ClipItem)>,
     on_select: Callback<K>,
@@ -324,13 +326,14 @@ where
             </List>
         }
     };
-    if !reorder {
+    let Some(spring) = reorder else {
         return rows(None);
-    }
+    };
     let group = state.group;
     view! {
         <Reorder
             value={group}
+            spring
             payload={Func::new(|_: K| None::<()>)}
             preview={|_: ()| view! {
                 <Frame />

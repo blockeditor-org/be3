@@ -582,7 +582,14 @@ fn named_setter(prop: &Prop) -> Setter {
     } else if let Some(render) = &prop.render {
         render_setter(ident, render, |build| build)
     } else if let Some(args) = &prop.optional_func_args {
-        func_setter(ident, args, |build| quote! { Some(#build) })
+        let (value, result) = (&args[0], &args[1]);
+        Setter {
+            method: ident.clone(),
+            generics: quote! { <__Passed> },
+            args: quote! { value: impl ::__beui_tree::reactive::IntoOptionalFunc<#value, #result, __Passed> },
+            where_clause: quote! {},
+            value: quote! { ::__beui_tree::reactive::IntoOptionalFunc::into_optional_func(value) },
+        }
     } else if let Some(args) = &prop.func_args {
         func_setter(ident, args, |build| build)
     } else if prop.is_optional_click_callback {
@@ -869,8 +876,10 @@ fn is_named_type(ty: &Type, name: &str) -> bool {
 /// `Children` and `Binding<T>` props are never required; an unset binding is a signal in
 /// the component's scope holding the default, or `Default::default()`, unless the binding
 /// is marked `#[prop(required)]` (a control whose value has no sensible default). An `Option<T>` prop also takes a plain `T`,
-/// except for primitives (so a literal keeps its type) and `String`. A missing or
-/// repeated prop is a compile error at the tag.
+/// except for primitives (so a literal keeps its type) and `String`. An optional `Prop`,
+/// render or `Func` prop also takes another component's `Option` of the same, passed on as
+/// it is, so a wrapper forwards one without a tag per case. A missing or repeated prop is a
+/// compile error at the tag.
 ///
 /// The prop named `children`, or the one marked `#[prop(children)]`, is filled by the
 /// block between the tags; a component has at most one, and `children` wins.
