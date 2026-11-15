@@ -54,6 +54,9 @@ impl From<ListMarker> for MarkerKind {
 pub struct TextMarker {
     pub state: TextAreaState,
     pub line: usize,
+    /// The marker's kind. Its variant, and whether a bullet is written (`written`), hold for the
+    /// hook's life: the area builds the hook anew when they change, so a hook may choose what to
+    /// draw from them once, untracked. What a kind carries (a number, a check) changes in place.
     pub kind: Memo<MarkerKind>,
     pub label: Memo<String>,
     pub depth: Memo<usize>,

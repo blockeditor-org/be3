@@ -27,8 +27,10 @@ const MASK: &str = "*";
 const OBJECT: &str = "\u{fffc}";
 const NEWLINE_MARKER: &str = "\u{23ce}";
 const NEWLINE_SLOT: &str = "mm";
-const CARRIAGE_RETURN: &str = "\u{200b}";
 const ELLIPSIS: &str = "...";
+const CONTROL_NAME_EM: f32 = 0.7;
+/// Set either side of a control character's name, so it does not run into the text.
+const CONTROL_SPACE: char = '\u{2009}';
 const DELETED_PREVIEW: usize = 48;
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -149,7 +151,9 @@ pub struct Invisible {
     pub display: Range<usize>,
     pub glyph: &'static str,
     pub font: FontId,
-    pub trailing: bool,
+    /// Drawn whether or not it is selected: trailing whitespace, and a control character, which
+    /// is nothing but its marker.
+    pub always: bool,
 }
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -391,9 +395,30 @@ fn invisible_marker(byte: u8) -> Option<&'static str> {
     match byte {
         b' ' => Some("\u{00b7}"),
         b'\t' => Some("\u{21e5}"),
-        b'\r' => Some("\u{240d}"),
-        _ => None,
+        _ => control_marker(byte),
     }
+}
+
+/// The name shown for a control character with no width of its own (NUL, BEL, CR and the
+/// rest of C0, and DEL), its ASCII abbreviation, which takes its place, and so its width, in
+/// the row. Tab and newline have widths and markers of their own. The abbreviations are text,
+/// not Control Pictures symbols, which the bundled fonts do not have.
+fn control_marker(byte: u8) -> Option<&'static str> {
+    const NAMES: [&str; 32] = [
+        "NUL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "HT", "LF", "VT", "FF", "CR",
+        "SO", "SI", "DLE", "DC1", "DC2", "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", "EM", "SUB",
+        "ESC", "FS", "GS", "RS", "US",
+    ];
+    match byte {
+        b'\t' | b'\n' => None,
+        0x7f => Some("DEL"),
+        _ => NAMES.get(usize::from(byte)).copied(),
+    }
+}
+
+/// The font a control character's name is shown in, smaller than the text around it.
+fn control_font(font: FontId) -> FontId {
+    FontId::monospace(font.size * CONTROL_NAME_EM)
 }
 
 fn invisibles_of(
@@ -412,9 +437,10 @@ fn invisibles_of(
         }
         let display = row.to_display(at)..row.to_display(at + 1);
         let shown = row.display.get(display.clone()).unwrap_or_default();
-        let real = match byte {
-            b'\r' => shown == CARRIAGE_RETURN,
-            _ => shown.as_bytes() == [*byte],
+        let control = control_marker(*byte).is_some();
+        let real = match control {
+            true => shown.trim_matches(CONTROL_SPACE) == glyph,
+            false => shown.as_bytes() == [*byte],
         };
         let Some(span) = row
             .spans
@@ -429,7 +455,7 @@ fn invisibles_of(
             display,
             glyph,
             font: span.style.font,
-            trailing: at >= trailing_from,
+            always: control || at >= trailing_from,
         });
     }
     found
@@ -873,14 +899,18 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             continue;
         }
         let byte = bytes[index];
-        if invisibles && byte == b'\r' {
-            builder.push(
-                CARRIAGE_RETURN,
-                index..index + 1,
-                false,
-                base,
-                SpanKind::Text,
-            );
+        if let Some(glyph) = control_marker(byte).filter(|_| invisibles) {
+            // The marker drawn over it (`invisibles_of`) is laid out in its place, unseen, with
+            // a thin space on each side, so the row makes room for it apart from the text.
+            let unseen = SpanStyle {
+                font: control_font(base.font),
+                color: Color::TRANSPARENT,
+                underline: false,
+                strikethrough: false,
+                ..base
+            };
+            let room = format!("{CONTROL_SPACE}{glyph}{CONTROL_SPACE}");
+            builder.push(&room, index..index + 1, false, unseen, SpanKind::Text);
             builder.leaf(style_at(index));
             index += 1;
             continue;
@@ -903,7 +933,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 || style_at(stop) != style
                 || run_starts(stop)
                 || (formats.is_some() && bytes[stop..end].starts_with(VOID.as_bytes()))
-                || (invisibles && bytes[stop] == b'\r')
+                || (invisibles && control_marker(bytes[stop]).is_some())
             {
                 break;
             }
@@ -945,7 +975,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             display: at..builder.row.display.len(),
             glyph: NEWLINE_MARKER,
             font: style.font,
-            trailing: false,
+            always: false,
         });
     }
     if snapshot

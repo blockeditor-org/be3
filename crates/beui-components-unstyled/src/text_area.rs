@@ -73,6 +73,8 @@ const SELECT_ALL_CLICKS: u32 = 4;
 const WORD_CLICKS: u32 = 2;
 const LINE_CLICKS: u32 = 3;
 const HANDLE_SLACK: f32 = 0.5;
+/// How many digits of a line number the gutter has room for.
+const GUTTER_DIGITS: usize = 4;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RemoteTextCursor {
@@ -161,7 +163,7 @@ impl Held {
 struct Surface {
     state: TextAreaState,
     single_line: bool,
-    line_numbers: bool,
+    scroll_past_end: bool,
     held: Stored<Held>,
     starts: Memo<Rc<Vec<usize>>>,
     visible: Memo<Vec<usize>>,
@@ -1269,17 +1271,14 @@ fn field_key(cx: &Context, press: KeyPress) -> bool {
         && (cx.completion_key(press) || keys::key(cx, press))
 }
 
-fn gutter_width(line_count: usize, font_size: f32, geometry: &TextAreaGeometry) -> f32 {
+/// The gutter's width, which holds `GUTTER_DIGITS` digits whatever the line count, so the text
+/// does not move as lines are added; a longer number is cut to its last digits
+/// (`lines::gutter_number`).
+fn gutter_width(font_size: f32, geometry: &TextAreaGeometry) -> f32 {
     let digit = lay_out_text("0", FontId::monospace(font_size), TextLayout::DEFAULT)
         .map_or(font_size * 0.6, |line| line.size().x);
-    let mut digits = 1;
-    let mut value = line_count.max(1);
-    while value >= 10 {
-        value /= 10;
-        digits += 1;
-    }
     let (left, right) = geometry.gutter_padding;
-    left + geometry.gutter_arrow + digit * digits as f32 + right
+    left + geometry.gutter_arrow + digit * GUTTER_DIGITS as f32 + right
 }
 
 #[derive(Clone, Copy)]
@@ -1316,12 +1315,18 @@ struct Field {
 /// `on_submit` or, without one, is left to what is around it (a dialog's
 /// confirm), and Tab, Escape, Alt+Up/Down and the Ctrl chords above are left
 /// alone. Space always inserts text.
+///
+/// `line_numbers` shows the gutter of line numbers (and folding arrows) for a document that is
+/// not rich text; it holds four digits whatever the line count. `scroll_past_end` leaves room
+/// below the last line to scroll it up to the top of the view, as an editor that fills its
+/// place does; an area whose height follows its text must not, or it would grow with the room.
 #[component]
 pub fn TextArea(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TextAreaApi>,
     state: TextAreaState,
     #[prop(default = false)] single_line: bool,
-    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] line_numbers: Prop<bool>,
+    #[prop(default = false)] scroll_past_end: bool,
     #[prop(default = Vec::new())] widgets: Prop<Vec<TextWidget>>,
     colors: Prop<TextAreaColors>,
     look: TextAreaLook,
@@ -1467,14 +1472,15 @@ pub fn TextArea(
                 .collect::<Vec<usize>>()
         })
     });
+    let line_numbers = create_memo(move || line_numbers.get());
     let gutter = create_memo(move || {
         scale.get();
         fonts.get();
         content.get();
         let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
-        match single_line || !line_numbers || rich {
+        match single_line || !line_numbers.get() || rich {
             true => 0.0,
-            false => gutter_width(starts.get().len(), font_size.get(), &geometry.get()),
+            false => gutter_width(font_size.get(), &geometry.get()),
         }
     });
     let composition = create_memo(move || {
@@ -1517,7 +1523,7 @@ pub fn TextArea(
     let cx = Surface {
         state,
         single_line,
-        line_numbers,
+        scroll_past_end,
         held,
         starts,
         visible,

@@ -7,12 +7,19 @@ use be_sdk_test::BeuiTest;
 use beui::Key;
 use uuid::Uuid;
 
+use super::*;
 use crate::presence::TextCursor;
 use crate::root::TextRoot;
 use crate::root::embeds::{image_embed_directive, parse_embeds};
+use crate::root::state::LINE_NUMBERS;
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_type_text::{TextBlock, TextContent};
-
+use beui::Vec2;
+mod a_bullet_a_peer_makes_a_task_draws_a_checkbox;
+mod a_bullet_typed_into_a_task_draws_a_checkbox;
+mod a_fenced_block_is_highlighted_in_the_language_it_names;
 mod a_hit_on_a_word_selects_it_whole_and_never_inside_another;
+mod a_line_number_too_long_for_the_gutter_is_cut_to_its_last_digits;
 mod a_link_to_a_block_you_cannot_see_reads_no_access_beside_one_you_can;
 mod a_long_text_fades_at_the_edges_it_scrolls_past_beside_its_scrollbar;
 mod a_paste_soon_after_typing_is_undone_on_its_own;
@@ -31,11 +38,13 @@ mod checkboxes_and_block_chips_line_up_with_their_text;
 mod classifies_markdown_image;
 mod clicking_into_the_text_shows_the_format_bar_without_a_keyboard_button;
 mod code_is_painted_on_its_background;
+mod control_characters_take_the_room_of_their_names;
 mod foreign_organization_url_is_not_an_embed;
 mod hex_view_keys_follow_apples_conventions_there_and_ctrls_elsewhere;
 mod image_embed_directive_uses_markdown_image;
 mod image_embed_directive_uses_plain_url;
 mod inline_code_keeps_its_background_where_it_wraps;
+mod line_numbers_are_hidden_until_chosen_and_kept_in_the_view;
 mod lists_and_quotes_are_painted_with_bullets_and_bars;
 mod markdown_is_painted_with_its_styles;
 mod peers_carets_follow_their_presence_and_go_when_it_is_hidden;
@@ -48,6 +57,7 @@ mod switching_to_hex_view_shows_the_bytes;
 mod the_caret_is_shown_to_peers_in_a_color_they_are_not_using;
 mod the_copy_button_copies_a_code_block_without_its_fences;
 mod the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows;
+mod the_last_line_scrolls_up_to_the_top_of_the_view;
 mod the_markdown_showcase_is_painted;
 mod the_palette_and_the_shortcuts_run_the_format_actions;
 mod the_text_settings_point_at_the_tab_whose_menu_opened_them;
@@ -193,4 +203,22 @@ fn step_through_wrapped_line(
     back.reverse();
     back.push(start as u64);
     assert_eq!(ups, back, "Up retraces the rows Down took");
+}
+
+fn opened(block: Uuid, view: Uuid, text: &str, saved: EditorViewContent) -> BeuiTest<TextRoot> {
+    let host = EditorHost::default();
+    host.set_editable(true);
+    host.set_view_block(Some(view));
+    let mut editor = BeuiTest::new(OwnedEditor::new(host, block)).with_top_bar(false);
+    editor.hold(None, TextBlock::of(text));
+    editor.hold(Some(view), saved);
+    editor.run();
+    editor
+}
+fn line_numbers(editor: &BeuiTest<TextRoot>, view: Uuid) -> Option<bool> {
+    editor
+        .content::<EditorViewContent>(Some(view))
+        .root()
+        .state(LINE_NUMBERS)
+        .and_then(|state| state.value::<bool>())
 }
