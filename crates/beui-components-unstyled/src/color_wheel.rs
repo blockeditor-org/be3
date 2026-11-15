@@ -301,7 +301,7 @@ pub fn ColorWheel(
         if dragging.get() {
             return CursorIcon::Grabbing;
         }
-        let _ = point.get();
+        point.track();
         let over = hovered.get()
             && pointer
                 .get()

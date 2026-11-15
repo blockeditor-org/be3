@@ -2968,27 +2968,33 @@ impl CanvasState {
             }
         });
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.child_states.with(|_| ());
-            untrack(|| state.autosize_direct_editors());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.child_states.track();
+            },
+            move |_, _| state.autosize_direct_editors(),
+        );
         let state = self;
         let visible = self.editor.presence_visible();
-        create_effect(move || {
-            visible.with(|_| ());
-            state.pointer.with(|_| ());
-            state.caret.with(|_| ());
-            state.selection.with(|_| ());
-            state.own_stroke.with(|_| ());
-            untrack(|| state.publish_presence());
-        });
+        create_effect_on(
+            move || {
+                visible.track();
+                state.pointer.track();
+                state.caret.track();
+                state.selection.track();
+                state.own_stroke.track();
+            },
+            move |_, _| state.publish_presence(),
+        );
         let state = self;
-        create_effect(move || {
-            state.entities.track_edits();
-            state.peers.with(|_| ());
-            untrack(|| state.read_presence());
-        });
+        create_effect_on(
+            move || {
+                state.entities.track_edits();
+                state.peers.track();
+            },
+            move |_, _| state.read_presence(),
+        );
         let state = self;
         let resized = self.editor.resized();
         create_effect(move || {

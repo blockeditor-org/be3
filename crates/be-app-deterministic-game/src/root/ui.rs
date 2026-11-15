@@ -292,7 +292,7 @@ fn GamePlay(
     let dragging = create_signal(None);
     let over = create_signal(None);
     create_effect(move || {
-        actions.with(|_| {});
+        actions.track();
         selected.set(None);
         choices.set(Vec::new());
     });

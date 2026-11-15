@@ -228,14 +228,7 @@ pub fn Glide(
         disarm.stop();
         disarm.start();
     };
-    let first = Cell::new(true);
-    create_effect(move || {
-        arm.get();
-        if first.replace(false) {
-            return;
-        }
-        arm_now();
-    });
+    create_effect_on_change(move || arm.get(), move |_, _| arm_now());
     create_effect(move || {
         let Some(from) = from.get() else {
             return;

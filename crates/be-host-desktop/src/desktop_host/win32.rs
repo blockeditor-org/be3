@@ -479,16 +479,10 @@ impl DesktopHost for Win32 {
             })
         });
         create_effect(move || {
-            drawn.get();
+            drawn.track();
             resize(id, rect.get().size());
         });
-        let asked_focus = StoredCell::new(focus.get_untracked());
-        create_effect(move || {
-            let asked = focus.get();
-            if asked_focus.replace(asked) != asked {
-                untrack(|| focus_entry(id, None));
-            }
-        });
+        create_effect_on_change(move || focus.get(), move |_, _| focus_entry(id, None));
         let drawn_width = create_memo(move || drawn.get().x);
         let drawn_height = create_memo(move || drawn.get().y);
         let popups = create_memo(move || {

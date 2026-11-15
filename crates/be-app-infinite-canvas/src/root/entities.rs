@@ -378,10 +378,7 @@ impl Entities {
             }
             entities.extent.set(catalogued.extent);
         });
-        create_effect(move || {
-            ids.with(|_| ());
-            untrack(|| entities.sweep());
-        });
+        create_effect_on(move || ids.track(), move |_, _| entities.sweep());
         entities
     }
 
@@ -405,12 +402,12 @@ impl Entities {
     }
 
     pub(crate) fn get(&self, id: Uuid) -> Option<CanvasEntity> {
-        self.ids.with(|_| ());
+        self.ids.track();
         self.signals(id).stored.get()
     }
 
     pub(crate) fn raster(&self, id: Uuid) -> Memo<Option<CanvasRaster>> {
-        self.ids.with(|_| ());
+        self.ids.track();
         self.signals(id).raster
     }
 

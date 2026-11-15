@@ -67,17 +67,20 @@ impl RevisionHistory {
             state: store(Requests::default()),
         };
         let changed = editor.pushed(Pushed::Histories);
-        let previous = Cell::new(None);
-        create_effect(move || {
-            changed.get();
-            let head = history.target.get().map(|item| {
-                editor.host().watch_history([item.id]);
-                (item.id, editor.host().history(item.id).head)
-            });
-            if previous.replace(head) != head {
-                untrack(|| history.load());
-            }
-        });
+        create_effect_on(
+            move || {
+                changed.get();
+                history.target.get().map(|item| {
+                    editor.host().watch_history([item.id]);
+                    (item.id, editor.host().history(item.id).head)
+                })
+            },
+            move |head, previous| {
+                if previous.unwrap_or(&None) != head {
+                    history.load();
+                }
+            },
+        );
         history
     }
 

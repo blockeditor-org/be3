@@ -175,14 +175,14 @@ impl Workspace {
             workspace.place_windows();
         });
         // Modes the host answered for give way to the next modes it publishes, which hold them.
-        create_effect(move || {
-            workspace.notify_modes.with(|_| ());
-            untrack(|| {
+        create_effect_on(
+            move || workspace.notify_modes.track(),
+            move |_, _| {
                 workspace
                     .setting_modes
                     .update(|modes| modes.retain(|_, (_, answered)| !*answered));
-            });
-        });
+            },
+        );
         workspace.list_programs_for_placeholders();
         create_effect(move || {
             workspace.open_landing();
@@ -205,10 +205,7 @@ impl Workspace {
             workspace.report_focus();
         });
         let contacts = workspace.editor.watch::<ContactsWatch>();
-        create_effect(move || {
-            contacts.with(|_| ());
-            untrack(|| workspace.relist_share());
-        });
+        create_effect_on(move || contacts.track(), move |_, _| workspace.relist_share());
         create_effect(move || {
             workspace.watch_artifacts();
         });

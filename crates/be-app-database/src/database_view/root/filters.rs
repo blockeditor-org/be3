@@ -497,7 +497,7 @@ fn ValueChoices(
                 .collect()
         });
         let query = query.get().trim().to_lowercase();
-        let _ = filter.get();
+        filter.track();
         data.rows.with(|rows| {
             data.fields.with(|fields| {
                 data.labels.with(|labels| {

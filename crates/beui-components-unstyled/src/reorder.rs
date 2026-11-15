@@ -980,7 +980,7 @@ where
     );
     state.with(|state| state.frames.set(Some(frames)));
     create_effect(move || {
-        keys.with(|_| ());
+        keys.track();
         state.with(|state| {
             if state.settling.replace(false) {
                 shut(state);

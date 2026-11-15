@@ -132,7 +132,7 @@ pub(crate) fn FrameChrome(
         }
     });
     let shown_in = create_memo(move || {
-        palette.get();
+        palette.track();
         docked.presenting(&host)
     });
     provide_context(crate::popover::PopoverWindow(shown_in));

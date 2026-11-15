@@ -18,7 +18,7 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
         });
         owner.update(|owner| *owner = Some(scope));
         bind(caption, move || {
-            label.get();
+            label.track();
             runs.update(|runs| *runs += 1);
         });
         [caption]

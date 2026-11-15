@@ -3,7 +3,7 @@ use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_binding;
-use crate::reactive::create_effect;
+use crate::reactive::create_effect_on;
 use crate::reactive::on_cleanup;
 use beui_core::base::interactive::InteractiveNode;
 use beui_core::current::with_document;
@@ -167,20 +167,21 @@ pub(crate) fn interactive(
             let text = ime_text.get();
             with_document(|document| document.set_focusable_ime_text(interactive, text))
         });
-        let asked = Cell::new(false);
-        create_effect(move || {
-            let wanted = focused.get();
-            if !wanted && !asked.replace(wanted) {
-                return;
-            }
-            with_document(|document| match wanted {
-                true => document.focus_focusable(interactive.id()),
-                false if document.focused_node() == Some(interactive.id()) => {
-                    document.update_focus(None)
+        create_effect_on(
+            move || focused.get(),
+            move |&wanted, asked| {
+                if !wanted && asked != Some(&true) {
+                    return;
                 }
-                false => {}
-            });
-        });
+                with_document(|document| match wanted {
+                    true => document.focus_focusable(interactive.id()),
+                    false if document.focused_node() == Some(interactive.id()) => {
+                        document.update_focus(None)
+                    }
+                    false => {}
+                });
+            },
+        );
     }
     create_binding(move || {
         let locked = pointer_locked.get();

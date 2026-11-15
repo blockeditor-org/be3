@@ -1474,7 +1474,7 @@ pub fn TextArea(
     });
     let line_numbers = create_memo(move || line_numbers.get());
     let gutter = create_memo(move || {
-        scale.get();
+        scale.track();
         fonts.get();
         content.get();
         let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
@@ -1578,7 +1578,7 @@ pub fn TextArea(
         let content = state.content();
         create_effect(move || {
             let width = text_extent.get().x;
-            view_width.get();
+            view_width.track();
             content.get();
             let empty = state.with_snapshot(|snapshot| snapshot.bytes.is_empty());
             let room = untrack(|| cx.room());
@@ -1656,7 +1656,7 @@ pub fn TextArea(
     let rights = cx.rights;
     create_effect(move || {
         let position = scrolled.get();
-        rights.with(|_| ());
+        rights.track();
         if single_line || position.viewport <= 0.0 {
             return;
         }
@@ -1669,12 +1669,12 @@ pub fn TextArea(
             }
         });
     });
-    let viewport_was = StoredCell::new(0.0_f32);
-    create_effect(move || {
-        let position = scrolled.get();
-        let was = viewport_was.replace(position.viewport);
-        untrack(|| cx.keep_caret_in_sight(position, was));
-    });
+    create_effect_on(
+        move || scrolled.get(),
+        move |&position, was| {
+            cx.keep_caret_in_sight(position, was.map_or(0.0, |was| was.viewport));
+        },
+    );
     let hover_cursor = create_signal(CursorIcon::Text);
     let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,

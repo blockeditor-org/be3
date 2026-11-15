@@ -1196,17 +1196,18 @@ pub fn Sheet(
             motion.place_content(offset, 0.0);
         }
     });
-    let was_open = Cell::new(false);
-    create_effect(move || {
-        let open = open.get();
-        if open == was_open.replace(open) {
-            return;
-        }
-        untrack(|| match open {
-            true => motion.value().enter(motion),
-            false => motion.value().leave(motion),
-        });
-    });
+    create_effect_on(
+        move || open.get(),
+        move |&open, was| {
+            if open == was.copied().unwrap_or(false) {
+                return;
+            }
+            match open {
+                true => motion.value().enter(motion),
+                false => motion.value().leave(motion),
+            }
+        },
+    );
     let flinging = motion.with(|motion| motion.held.flag());
     let flinging = create_memo(move || match flinging.get() {
         true => vec![Claim::always(true)],

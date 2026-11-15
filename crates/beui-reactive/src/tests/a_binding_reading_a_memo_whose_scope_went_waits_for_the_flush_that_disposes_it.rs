@@ -15,7 +15,7 @@ fn a_binding_reading_a_memo_whose_scope_went_waits_for_the_flush_that_disposes_i
         create_binding({
             let items = items.clone();
             move || {
-                place.get();
+                place.track();
                 let gone = items.borrow_mut().take();
                 if gone.is_some() {
                     drop(gone);
@@ -27,8 +27,8 @@ fn a_binding_reading_a_memo_whose_scope_went_waits_for_the_flush_that_disposes_i
         let label = item.run(|| create_memo(move || format!("place {}", place.get())));
         *items.borrow_mut() = Some(item);
         create_binding(move || {
-            hover.get();
-            label.get();
+            hover.track();
+            label.track();
         });
         let row: Rc<RefCell<Option<Scope>>> = Rc::default();
         create_binding({
@@ -48,7 +48,7 @@ fn a_binding_reading_a_memo_whose_scope_went_waits_for_the_flush_that_disposes_i
                         move || shown.borrow_mut().push(loud.get())
                     });
                     create_binding(move || {
-                        tick.get();
+                        tick.track();
                         shown.borrow_mut().push(label.get());
                     });
                 });

@@ -471,7 +471,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let scale = pixels_per_point();
     let theme = use_theme();
     let geometry = create_memo(move || {
-        scale.get();
+        scale.track();
         let char_width = lay_out_text("0", FontId::monospace(TEXT_SIZE), TextLayout::DEFAULT)
             .map_or(TEXT_SIZE * 0.6, |block| block.size().x)
             .max(1.0);

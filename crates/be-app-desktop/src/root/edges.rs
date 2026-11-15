@@ -370,9 +370,9 @@ fn HiddenBandEdge(
             untrack(|| open.set(true));
         }
     });
-    create_effect(move || {
-        let is_open = open.get();
-        untrack(|| {
+    create_effect_on(
+        move || open.get(),
+        move |&is_open, _| {
             if is_open {
                 // Whatever was pushing or swiping it out is spent: it must not leave the band
                 // part way out once it goes.
@@ -382,8 +382,8 @@ fn HiddenBandEdge(
                 motion.set(held);
             }
             nudge();
-        });
-    });
+        },
+    );
 
     // Whether the pointer is near the band, once the host has said.
     let near =

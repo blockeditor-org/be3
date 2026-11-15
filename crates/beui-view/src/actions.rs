@@ -778,7 +778,7 @@ fn install(registry: &Registry) {
             };
             let registry = Registry(registry);
             registry.0.version.get();
-            focused.get();
+            focused.track();
             let path = untrack(crate::core::actions::focus_ancestry);
             let hosts = match hosting {
                 Some(hosting) => hosting.get(),

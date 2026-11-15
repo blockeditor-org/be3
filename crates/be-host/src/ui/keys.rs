@@ -224,10 +224,7 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
     let code = create_signal(String::new());
     // A new request starts with no code; a refusal of this one keeps what was typed.
     let from = create_memo(move || request.get().map(|request| request.from));
-    create_effect(move || {
-        from.get();
-        untrack(|| code.set(String::new()));
-    });
+    create_effect_on(move || from.track(), move |_, _| code.set(String::new()));
     let cannot = create_memo(move || code.get().trim().is_empty());
     let approve = move || {
         if let Some(request) = request.get_untracked()

@@ -395,7 +395,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
     };
     let shown = NodeRef::new();
     create_effect(move || {
-        viewport.get();
+        viewport.track();
         if selected.get()
             && let Some(node) = shown.try_get()
         {

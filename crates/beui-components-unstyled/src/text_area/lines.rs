@@ -45,8 +45,8 @@ pub(super) fn Lines(cx: Context) -> NodeId {
             }
             // Room for all but a line of the view below the last line, so it scrolls up to the
             // top.
-            cx.font_size.get();
-            cx.metrics.get();
+            cx.font_size.track();
+            cx.metrics.track();
             let line = untrack(|| cx.row_estimate());
             Some(room.max(cx.view_height.get() - line))
         }
@@ -152,7 +152,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text = create_memo(move || {
         let scale = tracked_scale(cx.held);
         let laid = bounds.get().size() / scale;
-        cx.metrics.get();
+        cx.metrics.track();
         let body = lay_out_text(
             "",
             FontId::proportional(cx.font_size.get()),
@@ -396,8 +396,8 @@ fn row_cursors(cx: Context, model: Memo<Rc<Row>>) -> Memo<RowCursors> {
         let touch = cx.state.touch_mode().get();
         let handles = match touch {
             true => {
-                cx.state.caret_handle().get();
-                cx.shift.get();
+                cx.state.caret_handle().track();
+                cx.shift.track();
                 untrack(|| cx.handles())
                     .into_iter()
                     .filter(|(_, byte)| contains(byte))
@@ -675,7 +675,7 @@ fn RowText(
     });
     let anchor_at = create_memo(move || {
         let row = model.get();
-        cx.focused.get();
+        cx.focused.track();
         cursors.get().anchor.map(|byte| row.to_display(byte))
     });
     let anchored = create_memo(move || anchor_at.with(Option::is_some));

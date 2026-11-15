@@ -68,8 +68,8 @@ pub(super) fn keeper(host: EditorHost, editor: Editor, claimed: Rc<Cell<bool>>) 
             &host,
             editor,
             move || {
-                layout.with(|_| ());
-                keys.with(|_| ());
+                layout.track();
+                keys.track();
             },
             create_memo(move || keys.with(|keys| !keys.is_empty())),
         );

@@ -200,10 +200,10 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
     let state = dock.state;
     let described = dock.dialog;
     create_effect(move || {
-        let _ = state.with(DockState::focused_tab);
+        state.track();
         for (dialog, _) in keys.get() {
             if let Some(parts) = described.call(dialog) {
-                parts.modal.get();
+                parts.modal.track();
             }
         }
         untrack(|| dock.settle_dialog_focus());

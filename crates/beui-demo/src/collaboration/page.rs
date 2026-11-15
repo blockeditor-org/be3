@@ -187,8 +187,8 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
         right.content().get();
         left.cursors().get();
         right.cursors().get();
-        paused.get();
-        latency.get();
+        paused.track();
+        latency.track();
         pump.call(None);
     });
 
