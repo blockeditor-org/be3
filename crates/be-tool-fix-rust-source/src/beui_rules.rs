@@ -3,7 +3,7 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 24] = [
+const PRIMITIVE_USERS: [&str; 26] = [
     "crates/beui/",
     "crates/beui-host/",
     "crates/beui-view/",
@@ -13,6 +13,7 @@ const PRIMITIVE_USERS: [&str; 24] = [
     "crates/beui-dock-host/",
     "crates/beui-inspector/",
     "crates/beui-keyboard/",
+    "crates/beui-layer-space/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
     "crates/beui-tests/",
@@ -25,6 +26,7 @@ const PRIMITIVE_USERS: [&str; 24] = [
     "crates\\beui-dock-host\\",
     "crates\\beui-inspector\\",
     "crates\\beui-keyboard\\",
+    "crates\\beui-layer-space\\",
     "crates\\beui-renderer-wgpu\\",
     "crates\\beui-demo\\src\\base_pages.rs",
     "crates\\beui-shared-tests\\",

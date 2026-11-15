@@ -151,7 +151,6 @@ mod a_driver_aims_and_pulls_a_controller_through_the_host;
 mod a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated;
 mod a_driver_answers_a_file_dialog_with_a_file;
 mod a_driver_answers_a_save_dialog_by_writing_the_file;
-mod a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene;
 mod a_driver_cancels_the_fingers_the_system_takes_back;
 mod a_driver_carries_grabbed_files_and_drops_them;
 mod a_driver_clicks_a_button_by_its_label_and_hears_what_changed;
@@ -728,9 +727,6 @@ mod dragging_a_color_picker_previews_the_color_and_reports_it_once;
 mod dragging_a_color_wheels_ring_turns_its_hue;
 mod dragging_a_curved_slider_reads_its_midpoint_at_the_centre;
 mod dragging_a_dock_bar_by_its_grip_moves_it_to_an_edge_or_out_into_a_window;
-mod dragging_a_dock_tab_in_space_onto_another_panels_bar_moves_it_there;
-mod dragging_a_dock_tab_in_space_where_no_panel_is_opens_one_at_the_pointer;
-mod dragging_a_dock_windows_bar_in_space_carries_its_panel;
 mod dragging_a_gathered_panes_splitter_resizes_the_stage;
 mod dragging_a_hosted_dock_windows_bar_asks_its_host_to_move_it;
 mod dragging_a_number_input_sideways_changes_its_value;
@@ -886,7 +882,6 @@ mod picking_a_hidden_node_reveals_it_when_the_reveal_button_is_clicked;
 mod picking_a_node_in_the_components_tab_selects_the_component_that_built_it;
 mod picking_a_node_leaves_the_document_alone;
 mod picking_in_a_narrow_window_returns_to_the_inspector;
-mod pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it;
 mod pinching_a_pan_zoom_with_two_fingers_zooms_and_pans_it;
 mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod platform_scrolls_arrive_in_points;
@@ -911,11 +906,9 @@ mod removing_from_a_virtual_list_view_disposes_only_that_row;
 mod required_props_can_be_written_in_any_order_and_as_children;
 mod resizing_a_virtual_scroll_reuses_visible_items;
 mod resizing_a_window_from_its_top_edge_does_not_drag_it;
-mod resizing_a_window_in_space_lays_out_and_paints_only_that_window;
 mod resizing_an_element_damages_where_it_was_and_where_it_moved_to;
 mod resizing_rows_preserves_the_scroll_anchor;
 mod resizing_scaling_and_replacing_the_root_invalidate_the_cache;
-mod resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size;
 mod responsive_design_mode_lays_the_program_out_at_the_chosen_device_size;
 mod right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item;
 mod right_click_opens_a_context_menu_at_the_cursor_position;
@@ -1051,10 +1044,6 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_software_keyboard_covers_the_share_of_the_screen_it_is_set_to;
-mod the_space_host_carries_the_main_window_its_program_asks_to_move;
-mod the_space_host_keeps_the_keyboard_open_until_its_close_button_is_pressed;
-mod the_space_host_opens_a_programs_window_as_a_panel_at_the_pointer_and_clicks_reach_it;
-mod the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active;
 mod the_theme_follows_the_preferences_after_the_first_component_that_asked_for_it_goes;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_follows_the_title_and_clear_color_of_its_root;
@@ -2978,172 +2967,6 @@ impl Intaken {
             }
         }
         self.seen.take()
-    }
-}
-
-pub(crate) const SPACE_SCREEN: Vec2 = Vec2::new(800.0, 600.0);
-
-struct SpaceScreen;
-
-impl beui_runner::renderer::Renderer for SpaceScreen {
-    fn info(&self) -> RendererInfo {
-        RendererInfo::default()
-    }
-
-    fn resize(&mut self, _width: u32, _height: u32) {}
-
-    fn physical(&self) -> Option<Vec2> {
-        Some(SPACE_SCREEN)
-    }
-
-    fn prepare(
-        &mut self,
-        _output: &crate::native::WindowOutput,
-        _scale: f32,
-        _background: Color32,
-    ) -> bool {
-        false
-    }
-
-    fn present(&mut self, _background: Color32) -> bool {
-        false
-    }
-}
-
-struct SharedDocument(Rc<RefCell<Document>>);
-
-impl crate::native::Program for SharedDocument {
-    fn update(&mut self, context: &Context, rect: crate::geometry::Rect) {
-        self.0.borrow_mut().show(context, rect);
-    }
-}
-
-struct Nowhere;
-
-impl beui_runner::PlatformServices for Nowhere {}
-
-pub(crate) struct InSpace {
-    runner: beui_runner::Runner,
-    pub(crate) space: Rc<RefCell<beui_layer_space::Space>>,
-    pub(crate) document: Rc<RefCell<Document>>,
-}
-
-impl InSpace {
-    pub(crate) fn new(document: Document) -> Self {
-        let space = Rc::new(RefCell::new(beui_layer_space::Space::new()));
-        let document = Rc::new(RefCell::new(document));
-        let context = context();
-        let mut runner = beui_runner::Runner::new(beui_runner::Launch {
-            options: beui_runner::RunOptions::default(),
-            context: context.clone(),
-            program: Box::new(SharedDocument(Rc::clone(&document))),
-            layers: vec![Box::new(Rc::clone(&space))],
-        });
-        runner
-            .start(
-                beui_runner::renderer::Loaded {
-                    renderer: Box::new(SpaceScreen),
-                    fonts: None,
-                },
-                Setup::new(Waker::new(|| {})),
-            )
-            .expect("the renderer loads");
-        context.stop_clock();
-        Self {
-            runner,
-            space,
-            document,
-        }
-    }
-
-    pub(crate) fn frame(&mut self, inputs: impl IntoIterator<Item = Input>) {
-        for input in inputs {
-            self.runner.push(input);
-        }
-        self.runner
-            .frame(&mut Nowhere, beui_core::program::SafeArea::default());
-        ::beui_reactive::flush();
-    }
-
-    pub(crate) fn output(&self) -> &beui_core::context::FrameOutput {
-        self.runner.output().expect("the runner has run a frame")
-    }
-
-    pub(crate) fn controllers(
-        &mut self,
-        controllers: impl IntoIterator<Item = beui_runner::Controller>,
-    ) {
-        for controller in controllers {
-            self.runner.push(controller);
-        }
-        self.runner
-            .frame(&mut Nowhere, beui_core::program::SafeArea::default());
-        ::beui_reactive::flush();
-    }
-
-    pub(crate) fn settle(&mut self) {
-        for _ in 0..4 {
-            self.frame([]);
-        }
-    }
-
-    pub(crate) fn aim(&mut self, hand: beui_runner::Hand, window: crate::WindowId, at: Pos2) {
-        self.controllers([beui_runner::Controller::Toward { hand, window, at }]);
-        for _ in 0..40 {
-            self.runner
-                .context()
-                .advance_clock(std::time::Duration::from_millis(50));
-            self.frame([]);
-        }
-    }
-
-    pub(crate) fn tap(&mut self, hand: beui_runner::Hand) {
-        for value in [1.0, 0.0] {
-            self.controllers([beui_runner::Controller::Trigger { hand, value }]);
-        }
-        self.settle();
-    }
-
-    pub(crate) fn on_screen(&self, window: crate::WindowId, pos: Pos2) -> Pos2 {
-        let space = self.space.borrow();
-        let point = space
-            .panel(window)
-            .unwrap_or_else(|| panic!("{window:?} has a panel"))
-            .world(pos);
-        let clip = space
-            .head
-            .view_projection(SPACE_SCREEN)
-            .project_point3(point);
-        pos2(
-            (clip.x + 1.0) / 2.0 * SPACE_SCREEN.x,
-            (1.0 - clip.y) / 2.0 * SPACE_SCREEN.y,
-        )
-    }
-
-    pub(crate) fn tab(
-        &self,
-        dock: NodeId,
-        title: &str,
-    ) -> (crate::WindowId, crate::geometry::Rect) {
-        let document = self.document.borrow();
-        let tab = dock_tab(&document, dock, title);
-        let rect = document.node_rect(tab).expect("the tab is laid out");
-        (document.window_of(tab), rect)
-    }
-
-    pub(crate) fn drag(&mut self, from: Pos2, to: Pos2) {
-        let button = |pos, pressed| Input::PointerButton {
-            pos,
-            button: PointerButton::Primary,
-            pressed,
-        };
-        self.frame([Input::PointerMoved(from), button(from, true)]);
-        for step in 1..=8 {
-            let at = from + (to - from) * (step as f32 / 8.0);
-            self.frame([Input::PointerMoved(at)]);
-        }
-        self.frame([button(to, false)]);
-        self.settle();
     }
 }
 

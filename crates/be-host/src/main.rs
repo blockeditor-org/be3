@@ -164,7 +164,7 @@ fn run_host(
         core.run_as_desktop();
     }
     core.warm_apps();
-    beui_host::native::run_with(options, Shell::new(core))
+    beui_host_window::run_with(options, Shell::new(core))
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -287,7 +287,7 @@ pub async fn automate(
 // unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(android: beui_host::native::AndroidApp) {
+fn android_main(android: beui_host_window::AndroidApp) {
     let assets = android.clone();
     be_host_stack::discovery::use_assets(move |path| {
         use std::io::Read;
@@ -306,8 +306,7 @@ fn android_main(android: beui_host::native::AndroidApp) {
     let exit_code = match HostCore::new(storage_root)
         .map_err(|error| error.to_string())
         .and_then(|core| {
-            beui_host::native::run_with(options, Shell::new(core))
-                .map_err(|error| error.to_string())
+            beui_host_window::run_with(options, Shell::new(core)).map_err(|error| error.to_string())
         }) {
         Ok(()) => 0,
         Err(error) => {

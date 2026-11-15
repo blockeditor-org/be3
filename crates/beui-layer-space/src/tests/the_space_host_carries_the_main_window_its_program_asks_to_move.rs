@@ -1,6 +1,6 @@
 use super::*;
-use beui::window::{WindowId, WindowRequest};
 use beui_core::program::SafeArea;
+use beui_host::window::{WindowId, WindowRequest};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Launch, RunOptions, Runner};
 use std::cell::Cell;
@@ -20,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::native::WindowOutput,
+        _output: &beui_host::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -54,7 +54,7 @@ fn the_space_host_carries_the_main_window_its_program_asks_to_move() {
         options: RunOptions::default(),
         context: context.clone(),
         program: Box::new(Mover(Rc::clone(&moving))),
-        layers: vec![Box::new(beui_layer_space::Space::new())],
+        layers: vec![Box::new(crate::Space::new())],
     });
     runner
         .start(

@@ -16,10 +16,11 @@ beui-text-editor-core = { path = "../beui-text-editor-core" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 
 [dev-dependencies]
 be-tool-bench = { path = "../be-tool-bench" }
-beui-host = { path = "../beui-host", default-features = false }
+beui-host = { path = "../beui-host" }
 beui-inspector = { path = "../beui-inspector" }
 be-sdk-test = { path = "../be-sdk-test" }
 

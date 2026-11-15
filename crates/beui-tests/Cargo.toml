@@ -17,6 +17,7 @@ beui = { path = "../beui" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 beui-html = { path = "../beui-html" }

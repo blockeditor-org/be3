@@ -64,8 +64,9 @@ editing the engine rebuilds no editor
 ([decision](../decisions/beui_facade_excludes_the_engine.md)). `beui-host` is
 beui plus the engine, for whatever runs documents: `beui_host::native` adds
 `build` (a document with the inspector and on-screen keyboard), fonts,
-`testing`, `drive`, `Headless`, renderers and the runners. Its features pick
-the runner: `window` (default) or `web`.
+`testing`, `drive`, `Headless`, renderers and, with its `web` feature, the
+browser's runner. The native windowed runner (winit, Android, and the space and
+XR layers) is `beui-host-window`'s (`run`, `run_with`, `native_platform`).
 
 Inside the family crates name each other directly, and the component crates
 declare `extern crate beui_view as beui;` so the `::beui::reactive` paths the
@@ -88,6 +89,7 @@ macros expand to resolve. From the bottom up:
 | `beui-draw`, `beui-renderer-wgpu` | gpu drawings, and the wgpu renderer |
 | `beui-runner` | the `Runner`, `Platform`, `PlatformServices`, `Layer` and `Renderer` contracts, `RunOptions`, the `BEUI_*` environment |
 | `beui-platform-*`, `beui-layer-*` | platforms (winit, android, web, drm, headless) and layers (space, xr, drive) |
+| `beui-host-window` | the native windowed runner (`run`, `run_with`): picks a platform and stacks the layers `BEUI_PLATFORM` and `BEUI_LAYERS` ask for |
 | `beui-font-freetype` | shaping and rasterizing, and the bundled fonts |
 | `be-sdk-beui-platform` | the platform an app module's views run on |
 | `beui-paint-format`, `beui-paint-snapshot` | paintings and the snapshot assertions |

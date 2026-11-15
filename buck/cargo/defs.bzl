@@ -284,7 +284,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
     )
 
 # One of the crate's examples, as a binary, named example-<example>:
-# `./scripts/buck run //crates/beui-host:example-survey`. It is built the way cargo
+# `./scripts/buck run //crates/beui-host-window:example-survey`. It is built the way cargo
 # builds it, with the library and the dev-dependencies.
 def cargo_example(example, extra_deps = [], env = {}, **kwargs):
     crate = _crate()

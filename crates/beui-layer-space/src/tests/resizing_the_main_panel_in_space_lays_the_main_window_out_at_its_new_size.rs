@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = beui_host::reactive::RootScope::new();
     let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();
@@ -18,22 +18,25 @@ fn resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size() {
         Some("Tab 3"),
         "a dock window hands its host its tab's title for the chrome"
     );
-    let panel = *space.space.borrow().panel(crate::WindowId::MAIN).unwrap();
+    let panel = *space
+        .space
+        .borrow()
+        .panel(beui_host::WindowId::MAIN)
+        .unwrap();
     let start = panel.size;
     assert_eq!(space.output().main().size, start);
 
-    let out = (beui_layer_space::chrome::GAP + beui_layer_space::chrome::THICKNESS / 2.0)
-        * panel.chrome.scale
+    let out = (crate::chrome::GAP + crate::chrome::THICKNESS / 2.0) * panel.chrome.scale
         / panel.metres_per_point;
     let side = pos2(start.x / 4.0, start.y + out);
-    let grab = space.on_screen(crate::WindowId::MAIN, side);
-    let to = space.on_screen(crate::WindowId::MAIN, side - vec2(0.0, 100.0));
+    let grab = space.on_screen(beui_host::WindowId::MAIN, side);
+    let to = space.on_screen(beui_host::WindowId::MAIN, side - vec2(0.0, 100.0));
     space.drag(grab, to);
 
     let size = space
         .space
         .borrow()
-        .panel(crate::WindowId::MAIN)
+        .panel(beui_host::WindowId::MAIN)
         .unwrap()
         .size;
     assert_eq!(
@@ -49,7 +52,7 @@ fn resizing_the_main_panel_in_space_lays_the_main_window_out_at_its_new_size() {
     let shown = space
         .space
         .borrow()
-        .panel(crate::WindowId::MAIN)
+        .panel(beui_host::WindowId::MAIN)
         .unwrap()
         .metres_per_point;
     assert_eq!(shown, panel.metres_per_point, "and keeps its scale");

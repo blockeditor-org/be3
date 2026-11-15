@@ -6,6 +6,16 @@ Make an edit recompile, relink and rerun less: by cutting edges in the crate gra
 edit's rebuild follows without needing to, and by linking big native test binaries against
 shared libraries. Measured in November 2026, before any of it.
 
+Landed: beui's windowed runner (winit, Android, and the space, XR and drive layers it stacks)
+moved out of beui-host into beui-host-window, and the space host's tests through a `Runner`
+into beui-layer-space (guides/beui/programs.md, Windows and the web). Of beui-host's 1,102
+tests, 11 used the space layer (not 64, as this plan first said: that count matched beui-core's
+layer space) and none XR or winit; all of them need beui-host's `build`, which installs the
+inspector, so no separate test crate could have dropped those layers while beui-host's own
+`window` feature pulled them in. After a no-op edit to beui-layer-space, the build ran 21
+actions where it ran 68 (rustc's share 54 s of wall time where it was 162 s), and 8 test
+binaries rerun where 20 did, beui-host's 1,092 tests (37 CPU s) among those no longer rerun.
+
 ## What an edit costs now
 
 - **No early cutoff.** rustc's metadata records each source file's hash and its items' spans,
@@ -41,8 +51,9 @@ shared libraries. Measured in November 2026, before any of it.
 - **Linking dominates big native test binaries.** From buck2's cached wall times: linking
   be-host-stack's `:test-harness` took 24 s and be-server's 16 s, more than compiling be-server's
   library (9 s). Splitting one test binary into several multiplies that link for every library
-  edit, so a test binary is split only where its parts depend on different crates; making the
-  link itself cheaper is step 4.
+  edit, so a test binary is split only where its parts depend on different crates. Linking
+  test binaries against shared libraries instead needs a toolchain-wide change
+  (decisions/native_test_binaries_link_statically.md).
 
 ### How it was measured
 
@@ -58,8 +69,7 @@ Measuring). Lines are a proxy for CPU; each step measures its own result as belo
 
 ## Steps
 
-Steps 1 to 3 are ranked by saving per disruption; step 4 is a build-rule pilot of its own.
-Each is one pull request by one agent, independent of the others, and each ends with
+Ranked by saving per disruption. Each is one pull request by one agent, independent of the others, and each ends with
 `./scripts/verify` and with the guides that name the moved code updated. Before and after a
 step, measure the CPU of the actions an edit it targets runs (guides/performance.md,
 Measuring), and put the difference in the landing commit's message. Savings are from the
@@ -113,68 +123,6 @@ beui-draw, beui-runner and accesskit directly.
   above and the check enforces it; the landing commit gives the CPU an edit to
   beui-components-styled runs, before and after.
 
-### 3. beui-host's tests depend on only what they use
-
-beui-host's 1,102 tests (62k lines, 43 CPU s) are one binary that depends on the whole
-engine. 64 of them use the space layer, 56 the inspector, 2 XR; none use winit, Android or
-the web. Move the rest into a new crate, `beui-headless-tests`, that depends on beui,
-beui-runner, beui-platform-headless, beui-font-freetype, beui-renderer-wgpu and
-beui-layer-drive, and keep the space, inspector and XR tests in beui-host. One rule, written
-into guides/beui/core.md (Testing beui): an in-process beui test goes in
-`beui-headless-tests` unless it uses the space layer, the inspector or XR, which put it in
-beui-host; crates/beui-tests stays what it is, screens that both cores are driven through.
-
-- Saves: an edit to beui-layer-space, beui-layer-xr, beui-inspector or a beui platform (29
-  of 300 commits) reruns about 120 tests and recompiles about 6k test lines instead of all
-  of them.
-- First check: `native::build` installs the inspector and the keyboard host into every
-  document the tests build; the moved tests must build their documents the same way without
-  the inspector, or this step saves nothing. If they cannot, drop the step.
-- Disruption: moving files; one more test binary, so one more link per beui edit (measure it
-  against what the step saves).
-- Done: beui-host's own tests are only those that use the space layer, the inspector or XR;
-  the rule is in guides/beui/core.md; the landing commit gives the CPU an edit to
-  beui-layer-space runs, before and after.
-
-### 4. Pilot: big native test binaries linked against shared libraries
-
-Every edit beneath a native test binary relinks it statically with all of its dependencies
-(wasmtime, cranelift, tokio, SQLite...). From cached wall times, be-host-stack's
-`:test-harness` link took 24 s and be-server's 16 s, longer than compiling be-server's library
-(9 s); be-host-stack's harness is relinked on 29% of edits. The test still reruns after such an
-edit (its inputs changed), and with no early cutoff every crate above the edit still
-recompiles and relinks its own shared object. What a dynamic link saves is relinking what lies
-below the edit and has not changed: wasmtime, cranelift, tokio, SQLite and the first-party
-crates beneath the edited one, which a static link copies in again every time.
-
-Pilot on those two harnesses: link the test binary dynamically, with first-party and
-third-party crates as shared objects (the prelude's shared link style for Rust, or
-`-C prefer-dynamic` with dylib crate types; whichever buck2's prelude supports without
-patching), and only for tests, never for what ships. Things to check:
-
-- The workers replace `LD_LIBRARY_PATH`; the launcher's `--library-path` (guides/buck2.md,
-  Tests) must carry the shared objects' directory, and a test's runtime inputs must include
-  them so remote execution stages them.
-- Pipelining and the crate hash (guides/buck2.md, Traps): a dylib build of a crate must not
-  break the E0460 agreement between its metadata and its real compile.
-- Each crate built as a shared object is one more action per crate, compiled once and shared
-  by every harness that links it; a crate built both ways is compiled twice. Count that
-  against the link saved.
-- Measure, for an edit to be-server and to be-host-stack: the CPU of the harness link, of the
-  shared-object links of every crate above the edit, and of the extra shared-object compiles,
-  before and after (guides/performance.md, Measuring), and the test's own run time, which
-  loading many shared objects can lengthen.
-
-If it saves more than it costs, follow up with one step per further harness, starting with the
-largest links (from the event log of a full build), and write it into guides/buck2.md and
-guides/performance.md. If not, record the measurement in decisions/ and stop.
-
-- Disruption: build rules only (buck/cargo/defs.bzl, buck/dev/test.bzl); no crate changes.
-- Done: be-host-stack's and be-server's harnesses link dynamically, or a decision records why
-  not; guides/buck2.md (Tests) says those test binaries are linked differently from what
-  ships, which is linked statically, so a fault in static linking shows only in a build of the
-  shipped binary; the landing commit gives the CPU of an edit to be-server, before and after.
-
 ## Note: apps that use no built-in
 
 plans/shared_crates_per_platform.md, step 2, makes be-sdk depend on be-block-content only. For
@@ -186,6 +134,10 @@ lines per edit for be-sdk's edge alone and 2.4% for both (0.3% and 0.9% per comm
 
 ## Ruled out
 
+- **Big native test binaries linked against shared libraries**: buck2's prelude links Rust
+  dependencies as shared objects only under a toolchain-wide setting that also needs the
+  standard library as explicit sysroot dependencies on every platform
+  (decisions/native_test_binaries_link_statically.md).
 - **An app compiled once, its tests a crate of their own**: piloted on checklist and
   infinite-canvas; it saves a share of each app's compile but makes everything its tests reach
   public and rewrites white-box tests in 12 apps (decisions/app_tests_compile_with_their_app.md).

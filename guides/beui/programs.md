@@ -7,13 +7,13 @@ renderers, Android, the web, DRM displays) is in guides/beui/platforms.md.
 
 ## A standalone program
 
-A standalone program depends on beui-host as well as beui. It builds its
-document once and implements `beui::Program`, whose only required method shows
-the document each frame:
+A standalone program depends on beui-host and beui-host-window as well as beui.
+It builds its document once and implements `beui::Program`, whose only required
+method shows the document each frame:
 
 ```rust
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui_host::native::run(CounterProgram {
+    beui_host_window::run(CounterProgram {
         document: build(|| view! { <Root title="Counter"><Counter /></Root> }),
     })
 }
@@ -47,23 +47,24 @@ editor punches its rectangle. Documents drawn over another (the inspector, the
 software keyboard) are made with `Document::new`, `enter` and `set_root`, have
 no `Root`, and leave the window's appearance alone.
 
-### Features
+### Windows and the web
 
-beui-host's features pick how much is linked: none gives the document,
-components, layout, input and paint output (enough for headless logic tests);
-`render` adds the wgpu renderer without a window (embedded hosts); `window`
-(the default) adds the native runner (winit on the desktop, beui's own on
-Android); `web` adds the browser runner, `beui_host::native::run_web`.
+beui-host is the engine without a window: the document, the renderer, fonts,
+the inspector, drive and the headless platform, enough for tests, embedded hosts
+and `:dev`. The native runner (winit on the desktop, beui's own on Android, and
+the space, XR and drive layers it stacks) is beui-host-window's, so an edit to
+winit, the space layer or XR rebuilds no test that runs headless. beui-host's
+one feature, `web`, adds the browser runner, `beui_host::native::run_web`.
 
 ### RunOptions and the rest of Program
 
-`run` uses default `RunOptions`; `run_with` takes them: the program id and
+`beui_host_window::run` uses default `RunOptions`; `run_with` takes them: the program id and
 starting size, `device_extensions` for wgpu's Vulkan device (be-host imports
 Wayland clients' buffers with them), and `platforms` the program offers beside
 the native one (such as `beui_platform_drm::Drm`) for `BEUI_PLATFORM` to pick
 by name (`beui_runner::environment::choose`). `BEUI_RENDERER` and
 `BEUI_LAYERS` pick the renderer and the layer stack the same way; the stacking
-is `choose_platform` and `stack` in crates/beui-host/src/runner.rs.
+is `choose_platform` and `stack` in crates/beui-host-window/src/runner.rs.
 
 `Program`'s other methods are optional. The ones with traps:
 
