@@ -202,6 +202,11 @@ pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     core::holds_focus(node)
 }
 
+/// Whether any node of the document has the focus.
+pub fn focus_held() -> Memo<bool> {
+    core::focus_held()
+}
+
 pub fn focus_outline<M1, M2>(
     focused: impl IntoPropWith<bool, M1>,
     color: impl IntoPropWith<Color, M2>,

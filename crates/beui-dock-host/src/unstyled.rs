@@ -309,6 +309,8 @@ struct State {
     forward: Signal<(u64, Option<TabId>)>,
     remembered: Stored<RefCell<HashMap<TabId, NodeId>>>,
     content_keyboard: StoredCell<Option<TabId>>,
+    /// The floating windows the focus is in.
+    focused_windows: Signal<Vec<SurfaceId>>,
     keyboard: ReadSignal<bool>,
     bar_panels: Stored<BarPanels>,
     bodies: Stored<RefCell<HashMap<LeafId, (NodeRef, NodeRef)>>>,
@@ -1702,6 +1704,7 @@ pub(crate) struct DockConfig {
     pub(crate) short_narrower_than: f32,
     pub(crate) mode: Signal<DockMode>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
+    pub(crate) tab_keys: Prop<DockTabKeys>,
     pub(crate) splitter_thickness: f32,
     pub(crate) splitter_reach: f32,
     pub(crate) group_inset: f32,
@@ -1764,6 +1767,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         short_narrower_than,
         mode: published,
         drag_modifier,
+        tab_keys,
         splitter_thickness,
         splitter_reach,
         group_inset,
@@ -1876,6 +1880,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         forward,
         remembered: store(RefCell::default()),
         content_keyboard: StoredCell::new(None),
+        focused_windows: create_signal(Vec::new()),
         keyboard: use_keyboard(),
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
@@ -1983,7 +1988,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     dock.forget_content_keyboard_when_taken();
     api.fill(DockApi(dock));
     let area = NodeRef::new();
-    tab_actions(dock, area);
+    tab_actions(dock, tab_keys, area);
     create_effect(move || {
         let mut tabs = state.with(DockState::all_tabs);
         tabs.extend(hosts.get());
@@ -3682,9 +3687,25 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
 fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let frame = NodeRef::new();
     dock.windows.value().borrow_mut().insert(surface, frame);
+    let held = holds_focus(frame);
+    let focused = dock.focused_windows;
+    create_effect(move || {
+        let held = held.get();
+        untrack(|| {
+            if focused.with(|windows| windows.contains(&surface)) != held {
+                focused.update(|windows| match held {
+                    true => windows.push(surface),
+                    false => windows.retain(|window| *window != surface),
+                });
+            }
+        });
+    });
     on_cleanup(move || {
         dock.windows
             .try_with(|windows| windows.borrow_mut().remove(&surface));
+        if focused.is_alive() && focused.with_untracked(|windows| windows.contains(&surface)) {
+            focused.update(|windows| windows.retain(|window| *window != surface));
+        }
     });
     let state = dock.state;
     let hosted = dock.opens;
@@ -4229,10 +4250,45 @@ fn modifier_claims(modifiers: Memo<Option<Modifiers>>) -> Memo<Vec<Claim>> {
     })
 }
 
-/// The dock's tab keys as actions, answering while the focus is anywhere in the dock and
-/// before the focused control (`.capture()`), so they work from a text input in a pane but
-/// not past a dialog; a palette lists them.
-fn tab_actions(dock: State, area: NodeRef) {
+/// The chords of the dock's Next tab and Previous tab. `CTRL` (Ctrl+Tab, Ctrl+Shift+Tab) is the
+/// default; a desktop, whose programs must keep Ctrl+Tab, binds `SUPER`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DockTabKeys {
+    pub next: Chord,
+    pub previous: Chord,
+}
+
+impl DockTabKeys {
+    pub const CTRL: Self = Self {
+        next: Chord::ctrl(Key::Tab),
+        previous: Chord::ctrl(Key::Tab).shift(),
+    };
+    pub const SUPER: Self = Self {
+        next: Chord::logo(Key::Tab),
+        previous: Chord::logo(Key::Tab).shift(),
+    };
+}
+
+impl Default for DockTabKeys {
+    fn default() -> Self {
+        Self::CTRL
+    }
+}
+
+/// The dock's tab commands as actions a palette lists. Next tab and Previous tab answer at the
+/// window, before the focused control (`.capture()`), so they work from a text input in a pane
+/// and, as intercepted keys, over an embedded editor's view; but only while the focus is in this
+/// dock: in its area, in one of its floating windows, or on no node of this document, where keys
+/// reach it only as intercepted keys from the content of its tabs (an app's view, a program's
+/// window). A modal outside the dock keeps them from switching the tab under it, and of several
+/// docks the one holding the focus answers.
+fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
+    let in_area = holds_focus(area);
+    let held = focus_held();
+    let windows = dock.focused_windows;
+    let focused_here = create_memo(move || {
+        !held.get() || in_area.get() || windows.with(|windows| !windows.is_empty())
+    });
     let several = create_memo(move || {
         dock.state.with(|state| {
             state
@@ -4240,26 +4296,33 @@ fn tab_actions(dock: State, area: NodeRef) {
                 .is_some_and(|leaf| state.entries(leaf).len() > 1)
         })
     });
+    let cycles = create_memo(move || several.get() && focused_here.get());
     // Close tab closes the entry the focused pane shows, so it is enabled by that entry's tabs.
     let closable = create_memo(move || {
         dock.shown_entry()
             .is_some_and(|(_, entry)| dock.entry_closable(entry))
     });
-    let at = KeyAt::Node(area);
-    Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))
-        .shortcut(Chord::ctrl(Key::Tab))
-        .enabled(several)
-        .at(at.clone())
-        .capture()
-        .register();
-    Action::new("dock.tab.previous", "Previous tab", move || {
-        dock.cycle(true)
-    })
-    .shortcut(Chord::ctrl(Key::Tab).shift())
-    .enabled(several)
-    .at(at)
-    .capture()
-    .register();
+    // Bound again whenever the owner changes the chords: the effect's scope, and with it the
+    // actions, is dropped on every rerun.
+    create_effect(move || {
+        let keys = keys.get();
+        untrack(|| {
+            Action::new("dock.tab.next", "Next tab", move || dock.cycle(false))
+                .shortcut(keys.next)
+                .enabled(cycles)
+                .at(KeyAt::Window)
+                .capture()
+                .register();
+            Action::new("dock.tab.previous", "Previous tab", move || {
+                dock.cycle(true)
+            })
+            .shortcut(keys.previous)
+            .enabled(cycles)
+            .at(KeyAt::Window)
+            .capture()
+            .register();
+        });
+    });
     Action::new("dock.tab.split-right", "Split right", move || {
         dock.split_shown(Side::Right)
     })
