@@ -626,6 +626,12 @@ downloads = {
         "size_bytes": 11481,
         "version": "1.5.1",
     },
+    "calendrical_calculations-0.2.4": {
+        "name": "calendrical_calculations",
+        "sha256": "5abbd6eeda6885048d357edc66748eea6e0268e3dd11f326fff5bd248d779c26",
+        "size_bytes": 68875,
+        "version": "0.2.4",
+    },
     "calloop-0.14.4": {
         "name": "calloop",
         "sha256": "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7",
@@ -919,6 +925,12 @@ downloads = {
         "sha256": "99d74ada66e07c1cefa18f8abfba765b486f250de2e4a999e5727fc0dd4b4a25",
         "size_bytes": 18446,
         "version": "19.2.0",
+    },
+    "core_maths-0.1.1": {
+        "name": "core_maths",
+        "sha256": "77745e017f5edba1a9c1d854f6f3a52dac8a12dd5af5d2f54aecf61e43d80d30",
+        "size_bytes": 6528,
+        "version": "0.1.1",
     },
     "coreaudio-rs-0.11.3": {
         "name": "coreaudio-rs",
@@ -1267,6 +1279,24 @@ downloads = {
         "sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
         "size_bytes": 28955,
         "version": "0.11.3",
+    },
+    "diplomat-0.16.1": {
+        "name": "diplomat",
+        "sha256": "f8b37a6cea72eb6df5143d3e091d4c34cb0cf4046dd1ddcc082988886fe1f809",
+        "size_bytes": 23123,
+        "version": "0.16.1",
+    },
+    "diplomat-runtime-0.16.1": {
+        "name": "diplomat-runtime",
+        "sha256": "d9d981121ba76150987fda68185b37853c0b928a55dfdc28897348cd068440be",
+        "size_bytes": 22365,
+        "version": "0.16.1",
+    },
+    "diplomat_core-0.16.1": {
+        "name": "diplomat_core",
+        "sha256": "73b18e806f9ecb92df828d080efe47984ae1193958295d4a84fb8b32c9a1aa1b",
+        "size_bytes": 155797,
+        "version": "0.16.1",
     },
     "directories-next-2.0.0": {
         "name": "directories-next",
@@ -1682,6 +1712,12 @@ downloads = {
         "size_bytes": 4620,
         "version": "4.1.0",
     },
+    "fslock-0.2.1": {
+        "name": "fslock",
+        "sha256": "04412b8935272e3a9bae6f48c7bfff74c2911f60525404edfdd28e49884c3bfb",
+        "size_bytes": 13463,
+        "version": "0.2.1",
+    },
     "futures-0.3.32": {
         "name": "futures",
         "sha256": "8b147ee9d1f6d097cef9ce628cd2ee62288d963e16fb287bd9286455b241382d",
@@ -1880,6 +1916,12 @@ downloads = {
         "size_bytes": 57506,
         "version": "0.10.1",
     },
+    "gzip-header-1.1.0": {
+        "name": "gzip-header",
+        "sha256": "86848f4fd157d91041a62c78046fb7b248bcc2dce78376d436a1756e9a038577",
+        "size_bytes": 12930,
+        "version": "1.1.0",
+    },
     "h2-0.4.20": {
         "name": "h2",
         "sha256": "7d29020232d6aa3fb1daca64c1127cf662cf97f254ae16c18c05b8ab635fc118",
@@ -2024,6 +2066,12 @@ downloads = {
         "size_bytes": 45167,
         "version": "0.13.0",
     },
+    "home-0.5.12": {
+        "name": "home",
+        "sha256": "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d",
+        "size_bytes": 9445,
+        "version": "0.5.12",
+    },
     "hound-3.5.1": {
         "name": "hound",
         "sha256": "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f",
@@ -2090,6 +2138,18 @@ downloads = {
         "size_bytes": 7185,
         "version": "0.1.2",
     },
+    "icu_calendar-2.4.0": {
+        "name": "icu_calendar",
+        "sha256": "a68ffb801cc7acb8dcae62da7c692c47934698d2dd4f479ddee1eb442763dea1",
+        "size_bytes": 818686,
+        "version": "2.4.0",
+    },
+    "icu_calendar_data-2.4.0": {
+        "name": "icu_calendar_data",
+        "sha256": "514da54e79efa36b5976232d5b3d1d8ee1b47b19ab658f1b1ebe39221696c2d8",
+        "size_bytes": 5732,
+        "version": "2.4.0",
+    },
     "icu_collections-2.4.0": {
         "name": "icu_collections",
         "sha256": "fe090a42a0d3140fed8c63263ed1fecc02422cb2f4bfe55cd8de2de1b8e105dd",
@@ -2100,6 +2160,18 @@ downloads = {
         "name": "icu_locale_core",
         "sha256": "25d29b57c17c6528d0dc4c2141cfa2d08200465acb537a3909c8b9b8a4a984c0",
         "size_bytes": 80269,
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback-2.4.0": {
+        "name": "icu_locale_fallback",
+        "sha256": "406e9ae5b95d8aa37db6293405931b766a6172d1848daee22d70eb44aa78a43c",
+        "size_bytes": 16979,
+        "version": "2.4.0",
+    },
+    "icu_locale_fallback_data-2.4.0": {
+        "name": "icu_locale_fallback_data",
+        "sha256": "3632ebbd0c5c3637ba1a40bdf8288f2cb9d2268e73441a69d5fc73d7cfbaa87c",
+        "size_bytes": 6856,
         "version": "2.4.0",
     },
     "icu_normalizer-2.4.0": {
@@ -2311,6 +2383,12 @@ downloads = {
         "sha256": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
         "size_bytes": 15935,
         "version": "1.0.18",
+    },
+    "ixdtf-0.6.7": {
+        "name": "ixdtf",
+        "sha256": "4754a1731458af0443709c9667302793d3f63cc90ec4ba4c8259f2b9515478e5",
+        "size_bytes": 34820,
+        "version": "0.6.7",
     },
     "jetscii-0.5.3": {
         "name": "jetscii",
@@ -3104,6 +3182,12 @@ downloads = {
         "size_bytes": 26884,
         "version": "0.5.0",
     },
+    "paste-1.0.15": {
+        "name": "paste",
+        "sha256": "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a",
+        "size_bytes": 18374,
+        "version": "1.0.15",
+    },
     "path-absolutize-4.0.1": {
         "name": "path-absolutize",
         "sha256": "f808742975794703469f67a28dd14b1d1009a1743c18b0353b4b951dbb0068ad",
@@ -3655,6 +3739,12 @@ downloads = {
         "sha256": "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832",
         "size_bytes": 10366,
         "version": "1.1.0",
+    },
+    "resb-0.1.2": {
+        "name": "resb",
+        "sha256": "22d392791f3c6802a1905a509e9d1a6039cbbcb5e9e00e5a6d3661f7c874f390",
+        "size_bytes": 163418,
+        "version": "0.1.2",
     },
     "resvg-0.48.1": {
         "name": "resvg",
@@ -4232,6 +4322,12 @@ downloads = {
         "size_bytes": 7669,
         "version": "0.1.9",
     },
+    "strck-1.0.0": {
+        "name": "strck",
+        "sha256": "42316e70da376f3d113a68d138a60d8a9883c604fe97942721ec2068dab13a9f",
+        "size_bytes": 10262,
+        "version": "1.0.0",
+    },
     "streaming-iterator-0.1.9": {
         "name": "streaming-iterator",
         "sha256": "2b2231b7c3057d5e4ad0156fb3dc807d900806020c5ffa3ee6ff2c8c76fb8520",
@@ -4346,6 +4442,18 @@ downloads = {
         "size_bytes": 44780,
         "version": "3.27.0",
     },
+    "temporal_capi-0.2.6": {
+        "name": "temporal_capi",
+        "sha256": "f48eb9ca4ca22caaa48d1e7a534ad3fd598a23d1a71945e8ad5ac0be501fa5f2",
+        "size_bytes": 76554,
+        "version": "0.2.6",
+    },
+    "temporal_rs-0.2.6": {
+        "name": "temporal_rs",
+        "sha256": "1a978fef907a27736827d336c0bfaab14fb8a7509dd6dc2b43c44e51d59aca5b",
+        "size_bytes": 188053,
+        "version": "0.2.6",
+    },
     "termcolor-1.4.1": {
         "name": "termcolor",
         "sha256": "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755",
@@ -4417,6 +4525,12 @@ downloads = {
         "sha256": "7e689342a48d2ea927c87ea50cabf8594854bf940e9310208848d680d668ed85",
         "size_bytes": 33664,
         "version": "0.2.32",
+    },
+    "timezone_provider-0.2.6": {
+        "name": "timezone_provider",
+        "sha256": "89ec4f4eebb4817fde02a411aedc7ac5f66c89c68c49e5d4b17a8139f077af52",
+        "size_bytes": 145717,
+        "version": "0.2.6",
     },
     "tiny-skia-0.12.0": {
         "name": "tiny-skia",
@@ -4795,6 +4909,12 @@ downloads = {
         "sha256": "fa8259b508bb76483829802a813dcaeeb8c3962f394e4c3eced87cf01ca79cd5",
         "size_bytes": 1825,
         "version": "1.29.1",
+    },
+    "v8-152.2.0": {
+        "name": "v8",
+        "sha256": "a10fe1a92da5c32c7c7f838ce36c0ccfcfd5edf0865b58bdde820aa64cea9888",
+        "size_bytes": 36569477,
+        "version": "152.2.0",
     },
     "valuable-0.1.1": {
         "name": "valuable",
@@ -5252,6 +5372,12 @@ downloads = {
         "size_bytes": 127829,
         "version": "29.0.3",
     },
+    "which-6.0.3": {
+        "name": "which",
+        "sha256": "b4ee928febd44d98f2f459a4a79bd4d928591333a494a10a868418ac1b39cf1f",
+        "size_bytes": 16937,
+        "version": "6.0.3",
+    },
     "wiggle-48.0.1": {
         "name": "wiggle",
         "sha256": "b871ea219ad85c1e59ee7d013563814e86d2e6aa094d3bc66b7675ec4ca58bb7",
@@ -5708,6 +5834,12 @@ downloads = {
         "size_bytes": 25725,
         "version": "0.10.1",
     },
+    "winsafe-0.0.19": {
+        "name": "winsafe",
+        "sha256": "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904",
+        "size_bytes": 492820,
+        "version": "0.0.19",
+    },
     "winx-0.36.4": {
         "name": "winx",
         "sha256": "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d",
@@ -5995,6 +6127,12 @@ downloads = {
         "sha256": "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa",
         "size_bytes": 26665,
         "version": "1.0.21",
+    },
+    "zoneinfo64-0.3.0": {
+        "name": "zoneinfo64",
+        "sha256": "ed6eb2607e906160c457fd573e9297e65029669906b9ac8fb1b5cd5e055f0705",
+        "size_bytes": 81655,
+        "version": "0.3.0",
     },
     "zopfli-0.8.3": {
         "name": "zopfli",
