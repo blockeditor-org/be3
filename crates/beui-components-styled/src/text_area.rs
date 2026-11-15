@@ -152,8 +152,6 @@ pub fn TextArea(
     });
     let font_size = create_memo(move || size.get().px());
     let padding = padding.map(Padding::px);
-    let disabled = create_memo(move || disabled.get());
-    let read_only = create_memo(move || read_only.get());
     let surface = NodeRef::new();
     api.fill(TextAreaSurfaceApi(surface));
     let block = block.unwrap_or_else(blank_widget);

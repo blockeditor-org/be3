@@ -219,9 +219,7 @@ pub(crate) fn BlockPanel(
         item.block_type
             == <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE
     });
-    let preview = create_memo(move || preview.get());
     let previewing = create_memo(move || preview.with(Option::is_some));
-    let live = create_memo(move || !previewing.get());
     let child_menu = create_signal(Vec::<MenuNode>::new());
     dock_menu(create_memo(move || {
         let nodes = child_menu.get();
@@ -253,7 +251,7 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
                 <TabBar bar={move || bar.call(())} own=true />
-                <Show keep_alive=true condition={live}>
+                <Show keep_alive=true condition={move || !previewing.get()}>
                     <Dynamic value={content}>|content: Content| {
                         match content {
                             Content::Denied => view! {

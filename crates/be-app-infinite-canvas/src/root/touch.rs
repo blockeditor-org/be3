@@ -46,11 +46,9 @@ pub(crate) fn TouchSetting(editor: Editor, choice: TouchChoice) -> NodeId {
         }
     };
     view! {
-        <Layers>
-            <Loading fallback>||
-                <TouchWriter editor choice />
-            </Loading>
-        </Layers>
+        <Loading fallback>||
+            <TouchWriter editor choice />
+        </Loading>
     }
 }
 
