@@ -19,6 +19,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -36,6 +37,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -53,6 +55,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -70,6 +73,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -87,6 +91,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -104,6 +109,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",
@@ -121,6 +127,7 @@ write_package_value("be3.cargo", {
             "deps": [
                 "//crates/be-block-client:be-block-client",
                 "//crates/be-block-keys:be-block-keys",
+                "//crates/be-host-server:be-host-server",
                 "//crates/be-host-stack:be-host-stack",
                 "//crates/be-lib-build-id:be-lib-build-id",
                 "//crates/be-server:be-server",

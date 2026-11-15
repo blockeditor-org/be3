@@ -1520,6 +1520,7 @@ dependencies = [
  "be-host-base",
  "be-host-desktop",
  "be-host-runtime",
+ "be-host-server",
  "be-host-services",
  "be-host-stack",
  "be-host-testing",
@@ -1686,6 +1687,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-host-server"
+version = "0.1.0"
+dependencies = [
+ "be-server",
+ "tokio",
+]
+
+[[package]]
 name = "be-host-services"
 version = "0.1.0"
 dependencies = [
@@ -1726,6 +1735,7 @@ dependencies = [
  "be-block-type-host",
  "be-block-vcs",
  "be-host-base",
+ "be-host-server",
  "be-lib-build-id",
  "be-lib-search",
  "be-lib-stable-hash",
@@ -1769,6 +1779,7 @@ version = "0.1.0"
 dependencies = [
  "be-block-client",
  "be-block-keys",
+ "be-host-server",
  "be-host-stack",
  "be-lib-build-id",
  "be-server",

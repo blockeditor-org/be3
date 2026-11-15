@@ -15,7 +15,6 @@ pub mod conflicts;
 pub mod device_push;
 pub mod discovery;
 #[cfg(not(target_arch = "wasm32"))]
-pub mod embedded_server;
 mod graph;
 pub mod invite_link;
 pub mod keys;
