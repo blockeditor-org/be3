@@ -45,7 +45,8 @@ fn a_forged_arrival_is_replaced_by_the_orders() {
                     padding: Vec::new(),
                 }),
             )),
-        },
+        }
+        .encode(),
     );
     for device in 0..2 {
         assert_eq!(entries(&mut sim, device), vec![Some(now)], "device {device}");

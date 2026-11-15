@@ -14,7 +14,7 @@ fn a_new_owner_replays_a_journaled_edit_by_its_part() {
     sim.type_at(0, 1, 12, &pasted);
     sim.settle();
     sim.stalled = true;
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     let journal = sim.journal.as_ref().expect("the owner journaled its edits");
     assert!(
         journal

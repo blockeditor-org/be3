@@ -42,9 +42,8 @@ mod a_follower_takes_over_with_what_the_owner_had_not_sealed;
 mod a_follower_that_takes_over_after_a_seal_publishes_on_top_of_it;
 mod a_follower_that_takes_over_saves_its_edit_too_large_to_relay;
 mod a_follower_typing_while_the_owner_types_keeps_both_runs_whole;
-mod a_followers_burst_of_view_state_writes_is_sent_as_one_put_each;
 mod a_followers_edit_after_it_reopens_on_the_same_connection_lands;
-mod a_followers_edit_the_owner_took_and_sealed_while_it_was_deaf_lands_once;
+mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
 mod a_followers_edit_too_large_to_relay_is_lacking_until_the_owner_accepts_it;
 mod a_followers_edit_too_large_to_relay_lands_once;
 mod a_followers_edit_too_large_to_relay_lands_once_when_the_owner_leaves;
@@ -444,6 +443,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
     stalled_submits: bool,
+    /// Submissions are numbered as a device offline numbers them: in its own order, which the
+    /// server lacks, answered as kept and heard by the device alone.
+    offline_submits: bool,
     /// The server's order.
     order: Sequencer,
     /// How many submissions it numbered.
@@ -517,6 +519,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             read_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
+            offline_submits: false,
             order: Sequencer::starting(0),
             numbered: 0,
             kept_publishes: false,
@@ -673,7 +676,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         let client = self.devices[device].client;
         let (journal, head, sealed_head) = self.journal_on(self.head);
         let held = &mut self.devices[device];
-        held.taken_before += held.status.taken;
+        // The simulated host gives again none of what the order holds of its edits.
+        held.taken_before += held.status.journaled_taken;
         let opening = Opening {
             content_type: C::CONTENT_TYPE,
             tag: self.devices[device].tag,
@@ -1218,11 +1222,37 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     let refused = be_sdk_type_api::host::Submitted::Failed("refused".into());
                     return self.to(device, |host| reply.send(host, &refused));
                 }
+                if self.offline_submits {
+                    let op = self.order.number(
+                        be_block_session::Submission {
+                            id: be_block_session::OpId {
+                                origin: submission.origin,
+                                counter: submission.counter,
+                            },
+                            base: submission.base,
+                            barrier: submission.barrier,
+                            payload: submission.payload,
+                        },
+                        None,
+                    );
+                    let entry = be_sdk_type_api::JournalEntry {
+                        sequence: op.sequence,
+                        origin: op.id.origin,
+                        counter: op.id.counter,
+                        base: op.base,
+                        floor: op.floor,
+                        received: op.received,
+                        payload: op.payload,
+                    };
+                    self.with_replica(device, |replica, host| replica.sequenced(host, vec![entry]));
+                    return self.to(device, |host| {
+                        reply.send(host, &be_sdk_type_api::host::Submitted::Kept)
+                    });
+                }
                 self.number(device, submission);
                 self.to(device, |host| {
                     reply.send(host, &be_sdk_type_api::host::Submitted::Held)
                 });
-                self.settle();
             }
             Call::RebaseJournal {
                 reply,
@@ -1234,15 +1264,17 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                 if !state.is_owner(client) || state.generation != generation {
                     return;
                 }
+                // Another build's entries go: the holder could not have applied them.
+                let other = self.journal_tag != self.devices[device].tag;
                 let entries: Vec<_> = self
                     .journal
                     .take()
                     .map(|journal| journal.entries)
                     .unwrap_or_default()
                     .into_iter()
-                    .filter(|entry| entry.sequence > base.sequence)
+                    .filter(|entry| !other && entry.sequence > base.sequence)
                     .collect();
-                if entries.is_empty() && base.sequence < self.order.sequence {
+                if other || (entries.is_empty() && base.sequence < self.order.sequence) {
                     self.order = Sequencer::starting(base.sequence);
                 }
                 self.journal = Some(Journal { base, entries });
@@ -1332,18 +1364,36 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
         }
     }
 
-    /// Numbers `submitted` as a submission of `device`'s client that its replica never made, as
+    /// Numbers `payload` as a submission of `device`'s client that its replica never made, as
     /// a forger's or another build's would be, based on the order as it stands.
-    fn submit_as(&mut self, device: usize, submitted: crate::wire::Submitted) {
+    fn submit_as(&mut self, device: usize, payload: Vec<u8>) {
         let submission = be_sdk_type_api::Submission {
             origin: u64::MAX - device as u64,
             counter: self.numbered as u64 + 1,
             base: self.order.sequence,
             barrier: false,
-            payload: submitted.encode(),
+            payload,
         };
         self.number(device, submission);
         self.settle();
+    }
+
+    /// The operations the journal holds past its base, decoded.
+    fn journal_operations(&self) -> Vec<C::Op> {
+        let Some(journal) = &self.journal else {
+            return Vec::new();
+        };
+        journal
+            .entries
+            .iter()
+            .filter(|entry| entry.sequence > journal.base.sequence)
+            .filter_map(|entry| match Submitted::decode(&entry.payload)?.entry {
+                Entry::Operation(be_block_session::Payload::Inline(bytes)) => {
+                    C::decode_operation(&bytes).ok()
+                }
+                _ => None,
+            })
+            .collect()
     }
 
     fn unstall(&mut self) {

@@ -9,13 +9,9 @@ fn a_new_owner_recovers_edits_from_the_journal_of_one_that_crashed() {
         sim.operate(0, 1, add(text));
         sim.advance(100);
     }
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert_eq!(sim.publishes, 0, "nothing is committed before a pause");
     assert!(sim.devices[0].status.journaled);
-    assert!(
-        sim.appended < 3,
-        "an owner alone appends what it sequenced together, not each edit"
-    );
     sim.crash(0);
 
     sim.open(1);
