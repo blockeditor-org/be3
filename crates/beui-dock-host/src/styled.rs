@@ -770,11 +770,9 @@ fn DockSideBar(
                         <ListItem gap=after_tabs_gap>
                             <Frame padding={trailing}>
                                 <List spacing=BAR_SPACING>
-                                    <Show condition={titled}>|| {
-                                        let title = title.clone(); view! {
-                                            <Text overflow=Overflow::Ellipsis>{title}</Text>
-                                        }
-                                    }</Show>
+                                    {titled.then(|| view! {
+                                        <Text overflow=Overflow::Ellipsis>{title}</Text>
+                                    })}
                                     <Show condition={icons_only}>|| {
                                         let test_prefix = column.clone(); view! {
                                             <List align=Align::Center spacing=BAR_SPACING>

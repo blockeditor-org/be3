@@ -224,6 +224,7 @@ pub fn ButtonFace(
     let border = create_memo(move || {
         (revealed.get() && variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT)
     });
+    // The Copy handle the closures below share: an `Image` prop is not `Copy`.
     let image = create_memo(move || image.get());
     let pictured = create_memo(move || image.with(Option::is_some));
     let has_leading = leading.is_some();

@@ -142,7 +142,7 @@ pub(crate) fn install_hooks() {
 /// A bare frame: it sizes to its child, draws nothing and swaps the child in place. Not a
 /// one-child `Layers`, which does not pass scroll anchoring through to what it holds.
 fn create_host(child: LazyChild<NodeId>) -> NodeId {
-    let frame = with_document(|document| document.create_frame());
+    let frame = with_document(|document| document.create_host_frame());
     child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
     frame.id()
 }

@@ -1,8 +1,10 @@
 mod a_closure_child_is_written_without_braces;
 mod a_closure_prop_returns_the_props_type;
 mod a_dynamic_in_a_slot_that_needs_one_child_builds_one;
+mod a_dynamic_with_a_fallback_takes_an_option;
 mod a_for_each_is_not_a_frame_child;
 mod a_frame_takes_one_child;
+mod a_keyed_with_an_empty_fallback_takes_an_option;
 mod a_list_item_is_only_a_list_child;
 mod a_node_ref_names_a_node;
 mod a_run_is_not_a_frame_child;

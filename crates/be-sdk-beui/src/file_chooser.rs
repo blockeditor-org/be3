@@ -151,7 +151,6 @@ where
     let choose_id = format!("{id_prefix}.choose");
     let error_id = format!("{id_prefix}.error");
     let accepted = create_signal(false);
-    let unready = create_memo(move || !chosen_file.get());
     let accepting = creation.clone();
     let cancelling = creation;
     view! {
@@ -164,7 +163,7 @@ where
                     accepted.set(true);
                     accepting.accept();
                 })
-                .disabled(unready)
+                .disabled(move || !chosen_file.get())
                 .busy(accepted),
             ]}
             on_dismiss={move || cancelling.cancel()}

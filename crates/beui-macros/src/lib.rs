@@ -32,6 +32,9 @@ struct Prop {
     is_optional_click_callback: bool,
     default: Option<Expr>,
     is_children_slot: bool,
+    /// A `Prop<V>` whose `V` is one of the component's own type parameters: its type comes from
+    /// the other props, so a value is not lifted into an `Option` to fit it.
+    exact: bool,
 }
 
 struct Render {
@@ -536,7 +539,7 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { Some(::__beui_tree::reactive::IntoCallback::into_callback(value)) },
         )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
-        reactive_setter(ident, inner_ty, |build| quote! { Some(#build) })
+        reactive_setter(ident, inner_ty, false, |build| quote! { Some(#build) })
     } else if let Some(inner_ty) = &prop.inner_ty {
         if is_string_type(inner_ty) {
             plain(
@@ -562,7 +565,7 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { ::__beui_tree::reactive::IntoCallback::into_callback(value) },
         )
     } else if let Some(inner_ty) = &prop.reactive_inner_ty {
-        reactive_setter(ident, inner_ty, |build| build)
+        reactive_setter(ident, inner_ty, prop.exact, |build| build)
     } else if let Some(inner_ty) = &prop.binding_inner_ty {
         plain(
             quote! { value: impl ::__beui_tree::reactive::IntoBinding<#inner_ty> },
@@ -580,13 +583,18 @@ fn named_setter(prop: &Prop) -> Setter {
 fn reactive_setter(
     method: &Ident,
     inner_ty: &Type,
+    exact: bool,
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
 ) -> Setter {
     Setter {
         method: method.clone(),
         generics: quote! { <__Passed> },
         args: quote! { value: impl ::__beui_tree::reactive::IntoPropWith<#inner_ty, __Passed> },
-        where_clause: quote! {},
+        where_clause: if exact {
+            quote! { where __Passed: ::__beui_tree::reactive::Exact }
+        } else {
+            quote! {}
+        },
         value: wrap(quote! { ::__beui_tree::reactive::IntoPropWith::into_prop_with(value) }),
     }
 }
@@ -913,6 +921,9 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 .as_ref()
                 .and_then(|inner| generic_inner(inner, "Prop"));
             let reactive_inner_ty = generic_inner(ty, "Prop");
+            let reactive_inner_ty_is_own = reactive_inner_ty
+                .as_ref()
+                .is_some_and(|inner| is_own_param(inner, &own_params));
             let binding_inner_ty = generic_inner(ty, "Binding");
             let optional_render = inner_ty.as_ref().and_then(render_kind);
             let optional_func_args = inner_ty.as_ref().and_then(func_args);
@@ -949,6 +960,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 is_optional_click_callback,
                 default,
                 is_children_slot: children,
+                exact: reactive_inner_ty_is_own,
             })
         })
         .collect::<syn::Result<_>>()?;

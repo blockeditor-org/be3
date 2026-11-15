@@ -57,8 +57,6 @@ pub fn Loaded(
         },
     };
     view! {
-        <Layers>
-            <Loading fallback>|| { content.call(()) }</Loading>
-        </Layers>
+        <Loading fallback>|| { content.call(()) }</Loading>
     }
 }

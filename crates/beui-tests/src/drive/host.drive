@@ -19,8 +19,8 @@ find '#host.named'
 wait 'Named host not focused'
 # Focusing a host node through its node ref focuses the child it holds: the browser hands
 # focus to the child's element, as the HTML core resolves hosts.
-#web click '#host.focus'
-#web wait 'Named host focused'
+click '#host.focus'
+wait 'Named host focused'
 # An Interactive around a host keeps a box of its own, the size of what the host holds.
 wait 'Wrapped 40x20'
 click '#host.wrapped'

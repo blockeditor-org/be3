@@ -134,6 +134,7 @@ pub(super) fn AddAccountDialog(
     let browser_url = create_memo(move || browser.get().map(|login| login.url).unwrap_or_default());
     let browser_code =
         create_memo(move || browser.get().map(|login| login.code).unwrap_or_default());
+    // The Copy handle the render closures below share: the server is not `Copy`.
     let default = create_memo(move || default_server.clone());
     let has_default = default.get_untracked().is_some();
     let default_name =
@@ -232,7 +233,6 @@ pub(super) fn AddAccountDialog(
             String::new()
         }
     });
-    let primary_disabled = create_memo(move || !waiting.get() && !ready.get());
     let connecting = create_memo(move || pending.get() && !waiting.get());
     view! {
         <Dialog
@@ -258,7 +258,7 @@ pub(super) fn AddAccountDialog(
                         submit();
                     }
                 })
-                .disabled(primary_disabled)
+                .disabled(move || !waiting.get() && !ready.get())
                 .busy(connecting)
                 .shown(create_memo(move || !footer_primary.with(String::is_empty))),
             ]}

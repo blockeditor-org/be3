@@ -461,30 +461,28 @@ pub(crate) fn Displays(view: HostUiStore) -> NodeId {
     let shown = crate::display::shown();
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
-        <Layers>
-            <Show
-                condition={windowed}
-                fallback={move || view! {
-                    <Layers>
-                        <Root view />
-                        <AnchoredViews />
-                    </Layers>
-                }}
-            >|| {
-                let keys = create_memo(move || {
-                    shown.with(|shown| {
-                        shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
-                    })
-                });
-                view! {
-                    <Layers>
-                        <ForEach keys={keys}>|id: String|
-                            <DisplayWindow view id />
-                        </ForEach>
-                    </Layers>
-                }
-            }</Show>
-        </Layers>
+        <Show
+            condition={windowed}
+            fallback={move || view! {
+                <Layers>
+                    <Root view />
+                    <AnchoredViews />
+                </Layers>
+            }}
+        >|| {
+            let keys = create_memo(move || {
+                shown.with(|shown| {
+                    shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
+                })
+            });
+            view! {
+                <Layers>
+                    <ForEach keys={keys}>|id: String|
+                        <DisplayWindow view id />
+                    </ForEach>
+                </Layers>
+            }
+        }</Show>
     }
 }
 

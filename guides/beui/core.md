@@ -30,7 +30,13 @@ that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
 `Option<Child>`) becomes a host node holding the child it swaps: natively a
 bare `Frame` that sizes to its child, on HTML a `display: contents` element
 that passes its placed styles on to its child. `@test_id` and `@node_ref` on
-`OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run.
+`OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run;
+focusing a host focuses the child it holds. A plain `Option` of a child (or of
+`Children`) also fills a run, but it is built once and is not reactive: write
+`cond.then(|| view! {..})` only for a condition fixed when the view is built,
+and a `Show` for one that changes. With a `fallback`, a `Dynamic` or `Keyed`
+`value` must already be an `Option`: it is not lifted from a plain value, which
+would never show the fallback.
 A run where one node goes, and a `Show` without a `fallback` where a node must
 always be, are compile errors saying what to add. A `ForEach` row that is a
 one-child `Show` costs a host per row, and a `ZeroOrOne` row there is a host that

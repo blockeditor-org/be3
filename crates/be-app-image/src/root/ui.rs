@@ -186,15 +186,13 @@ pub fn ImagePreview(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <Layers>
-            <Loading fallback>|| {
-                let block = editor.block_content::<ImageContent>();
-                let shown = watch(editor, block);
-                let image = create_memo(move || shown.get().image);
-                view! {
-                    <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
-                }
-            }</Loading>
-        </Layers>
+        <Loading fallback>|| {
+            let block = editor.block_content::<ImageContent>();
+            let shown = watch(editor, block);
+            let image = create_memo(move || shown.get().image);
+            view! {
+                <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
+            }
+        }</Loading>
     }
 }

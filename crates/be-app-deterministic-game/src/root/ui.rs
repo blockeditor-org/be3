@@ -676,7 +676,6 @@ pub(crate) fn GameCreation(
         true => TextColor::Danger,
         false => TextColor::Muted,
     });
-    let unready = create_memo(move || !snapshot.get().ready);
     let accepted = create_signal(false);
     view! {
         <DialogBody
@@ -688,7 +687,7 @@ pub(crate) fn GameCreation(
                     accepted.set(true);
                     creation.value().accept();
                 })
-                .disabled(unready)
+                .disabled(move || snapshot.with(|snapshot| !snapshot.ready))
                 .busy(accepted),
             ]}
             on_dismiss={move || creation.value().cancel()}

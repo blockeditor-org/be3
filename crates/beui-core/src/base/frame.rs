@@ -43,6 +43,8 @@ pub struct FrameNode {
     pub opacity: f32,
     pub fade_edges: Sides,
     mask: Option<SpaceId>,
+    /// Holds control flow's one child (`create_host`): focusing it focuses that child.
+    host: bool,
 }
 
 impl FrameNode {
@@ -181,6 +183,7 @@ impl Default for FrameNode {
             opacity: 1.0,
             fade_edges: Sides::ZERO,
             mask: None,
+            host: false,
         }
     }
 }
@@ -485,6 +488,25 @@ impl Document {
             node.mask = Some(SpaceId::of(frame.id()));
         }
         frame
+    }
+
+    pub fn create_host_frame(&mut self) -> NodeOf<FrameNode> {
+        let frame = self.create_frame();
+        self.arena.downcast_mut(frame).host = true;
+        frame
+    }
+
+    /// The node that takes focus for `node`: the child a host frame holds, through any hosts
+    /// nested in it, or `node` itself.
+    pub fn hosted(&self, mut node: NodeId) -> NodeId {
+        while let Some(frame) = self.arena.made_as::<FrameNode>(node) {
+            let frame = self.arena.get_as(frame);
+            match (frame.host, frame.child) {
+                (true, Some(child)) => node = child,
+                _ => break,
+            }
+        }
+        node
     }
 
     pub fn set_frame_child(&mut self, frame: NodeOf<FrameNode>, child: Option<NodeId>) {

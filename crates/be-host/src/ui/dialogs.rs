@@ -77,7 +77,6 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
         },
     );
     let made = create_memo(move || agents.get().and_then(|agents| agents.created).is_some());
-    let creating = create_memo(move || !made.get());
     let busy = create_memo(move || agents.get().is_some_and(|agents| agents.busy));
     let name = create_signal(String::new());
     create_effect(move || {
@@ -97,7 +96,7 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
                 DialogAction::primary("Add agent", move || send(UiCommand::CreateAgent(name.get_untracked())))
                     .disabled(cannot)
                     .busy(busy)
-                    .shown(creating)
+                    .shown(move || !made.get())
                     .named("add"),
                 DialogAction::cancel("Done").shown(made),
             ]}

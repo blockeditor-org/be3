@@ -146,7 +146,30 @@ pub trait IntoPropWith<T, M> {
 
 pub struct ByValue;
 pub struct ByClosure;
+pub struct ByLift;
 pub struct ByClosureLifted;
+
+/// The markers that pass a value as the prop's own type, without lifting it into an `Option`.
+/// A `Prop<V>` whose `V` is a type parameter of its component takes only these, since its type
+/// comes from the other props: `Dynamic` and `Keyed` with a `fallback` take an `Option`.
+#[diagnostic::on_unimplemented(
+    message = "with a `fallback`, `value` must be an `Option`; pass `Some(..)`, or leave the fallback out",
+    label = "this is not an `Option`"
+)]
+pub trait Exact {}
+impl Exact for ByValue {}
+impl Exact for ByClosure {}
+
+/// A value, signal or memo of `T` passed where a `Prop<Option<T>>` is taken: it is `Some`.
+pub trait IntoLiftedProp<T> {
+    fn into_lifted_prop(self) -> Prop<T>;
+}
+
+impl<T, V: IntoLiftedProp<T>> IntoPropWith<T, ByLift> for V {
+    fn into_prop_with(self) -> Prop<T> {
+        self.into_lifted_prop()
+    }
+}
 
 impl<T, V: IntoProp<T>> IntoPropWith<T, ByValue> for V {
     fn into_prop_with(self) -> Prop<T> {
@@ -208,38 +231,38 @@ impl<T: Clone + PartialEq + Default + 'static> IntoProp<T> for Memo<Ready<T>> {
     }
 }
 
-impl<T: 'static> IntoProp<Option<T>> for T {
-    fn into_prop(self) -> Prop<Option<T>> {
+impl<T: 'static> IntoLiftedProp<Option<T>> for T {
+    fn into_lifted_prop(self) -> Prop<Option<T>> {
         Prop::Static(Some(self))
     }
 }
 
-impl IntoProp<Option<String>> for &'static str {
-    fn into_prop(self) -> Prop<Option<String>> {
+impl IntoLiftedProp<Option<String>> for &'static str {
+    fn into_lifted_prop(self) -> Prop<Option<String>> {
         Prop::Static(Some(self.to_string()))
     }
 }
 
-impl<T: 'static> IntoProp<Option<T>> for Prop<T> {
-    fn into_prop(self) -> Prop<Option<T>> {
+impl<T: 'static> IntoLiftedProp<Option<T>> for Prop<T> {
+    fn into_lifted_prop(self) -> Prop<Option<T>> {
         self.map(Some)
     }
 }
 
-impl<T: Clone + 'static> IntoProp<Option<T>> for ReadSignal<T> {
-    fn into_prop(self) -> Prop<Option<T>> {
+impl<T: Clone + 'static> IntoLiftedProp<Option<T>> for ReadSignal<T> {
+    fn into_lifted_prop(self) -> Prop<Option<T>> {
         Prop::dynamic(move || Some(self.get()))
     }
 }
 
-impl<T: Clone + 'static> IntoProp<Option<T>> for Signal<T> {
-    fn into_prop(self) -> Prop<Option<T>> {
+impl<T: Clone + 'static> IntoLiftedProp<Option<T>> for Signal<T> {
+    fn into_lifted_prop(self) -> Prop<Option<T>> {
         Prop::dynamic(move || Some(self.get()))
     }
 }
 
-impl<T: Clone + PartialEq + 'static> IntoProp<Option<T>> for Memo<T> {
-    fn into_prop(self) -> Prop<Option<T>> {
+impl<T: Clone + PartialEq + 'static> IntoLiftedProp<Option<T>> for Memo<T> {
+    fn into_lifted_prop(self) -> Prop<Option<T>> {
         Prop::dynamic(move || Some(self.get()))
     }
 }
