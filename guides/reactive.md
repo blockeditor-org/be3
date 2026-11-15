@@ -109,9 +109,9 @@ has effects parked at its end.
 A pausable scope (`Scope::detached().pausable()`) holds back the effects under
 it while paused and runs each woken one once on `resume()`. An effect already
 woken when it pauses still runs, so the write that hides a subtree reaches it
-(an overlay inside closes). A `Show` with `keep_alive` pauses its hidden branch this way, and
-`kept_shown()` inside it is a memo of whether it shows (and every kept branch around it), for what
-the branch holds outside itself and must let go while hidden (a dock it joined);
+(an overlay inside closes). A `Kept` shown nowhere pauses its subtree this way, and
+`kept_shown()` inside it is a memo of whether it shows (and every kept subtree around it), for what
+the subtree holds outside itself and must let go while hidden (a dock it joined);
 `Scope::pausable_effects()` pauses effects but not bindings, for `Loading`.
 
 ## Loading

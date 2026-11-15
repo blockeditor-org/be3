@@ -18,6 +18,7 @@ use beui_components_unstyled::{
     ButtonHandle, Edge, PopupTriggerHandle, TextInputHandle, TreeItem, TreeMenu, TreeRevealHandle,
     TreeRowEdit, TreeRowHandle, TreeToggleHandle,
 };
+use beui_view::primitives::{KeepAlive, Kept};
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Pos2;
@@ -287,15 +288,19 @@ where
             }
         }
     };
-    // A pair of Shows, not one kept alive with a fallback: the editor reads the name once and
-    // finishes once, so each rename builds a fresh one.
+    // A pair of Shows, not one with a kept fallback: the name area is kept, but the editor
+    // reads the name once and finishes once, so each rename builds a fresh one.
     let named_field = view! {
         <List align=Align::Stretch spacing=Space::None>
-            <Show keep_alive=true value={move || !editing.get()}>
-                <ListItem grow=1.0>
-                    <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
-                </ListItem>
-            </Show>
+            <KeepAlive>
+                <Show value={move || !editing.get()}>
+                    <ListItem grow=1.0>
+                        <Kept>
+                            <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
+                        </Kept>
+                    </ListItem>
+                </Show>
+            </KeepAlive>
             <Show value={editing}>{field()}</Show>
         </List>
     };

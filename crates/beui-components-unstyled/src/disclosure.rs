@@ -48,12 +48,16 @@ pub fn Disclosure(
                     open,
                 })
             }</unstyled::Button>
-            <Show keep_alive=true value={open}>
-                <List spacing>
-                    <Frame />
-                    {children}
-                </List>
-            </Show>
+            <KeepAlive>
+                <Show value={open}>
+                    <Kept>
+                        <List spacing>
+                            <Frame />
+                            {children}
+                        </List>
+                    </Kept>
+                </Show>
+            </KeepAlive>
         </List>
     }
 }
