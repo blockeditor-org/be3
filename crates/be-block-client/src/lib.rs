@@ -145,6 +145,9 @@ pub enum ClientError {
     /// The server served access records for the block that do not check back to the root
     /// this device pinned (plans/signed_access.md).
     Forged(uuid::Uuid),
+    /// This device's edits to the block were discarded and it may not edit it: it keeps none
+    /// (`Refs::keep_open_edits`).
+    Discarded(uuid::Uuid),
     Unexpected,
     Incompatible {
         ours: String,
@@ -180,6 +183,9 @@ impl fmt::Display for ClientError {
             Self::Forged(_) => {
                 formatter.write_str("the server served access records its members did not sign")
             }
+            Self::Discarded(_) => formatter.write_str(
+                "this device's edits to this block were discarded, and it may not edit it",
+            ),
             Self::Unexpected => formatter.write_str("the server answered with the wrong message"),
             Self::Incompatible { ours, theirs } => write!(
                 formatter,

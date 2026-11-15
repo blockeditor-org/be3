@@ -108,6 +108,10 @@ impl<S: ObjectStore> Peer<S> {
         kept: crate::OpenEdits,
         edits: Vec<crate::KeptEdit>,
     ) -> Result<(), ClientError> {
+        // Refused before anything is sealed, which may ask the server for the block's key.
+        if self.refs.discarded(block) {
+            return Err(ClientError::Discarded(block));
+        }
         let mut sealed = Vec::with_capacity(edits.len());
         if !edits.is_empty() {
             let key = self.sealing_key(block).await?;
@@ -116,13 +120,17 @@ impl<S: ObjectStore> Peer<S> {
                 sealed.push(self.commits.vault().seal(key, &encoded)?);
             }
         }
-        Ok(self.refs.keep_open_edits(
+        let kept = self.refs.keep_open_edits(
             block,
             crate::OpenEdits {
                 edits: sealed,
                 ..kept
             },
-        )?)
+        )?;
+        match kept {
+            true => Ok(()),
+            false => Err(ClientError::Discarded(block)),
+        }
     }
 
     /// What the host kept of `block`'s replica before it last stopped: its origin and counts,
@@ -182,7 +190,7 @@ impl<S: ObjectStore> Peer<S> {
     /// Keeps `kept` as `block`'s, its edits sealed already, as another device kept them.
     #[cfg(test)]
     pub(crate) fn keep_sealed_open_edits(&self, block: Uuid, kept: crate::OpenEdits) {
-        self.refs.keep_open_edits(block, kept).unwrap();
+        assert!(self.refs.keep_open_edits(block, kept).unwrap());
     }
 
     /// What this device keeps of `block`'s edits set aside.
