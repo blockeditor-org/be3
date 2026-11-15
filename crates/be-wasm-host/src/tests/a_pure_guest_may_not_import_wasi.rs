@@ -8,7 +8,7 @@ fn a_pure_guest_may_not_import_wasi() {
         (func (export "app_start"))
         (func (export "app_step"))
         (func (export "app_shutdown")))"#;
-    let refused = Host::pure(None)
+    let refused = Host::pure()
         .unwrap()
         .load_bytes(module.as_bytes())
         .err()

@@ -5,7 +5,7 @@ use super::*;
 #[test]
 fn a_pure_guest_that_panics_reports_its_panic_message() {
     let waiting = Arc::default();
-    let channel = Host::pure(None)
+    let channel = Host::pure()
         .unwrap()
         .spawn(
             "echo".to_owned(),

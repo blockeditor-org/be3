@@ -7,19 +7,20 @@ const APP: &[u8] = include_bytes!(env!("TLS_DIAMOND_APP_WASM"));
 
 #[test]
 fn the_thread_local_diamond_runs_on_every_thread() {
-    let engine = wasmtime::Engine::default();
-    let app = wasmtime::Module::new(&engine, APP).unwrap();
+    let app = crate::engine::Shape::read(APP).unwrap();
     let reached: Vec<&str> = app
-        .imports()
-        .filter(|import| import.module() == "GOT.tls")
-        .map(|import| import.name())
+        .imports
+        .iter()
+        .filter(|import| import.module == "GOT.tls")
+        .map(|import| import.name.as_str())
         .collect();
     for (local, library) in [("BASE", BASE), ("LEFT", LEFT), ("RIGHT", RIGHT)] {
-        let library = wasmtime::Module::new(&engine, library).unwrap();
+        let library = crate::engine::Shape::read(library).unwrap();
         assert!(
             library
-                .exports()
-                .any(|export| reached.contains(&export.name())),
+                .exports
+                .iter()
+                .any(|export| reached.contains(&export.name.as_str())),
             "the app reaches {local} without GOT.tls: {reached:?}"
         );
     }

@@ -16,6 +16,9 @@ bytes = "1"
 rustc-demangle = "0.1"
 tokio = { version = "1", default-features = false }
 v8 = "=152.2.0"
+getrandom = "0.3"
+wasm-encoder = "0.257"
+wasmparser = "0.257"
 wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "demangle", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
 wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
@@ -31,5 +34,4 @@ be-sdk-api = { path = "../be-sdk-api" }
 be-sdk-type-api = { path = "../be-sdk-type-api" }
 uuid = "1"
 wat = "1"
-wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat"] }
 wgpu = { version = "29", default-features = false, features = ["noop", "std", "wgsl"] }

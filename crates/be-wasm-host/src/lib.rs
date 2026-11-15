@@ -1,14 +1,19 @@
+//! The host every wasm guest runs on: apps (with the gpu, WASI and threads), pure guests (type
+//! modules: transport only, and a memory cap) and their libraries, on V8 (plans/wasm_on_v8.md).
+//! Each guest thread has an isolate of its own; modules are compiled once and shared between
+//! isolates; the gpu and transport imports are fast-API calls (gpu.rs).
+
 mod dylink;
+pub(crate) mod engine;
 mod gauge;
 mod gpu;
-mod harness;
+mod instance;
 mod interrupt;
 mod panic;
-mod precompile;
 mod state;
-mod stderr;
 mod threads;
 mod wake;
+mod wasi;
 
 #[cfg(test)]
 mod tests;
@@ -16,8 +21,9 @@ mod tests;
 use std::{
     collections::HashMap,
     convert::Infallible,
-    num::NonZeroUsize,
+    mem::ManuallyDrop,
     path::{Path, PathBuf},
+    ptr::NonNull,
     sync::{Arc, Mutex, atomic::AtomicBool},
     time::{Duration, Instant},
 };
@@ -28,26 +34,20 @@ use be_wasm_guest_host::{
 };
 
 use be_wasm_gpu_host::Gpu;
-use wasmtime::{
-    Cache, CacheConfig, Config, Engine, Instance, Linker, MemoryType, Module, SharedMemory, Store,
-    StoreLimitsBuilder, TypedFunc,
-};
-use wasmtime_wasi::{WasiCtxBuilder, p1};
 
 use dylink::Program;
+use engine::{Kind, Module};
+use instance::{Answers, Role};
 use interrupt::Interrupt;
 use state::{Device, Memory};
-use threads::Spawner;
+use threads::{Share, Spawner};
 use wake::Wake;
 
 pub use be_wasm_dylink::library_file_name;
 pub use be_wasm_gpu_host::Imports;
 pub use gauge::memories;
 pub use interrupt::Interrupter;
-pub use precompile::{precompile, precompile_to};
 pub use state::{Connect, State};
-
-pub const PRECOMPILED_EXTENSION: &str = "cwasm";
 
 const INTERRUPTED: &str = "the app was stopped while it ran";
 
@@ -57,15 +57,12 @@ const INITIALIZE: &str = "_initialize";
 
 const MEMORY: &str = "memory";
 
-const BACKTRACE_FRAMES: usize = 100;
-
 pub const MEMORY_LIMIT: usize = 1 << 30;
 
 type Libraries = Arc<Mutex<HashMap<String, Module>>>;
 
 #[derive(Clone)]
 pub struct Host {
-    engine: Engine,
     libraries: Libraries,
     devices: Devices,
     imports: Imports,
@@ -103,38 +100,31 @@ impl Devices {
 }
 
 impl Host {
-    pub fn new(
-        device: wgpu::Device,
-        queue: wgpu::Queue,
-        cache: Option<&Path>,
-    ) -> Result<Self, String> {
-        Self::with(Devices::Given(device, queue), cache, Flavor::App)
+    pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Result<Self, String> {
+        Self::with(Devices::Given(device, queue), Flavor::App)
     }
 
     pub fn awaiting(
         device: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
-        cache: Option<&Path>,
     ) -> Result<Self, String> {
-        Self::with(Devices::Awaited(Arc::new(device)), cache, Flavor::App)
+        Self::with(Devices::Awaited(Arc::new(device)), Flavor::App)
     }
 
     pub fn on_demand(
         connect: impl Fn() -> Result<(wgpu::Device, wgpu::Queue), String> + Send + Sync + 'static,
-        cache: Option<&Path>,
     ) -> Result<Self, String> {
-        Self::with(Devices::OnDemand(Arc::new(connect)), cache, Flavor::App)
+        Self::with(Devices::OnDemand(Arc::new(connect)), Flavor::App)
     }
 
-    pub fn pure(cache: Option<&Path>) -> Result<Self, String> {
-        Self::with(Devices::None, cache, Flavor::Pure)
+    pub fn pure() -> Result<Self, String> {
+        Self::with(Devices::None, Flavor::Pure)
     }
 
-    fn with(devices: Devices, cache: Option<&Path>, flavor: Flavor) -> Result<Self, String> {
-        let (engine, libraries) = engine(cache, flavor)?;
+    fn with(devices: Devices, flavor: Flavor) -> Result<Self, String> {
+        engine::initialize();
         Ok(Self {
-            interrupt: Interrupt::new(engine.clone()),
-            engine,
-            libraries,
+            interrupt: Interrupt::new(),
+            libraries: libraries(flavor),
             devices,
             imports: Imports::default(),
             flavor,
@@ -192,16 +182,8 @@ impl Host {
         entry: &str,
         read: impl Fn(&str) -> Result<Stored, String>,
     ) -> Result<App, String> {
-        let app = match precompiled(&self.engine, entry, &read) {
-            Some(app) => app,
-            None => module(&self.engine, read(entry)?)?,
-        };
-        self.link(app, |identity| {
-            let library = library_file_name(identity);
-            match precompiled(&self.engine, &library, &read) {
-                Some(module) => Ok(module),
-                None => library_module(&self.engine, identity, read(&library)?),
-            }
+        App::new(self, read(entry)?.into_bytes()?, &|identity| {
+            read(&library_file_name(identity))?.into_bytes()
         })
     }
 
@@ -218,20 +200,20 @@ impl Host {
         bytes: &[u8],
         library: impl Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<App, String> {
-        let app = module(&self.engine, Stored::Bytes(bytes.to_vec()))?;
-        self.link(app, |identity| {
-            library_module(&self.engine, identity, Stored::Bytes(library(identity)?))
-        })
+        App::new(self, bytes.to_vec(), &library)
     }
 
-    fn link(
+    /// The program `app` is, with each library it is linked against compiled once for every
+    /// isolate of the host's flavor.
+    fn program(
         &self,
+        scope: &mut v8::PinScope<'_, '_>,
         app: Module,
-        library: impl Fn(&str) -> Result<Module, String>,
-    ) -> Result<App, String> {
-        let identities = dylink::libraries(&app)?;
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<(Program, Vec<String>), String> {
+        let identities = dylink::libraries(&app.shape)?;
         if identities.is_empty() {
-            return App::new(self, Program::Whole(app), Vec::new());
+            return Ok((Program::Whole(app), identities));
         }
         let mut modules = Vec::with_capacity(identities.len() + 1);
         for identity in &identities {
@@ -240,141 +222,101 @@ impl Host {
                 .lock()
                 .map_err(|_| "the library cache was poisoned".to_owned())?;
             let module = match libraries.get(identity) {
-                Some(module) => module.clone(),
+                Some(module) => Arc::clone(module),
                 None => {
-                    let module = library(identity).map_err(|error| {
-                        format!("the library {identity} could not be loaded: {error}")
-                    })?;
-                    libraries.insert(identity.clone(), module.clone());
+                    let module = library(identity)
+                        .and_then(|bytes| {
+                            be_wasm_dylink::check_library(&bytes, identity)?;
+                            engine::compile(scope, &source(bytes)?)
+                        })
+                        .map_err(|error| {
+                            format!("the library {identity} could not be loaded: {error}")
+                        })?;
+                    libraries.insert(identity.clone(), Arc::clone(&module));
                     module
                 }
             };
             modules.push(module);
         }
         modules.push(app);
-        App::new(self, Program::Linked(modules.into()), identities)
+        Ok((Program::Linked(modules.into()), identities))
     }
 }
 
+/// A module's bytes as V8 takes them. The tests write their guests as text.
+fn source(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
+    #[cfg(test)]
+    return wat::parse_bytes(&bytes)
+        .map(|bytes| bytes.into_owned())
+        .map_err(|error| format!("the module is not valid: {error}"));
+    #[cfg(not(test))]
+    Ok(bytes)
+}
+
 pub struct App {
-    store: Store<State>,
-    start: TypedFunc<(), ()>,
-    step: TypedFunc<(), ()>,
-    shutdown: TypedFunc<(), ()>,
+    isolate: ManuallyDrop<v8::SharedIsolate>,
+    context: ManuallyDrop<v8::Global<v8::Context>>,
+    start: ManuallyDrop<v8::Global<v8::Function>>,
+    step: ManuallyDrop<v8::Global<v8::Function>>,
+    shutdown: ManuallyDrop<v8::Global<v8::Function>>,
+    /// Owned by the App, freed after its isolate; the isolate's host functions reach it
+    /// (state::state_of), so it is never borrowed across a call into the guest.
+    state: NonNull<State>,
     wake: Arc<Wake>,
     stopped: bool,
     gauge: Arc<gauge::Gauge>,
 }
 
+// unsafe(ffi): the State and the isolate's handles move with the App, and only the thread that
+// holds the App reaches them.
+unsafe impl Send for App {}
+
+/// The parts of a new app that outlive its isolate's lock.
+struct Made {
+    state: NonNull<State>,
+    start: v8::Global<v8::Function>,
+    step: v8::Global<v8::Function>,
+    shutdown: v8::Global<v8::Function>,
+}
+
 impl App {
-    fn new(host: &Host, program: Program, identities: Vec<String>) -> Result<Self, String> {
+    fn new(
+        host: &Host,
+        bytes: Vec<u8>,
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Self, String> {
         if host.interrupt.interrupted() {
             return Err(INTERRUPTED.to_owned());
         }
-        let engine = host.engine.clone();
-        let imported = memory_import(program.first());
-        let shared = match (&program, &imported) {
-            (_, Some((_, _, declared))) if declared.is_shared() => Some(
-                SharedMemory::new(&engine, declared.clone())
-                    .map_err(|error| format!("the app memory could not be created: {error}"))?,
-            ),
-            (Program::Linked(_), _) => {
-                return Err("the root library does not import a shared memory".to_owned());
-            }
-            _ => None,
-        };
-        let wasi = WasiCtxBuilder::new().inherit_stderr().build_p1();
+        let (isolate, context) = engine::isolate();
         let wake: Arc<Wake> = Arc::default();
-        let threads = Spawner::new(
-            engine.clone(),
-            program.clone(),
-            shared.clone(),
-            Arc::clone(&wake),
-            Arc::clone(&host.interrupt),
-        );
-        let state = State {
-            wasi,
-            memory: shared.clone().map_or(Memory::Own(None), Memory::Shared),
-            device: host.devices.open(&host.imports),
-            imports: Arc::clone(&host.imports),
-            error: None,
-            fatal: None,
-            returned: Vec::new(),
-            transport: Default::default(),
-            gpu_time: Duration::ZERO,
-            submit_time: Duration::ZERO,
-            threads: Arc::clone(&threads),
-            wake: Arc::clone(&wake),
-            limits: StoreLimitsBuilder::new()
-                .memory_size(host.memory_limit.unwrap_or(usize::MAX))
-                .trap_on_grow_failure(true)
-                .build(),
+        let made = {
+            let mut locker = isolate.lock();
+            v8::scope!(let scope, &mut *locker);
+            let local = v8::Local::new(scope, &context);
+            let scope = &mut v8::ContextScope::new(scope, local);
+            v8::tc_scope!(let caught, scope);
+            let made = Self::make(caught, host, &isolate, bytes, library, &wake);
+            made.map_err(|error| match caught.has_caught() {
+                true => format!("{error}: {}", crate::engine::thrown!(caught)),
+                false => error,
+            })
         };
-        let mut store = Store::new(&engine, state);
-        interrupt::watch(&mut store, true);
-        if host.memory_limit.is_some() {
-            store.limiter(|state| &mut state.limits);
-        }
-        let pure = host.flavor == Flavor::Pure;
-        let mut linker: Linker<State> = Linker::new(&engine);
-        if !pure {
-            p1::add_to_linker_sync(&mut linker, |state: &mut State| &mut state.wasi)
-                .map_err(|error| format!("wasi could not be linked: {error}"))?;
-        }
-        if let Some((module, name, declared)) = imported {
-            let defined = match &shared {
-                Some(shared) => linker.define(&store, &module, &name, shared.clone()),
-                None => {
-                    let own = wasmtime::Memory::new(&mut store, declared)
-                        .map_err(|error| format!("the app memory could not be created: {error}"))?;
-                    store.data_mut().memory = Memory::Own(Some(own));
-                    linker.define(&store, &module, &name, own)
-                }
-            };
-            defined.map_err(|error| format!("the app memory could not be linked: {error}"))?;
-        }
-        panic::link(&mut linker)?;
-        wake::link(&mut linker)?;
-        if pure {
-            gpu::link_transport(&mut linker)?;
-        } else {
-            gpu::link(&mut linker)?;
-            threads::link(&mut linker)?;
-            linker
-                .define_unknown_imports_as_traps(program.first())
-                .map_err(|error| format!("the app imports could not be stubbed: {error}"))?;
-        }
-        let first = linker
-            .instantiate(&mut store, program.first())
-            .map_err(|error| format!("the app could not be instantiated: {error}"))?;
-        let instance = match (&program, &shared) {
-            (Program::Whole(_), _) => {
-                if let Memory::Own(None) = store.data().memory {
-                    store.data_mut().memory = Memory::Own(first.get_memory(&mut store, MEMORY));
-                }
-                initialize(&first, &mut store)?;
-                first
-            }
-            (Program::Linked(modules), Some(memory)) => {
-                initialize(&first, &mut store)?;
-                let linked = dylink::plan(&mut store, modules, &identities, &first, memory)?;
-                let thread = dylink::Thread {
-                    blocks: linked.take(memory)?,
-                    root_block: dylink::main_thread_locals(&mut store, &first)?,
-                    main: true,
-                };
-                threads.linked(Arc::clone(&linked));
-                dylink::link(&mut store, &linker, modules, &linked, first, &thread)?
-            }
-            (Program::Linked(_), None) => {
-                return Err("the root library does not import a shared memory".to_owned());
+        let made = match made {
+            Ok(made) => made,
+            Err(error) => {
+                drop(context);
+                drop(isolate);
+                return Err(error);
             }
         };
         let app = Self {
-            start: typed(&instance, &mut store, "app_start")?,
-            step: typed(&instance, &mut store, "app_step")?,
-            shutdown: typed(&instance, &mut store, "app_shutdown")?,
-            store,
+            isolate: ManuallyDrop::new(isolate),
+            context: ManuallyDrop::new(context),
+            start: ManuallyDrop::new(made.start),
+            step: ManuallyDrop::new(made.step),
+            shutdown: ManuallyDrop::new(made.shutdown),
+            state: made.state,
             wake,
             stopped: false,
             gauge: gauge::Gauge::register(host.name.clone().unwrap_or_else(|| "wasm".to_owned())),
@@ -383,12 +325,180 @@ impl App {
         Ok(app)
     }
 
+    fn make(
+        scope: &mut v8::PinScope<'_, '_>,
+        host: &Host,
+        isolate: &v8::SharedIsolate,
+        bytes: Vec<u8>,
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+        wake: &Arc<Wake>,
+    ) -> Result<Made, String> {
+        let pure = host.flavor == Flavor::Pure;
+        let bytes = source(bytes)?;
+        let bytes = match pure {
+            true => engine::pure(&bytes, host.memory_limit)?,
+            false => bytes,
+        };
+        let app = engine::compile(scope, &bytes)?;
+        let (program, identities) = host.program(scope, app, library)?;
+        let cap = host.memory_limit.map(engine::pages);
+        let imported = program.first().shape.memory_import().cloned();
+        let memory = match &imported {
+            Some(engine::Import {
+                kind: Kind::Memory(declared),
+                ..
+            }) => {
+                let maximum = match cap {
+                    Some(cap) => Some(engine::capped_maximum(declared, cap)?),
+                    None => declared.maximum,
+                };
+                Some(engine::memory(
+                    scope,
+                    declared.initial,
+                    maximum,
+                    declared.shared,
+                )?)
+            }
+            _ => None,
+        };
+        let share = match (memory, &imported) {
+            (Some(memory), Some(engine::Import {
+                kind: Kind::Memory(declared),
+                ..
+            })) if declared.shared => Some(Share::of(scope, memory)?),
+            _ => None,
+        };
+        if matches!(program, Program::Linked(_)) && share.is_none() {
+            return Err("the root library does not import a shared memory".to_owned());
+        }
+        let handle = isolate.thread_safe_handle();
+        let threads = Spawner::new(
+            program.clone(),
+            share,
+            Arc::clone(wake),
+            Arc::clone(&host.interrupt),
+            handle.clone(),
+        );
+        let state = State {
+            memory: match (&memory, threads.share()) {
+                (_, Some(share)) => Memory::Shared(share.store.clone()),
+                (Some(own), None) => Memory::Own(v8::Global::new(scope, *own)),
+                (None, None) => Memory::None,
+            },
+            memory_object: threads
+                .share()
+                .and(memory)
+                .map(|memory| v8::Global::new(scope, memory)),
+            device: host.devices.open(&host.imports),
+            imports: Arc::clone(&host.imports),
+            error: None,
+            fatal: None,
+            panicked: None,
+            returned: Vec::new(),
+            transport: Default::default(),
+            threads: Arc::clone(&threads),
+            wake: Arc::clone(wake),
+            gpu_time: Duration::ZERO,
+            submit_time: Duration::ZERO,
+            isolate: handle,
+        };
+        let state = NonNull::from(Box::leak(Box::new(state)));
+        let made = Self::instantiate(scope, host, &program, &identities, memory, state);
+        match made {
+            Ok((start, step, shutdown)) => Ok(Made {
+                state,
+                start,
+                step,
+                shutdown,
+            }),
+            Err(error) => {
+                threads.release();
+                // unsafe(ffi): nothing the failed instance holds runs again.
+                drop(unsafe { Box::from_raw(state.as_ptr()) });
+                Err(error)
+            }
+        }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn instantiate<'s>(
+        scope: &mut v8::PinScope<'s, '_>,
+        host: &Host,
+        program: &Program,
+        identities: &[String],
+        memory: Option<v8::Local<'s, v8::Object>>,
+        state: NonNull<State>,
+    ) -> Result<
+        (
+            v8::Global<v8::Function>,
+            v8::Global<v8::Function>,
+            v8::Global<v8::Function>,
+        ),
+        String,
+    > {
+        let pure = host.flavor == Flavor::Pure;
+        // unsafe(ffi): no guest runs yet, so nothing else reaches the State.
+        let fast = unsafe { state.as_ref() }.memory.shared().is_some();
+        let role = match pure {
+            true => Role::Pure,
+            false => Role::App { fast },
+        };
+        let data = v8::External::new(scope, state.as_ptr().cast()).into();
+        let answers = Answers {
+            defined: instance::host_functions(scope, data, role, program.modules())?,
+            memory,
+            pure,
+        };
+        let first = instance::instantiate_answered(scope, program.first(), &answers)?;
+        let exports = match program {
+            Program::Whole(_) => {
+                // unsafe(ffi): as above; the instance's start function, which may run the guest,
+                // has returned.
+                let state = unsafe { &mut *state.as_ptr() };
+                if let Memory::None = state.memory
+                    && let Some(own) = engine::get(scope, first, MEMORY)
+                        .and_then(|memory| memory.to_object(scope))
+                {
+                    state.memory = Memory::Own(v8::Global::new(scope, own));
+                }
+                initialize(scope, first)?;
+                first
+            }
+            Program::Linked(modules) => {
+                let memory = memory.ok_or("the root library does not import a shared memory")?;
+                initialize(scope, first)?;
+                let linked = dylink::plan(scope, modules, identities, first, memory)?;
+                // unsafe(ffi): as above.
+                let threads = Arc::clone(&unsafe { state.as_ref() }.threads);
+                let store = &threads.share().ok_or("the app memory is not shared")?.store;
+                let mut grow = |pages| threads::grow(scope, memory, pages);
+                let thread = dylink::Thread {
+                    blocks: linked.take(store, &mut grow)?,
+                    root_block: dylink::main_thread_locals(scope, first)?,
+                    main: true,
+                };
+                threads.linked(Arc::clone(&linked));
+                dylink::link(scope, &answers, modules, &linked, first, &thread)?
+            }
+        };
+        let export = |scope: &mut v8::PinScope<'_, '_>, name: &str| {
+            instance::function(scope, exports, name)
+                .map(|function| v8::Global::new(scope, function))
+                .ok_or_else(|| format!("the app has no usable {name} export"))
+        };
+        Ok((
+            export(scope, "app_start")?,
+            export(scope, "app_step")?,
+            export(scope, "app_shutdown")?,
+        ))
+    }
+
     pub fn start(&mut self) -> Result<(), String> {
-        self.call(self.start.clone())
+        self.call(Call::Start)
     }
 
     pub fn step(&mut self) -> Result<(), String> {
-        self.call(self.step.clone())
+        self.call(Call::Step)
     }
 
     pub fn on_wake(&self, notify: impl Fn() + Send + Sync + 'static) {
@@ -399,7 +509,50 @@ impl App {
         self.wake.take()
     }
 
-    fn call(&mut self, function: TypedFunc<(), ()>) -> Result<(), String> {
+    fn state(&self) -> &State {
+        // unsafe(ffi): the guest runs only inside App's own calls, so nothing else reaches the
+        // State while the App is borrowed.
+        unsafe { self.state.as_ref() }
+    }
+
+    fn state_mut(&mut self) -> &mut State {
+        // unsafe(ffi): as in state.
+        unsafe { self.state.as_mut() }
+    }
+
+    /// Runs one of the guest's exports to its end, and says how it ended.
+    fn run(&mut self, call: Call) -> Result<(), String> {
+        let function = match call {
+            Call::Start => &self.start,
+            Call::Step => &self.step,
+            Call::Shutdown => &self.shutdown,
+        };
+        let mut locker = self.isolate.lock();
+        v8::scope!(let scope, &mut *locker);
+        let context = v8::Local::new(scope, &*self.context);
+        let scope = &mut v8::ContextScope::new(scope, context);
+        v8::tc_scope!(let caught, scope);
+        let function = v8::Local::new(caught, &**function);
+        let receiver = v8::undefined(caught).into();
+        let ran = function.call(caught, receiver, &[]);
+        // unsafe(ffi): the guest has returned.
+        let state = unsafe { &mut *self.state.as_ptr() };
+        let terminated = caught.has_terminated();
+        let outcome = match ran {
+            Some(_) if state.fatal.is_none() => Ok(()),
+            _ => Err(match caught.has_caught() && !terminated {
+                true => crate::engine::thrown!(caught),
+                false => String::new(),
+            }),
+        };
+        self.gauge.set(state.view_in(caught).size() as u64);
+        if terminated || state.fatal.is_some() {
+            state.isolate.cancel_terminate_execution();
+        }
+        outcome
+    }
+
+    fn call(&mut self, call: Call) -> Result<(), String> {
         if self.stopped {
             return Ok(());
         }
@@ -407,23 +560,26 @@ impl App {
             self.stopped = true;
             return Err(INTERRUPTED.to_owned());
         }
-        if let Some(failure) = self.store.data_mut().threads.take_failure() {
+        if let Some(failure) = self.state().threads.take_failure() {
             self.stopped = true;
             return Err(failure);
         }
-        let outcome = function.call(&mut self.store, ());
-        self.measure();
-        let outcome = outcome.map_err(|error| {
-            if self.store.data().threads.halts(true) {
-                return INTERRUPTED.to_owned();
-            }
-            panic::message(&error).unwrap_or_else(|| format!("the app trapped: {error}"))
-        });
-        if let Err(error) = outcome {
+        if let Err(thrown) = self.run(call) {
             self.stopped = true;
-            return Err(error);
+            if self.interrupted() {
+                return Err(INTERRUPTED.to_owned());
+            }
+            let state = self.state_mut();
+            if let Some(fatal) = state.fatal.take() {
+                return Err(fatal);
+            }
+            if let Some(message) = state.panicked.take() {
+                eprintln!("be-wasm-host: an app panicked: {message}\n{thrown}");
+                return Err(message);
+            }
+            return Err(format!("the app trapped: {thrown}"));
         }
-        let state = self.store.data_mut();
+        let state = self.state_mut();
         match state.take_error().or_else(|| state.threads.take_failure()) {
             Some(error) => Err(error),
             None => Ok(()),
@@ -431,15 +587,15 @@ impl App {
     }
 
     pub fn deliver(&mut self, frames: Vec<Vec<u8>>) {
-        self.store.data_mut().transport.inbox.extend(frames);
+        self.state_mut().transport.inbox.extend(frames);
     }
 
     pub fn take_outbound(&mut self) -> Vec<Vec<u8>> {
-        std::mem::take(&mut self.store.data_mut().transport.outbox)
+        std::mem::take(&mut self.state_mut().transport.outbox)
     }
 
     pub fn take_gpu_time(&mut self) -> (Duration, Duration) {
-        let state = self.store.data_mut();
+        let state = self.state_mut();
         (
             std::mem::take(&mut state.gpu_time),
             std::mem::take(&mut state.submit_time),
@@ -447,8 +603,7 @@ impl App {
     }
 
     pub fn take_presented(&mut self) -> Vec<u32> {
-        self.store
-            .data_mut()
+        self.state_mut()
             .device
             .ready_mut()
             .map(Gpu::take_presented)
@@ -456,8 +611,7 @@ impl App {
     }
 
     pub fn surface(&self, surface: u32) -> Option<(wgpu::Texture, u64)> {
-        self.store
-            .data()
+        self.state()
             .device
             .ready()?
             .surface(surface)
@@ -465,7 +619,7 @@ impl App {
     }
 
     pub fn attach_surface(&mut self, surface: u32, texture: wgpu::Texture) {
-        let state = self.store.data_mut();
+        let state = self.state_mut();
         match state.gpu() {
             Ok(gpu) => gpu.attach_surface(surface, texture),
             Err(message) => {
@@ -475,7 +629,7 @@ impl App {
     }
 
     pub fn detach_surface(&mut self, surface: u32) {
-        if let Some(gpu) = self.store.data_mut().device.ready_mut() {
+        if let Some(gpu) = self.state_mut().device.ready_mut() {
             gpu.detach_surface(surface);
         }
     }
@@ -485,24 +639,46 @@ impl App {
             return;
         }
         self.stopped = true;
-        self.store.data().threads.stop();
+        self.state().threads.stop();
         if !self.interrupted() {
-            let _ = self.shutdown.call(&mut self.store, ());
+            let _ = self.run(Call::Shutdown);
         }
     }
 
     fn measure(&self) {
-        let bytes = match &self.store.data().memory {
-            Memory::Shared(memory) => memory.data_size(),
-            Memory::Own(Some(memory)) => memory.data_size(&self.store),
-            Memory::Own(None) => 0,
-        };
-        self.gauge.set(bytes as u64);
+        let mut locker = self.isolate.lock();
+        v8::scope!(let scope, &mut *locker);
+        let context = v8::Local::new(scope, &*self.context);
+        let scope = &mut v8::ContextScope::new(scope, context);
+        self.gauge.set(self.state().view_in(scope).size() as u64);
     }
 
     fn interrupted(&self) -> bool {
-        self.store.data().threads.halts(true)
+        self.state().threads.halts(true)
     }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.state().threads.release();
+        // unsafe(ffi): each is dropped once, here, the handles before their isolate and the
+        // State after it.
+        unsafe {
+            ManuallyDrop::drop(&mut self.start);
+            ManuallyDrop::drop(&mut self.step);
+            ManuallyDrop::drop(&mut self.shutdown);
+            ManuallyDrop::drop(&mut self.context);
+            ManuallyDrop::drop(&mut self.isolate);
+            drop(Box::from_raw(self.state.as_ptr()));
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Call {
+    Start,
+    Step,
+    Shutdown,
 }
 
 impl Runnable for App {
@@ -538,33 +714,19 @@ impl Runnable for App {
     }
 }
 
-fn call_constructors(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
-    let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS) else {
-        return Ok(());
+/// Runs the module's `_initialize`, or else its constructors, when it has them.
+fn initialize(
+    scope: &mut v8::PinScope<'_, '_>,
+    exports: v8::Local<v8::Object>,
+) -> Result<(), String> {
+    let (name, failure) = match instance::function(scope, exports, INITIALIZE) {
+        Some(_) => (INITIALIZE, "the app could not initialize itself"),
+        None => (CONSTRUCTORS, "the app could not run its constructors"),
     };
-    constructors
-        .call(store, ())
-        .map_err(|error| format!("the app could not run its constructors: {error}"))
-}
-
-fn initialize(instance: &Instance, store: &mut Store<State>) -> Result<(), String> {
-    let Ok(initialize) = instance.get_typed_func::<(), ()>(&mut *store, INITIALIZE) else {
-        return call_constructors(instance, store);
-    };
-    initialize
-        .call(store, ())
-        .map_err(|error| format!("the app could not initialize itself: {error}"))
-}
-
-fn memory_import(module: &Module) -> Option<(String, String, MemoryType)> {
-    module.imports().find_map(|import| {
-        let declared = import.ty().memory()?.clone();
-        Some((
-            import.module().to_owned(),
-            import.name().to_owned(),
-            declared,
-        ))
-    })
+    match instance::call_export(scope, exports, name, &[]) {
+        None | Some(Ok(_)) => Ok(()),
+        Some(Err(())) => Err(failure.to_owned()),
+    }
 }
 
 pub enum Stored {
@@ -587,67 +749,6 @@ impl Stored {
             Self::Bytes(bytes) => Ok(bytes),
         }
     }
-
-    fn precompiled(&self) -> bool {
-        match self {
-            Self::File(path) => matches!(Engine::detect_precompiled_file(path), Ok(Some(_))),
-            Self::Bytes(bytes) => Engine::detect_precompiled(bytes).is_some(),
-        }
-    }
-
-    fn deserialize(&self, engine: &Engine) -> wasmtime::Result<Module> {
-        match self {
-            // unsafe(ffi)
-            Self::File(path) => unsafe { Module::deserialize_file(engine, path) },
-            // unsafe(ffi)
-            Self::Bytes(bytes) => unsafe { Module::deserialize(engine, bytes) },
-        }
-    }
-}
-
-fn module(engine: &Engine, stored: Stored) -> Result<Module, String> {
-    compile(engine, stored, |_| Ok(()))
-}
-
-fn library_module(engine: &Engine, identity: &str, stored: Stored) -> Result<Module, String> {
-    compile(engine, stored, |bytes| {
-        be_wasm_dylink::check_library(bytes, identity)
-    })
-}
-
-fn compile(
-    engine: &Engine,
-    stored: Stored,
-    check: impl FnOnce(&[u8]) -> Result<(), String>,
-) -> Result<Module, String> {
-    if stored.precompiled() {
-        return stored
-            .deserialize(engine)
-            .map_err(|error| format!("the compiled app module could not be loaded: {error}"));
-    }
-    let bytes = stored.into_bytes()?;
-    check(&bytes)?;
-    Module::new(engine, &bytes)
-        .map_err(|error| format!("the app module could not be compiled: {error}"))
-}
-
-fn precompiled(
-    engine: &Engine,
-    name: &str,
-    read: &impl Fn(&str) -> Result<Stored, String>,
-) -> Option<Module> {
-    let artifact = Path::new(name)
-        .with_extension(PRECOMPILED_EXTENSION)
-        .to_str()?
-        .to_owned();
-    let stored = read(&artifact).ok()?;
-    match stored.deserialize(engine) {
-        Ok(module) => Some(module),
-        Err(error) => {
-            eprintln!("{artifact} could not be used, compiling the module instead: {error}");
-            None
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -656,99 +757,14 @@ pub(crate) enum Flavor {
     Pure,
 }
 
-type Engines = Vec<(Flavor, Option<PathBuf>, Engine, Libraries)>;
-
-fn engine(cache: Option<&Path>, flavor: Flavor) -> Result<(Engine, Libraries), String> {
-    static ENGINES: Mutex<Engines> = Mutex::new(Vec::new());
-    let mut engines = ENGINES
-        .lock()
-        .map_err(|_| "the wasm engines were poisoned".to_owned())?;
-    if let Some((_, _, engine, libraries)) = engines
-        .iter()
-        .find(|(kind, directory, _, _)| *kind == flavor && directory.as_deref() == cache)
-    {
-        return Ok((engine.clone(), Arc::clone(libraries)));
+/// The libraries compiled for every host of a flavor, so each is compiled once per process.
+fn libraries(flavor: Flavor) -> Libraries {
+    static LIBRARIES: Mutex<Vec<(Flavor, Libraries)>> = Mutex::new(Vec::new());
+    let mut libraries = LIBRARIES.lock().unwrap_or_else(|held| held.into_inner());
+    if let Some((_, found)) = libraries.iter().find(|(kind, _)| *kind == flavor) {
+        return Arc::clone(found);
     }
-    let mut config = configuration(flavor);
-    if let Some(directory) = cache {
-        config.cache(Some(compilation_cache(directory)?));
-    }
-    let engine = Engine::new(&config)
-        .map_err(|error| format!("the wasm engine could not start: {error}"))?;
-    let libraries = Libraries::default();
-    engines.push((
-        flavor,
-        cache.map(Path::to_path_buf),
-        engine.clone(),
-        Arc::clone(&libraries),
-    ));
-    Ok((engine, libraries))
-}
-
-fn configuration(flavor: Flavor) -> Config {
-    let mut config = Config::new();
-    match flavor {
-        Flavor::App => {
-            config.wasm_threads(true);
-            config.shared_memory(true);
-            config.wasm_exceptions(true);
-        }
-        Flavor::Pure => {
-            config.wasm_threads(false);
-            config.shared_memory(false);
-            config.wasm_relaxed_simd(false);
-        }
-    }
-    config.wasm_bulk_memory(true);
-    config.epoch_interruption(true);
-    config.wasm_backtrace_max_frames(NonZeroUsize::new(BACKTRACE_FRAMES));
-    if std::env::var_os("BE3_PERF_MAP").is_some() {
-        config.profiler(wasmtime::ProfilingStrategy::PerfMap);
-    }
-    config
-}
-
-fn compilation_cache(directory: &Path) -> Result<Cache, String> {
-    std::fs::create_dir_all(directory).map_err(|error| {
-        format!(
-            "the app cache directory {} could not be made: {error}",
-            directory.display()
-        )
-    })?;
-    let directory = directory.canonicalize().map_err(|error| {
-        format!(
-            "the app cache directory {} could not be resolved: {error}",
-            directory.display()
-        )
-    })?;
-    let mut configuration = CacheConfig::new();
-    configuration.with_directory(directory);
-    Cache::new(configuration).map_err(|error| format!("the app cache could not be opened: {error}"))
-}
-
-fn shared_memory(engine: &Engine, module: &Module) -> Result<SharedMemory, String> {
-    let declared = module
-        .imports()
-        .find(|import| import.module() == "env" && import.name() == "memory")
-        .and_then(|import| import.ty().memory().cloned())
-        .ok_or_else(|| "the app does not import env.memory".to_owned())?;
-    if !declared.is_shared() {
-        return Err("the app memory is not shared".to_owned());
-    }
-    SharedMemory::new(engine, declared)
-        .map_err(|error| format!("the app memory could not be created: {error}"))
-}
-
-fn typed<Parameters, Results>(
-    instance: &Instance,
-    store: &mut Store<State>,
-    name: &str,
-) -> Result<TypedFunc<Parameters, Results>, String>
-where
-    Parameters: wasmtime::WasmParams,
-    Results: wasmtime::WasmResults,
-{
-    instance
-        .get_typed_func(store, name)
-        .map_err(|error| format!("the app has no usable {name} export: {error}"))
+    let made = Libraries::default();
+    libraries.push((flavor, Arc::clone(&made)));
+    made
 }

@@ -5,7 +5,7 @@ fn a_dropped_app_ends_its_threads() {
     let source = threaded_guest("(loop $spin (br $spin))");
     let mut app = host().load_bytes(source.as_bytes()).unwrap();
     app.start().unwrap();
-    let threads = Arc::clone(&app.store.data().threads);
+    let threads = Arc::clone(&app.state().threads);
 
     drop(app);
 
