@@ -160,6 +160,8 @@ pub(super) fn shown_part(rect: Rect, clip: Rect) -> Option<Rect> {
 #[derive(Default)]
 pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
+    /// The last frames the runtime keeps of views the app's layout left out (`runtime::Kept`).
+    pub(super) kept: Vec<ScreenPlacement>,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: be_lib_stable_hash::HashMap<ScreenId, Painting>,
     pub(super) overflows: be_lib_stable_hash::HashMap<ScreenId, Vec<String>>,
@@ -167,8 +169,14 @@ pub(super) struct Shared {
 }
 
 impl Shared {
-    pub(super) fn publish(&mut self, layout: &ScreenLayout, frame: Option<Frame>) {
+    pub(super) fn publish(
+        &mut self,
+        layout: &ScreenLayout,
+        kept: Vec<ScreenPlacement>,
+        frame: Option<Frame>,
+    ) {
         self.layout.clone_from(layout);
+        self.kept = kept;
         let Some(frame) = frame else {
             return;
         };
@@ -181,6 +189,24 @@ impl Shared {
 
     fn take_frames(&mut self) -> Vec<Frame> {
         std::mem::take(&mut self.frames)
+    }
+
+    /// The placement a screen is drawn from: its kept last frame while it has one, else the
+    /// layout's.
+    pub(super) fn placement(&self, screen: ScreenId) -> Option<&ScreenPlacement> {
+        self.kept
+            .iter()
+            .find(|placement| placement.screen == screen)
+            .or_else(|| self.layout.placement(screen))
+    }
+
+    fn surfaces(&self) -> Vec<u32> {
+        self.layout
+            .screens
+            .iter()
+            .chain(&self.kept)
+            .map(|placement| placement.surface)
+            .collect()
     }
 }
 
@@ -274,7 +300,7 @@ impl Blit {
         if damage.is_empty() {
             return Some(Vec::new());
         }
-        let placement = shared.layout.placement(self.screen)?;
+        let placement = shared.placement(self.screen)?;
         if placement.width == 0
             || placement.height == 0
             || self
@@ -663,7 +689,7 @@ impl Paints for ViewDrawing {
         let mut found = false;
         for blit in self.blits_in(rect) {
             let shared = blit.shared.borrow();
-            let Some(placement) = shared.layout.placement(blit.screen) else {
+            let Some(placement) = shared.placement(blit.screen) else {
                 continue;
             };
             let placed = blit.shown_at((placement.width, placement.height));
@@ -736,14 +762,9 @@ impl beui::native::Draw for AppDrawing {
                     };
                     let region = match blit.layer {
                         Some(_) => None,
-                        None => shared.layout.placement(blit.screen).and_then(laid),
+                        None => shared.placement(blit.screen).and_then(laid),
                     };
-                    let surfaces: Vec<u32> = shared
-                        .layout
-                        .screens
-                        .iter()
-                        .map(|placement| placement.surface)
-                        .collect();
+                    let surfaces = shared.surfaces();
                     (frames, region, surfaces)
                 };
                 let mut failure = None;

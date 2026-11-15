@@ -28,7 +28,7 @@ pub fn placement(blit: &Blit, order: usize, above: bool, scale: f32) -> Option<P
         return None;
     }
     let shared = blit.shared.borrow();
-    let placement = shared.layout.placement(blit.screen)?;
+    let placement = shared.placement(blit.screen)?;
     if placement.width == 0 || placement.height == 0 {
         return None;
     }
