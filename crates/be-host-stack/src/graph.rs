@@ -281,6 +281,16 @@ impl Graph {
         listings
     }
 
+    /// Whether `take_wanted` or `take_unlisted` has anything to take: asked first, since taking
+    /// changes the graph, which copies it while a `Seen` handed over shares it.
+    pub fn has_listings_to_take(&self) -> bool {
+        !self.unlisted.is_empty()
+            || self
+                .listings
+                .values()
+                .any(|listed| listed.fetch == Fetch::Wanted)
+    }
+
     pub fn take_wanted(&mut self) -> Vec<Listing> {
         let mut found = Vec::new();
         for (listing, listed) in &mut self.listings {
@@ -667,6 +677,10 @@ impl Graph {
     }
 
     /// The children that dropped out of their parent's references since this was last asked.
+    pub fn has_dropped(&self) -> bool {
+        !self.dropped.is_empty()
+    }
+
     pub fn take_dropped(&mut self) -> Vec<Dropped> {
         std::mem::take(&mut self.dropped)
     }

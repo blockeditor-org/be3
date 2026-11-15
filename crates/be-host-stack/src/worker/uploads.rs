@@ -100,7 +100,7 @@ impl Uploads {
                 while let Some((block, imported)) = receiver.recv().await {
                     super::imported(&peer, &shared, block, imported).await;
                     queue.borrow_mut().finish(block);
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                 }
             };
             futures_util::future::join(uploading, settling).await;

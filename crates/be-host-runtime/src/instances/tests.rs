@@ -260,23 +260,22 @@ fn preview_revision(
 /// The previews the stack opened of `block`, each with whether it was let go (1) or not (0):
 /// the stack records only a preview's first release.
 fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
-    be_host_stack::wait_until("read the previews", |shared| {
-        Some(
-            shared
-                .revision_previews
-                .iter()
-                .filter(|(id, preview)| preview.source == block && preview.root == **id)
-                .map(|(id, _)| {
-                    let released = shared
-                        .released_previews
-                        .iter()
-                        .filter(|gone| *gone == id)
-                        .count();
-                    (*id, released)
-                })
-                .collect(),
-        )
+    be_host_stack::read_seen(|shared| {
+        shared
+            .revision_previews
+            .iter()
+            .filter(|(id, preview)| preview.source == block && preview.root == **id)
+            .map(|(id, _)| {
+                let released = shared
+                    .released_previews
+                    .iter()
+                    .filter(|gone| *gone == id)
+                    .count();
+                (*id, released)
+            })
+            .collect::<Vec<_>>()
     })
+    .unwrap_or_default()
 }
 
 /// What the instance answers until `done` holds of everything it answered and the previews of
@@ -394,9 +393,7 @@ fn replica_sent_until(
         if done(&sent) {
             return sent;
         }
-        be_host_stack::wait_until("another frame for the editor", |shared| {
-            shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
-        });
+        be_host_stack::wait_for_frames("another frame for the editor", INSTANCE.0);
     }
 }
 

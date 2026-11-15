@@ -144,7 +144,7 @@ impl Served {
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .serving -= 1;
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 

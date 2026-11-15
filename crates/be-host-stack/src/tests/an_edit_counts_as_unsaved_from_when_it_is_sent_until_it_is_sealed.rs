@@ -13,7 +13,7 @@ fn an_edit_counts_as_unsaved_from_when_it_is_sent_until_it_is_sealed() {
 
     add(block, 3);
     assert!(status().unsaved > 0, "an edit not yet taken is unsaved");
-    wait_until("took the edit", |shared| shared.pending == 0);
+    wait_until("took the edit", |shared| shared.pending() == 0);
     assert!(
         status().unsaved > 0,
         "an edit the module has not yet reported is unsaved"
