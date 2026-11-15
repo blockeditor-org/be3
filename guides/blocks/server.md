@@ -607,48 +607,65 @@ changes an app session calls it.
 
 ### Accounts
 
-An account signs in with any of its **identities** (`identities`: an `email`,
-a provider, `oidc`, or a `passkey`), never its last removed.
-`accounts.email` is the account's verified email, if it has one; an account
-made through a provider may have none, and then the protocol's `email` is the
-empty string, as it is for a local profile
-(decisions/an_account_with_no_email_has_an_empty_one.md).
-The portal signs in, registers and recovers ("I can't sign in", which ends
-every other session) by a code mailed to the email (`store/codes.rs`): eight
-letters with no look-alikes, good for ten minutes and five wrong tries, and
-belonging to one attempt whose secret the asking browser holds in the
-`be3-attempt` cookie, so it works nowhere else; a new request for the attempt
-ends its older code. The mail's link (`/auth/enter?attempt=&email_code=`) fills
-the code in only in that browser, and elsewhere shows it and signs nothing in.
-Requests are capped per address (an IPv6 /64) and per network (a /48), and an
-email's budget counts only those from addresses that never signed in to its
-account, whether or not it has one, so strangers can't stop its owner nor learn
-which emails have accounts by running it out; a request for an email with no
-account leaves a row that costs the same and sends nothing. The remembered
-addresses live in the server's memory (`store/remembered.rs`), so a restart forgets
-them and the owner's first request after one counts against the budget like a
-stranger's. The `be3-attempt` cookie is sent again with every request that uses
-it, so it lasts as long as its latest code. Registering by code refuses
-an email that has an account, which tells a stranger it is registered: behind
-an invite code that leak is small, and mailing "you already have an account"
-is the alternative if registration opens. Changing the email, removing an
-identity and ending any session but the browser's own need a **fresh proof**
-(`codes::FRESH_PROOF`): a code to the account's email, or a sign-in with one of
-its providers or passkeys, in the last few minutes (`sessions.proved`), which
-signing in by code, provider or passkey, or recovering, also gives.
-Removing an identity, adding a provider (from the settings page or by a link
-code) or a passkey, and a provider moving the account's email each mail the
-account's email, the old one for a move. Removing the email identity also clears
-`accounts.email`, and an account with no email never gains one from a
-provider it already has, since its owner may have removed it. An operator's login link
-(`store/login_links.rs`, `be-server login-link`) signs in once within
-`LOGIN_LINK_LIFETIME` as recovering does, and for an email with no account
-makes it, with no invite code; `/auth/link` shows it with a button, so a
-mail scanner opening the link spends nothing. `--allow-login` lets anyone sign in, by
-any identity, and with it `--allow-registration` lets anyone make an account,
-by any identity, with an invite code. The flag gates signing in, not using a
-session: without it a browser already signed in still changes its settings,
-confirms an email change (`/auth/verify`) and signs out.
+An account has an opaque id and a set of **identities** (`identities`): its
+email, providers (`oidc`) and passkeys (`passkey`). Proving any one signs in
+(decisions/accounts_sign_in_with_identities_the_operator_configures.md); the
+last can't be removed. `accounts.email` is the account's verified email, if it
+has one; an account made through a provider may have none, and then the
+protocol's `email` is the empty string, as it is for a local profile
+(decisions/an_account_with_no_email_has_an_empty_one.md). Sign-in stays in the
+browser portal (`/auth`, `portal.rs` and be-server-portal-ui), so no client
+needs code of its own for any method.
+
+- **Emailed codes** (`store/codes.rs`) sign in, register and recover ("I can't
+  sign in", which ends every other session): eight letters with no look-alikes,
+  good for ten minutes and five wrong tries, belonging to one attempt whose
+  secret the asking browser holds in the `be3-attempt` cookie, so it works
+  nowhere else; a new request for the attempt ends its older code. The mail's
+  link (`/auth/enter?attempt=&email_code=`) fills the code in only in that
+  browser, and elsewhere shows it and signs nothing in. The cookie is sent again
+  with every request that uses it, so it lasts as long as its latest code. Mail
+  goes to the server's log (`mail::LogDelivery`; plans/deferred/mail_delivery.md).
+- **Mail limits strangers can't spend.** Requests are capped per address (an
+  IPv6 /64) and per network (a /48), and an email's budget counts only those
+  from addresses that never signed in to its account, whether or not it has
+  one, so strangers can't stop its owner nor learn which emails have accounts by
+  running it out; a request for an email with no account leaves a row that
+  costs the same and sends nothing. The remembered addresses live in the
+  server's memory (`store/remembered.rs`), so a restart forgets them and the
+  owner's first request after one counts against the budget like a stranger's.
+- **Registering** needs an invite code the operator made
+  (`store/invite_codes.rs`), checked when the code is asked for and spent when
+  it is entered and the account is made; one invite has at most
+  `REGISTRATION_CODES_PER_INVITE` registration codes outstanding. Registering
+  by code refuses an email that has an account, which tells a stranger it is
+  registered: behind an invite code that leak is small, and mailing "you
+  already have an account" is the alternative if registration opens.
+- **Fresh proof.** Changing the email, adding or removing an identity and
+  ending any session but the browser's own need a proof in the last few
+  minutes (`codes::FRESH_PROOF`, `sessions.proved`): a code to the account's
+  email, or a sign-in with one of its providers or passkeys, which signing in
+  by code, provider or passkey, or recovering, also gives. A new email's
+  verification link (`email_change_link`) is capped per email, per address, and
+  globally; only a signed-in account with a fresh proof asks for one, so
+  anonymous traffic can't reach the cap (`store/portal.rs`).
+- **Notices.** Removing an identity, adding a provider (from the settings page
+  or by a link code) or a passkey, and a provider moving the account's email
+  each mail the account's email, the old one for a move. Removing the email
+  identity also clears `accounts.email`, and an account with no email never
+  gains one from a provider it already has, since its owner may have removed
+  it.
+- **Operator login links** (`store/login_links.rs`, `be-server login-link`)
+  sign in once within `LOGIN_LINK_LIFETIME` as recovering does, and for an
+  email with no account make it, with no invite code; `/auth/link` shows the
+  link with a button, so a mail scanner opening it spends nothing. Only the
+  link's hash is kept. It is the way in on a server whose log is not to be
+  read, and for an account stranded by a provider the operator removed.
+- **The flags.** `--allow-login` lets anyone sign in, by any identity, and with
+  it `--allow-registration` lets anyone make an account, by any identity, with
+  an invite code. They gate signing in, not using a session: without them a
+  browser already signed in still changes its settings, confirms an email
+  change (`/auth/verify`) and signs out.
 
 **Providers** are OpenID Connect issuers the operator lists (`--oidc-providers`,
 `oidc::parse_providers`): one tenant's issuer each, and only those marked
@@ -712,13 +729,9 @@ use a software authenticator (`fake_authenticator.rs`).
 
 The protocol has the browser sign-in's one-shot `begin-browser-login` and
 `poll-browser-login` ("Signing in" above), token `Authenticate`, header
-authentication and `Logout`. Registering needs an invite code the operator made
-(`store/invite_codes.rs`), checked when the code is asked for and spent when it
-is entered and the account is made; one invite has at most
-`REGISTRATION_CODES_PER_INVITE` registration codes outstanding. A new email's
-verification link is capped per email, per address, and globally; only a
-signed-in account with a fresh proof asks for one, so anonymous traffic can't
-reach the cap (`store/portal.rs`). `Be3-Gateway-Authorization` is left to a gateway in front.
+authentication and `Logout`; every sign-in method lives in the portal, which
+approves a device's code. `Be3-Gateway-Authorization` is left to a gateway in
+front.
 
 Contact links and invitations are one table, `links`, and one set of calls
 (`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;
@@ -832,12 +845,15 @@ text's length reaches the push service.
 
 Make an invite code with `be-server invite-code create --data-dir
 be-server-data` (through the same `:bin -- `), then register at
-`http://127.0.0.1:9090/auth` with it; until email delivery is connected,
-verification messages are printed in the server log. Deployments also set
-`--auth-origin` (guides/hosting.md). The native host embeds be-server for a
-local account (`be-host-stack/src/embedded_server.rs`, ephemeral port, data
-under the host's); `./scripts/buck run //crates/be-host:web` starts one beside
-the web build.
+`http://localhost:9090/auth` with it; every mail, the codes included, is
+printed in the server log. `be-server login-link --data-dir be-server-data
+--auth-origin http://localhost:9090 --email EMAIL` signs one in without it.
+Open the portal at `localhost`, not `127.0.0.1`: passkeys need a host name for
+their RP ID. `--oidc-providers FILE` adds providers (guides/hosting.md).
+Deployments also set `--auth-origin` (guides/hosting.md). The native host
+embeds be-server for a local account (`be-host-stack/src/embedded_server.rs`,
+ephemeral port, data under the host's); `./scripts/buck run //crates/be-host:web`
+starts one beside the web build.
 
 ## Tests
 
