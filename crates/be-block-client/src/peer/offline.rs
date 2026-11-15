@@ -1024,8 +1024,17 @@ impl<S: ObjectStore> Peer<S> {
         Ok(restored)
     }
 
+    /// Discards what was set aside of `block`. Set aside because this account lost access, the
+    /// local edits kept beside it go too: they can never reach the block, and kept they would
+    /// keep it from being forgotten.
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        Ok(self.refs.take_unsent(block)?.is_some())
+        let Some(unsent) = self.refs.take_unsent(block)? else {
+            return Ok(false);
+        };
+        if unsent.refused.is_none() {
+            self.refs.drop_local_edits(block)?;
+        }
+        Ok(true)
     }
 }
 

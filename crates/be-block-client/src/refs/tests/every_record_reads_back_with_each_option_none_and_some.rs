@@ -85,6 +85,17 @@ fn every_record_reads_back_with_each_option_none_and_some() {
         ] {
             reads_back(&op);
         }
+        reads_back(&SetAside {
+            id: Uuid::new_v4(),
+            count: 2,
+            kept: some.then(|| OpenEdits {
+                origin: 1,
+                given_up: 2,
+                submitted_through: 3,
+                restarts: 4,
+                edits: vec![vec![5]],
+            }),
+        });
         reads_back(&Unsent {
             head: some.then_some(commit(b"head")),
             since: 9,

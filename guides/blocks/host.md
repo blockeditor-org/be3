@@ -221,7 +221,9 @@ the connection a stopping stack closed.
   set-aside edits that read are told so, and that they were not sent
   (`Replicas::read_set_aside`), and left a tombstone (their count). A block
   keeps its newest `SetAside::KEPT`, and forgetting the block drops them; a
-  block whose kept edits hold any is not forgotten. Opened before it
+  block whose kept edits hold any is not forgotten, until this account lost
+  access to it and its unsent edits are discarded (`Peer::discard_unsent`,
+  which drops its kept edits and journal too). Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after

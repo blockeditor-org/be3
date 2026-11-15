@@ -159,7 +159,7 @@ impl<S: ObjectStore> Peer<S> {
     pub fn read_set_aside(&self) -> Vec<(Uuid, usize)> {
         let mut recovered = Vec::new();
         for (block, aside) in self.refs.set_aside_edits() {
-            for (index, entry) in aside.iter().enumerate() {
+            for entry in &aside {
                 let Some(kept) = &entry.kept else {
                     continue;
                 };
@@ -171,7 +171,7 @@ impl<S: ObjectStore> Peer<S> {
                         Ok(be_block_store::decode_value(&plain)?)
                     })
                     .collect();
-                if opened.is_ok() && self.refs.tombstone_set_aside(block, index).is_ok() {
+                if opened.is_ok() && self.refs.tombstone_set_aside(block, entry.id).is_ok() {
                     recovered.push((block, entry.count));
                 }
             }
