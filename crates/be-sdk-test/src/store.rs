@@ -82,6 +82,9 @@ enum Announcing {
     Dropped,
 }
 
+/// How long, in milliseconds, the server takes to answer a submission.
+const ROUND_TRIP: u64 = 100;
+
 struct Inner {
     own: Option<Uuid>,
     organization: Uuid,
@@ -90,9 +93,9 @@ struct Inner {
     host: Connection,
     clock: Outlets<()>,
     sleeping: Vec<Reply<()>>,
-    /// Submissions on their way to the server, which takes them as the clock next moves: a
-    /// round trip takes time, so an edit shows as sent before the server holds it.
-    submitting: Vec<(Option<Uuid>, Call)>,
+    /// Submissions on their way to the server, with when they were sent: it takes each once
+    /// the clock is `ROUND_TRIP` on, so an edit shows as sent before the server holds it.
+    submitting: Vec<(u64, Option<Uuid>, Call)>,
     taking_submissions: bool,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
@@ -306,10 +309,15 @@ impl Inner {
         }
     }
 
-    /// The server takes the submissions on their way (`submitting`).
+    /// The server takes the submissions on their way (`submitting`) whose round trip is over.
     fn take_submissions(&mut self) {
+        let now = self.now;
+        let (due, waiting): (Vec<_>, Vec<_>) = std::mem::take(&mut self.submitting)
+            .into_iter()
+            .partition(|(sent, ..)| now >= sent + ROUND_TRIP);
+        self.submitting = waiting;
         self.taking_submissions = true;
-        for (block, call) in std::mem::take(&mut self.submitting) {
+        for (_, block, call) in due {
             self.act(block, call);
         }
         self.taking_submissions = false;
@@ -476,7 +484,7 @@ impl Inner {
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
             call @ Call::Submit { .. } if !self.offline && !self.taking_submissions => {
-                self.submitting.push((block, call));
+                self.submitting.push((self.now, block, call));
             }
             Call::Submit {
                 reply,

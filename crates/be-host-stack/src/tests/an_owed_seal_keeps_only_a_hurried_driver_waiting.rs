@@ -22,6 +22,7 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
                     publishing: 0,
                     joining: false,
                     closing: false,
+                    keep_error: None,
                 })
                     .into(),
             ],

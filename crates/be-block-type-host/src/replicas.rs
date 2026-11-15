@@ -122,15 +122,16 @@ pub(crate) fn answer_in(
     }
 }
 
-/// An entry of the order, opened, as a type module takes it.
-fn api_entry(entry: be_block_protocol::JournalEntry) -> be_sdk_type_api::JournalEntry {
+/// An entry of the order, opened, as a type module takes it: when the server took it read on
+/// the modules' clock, `gap` behind the server's (`Replicas::server_gap`).
+fn api_entry(entry: be_block_protocol::JournalEntry, gap: i64) -> be_sdk_type_api::JournalEntry {
     be_sdk_type_api::JournalEntry {
         sequence: entry.sequence,
         origin: entry.origin,
         counter: entry.counter,
         base: entry.base,
         floor: entry.floor,
-        received: entry.received,
+        received: entry.received.map(|received| received.saturating_sub(gap)),
         payload: entry.payload,
     }
 }
@@ -564,6 +565,8 @@ struct Open {
     /// How far `submitted_through` reached when this device last kept the replica's edits: a
     /// submission past it waits until they are kept again (`Call::Submit`).
     kept_submitted_through: u64,
+    /// Why keeping its edits last failed, until they are kept (`Owing::keep_error`).
+    keep_error: Option<String>,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
     /// `opening.kept-through`), told every opening.
     kept_restart: u64,
@@ -657,6 +660,8 @@ pub struct Owing {
     pub publishing: usize,
     pub joining: bool,
     pub closing: bool,
+    /// Why keeping its edits on this device last failed (`Replicas::keep_edits`), if it did.
+    pub keep_error: Option<String>,
 }
 
 impl Owing {
@@ -672,6 +677,7 @@ impl Owing {
             publishing: open.publishing,
             joining: open.joining,
             closing: open.closing,
+            keep_error: open.keep_error.clone(),
         }
     }
 }
@@ -717,7 +723,7 @@ impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            "{} of type {} (journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?}, last keep failed: {:?})",
             self.block,
             self.content_type,
             self.journaled,
@@ -731,7 +737,8 @@ impl std::fmt::Display for Owing {
             self.publishing,
             self.joining,
             self.closing,
-            self.publish_error
+            self.publish_error,
+            self.keep_error
         )
     }
 }
@@ -1303,6 +1310,7 @@ impl<H: Host> Replicas<H> {
         if self.blocks.contains_key(&block) {
             return None;
         }
+        let gap = self.server_gap(peer);
         let module = self.modules.module_of(content_type)?;
         self.next += 1;
         let replica = self.next;
@@ -1376,7 +1384,7 @@ impl<H: Host> Replicas<H> {
             head,
             session: session.clone(),
             lost_edits: lost_edits(journal.as_ref(), tag),
-            journal: journal.and_then(|journal| replayable(journal, tag, head)),
+            journal: journal.and_then(|journal| replayable(journal, tag, head, gap)),
             journal_kept,
             commits_kept: kept.0,
             refused_commits: kept.1,
@@ -1442,6 +1450,7 @@ impl<H: Host> Replicas<H> {
                 given_up,
                 submitted_through,
                 kept_submitted_through: submitted_through,
+                keep_error: None,
                 kept_restart,
                 kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
@@ -1557,7 +1566,8 @@ impl<H: Host> Replicas<H> {
             true => (be_sdk_type_api::KeptCommits::Outbox, Vec::new()),
             false => (be_sdk_type_api::KeptCommits::None, Vec::new()),
         };
-        self.reopen_joined(replica, client, session, head, loads, commits_kept);
+        let gap = self.server_gap(peer);
+        self.reopen_joined(replica, client, session, head, loads, commits_kept, gap);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -1579,6 +1589,7 @@ impl<H: Host> Replicas<H> {
         server_head: Option<CommitId>,
         (journal, journal_kept, head, sealed_head): Loads,
         commits_kept: Kept,
+        gap: i64,
     ) {
         let Some(open) = self.open.get_mut(&replica) else {
             return;
@@ -1613,7 +1624,7 @@ impl<H: Host> Replicas<H> {
             head,
             session,
             lost_edits: lost_edits(journal.as_ref(), tag),
-            journal: journal.and_then(|journal| replayable(journal, tag, head)),
+            journal: journal.and_then(|journal| replayable(journal, tag, head, gap)),
             journal_kept,
             commits_kept: commits_kept.0,
             refused_commits: commits_kept.1,
@@ -1857,6 +1868,15 @@ impl<H: Host> Replicas<H> {
     /// every block found locked is no longer, an open one reads again (`read_again`), and
     /// relayed messages search for their keys again. Answers the locked blocks that are not
     /// open, for the host to open again if it still wants them.
+    /// How far the server's clock is ahead of the modules' (`Modules::now`), in milliseconds: a
+    /// time the server stamped, less this, reads on this device's clock, as the times its
+    /// modules stamp do. None measured, the two are taken to agree.
+    fn server_gap(&self, peer: &Peer<H::Store>) -> i64 {
+        peer.server_now().map_or(0, |server| {
+            server.saturating_sub(i64::try_from(self.modules.now()).unwrap_or(i64::MAX))
+        })
+    }
+
     /// Keys arrived: kept edits set aside that read now are told so, and that they were not
     /// sent (`Peer::read_set_aside`). They never are: what they were made on may be gone.
     pub fn read_set_aside(&self, peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
@@ -2106,8 +2126,14 @@ impl<H: Host> Replicas<H> {
             let through = kept.submitted_through;
             // Kept at the next pass: this one could not seal them (no key yet) or write.
             match peer.keep_open_edits(open.block, kept, edits).await {
-                Ok(()) => open.kept_submitted_through = through,
-                Err(_) => open.edits_changed = true,
+                Ok(()) => {
+                    open.kept_submitted_through = through;
+                    open.keep_error = None;
+                }
+                Err(error) => {
+                    open.edits_changed = true;
+                    open.keep_error = Some(error.to_string());
+                }
             }
         }
     }
@@ -2712,7 +2738,7 @@ impl<H: Host> Replicas<H> {
                     H::record(shared, error);
                 }
                 let entry = match peer.open_entry(entry.clone()) {
-                    Ok(entry) => api_entry(entry),
+                    Ok(entry) => api_entry(entry, self.server_gap(peer)),
                     Err(ClientError::Locked(key)) if !self.searched.contains(&key) => {
                         self.unsealing
                             .insert(*block, VecDeque::from([event.clone()]));
@@ -3175,7 +3201,8 @@ impl<H: Host> Replicas<H> {
             .collect();
         let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
-        self.reopen_joined(replica, client, session, head, loads, commits_kept);
+        let gap = self.server_gap(peer);
+        self.reopen_joined(replica, client, session, head, loads, commits_kept, gap);
         for replayed in early {
             self.replay(replica, replayed);
         }
@@ -3191,6 +3218,7 @@ impl<H: Host> Replicas<H> {
     /// joins a live session again so the replica takes the server's journal: this device keeps
     /// only what it heard, which another device's seals never trimmed.
     pub async fn restart(&mut self, peer: &Arc<Peer<H::Store>>, module: usize) {
+        let gap = self.server_gap(peer);
         let restarted: Vec<ReplicaId> = self
             .open
             .iter()
@@ -3261,7 +3289,7 @@ impl<H: Host> Replicas<H> {
                 head,
                 session: open.session.clone(),
                 lost_edits: false,
-                journal: journal.and_then(|journal| replayable(journal, tag, head)),
+                journal: journal.and_then(|journal| replayable(journal, tag, head, gap)),
                 journal_kept,
                 commits_kept: kept.0,
                 refused_commits: kept.1,
@@ -3690,7 +3718,7 @@ impl<H: Host> Replicas<H> {
                     }
                     // Numbered in this device's own order: the replica hears it at once.
                     Ok(be_block_client::peer::Submitted::Offline(entry)) => {
-                        let entry = api_entry(entry);
+                        let entry = api_entry(entry, 0);
                         self.replay(
                             replica,
                             Replayed::Sequenced {
@@ -4539,6 +4567,7 @@ fn replayable(
     journal: be_block_protocol::Journal,
     tag: be_sdk_type_api::SessionTag,
     head: Option<CommitId>,
+    gap: i64,
 ) -> Option<be_sdk_type_api::Journal> {
     if journal.tag.as_bytes() != &tag.0 {
         let last = journal
@@ -4563,15 +4592,7 @@ fn replayable(
         entries: journal
             .entries
             .into_iter()
-            .map(|entry| be_sdk_type_api::JournalEntry {
-                sequence: entry.sequence,
-                origin: entry.origin,
-                counter: entry.counter,
-                base: entry.base,
-                floor: entry.floor,
-                received: entry.received,
-                payload: entry.payload,
-            })
+            .map(|entry| api_entry(entry, gap))
             .collect(),
     })
 }

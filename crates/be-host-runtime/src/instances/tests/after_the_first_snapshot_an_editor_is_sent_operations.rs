@@ -72,7 +72,8 @@ fn after_the_first_snapshot_an_editor_is_sent_operations() {
         [EditorOperation {
             operation: elsewhere,
             mine: false,
-            unsettled: 0,
+            // The host's edit is this device's too: unsettled until the server orders it.
+            unsettled: 1,
             beneath: None,
         }]
     );
