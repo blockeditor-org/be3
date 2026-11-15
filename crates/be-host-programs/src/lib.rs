@@ -1,3 +1,6 @@
+//! The programs installed on a Linux desktop as freedesktop.org describes them: desktop
+//! entries, how to run them, the MIME types they open and their icons in the icon themes.
+
 mod entry;
 mod exec;
 mod icons;

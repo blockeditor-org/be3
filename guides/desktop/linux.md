@@ -29,8 +29,9 @@ The parts:
 
 - `crates/be-host-wayland`: the compositor (smithay). `Compositor` is its face to be-host;
   `state.rs` the protocol handlers; `windows.rs` the window list (`Windows`, `WindowInfo`);
-  `view.rs` the `WindowView`; `compositor/clipboard.rs` the clipboard; `xwayland.rs` the X11 window manager; `programs.rs` the `.desktop`
-  entries, icons and MIME globs.
+  `view.rs` the `WindowView`; `compositor/clipboard.rs` the clipboard; `xwayland.rs` the X11 window manager.
+- `crates/be-host-programs`: the `.desktop` entries, how to run them, their icons and MIME globs,
+  which the compositor, the desktop host and the D-Bus services read.
 - `crates/be-host-desktop`: `desktop_host/linux.rs` implements `DesktopHost` over the compositor;
   `programs.rs` lists programs as block editors; `remap/linux.rs` holds the input remapper.
 - `crates/be-host-services`: everything on D-Bus (guides/desktop/linux_services.md).

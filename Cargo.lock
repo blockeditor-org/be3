@@ -1622,6 +1622,7 @@ dependencies = [
  "be-block-input",
  "be-block-type-host",
  "be-host-base",
+ "be-host-programs",
  "be-host-remap-host",
  "be-host-stack",
  "be-host-wayland",
@@ -1637,6 +1638,16 @@ dependencies = [
  "pollster",
  "uuid",
  "wgpu",
+]
+
+[[package]]
+name = "be-host-programs"
+version = "0.1.0"
+dependencies = [
+ "beui-fonts",
+ "beui-types",
+ "image",
+ "resvg",
 ]
 
 [[package]]
@@ -1702,7 +1713,7 @@ dependencies = [
  "async-io",
  "async-lock",
  "be-host-base",
- "be-host-wayland",
+ "be-host-programs",
  "be-sdk-api",
  "beui-types",
  "futures-util",
@@ -1805,15 +1816,14 @@ dependencies = [
 name = "be-host-wayland"
 version = "0.1.0"
 dependencies = [
+ "be-host-programs",
  "be-lib-dmabuf",
  "beui",
- "beui-fonts",
  "beui-host",
  "beui-layer-space",
  "beui-paint-snapshot",
  "gvdb",
  "image",
- "resvg",
  "rustix 1.1.4",
  "smithay",
  "wayland-client",
