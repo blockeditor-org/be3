@@ -60,11 +60,6 @@ pub(super) enum EditorCall {
     },
     CommitCreation,
     RegenerateArtifact(Vec<u8>),
-    ReplaceChild {
-        request_id: u64,
-        old: [u8; 16],
-        new: [u8; 16],
-    },
     RenderClip {
         request_id: u64,
         serial: u64,
@@ -77,10 +72,6 @@ pub(super) enum EditorCall {
 pub(super) enum EditorAnswer {
     Created(Result<[u8; 16], Failure>),
     Regenerated(Result<(), Failure>),
-    Replaced {
-        request_id: u64,
-        replaced: bool,
-    },
     Rendered {
         request_id: u64,
         body: Option<ClipBody>,
@@ -206,10 +197,6 @@ impl BlockIds for Outbound {
                 for item in &mut drag.items {
                     visit_refs(*instance, &mut item.refs, visit);
                 }
-            }
-            Self::Editor(instance, EditorCall::ReplaceChild { old, new, .. }) => {
-                visit(*instance, BlockIdRole::Existing, old);
-                visit(*instance, BlockIdRole::Existing, new);
             }
             Self::Close(_) | Self::Event(..) | Self::Editor(..) | Self::App(_) => {}
         }

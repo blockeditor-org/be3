@@ -1165,14 +1165,6 @@ impl Editor {
         self.state().core.report_reveal(client_id);
     }
 
-    pub fn on_replace_child(&self, replace: impl Fn(Uuid, Uuid) -> bool + 'static) {
-        self.state().core.on_replace_child(replace);
-    }
-
-    pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
-        self.state().core.replace_child(old, new)
-    }
-
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
         self.state().shown.drag.read_only()
     }

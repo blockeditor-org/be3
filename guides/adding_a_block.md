@@ -156,6 +156,14 @@ block's children in the order of its references, and be-block-model's own
 reference index keeps the order blocks first appeared in. The manifest's
 `children` says which of these edits the type accepts.
 
+A type whose references live in its content takes `Replace` as well: the block
+menu's Unlink gives a container its own copy of a reference by duplicating the
+block and replacing the original with the copy, and the open editor sees the
+rewrite through its replica like any other edit. When the edit needs the whole
+document or the client it is made as (a sequence edit, such as rewriting a block
+URL in text), override `Root::child_edit_in` instead, as
+`crates/be-type-text/src/text.rs` does.
+
 ## 7. Undo
 
 A `Document` implements `Undo`: each step is reverted against the state as it

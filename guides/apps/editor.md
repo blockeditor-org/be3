@@ -158,10 +158,6 @@ removed when the instance closes); `editor.peers::<P>()` is everyone else's.
 A peer never sees its own, so an editor never draws a cursor for the person
 at the keyboard. Pick colours with `pick_free_color`.
 
-`on_replace_child` answers a block the host copied because it was edited in
-two places at once: an editor whose references live in its content (the text
-editor's block URLs) rewrites them and answers true.
-
 beui has no IME output yet, so a beui editor cannot report an IME area.
 
 ## Actions and the palette

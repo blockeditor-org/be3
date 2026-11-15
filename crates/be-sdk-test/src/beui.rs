@@ -965,22 +965,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         Some(report.content?.inside(self.rect()))
     }
 
-    pub fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        let mut ticket = None;
-        self.call(|editor, connection| {
-            ticket = Some(editor.replace_child(connection, old.into_bytes(), new.into_bytes()));
-        });
-        let ticket = ticket.expect("the call was made");
-        self.step(Vec::new());
-        let outcome = self
-            .completed
-            .remove(&ticket.op())
-            .expect("the app never answered the replacement");
-        ticket
-            .decode(outcome)
-            .expect("the app answered the replacement")
-    }
-
     pub fn presence_visible(&mut self, visible: bool) {
         self.call(|editor, connection| {
             editor.hear(connection, vec![EditorEvent::Presence(visible)]);

@@ -276,8 +276,10 @@ pub trait LiveEdit: BlockContent {
         touched.push(Touched::Everything);
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
-        let _ = change;
+    /// The operations that make this content follow `change` to one of its children, made as
+    /// `client`, or none when the type does not take it.
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<Self::Op>> {
+        let _ = (change, client);
         None
     }
 
