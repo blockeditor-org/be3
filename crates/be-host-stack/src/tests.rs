@@ -6,7 +6,6 @@ use be_type_example_counter::{Counter, CounterContent};
 use uuid::Uuid;
 
 use super::*;
-use crate::embedded_server;
 use crate::search::Searching;
 
 mod a_batch_given_back_waits_for_its_index_to_move_on_or_a_growing_delay;
@@ -260,7 +259,7 @@ impl<C: LiveEdit> Drop for Editor<C> {
 
 pub struct Harness {
     directory: PathBuf,
-    server: Option<embedded_server::EmbeddedServer>,
+    server: Option<be_host_server::EmbeddedServer>,
     url: String,
     account: Uuid,
     token: String,
@@ -380,7 +379,7 @@ impl Harness {
             display_name: profile.display_name,
             token,
         };
-        let server = embedded_server::start_embedded_server_at(
+        let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
             lease,
@@ -428,7 +427,7 @@ impl Harness {
 
     fn start_server(&mut self, address: &str) {
         self.server = Some(
-            embedded_server::start_embedded_server_at(
+            be_host_server::start_embedded_server_at(
                 address,
                 self.directory.join("server"),
                 self.lease,

@@ -82,6 +82,7 @@ members = [
     "crates/be-host-desktop",
     "crates/be-host-runtime",
     "crates/be-host-services",
+    "crates/be-host-server",
     "crates/be-host-stack",
     "crates/be-host-testing",
     "crates/be-sdk-beui",

@@ -16,7 +16,7 @@ async fn browser_approval_finishes_the_hosts_login() {
         store.browser_session(profile.account).await.unwrap()
     );
     let cookie = cookie.as_str();
-    let server = crate::embedded_server::start_embedded_server(directory.clone()).unwrap();
+    let server = be_host_server::start_embedded_server(directory.clone()).unwrap();
     let url = server.url.clone();
     let auth = format!("{url}/auth");
     let (notify, notified) = tokio::sync::oneshot::channel();

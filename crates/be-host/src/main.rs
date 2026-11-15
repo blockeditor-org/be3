@@ -52,8 +52,6 @@ use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_runtime::{BlockOpen, EditorAction};
 #[cfg(target_os = "linux")]
 use be_host_services::{media, notifications, screenshot, tray, wifi};
-#[cfg(not(target_arch = "wasm32"))]
-use be_host_stack::embedded_server;
 use be_host_stack::{accounts, invite_link, keys, offline_choice};
 use be_sdk_api::{
     AccessLevel, ArtifactAction, BlockCommand, BlockLocation, HostPanel, ShellDialog,
@@ -676,7 +674,7 @@ struct HostCore {
     allow_close: bool,
     data_dir: PathBuf,
     #[cfg(not(target_arch = "wasm32"))]
-    embedded_server: Option<embedded_server::EmbeddedServer>,
+    embedded_server: Option<be_host_server::EmbeddedServer>,
     _handoffs: Option<host::Mailbox>,
     error: Option<String>,
     pending_error_action: Option<ErrorAction>,
@@ -894,7 +892,7 @@ impl HostCore {
         forget_caches_of_other_builds(&data_dir)?;
         panic_guard::report_in(&data_dir);
         be_host_runtime::cache_in(data_dir.join("app-cache"));
-        let embedded_server = embedded_server::start_embedded_server(data_dir.join("server"))?;
+        let embedded_server = be_host_server::start_embedded_server(data_dir.join("server"))?;
         let url = embedded_server.url.clone();
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut core = Self::with_state(host_state, url)?;

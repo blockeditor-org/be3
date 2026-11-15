@@ -2,7 +2,8 @@
 
 use std::{path::PathBuf, sync::MutexGuard};
 
-use be_host_stack::{Config, embedded_server::EmbeddedServer};
+use be_host_server::EmbeddedServer;
+use be_host_stack::Config;
 use uuid::Uuid;
 
 pub struct Harness {
@@ -36,7 +37,7 @@ impl Harness {
                 .await
                 .unwrap()
         });
-        let server = be_host_stack::embedded_server::start_embedded_server_at(
+        let server = be_host_server::start_embedded_server_at(
             "127.0.0.1:0",
             directory.join("server"),
             be_server::ServerConfig::OPEN.lease,

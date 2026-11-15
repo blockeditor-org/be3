@@ -1,3 +1,6 @@
+//! The block server be-host runs in its own process for a local account, and tests start to
+//! sign in against: be-server on a thread of its own, stopped when dropped.
+
 use std::{error::Error, net::TcpListener as StdTcpListener, path::PathBuf, thread};
 
 use tokio::net::TcpListener;
