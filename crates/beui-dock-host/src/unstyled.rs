@@ -2320,16 +2320,34 @@ fn stack_handle(
     tabs: Memo<Vec<TabId>>,
     switching: Signal<bool>,
 ) -> DockStackHandle {
-    let title = create_memo(move || shown.get().map(|tab| dock.title(tab)).unwrap_or_default());
-    let notice = create_memo(move || shown.get().and_then(|tab| dock.notice(tab)));
-    let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
+    // A joined editor's stage stands in for the tab its dock took the place of: the bar names the
+    // document, not the editor's stage tab.
+    let state = dock.state;
+    let standing = create_memo(move || {
+        shown
+            .get()
+            .map(|tab| state.with(|state| state.standing_in(tab)))
+    });
+    let title = create_memo(move || {
+        standing
+            .get()
+            .map(|tab| dock.title(tab))
+            .unwrap_or_default()
+    });
+    let notice = create_memo(move || standing.get().and_then(|tab| dock.notice(tab)));
+    let icon = create_memo(move || standing.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus.read_only(), shown.get()));
     // The badge counts what the switcher lists as open, its cards: not the tabs that are always
     // there (the files list, settings), which it lists as rows.
     let closable = dock.closable;
     let open_tabs = create_memo(move || {
-        tabs.with(|tabs| tabs.iter().filter(|tab| closable.call(**tab)).count())
+        let mut standing: Vec<TabId> = tabs.with(|tabs| {
+            state.with(|state| tabs.iter().map(|tab| state.standing_in(*tab)).collect())
+        });
+        standing.sort_by_key(|tab| tab.value());
+        standing.dedup();
+        standing.into_iter().filter(|tab| closable.call(*tab)).count()
     });
     let switch_label = create_memo(move || match open_tabs.get() {
         0 => "No open tabs".to_owned(),
