@@ -47,9 +47,10 @@ const REMEMBERED: i64 = 7 * SEARCH_INDEX_KEPT;
 /// The segment merges one compaction makes at most, so no one batch rewrites the index.
 const MERGES_PER_PASS: usize = 2;
 
-/// The most bytes of parts one merge reads. Segments whose merge would read more are left as
-/// they are: no pass lifts the cap yet (plans/backlog.md, "Search").
-const MERGE_BYTES: u64 = 8 << 20;
+/// The most bytes of parts one merge reads as a batch is written. Segments whose merge would
+/// read more are left for a pass while the device is idle (`SearchIndexContent::merges_over`),
+/// which compacts without the cap.
+pub const MERGE_BYTES: u64 = 8 << 20;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct Header {
@@ -105,36 +106,46 @@ impl SearchIndexContent {
     }
 
     /// Compacts a few segments (`Index::compact`, `MERGES_PER_PASS`, none reading more than
-    /// `MERGE_BYTES`) and forgets the retired segments and removed blocks recorded longer than
-    /// `REMEMBERED` before `now` (milliseconds): what the device that writes a batch does with
-    /// it, so the segments a query reads stay few.
+    /// `bytes`: `MERGE_BYTES` as a batch is written, no cap while the device is idle) and
+    /// forgets the retired segments and removed blocks recorded longer than `REMEMBERED` before
+    /// `now` (milliseconds): what the device that writes a batch does with it, so the segments a
+    /// query reads stay few.
     pub async fn compact<F: AsyncRead>(
         &mut self,
         read: &F,
         origin: Id,
         now: i64,
+        bytes: u64,
     ) -> Result<(), Error> {
         let mut index = self.index.clone();
-        let length = |name: &PartName| {
-            self.parts
-                .iter()
-                .find(|(held, _)| held == name)
-                // A part it does not hold counts as too big to merge.
-                .map_or(u64::MAX, |(_, part)| part.length())
-        };
+        let length = |name: &PartName| self.length(name);
         let written = index
             .compact(
                 &self.reader([self], read),
                 origin,
                 now,
                 MERGES_PER_PASS,
-                MERGE_BYTES,
+                bytes,
                 length,
             )
             .await?;
         index.forget_before(now - REMEMBERED);
         *self = Self::rebuilt(index, written, [&*self]);
         Ok(())
+    }
+
+    /// Whether a merge compaction would make reads more than `bytes` (`Index::merges_over`):
+    /// one only an uncapped pass makes.
+    pub fn merges_over(&self, bytes: u64) -> bool {
+        self.index.merges_over(bytes, |name| self.length(name))
+    }
+
+    fn length(&self, name: &PartName) -> u64 {
+        self.parts
+            .iter()
+            .find(|(held, _)| held == name)
+            // A part it does not hold counts as too big to merge.
+            .map_or(u64::MAX, |(_, part)| part.length())
     }
 
     /// The best `limit` hits of `query` (`Index::search`).
