@@ -122,11 +122,20 @@ phrase kept for decryption).
 ## Accounts and the portal
 
 Remote accounts are made only through the server's `/auth` portal, which signs in by a code
-mailed to the account's email: signing in needs `--allow-login`, registration also
-`--allow-registration` and an invite code. A browser already signed in keeps using its session,
-settings included, without `--allow-login`. Codes are made on
-the server against the data directory (`sudo -u be-server /srv/be-server/be-server invite-code
-... --data-dir /mnt/data/be-server`), which works while the server runs:
+mailed to the account's email, by a provider the operator configures, or by a passkey the
+account added (guides/blocks/server.md, "Accounts"). Signing in needs `--allow-login`,
+registration also `--allow-registration` and an operator invite code. A browser already signed
+in keeps using its session, settings included, without `--allow-login`.
+
+Mail is not delivered yet (plans/deferred/mail_delivery.md): every message, sign-in and
+recovery codes and their links included, goes to the server's log, so the hosted server's
+journal (`journalctl -u be-server`) holds every live code, and whoever reads it can sign in to
+any account with an email. On the hosted server the operator's login link (below) is the way
+in; treat the journal as a secret.
+
+Invite codes are made on the server against the data directory (`sudo -u be-server
+/srv/be-server/be-server invite-code ... --data-dir /mnt/data/be-server`), which works while
+the server runs:
 
 ```
 be-server invite-code create --data-dir DATA [--uses N] [--expires DAYS]   # prints the code once

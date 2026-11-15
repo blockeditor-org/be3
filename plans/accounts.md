@@ -197,12 +197,6 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-3. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
-   "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
-   the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
-   redirect URIs), and the invitation lines in guides/blocks/keys.md
-   ("Inviting", "Contacts"); add the decision records below.
-
 Registration admission (operator invite codes) stays a separate policy from the
 credential kind and from member invitations. It is temporary, for while the
 server is not safe enough to let anyone make an account, and for self-hosters
@@ -226,17 +220,5 @@ asking for the code when the server wants one.
 
 ## Decisions to record
 
-- Login through a central provider only (rejected): breaks self-hosting, leaks
-  metadata and makes us depend on someone else's recovery.
-- An account that is only a bare keypair (rejected): fits end-to-end encryption
-  but key loss has no safety net beyond the recovery phrase and it is hard to
-  explain; passkeys give most of the benefit with platform sync.
 - Invitations are links the inviter sends, never mail the server sends or
   anything bound to an email, and they join as editors only.
-- Providers are configured by the operator, per server; accounts do not federate
-  across servers.
-- An account needs no email; its providers and passkeys are its recovery. A
-  provider's email links to an existing account only after a code sent to it,
-  and is held by one account at most.
-- OIDC providers are single-tenant until a multi-tenant one is asked for.
-
