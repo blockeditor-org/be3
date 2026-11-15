@@ -26,5 +26,9 @@ fn a_reader_reads_a_signal_a_memo_or_a_closure_alike() {
     assert_eq!(*seen.borrow(), [vec![1, 1, 2, 11], vec![2, 2, 4, 12]]);
 
     let held: Reader<Uncloned> = create_signal(Uncloned(7)).into();
-    assert_eq!(held.with_untracked(|held| held.0), 7, "a signal is read in place");
+    assert_eq!(
+        held.with_untracked(|held| held.0),
+        7,
+        "a signal is read in place"
+    );
 }

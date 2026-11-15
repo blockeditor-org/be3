@@ -4,8 +4,8 @@ use beui_text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;
-use crate::{Cursors, TextAreaState};
 use crate::menu_popup::MenuStyle;
+use crate::{Cursors, TextAreaState};
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
 use beui_view::reactive::*;

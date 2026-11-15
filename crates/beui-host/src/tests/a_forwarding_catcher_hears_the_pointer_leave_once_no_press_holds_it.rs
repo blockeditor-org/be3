@@ -38,20 +38,12 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Input::PointerMoved(inside)]);
     harness.frame(vec![Input::PointerMoved(outside)]);
     harness.frame(vec![Input::PointerMoved(pos2(260.0, 50.0))]);
-    assert_eq!(
-        lefts(heard),
-        1,
-        "the catcher hears the pointer leave, once"
-    );
+    assert_eq!(lefts(heard), 1, "the catcher hears the pointer leave, once");
 
     heard.update(|heard| heard.clear());
     harness.down(inside, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(outside)]);
-    assert_eq!(
-        lefts(heard),
-        0,
-        "a press it holds keeps the pointer"
-    );
+    assert_eq!(lefts(heard), 0, "a press it holds keeps the pointer");
     harness.frame(vec![Input::PointerButton {
         pos: outside,
         button: PointerButton::Primary,

@@ -11,13 +11,19 @@ fn an_effect_on_its_dependencies_runs_untracked_with_their_last_value() {
     create_effect_on(
         move || count.get(),
         move |count, previous| {
-            recorded.borrow_mut().push((*count, previous.copied(), other.get()));
+            recorded
+                .borrow_mut()
+                .push((*count, previous.copied(), other.get()));
         },
     );
     flush();
     other.set(11);
     flush();
-    assert_eq!(*seen.borrow(), [(1, None, 10)], "what the body reads does not wake it");
+    assert_eq!(
+        *seen.borrow(),
+        [(1, None, 10)],
+        "what the body reads does not wake it"
+    );
     count.set(2);
     flush();
     assert_eq!(*seen.borrow(), [(1, None, 10), (2, Some(1), 11)]);

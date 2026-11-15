@@ -410,8 +410,11 @@ impl TextAreaState {
     /// area published rather than the `Core`, so memos the view recomputes while the
     /// core runs a command (asking the view for rows) never borrow it.
     pub fn composition(&self) -> Option<Range<usize>> {
-        self.0
-            .with(|inner| inner.cursors.with_untracked(|cursors| cursors.composition.clone()))
+        self.0.with(|inner| {
+            inner
+                .cursors
+                .with_untracked(|cursors| cursors.composition.clone())
+        })
     }
 
     pub fn caret_indices(&self) -> Vec<usize> {

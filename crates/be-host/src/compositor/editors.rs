@@ -2086,10 +2086,12 @@ fn follow_window(
         child.with(|child| child.as_ref().is_some_and(|child| child.fullscreen))
     });
     // What the window was last told, kept while there is no window to tell.
-    let applied = create_memo(move |previous: Option<&bool>| match window.with(Option::is_some) {
-        true => fullscreen.get(),
-        false => previous.copied().unwrap_or(false),
-    });
+    let applied = create_memo(
+        move |previous: Option<&bool>| match window.with(Option::is_some) {
+            true => fullscreen.get(),
+            false => previous.copied().unwrap_or(false),
+        },
+    );
     create_effect_on(
         move || applied.get(),
         move |&fullscreen, previous| {

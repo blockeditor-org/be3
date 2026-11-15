@@ -11,5 +11,9 @@ fn a_memo_can_compute_from_the_value_it_computed_last() {
     measured.set(Some(5));
     assert_eq!(kept.get(), 5);
     measured.set(None);
-    assert_eq!(kept.get(), 5, "an answer that turns `None` keeps the last one");
+    assert_eq!(
+        kept.get(),
+        5,
+        "an answer that turns `None` keeps the last one"
+    );
 }

@@ -205,7 +205,10 @@ impl Workspace {
             workspace.report_focus();
         });
         let contacts = workspace.editor.watch::<ContactsWatch>();
-        create_effect_on(move || contacts.track(), move |_, _| workspace.relist_share());
+        create_effect_on(
+            move || contacts.track(),
+            move |_, _| workspace.relist_share(),
+        );
         create_effect(move || {
             workspace.watch_artifacts();
         });

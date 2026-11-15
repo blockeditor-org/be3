@@ -3,12 +3,12 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
+use crate::memo::Compute;
 use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
     untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::memo::Compute;
 use crate::signal::{Get, Set, Signal, Tracked, create_signal};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

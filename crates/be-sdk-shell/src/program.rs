@@ -960,7 +960,10 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
     let asked = create_memo(move || heard.with(|heard| heard.menu));
     // The last ask heard, kept while the report says nothing, so only a new one opens it.
     let last_asked = create_memo(move |previous: Option<&Option<_>>| {
-        asked.get().map(|menu| menu.asked).or(previous.copied().flatten())
+        asked
+            .get()
+            .map(|menu| menu.asked)
+            .or(previous.copied().flatten())
     });
     create_effect_on_change(
         move || last_asked.get(),
@@ -968,7 +971,9 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             let Some(asked) = asked.get_untracked() else {
                 return;
             };
-            let shown = panel.try_get().and_then(|node| measure(node).get_untracked());
+            let shown = panel
+                .try_get()
+                .and_then(|node| measure(node).get_untracked());
             if let Some(shown) = shown {
                 menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
             }

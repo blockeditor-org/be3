@@ -41,10 +41,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
 
     harness.frame(vec![Input::PointerMoved(pos2(60.0, 60.0))]);
     assert_eq!(moves(above), [pos2(60.0, 60.0)]);
-    assert!(
-        moves(below).is_empty(),
-        "the catcher beneath is covered"
-    );
+    assert!(moves(below).is_empty(), "the catcher beneath is covered");
     assert!(
         above
             .get_untracked()

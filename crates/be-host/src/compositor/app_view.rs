@@ -961,7 +961,8 @@ pub(crate) fn AppView(
         move || promoted.get(),
         move |promoted, before| {
             let before = before.map_or(&[][..], Vec::as_slice);
-            let holds = |list: &[(Uuid, _)], block: &Uuid| list.iter().any(|(held, _)| held == block);
+            let holds =
+                |list: &[(Uuid, _)], block: &Uuid| list.iter().any(|(held, _)| held == block);
             for (gone, _) in before.iter().filter(|(block, _)| !holds(promoted, block)) {
                 handoff::stop_awaiting(*gone);
             }

@@ -22,7 +22,9 @@ pub struct Memo<T> {
 ///
 /// The closure may take the value it computed last, `None` the first time: annotate it,
 /// `create_memo(move |previous: Option<&Size>| measured.get().or(previous.copied()))`.
-pub fn create_memo<T: PartialEq + 'static, M>(mut compute: impl Compute<T, M> + 'static) -> Memo<T> {
+pub fn create_memo<T: PartialEq + 'static, M>(
+    mut compute: impl Compute<T, M> + 'static,
+) -> Memo<T> {
     let probed = probe(true, || compute.compute(None));
     let constant = probed.constant();
     let output = Rc::new(Value::new(Some(probed.value)));

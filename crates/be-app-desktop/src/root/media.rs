@@ -230,11 +230,6 @@ pub(super) fn MediaKeys(editor: Editor, osd: Osd) -> NodeId {
 #[component]
 pub(super) fn LevelDisplay(osd: Osd, area: Memo<Rect>, display: u32) -> NodeId {
     view! {
-        <LevelOsd
-            level={osd.level}
-            shown={osd.shows}
-            area
-            id={format!("desktop.osd.{display}")}
-        />
+        <LevelOsd level={osd.level} shown={osd.shows} area id={format!("desktop.osd.{display}")} />
     }
 }

@@ -2208,7 +2208,10 @@ fn DockStack(dock: State) -> NodeId {
                 .filter(|tab| away.get() != Some(*tab) && staged.with(Option::is_none))
         },
         move |&tab, previous| {
-            let left = previous.copied().flatten().filter(|left| Some(*left) != tab);
+            let left = previous
+                .copied()
+                .flatten()
+                .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
             panel.set(tab.map(|tab| dock.panel(tab)));
             if let Some(tab) = tab.filter(|_| held) {
@@ -3033,7 +3036,10 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
     create_effect_on(
         move || shown.get().filter(|tab| away.get() != Some(*tab)),
         move |&tab, previous| {
-            let left = previous.copied().flatten().filter(|left| Some(*left) != tab);
+            let left = previous
+                .copied()
+                .flatten()
+                .filter(|left| Some(*left) != tab);
             let held = left.is_some_and(|left| dock.remember_focus(left));
             panel.set(tab.map(|tab| dock.panel(tab)));
             if let Some(tab) = tab.filter(|_| held) {

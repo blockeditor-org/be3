@@ -16,7 +16,11 @@ fn a_trigger_wakes_what_tracked_it_each_time_it_fires() {
     trigger.notify();
     trigger.notify();
     flush();
-    assert_eq!(runs.get(), 2, "two notifications before a flush run it once");
+    assert_eq!(
+        runs.get(),
+        2,
+        "two notifications before a flush run it once"
+    );
     trigger.notify();
     flush();
     assert_eq!(runs.get(), 3);

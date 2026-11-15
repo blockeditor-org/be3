@@ -12,9 +12,17 @@ fn updating_a_store_wakes_only_the_fields_it_changed() {
     let pair = PairStore::new(Pair { left: 1, right: 2 });
     let runs = Rc::new(RefCell::new(Vec::new()));
     let recorded = runs.clone();
-    create_effect(move || recorded.borrow_mut().push(format!("left {}", pair.left.get())));
+    create_effect(move || {
+        recorded
+            .borrow_mut()
+            .push(format!("left {}", pair.left.get()))
+    });
     let recorded = runs.clone();
-    create_effect(move || recorded.borrow_mut().push(format!("right {}", pair.right.get())));
+    create_effect(move || {
+        recorded
+            .borrow_mut()
+            .push(format!("right {}", pair.right.get()))
+    });
     flush();
     runs.borrow_mut().clear();
     pair.update(|pair| pair.right = 5);

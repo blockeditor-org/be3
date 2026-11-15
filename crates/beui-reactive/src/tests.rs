@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
+use crate::create_linked_signal;
 use crate::{
     Get, KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Set, Store, create_effect,
     create_memo, create_selector, create_signal, flush, on_cleanup, owner_scope, store, untrack,
@@ -26,7 +27,9 @@ mod a_keyed_store_forgets_items_whose_keys_are_gone;
 mod a_keyed_store_frees_the_signals_of_keys_that_are_gone;
 mod a_keyed_store_only_wakes_the_item_that_changed;
 mod a_keyed_store_sets_and_removes_one_item_at_a_time;
+mod a_linked_signal_can_keep_part_of_what_was_written_when_it_resets;
 mod a_linked_signal_holds_writes_until_its_source_changes;
+mod a_linked_signal_keeps_a_draft_while_its_source_returns_the_same;
 mod a_memo_can_compute_from_the_value_it_computed_last;
 mod a_memo_that_panics_on_its_first_run_cleans_up_what_it_made;
 mod a_memo_that_reads_nothing_keeps_what_it_made_until_its_scope_goes;
