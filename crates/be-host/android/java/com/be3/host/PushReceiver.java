@@ -19,8 +19,8 @@ public final class PushReceiver extends BroadcastReceiver {
 
     static native void nativeUnregistered(String files);
 
-    /** The notification's title, body, organization and block joined by NUL, or null to drop. */
-    static native String nativeMessage(String files, byte[] body);
+    /** The notification's title, body, organization and block, or null to drop the push. */
+    static native String[] nativeMessage(String files, byte[] body);
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -56,10 +56,8 @@ public final class PushReceiver extends BroadcastReceiver {
         }, "be-push").start();
     }
 
-    private static void show(Context context, String opened) {
-        if (opened == null) return;
-        String[] parts = opened.split("\u0000", -1);
-        if (parts.length != 4) return;
-        Push.show(context, parts[0], parts[1], parts[2], parts[3]);
+    private static void show(Context context, String[] opened) {
+        if (opened == null || opened.length != 4) return;
+        Push.show(context, opened[0], opened[1], opened[2], opened[3]);
     }
 }

@@ -1,9 +1,12 @@
 package com.be3.host;
 
+import android.app.AlertDialog;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 import com.be3.beui.BeuiActivity;
+import java.util.List;
 
 public final class MainActivity extends BeuiActivity {
     private static final int NOTIFY_REQUEST = 0x8E33;
@@ -28,9 +31,14 @@ public final class MainActivity extends BeuiActivity {
         openPressed(intent);
     }
 
-    /** A pressed notification names its block: the host opens it (`pressed_notifications`). */
+    /**
+     * A pressed notification names its block: the host opens it (`pressed_notifications`). Only
+     * an intent through the alias, which no other app may start, is a pressed notification.
+     */
     private void openPressed(Intent intent) {
         if (intent == null) return;
+        ComponentName component = intent.getComponent();
+        if (component == null || !Push.OPEN_ALIAS.equals(component.getClassName())) return;
         String organization = intent.getStringExtra(Push.EXTRA_ORGANIZATION);
         String block = intent.getStringExtra(Push.EXTRA_BLOCK);
         if (organization != null && block != null) nativeOpen(organization, block);
@@ -43,7 +51,8 @@ public final class MainActivity extends BeuiActivity {
 
     /**
      * Turns pushes on: asks for the permission to notify where Android needs it, then registers
-     * with the distributor. Called by be-host on its own thread.
+     * with the distributor, asking which when several are installed and none was chosen.
+     * Called by be-host on its own thread.
      */
     void pushEnable(String vapid) {
         runOnUiThread(() -> {
@@ -54,9 +63,33 @@ public final class MainActivity extends BeuiActivity {
                 requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, NOTIFY_REQUEST);
                 return;
             }
-            Push.register(this, vapid);
-            nativePushChanged();
+            register(vapid);
         });
+    }
+
+    /** Registers with the chosen distributor, or asks which one with a plain chooser. */
+    private void register(String vapid) {
+        String chosen = Push.chosenDistributor(this);
+        if (chosen != null) {
+            Push.register(this, chosen, vapid);
+            nativePushChanged();
+            return;
+        }
+        List<String> installed = Push.distributors(this);
+        if (installed.isEmpty()) {
+            nativePushChanged();
+            return;
+        }
+        String[] labels = new String[installed.size()];
+        for (int at = 0; at < labels.length; at++) labels[at] = Push.label(this, installed.get(at));
+        new AlertDialog.Builder(this)
+                .setTitle("Receive notifications through")
+                .setItems(labels, (dialog, which) -> {
+                    Push.register(this, installed.get(which), vapid);
+                    nativePushChanged();
+                })
+                .setOnCancelListener(dialog -> nativePushChanged())
+                .show();
     }
 
     void pushDisable() {
@@ -68,9 +101,14 @@ public final class MainActivity extends BeuiActivity {
     public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(request, permissions, results);
         if (request != NOTIFY_REQUEST) return;
-        if (registerWhenAnswered && Push.mayNotify(this)) Push.register(this, pendingVapid);
+        boolean register = registerWhenAnswered && Push.mayNotify(this);
+        String vapid = pendingVapid;
         registerWhenAnswered = false;
         pendingVapid = null;
-        nativePushChanged();
+        if (register) {
+            register(vapid);
+        } else {
+            nativePushChanged();
+        }
     }
 }
