@@ -114,17 +114,12 @@ beui-draw, beui-runner and accesskit directly.
   above and the check enforces it; the landing commit gives the CPU an edit to
   beui-components-styled runs, before and after.
 
-## Note: apps that use no built-in
-
-plans/shared_crates_per_platform.md, step 1, makes be-sdk depend on be-block-content only. For
-caching it matters only if be-sdk-beui's dependency on be-block goes too: cutting be-sdk's edge
-alone frees 1 of 28 apps from rebuilding on a be-block edit (27 of 300 commits), since
-be-sdk-beui also depends on be-block; cutting both frees 20 of 28, the eight apps that use a
-built-in depending on be-block themselves. The simulation gives 0.5% of recompiled library
-lines per edit for be-sdk's edge alone and 2.4% for both (0.3% and 0.9% per commit).
-
 ## Ruled out
 
+- **be-sdk and be-sdk-beui off be-block**: be-sdk-beui's frame reads most of be-block (settings,
+  profiles, display settings, organization and workspace blocks, tags) for every editor, so the
+  edge stays; the built-ins only some editors read left be-block instead
+  (plans/shared_crates_per_platform.md).
 - **Big native test binaries linked against shared libraries**: buck2's prelude links Rust
   dependencies as shared objects only under a toolchain-wide setting that also needs the
   standard library as explicit sysroot dependencies on every platform

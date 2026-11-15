@@ -130,7 +130,7 @@ touchscreen; a tablet with no screen spans every display. The host reports its o
 In a login session keys, mouse buttons and wheel notches can be remapped before anything sees them,
 by a *remapper*: a WebAssembly module an app ships as data, given a config the app's editor writes.
 
-- **Settings.** A remapper is a block of the `InputRemapper` type (`be_block::InputRemapper`),
+- **Settings.** A remapper is a block of the `InputRemapper` type (`be_block_input::InputRemapper`),
   whose content is an envelope the host reads without the app: app id, module path in the app's
   data, and opaque config bytes. The input settings' `remapper` (`RemapperChoice`) picks one, shared
   or per profile. Any app can offer a remapper by declaring an editor for that type.

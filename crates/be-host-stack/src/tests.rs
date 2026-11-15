@@ -690,9 +690,9 @@ fn settled(shared: &Shared, block: Uuid) -> bool {
     version_status(shared, block).is_some_and(|status| !status.busy)
 }
 
-fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block::Checkout> {
+fn checkout_state(shared: &Shared, block: Uuid) -> Option<be_block_repository::Checkout> {
     let held = shared.blocks.get(&block)?;
-    be_block::CheckoutContent::decode(held.bytes())
+    be_block_repository::CheckoutContent::decode(held.bytes())
         .ok()
         .map(|content| content.root())
 }
@@ -723,7 +723,7 @@ fn checkouts(shared: &Shared) -> Vec<Uuid> {
         .graph
         .query(super::graph::Query::Roots)
         .into_iter()
-        .filter(|node| node.content_type == be_block::CheckoutContent::CONTENT_TYPE)
+        .filter(|node| node.content_type == be_block_repository::CheckoutContent::CONTENT_TYPE)
         .map(|node| node.id)
         .collect()
 }
@@ -774,13 +774,16 @@ fn start_versioning(text: &str) -> Versioned {
     );
     create(
         repository,
-        be_block::RepositoryContent::CONTENT_TYPE,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
         be_block_content::BlockMetadata::named("History"),
-        Some(be_block::RepositoryContent::default().encode()),
+        Some(be_block_repository::RepositoryContent::default().encode()),
         false,
     );
-    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
+    show_version(
+        repository,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
+    );
     version(
         repository,
         be_sdk_api::VersionCommand::Adopt {
@@ -806,7 +809,7 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
     version(
         versioned.repository,
         be_sdk_api::VersionCommand::NewCheckout {
-            branch: be_block::MAIN_BRANCH.to_owned(),
+            branch: be_block_repository::MAIN_BRANCH.to_owned(),
         },
     );
     wait_until("made a second checkout", |shared| {
@@ -831,7 +834,7 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
 }
 
 fn copy_of(block: Uuid, checkout: Uuid) -> Uuid {
-    be_block::version_control::masked(block, be_block::version_control::scope_mask(checkout))
+    be_block_repository::masked(block, be_block_repository::scope_mask(checkout))
 }
 
 fn runtime() -> tokio::runtime::Runtime {

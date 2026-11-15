@@ -1,5 +1,5 @@
 use super::*;
-use crate::version_control::{Action, OPERATION_LIMIT, Operation, Repository, RepositoryContent};
+use crate::{Action, OPERATION_LIMIT, Operation, Repository, RepositoryContent};
 
 fn operation(id: u128, action: Action) -> Operation {
     Operation {

@@ -1,5 +1,8 @@
 [workspace]
 members = [
+    "crates/be-lib-quoted-name",
+    "crates/be-block-repository",
+    "crates/be-block-input",
     "crates/be-host-archive",
     "crates/be-host-bench",
     "crates/be-host-tests",

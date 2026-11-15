@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{Repository, RepositoryContent};
+use be_block_repository::{Repository, RepositoryContent};
 use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;

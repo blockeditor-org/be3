@@ -1,10 +1,10 @@
 use be_block::{
-    CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
-    InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
-    PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
-    TagsContent,
+    DisplaySettingsContent, HomeContent, OfflineSettingsContent, OrganizationPoliciesContent,
+    PrefixRegistryContent, SettingsContent, SettingsProfileContent, TagContent, TagsContent,
 };
 use be_block_content::BlockContent;
+use be_block_input::{InputRemapperContent, InputSettingsContent};
+use be_block_repository::{CheckoutContent, RepositoryContent};
 use be_sdk_api::{BlockTypeDescriptor, ChildOperations, Press};
 #[cfg(test)]
 use be_wasm_guest_abi::{Flow, Guest, Waker};

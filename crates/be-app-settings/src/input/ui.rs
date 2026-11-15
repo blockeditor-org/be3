@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::InputSettings;
-use be_sdk_beui::be_block::input_settings::{
+use be_block_input::InputSettings;
+use be_block_input::input_settings::{
     InputDevice, MAX_POINTER_SPEED, MAX_REPEAT_DELAY, MAX_REPEAT_RATE, MIN_POINTER_SPEED,
     MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerField, PointerSetting, PointerSettings, PointerSpeed,
 };

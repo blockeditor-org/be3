@@ -143,7 +143,7 @@ Notes on particular calls:
   other editor has any use for them.
 - The host's leave confirm and the shell's share dialog name the block in their
   own words, from the host's graph. Each passes the name through
-  `be_block::quotable_name`, which drops control and format characters,
+  `be_lib_quoted_name::quotable_name`, which drops control and format characters,
   straightens every quotation mark and lookalike, caps runs of combining marks
   and shortens it on a grapheme boundary, then quotes it with
   `Phrase::quoted`, which isolates it for bidi (guides/beui/text.md), so no

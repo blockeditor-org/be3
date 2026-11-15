@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{
+use be_block_repository::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, Repository, RepositoryContent,
 };
 use be_sdk_beui::be_block_content::LiveEdit;

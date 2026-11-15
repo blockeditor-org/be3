@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{InputRemapper, InputRemapperContent};
+use be_block_input::{InputRemapper, InputRemapperContent};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

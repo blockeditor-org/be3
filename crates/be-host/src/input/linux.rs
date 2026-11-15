@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::time::Duration;
 
-use be_block::InputSettings;
+use be_block_input::InputSettings;
 use be_host_desktop::desktop_host::{DesktopHost, Host};
 use be_host_wayland::{KeyboardConfig, NamedLayout};
 use be_sdk_api::{HostInputDevice, KeyboardLayout, KeyboardLayouts, KeyboardLayoutsWatch};

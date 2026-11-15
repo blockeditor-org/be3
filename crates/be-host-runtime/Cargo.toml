@@ -80,5 +80,8 @@ be-type-database = { path = "../be-type-database" }
 pollster = "0.4"
 be-type-text = { path = "../be-type-text" }
 
+[dev-dependencies]
+be-block-repository = { path = "../be-block-repository" }
+
 [lints]
 workspace = true

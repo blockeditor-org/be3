@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-sdk-beui:be-sdk-beui",
                 "//crates/beui:beui",
                 "//third-party/rust:uuid-1.29.1",

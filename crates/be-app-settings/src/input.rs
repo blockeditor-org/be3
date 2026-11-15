@@ -1,5 +1,5 @@
+use be_block_input::InputSettings;
 use be_sdk_beui::Loaded;
-use be_sdk_beui::be_block::InputSettings;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;

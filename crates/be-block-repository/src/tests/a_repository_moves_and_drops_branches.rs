@@ -1,5 +1,5 @@
 use super::*;
-use crate::version_control::{MAIN_BRANCH, Repository, RepositoryContent};
+use crate::{MAIN_BRANCH, Repository, RepositoryContent};
 
 #[test]
 fn a_repository_moves_and_drops_branches() {

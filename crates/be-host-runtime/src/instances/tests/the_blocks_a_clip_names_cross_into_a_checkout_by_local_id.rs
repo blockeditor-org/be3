@@ -1,10 +1,10 @@
 use super::*;
 use uuid::Uuid;
 
-use be_block::CheckoutContent;
-use be_block::version_control::{masked, scope_mask};
 use be_block_content::{BlockContent, BlockMetadata};
 use be_block_graph::BlockParent;
+use be_block_repository::CheckoutContent;
+use be_block_repository::{masked, scope_mask};
 use be_sdk_api::ClipItem;
 use be_sdk_api::clipboard::{ClipBody, formats};
 use be_type_text::TextContent;

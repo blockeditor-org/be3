@@ -1,5 +1,5 @@
 use super::*;
-use be_sdk_beui::be_block::InputRemapper;
+use be_block_input::InputRemapper;
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::{Catalog, EditorDescriptor};

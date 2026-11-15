@@ -23,23 +23,26 @@ Why the stack is split this way: `decisions/block_stack_separates_durable_bytes.
 ## The layers
 
 ```
-be-block-store     objects, chunking, encryption         client + server
-be-block-commit    commit DAG, retention, merge          client + server
-be-block-session   ownership lease, sequencer, resume    client + server
-be-block-graph     parents, edges, access, refcounts     server (and host mirror)
-be-block-protocol  the wire format (WIT be3:server)      client + server
-be-block-keys      account-level cryptography            client + server
-be-block-model     objects with ids, merge, undo         client
-be-lib-sequence    the ordered sequence under text/lists client
-be-lib-search      the full-text index, kept as parts     client (guides/blocks/host.md, Search)
-be-block-content   content traits, metadata, blobs       client + type modules
-be-block           the host's built-in content types     client
-be-block-vcs       snapshot trees, diff, tree merge      client
-be-block-client    a peer: local store, refs db, relay   client
-be-block-sync      a folder <-> a directory on disk      client (native, guides/sync.md)
-be-server          the always-online peer                server
-be-server-bin      the executable, with its portal       server
-be-host-stack      the host's peer, worker and mirror    host
+be-block-store         objects, chunking, encryption            client + server
+be-block-commit        commit DAG, retention, merge             client + server
+be-block-session       ownership lease, sequencer, resume       client + server
+be-block-graph         parents, edges, access, refcounts        server (and host mirror)
+be-block-protocol      the wire format (WIT be3:server)         client + server
+be-block-keys          account-level cryptography               client + server
+be-block-model         objects with ids, merge, undo            client
+be-lib-sequence        the ordered sequence under text/lists    client
+be-lib-search          the full-text index, kept as parts       client (guides/blocks/host.md, Search)
+be-block-content       content traits, metadata, blobs          client + type modules
+be-block               the built-ins every editor's frame reads client
+be-block-input         input settings and remapper blocks       client
+be-block-repository    repository and checkout blocks           client
+be-block-search-index  the search index block                   client + server
+be-block-vcs           snapshot trees, diff, tree merge         client
+be-block-client        a peer: local store, refs db, relay      client
+be-block-sync          a folder <-> a directory on disk         client (native, guides/sync.md)
+be-server              the always-online peer                   server
+be-server-bin          the executable, with its portal          server
+be-host-stack          the host's peer, worker and mirror       host
 ```
 
 Block types run in type modules, each holding a replica per open block

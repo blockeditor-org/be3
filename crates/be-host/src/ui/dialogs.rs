@@ -670,7 +670,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         leaving.with(|leaving| match leaving {
             Some(leaving) => Phrase::new()
                 .text("Leave ")
-                .quoted(be_block::quotable_name(&leaving.name))
+                .quoted(be_lib_quoted_name::quotable_name(&leaving.name))
                 .text("?"),
             None => Phrase::new(),
         })
@@ -681,7 +681,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
         let from = match within {
             Some(within) => Phrase::new()
                 .text("You will no longer see it, in ")
-                .quoted(be_block::quotable_name(&within))
+                .quoted(be_lib_quoted_name::quotable_name(&within))
                 .text(", or anything inside it"),
             None => Phrase::new().text("You will no longer see it or anything inside it"),
         };

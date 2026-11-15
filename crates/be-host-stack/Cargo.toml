@@ -8,6 +8,8 @@ license.workspace = true
 testing = []
 
 [dependencies]
+be-block-repository = { path = "../be-block-repository" }
+be-block-input = { path = "../be-block-input" }
 be-block = { path = "../be-block" }
 be-block-search-index = { path = "../be-block-search-index" }
 be-block-content = { path = "../be-block-content" }

@@ -1,0 +1,16 @@
+[package]
+name = "be-block-input"
+description = "The input settings and input remapper blocks, which the settings app and hosts read"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-block-content = { path = "../be-block-content" }
+be-block-model = { path = "../be-block-model" }
+be-lib-ui-preferences = { path = "../be-lib-ui-preferences" }
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+[lints]
+workspace = true

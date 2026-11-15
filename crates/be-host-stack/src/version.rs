@@ -6,10 +6,8 @@ use std::{
 
 use be_wasm_threads::Mutex;
 
-use be_block::{
-    Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository,
-    version_control::{Action, Kept, Operation, View, masked, scope_mask},
-};
+use be_block_repository::{Action, Kept, Operation, View, masked, scope_mask};
+
 use be_block_client::{ClientError, Peer, Saved, Write};
 use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, now_milliseconds};
 use be_block_content::{
@@ -18,6 +16,7 @@ use be_block_content::{
 };
 use be_block_graph::BlockParent;
 use be_block_protocol::ErrorCode;
+use be_block_repository::{Checkout, CheckoutConflict, ConflictKind, MAIN_BRANCH, Repository};
 use be_block_store::{Hash, Manifest};
 use be_block_vcs::{Entry, Side, Tree};
 use be_sdk_api::{
