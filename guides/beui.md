@@ -29,9 +29,11 @@ those macros' doc comments.
   one `view!`. `view!` builds nodes the moment it runs, so a subtree built into
   a local and used conditionally is in the document either way.
 - Control flow goes in the view: `Show` (builds when true, disposes when
-  false; with `keep_alive`, builds once and pauses while hidden), `Dynamic`,
+  false), `Dynamic`, `Match`,
   `Keyed` and `ForEach` (one keyed child per item). They build no node of their
-  own; they fill a run in their parent's slot.
+  own; they fill a run in their parent's slot. To keep a subtree while it is
+  hidden, build it in a `Kept` under a `KeepAlive`
+  ([beui/core.md](beui/core.md#keeping-a-subtree)).
 - Use a component as a tag: `<Button label="Save" on_click={save} />`. The
   generated builder is not an API; only the macro checks props, routes `@`
   modifiers and keeps render props unbuilt. To pass a component around, pass a

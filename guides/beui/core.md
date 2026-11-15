@@ -131,6 +131,29 @@ document's effects wait for its next frame and the write wakes the window
 is only for work that needs the document itself: `with_document`, creating
 nodes or effects in its scope.
 
+### Keeping a subtree
+
+A `Show`, `Match` or `Dynamic` disposes the branch it hides. To keep one, with
+its state, build it in a `Kept` under a `KeepAlive`:
+`<KeepAlive><Show value={open}><Kept>{panel}</Kept></Show></KeepAlive>`. A
+`Kept` builds its children the first time, shows them through a portal, and
+pauses them (no effect runs) once it goes; the next `Kept` with that `key`
+anywhere under the same `KeepAlive` resumes them and shows the same node, so a
+subtree can move between parents. Without `key`, a `Kept` is the one unkeyed
+subtree of its `KeepAlive`. `keep` (a `Vec`, or a memo of one) lists the keys
+to hold: a key it drops is disposed once nothing shows it, and everything is
+disposed when the `KeepAlive` goes. Keys of any `Hash + Eq` type share one
+`KeepAlive`.
+
+A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
+so it reads the context provided around the `KeepAlive`, not what is provided
+between it and the `Kept`. Content that needs a value from in between reads it
+outside the `Kept` and provides it again inside, as overlay content does with
+`use_overlay_presence()` and `presence.provide()`. Inside, `kept_shown()` is a
+memo of whether the subtree (and every one kept around it) is shown, for what
+it holds outside itself and must let go while hidden. Each `Kept` adds a portal
+node between its slot and what it keeps.
+
 ## One layout per frame
 
 A frame is input, then layout, then paint. Input is dispatched against the

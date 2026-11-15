@@ -465,7 +465,7 @@ impl DockJoin {
             joined: Rc::new(Joined::default()),
             hidden: Cell::new(false),
         });
-        // Inside a branch kept while hidden (`Show` with `keep_alive`), the join lets the tab go
+        // Inside a subtree kept while hidden (a `Kept`), the join lets the tab go
         // while hidden, so what shows there instead (a revision's preview) has it, and takes it
         // back, with the same declaration, once shown and the tab is free again.
         if let Some(shown) = kept_shown() {

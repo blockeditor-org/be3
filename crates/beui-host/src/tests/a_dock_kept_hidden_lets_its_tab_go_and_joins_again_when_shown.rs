@@ -1,6 +1,7 @@
 use super::*;
 use crate::dock::{DockPane, DockTab, DockingLayout, TabId};
 use crate::reactive::*;
+use crate::primitives::{KeepAlive, Kept};
 use crate::styled::{List, ListItem, Space};
 
 #[test]
@@ -18,10 +19,11 @@ fn a_dock_kept_hidden_lets_its_tab_go_and_joins_again_when_shown() {
                 <dock::Docking layout=outer focus=2u64>
                     <DockPane id="main">
                         <DockTab id=2u64 title="Document">
+                            <KeepAlive>
                             <List spacing=Space::None>
-                                <Show keep_alive=true value={shown}>
+                                <Show value={shown}>
                                     <ListItem grow=1.0>
-                                        {{
+                                        <Kept>|| {
                                             built.update(|built| *built += 1);
                                             let inner = DockingLayout::new();
                                             view! {
@@ -33,10 +35,11 @@ fn a_dock_kept_hidden_lets_its_tab_go_and_joins_again_when_shown() {
                                                     </DockPane>
                                                 </dock::Docking>
                                             }
-                                        }}
+                                        }</Kept>
                                     </ListItem>
                                 </Show>
                             </List>
+                            </KeepAlive>
                         </DockTab>
                     </DockPane>
                 </dock::Docking>
