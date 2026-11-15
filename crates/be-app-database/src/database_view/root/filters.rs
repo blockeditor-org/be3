@@ -8,7 +8,7 @@ use be_sdk_beui::beui::styled::popover::PANEL_PADDING;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_database::{ChoiceMark, DatabaseBlockPickRequest, DatabaseValueEditor};
 use be_sdk_ui_database::{DatabaseValueChange, ValueLabels, database_value_text};
-use be_type_database::database::{DatabaseColor, DatabaseValue};
+use be_type_database::database::{DatabaseColor, DatabaseValue, RowRef};
 use be_type_database::database_schema::{DatabaseEnumOption, DatabaseField, DatabaseFieldType};
 use be_type_database::database_view::{DatabaseView, FilterCondition, ViewFilter};
 use uuid::Uuid;
@@ -374,9 +374,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             .with_untracked(|labels| converted(kind, &current, &field, labels));
         data.operate_view(DatabaseView::set_filter_condition(id, &next));
     };
-    let choosing = create_memo(move || matches!(kind.get(), Kind::AnyOf | Kind::NoneOf));
-    let comparing = create_memo(move || matches!(kind.get(), Kind::Is | Kind::IsNot));
-    let searching = create_memo(move || kind.get() == Kind::Contains);
     let needle = create_memo(move || match filter.get().condition {
         FilterCondition::Contains(text) => text,
         _ => String::new(),
@@ -430,30 +427,32 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         </Frame>
                     </ListItem>
                 </List>
-                <Show value={choosing}>
-                    <ValueChoices data={data} id={id} filter={filter} field={field} />
-                </Show>
-                <Show value={comparing}>
-                    <DatabaseValueEditor
-                        fields={move || field.get().into_iter().collect::<Vec<_>>()}
-                        values={values}
-                        labels={labels}
-                        disabled={value_off}
-                        prefix={format!("database-view.filter.{}", id.as_uuid())}
-                        headings=false
-                        on_change={revalue}
-                        on_pick={picked}
-                    />
-                </Show>
-                <Show value={searching}>
-                    <TextInput
-                        value={Binding::new(needle, searched_for)}
-                        placeholder="Text"
-                        disabled={text_off}
-                        focused=true
-                        @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
-                    />
-                </Show>
+                <Match value={kind}>
+                    <Case when={|kind: &Kind| matches!(kind, Kind::AnyOf | Kind::NoneOf)}>
+                        <ValueChoices data={data} id={id} filter={filter} field={field} />
+                    </Case>
+                    <Case when={|kind: &Kind| matches!(kind, Kind::Is | Kind::IsNot)}>
+                        <DatabaseValueEditor
+                            fields={move || field.get().into_iter().collect::<Vec<_>>()}
+                            values={values}
+                            labels={labels}
+                            disabled={value_off}
+                            prefix={format!("database-view.filter.{}", id.as_uuid())}
+                            headings=false
+                            on_change={revalue}
+                            on_pick={picked}
+                        />
+                    </Case>
+                    <Case is={Kind::Contains}>
+                        <TextInput
+                            value={Binding::new(needle, searched_for)}
+                            placeholder="Text"
+                            disabled={text_off}
+                            focused=true
+                            @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
+                        />
+                    </Case>
+                </Match>
             </List>
         </Frame>
     }
@@ -465,6 +464,17 @@ struct Choice {
     label: String,
     option: Option<DatabaseEnumOption>,
     count: usize,
+}
+
+impl Choice {
+    /// What tells choices apart: an option's id, or the row it links to.
+    fn key(&self) -> (Option<Uuid>, Option<RowRef>) {
+        match self.value {
+            DatabaseValue::Enum(option) => (Some(option), None),
+            DatabaseValue::Relation(row) => (None, Some(row)),
+            _ => (None, None),
+        }
+    }
 }
 
 #[component]
@@ -550,8 +560,6 @@ fn ValueChoices(
                 .is_some_and(|field| field.field_type == DatabaseFieldType::Relation)
         })
     });
-    let keys =
-        create_memo(move || choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>()));
     let read_only = data.read_only;
     let typed = move |text: String| query.set(text);
     view! {
@@ -565,22 +573,17 @@ fn ValueChoices(
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=Space::Xs2>
-                    <ForEach value={keys}>|index: usize| {
-                        let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
-                        let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
-                        let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
-                        let option = create_memo(move || choice.with(|choice| choice.as_ref().and_then(|choice| choice.option.clone())));
+                    <ForEach value={choices} key={Choice::key}>|choice: ReadSignal<Choice>, index: ReadSignal<usize>| {
+                        let label = create_memo(move || choice.with(|choice| choice.label.clone()));
+                        let count = create_memo(move || choice.with(|choice| choice.count.to_string()));
+                        let option = create_memo(move || choice.with(|choice| choice.option.clone()));
                         let marked = create_memo(move || option.with(Option::is_some));
                         let checked = create_memo(move || {
-                            let Some(choice) = choice.get() else {
-                                return false;
-                            };
-                            values_of(&filter.get().condition).contains(&choice.value)
+                            let value = choice.with(|choice| choice.value.clone());
+                            values_of(&filter.get().condition).contains(&value)
                         });
                         let toggle = move |on: bool| {
-                            let Some(choice) = choice.get_untracked() else {
-                                return;
-                            };
+                            let choice = choice.get_untracked();
                             let current = filter.get_untracked().condition;
                             let mut values = values_of(&current);
                             values.retain(|held| *held != choice.value);
@@ -593,7 +596,7 @@ fn ValueChoices(
                             };
                             data.operate_view(DatabaseView::set_filter_condition(id, &next));
                         };
-                        let element_test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
+                        let element_test_id = move || format!("database-view.filter.{}.choice.{}", id.as_uuid(), index.get());
                         view! {
                             <List
                                 direction=Direction::Horizontal
