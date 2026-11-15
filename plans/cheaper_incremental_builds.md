@@ -1,10 +1,11 @@
-# Split crates for caching
+# Cheaper incremental builds
 
 Depends on: none. Step 6 overlaps plans/shared_crates_per_platform.md, step 2 (be-sdk on
 be-block-content only); whichever lands first, the other rebases.
 
-Make an edit recompile and rerun less, by cutting edges in the crate graph that an edit's
-rebuild follows without needing to. Measured in November 2026, before any of it.
+Make an edit recompile, relink and rerun less: by cutting edges in the crate graph that an
+edit's rebuild follows without needing to, and by linking big native test binaries against
+shared libraries. Measured in November 2026, before any of it.
 
 ## What an edit costs now
 
@@ -33,10 +34,10 @@ rebuild follows without needing to. Measured in November 2026, before any of it.
   44% of edits, be-host-runtime's on 34%, be-host-stack's on 29%, beui-host's (1,102 tests,
   62k lines) on 15%.
 - **Linking dominates big native test binaries.** From buck2's cached wall times: linking
-  be-host-stack's `:test-harness` took 24 s and be-server's 16 s, more than compiling either
-  library (be-server's rlib 9 s). Splitting one test binary into several multiplies that link
-  for every library edit, so a test binary is split only where its parts depend on different
-  crates.
+  be-host-stack's `:test-harness` took 24 s and be-server's 16 s, more than compiling be-server's
+  library (9 s). Splitting one test binary into several multiplies that link for every library
+  edit, so a test binary is split only where its parts depend on different crates; making the
+  link itself cheaper is step 7.
 
 ### How it was measured
 
@@ -51,7 +52,7 @@ Measuring). Lines are a proxy for CPU; each step measures its own result as belo
 
 ## Steps
 
-Ranked by saving per disruption. Each is one pull request by one agent, independent of the
+Steps 1 to 6 are ranked by saving per disruption; step 7 is a build-rule pilot of its own. Each is one pull request by one agent, independent of the
 others unless it says so, and each ends with `./scripts/verify` and with the guides that name
 the moved code updated. Before and after a step, compare one cold build of what it touches:
 the CPU of the actions it removes from a typical edit (guides/performance.md, Measuring), and
@@ -93,12 +94,17 @@ beui-core, beui-types and beui-runner directly.
   beui-dock-host, beui-keyboard, beui-inspector, beui-layer-space, beui-layer-xr or a platform
   (80 of 300 commits touched one). 1.4% of recompiled library lines and 1.8k test
   lines an edit.
-- Needs the user's yes first: decisions/beui_facade_excludes_the_engine.md names "the app
-  runtime" among what uses beui-host, and the host crates would then spell beui's types
-  through `beui_core`/`beui_types` as beui's own engine crates do, rather than through `beui`.
-  No new API, but the decision changes, and a check (buck/cargo/layers.bzl or
-  be-tool-fix-rust-source) should keep the rule one rule: which crates may import beui's
-  engine crates directly.
+- Decided (by the coordinating agent, while the user was away; reversible, since it changes
+  only dependencies): the step amends decisions/beui_facade_excludes_the_engine.md as it
+  lands. The amendment: the app runtime is engine code, like beui-runner and the platforms,
+  and depends on the engine crates beneath the components (beui-core, beui-types,
+  beui-runner, beui-renderer-wgpu, beui-font-freetype, beui-layer-drive), spelling their
+  items through those crates; it does not depend on `beui` or `beui-host`, so an edit to a
+  component, the dock, the keyboard, the inspector, a layer or a platform does not rebuild
+  it. Programs, demos and test harnesses keep using beui-host. One spelling per crate: a
+  crate that depends on the engine crates does not also depend on the facade. Add that rule
+  to whatever checks it best (buck/cargo/layers.bzl or be-tool-fix-rust-source), naming the
+  crates allowed to depend on the engine crates directly outside beui.
 
 ### 4. Pilot: an app compiled once, not twice
 
@@ -143,6 +149,38 @@ the space, inspector and XR tests in beui-host.
 plans/shared_crates_per_platform.md, step 2: be-sdk depends on be-block-content only. Besides
 the size it was written for, it stops an edit to be-block (27 of 300 commits) from rebuilding
 the apps that use no built-in (about two thirds of them). Done there, not here.
+
+### 7. Pilot: big native test binaries linked against shared libraries
+
+Every edit beneath a native test binary relinks it statically with all of its dependencies
+(wasmtime, cranelift, tokio, SQLite...). From cached wall times, be-host-stack's
+`:test-harness` link took 24 s and be-server's 16 s, longer than compiling be-server's library
+(9 s); be-host-stack's harness is relinked on 29% of edits. The test still reruns after such an
+edit (its inputs changed), but the link it waits on, and pays for in CPU, shrinks to the
+changed crate's own object code.
+
+Pilot on those two harnesses: link the test binary dynamically, with first-party and
+third-party crates as shared objects (the prelude's shared link style for Rust, or
+`-C prefer-dynamic` with dylib crate types; whichever buck2's prelude supports without
+patching), and only for tests, never for what ships. Things to check:
+
+- The workers replace `LD_LIBRARY_PATH`; the launcher's `--library-path` (guides/buck2.md,
+  Tests) must carry the shared objects' directory, and a test's runtime inputs must include
+  them so remote execution stages them.
+- Pipelining and the crate hash (guides/buck2.md, Traps): a dylib build of a crate must not
+  break the E0460 agreement between its metadata and its real compile.
+- Each crate built as a shared object is one more action per crate, compiled once and shared
+  by every harness that links it; a crate built both ways is compiled twice. Count that
+  against the link saved.
+- Measure, for an edit to be-server and to be-host-stack: the CPU of the link and of the
+  extra shared-object actions, before and after (guides/performance.md, Measuring), and the
+  test's own run time, which loading many shared objects can lengthen.
+
+If it saves more than it costs, follow up with one step per further harness, starting with the
+largest links (from the event log of a full build), and write it into guides/buck2.md and
+guides/performance.md. If not, record the measurement in decisions/ and stop.
+
+- Disruption: build rules only (buck/cargo/defs.bzl, buck/dev/test.bzl); no crate changes.
 
 ## Ruled out
 

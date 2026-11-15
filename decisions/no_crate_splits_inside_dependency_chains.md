@@ -5,7 +5,7 @@ A crate is split to make edits rebuild less only when some crate that is rebuilt
 ## Why
 
 - rustc's metadata records each source file's hash and its items' spans, so any edit to a library changes the `.rmeta` its dependents compile against, and buck2 rebuilds every crate above it. Parts that all sit beneath the same dependents rebuild them just the same.
-- Measured in November 2026 over the last 300 commits (plans/split_crates_for_caching.md): even if nothing at all depended on beui-core, an average edit would recompile 7% fewer lines; for any crate outside beui, 3% or less.
+- Measured in November 2026 over the last 300 commits (plans/cheaper_incremental_builds.md): even if nothing at all depended on beui-core, an average edit would recompile 7% fewer lines; for any crate outside beui, 3% or less.
 - A chain of smaller crates compiles one after another, and each crate is one more set of actions, facts and BUCK rules.
 
 ## Rejected
