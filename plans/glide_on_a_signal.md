@@ -1,54 +1,18 @@
-# Glide armed by a signal, with its spring from the theme
+# Glide on a signal: what is left
 
-Depends on: plans/for_each_handle.md, step 1, for the row-index test.
+Depends on: plans/for_each_handle.md, step 1, for the row index; and `view!` forwarding an
+optional prop (`Option<Func<..>>`, `Option<Prop<..>>`, `Option<RenderFn<..>>`) from one
+component to another, for the styled `Reorder`.
 
-`unstyled::Glide` (`beui-components-unstyled` `glide.rs`) is already one component on both cores,
-built from `Frame`'s `translate` and `raised`, `measure`, `measure::scrolled_by` and
-`create_animation`. Two things are left:
+`Glide` is armed by `on: Option<Trackable>` and takes its spring as a value; the styled `Glide`
+passes `Movement::Settle` (guides/beui/components.md, Time). Two parts are left:
 
-- It is armed by bumping a `u64` (`arm`), a counter every caller hand-rolls (`Reorder`'s
-  `arm: Signal<u64>`, beui-demo's base pages, the beui-host glide tests).
-- Its spring, `GLIDE_SPRING`, is a constant in the unstyled layer, against the rule that unstyled
-  components take concrete values and know nothing about the theme.
-
-## Shape
-
-```rust
-// unstyled: the curve is a value, with no default
-#[component]
-pub fn Glide(spring: Prop<Spring>, #[prop(default = None)] on: Option<Track>, /* api, from, raised, within as today */
-             children: Child) -> NodeId
-
-// styled: no curve to choose; the theme's `Movement::Settle`
-#[component]
-pub fn Glide(#[prop(default = None)] on: Option<Track>, /* api, from, raised, within as today */
-             children: Child) -> NodeId
-```
-
-Code on the styled layer uses the styled `Glide`; the unstyled one is for unstyled components
-(`Reorder`, the dock's unstyled layer), which take the spring from whoever styles them. A styled
-token prop is added only when a second look is needed.
-
-- **`on`:** anything trackable (a `ReadSignal`, a `Memo`, a `Trigger`, a `ForEach` row's index,
-  plans/for_each_handle.md). When it changes, the next move glides rather than jumps, exactly as
-  bumping `arm` does today. An explicit prop, never a context: a layer that provided one by
-  accident would arm glides nobody asked to move.
-- **`spring`:** required on the unstyled `Glide`, as a curve is appearance
-  (decisions/beui_unstyled_layer_has_no_appearance_defaults.md). `GLIDE_SPRING` (500, 42) goes
-  and the styled `Glide` passes `Movement::Settle.spring()` (`styled::tokens`, 420, 32: what the
-  dock's bars already land on), so glides settle a little softer and their paintings are
-  accepted again. This plan owns that move.
-
-## beui-reactive's `Trigger`
-
-Add `create_trigger() -> Trigger` with `notify()` and `track()`: a signal with no value. It is
-what `on` takes when the move is not a keyed one, and it replaces counters kept only to be bumped.
-
-## Steps
-
-1. `Trigger`.
-2. `on` replaces `arm`; `spring` on the unstyled `Glide`, and the styled `Glide`. Migrate every
-   `arm` caller (`rg 'arm=' crates`) and drop `Reorder`'s `arm` signal.
-3. Tests: arming from a row's index glides a reordered row; arming from a `Trigger` glides a
-   row moved by something other than its key; the existing glide tests keep passing on `on`.
-4. Update components.md's paragraph on `Glide` (Time).
+- **`Reorder`'s spring.** `unstyled::Reorder` still settles its rows and gaps on a private
+  `SPRING` (500, 42). Make it a required `spring: Spring` prop and add a styled `Reorder` that
+  passes `Movement::Settle.spring()`, replacing styled's re-export of the unstyled one (its 18
+  callers then use the styled one unchanged). The styled one must forward `accepts`, `takes`
+  and `slot`, which are optional `Func`s: wait for `view!` to forward an `Option` prop rather
+  than writing a tag per combination. Then accept the reorder paintings again.
+- **Rows armed by their index.** Once a `ForEach` row has its index, `Reorder` hands each row's
+  `Glide` the index (`on={index}`) and drops its `arm: Trigger`, which today wakes every row on
+  any move. Test: arming from a row's index glides a reordered row and leaves the others still.

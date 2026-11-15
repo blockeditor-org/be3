@@ -16,9 +16,9 @@ fn a_scroll_in_a_zoomed_canvas_in_the_update_that_arms_a_glide_moves_no_row() {
                     <Offset offset={scrolled}>
                         <List spacing=0.0>
                             <ForEach keys={order}>|key: u64|
-                                <unstyled::Glide @test_id={format!("slot.{key}")} arm={Some(arm)}>
+                                <styled::Glide @test_id={format!("slot.{key}")} on={arm}>
                                     <Frame @test_id={format!("row.{key}")} height=GLIDE_ROW />
-                                </unstyled::Glide>
+                                </styled::Glide>
                             </ForEach>
                         </List>
                     </Offset>
