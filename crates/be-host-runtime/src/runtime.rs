@@ -274,6 +274,8 @@ pub(super) struct Runtime {
     /// The last frames of views the app's layout left out while the host still holds them
     /// (`Runtime::keep_left_out`).
     kept: HashMap<ScreenId, Kept>,
+    /// Counts the views hidden, to order the kept frames (`Kept::hidden`).
+    hides: u64,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -372,9 +374,15 @@ const KEEPS_FRAMES: bool = cfg!(not(target_arch = "wasm32"));
 /// that frame is on its way.
 struct Kept {
     placement: ScreenPlacement,
+    /// When it was hidden, counted in hides, so the oldest goes first past `MOST_KEPT`.
+    hidden: u64,
     /// How far the app has come drawing the view again, once it lays its screen out again.
     back: Option<Back>,
 }
+
+/// How many hidden views keep their last frame at once: past it, the one hidden longest lets its
+/// frame go, and if it is shown again it may show empty for a frame while its app draws it.
+const MOST_KEPT: usize = 8;
 
 /// A kept frame goes once the present that follows the layout bringing its view back has been
 /// applied and, where it painted, its frame has been drawn, as an anchored view that closes does
@@ -590,6 +598,7 @@ impl Runtime {
             presents_applied: 0,
             closing: None,
             kept: HashMap::default(),
+            hides: 0,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -1333,13 +1342,33 @@ impl Runtime {
             if !held || layout.placement(placement.screen).is_some() {
                 continue;
             }
+            self.hides += 1;
+            let hidden = self.hides;
             self.kept
                 .entry(placement.screen)
-                .and_modify(|kept| kept.back = None)
+                .and_modify(|kept| {
+                    kept.back = None;
+                    kept.hidden = hidden;
+                })
                 .or_insert(Kept {
                     placement: *placement,
+                    hidden,
                     back: None,
                 });
+        }
+        // Only the views hidden last keep their frame; the textures of the others go with the
+        // next `release_kept`.
+        let mut hidden: Vec<(u64, ScreenId)> = self
+            .kept
+            .iter()
+            .filter(|(_, kept)| kept.back.is_none())
+            .map(|(screen, kept)| (kept.hidden, *screen))
+            .collect();
+        if hidden.len() > MOST_KEPT {
+            hidden.sort_unstable();
+            for (_, screen) in &hidden[..hidden.len() - MOST_KEPT] {
+                self.kept.remove(screen);
+            }
         }
         let next = self.presents_applied + 1;
         for placement in &layout.screens {
