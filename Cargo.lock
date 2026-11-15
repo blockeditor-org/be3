@@ -2357,7 +2357,10 @@ dependencies = [
  "be-wasm-threads",
  "beui",
  "beui-paint-snapshot",
+ "js-sys",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

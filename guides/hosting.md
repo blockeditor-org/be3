@@ -173,6 +173,12 @@ the log. Changing `--auth-origin` changes every redirect URI. Removing a provide
 accounts that sign in only with it with no way in but a login link; the server logs how many at
 start. Registering through a provider still needs an invite code.
 
+Once signed in, people can add passkeys from the portal's settings and then sign in with one
+before typing an email. Their RP ID is the `--auth-origin` host, so they work only at that origin
+and over HTTPS (or `localhost`); a server reached by IP address offers none. Changing
+`--auth-origin` orphans every passkey, as it does every provider's redirect URI: the accounts
+that had only passkeys need a login link.
+
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
 `/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code
 (verifying email alone approves nothing). be-host holds a private secret apart from the shown
