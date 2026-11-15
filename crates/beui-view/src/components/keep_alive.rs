@@ -67,13 +67,6 @@ impl Cache {
     }
 }
 
-impl Drop for Cache {
-    fn drop(&mut self) {
-        for (_, entry) in self.entries.get_mut().drain() {
-            entry.scope.dispose();
-        }
-    }
-}
 
 #[derive(Clone)]
 struct KeepAliveCache(Rc<Cache>);
@@ -108,6 +101,13 @@ where
             untrack(|| watched.trim());
         });
     }
+    let held = cache.clone();
+    on_cleanup(move || {
+        let entries: Vec<Entry> = held.entries.borrow_mut().drain().map(|(_, entry)| entry).collect();
+        for entry in entries {
+            entry.scope.dispose();
+        }
+    });
     provide_context(KeepAliveCache(cache));
     content.call(()).unwrapped()
 }

@@ -1,21 +1,21 @@
 use super::*;
+use crate::primitives::{KeepAlive, Kept};
 use crate::{Window, WindowHandle, WindowId};
 
 #[test]
-fn a_kept_alive_window_that_closes_needs_no_damage_where_it_painted() {
+fn a_window_whose_content_is_kept_needs_no_damage_where_it_painted_once_closed() {
     let _root = crate::reactive::RootScope::new();
     let window = WindowId::next();
     let open = create_signal(true);
     let document = build_node(move || {
         view! {
-            <Window
-                id={window}
-                size={vec2(120.0, 80.0)}
-                open={open}
-                keep_alive={true}
-            >|_: WindowHandle|
-                <Frame fill={Color32::WHITE} />
-            </Window>
+            <KeepAlive>
+                <Window id={window} size={vec2(120.0, 80.0)} open={open}>|_: WindowHandle|
+                    <Kept>
+                        <Frame fill={Color32::WHITE} />
+                    </Kept>
+                </Window>
+            </KeepAlive>
         }
     });
     let mut harness = Harness::hosting_windows(document, VIEWPORT);
