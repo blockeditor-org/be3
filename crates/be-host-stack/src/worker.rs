@@ -1881,6 +1881,8 @@ async fn drain_outbox(
                         outcome,
                         be_block_client::Drained::Created { .. }
                             | be_block_client::Drained::Published { .. }
+                            | be_block_client::Drained::Moved { .. }
+                            | be_block_client::Drained::Defined { .. }
                     )
                 })
                 .map(|outcome| format!("{outcome:?}"))
