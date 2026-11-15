@@ -7,7 +7,7 @@ use be_block_protocol::{
     KeyKind, KeyRow, KeySet, Listing, ObjectLength, OrganizationRole, PairingMessage, RelayKind,
     SessionEvent, SessionState, UploadUrl, WrappedBy, WrappedKey, client,
 };
-use be_block_session::{Resume, resume, takeover_needs_merge};
+use be_block_session::{Resume, resume};
 use be_block_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
 use be_wasm_ops::net::{Peer, Pending, Stream};
 use futures_util::{SinkExt, StreamExt};
@@ -101,7 +101,8 @@ mod a_push_service_that_never_answers_delays_only_its_own_account;
 mod a_range_get_reads_part_of_an_s3_object;
 mod a_reader_is_told_which_connection_moved_a_head;
 mod a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit;
-mod a_rebase_from_other_than_the_owner_of_its_generation_is_answered_and_not_kept;
+mod a_rebase_from_other_than_the_holder_of_its_generation_is_answered_and_not_kept;
+mod a_rebase_past_the_orders_last_entry_is_refused;
 mod a_refused_call_keeps_the_cached_graph;
 mod a_relay_to_a_client_that_left_the_session_is_dropped_without_an_error;
 mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
@@ -111,7 +112,7 @@ mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_search_index_is_capped_by_the_bytes_its_commit_holds;
 mod a_search_index_takes_exactly_the_access_of_the_block_it_indexes;
 mod a_server_without_a_portal_answers_its_pages_as_json;
-mod a_session_hands_ownership_over_without_a_merge;
+mod a_session_hands_the_lease_over_without_a_merge;
 mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
@@ -151,7 +152,7 @@ mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
 mod an_old_nonce_a_reused_state_or_another_browser_is_refused;
-mod an_owner_that_loses_edit_access_hands_the_lease_on;
+mod a_holder_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
@@ -224,7 +225,9 @@ mod the_hub_keeps_the_same_for_a_folder_however_many_entries_it_holds;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
 mod the_portals_cookies_are_host_cookies_over_https;
 mod the_providers_file_is_checked_and_keeps_its_secrets;
+mod the_server_orders_sealed_submissions_and_a_seal_trims_them;
 mod the_session_registry_forgets_the_longest_empty_sessions_first;
+mod a_submission_from_a_build_the_session_does_not_speak_is_refused;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
 mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
 mod unsigned_or_expired_s3_requests_are_refused;
@@ -323,6 +326,9 @@ impl Harness {
     }
 }
 
+/// The build of a block's type the test clients run.
+const TYPE_BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
+
 #[derive(Clone, Debug, PartialEq)]
 enum Notice {
     BlockChanged {
@@ -350,6 +356,10 @@ enum Notice {
         payload: Vec<u8>,
     },
     ContactsChanged,
+    Sequenced {
+        block: Uuid,
+        entry: be_block_protocol::JournalEntry,
+    },
 }
 
 enum Heard {
@@ -409,6 +419,9 @@ impl Heard {
                             payload,
                             received,
                         })),
+                        Poll::Ready(Some(SessionEvent::Sequenced(entry))) => {
+                            Poll::Ready(Some(Notice::Sequenced { block, entry }))
+                        }
                         Poll::Ready(Some(_)) => continue,
                         other => other.map(|_| None),
                     };
@@ -645,7 +658,16 @@ impl TestClient {
     }
 
     async fn try_join(&mut self, block: Uuid) -> Result<(ClientId, SessionState), Error> {
-        let session = client::sessions::Session::new(&self.peer, block);
+        self.try_join_as(block, TYPE_BUILD).await
+    }
+
+    /// Joins `block`'s session running the build `tag` of its type.
+    async fn try_join_as(
+        &mut self,
+        block: Uuid,
+        tag: be_block_store::Hash,
+    ) -> Result<(ClientId, SessionState), Error> {
+        let session = client::sessions::Session::new(&self.peer, block, tag);
         let mut events = session.join();
         let joined = match events.recv().await {
             Some(SessionEvent::Joined { client, state, .. }) => Ok((client, state)),
@@ -662,6 +684,55 @@ impl TestClient {
 
     async fn join_session(&mut self, block: Uuid) -> (ClientId, SessionState) {
         self.try_join(block).await.expect("joining failed")
+    }
+
+    /// Hands `block`'s order a submission of `payload`, numbered `counter` by `origin`.
+    async fn submit(
+        &mut self,
+        block: Uuid,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        payload: Vec<u8>,
+    ) -> Result<(), Error> {
+        let submitted = self.sessions[&block].submit(origin, counter, base, false, payload);
+        let answered = submitted.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    async fn rebase_journal(
+        &mut self,
+        block: Uuid,
+        generation: u64,
+        base: be_block_protocol::JournalBase,
+    ) -> Result<(), Error> {
+        let rebased = self.sessions[&block].rebase_journal(generation, base);
+        let answered = rebased.await.expect("the connection stayed open");
+        self.collect();
+        answered
+    }
+
+    /// What a reader of `block` is told of its journal.
+    async fn journal_of(&mut self, block: Uuid) -> Option<be_block_protocol::Journal> {
+        let response = self
+            .call(|peer| client::blocks::read_contents(peer, vec![block], Vec::new()))
+            .await;
+        let Ok(contents) = response else {
+            panic!("reading failed: {response:?}");
+        };
+        contents.journals.into_iter().next().flatten()
+    }
+
+    /// The next entry of `block`'s order this client hears.
+    async fn sequenced(&mut self, of: Uuid) -> be_block_protocol::JournalEntry {
+        loop {
+            if let Notice::Sequenced { block, entry } = self.notification().await
+                && block == of
+            {
+                return entry;
+            }
+        }
     }
 
     async fn heartbeat(

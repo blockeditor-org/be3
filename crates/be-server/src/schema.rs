@@ -458,10 +458,11 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         tag             BLOB NOT NULL,
-        generation      INTEGER NOT NULL,
         base_commit     TEXT,
         base_sequence   INTEGER NOT NULL,
         base_state      BLOB NOT NULL,
+        sequence        INTEGER NOT NULL,
+        barrier         INTEGER NOT NULL,
         lost            INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (organization_id, block_id)
     );
@@ -470,10 +471,17 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL,
         block_id        TEXT NOT NULL,
         sequence        INTEGER NOT NULL,
-        generation      INTEGER NOT NULL,
+        origin          INTEGER NOT NULL,
+        counter         INTEGER NOT NULL,
+        base            INTEGER NOT NULL,
+        floor           INTEGER NOT NULL,
+        received        INTEGER,
         payload         BLOB NOT NULL,
         PRIMARY KEY (organization_id, block_id, sequence)
     );
+
+    CREATE UNIQUE INDEX journal_entries_by_id
+        ON journal_entries (organization_id, block_id, origin, counter);
 
     CREATE TABLE revision_floor (
         id              INTEGER PRIMARY KEY CHECK (id = 1),

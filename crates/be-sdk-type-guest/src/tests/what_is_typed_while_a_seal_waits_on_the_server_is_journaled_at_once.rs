@@ -16,7 +16,7 @@ fn what_is_typed_while_a_seal_waits_on_the_server_is_journaled_at_once() {
 
     sim.type_at(0, 1, 4, " and bread");
     sim.settle();
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert!(
         sim.devices[0].status.journaled,
         "what was typed during the seal is in the journal"

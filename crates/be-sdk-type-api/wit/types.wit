@@ -22,18 +22,29 @@ interface types {
     /// Derived metadata, by key.
     type entries = list<entry>;
 
-    /// The server's state of a block's session: its lease.
+    /// The server's state of a block's session: its lease, and the build of
+    /// the type it speaks.
     record session-state {
         generation: u64,
         owner: option<client-id>,
         participants: list<client-id>,
         clean-at: option<commit-id>,
+        tag: option<session-tag>,
     }
 
     record resume-merge {
         base: option<commit-id>,
         ours: commit-id,
         theirs: commit-id,
+    }
+
+    /// A remote head that seals this session's order through `through`, made
+    /// on the replica's local head.
+    record resume-sealed {
+        commit: commit-id,
+        through: u64,
+        /// The run of the order it seals (`status.restarts`).
+        restarts: u64,
     }
 
     /// How a replica's local head relates to the remote one.
@@ -43,6 +54,10 @@ interface types {
         fast-forward(commit-id),
         publish(commit-id),
         merge(resume-merge),
+        /// The remote head is a seal of this session made on the local one:
+        /// news of the seal, taken once the replica applied as far, not a
+        /// head to merge, which would count what both hold twice.
+        sealed(resume-sealed),
     }
 
     /// The plain form a type has outside the host.
@@ -158,10 +173,16 @@ interface types {
 
     record status {
         head: option<commit-id>,
-        owner: bool,
+        /// Holds the lease, so seals.
+        holder: bool,
+        /// How many times the session started over (a restart, or the last
+        /// one out leaving) before what this replica applied: local edits made
+        /// before a later one cannot be applied, since what they were made on
+        /// is gone.
+        restarts: u64,
         clean: bool,
-        /// Whatever is not clean is in the journal: an owner appended all it
-        /// sequenced.
+        /// Every local edit is in the order: none waits to be submitted or
+        /// numbered.
         journaled: bool,
         /// While `journaled` is false, what keeps the replica's edits out of the
         /// journal, for a host to name when it waits on them.
@@ -177,13 +198,11 @@ interface types {
         /// the host sent them: what this status reflects of them.
         taken: u64,
         /// How many of those the host need not give the replica again when it
-        /// opens it on `head`: for an owner, those `head` holds (a replacement on
-        /// its way is not among them); for a follower, once it is clean, those
-        /// its owner accepted into the session's journal.
+        /// opens it on `head`: those `head` holds.
         sealed-taken: u64,
-        /// How many of those `head` and this device's journal on it hold
-        /// together (at least `sealed-taken`): the host need not give them
-        /// again when it opens the replica on `head` with that journal.
+        /// How many of those the order holds (at least `sealed-taken`): the
+        /// host need not give them again when it opens the replica on the
+        /// journal.
         journaled-taken: u64,
         /// The `opening.epoch` the replica was opened with, which `taken`
         /// counts from.
@@ -197,13 +216,13 @@ interface types {
     }
 
     /// What a message to peers carries, which the server checks against its
-    /// sender: `peer` for presence, channel messages and asking to catch up,
-    /// which any participant sends; `edit` for operations and session state,
-    /// only from a participant with edit access. The host passes it to the
+    /// sender: `peer` for presence and channel messages, which any participant
+    /// sends; `seal` for a seal's news, only from a participant with edit
+    /// access. The host passes it to the
     /// server and ignores it for an editor or itself.
     enum relay-kind {
         peer,
-        edit,
+        seal,
     }
 
     /// What the server says of a peer's message it relayed.
@@ -260,26 +279,26 @@ interface types {
         malformed(string),
     }
 
-    /// What undo and redo can do on this device, and why they cannot.
     /// What keeps a replica's edits out of the journal (`status.unjournaled`),
     /// with the timers that may bring them in, on the replica's clock.
     record unjournaled {
         loaded: bool,
-        /// An owner's edits sequenced and not yet appended to the journal.
-        unappended: u32,
-        /// An owner's edits held back, behind a seal or a part being put.
-        held: u32,
+        /// Edits submitted that the server has not yet numbered.
+        pending: u32,
+        /// Edits waiting to be submitted, behind a seal or a part being put.
+        unsent: u32,
+        /// Edits an earlier opening may have submitted, shown but held until
+        /// the replica joins.
+        doubtful: u32,
         /// A part of one of its operations is being put.
         putting: bool,
-        /// A follower's edits its owner has not yet accepted.
-        unsettled: bool,
-        append-at: option<u64>,
         put-retry-at: option<u64>,
         merge-retry-at: option<u64>,
         seal-retry-at: option<u64>,
         merge-failures: u8,
     }
 
+    /// What undo and redo can do on this device, and why they cannot.
     record undo-state {
         can-undo: bool,
         can-redo: bool,
@@ -291,10 +310,28 @@ interface types {
         lost-edits: bool,
     }
 
-    /// One operation the owner sequenced: a session message the module wrote,
-    /// the same bytes a peer hears relayed.
+    /// What a replica hands its session's order: its id (`origin`,
+    /// `counter`), the last sequence number it had applied (`base`), whether
+    /// nothing based before it applies once it is numbered (`barrier`), and
+    /// the entry the module wrote.
+    record submission {
+        origin: u64,
+        counter: u64,
+        base: u64,
+        barrier: bool,
+        payload: list<u8>,
+    }
+
+    /// One submission the order numbered, its payload opened: its place, its
+    /// id, its base, the last barrier (`floor`): one based below it is passed over, and when the
+    /// server took it (none for an order kept offline).
     record journal-entry {
         sequence: u64,
+        origin: u64,
+        counter: u64,
+        base: u64,
+        floor: u64,
+        received: option<s64>,
         payload: list<u8>,
     }
 
@@ -310,12 +347,6 @@ interface types {
         mentions: list<account-id>,
     }
 
-    /// An announcement of the edit an owner sequenced as `sequence`.
-    record announced {
-        sequence: u64,
-        announcement: announcement,
-    }
-
     /// Where a journal starts: a commit (none for no content), the last
     /// sequence number it holds and the session state as of it.
     record journal-base {
@@ -324,8 +355,8 @@ interface types {
         state: list<u8>,
     }
 
-    /// What a block's session owners sequenced since `base` and did not
-    /// commit, by this module's build.
+    /// The session's order since `base`, which no commit holds yet, by this
+    /// module's build.
     record journal {
         base: journal-base,
         entries: list<journal-entry>,

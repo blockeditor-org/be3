@@ -333,16 +333,11 @@ async fn perform(
     if !replicas.is_open(block) {
         return Err("Open this file before restoring a revision.".into());
     }
-    // The state being replaced is kept as a bookmark, so pruning never takes it.
+    // The state being replaced is kept as a bookmark, so pruning never takes it; what the
+    // order does not hold yet the replica stashes under the restore.
     replicas
         .bookmark((peer, shared), block, "Before restoring")
         .await;
-    if !replicas.status(block).is_some_and(|status| status.clean) {
-        return Err(
-            "The current edits are still being saved. Try restoring again once they are saved."
-                .into(),
-        );
-    }
     replicas
         .change((peer, shared), block, Change::Replace(bytes))
         .await;

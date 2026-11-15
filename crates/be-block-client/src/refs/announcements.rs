@@ -19,7 +19,10 @@ const REMEMBERED: usize = 256;
 /// What has to happen before an announcement is sent.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) enum Until {
-    /// The edit is in this device's journal as `sequence`, and the server does not hold it yet.
+    /// The edit was submitted to the server's order, which has not answered yet.
+    Submitted,
+    /// The edit is in this device's journal as `sequence`, numbered offline, and the server does
+    /// not hold it yet.
     Journal(u64),
     /// The edit is in this commit, kept in the outbox.
     Commit(CommitId),
@@ -95,7 +98,9 @@ impl Refs {
                     .announcements
                     .get(&block)
                     .and_then(|held| held.get(&made.key));
-                if known.is_some_and(|known| !matches!(known.until, Until::Journal(_))) {
+                if known.is_some_and(|known| {
+                    !matches!(known.until, Until::Journal(_) | Until::Submitted)
+                }) {
                     continue;
                 }
                 let key = key_of(block, &made.key);
@@ -152,31 +157,27 @@ impl Refs {
         self.write(rows)
     }
 
-    /// The server took the journal entries holding the announcements named.
-    pub fn journal_held(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
+    /// The server numbered the submissions holding the announcements named.
+    pub fn submitted_held(&self, block: Uuid, keys: &HashSet<String>) -> Result<(), StoreError> {
         self.update_announcements(block, |key, until| match until {
-            Until::Journal(_) if keys.contains(key) => Some(Some(Until::Held)),
+            Until::Submitted if keys.contains(key) => Some(Some(Until::Held)),
             _ => None,
         })
     }
 
-    /// The journal of `block` started over from a commit holding everything up to `sequence`:
-    /// what waited in it goes with that commit when this device sealed it (`own`), kept in the
-    /// outbox (`kept`) or already on the server; anything else the journal held is gone.
+    /// The journal of `block` starts from a commit holding the order up to `sequence`: what
+    /// waited in it up to there goes with that commit when this device sealed it (`own`), kept
+    /// in the outbox (`kept`) or already on the server; anything after stays in the journal.
     pub fn journal_rebased(
         &self,
         block: Uuid,
         commit: Option<CommitId>,
         sequence: u64,
-        carried: Option<u64>,
         own: bool,
         kept: bool,
     ) -> Result<(), StoreError> {
         self.update_announcements(block, |_, until| match until {
-            // Past the base, among the entries the rebase carried: still in the journal.
-            Until::Journal(at) if at > sequence && carried.is_some_and(|through| at <= through) => {
-                None
-            }
+            Until::Journal(at) if at > sequence => None,
             Until::Journal(at) => Some(match commit {
                 Some(commit) if own && at <= sequence => Some(match kept {
                     true => Until::Commit(commit),

@@ -1,7 +1,6 @@
 use be_block_commit::CommitId;
 use be_sdk_type_api::{
-    Description, JournalBase, JournalEntry, Merging, Recipients, RelayKind, ReplicaId, Status,
-    Written,
+    Description, JournalBase, Merging, Recipients, RelayKind, ReplicaId, Status, Written,
 };
 
 pub(crate) type Token = u64;
@@ -21,8 +20,9 @@ pub(crate) enum Effect {
         expected: Option<CommitId>,
         merging: Option<Merging>,
         content: Written,
-        /// The session's generation and the last sequence a seal holds.
-        sealed_through: Option<(u64, u64)>,
+        /// The last sequence of the order a seal holds, and the run of the order it is in.
+        sealed_through: Option<u64>,
+        restarts: u64,
     },
     Stash {
         replica: ReplicaId,
@@ -57,31 +57,21 @@ pub(crate) enum Effect {
         replica: ReplicaId,
         generation: u64,
     },
-    /// Announcements of edits made here that the server already holds.
-    Announce {
-        replica: ReplicaId,
-        announcements: Vec<be_block_content::Announcement>,
-    },
     ReportClean {
         replica: ReplicaId,
         generation: u64,
         clean_at: Option<CommitId>,
     },
-    Append {
+    Submit {
         replica: ReplicaId,
-        generation: u64,
-        entries: Vec<JournalEntry>,
-        relay: bool,
-        /// The first sequence number the entries hold, folded ones included.
-        from: u64,
-        /// The announcements of the edits made here among the entries, by sequence.
-        announcements: Vec<(u64, be_block_content::Announcement)>,
+        submission: be_block_session::Submission,
+        /// What the edits it holds announce.
+        announcements: Vec<be_block_content::Announcement>,
     },
     Rebase {
         replica: ReplicaId,
         generation: u64,
         base: JournalBase,
-        entries: Vec<JournalEntry>,
     },
     Release {
         replica: ReplicaId,

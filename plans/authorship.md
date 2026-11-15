@@ -30,11 +30,11 @@ or that is forged.
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real; someone holding the old phrase can sign with it, and
   arrival times are what would tell them apart.
-- **Timestamps.** A signed time is only what the author claims. A follower's
-  message carries when the server took it, stamped by the session owner
-  (guides/chat.md, "Arrival time"), which that follower cannot choose; the
-  owner's own messages carry none yet (plans/chat.md). The stamp is stored in
-  content, so a member who owns a session or commits directly can write any
+- **Timestamps.** A signed time is only what the author claims. A message sent
+  in a live session carries when the server took it, stamped by every replica
+  from the order (guides/chat.md, "Arrival time"), which its author cannot
+  choose; one numbered offline carries none. The stamp is stored in content,
+  so a member who seals as the lease holder or commits directly can write any
   arrival; accepted. A member with Edit who removes a message and sends it
   again under its id gives it a later, honest arrival.
 - Signatures detect forgery; they don't stop someone with Edit rewriting or

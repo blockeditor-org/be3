@@ -6,7 +6,7 @@ fn a_journal_another_build_wrote_is_dropped_and_the_block_marked() {
     sim.open(0);
     sim.attach(0, 1, true);
     sim.operate(0, 1, add("written by the old build"));
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert!(
         sim.journal
             .as_ref()
@@ -27,7 +27,7 @@ fn a_journal_another_build_wrote_is_dropped_and_the_block_marked() {
     );
 
     sim.operate(1, 1, add("written by the new build"));
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     assert_eq!(sim.journal_tag, SessionTag([9; 32]));
     let journal = sim.journal.clone().expect("the new build journals");
     assert!(

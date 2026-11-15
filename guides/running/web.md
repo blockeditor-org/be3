@@ -128,8 +128,8 @@ survives a reload. Traps that shape this code:
   them. Only the page makes mailboxes on the web.
 - A server connection's `Peer` locks a `std::sync::Mutex`, so connections never cross between
   the page and the worker (`be_host_stack::link` keeps them per thread on wasm).
-- An unload cannot wait for the worker, so durability does not depend on it: a replica seals
-  within `APPEND_INTERVAL` of an edit (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
+- An unload cannot wait for the worker, so durability does not depend on it: a replica submits
+  each edit as it is made, and the server's journal holds it from then on (guides/blocks/client.md, "The journal"), `beforeunload` asks while anything is unsaved
   (`be_host_stack::status().unsaved`), and the worker seals while the browser asks.
   A change to the host's own state (a sign-in, a setting) is kept when the host's worker next
   yields or finishes a pass, whichever comes first (`be_host_stack::run_first`), so it waits
