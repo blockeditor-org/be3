@@ -73,29 +73,33 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> Dynamic
         }
     };
     view! {
-        <Show keep_alive=true value={shown}>
-            <Frame fill=ColorRole::Surface>
-                <List spacing=Space::None>
-                    <Show value={narrow} fallback={roomy}>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=Space::None
-                        >
-                            <ListItem grow=1.0>
-                                <Scroll direction=Direction::Horizontal>
+        <KeepAlive>
+            <Show value={shown}>
+                <Kept>
+                    <Frame fill=ColorRole::Surface>
+                        <List spacing=Space::None>
+                            <Show value={narrow} fallback={roomy}>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=Space::None
+                                >
                                     <ListItem grow=1.0>
-                                        <Frame padding=BAND_PADDING>
-                                            <Portal node={scrolled} />
-                                        </Frame>
+                                        <Scroll direction=Direction::Horizontal>
+                                            <ListItem grow=1.0>
+                                                <Frame padding=BAND_PADDING>
+                                                    <Portal node={scrolled} />
+                                                </Frame>
+                                            </ListItem>
+                                        </Scroll>
                                     </ListItem>
-                                </Scroll>
-                            </ListItem>
+                                </List>
+                            </Show>
+                            <Separator />
                         </List>
-                    </Show>
-                    <Separator />
-                </List>
-            </Frame>
-        </Show>
+                    </Frame>
+                </Kept>
+            </Show>
+        </KeepAlive>
     }
 }

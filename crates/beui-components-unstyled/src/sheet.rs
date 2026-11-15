@@ -1218,11 +1218,12 @@ pub fn Sheet(
         dragging: dragging.read_only(),
         on_drag: Callback::new(move |gesture| motion.value().outside_drag(gesture)),
     });
-    // The kept-alive `Show` builds its children once.
+    // The `Kept` builds its child once.
     let panel = panel.once();
     let sheet = view! {
         <List spacing=0.0>
-            <Show keep_alive=true value={move || !gone.get()}>
+            <KeepAlive>
+            <Show value={move || !gone.get()}>
                 <ListItem
                     length={move || match rest_at.get() {
                         Rest::Free(height) => Some(height),
@@ -1234,6 +1235,7 @@ pub fn Sheet(
                     }}
                     shrink=1.0
                 >
+                    <Kept>
                     <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
                         {panel.call(view! {
                             <Frame>
@@ -1275,8 +1277,10 @@ pub fn Sheet(
                             </Frame>
                         })}
                     </Frame>
+                    </Kept>
                 </ListItem>
             </Show>
+            </KeepAlive>
         </List>
     };
     on_back(open, move |gesture| motion.value().back(gesture));

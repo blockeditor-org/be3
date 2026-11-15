@@ -15,7 +15,7 @@ use beui_components_unstyled::{
     ActionRole, DialogAction, DialogAnchor, DialogBodyHandle, DialogCardHandle, DialogKind,
     DialogLayout, DialogSheetHandle, DialogSize, ModalHandle, ModalPlacement,
 };
-use beui_view::primitives::Spacer;
+use beui_view::primitives::{KeepAlive, Kept, Spacer};
 use beui_view::reactive::NodeId;
 
 use crate::list::List;
@@ -265,9 +265,11 @@ fn DialogBodyFace(
                         </List>
                     </Show>
                     {content}
-                    <Show keep_alive=true value={footed}>
-                        <DialogFooter handle id />
-                    </Show>
+                    <KeepAlive>
+                        <Show value={footed}>
+                            <Kept><DialogFooter handle id /></Kept>
+                        </Show>
+                    </KeepAlive>
                 </List>
             </Frame>
         </Frame>
