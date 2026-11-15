@@ -44,9 +44,15 @@ control's exact keys are in its code and tests. The patterns that span them:
   selection with any of them. Backspace and Delete take a word with Alt, and
   with Ctrl elsewhere; Cmd takes the rest of the line (`delete_stop`).
 - A focusable source given `drag` (guides/beui/components.md, Drags as places)
-  lifts its carry on the press of Space, which it takes, so it does not also
-  activate; the arrows then step to the nearest place that way, Space or Enter
-  drops it there and Escape or Tab puts it down, keeping the focus.
+  moves one place with Ctrl+Shift and an arrow, lifted, stepped and dropped at
+  once, and offers Move in the command palette while it has the focus, which
+  starts a keyboard carry. A source that does not also activate (a drag handle,
+  a row with no action) lifts that carry on Space too; one that activates (a
+  tab, a row button) keeps Space and Enter for activating
+  ([decision](../decisions/beui_activating_drag_sources_keep_their_keys.md)).
+  While the keyboard holds it, the arrows step to the nearest place that way,
+  Space or Enter drops it there and Escape or Tab puts it down, keeping the
+  focus.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
