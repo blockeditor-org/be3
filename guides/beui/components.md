@@ -112,7 +112,7 @@ A viewport no arrangement of nodes can make (a 3D scene, a map) is a `Drawing` p
 
 An unstyled component has no appearance defaults: colours, sizes, spacing, fonts and renderers for anything it must draw are required props the styled layer fills ([decision](../../decisions/beui_unstyled_layer_has_no_appearance_defaults.md)). Defaults that draw nothing and behaviour defaults (thresholds, zoom limits, delays) stay.
 
-Put it in `crates/beui-components-unstyled/src/<name>.rs`, re-export it from `lib.rs`, and usually: user-changed state as a `Binding<T>` prop with no copy kept in sync (see `Toggle`); one focusable `Interactive`; the role and state through `component_accessibility`; a `Render<Handle>` or `RenderFn<Handle>` of reactive state for the face; and return the root base node directly.
+Put it in `crates/beui-components-unstyled/src/<name>.rs`, re-export it from `lib.rs`, and usually: user-changed state as a `Binding<T>` prop with no copy kept in sync (see `Toggle`); one focusable `Interactive`; the role and state through `component_accessibility`; a `Render<Handle, NodeId>` or `RenderFn<Handle, NodeId>` of reactive state for the face; and return the root base node directly.
 
 - **Handles.** State callers or tests read is a `Copy` type (`SelectApi`) in an `api: ComponentRef<..>` prop filled with `api.fill(..)`; a test with only a `NodeId` reads `document.api::<SelectApi>(node)`.
 - **Reaching the tree.** These crates do not name `Document`, `with_document` or `NodeOf` outside tests, so they build on any core; `be-tool-fix-rust-source` reports it. Use `beui::reactive` (`beui-view/src/nodes.rs`): `TreeNode` methods on `NodeId`, `measure`, `measure_text`, `focused_node`, `tree_local` and the rest. Add what is missing there.

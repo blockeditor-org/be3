@@ -4,8 +4,6 @@ use std::rc::Rc;
 
 use beui_reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
-use crate::children::IntoChild;
-use crate::prop::{ByClosure, ByValue, Given, PassedOn};
 
 thread_local! {
     static CURRENT_COMPONENT: RefCell<Option<Rc<ComponentContext>>> = const { RefCell::new(None) };
@@ -239,95 +237,45 @@ impl<H, C> Clone for RenderFn<H, C> {
 
 impl<H, C> Copy for RenderFn<H, C> {}
 
-pub trait IntoRender<H, C> {
-    fn into_render(self) -> Render<H, C>;
-}
+/// A render that is handed nothing: builds its child at most once (`BuildFn` when it may
+/// build it again). A render prop with no handle is one of these, never a `Render<(), C>`, so
+/// a closure child naming a value (`|value| ..`) is an error where there is none to hand.
+pub struct Build<C>(Render<(), C>);
 
-impl<H, C, R: IntoChild<C>, F: FnOnce(H) -> R + 'static> IntoRender<H, C> for F {
-    fn into_render(self) -> Render<H, C> {
-        Render::new(move |handle| self(handle).into_child())
+impl<C> Build<C> {
+    pub fn new(build: impl FnOnce() -> C + 'static) -> Self {
+        Self(Render::new(move |()| build()))
+    }
+
+    pub fn call(self) -> C {
+        self.0.call(())
+    }
+
+    pub fn once(self) -> BuildFn<C>
+    where
+        C: 'static,
+    {
+        BuildFn(self.0.once())
     }
 }
 
-impl<H, C> IntoRender<H, C> for Render<H, C> {
-    fn into_render(self) -> Render<H, C> {
-        self
+/// A render that is handed nothing and may build its child again.
+pub struct BuildFn<C>(RenderFn<(), C>);
+
+impl<C: 'static> BuildFn<C> {
+    pub fn new(build: impl Fn() -> C + 'static) -> Self {
+        Self(RenderFn::new(move |()| build()))
+    }
+
+    pub fn call(&self) -> C {
+        self.0.call(())
     }
 }
 
-pub trait IntoRenderFn<H, C> {
-    fn into_render_fn(self) -> RenderFn<H, C>;
-}
-
-impl<H: 'static, C: 'static, R: IntoChild<C>, F: Fn(H) -> R + 'static> IntoRenderFn<H, C> for F {
-    fn into_render_fn(self) -> RenderFn<H, C> {
-        RenderFn::new(move |handle| self(handle).into_child())
+impl<C> Clone for BuildFn<C> {
+    fn clone(&self) -> Self {
+        *self
     }
 }
 
-impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
-    fn into_render_fn(self) -> RenderFn<H, C> {
-        self
-    }
-}
-
-/// How an optional render prop, `Option<RenderFn<H, C>>` or `Option<Render<H, C>>`, takes
-/// what a tag passes it: what the render prop takes, as `Some`, a `|| ..` closure that
-/// ignores what it is handed, or another component's optional render prop passed on as it
-/// is.
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` cannot be passed as an optional `{R}` prop",
-    label = "pass a closure that builds the children, or an `Option<{R}>` to pass on"
-)]
-pub trait IntoOptionalRender<R, M> {
-    fn into_optional_render(self) -> Option<R>;
-}
-
-impl<R> IntoOptionalRender<R, PassedOn> for Option<R> {
-    fn into_optional_render(self) -> Option<R> {
-        self
-    }
-}
-
-impl<H, C, V: IntoRenderFn<H, C>> IntoOptionalRender<RenderFn<H, C>, Given<ByValue>> for V {
-    fn into_optional_render(self) -> Option<RenderFn<H, C>> {
-        Some(self.into_render_fn())
-    }
-}
-
-impl<H, C, V: IntoRender<H, C>> IntoOptionalRender<Render<H, C>, Given<ByValue>> for V {
-    fn into_optional_render(self) -> Option<Render<H, C>> {
-        Some(self.into_render())
-    }
-}
-
-impl<H: 'static, C: 'static, X: IntoChild<C>, F: Fn() -> X + 'static>
-    IntoOptionalRender<RenderFn<H, C>, Given<ByClosure>> for F
-{
-    fn into_optional_render(self) -> Option<RenderFn<H, C>> {
-        Some(RenderFn::new(move |_| self().into_child()))
-    }
-}
-
-impl<H: 'static, C: 'static, X: IntoChild<C>, F: FnOnce() -> X + 'static>
-    IntoOptionalRender<Render<H, C>, Given<ByClosure>> for F
-{
-    fn into_optional_render(self) -> Option<Render<H, C>> {
-        Some(Render::new(move |_| self().into_child()))
-    }
-}
-#[diagnostic::on_unimplemented(
-    message = "this component hands nothing to its children, so there is no value to name",
-    label = "write these children without `|value|`"
-)]
-pub trait HandsAValue {
-    fn bind<T>(self) -> T;
-}
-
-#[diagnostic::on_unimplemented(
-    message = "this component takes its children already built, so they cannot be a block that builds them",
-    label = "write these children as tags or as `{{expr}}`, without `|| {{...}}`"
-)]
-pub trait BuildsItsChildren {
-    fn build<T>(self) -> T;
-}
+impl<C> Copy for BuildFn<C> {}

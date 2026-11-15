@@ -11,7 +11,7 @@ use be_sdk::{
 use be_sdk_beui_platform_api::{Report, View};
 use beui::WindowId;
 use beui::native::Document;
-use beui::reactive::RenderFn;
+use beui::reactive::{RenderFn, NodeId};
 use beui::styled::WindowHandle;
 use uuid::Uuid;
 
@@ -82,7 +82,7 @@ impl<A: BeuiRoot> Parts<A> {
             .update(|generation| *generation += 1);
     }
 
-    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle> {
+    fn frame_content(&self, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         let mut views = self.views.borrow_mut();
         if views.creating {
             let Some(creation) = views.creation.clone() else {
@@ -140,7 +140,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn preview_content(&self) -> RenderFn<WindowHandle> {
+    fn preview_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().preview.as_deref().copied() else {
             return empty();
         };
@@ -154,7 +154,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle> {
+    fn tab_content(&self, tab: u64) -> RenderFn<WindowHandle, NodeId> {
         let tabs = Rc::clone(&self.docked);
         RenderFn::new(move |_: WindowHandle| {
             let tabs = Rc::clone(&tabs);
@@ -171,7 +171,7 @@ impl<A: BeuiRoot> Parts<A> {
         })
     }
 
-    fn display_content(&self, display: u32) -> RenderFn<WindowHandle> {
+    fn display_content(&self, display: u32) -> RenderFn<WindowHandle, NodeId> {
         let Some(editor) = self.views.borrow().editor.as_deref().copied() else {
             return empty();
         };
@@ -206,7 +206,7 @@ impl<A: BeuiRoot> Parts<A> {
         }
     }
 
-    fn settings_content(&self) -> RenderFn<WindowHandle> {
+    fn settings_content(&self) -> RenderFn<WindowHandle, NodeId> {
         let Some(artifacts) = self.views.borrow().artifacts.clone() else {
             return empty();
         };
@@ -309,7 +309,7 @@ fn measured(
         .map(|measured| beui::Rect::from_min_size(beui::Pos2::ZERO, beui::vec2(width, measured.y)))
 }
 
-fn empty() -> RenderFn<WindowHandle> {
+fn empty() -> RenderFn<WindowHandle, NodeId> {
     RenderFn::new(|_: WindowHandle| {
         beui::reactive::view! {
             <beui::styled::Frame />
@@ -330,7 +330,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
         self.docked.key(docked)
     }
 
-    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle> {
+    fn content(&self, view: ShownView, docked: bool) -> RenderFn<WindowHandle, NodeId> {
         match view.placement {
             ViewPlacement::Parent(ParentView::Main) => self.frame_content(docked),
             ViewPlacement::Parent(ParentView::Preview) => self.preview_content(),

@@ -3,7 +3,7 @@ use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
-use crate::reactive::RenderFn;
+use crate::reactive::{RenderFn, BuildFn};
 use crate::reactive::{
     Get, Memo, Set, Signal, StoredCell, create_effect, create_memo, create_signal, on_cleanup,
     provide_context, untrack, use_context,
@@ -36,7 +36,7 @@ pub fn Overlay(
     open: Prop<bool>,
     #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> NodeId {
     let blocks = policy.clone();
     let open = create_memo(move || open.get());

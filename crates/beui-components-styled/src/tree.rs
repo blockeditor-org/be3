@@ -112,7 +112,7 @@ pub fn Tree<K>(
     on_rename: Callback<(K, String)>,
     on_cancel_edit: Callback<K>,
     #[prop(default = None)] leading: Option<RenderFn<TreeRowFace<K>, Children<ListItem>>>,
-    #[prop(children)] content: Option<RenderFn<TreeRowFace<K>>>,
+    #[prop(children)] content: Option<RenderFn<TreeRowFace<K>, NodeId>>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -213,7 +213,7 @@ fn TreeRowChrome<K>(
     named: String,
     outline: Func<K, Option<ColorRole>>,
     leading: RowLeading<K>,
-    content: RenderFn<TreeRowFace<K>>,
+    content: RenderFn<TreeRowFace<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + 'static,

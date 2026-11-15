@@ -99,7 +99,7 @@ pub fn DockHost(
     bars: Option<Rc<dyn DockHostLink>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     #[prop(default = DockTabKeys::CTRL)] tab_keys: Prop<DockTabKeys>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let mode = layout.mode();
     let theme = use_theme();
@@ -125,7 +125,7 @@ pub fn DockHost(
             tab_spacing={TAB_STRIP_SPACING.px()}
             back_shade={back_shade}
             menu={menu_style()}
-            content={move || content.call(())}
+            content={move || content.call()}
             frame={move |body: NodeId| view! {
                 <Frame fill={fill}>{body}</Frame>
             }}

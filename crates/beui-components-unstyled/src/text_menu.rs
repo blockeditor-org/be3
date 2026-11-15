@@ -38,7 +38,7 @@ pub fn TextContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = 0.0)] child_grow: Prop<f32>,
-    #[prop(children)] content: Render<Callback<Option<Rect>>>,
+    #[prop(children)] content: Render<Callback<Option<Rect>>, NodeId>,
 ) -> NodeId {
     let Some(menu) = menu else {
         let content = content.call(Callback::new(|_: Option<Rect>| ()));

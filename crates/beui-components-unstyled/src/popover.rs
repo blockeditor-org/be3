@@ -45,9 +45,9 @@ struct State {
 #[component]
 pub fn Popover(
     #[prop(default = ComponentRef::new())] api: ComponentRef<PopoverApi>,
-    trigger: Render<PopupTriggerHandle>,
+    trigger: Render<PopupTriggerHandle, NodeId>,
     surface: AnchoredStyle,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] glyph: Prop<Option<Glyph>>,

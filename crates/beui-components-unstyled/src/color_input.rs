@@ -41,15 +41,15 @@ pub fn ColorInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
     on_preview: Callback<Option<Color32>>,
-    swatch: Render<ColorInputSwatchHandle>,
+    swatch: Render<ColorInputSwatchHandle, NodeId>,
     surface: AnchoredStyle,
-    picker: RenderFn<ColorInputPickerHandle>,
-    field: Render<ColorInputFieldHandle>,
-    #[prop(children)] content: Render<ColorInputHandle>,
+    picker: RenderFn<ColorInputPickerHandle, NodeId>,
+    field: Render<ColorInputFieldHandle, NodeId>,
+    #[prop(children)] content: Render<ColorInputHandle, NodeId>,
 ) -> NodeId {
     let previewed = create_signal(None::<Color32>);
     let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
-    let hex = HexText::new(shown, alpha, value.into_callback());
+    let hex = HexText::new(shown, alpha, Callback::from(value));
     let label = create_memo(move || label.get());
     let disabled = create_memo(move || disabled.get());
     let preview = Callback::new(move |preview: Option<Color32>| {

@@ -1126,8 +1126,8 @@ pub fn Sheet(
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
     curves: SheetCurves,
-    grip: Render<SheetGripHandle>,
-    panel: Render<NodeId>,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_gone: Callback<()>,
     on_close: Callback<()>,
@@ -1297,10 +1297,10 @@ pub fn ModalSheet(
     #[prop(default = 0.0)] fade: f32,
     curves: SheetCurves,
     scrim: Prop<Color>,
-    grip: Render<SheetGripHandle>,
-    panel: Render<NodeId>,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_close: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     let shown = open;
     view! {
@@ -1323,7 +1323,7 @@ pub fn ModalSheet(
                 on_presence={modal.presence}
                 on_close={on_close}
             >
-                {content.call(())}
+                {content.call()}
             </ModalSheetBody>
         </Modal>
     }
@@ -1337,8 +1337,8 @@ fn ModalSheetBody(
     fit: bool,
     fade: f32,
     curves: SheetCurves,
-    grip: Render<SheetGripHandle>,
-    panel: Render<NodeId>,
+    grip: Render<SheetGripHandle, NodeId>,
+    panel: Render<NodeId, NodeId>,
     on_presence: Callback<f32>,
     on_close: Callback<()>,
     children: NodeId,

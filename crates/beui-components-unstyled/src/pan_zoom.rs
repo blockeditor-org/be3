@@ -150,7 +150,7 @@ pub fn PanZoom(
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
     accessibility: Option<Prop<Node>>,
-    #[prop(children)] content: Render<PanZoomHandle>,
+    #[prop(children)] content: Render<PanZoomHandle, NodeId>,
 ) -> NodeId {
     let rect = create_signal(Rect::ZERO);
     let current = view;

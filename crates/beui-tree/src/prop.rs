@@ -69,9 +69,10 @@ pub trait IntoProp<T> {
     fn into_prop(self) -> Prop<T>;
 }
 
-/// How a `#[component]` prop of type `Prop<T>` takes what a tag passes it: anything
-/// `IntoProp<T>` (a value, a signal or memo of one), or a closure computing one, which the
-/// prop reads as a getter: `condition={move || !hex.get()}`. `M` only tells the two apart.
+/// What a `Prop<T>` takes besides a `Prop<T>`: anything `IntoProp<T>` (a value, a signal or
+/// memo of one), or a closure computing one, which the prop reads as a getter:
+/// `condition={move || !hex.get()}`. `M` only tells the impls apart. Code outside a tag asks
+/// for `IntoPropValue<Prop<T>, M>`, which takes a `Prop<T>` too.
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be passed as a `{T}` prop",
     label = "pass a `{T}`, a signal or memo of one, or a closure returning one"
@@ -80,50 +81,13 @@ pub trait IntoPropFrom<T, M> {
     fn into_prop_from(self) -> Prop<T>;
 }
 
-/// What a builder method or function that takes a prop asks for: anything a `Prop<T>`
-/// prop of a component takes (`IntoPropValue<Prop<T>, M>`), so a `Prop<T>` too.
-pub trait IntoPropWith<T, M> {
-    fn into_prop_with(self) -> Prop<T>;
-}
-
-impl<T, M, V: crate::prop_value::IntoPropValue<Prop<T>, M>> IntoPropWith<T, M> for V {
-    fn into_prop_with(self) -> Prop<T> {
-        self.into_prop_value()
-    }
-}
-
 pub struct ByValue;
 pub struct ByClosure;
 pub struct ByLift;
 pub struct ByClosureLifted;
 
-/// How an optional prop of type `Option<Prop<T>>` takes what a tag passes it: anything a
-/// `Prop<T>` prop takes, as `Some`, or another component's `Option<Prop<T>>` passed on as
-/// it is.
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` cannot be passed as an optional `{T}` prop",
-    label = "pass a `{T}`, a signal or memo of one, a closure returning one, or an `Option<Prop<{T}>>` to pass on"
-)]
-pub trait IntoOptionalProp<T, M> {
-    fn into_optional_prop(self) -> Option<Prop<T>>;
-}
-
-/// Marks an optional prop given a value: see `IntoOptionalProp`.
+/// Marks an `Option<X>` prop given what `X` takes (`IntoPropValue`).
 pub struct Given<M>(std::marker::PhantomData<M>);
-/// Marks an optional prop passed on from another component's.
-pub struct PassedOn;
-
-impl<T, M, V: IntoPropFrom<T, M>> IntoOptionalProp<T, Given<M>> for V {
-    fn into_optional_prop(self) -> Option<Prop<T>> {
-        Some(self.into_prop_from())
-    }
-}
-
-impl<T> IntoOptionalProp<T, PassedOn> for Option<Prop<T>> {
-    fn into_optional_prop(self) -> Option<Prop<T>> {
-        self
-    }
-}
 
 /// How a prop typed by a type parameter of its own component (`Show`'s, `Dynamic`'s and
 /// `Keyed`'s `value`) takes what a tag passes it: a signal, memo or `Prop` of the value, or a
@@ -284,45 +248,6 @@ impl<V, R> Clone for Func<V, R> {
 }
 
 impl<V, R> Copy for Func<V, R> {}
-
-pub trait IntoFunc<V, R> {
-    fn into_func(self) -> Func<V, R>;
-}
-
-impl<V: 'static, R: 'static, F: Fn(V) -> R + 'static> IntoFunc<V, R> for F {
-    fn into_func(self) -> Func<V, R> {
-        Func::new(self)
-    }
-}
-
-impl<V, R> IntoFunc<V, R> for Func<V, R> {
-    fn into_func(self) -> Func<V, R> {
-        self
-    }
-}
-
-/// How an optional prop of type `Option<Func<V, R>>` takes what a tag passes it: anything a
-/// `Func<V, R>` prop takes, as `Some`, or another component's `Option<Func<V, R>>` passed on
-/// as it is.
-#[diagnostic::on_unimplemented(
-    message = "a `{Self}` cannot be passed as an optional function prop",
-    label = "pass a closure, a `Func`, or an `Option<Func<..>>` to pass on"
-)]
-pub trait IntoOptionalFunc<V, R, M> {
-    fn into_optional_func(self) -> Option<Func<V, R>>;
-}
-
-impl<V, R, F: IntoFunc<V, R>> IntoOptionalFunc<V, R, Given<()>> for F {
-    fn into_optional_func(self) -> Option<Func<V, R>> {
-        Some(self.into_func())
-    }
-}
-
-impl<V, R> IntoOptionalFunc<V, R, PassedOn> for Option<Func<V, R>> {
-    fn into_optional_func(self) -> Option<Func<V, R>> {
-        self
-    }
-}
 
 #[macro_export]
 macro_rules! into_prop_via {

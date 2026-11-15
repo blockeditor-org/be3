@@ -147,13 +147,13 @@ pub fn SearchList<K>(
     placeholder: Prop<String>,
     style: TextInputStyle,
     search_accessibility: Option<Prop<Node>>,
-    field: RenderFn<TextInputHandle>,
+    field: RenderFn<TextInputHandle, NodeId>,
     list_height: Prop<f32>,
     #[prop(default = false)] fill_height: Prop<bool>,
     spacing: f32,
     scroll: ScrollStyle,
     accessibility: Func<K, Node>,
-    row: RenderFn<SearchRowHandle<K>>,
+    row: RenderFn<SearchRowHandle<K>, NodeId>,
 ) -> NodeId
 where
     K: Clone + Eq + Hash + 'static,
@@ -285,7 +285,7 @@ fn SearchRow<K>(
     state: State<K>,
     key: K,
     accessibility: Func<K, Node>,
-    row: RenderFn<SearchRowHandle<K>>,
+    row: RenderFn<SearchRowHandle<K>, NodeId>,
     highlight: Selector<Option<K>>,
 ) -> NodeId
 where

@@ -82,10 +82,10 @@ struct Field {
     hour_cycle: HourCycle,
     label: Memo<String>,
     disabled: Memo<bool>,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
-    segments: RenderFn<NodeId>,
-    frame: RenderFn<DateTimeBoxHandle>,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
+    segments: RenderFn<NodeId, NodeId>,
+    frame: RenderFn<DateTimeBoxHandle, NodeId>,
 }
 
 #[component]
@@ -100,13 +100,13 @@ pub fn DateTimePicker(
     #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = false)] paged: Prop<bool>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
-    segment: RenderFn<DateSegmentHandle>,
-    literal: RenderFn<String>,
-    segments: RenderFn<NodeId>,
-    field: RenderFn<DateTimeBoxHandle>,
-    trigger: Render<DateTimeTriggerHandle>,
+    segment: RenderFn<DateSegmentHandle, NodeId>,
+    literal: RenderFn<String, NodeId>,
+    segments: RenderFn<NodeId, NodeId>,
+    field: RenderFn<DateTimeBoxHandle, NodeId>,
+    trigger: Render<DateTimeTriggerHandle, NodeId>,
     surface: AnchoredStyle,
-    panel: RenderFn<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle, NodeId>,
 ) -> NodeId {
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -305,7 +305,7 @@ fn PickerPanel(
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     today: Memo<Option<Date>>,
-    panel: RenderFn<DateTimePanelHandle>,
+    panel: RenderFn<DateTimePanelHandle, NodeId>,
 ) -> NodeId {
     let PopoverHandle {
         shown: open, close, ..

@@ -16,7 +16,7 @@ pub(crate) fn BarPopup(
     #[prop(default = PANEL_MAX_WIDTH)] width: Prop<Size>,
     #[prop(default = false)] open: Binding<bool>,
     leading: Option<Child>,
-    #[prop(children)] content: RenderFn<PopoverHandle>,
+    #[prop(children)] content: RenderFn<PopoverHandle, NodeId>,
 ) -> NodeId {
     let direction = bar_direction();
     let bar = use_dock_bar();

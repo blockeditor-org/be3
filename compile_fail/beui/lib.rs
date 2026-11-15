@@ -12,6 +12,7 @@ mod a_list_item_takes_one_child;
 mod a_list_takes_its_children_built;
 mod a_loading_hands_its_content_no_value;
 mod a_node_ref_names_a_node;
+mod a_render_with_no_handle_is_a_build;
 mod a_required_binding_has_no_default;
 mod a_required_binding_is_given;
 mod a_run_is_not_a_frame_child;

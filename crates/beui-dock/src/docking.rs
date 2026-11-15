@@ -675,7 +675,7 @@ impl<K: DockKey> DockingLayout<K> {
                 modal: read(|described| described.modal),
                 dismiss_on_outside_press: read(|described| described.dismiss_on_outside_press),
                 on_close: closable.then(|| Callback::new(move |()| closing.close(inner))),
-                content: RenderFn::new(move |()| {
+                content: BuildFn::new(move || {
                     let place = stored
                         .value()
                         .place
@@ -1030,7 +1030,7 @@ struct Found<K: 'static> {
     groups: HashMap<String, Rc<DockEntry<K>>>,
     dialogs: Vec<(TabId, TabId)>,
     parts: HashMap<TabId, DialogParts>,
-    bars: HashMap<TabId, (String, RenderFn<()>)>,
+    bars: HashMap<TabId, (String, BuildFn<NodeId>)>,
     spec_bars: Vec<DockSpecBar>,
     see_through: Vec<TabId>,
 }
@@ -1146,7 +1146,7 @@ impl<K: DockKey> Found<K> {
             .collect()
     }
 
-    fn content(&self, tab: TabId) -> Option<RenderFn<()>> {
+    fn content(&self, tab: TabId) -> Option<BuildFn<NodeId>> {
         match &self.tabs.get(&tab)?.kind {
             EntryKind::Tab { content, .. } => Some(*content),
             EntryKind::Group { .. } => None,
@@ -1160,7 +1160,7 @@ impl<K: DockKey> Found<K> {
         }
     }
 
-    fn empty(&self, key: &str) -> Option<RenderFn<()>> {
+    fn empty(&self, key: &str) -> Option<BuildFn<NodeId>> {
         match &self.panes.get(key)?.kind {
             NodeKind::Pane { empty, .. } => *empty,
             _ => None,
@@ -1227,14 +1227,14 @@ where
     });
     let body = RenderFn::new(move |tab: TabId| {
         if let Some(bar) = found.with_untracked(|found| found.bars.get(&tab).map(|(_, bar)| *bar)) {
-            return bar.call(());
+            return bar.call();
         }
         if let Some(content) = found.with_untracked(|found| found.content(tab)) {
-            return content.call(());
+            return content.call();
         }
         let dialog = found.with_untracked(|found| found.live_parts(tab).map(|parts| parts.content));
         match dialog {
-            Some(dialog) => dialog.call(()),
+            Some(dialog) => dialog.call(),
             None => view! {
                 <Frame />
             },
@@ -1306,7 +1306,7 @@ where
             return bodies.empty.call(rest.to_owned());
         }
         if let Some(empty) = found.with_untracked(|found| found.empty(&key)) {
-            return Some(empty.call(()));
+            return Some(empty.call());
         }
         let declared = {
             let key = key.clone();
@@ -1323,7 +1323,7 @@ where
                     found
                     .with_untracked(|found| found.empty(&key))
                     .expect("the empty view is only shown while it is declared")
-                    .call(())
+                    .call()
                 }</Show>
             }
             .into_child(),

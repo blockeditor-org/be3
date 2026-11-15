@@ -9,11 +9,11 @@ use beui_view::reactive::*;
 pub fn Fullscreen(
     open: Prop<bool>,
     on_dismiss: Callback<()>,
-    #[prop(children)] content: Render,
+    #[prop(children)] content: Build<NodeId>,
 ) -> NodeId {
     view! {
         <Modal open scrim=Scrim::Strong placement=ModalPlacement::Fill on_dismiss={on_dismiss}>
-            {content.call(())}
+            {content.call()}
         </Modal>
     }
 }

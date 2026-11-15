@@ -37,7 +37,7 @@ pub fn ColorArea(
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
-    #[prop(children)] content: Render<ColorAreaHandle>,
+    #[prop(children)] content: Render<ColorAreaHandle, NodeId>,
     on_drag_change: Callback<bool>,
 ) -> NodeId {
     let color = value;

@@ -26,7 +26,7 @@ pub fn BackSlide(
     #[prop(default = None)] open: Option<Prop<bool>>,
     #[prop(default = Callback::default())] on_gone: Callback<()>,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
-    #[prop(default = None)] behind: Option<RenderFn<()>>,
+    #[prop(default = None)] behind: Option<BuildFn<NodeId>>,
     #[prop(default = ColorRole::None)] shade: Prop<ColorRole>,
     children: Child,
 ) -> NodeId {
@@ -55,7 +55,7 @@ pub fn BackSlide(
     match (open, behind) {
         (None, None) => slide!(),
         (Some(open), None) => slide!(open = { open }),
-        (None, Some(behind)) => slide!(behind = { move || behind.call(()) }),
-        (Some(open), Some(behind)) => slide!(open={open} behind={move || behind.call(())}),
+        (None, Some(behind)) => slide!(behind = { move || behind.call() }),
+        (Some(open), Some(behind)) => slide!(open={open} behind={move || behind.call()}),
     }
 }

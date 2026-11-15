@@ -50,8 +50,8 @@ pub struct CompletionRowHandle {
 
 #[derive(Clone, Copy)]
 pub struct CompletionMenu {
-    row: RenderFn<CompletionRowHandle>,
-    panel: RenderFn<NodeId>,
+    row: RenderFn<CompletionRowHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
 }
 
 impl CompletionMenu {
@@ -107,7 +107,7 @@ fn CompletionRow(
     cx: Context,
     completion: Completion,
     index: ReadSignal<usize>,
-    row: RenderFn<CompletionRowHandle>,
+    row: RenderFn<CompletionRowHandle, NodeId>,
 ) -> NodeId {
     let highlighted = cx.highlighted;
     let highlighted = create_memo(move || highlighted.get() == index.get());

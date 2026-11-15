@@ -8,7 +8,7 @@ use beui_reactive::{
 };
 
 use crate::child_list::{ChildList, SlotId};
-use crate::component::{ChildValue, ComponentContext, MissingProp, RenderFn};
+use crate::component::{BuildFn, ChildValue, ComponentContext, MissingProp};
 use crate::prop::{IntoProp, Prop};
 
 #[diagnostic::on_unimplemented(
@@ -244,13 +244,13 @@ impl<C: SlotChild, B: IntoSegment<C> + Counted + 'static> Branch<C> for B {
 pub trait Fallback<C: SlotChild> {
     type Count: Count;
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>>;
+    fn into_render(self) -> Option<BuildFn<Children<C>>>;
 }
 
 impl<C: SlotChild> Fallback<C> for MissingProp {
     type Count = CountZero;
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
         None
     }
 }
@@ -258,8 +258,8 @@ impl<C: SlotChild> Fallback<C> for MissingProp {
 impl<C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>> Fallback<C> for F {
     type Count = B::Count;
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
-        Some(RenderFn::new(move |()| self().into_children()))
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        Some(BuildFn::new(move || self().into_children()))
     }
 }
 
@@ -275,7 +275,7 @@ pub trait ValueFallback<V, C: SlotChild> {
 
     fn split(value: V) -> Option<Self::Handed>;
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>>;
+    fn into_render(self) -> Option<BuildFn<Children<C>>>;
 }
 
 impl<V: Clone + 'static, C: SlotChild> ValueFallback<V, C> for MissingProp {
@@ -286,7 +286,7 @@ impl<V: Clone + 'static, C: SlotChild> ValueFallback<V, C> for MissingProp {
         Some(value)
     }
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
         None
     }
 }
@@ -300,7 +300,7 @@ impl<T: Clone + 'static, C: SlotChild> ValueFallback<Option<T>, C> for () {
         value
     }
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
         None
     }
 }
@@ -315,8 +315,8 @@ impl<T: Clone + 'static, C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>>
         value
     }
 
-    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
-        Some(RenderFn::new(move |()| self().into_children()))
+    fn into_render(self) -> Option<BuildFn<Children<C>>> {
+        Some(BuildFn::new(move || self().into_children()))
     }
 }
 

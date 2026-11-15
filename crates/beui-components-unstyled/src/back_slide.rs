@@ -253,7 +253,7 @@ pub fn BackSlide(
     #[prop(default = None)] open: Option<Prop<bool>>,
     #[prop(default = Callback::default())] on_gone: Callback<()>,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
-    #[prop(default = None)] behind: Option<RenderFn<()>>,
+    #[prop(default = None)] behind: Option<BuildFn<NodeId>>,
     #[prop(default = Color::TRANSPARENT)] shade: Prop<Color>,
     children: Child,
 ) -> NodeId {
@@ -326,7 +326,7 @@ pub fn BackSlide(
     view! {
         <Layers>
             <Show value={revealing}>|| {
-                let page = behind.call(());
+                let page = behind.call();
                 view! {
                     <Frame translate={behind_shift}>
                         <Layers>

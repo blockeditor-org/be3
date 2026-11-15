@@ -30,9 +30,9 @@ struct Prop {
 
 struct Setter {
     method: Ident,
-    generics: proc_macro2::TokenStream,
+    generics: Vec<proc_macro2::TokenStream>,
     args: proc_macro2::TokenStream,
-    where_clause: proc_macro2::TokenStream,
+    where_clause: Vec<proc_macro2::TokenStream>,
     value: proc_macro2::TokenStream,
 }
 
@@ -53,9 +53,9 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
     if prop.bare {
         return Setter {
             method,
-            generics: quote! {},
+            generics: Vec::new(),
             args: quote! { value: #ty },
-            where_clause: quote! {},
+            where_clause: Vec::new(),
             value: quote! { value },
         };
     }
@@ -65,9 +65,9 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
     };
     Setter {
         method,
-        generics: quote! { <__Passed, __By> },
+        generics: vec![quote! { __Passed }, quote! { __By }],
         args: quote! { value: __Passed },
-        where_clause: quote! { where __Passed: ::__beui_tree::reactive::IntoPropValue<#target, __By> },
+        where_clause: vec![quote! { __Passed: ::__beui_tree::reactive::IntoPropValue<#target, __By> }],
         value: if prop.exact {
             quote! { #convert.0 }
         } else {
@@ -82,13 +82,12 @@ fn prop_setters(prop: &Prop, children_slot: bool) -> Vec<Setter> {
         let mut children = prop_setter(prop, format_ident!("__children"));
         if !prop.bare {
             let target = prop_target(prop);
-            children.generics = quote! { <__Make, __Passed, __By> };
+            children.generics = vec![quote! { __Make }, quote! { __Passed }, quote! { __By }];
             children.args = quote! { make: __Make };
-            children.where_clause = quote! {
-                where
-                    __Make: ::core::ops::FnOnce(::__beui_tree::reactive::Slot<#target>) -> __Passed,
-                    __Passed: ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>>,
-            };
+            children.where_clause = vec![
+                quote! { __Make: ::core::ops::FnOnce(::__beui_tree::reactive::Slot<#target>) -> __Passed },
+                quote! { __Passed: ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>> },
+            ];
             let convert = quote! {
                 <__Passed as ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>>>::into_prop_value(
                     make(::__beui_tree::reactive::Slot::new()),
@@ -171,6 +170,51 @@ fn last_type_arg(ty: &Type) -> Option<&Type> {
     })
 }
 
+/// A render handed nothing is a `Build<C>` or `BuildFn<C>`, never a `Render<(), C>` or
+/// `RenderFn<(), C>`, so that a closure child naming a value is an error there. Rust cannot
+/// leave `()` out of a type parameter, so this one check reads the written type: the only
+/// place the macro looks at a type's name.
+fn reject_unit_handle(ty: &Type) -> syn::Result<()> {
+    let Type::Path(path) = ty else {
+        return Ok(());
+    };
+    for segment in &path.path.segments {
+        let PathArguments::AngleBracketed(args) = &segment.arguments else {
+            continue;
+        };
+        let types: Vec<&Type> = args
+            .args
+            .iter()
+            .filter_map(|arg| match arg {
+                GenericArgument::Type(ty) => Some(ty),
+                _ => None,
+            })
+            .collect();
+        let renders = segment.ident == "Render" || segment.ident == "RenderFn";
+        if renders
+            && let Some(Type::Tuple(handle)) = types.first()
+            && handle.elems.is_empty()
+        {
+            let build = if segment.ident == "Render" {
+                "Build"
+            } else {
+                "BuildFn"
+            };
+            return Err(syn::Error::new_spanned(
+                handle,
+                format!(
+                    "a render with no handle is a `{build}<C>`: write `{build}<..>` for this `{}<(), ..>`",
+                    segment.ident,
+                ),
+            ));
+        }
+        for ty in types {
+            reject_unit_handle(ty)?;
+        }
+    }
+    Ok(())
+}
+
 fn angle_bracketed(items: &[proc_macro2::TokenStream]) -> proc_macro2::TokenStream {
     if items.is_empty() {
         quote! {}
@@ -182,7 +226,7 @@ fn angle_bracketed(items: &[proc_macro2::TokenStream]) -> proc_macro2::TokenStre
 fn camel_case(ident: &Ident) -> String {
     let mut camel = String::new();
     let mut capitalise = true;
-    for character in ident.to_string().chars() {
+    for character in syn::ext::IdentExt::unraw(ident).to_string().chars() {
         if character == '_' {
             capitalise = true;
             continue;
@@ -233,28 +277,37 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
 
 /// Makes a function a component, used as a tag in `view!`.
 ///
-/// Every prop is required unless its type or attributes say otherwise: `Prop<T>` is as
-/// required as `T`. `#[prop(default = <expr>)]` makes one optional; `Option<Prop<T>>`
-/// tells "unset" apart from any value, but settles at build time, so a prop that must go
-/// back to nothing while alive is `Prop<Option<T>>` with `#[prop(default = None)]` (its
-/// attribute takes a plain `T` or a signal of one and lifts it into `Some`). `Callback`,
-/// `Children` and `Binding<T>` props are never required; an unset binding is a signal in
-/// the component's scope holding the default, or `Default::default()`, unless the binding
-/// is marked `#[prop(required)]` (a control whose value has no sensible default). An `Option<T>` prop also takes a plain `T`,
-/// except for primitives (so a literal keeps its type) and `String`. An optional `Prop`,
-/// render or `Func` prop also takes another component's `Option` of the same, passed on as
-/// it is, so a wrapper forwards one without a tag per case. A missing or repeated prop is a
-/// compile error at the tag.
+/// Each prop gets one setter, which takes `impl IntoPropValue<P, M>` for the prop's declared
+/// type `P`: each prop type says what it takes (`beui_tree::prop_value`), and the macro reads
+/// no type names. A `Prop<T>` takes a `T`, a signal or memo of one, or a closure returning one,
+/// read as a getter; an `Option<X>` what an `X` takes, or an `Option<X>` passed on as it is; a
+/// `Callback<T>` a closure or a signal; a render prop a closure taking its handle or nothing.
+///
+/// A prop left out of a tag takes its `#[prop(default = <expr>)]`, converted as a passed value
+/// would be, or else its type's `AbsentProp` value: `None` for an `Option`, empty for a
+/// `Callback` or `Children`, a signal in the component's scope holding `T::default()` for a
+/// `Binding<T>`. A prop of any other type with no default is required, and leaving it out is
+/// a compile error at the tag. `#[prop(required)]` is the one manual tag: it requires a prop
+/// whose type has an absent value (a `Binding` with no sensible default, such as the tab
+/// `Tabs` shows), and is an error on a prop that has a default or whose type has none.
+/// `Option<Prop<T>>` tells "unset" apart from any value but settles at build time, so a prop
+/// that must go back to nothing while alive is `Prop<Option<T>>` with
+/// `#[prop(default = None)]`.
 ///
 /// The prop named `children`, or the one marked `#[prop(children)]`, is filled by the
-/// block between the tags; a component has at most one, and `children` wins.
+/// block between the tags; a component has at most one, and `children` wins. Its type says
+/// which shapes of children it takes: a child type tags that build one, `Children<C>` a run,
+/// a render handed a value (`Render<H, C>`, `RenderFn<H, C>`) a closure naming it, and a
+/// render handed nothing (`Build<C>`, `BuildFn<C>`) tags or `|| { .. }`. A render handed
+/// nothing is never written `Render<(), C>`; the macro rejects that.
 ///
-/// A `Prop<T>` prop also takes a closure returning a `T`, read as a getter. A render prop
-/// whose child type is one of the component's own type parameters keeps what its closure
-/// builds as it is, so the parameter follows it (`Show` counts its branches that way). A
-/// prop typed by a bare type parameter of the component, with no default, may be left out:
-/// that parameter is then inferred as `MissingProp` (`Show`'s `fallback`); write it before
-/// props whose types name that parameter.
+/// A prop whose last type argument is one of the component's own type parameters, named by
+/// no other prop, takes what is passed without converting it, so the parameter follows it
+/// (`Show`'s `value` and `then`: its branch count). A prop typed by a bare type parameter
+/// takes its value as it is and, with no default, may be left out: that parameter is then
+/// inferred as `MissingProp` (`Show`'s `fallback`). The component's bounds are checked on
+/// each setter and on `build`, not on the builder type, so a bound a tag does not meet is
+/// reported as that bound.
 #[proc_macro_attribute]
 pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
@@ -359,7 +412,6 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         finish,
     } = spec;
     let builder_ident = format_ident!("__{}_Builder", base);
-    let output = sig.output.clone();
     let output_ty = match &sig.output {
         ReturnType::Type(_, ty) => quote! { #ty },
         ReturnType::Default => quote! { () },
@@ -395,9 +447,10 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             if required && default.is_some() {
                 return Err(syn::Error::new_spanned(
                     ty,
-                    "`#[prop(required)]` is for a prop with no default whose type has a value when left out (an `AbsentProp`, such as a `Binding<T>`)",
+                    "`#[prop(required)]` is for a prop with no default, whose type has a value when it is left out (a `Binding<T>`)",
                 ));
             }
+            reject_unit_handle(ty)?;
             let bare = is_own_param(ty, &own_params);
             let exact = !bare
                 && last_type_arg(ty).is_some_and(|inner| is_own_param(inner, &own_params));
@@ -459,29 +512,25 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         ));
     }
     let children_slot = designated.first().copied().or(named_children);
-    let required: Vec<usize> = props
+    // Every prop is a typestate parameter of the builder: `MissingProp` until a setter sets
+    // it. The builder struct and its setter impls carry no bounds of the component's, which
+    // go on each method instead, so a bound the tag does not meet is reported as that bound
+    // (its own message) rather than as a method that is missing.
+    let state_params: Vec<Ident> = props
         .iter()
-        .enumerate()
-        .filter(|(_, prop)| prop.default.is_none())
-        .map(|(index, _)| index)
+        .map(|prop| format_ident!("Prop{}", camel_case(&prop.ident)))
         .collect();
-    let req_params: Vec<Ident> = required
+    let req_traits: Vec<Ident> = props
         .iter()
-        .map(|index| format_ident!("Prop{}", camel_case(&props[*index].ident)))
+        .map(|prop| format_ident!("__{}_needs_{}", base, syn::ext::IdentExt::unraw(&prop.ident)))
         .collect();
-    let req_traits: Vec<Ident> = required
-        .iter()
-        .map(|index| format_ident!("__{}_needs_{}", base, props[*index].ident))
-        .collect();
-    let req_slot_of: Vec<Option<usize>> = (0..props.len())
-        .map(|index| required.iter().position(|slot| *slot == index))
-        .collect();
+    let out_param = format_ident!("__Out");
 
-    let req_trait_defs = required
+    let req_trait_defs = props
         .iter()
         .zip(&req_traits)
-        .map(|(index, trait_ident)| {
-            let given = &props[*index];
+        .filter(|(prop, _)| prop.default.is_none())
+        .map(|(given, trait_ident)| {
             let prop = given.ident.to_string();
             let message = format!("missing required prop `{prop}` on component `{name}`");
             let label = format!("this tag does not set `{prop}`");
@@ -534,20 +583,12 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         });
 
     let missing = quote! { ::__beui_tree::reactive::MissingProp };
-    let fields = props.iter().enumerate().map(|(index, prop)| {
+    let fields = props.iter().zip(&state_params).map(|(prop, param)| {
         let ident = &prop.ident;
-        match req_slot_of[index] {
-            Some(slot) => {
-                let param = &req_params[slot];
-                quote! { #ident: #param }
-            }
-            None => {
-                let ty = &prop.ty;
-                quote! { #ident: Option<#ty> }
-            }
-        }
+        quote! { #ident: #param }
     });
 
+    // The component's parameters without their inline bounds, which join its where clause.
     let mut params: Vec<(GenericParam, proc_macro2::TokenStream)> = outer;
     params.extend(
         sig.generics
@@ -556,16 +597,39 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             .map(|param| (param.clone(), generic_arg(param))),
     );
     params.sort_by_key(|(param, _)| !matches!(param, GenericParam::Lifetime(_)));
-    let lifetimes: Vec<_> = params
+    let mut inline_bounds: Vec<WherePredicate> = Vec::new();
+    let comp_params: Vec<GenericParam> = params
         .iter()
-        .filter_map(|(param, _)| match param {
+        .map(|(param, _)| match param {
+            GenericParam::Type(param) => {
+                let ident = &param.ident;
+                let bounds = &param.bounds;
+                if !bounds.is_empty() {
+                    inline_bounds.push(syn::parse_quote! { #ident: #bounds });
+                }
+                syn::parse_quote! { #ident }
+            }
+            GenericParam::Lifetime(param) => {
+                let lifetime = &param.lifetime;
+                let bounds = &param.bounds;
+                if !bounds.is_empty() {
+                    inline_bounds.push(syn::parse_quote! { #lifetime: #bounds });
+                }
+                syn::parse_quote! { #lifetime }
+            }
+            GenericParam::Const(param) => GenericParam::Const(param.clone()),
+        })
+        .collect();
+    let lifetimes: Vec<_> = comp_params
+        .iter()
+        .filter_map(|param| match param {
             GenericParam::Lifetime(param) => Some(&param.lifetime),
             _ => None,
         })
         .collect();
-    let type_params: Vec<_> = params
+    let type_params: Vec<_> = comp_params
         .iter()
-        .filter_map(|(param, _)| match param {
+        .filter_map(|param| match param {
             GenericParam::Type(param) => Some(&param.ident),
             _ => None,
         })
@@ -591,16 +655,17 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .chain(phantom_field.is_some().then(|| phantom_ident.clone()))
         .collect();
 
-    let comp_params: Vec<&GenericParam> = params.iter().map(|(param, _)| param).collect();
-    let comp_args: Vec<proc_macro2::TokenStream> =
-        params.iter().map(|(param, _)| generic_arg(param)).collect();
+    let comp_args: Vec<proc_macro2::TokenStream> = comp_params.iter().map(generic_arg).collect();
     let constructor_args: Vec<proc_macro2::TokenStream> =
         params.iter().map(|(_, arg)| arg.clone()).collect();
-    let where_predicates: Vec<WherePredicate> = sig
-        .generics
-        .where_clause
-        .iter()
-        .flat_map(|clause| clause.predicates.iter().cloned())
+    let where_predicates: Vec<WherePredicate> = inline_bounds
+        .into_iter()
+        .chain(
+            sig.generics
+                .where_clause
+                .iter()
+                .flat_map(|clause| clause.predicates.iter().cloned()),
+        )
         .chain(outer_where)
         .collect();
     let where_clause =
@@ -608,44 +673,115 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     let decl_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
         .map(|param| quote! { #param })
-        .chain(
-            req_params
-                .iter()
-                .map(|param| quote! { #param = ::__beui_tree::reactive::MissingProp }),
-        )
+        .chain([quote! { #out_param }])
+        .chain(state_params.iter().map(|param| quote! { #param = #missing }))
         .collect();
     let decl_generics = angle_bracketed(&decl_params);
     let all_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
         .map(|param| quote! { #param })
-        .chain(req_params.iter().map(|param| quote! { #param }))
+        .chain([quote! { #out_param }])
+        .chain(state_params.iter().map(|param| quote! { #param }))
         .collect();
     let all_generics = angle_bracketed(&all_params);
-    let all_args: Vec<proc_macro2::TokenStream> = comp_args
+    let built_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
-        .cloned()
-        .chain(req_params.iter().map(|param| quote! { #param }))
+        .map(|param| quote! { #param })
+        .chain(state_params.iter().map(|param| quote! { #param }))
         .collect();
-    let all_args = angle_bracketed(&all_args);
+    let built_generics = angle_bracketed(&built_params);
+    let state_args = |out: proc_macro2::TokenStream| -> proc_macro2::TokenStream {
+        let args: Vec<proc_macro2::TokenStream> = comp_args
+            .iter()
+            .cloned()
+            .chain([out])
+            .chain(state_params.iter().map(|param| quote! { #param }))
+            .collect();
+        angle_bracketed(&args)
+    };
+    let all_args = state_args(quote! { #out_param });
+    let built_args = state_args(output_ty.clone());
     let builder_all = quote! { #builder_ident #all_args };
+    let builder_built = quote! { #builder_ident #built_args };
+    let constructor_args: Vec<proc_macro2::TokenStream> = constructor_args
+        .into_iter()
+        .chain([output_ty.clone()])
+        .collect();
     let constructor_args = angle_bracketed(&constructor_args);
     let constructor_ty = quote! { #builder_ident #constructor_args };
-
-    let init_fields = props.iter().enumerate().map(|(index, prop)| {
-        let ident = &prop.ident;
-        match req_slot_of[index] {
-            Some(_) => quote! { #ident: #missing },
-            None => quote! { #ident: ::core::default::Default::default() },
+    // A method's own where clause: what it asks, then the component's bounds.
+    let method_where = |own: Vec<proc_macro2::TokenStream>| -> proc_macro2::TokenStream {
+        if own.is_empty() && where_predicates.is_empty() {
+            quote! {}
+        } else {
+            quote! { where #(#own,)* #(#where_predicates,)* }
         }
+    };
+
+    let init_fields = props.iter().map(|prop| {
+        let ident = &prop.ident;
+        quote! { #ident: #missing }
     });
 
-    let optional_methods: Vec<proc_macro2::TokenStream> = props
+    let setter_impls = props
         .iter()
         .enumerate()
-        .filter(|(index, _)| req_slot_of[*index].is_none())
-        .flat_map(|(index, prop)| {
-            let ident = prop.ident.clone();
-            prop_setters(prop, children_slot == Some(index))
+        .map(|(slot, prop)| {
+            let ident = &prop.ident;
+            let ty = &prop.ty;
+            let others: Vec<&Ident> = field_idents
+                .iter()
+                .filter(|field| *field != ident)
+                .collect();
+            let impl_params: Vec<proc_macro2::TokenStream> = comp_params
+                .iter()
+                .map(|param| quote! { #param })
+                .chain([quote! { #out_param }])
+                .chain(
+                    state_params
+                        .iter()
+                        .enumerate()
+                        .filter(|(other, _)| *other != slot)
+                        .map(|(_, param)| quote! { #param }),
+                )
+                .collect();
+            let impl_generics = angle_bracketed(&impl_params);
+            let with_state = |state: proc_macro2::TokenStream| -> proc_macro2::TokenStream {
+                let args: Vec<proc_macro2::TokenStream> = comp_args
+                    .iter()
+                    .cloned()
+                    .chain([quote! { #out_param }])
+                    .chain(state_params.iter().enumerate().map(|(other, param)| {
+                        if other == slot {
+                            state.clone()
+                        } else {
+                            quote! { #param }
+                        }
+                    }))
+                    .collect();
+                angle_bracketed(&args)
+            };
+            let unset_args = with_state(missing.clone());
+            // The set state names the prop's type through `__Target`, a parameter of the
+            // setter's equal to it (`Is`), so the setter's signature holds no projection of the
+            // component's parameters: one whose bound a tag does not meet would make rustc
+            // report the setter as missing rather than the bound.
+            let (set_state, set_value) = if prop.bare && prop.default.is_none() {
+                (quote! { #ty }, quote! { __prop_value })
+            } else if prop.bare {
+                (
+                    quote! { ::__beui_tree::reactive::SetProp<#ty> },
+                    quote! { ::__beui_tree::reactive::SetProp(__prop_value) },
+                )
+            } else {
+                (
+                    quote! { ::__beui_tree::reactive::SetProp<__Target> },
+                    quote! { ::__beui_tree::reactive::SetProp(::__beui_tree::reactive::Is::is(__prop_value)) },
+                )
+            };
+            let set_args = with_state(set_state);
+
+            let methods = prop_setters(prop, children_slot == Some(slot))
                 .into_iter()
                 .map(|setter| {
                     let Setter {
@@ -655,104 +791,35 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                         where_clause,
                         value,
                     } = setter;
-                    let ident = &ident;
+                    let (generics, where_clause) = if prop.bare {
+                        (angle_bracketed(&generics), method_where(where_clause))
+                    } else {
+                        let mut generics = generics;
+                        generics.push(quote! { __Target });
+                        let mut where_clause = where_clause;
+                        where_clause.push(quote! { #ty: ::__beui_tree::reactive::Is<__Target> });
+                        (angle_bracketed(&generics), method_where(where_clause))
+                    };
+                    let others = &others;
                     quote! {
-                        pub fn #method #generics (mut self, #args) -> Self #where_clause {
-                            self.#ident = Some(#value);
-                            self
+                        pub fn #method #generics (self, #args)
+                            -> #builder_ident #set_args
+                        #where_clause
+                        {
+                            let __prop_value = #value;
+                            let #builder_ident { #ident: _, #(#others,)* } = self;
+                            #builder_ident { #ident: #set_value, #(#others,)* }
                         }
                     }
-                })
-                .collect::<Vec<_>>()
-        })
-        .collect();
+                });
 
-    let required_impls = required
-        .iter()
-        .enumerate()
-        .map(|(slot, index)| {
-            let prop = &props[*index];
-            let ident = &prop.ident;
-            let ty = &prop.ty;
-            let state_params: Vec<(usize, &Ident)> = req_params.iter().enumerate().collect();
-            let others: Vec<&Ident> = field_idents
-                .iter()
-                .filter(|field| *field != ident)
-                .collect();
-            let impl_params: Vec<proc_macro2::TokenStream> = comp_params
-                .iter()
-                .map(|param| quote! { #param })
-                .chain(
-                    state_params
-                        .iter()
-                        .filter(|(other, _)| *other != slot)
-                        .map(|(_, param)| quote! { #param }),
-                )
-                .collect();
-            let impl_generics = angle_bracketed(&impl_params);
-            let unset_args: Vec<proc_macro2::TokenStream> = comp_args
-                .iter()
-                .cloned()
-                .chain(state_params.iter().map(|(other, param)| {
-                    if *other == slot {
-                        quote! { ::__beui_tree::reactive::MissingProp }
-                    } else {
-                        quote! { #param }
-                    }
-                }))
-                .collect();
-            let unset_args = angle_bracketed(&unset_args);
-            let set_args: Vec<proc_macro2::TokenStream> = comp_args
-                .iter()
-                .cloned()
-                .chain(state_params.iter().map(|(other, param)| {
-                    if *other == slot {
-                        if prop.bare {
-                            quote! { #ty }
-                        } else {
-                            quote! { ::__beui_tree::reactive::SetProp<#ty> }
-                        }
-                    } else {
-                        quote! { #param }
-                    }
-                }))
-                .collect();
-            let set_args = angle_bracketed(&set_args);
-
-            let setters = prop_setters(prop, children_slot == Some(*index));
-            let set_value = if prop.bare {
-                quote! { __prop_value }
-            } else {
-                quote! { ::__beui_tree::reactive::SetProp(__prop_value) }
-            };
-            let methods = setters.into_iter().map(|setter| {
-                let Setter {
-                    method,
-                    generics,
-                    args,
-                    where_clause,
-                    value,
-                } = setter;
-                let others = &others;
-                quote! {
-                    pub fn #method #generics (self, #args)
-                        -> #builder_ident #set_args
-                    #where_clause
-                    {
-                        let __prop_value = #value;
-                        let #builder_ident { #ident: _, #(#others,)* } = self;
-                        #builder_ident { #ident: #set_value, #(#others,)* }
-                    }
-                }
-            });
-
-            Ok(quote! {
-                impl #impl_generics #builder_ident #unset_args #where_clause {
+            quote! {
+                impl #impl_generics #builder_ident #unset_args {
                     #(#methods)*
                 }
-            })
+            }
         })
-        .collect::<syn::Result<Vec<_>>>()?;
+        .collect::<Vec<_>>();
 
     // A prop's value is settled inside the component's scope, so what a missing one makes (a
     // binding's signal) belongs to the component.
@@ -762,41 +829,39 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     });
     let field_lets: Vec<proc_macro2::TokenStream> = props
         .iter()
-        .enumerate()
-        .map(|(index, prop)| {
+        .zip(&state_params)
+        .zip(&req_traits)
+        .map(|((prop, param), trait_ident)| {
             let ident = &prop.ident;
-            let value = match req_slot_of[index] {
-                Some(slot) => {
-                    let param = &req_params[slot];
-                    let trait_ident = &req_traits[slot];
-                    let ty = &prop.ty;
-                    quote! { <#param as #trait_ident<#ty>>::__prop(#ident) }
-                }
-                None => {
-                    let default = default_value(
-                        prop,
-                        prop.default.as_ref().expect("a prop with no typestate has a default"),
-                    );
-                    quote! { #ident.unwrap_or_else(|| #default) }
+            let ty = &prop.ty;
+            let value = match &prop.default {
+                None => quote! { <#param as #trait_ident<#ty>>::__prop(#ident) },
+                Some(default) => {
+                    let default = default_value(prop, default);
+                    quote! {
+                        <#param as ::__beui_tree::reactive::PropOr<#ty>>::prop_or(#ident, || #default)
+                    }
                 }
             };
             quote! { let #ident = #value; }
         })
         .collect();
 
-    let build_where = {
-        let bounds = required.iter().enumerate().map(|(slot, index)| {
-            let param = &req_params[slot];
-            let trait_ident = &req_traits[slot];
-            let ty = &props[*index].ty;
-            quote! { #param: #trait_ident<#ty> }
-        });
-        if required.is_empty() {
-            quote! {}
-        } else {
-            quote! { where #(#bounds,)* }
-        }
-    };
+    let build_where = method_where(
+        props
+            .iter()
+            .zip(&state_params)
+            .zip(&req_traits)
+            .map(|((prop, param), trait_ident)| {
+                let ty = &prop.ty;
+                match prop.default {
+                    None => quote! { #param: #trait_ident<#ty> },
+                    Some(_) => quote! { #param: ::__beui_tree::reactive::PropOr<#ty> },
+                }
+            })
+            .chain([quote! { #out_param: ::__beui_tree::reactive::SameType<#output_ty> }])
+            .collect(),
+    );
 
     let finish = match finish {
         Finish::Body(block) => quote! {
@@ -824,24 +889,54 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         }
     };
 
+    let required_checks = props.iter().filter(|prop| prop.required).map(|prop| {
+        let ty = &prop.ty;
+        let check = format_ident!("__{}_required_{}", base, syn::ext::IdentExt::unraw(&prop.ident));
+        let generics: Vec<proc_macro2::TokenStream> =
+            comp_params.iter().map(|param| quote! { #param }).collect();
+        let generics = angle_bracketed(&generics);
+        let marked = quote_spanned! { ty.span() =>
+            marked::<#ty>();
+        };
+        quote! {
+            #[allow(non_snake_case, dead_code)]
+            fn #check #generics () #where_clause {
+                fn marked<T: ?Sized + ::__beui_tree::reactive::MarkedRequired>() {}
+                #marked
+            }
+        }
+    });
+
+    // Children written between the tags of a component with no slot for them.
+    let no_children = children_slot.is_none().then(|| {
+        quote! {
+            impl #all_generics #builder_all {
+                #[doc(hidden)]
+                pub fn __children<__Make>(self, _make: __Make) -> Self
+                where
+                    __Make: ::__beui_tree::reactive::TakesNoChildren,
+                {
+                    self
+                }
+            }
+        }
+    });
+
     let items = quote! {
         #(#req_trait_defs)*
+
+        #(#required_checks)*
 
         #(#attrs)*
         #[doc(hidden)]
         #[allow(non_camel_case_types)]
-        #vis struct #builder_ident #decl_generics #where_clause {
+        #vis struct #builder_ident #decl_generics {
             #(#fields,)*
-            with_built: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#output_ty)>>,
+            with_built: ::std::vec::Vec<::std::boxed::Box<dyn ::core::ops::FnOnce(&#out_param)>>,
             #phantom_field
         }
 
-        impl #all_generics #builder_all #where_clause {
-            #(#optional_methods)*
-
-        }
-
-        impl #all_generics ::__beui_tree::reactive::ComponentBuilder for #builder_all #where_clause {
+        impl #built_generics ::__beui_tree::reactive::ComponentBuilder for #builder_built #where_clause {
             type Output = #output_ty;
 
             fn with_built(
@@ -853,18 +948,20 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             }
         }
 
-        #(#required_impls)*
+        #(#setter_impls)*
 
-        impl #all_generics #builder_all #where_clause {
+        #no_children
+
+        impl #all_generics #builder_all {
             #[track_caller]
-            pub fn build(self) #output #build_where {
-                let with_built = self.with_built;
+            pub fn build(self) -> #out_param #build_where {
+                let with_built = <#out_param as ::__beui_tree::reactive::SameType<#output_ty>>::same(self.with_built);
                 #(#field_takes)*
-                let node = #finish;
+                let node: #output_ty = #finish;
                 for bind in with_built {
                     bind(&node);
                 }
-                node
+                <#out_param as ::__beui_tree::reactive::SameType<#output_ty>>::from_output(node)
             }
         }
     };

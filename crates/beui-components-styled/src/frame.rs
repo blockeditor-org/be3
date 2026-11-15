@@ -1,7 +1,7 @@
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::NodeId;
-use beui_view::reactive::{Child, Get, IntoPropWith, Prop, focus_ring};
+use beui_view::reactive::{Child, Get, IntoPropValue, Prop, focus_ring};
 use beui_view::types::{Align2, Corners, Outline};
 use beui_view::types::{Color, Sides, Vec2};
 
@@ -179,8 +179,8 @@ impl ColorRole {
         }
     }
 
-    pub fn custom<M1>(color: impl IntoPropWith<Color, M1>) -> Prop<ColorRole> {
-        color.into_prop_with().map(ColorRole::Custom)
+    pub fn custom<M1>(color: impl IntoPropValue<Prop<Color>, M1>) -> Prop<ColorRole> {
+        color.into_prop_value().map(ColorRole::Custom)
     }
 
     const fn themed(self) -> bool {

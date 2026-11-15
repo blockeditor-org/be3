@@ -14,7 +14,7 @@ pub(crate) struct DialogParts {
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
     pub(crate) on_close: Option<Callback<()>>,
-    pub(crate) content: RenderFn<()>,
+    pub(crate) content: BuildFn<NodeId>,
 }
 
 impl DialogParts {
@@ -77,7 +77,7 @@ pub(crate) enum NodeKind<K: 'static> {
         locked: bool,
         bare: bool,
         hide_empty_bar: bool,
-        empty: Option<RenderFn<()>>,
+        empty: Option<BuildFn<NodeId>>,
         entries: Run<DockEntry<K>>,
     },
     Window {
@@ -94,7 +94,7 @@ pub(crate) enum NodeKind<K: 'static> {
         id: K,
         parent: Option<K>,
         placement: DockBarPlacement,
-        content: RenderFn<()>,
+        content: BuildFn<NodeId>,
     },
 }
 
@@ -112,7 +112,7 @@ pub(crate) enum EntryKind<K: 'static> {
         back_closes: bool,
         see_through: bool,
         group: Memo<Option<String>>,
-        content: RenderFn<()>,
+        content: BuildFn<NodeId>,
     },
     Group {
         key: String,
@@ -161,7 +161,7 @@ pub fn DockPane<K>(
     #[prop(default = false)] locked: bool,
     #[prop(default = false)] bare: bool,
     #[prop(default = false)] hide_empty_bar: bool,
-    empty: Option<RenderFn<()>>,
+    empty: Option<BuildFn<NodeId>>,
     children: Children<DockEntry<K>>,
 ) -> DockNode<K>
 where
@@ -212,7 +212,7 @@ pub fn DockDialog<K>(
     #[prop(default = false)] modal: Prop<bool>,
     #[prop(default = false)] dismiss_on_outside_press: Prop<bool>,
     on_close: Option<Callback<()>>,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> DockNode<K>
 where
     K: DockKey,
@@ -244,7 +244,7 @@ pub fn DockBar<K>(
     parent: Option<K>,
     #[prop(default = DockBarPlacement::Over(DockEdge::Top, DockAlign::Center))]
     placement: DockBarPlacement,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> DockNode<K>
 where
     K: DockKey,
@@ -277,7 +277,7 @@ pub fn DockTab<K>(
     #[prop(default = true)] back_closes: bool,
     #[prop(default = false)] see_through: bool,
     #[prop(default = None)] group: Prop<Option<String>>,
-    #[prop(children)] content: RenderFn<()>,
+    #[prop(children)] content: BuildFn<NodeId>,
 ) -> DockEntry<K>
 where
     K: DockKey,

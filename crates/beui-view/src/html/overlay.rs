@@ -50,7 +50,7 @@ pub(crate) fn overlay(
     dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     presence: OverlayPresence,
-    content: RenderFn<()>,
+    content: BuildFn<NodeId>,
 ) -> NodeId {
     let _ = (shown_in, window, scrim_radius, bounds);
     let host = create("Overlay", "div");

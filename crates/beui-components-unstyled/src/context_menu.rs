@@ -211,8 +211,8 @@ pub fn ContextMenu(
 #[component]
 fn Toolbar(
     items: Run<MenuItem>,
-    button: RenderFn<ButtonHandle>,
-    panel: RenderFn<NodeId>,
+    button: RenderFn<ButtonHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
     anchor: Memo<OverlayAnchor>,
     bar: NodeRef,
     more: NodeRef,
@@ -280,7 +280,7 @@ fn Toolbar(
 fn ToolbarButton(
     item: Rc<MenuItem>,
     index: usize,
-    button: RenderFn<ButtonHandle>,
+    button: RenderFn<ButtonHandle, NodeId>,
     on_choose: Callback<usize>,
 ) -> NodeId {
     let disabled = item.disabled;

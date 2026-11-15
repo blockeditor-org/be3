@@ -36,7 +36,7 @@ pub fn ActionBar(
     menu: Prop<Vec<MenuNode>>,
     #[prop(default = ActionLabels::Shown)] labels: Prop<ActionLabels>,
     #[prop(default = false)] title: Prop<bool>,
-    #[prop(children)] content: Render<ActionBarHandle>,
+    #[prop(children)] content: Render<ActionBarHandle, NodeId>,
 ) -> NodeId {
     let menu = create_memo(move || menu.get());
     let shows = move |action: &Action| match action.pinned() {

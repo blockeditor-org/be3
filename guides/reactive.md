@@ -302,12 +302,14 @@ value, so a mapping that reads other signals is a closure in the tag
 
 A `Prop<T>` takes a plain `T`, a signal or memo of one, or (as a tag's prop) a
 closure computing one; the base components bind it with `create_binding`, so a
-plain value costs nothing after it is set. Pass a memo to a prop as it is. Every prop is required unless it has
-`#[prop(default = ...)]`, or is `Option<Prop<T>>` (absence fixed at build) or
-`Prop<Option<T>>` (can return to "unset" while alive, such as a `Frame` width).
-`Callback`, `Children` and `Binding` props default to empty, except a
-`Binding` marked `#[prop(required)]`, for a value with no sensible default (the
-tab `Tabs` shows).
+plain value costs nothing after it is set. Pass a memo to a prop as it is. A prop
+left out of a tag takes its `#[prop(default = ...)]`, or else its type's
+`AbsentProp` value: `None` for an `Option` (`Option<Prop<T>>` fixes absence at
+build; `Prop<Option<T>>` can return to "unset" while alive, such as a `Frame`
+width), empty for a `Callback` or `Children`, an owned signal of the default for
+a `Binding`. Any other prop is required. `#[prop(required)]` requires a prop
+whose type has an absent value anyway: a `Binding` with no sensible default
+(the tab `Tabs` shows).
 
 State a control both shows and changes is one `Binding<T>`, not a prop plus an
 `on_change`. Left out, the component owns a signal seeded from its default;
@@ -329,12 +331,15 @@ nothing. A `Selector` is the natural source of `focused` in a list.
 `view!` builds a tag's children *before* the tag's own body runs, so a subtree
 passed as `Children` is already built when the parent starts. Anything that
 must happen first - providing context, measuring a container - takes the
-subtree as a render prop (`Render`/`RenderFn`, marked `#[prop(children)]` so
-callers still write it between the tags) and calls it afterwards. A render
-prop runs with the component that *wrote* it installed, so its state and
-accessibility belong to the outer component. A slot that hands a value names
-it like a closure argument, `<Container>|size| <Card size /></Container>`; a
-`RenderFn` slot may run more than once, so its body clones what it moves.
+subtree as a render prop, marked `#[prop(children)]` so callers still write it
+between the tags, and calls it afterwards: `Render<H, C>` (called once) or
+`RenderFn<H, C>` (called again) when it hands its children an `H`, `Build<C>` or
+`BuildFn<C>` when it hands them nothing. A render prop runs with the component
+that *wrote* it installed, so its state and accessibility belong to the outer
+component. A slot that hands a value names it like a closure argument,
+`<Container>|size| <Card size /></Container>`, and naming one where none is
+handed is an error; a `RenderFn` or `BuildFn` slot may run more than once, so
+its body clones what it moves.
 
 `Show` (with a `fallback` for when its value is `false` or `None`), `Match`
 (the first `Case` that holds, built again only when another case comes to hold),

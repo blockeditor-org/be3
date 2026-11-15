@@ -38,7 +38,7 @@ pub fn Toggle(
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = String::new())] name: Prop<String>,
-    #[prop(children)] content: Option<Render<ToggleHandle>>,
+    #[prop(children)] content: Option<Render<ToggleHandle, NodeId>>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let label = action_label(action.as_ref(), label);

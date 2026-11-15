@@ -16,7 +16,7 @@ pub(crate) trait Shown {
 
     fn docked_key(&self, docked: bool) -> bool;
 
-    fn content(&self, view: be_sdk::View, docked: bool) -> RenderFn<WindowHandle>;
+    fn content(&self, view: be_sdk::View, docked: bool) -> RenderFn<WindowHandle, NodeId>;
 
     fn window_id(&self, view: be_sdk::View) -> Option<WindowId>;
 

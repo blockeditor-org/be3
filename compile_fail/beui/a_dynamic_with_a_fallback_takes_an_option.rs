@@ -7,7 +7,7 @@ fn Case(count: Signal<u32>) -> NodeId {
     view! {
         <Card>
             <Dynamic value={count} fallback={|| view! { <Frame /> }}> //~ ERROR a `fallback` on a `Dynamic` or `Keyed` needs an `Option` value
-                |_: u32| <Frame /> //~ ERROR the method `children_with` exists
+                |_: u32| <Frame />
             </Dynamic>
         </Card>
     }

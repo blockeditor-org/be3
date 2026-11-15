@@ -291,14 +291,14 @@ fn inherited() -> Option<Memo<TextStyle>> {
 /// text a render callback builds for an overlay takes the provider around where
 /// the callback was written. A heading level is not inherited from it.
 #[component]
-pub fn TextStyleProvider(style: Prop<TextStyle>, #[prop(children)] content: Render) -> NodeId {
+pub fn TextStyleProvider(style: Prop<TextStyle>, #[prop(children)] content: Build<NodeId>) -> NodeId {
     let outer = inherited();
     let merged = create_memo(move || {
         let style = style.get();
         outer.map_or(style, |outer| style.over(outer.get()))
     });
     provide_context(Inherited(merged));
-    content.call(())
+    content.call()
 }
 
 fn resolved(

@@ -15,10 +15,10 @@ use crate::children::{
     Branch, ChildSlot, Children, Count, Counted, DynamicSegment, Fallback, FormOf, NestedHost, Or,
     SlotChild, SlotHost, ValueFallback,
 };
-use crate::component::{MissingProp, Render, RenderFn};
+use crate::component::{Build, BuildFn, MissingProp, RenderFn};
 use crate::prop::Prop;
 
-type Built<C> = RenderFn<(), Children<C>>;
+type Built<C> = BuildFn<Children<C>>;
 
 pub(crate) fn built<C: SlotChild, H: 'static, B: Branch<C>>(
     render: RenderFn<H, B>,
@@ -115,7 +115,7 @@ where
     let fallback = fallback.into_render();
     let value = store(value);
     let handed = StoredCell::new(None::<Signal<V::Inner>>);
-    let shown = RenderFn::new(move |()| {
+    let shown = BuildFn::new(move || {
         let inner = V::split(value.with(Prop::get_untracked))
             .expect("a `Show` builds its children while it has a value");
         let (handed_now, signal) = V::hand(inner);
@@ -153,7 +153,7 @@ fn show<C: SlotChild>(
             }
             return;
         }
-        let built = branches[usize::from(visible)].map(|branch| mount(&slot, || branch.call(())));
+        let built = branches[usize::from(visible)].map(|branch| mount(&slot, || branch.call()));
         if built.is_none() {
             slot.fill(Vec::new());
         }
@@ -167,7 +167,7 @@ fn show<C: SlotChild>(
 #[component]
 pub fn Loading<C, B, F>(
     fallback: RenderFn<Pending, F>,
-    #[prop(children)] content: Render<(), B>,
+    #[prop(children)] content: Build<B>,
 ) -> FormOf<C, <B as Counted>::Count, <F as Counted>::Count>
 where
     C: SlotChild,
@@ -184,7 +184,7 @@ where
                 let boundary = Boundary::provide();
                 (
                     boundary,
-                    content.call(()).into_children().mount_hidden(slot.clone()),
+                    content.call().into_children().mount_hidden(slot.clone()),
                 )
             });
             let content = store((host, scope));
@@ -255,7 +255,7 @@ where
                 let value = F::split(next);
                 let built = match value {
                     Some(value) => Some(mount(&slot, || view.call(value))),
-                    None => fallback.map(|fallback| mount(&slot, || fallback.call(()))),
+                    None => fallback.map(|fallback| mount(&slot, || fallback.call())),
                 };
                 if built.is_none() {
                     slot.fill(Vec::new());
@@ -821,7 +821,7 @@ where
                 let empty = empty.value();
                 let mut empty = empty.borrow_mut();
                 if empty.is_none() {
-                    *empty = Some(mount(&slot, || fallback.call(())));
+                    *empty = Some(mount(&slot, || fallback.call()));
                 }
                 drop(built.value().map(Vec::new()));
                 rows.order.borrow_mut().clear();
@@ -1016,7 +1016,7 @@ where
                 }
                 None => (
                     None,
-                    fallback.map(|fallback| mount(&slot, || fallback.call(()))),
+                    fallback.map(|fallback| mount(&slot, || fallback.call())),
                 ),
             };
             if built.is_none() {
@@ -1072,7 +1072,7 @@ where
                     })),
                     None => {
                         *current.value().borrow_mut() = None;
-                        fallback.map(|fallback| mount(&slot, || fallback.call(())))
+                        fallback.map(|fallback| mount(&slot, || fallback.call()))
                     }
                 };
                 if built.is_none() {

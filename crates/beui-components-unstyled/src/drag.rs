@@ -54,8 +54,8 @@ pub fn Draggable<P>(
     on_drag_change: Callback<bool>,
     on_drop_outside: Callback<DragPoint>,
     on_cancel: Callback<()>,
-    preview: RenderFn<P>,
-    #[prop(children)] content: Render<DragHandle>,
+    preview: RenderFn<P, NodeId>,
+    #[prop(children)] content: Render<DragHandle, NodeId>,
 ) -> NodeId
 where
     P: Clone + PartialEq + 'static,
@@ -215,7 +215,7 @@ pub fn DropTarget<P>(
     #[prop(default = None)] holds: Option<Func<P, bool>>,
     on_over: Callback<Option<(P, DragPoint)>>,
     on_drop: Callback<(P, DragPoint)>,
-    #[prop(children)] content: Render<DropHandle>,
+    #[prop(children)] content: Render<DropHandle, NodeId>,
 ) -> NodeId
 where
     P: Clone + 'static,

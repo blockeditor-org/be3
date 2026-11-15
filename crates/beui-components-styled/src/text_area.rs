@@ -125,11 +125,11 @@ pub fn TextArea(
     #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    block: Option<RenderFn<usize>>,
-    selected_widget: Option<RenderFn<usize>>,
+    block: Option<RenderFn<usize, NodeId>>,
+    selected_widget: Option<RenderFn<usize, NodeId>>,
     leaf: Option<RenderFn<TextLeaf, Span>>,
-    marker: Option<RenderFn<TextMarker>>,
-    line: Option<RenderFn<TextLine>>,
+    marker: Option<RenderFn<TextMarker, NodeId>>,
+    line: Option<RenderFn<TextLine, NodeId>>,
     #[prop(default = true)] emoji: bool,
     on_widget_press: Callback<usize, bool>,
     on_focus_change: Callback<bool>,
@@ -447,7 +447,7 @@ pub fn DocumentLine(line: TextLine) -> NodeId {
     }
 }
 
-fn blank_widget() -> RenderFn<usize> {
+fn blank_widget() -> RenderFn<usize, NodeId> {
     RenderFn::new(|_| {
         view! {
             <Frame />

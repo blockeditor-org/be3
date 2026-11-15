@@ -96,7 +96,7 @@ pub struct KeyCapHandle {
 }
 
 #[component]
-pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHandle>) -> NodeId {
+pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle, NodeId>, emoji: RenderFn<KeyboardHandle, NodeId>) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
     let changed = create_trigger();
     let keyboard = KeyboardHandle { engine, changed };
@@ -173,7 +173,7 @@ enum Cell {
 fn KeyRows(
     layout: &'static Layout,
     keyboard: KeyboardHandle,
-    cap: RenderFn<KeyCapHandle>,
+    cap: RenderFn<KeyCapHandle, NodeId>,
 ) -> NodeId {
     let rows: Vec<usize> = (0..layout.rows.len()).collect();
     view! {
@@ -192,7 +192,7 @@ fn KeyRow(
     layout: &'static Layout,
     row: usize,
     keyboard: KeyboardHandle,
-    cap: RenderFn<KeyCapHandle>,
+    cap: RenderFn<KeyCapHandle, NodeId>,
 ) -> NodeId {
     let keys = layout.rows[row].keys;
     let mut cells = Vec::new();
@@ -278,7 +278,7 @@ fn KeyRow(
 }
 
 #[component]
-fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle>) -> NodeId {
+fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle, NodeId>) -> NodeId {
     let label = handle
         .def
         .value(Slot::Center)

@@ -12,10 +12,10 @@ use beui_view::types::Rect;
 #[derive(Clone, Copy)]
 pub struct MenuStyle {
     spacing: f32,
-    row: RenderFn<MenuRowHandle>,
-    panel: RenderFn<NodeId>,
-    sheet: Option<(RenderFn<MenuRowHandle>, RenderFn<AnchoredSheetHandle>)>,
-    toolbar: Option<(RenderFn<ButtonHandle>, RenderFn<NodeId>)>,
+    row: RenderFn<MenuRowHandle, NodeId>,
+    panel: RenderFn<NodeId, NodeId>,
+    sheet: Option<(RenderFn<MenuRowHandle, NodeId>, RenderFn<AnchoredSheetHandle, NodeId>)>,
+    toolbar: Option<(RenderFn<ButtonHandle, NodeId>, RenderFn<NodeId, NodeId>)>,
 }
 
 impl MenuStyle {
@@ -55,7 +55,7 @@ impl MenuStyle {
         }
     }
 
-    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle>, RenderFn<NodeId>)> {
+    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle, NodeId>, RenderFn<NodeId, NodeId>)> {
         self.toolbar
     }
 
@@ -63,11 +63,11 @@ impl MenuStyle {
         self.spacing
     }
 
-    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle>, RenderFn<NodeId>) {
+    pub(crate) fn parts(&self) -> (RenderFn<MenuRowHandle, NodeId>, RenderFn<NodeId, NodeId>) {
         (self.row, self.panel)
     }
 
-    fn sheet(&self) -> Option<(RenderFn<MenuRowHandle>, RenderFn<AnchoredSheetHandle>)> {
+    fn sheet(&self) -> Option<(RenderFn<MenuRowHandle, NodeId>, RenderFn<AnchoredSheetHandle, NodeId>)> {
         self.sheet
     }
 }
@@ -103,7 +103,7 @@ pub fn MenuPopup(
             row,
             AnchoredStyle {
                 dropdown: panel,
-                sheet: RenderFn::new(|handle: AnchoredSheetHandle| handle.content.call(())),
+                sheet: RenderFn::new(|handle: AnchoredSheetHandle| handle.content.call()),
             },
             Prop::Static(SheetWhen::Never),
         ),

@@ -47,12 +47,12 @@ pub struct DialogAction {
 }
 
 impl DialogAction {
-    pub fn new<M1>(
+    pub fn new<M1, M2>(
         role: ActionRole,
-        label: impl IntoPropWith<String, M1>,
-        on_click: impl IntoUnitCallback,
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
     ) -> Self {
-        let label = label.into_prop_with();
+        let label = label.into_prop_value();
         Self {
             label: create_memo(move || label.get()),
             role,
@@ -64,49 +64,49 @@ impl DialogAction {
                 ActionRole::Cancel => "cancel",
                 ActionRole::Secondary => "secondary",
             },
-            on_click: on_click.into_unit_callback(),
+            on_click: on_click.into_prop_value(),
         }
     }
 
-    pub fn primary<M1>(
-        label: impl IntoPropWith<String, M1>,
-        on_click: impl IntoUnitCallback,
+    pub fn primary<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
     ) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive<M1>(
-        label: impl IntoPropWith<String, M1>,
-        on_click: impl IntoUnitCallback,
+    pub fn destructive<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
     ) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary<M1>(
-        label: impl IntoPropWith<String, M1>,
-        on_click: impl IntoUnitCallback,
+    pub fn secondary<M1, M2>(
+        label: impl IntoPropValue<Prop<String>, M1>,
+        on_click: impl IntoPropValue<Callback<()>, M2>,
     ) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 
-    pub fn cancel<M1>(label: impl IntoPropWith<String, M1>) -> Self {
+    pub fn cancel<M1>(label: impl IntoPropValue<Prop<String>, M1>) -> Self {
         Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 
-    pub fn disabled<M>(mut self, disabled: impl IntoPropWith<bool, M>) -> Self {
-        let disabled = disabled.into_prop_with();
+    pub fn disabled<M>(mut self, disabled: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let disabled = disabled.into_prop_value();
         self.disabled = create_memo(move || disabled.get());
         self
     }
 
-    pub fn busy<M>(mut self, busy: impl IntoPropWith<bool, M>) -> Self {
-        let busy = busy.into_prop_with();
+    pub fn busy<M>(mut self, busy: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let busy = busy.into_prop_value();
         self.busy = create_memo(move || busy.get());
         self
     }
 
-    pub fn shown<M>(mut self, shown: impl IntoPropWith<bool, M>) -> Self {
-        let shown = shown.into_prop_with();
+    pub fn shown<M>(mut self, shown: impl IntoPropValue<Prop<bool>, M>) -> Self {
+        let shown = shown.into_prop_value();
         self.shown = create_memo(move || shown.get());
         self
     }
@@ -209,7 +209,7 @@ pub fn DialogBody(
     #[prop(default = false)] narrow: Prop<bool>,
     #[prop(default = true)] focuses: Prop<bool>,
     on_dismiss: Callback<()>,
-    face: Render<DialogBodyHandle>,
+    face: Render<DialogBodyHandle, NodeId>,
 ) -> NodeId {
     let actions = store(actions);
     let title = create_memo(move || title.get());
@@ -466,9 +466,9 @@ pub fn Dialog(
     #[prop(default = DialogAnchor::None)] anchor: Prop<DialogAnchor>,
     #[prop(default = 0.0)] beak: f32,
     on_dismiss: Callback<()>,
-    card: Render<DialogCardHandle>,
-    sheet: Render<DialogSheetHandle>,
-    body: Render<DialogLayout>,
+    card: Render<DialogCardHandle, NodeId>,
+    sheet: Render<DialogSheetHandle, NodeId>,
+    body: Render<DialogLayout, NodeId>,
 ) -> NodeId {
     let open = create_memo(move || open.get());
     let viewport = use_viewport_size();

@@ -167,7 +167,7 @@ macro_rules! text_child_from {
         $(
             impl IntoChild<TextChild> for $ty {
                 fn into_child(self) -> TextChild {
-                    TextChild::Span(Span::plain(beui_tree::reactive::IntoPropWith::<String, _>::into_prop_with(self)))
+                    TextChild::Span(Span::plain(beui_tree::reactive::IntoPropValue::<beui_tree::reactive::Prop<String>, _>::into_prop_value(self)))
                 }
             }
 
@@ -179,7 +179,7 @@ macro_rules! text_child_from {
 
             impl IntoSegment<SpanText> for $ty {
                 fn into_segment(self) -> ChildSegment<SpanText> {
-                    ChildSegment::One(SpanText(beui_tree::reactive::IntoPropWith::<String, _>::into_prop_with(self)))
+                    ChildSegment::One(SpanText(beui_tree::reactive::IntoPropValue::<beui_tree::reactive::Prop<String>, _>::into_prop_value(self)))
                 }
             }
         )*

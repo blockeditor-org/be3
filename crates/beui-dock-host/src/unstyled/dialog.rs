@@ -29,7 +29,7 @@ pub(crate) struct DialogParts {
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
     pub(crate) on_close: Option<Callback<()>>,
-    pub(crate) content: RenderFn<()>,
+    pub(crate) content: BuildFn<NodeId>,
 }
 
 pub struct DockDialogHandle {
@@ -313,7 +313,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let control = dock.tab_control(tab);
         provide_context(control);
         provide_context(Modality(create_memo(|| false)));
-        content.call(())
+        content.call()
     });
     store(scope);
     let width = create_memo(move || Extent::px(size.get().x));

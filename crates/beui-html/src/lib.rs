@@ -481,27 +481,27 @@ fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
 
 pub fn attr<M>(
     node: Node,
-    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
 ) -> Node {
-    bind_attribute(&node, name, value.into_prop_with());
+    bind_attribute(&node, name, value.into_prop_value());
     node
 }
 
 pub fn data<M>(
     node: Node,
-    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
 ) -> Node {
     assert!(valid_name(name), "invalid data attribute name");
-    bind_attribute(&node, format!("data-{name}"), value.into_prop_with());
+    bind_attribute(&node, format!("data-{name}"), value.into_prop_value());
     node
 }
 
 pub fn aria<M>(
     node: Node,
-    (name, value): (&'static str, impl IntoPropWith<Option<String>, M>),
+    (name, value): (&'static str, impl IntoPropValue<Prop<Option<String>>, M>),
 ) -> Node {
     assert!(valid_name(name), "invalid ARIA attribute name");
-    bind_attribute(&node, format!("aria-{name}"), value.into_prop_with());
+    bind_attribute(&node, format!("aria-{name}"), value.into_prop_value());
     node
 }
 
@@ -532,14 +532,17 @@ pub fn Script(kind: &'static str, source: String) -> Node {
     }
 }
 
-pub fn flag<M>(node: Node, (name, value): (&'static str, impl IntoPropWith<bool, M>)) -> Node {
-    bind_flag(&node, name, value.into_prop_with());
+pub fn flag<M>(node: Node, (name, value): (&'static str, impl IntoPropValue<Prop<bool>, M>)) -> Node {
+    bind_flag(&node, name, value.into_prop_value());
     node
 }
 
-pub fn on(node: Node, (name, handler): (&'static str, impl IntoCallback<Event, ()>)) -> Node {
+pub fn on<M>(
+    node: Node,
+    (name, handler): (&'static str, impl IntoPropValue<Callback<Event>, M>),
+) -> Node {
     assert!(valid_name(name), "invalid event name");
-    listen(&node, name, handler.into_callback());
+    listen(&node, name, handler.into_prop_value());
     node
 }
 

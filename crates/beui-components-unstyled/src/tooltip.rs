@@ -26,7 +26,7 @@ pub fn Tooltip(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = TOOLTIP_DELAY)] delay: Duration,
     children: Child,
-    content: RenderFn<TooltipHandle>,
+    content: RenderFn<TooltipHandle, NodeId>,
 ) -> NodeId {
     let anchor = NodeRef::new();
     let shown = create_signal(false);

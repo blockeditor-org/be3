@@ -82,7 +82,7 @@ impl WindowHandle {
     }
 }
 
-fn provided(handle: WindowHandle, content: RenderFn<WindowHandle>) -> NodeId {
+fn provided(handle: WindowHandle, content: RenderFn<WindowHandle, NodeId>) -> NodeId {
     provide_context(handle);
     content.call(handle)
 }
@@ -105,7 +105,7 @@ pub fn Window(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] fullscreen: Prop<bool>,
     on_report: Callback<WindowReport>,
-    #[prop(children)] content: RenderFn<WindowHandle>,
+    #[prop(children)] content: RenderFn<WindowHandle, NodeId>,
 ) -> NodeId {
     let id = id.unwrap_or_else(WindowId::next);
     let opens = opens_windows();

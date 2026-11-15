@@ -69,8 +69,8 @@ pub fn NumberInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
-    face: Render<NumberFaceHandle>,
-    field: Render<NumberFieldHandle>,
+    face: Render<NumberFaceHandle, NodeId>,
+    field: Render<NumberFieldHandle, NodeId>,
     on_preview: Callback<Option<f64>>,
     on_scrub: Callback<bool>,
 ) -> NodeId {

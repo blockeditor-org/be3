@@ -22,13 +22,13 @@ pub fn narrow_chrome() -> Memo<bool> {
 }
 
 #[component]
-pub(crate) fn ChromeRoot(#[prop(children)] content: Render<()>) -> NodeId {
+pub(crate) fn ChromeRoot(#[prop(children)] content: Build<NodeId>) -> NodeId {
     view! {
         <Container>|_size: ReadSignal<Vec2>| {
             provide_context(ChromeLayout {
                 narrow: narrower_than(NARROW_WIDTH),
             });
-            content.call(())
+            content.call()
         }</Container>
     }
 }

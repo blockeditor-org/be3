@@ -1,6 +1,6 @@
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, CountOne, Counted, Get, IntoChild,
-    IntoPropWith, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
+    IntoPropValue, IntoSegment, OneOf, Prop, ScopeContext, SlotChild, ZeroOrOne,
 };
 
 use crate::layout::Sizing;
@@ -34,10 +34,10 @@ impl<P: ParentKind> Clone for PlacedItem<P> {
 }
 
 impl<P: ParentKind> Placed<P> {
-    pub fn new<M>(node: NodeId, data: impl IntoPropWith<P::Data, M>) -> Self {
+    pub fn new<M>(node: NodeId, data: impl IntoPropValue<Prop<P::Data>, M>) -> Self {
         Self {
             node,
-            data: data.into_prop_with(),
+            data: data.into_prop_value(),
         }
     }
 }
@@ -87,6 +87,17 @@ pub trait FromPlaced<P: ParentKind> {
 impl<P: ParentKind> FromPlaced<P> for Placed<P> {
     fn from_placed(child: Placed<P>) -> Self {
         child
+    }
+}
+
+/// A placed child where a bare node goes: only a parent whose children are bare nodes takes
+/// one (`FromPlaced`'s message says which parent it was made for).
+impl<P: ParentKind> IntoChild<NodeId> for Placed<P>
+where
+    NodeId: FromPlaced<P>,
+{
+    fn into_child(self) -> NodeId {
+        NodeId::from_placed(self)
     }
 }
 
