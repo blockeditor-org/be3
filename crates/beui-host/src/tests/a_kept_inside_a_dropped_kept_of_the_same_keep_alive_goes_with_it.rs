@@ -14,24 +14,22 @@ fn a_kept_inside_a_dropped_kept_of_the_same_keep_alive_goes_with_it() {
         view! {
             <KeepAlive keep={keep}>
                 <List spacing=0.0>
-                    <Show value={visible}>|| {
-                        view! {
-                            <Kept key=1u8>|| {
-                                builds.update(|builds| *builds += 1);
-                                on_cleanup(move || gone.update(|gone| gone.push(1)));
-                                view! {
-                                    <List spacing=0.0>
-                                        <Kept key=2u8>|| {
-                                            on_cleanup(move || gone.update(|gone| gone.push(2)));
-                                            view! {
-                                                <Text>"inner"</Text>
-                                            }
-                                        }</Kept>
-                                    </List>
-                                }
-                            }</Kept>
-                        }
-                    }</Show>
+                    <Show value={visible}>||
+                        <Kept key=1u8>|| {
+                            builds.update(|builds| *builds += 1);
+                            on_cleanup(move || gone.update(|gone| gone.push(1)));
+                            view! {
+                                <List spacing=0.0>
+                                    <Kept key=2u8>|| {
+                                        on_cleanup(move || gone.update(|gone| gone.push(2)));
+                                        view! {
+                                            <Text>"inner"</Text>
+                                        }
+                                    }</Kept>
+                                </List>
+                            }
+                        }</Kept>
+                    </Show>
                 </List>
             </KeepAlive>
         }
@@ -41,9 +39,16 @@ fn a_kept_inside_a_dropped_kept_of_the_same_keep_alive_goes_with_it() {
     listed.set(vec![2]);
     visible.set(false);
     harness.frame(Vec::new());
-    assert!(gone.get_untracked().contains(&1), "the outer one, no longer kept, goes once hidden");
+    assert!(
+        gone.get_untracked().contains(&1),
+        "the outer one, no longer kept, goes once hidden"
+    );
 
     visible.set(true);
     harness.frame(Vec::new());
-    assert_eq!(builds.get_untracked(), 2, "and showing it again builds it afresh");
+    assert_eq!(
+        builds.get_untracked(),
+        2,
+        "and showing it again builds it afresh"
+    );
 }
