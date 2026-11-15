@@ -647,7 +647,6 @@ fn ColorSection(state: CanvasState) -> NodeId {
     });
     let cannot_remove =
         create_memo(move || palette.with(|palette| !palette.contains(&color.get())));
-    let swatches = create_memo(move || (0..palette.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <Accordion title="Colour" open={open}>
             <List spacing=Space::Sm>
@@ -668,21 +667,16 @@ fn ColorSection(state: CanvasState) -> NodeId {
                     </ListItem>
                 </List>
                 <List direction=Direction::Horizontal wrap=true spacing=Space::Xs>
-                    <ForEach value={swatches}>|index: usize| {
-                        let swatch = create_memo(move || {
-                            palette.with(|palette| palette.get(index).copied().unwrap_or_default())
-                        });
-                        let fill = create_memo(move || pixel_color(swatch.get()));
-                        let label = create_memo(move || format_hex_color(swatch.get()));
-                        let chosen = create_memo(move || swatch.get() == color.get());
+                    <ForEach value={palette}>|swatch: CanvasPixel, index: ReadSignal<usize>| {
+                        let chosen = create_memo(move || swatch == color.get());
                         view! {
                             <SwatchButton
-                                color={fill}
-                                label={label}
+                                color={pixel_color(swatch)}
+                                label={format_hex_color(swatch)}
                                 selected={chosen}
                                 radius=Radius::Xs
-                                @test_id={format!("infinite-canvas.raster.swatch.{index}")}
-                                on_click={move || tools.set_color(swatch.get_untracked())}
+                                @test_id={move || format!("infinite-canvas.raster.swatch.{}", index.get())}
+                                on_click={move || tools.set_color(swatch)}
                             />
                         }
                     }</ForEach>
