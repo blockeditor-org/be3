@@ -406,7 +406,9 @@ fn DockTabChrome(
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
                 })}
-                <Show condition={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}>
+                <Show
+                    condition={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}
+                >
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>

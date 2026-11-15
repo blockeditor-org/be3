@@ -80,27 +80,29 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                     </List>
                 </Frame>
                 {match available {
-                    true => view! { <ListItem grow=1.0>
-                        <ChildBlock
-                            editor={state.editor}
-                            block={Some(target)}
-                            mode={mode}
-                            on_state={move |next: ChildState| {
-                                child.set(next.clone());
-                                state.inner().embed_children.borrow_mut().insert(key, next.clone());
-                                if let Some(size) = next.intrinsic_size
-                                    && state
-                                        .embed_sizes
-                                        .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
-                                {
-                                    state.embed_sizes.update(|sizes| {
-                                        sizes.insert(key.id, size);
-                                    });
-                                }
-                                confirm_focus(state, key, next.active);
-                            }}
-                        />
-                    </ListItem> },
+                    true => view! {
+                        <ListItem grow=1.0>
+                            <ChildBlock
+                                editor={state.editor}
+                                block={Some(target)}
+                                mode={mode}
+                                on_state={move |next: ChildState| {
+                                    child.set(next.clone());
+                                    state.inner().embed_children.borrow_mut().insert(key, next.clone());
+                                    if let Some(size) = next.intrinsic_size
+                                        && state
+                                            .embed_sizes
+                                            .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
+                                    {
+                                        state.embed_sizes.update(|sizes| {
+                                            sizes.insert(key.id, size);
+                                        });
+                                    }
+                                    confirm_focus(state, key, next.active);
+                                }}
+                            />
+                        </ListItem>
+                    },
                     false => view! {
                         <ListItem>
                             <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>

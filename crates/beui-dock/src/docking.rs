@@ -1316,20 +1316,22 @@ where
             let key = key.clone();
             create_memo(move || found.with(|found| found.empty(&key).is_some()))
         };
-        Some(view! {
-            <Show
-                condition={declared}
-                fallback={|| view! {
-                    <Frame />
-                }}
-            >|| {
-                found
-                .with_untracked(|found| found.empty(&key))
-                .expect("the empty view is only shown while it is declared")
-                .call(())
-            }</Show>
-        }
-        .into_child())
+        Some(
+            view! {
+                <Show
+                    condition={declared}
+                    fallback={|| view! {
+                        <Frame />
+                    }}
+                >|| {
+                    found
+                    .with_untracked(|found| found.empty(&key))
+                    .expect("the empty view is only shown while it is declared")
+                    .call(())
+                }</Show>
+            }
+            .into_child(),
+        )
     });
     let placing = Rc::clone(&registry);
     let body = match nests {

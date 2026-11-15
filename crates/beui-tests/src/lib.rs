@@ -539,19 +539,19 @@ fn HostFixture() -> NodeId {
         <Frame height=20.0 fill={BLUE} />
     };
     let hosted: NodeId = into_child(view! {
-        <Show condition={swapped} fallback={move || view! {
-            <Interactive
-                @test_id="host.first"
-                focusable=true
-                on_press={move |_: beui::PointerPress| swap()}
-            >
-                <Frame height=20.0 fill={GREEN} />
-            </Interactive>
-        }}>
-            <Interactive
-                @test_id="host.second"
-                on_drag={move |_: beui::PointerPress| swap()}
-            >
+        <Show
+            condition={swapped}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.first"
+                    focusable=true
+                    on_press={move |_: beui::PointerPress| swap()}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Interactive @test_id="host.second" on_drag={move |_: beui::PointerPress| swap()}>
                 <Frame height=20.0 fill={AMBER} />
             </Interactive>
         </Show>
@@ -560,7 +560,12 @@ fn HostFixture() -> NodeId {
         <Frame width=200.0 height=20.0 fill={BLUE} />
     };
     let shrunk_hosted: NodeId = into_child(view! {
-        <Show condition={swapped} fallback={|| view! { <Frame width=200.0 height=20.0 fill={GREEN} /> }}>
+        <Show
+            condition={swapped}
+            fallback={|| view! {
+                <Frame width=200.0 height=20.0 fill={GREEN} />
+            }}
+        >
             <Frame width=200.0 height=20.0 fill={AMBER} />
         </Show>
     });
@@ -568,20 +573,32 @@ fn HostFixture() -> NodeId {
         <Frame height=20.0 fill={BLUE} />
     };
     let cell_hosted: NodeId = into_child(view! {
-        <Show condition={hovered} fallback={move || view! {
-            <Interactive
-                @test_id="host.cell"
-                on_hover_change={move |over: bool| if over { hovered.set(true) }}
-            >
-                <Frame height=20.0 fill={GREEN} />
-            </Interactive>
-        }}>
+        <Show
+            condition={hovered}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.cell"
+                    on_hover_change={move |over: bool| if over { hovered.set(true) }}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
             <Frame @test_id="host.hovered" height=20.0 fill={AMBER} />
         </Show>
     });
     let wrapped = view! {
-        <Interactive @test_id="host.wrapped" focusable=true on_press={move |_: beui::PointerPress| swap()}>
-            <Show condition={swapped} fallback={|| view! { <Frame width=40.0 height=20.0 fill={GREEN} /> }}>
+        <Interactive
+            @test_id="host.wrapped"
+            focusable=true
+            on_press={move |_: beui::PointerPress| swap()}
+        >
+            <Show
+                condition={swapped}
+                fallback={|| view! {
+                    <Frame width=40.0 height=20.0 fill={GREEN} />
+                }}
+            >
                 <Frame width=60.0 height=20.0 fill={AMBER} />
             </Show>
         </Interactive>
@@ -594,10 +611,24 @@ fn HostFixture() -> NodeId {
         true => "Named host focused".to_owned(),
         false => "Named host not focused".to_owned(),
     });
-    let rects = [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted].map(measured_rect);
+    let rects = [
+        plain,
+        hosted,
+        shrunk_plain,
+        shrunk_hosted,
+        cell_plain,
+        cell_hosted,
+    ]
+    .map(measured_rect);
     let report = create_memo(move || {
-        let [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted] =
-            rects.map(|rect| size(rect.get()));
+        let [
+            plain,
+            hosted,
+            shrunk_plain,
+            shrunk_hosted,
+            cell_plain,
+            cell_hosted,
+        ] = rects.map(|rect| size(rect.get()));
         format!(
             "Row {plain} {hosted} Shrunk {shrunk_plain} {shrunk_hosted} Grid {cell_plain} {cell_hosted} Swaps {}",
             swaps.get()
@@ -624,16 +655,25 @@ fn HostFixture() -> NodeId {
                 </Grid>
             </Frame>
             <Text color={INK}>{report}</Text>
-            <Show @test_id="host.named" @node_ref=&named condition={swapped} fallback={move || view! {
-                <Interactive focusable=true on_focus_change={named_focused}>
-                    <Frame width=40.0 height=20.0 fill={GREEN} />
-                </Interactive>
-            }}>
+            <Show
+                @test_id="host.named"
+                @node_ref=&named
+                condition={swapped}
+                fallback={move || view! {
+                    <Interactive focusable=true on_focus_change={named_focused}>
+                        <Frame width=40.0 height=20.0 fill={GREEN} />
+                    </Interactive>
+                }}
+            >
                 <Interactive focusable=true>
                     <Frame width=40.0 height=20.0 fill={AMBER} />
                 </Interactive>
             </Show>
-            <Button id="host.focus" label="Focus the named host" on_click={move || set_focus(Some(named.get()))} />
+            <Button
+                id="host.focus"
+                label="Focus the named host"
+                on_click={move || set_focus(Some(named.get()))}
+            />
             <Text color={INK}>{focus_report}</Text>
             <Frame align={Align2::all(Align::Start)}>{wrapped}</Frame>
             <Text color={INK}>{wrapped_report}</Text>

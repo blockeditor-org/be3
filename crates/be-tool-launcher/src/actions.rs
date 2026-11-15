@@ -99,7 +99,9 @@ pub(crate) fn Notes(
     });
     view! {
         <List spacing=Space::Md>
-            <Show condition={move || !pull_request.with(|pull_request| pull_request.same_repository)}>
+            <Show
+                condition={move || !pull_request.with(|pull_request| pull_request.same_repository)}
+            >
                 <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>

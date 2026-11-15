@@ -11,7 +11,12 @@ fn Hosted(shown: Signal<bool>) -> NodeId {
     view! {
         <List spacing=4.0>
             <Frame width=80.0>
-                <Show condition={shown} fallback={|| view! { <Text>"hidden"</Text> }}>
+                <Show
+                    condition={shown}
+                    fallback={|| view! {
+                        <Text>"hidden"</Text>
+                    }}
+                >
                     <Text>"shown"</Text>
                 </Show>
             </Frame>
@@ -39,18 +44,21 @@ pub(super) fn hydrating_claims_host_nodes() -> Checked {
         .map_err(|_| "the container joins the page")?;
     container.set_inner_html(&beui::html::render_to_string(move || {
         view! {
-            <Hosted shown />
+            <Root>
+                <Hosted shown />
+            </Root>
         }
     }));
     let served = container.inner_html();
-    expect(
-        served.matches("display: contents").count() == 2,
-        || format!("the server did not render both hosts: {served}"),
-    )?;
+    expect(served.matches("display: contents").count() == 2, || {
+        format!("the server did not render both hosts: {served}")
+    })?;
     let before = every_node(&container);
     beui::html::hydrate("hosts", move || {
         view! {
-            <Hosted shown />
+            <Root>
+                <Hosted shown />
+            </Root>
         }
     })?;
     let after = every_node(&container);

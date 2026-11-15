@@ -289,7 +289,11 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                         disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.component))}
                         on_click={remove_slot}
                     />
-                    <MenuItem label="Open folder" disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.folder))} on_click={open_folder} />
+                    <MenuItem
+                        label="Open folder"
+                        disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.folder))}
+                        on_click={open_folder}
+                    />
                     <MenuItem
                         label="Remove folder"
                         disabled={move || !shown.with(|slot| slot.as_ref().is_some_and(|slot| slot.removable))}

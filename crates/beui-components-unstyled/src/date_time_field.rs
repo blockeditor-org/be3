@@ -277,7 +277,8 @@ fn SegmentView(
             |value| format_segment(segment, value),
         ),
     });
-    let placeholder = create_memo(move || typed.with(Option::is_none) && value.with(Option::is_none));
+    let placeholder =
+        create_memo(move || typed.with(Option::is_none) && value.with(Option::is_none));
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -322,10 +323,7 @@ fn SegmentView(
             cursor=CursorIcon::Text
             on_hover_change={hovered}
         >
-            <List direction=Direction::Horizontal spacing=0.0>
-                {prefix}
-                {content}
-            </List>
+            <List direction=Direction::Horizontal spacing=0.0>{prefix}{content}</List>
         </Interactive>
     }
 }

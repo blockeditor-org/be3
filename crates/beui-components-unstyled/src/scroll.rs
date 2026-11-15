@@ -74,7 +74,11 @@ impl ScrollbarStyle {
     /// The thumb and track colours of the browser's own bar, which every scroll
     /// on the HTML core shows in place of `bar`; thin, as `scrollbar-color`.
     /// Natively they do nothing.
-    pub fn browser_colors<M1, M2>(self, thumb: impl IntoPropWith<Color, M1>, track: impl IntoPropWith<Color, M2>) -> Self {
+    pub fn browser_colors<M1, M2>(
+        self,
+        thumb: impl IntoPropWith<Color, M1>,
+        track: impl IntoPropWith<Color, M2>,
+    ) -> Self {
         Self {
             browser: Some((thumb.into_prop_with(), track.into_prop_with())),
             ..self

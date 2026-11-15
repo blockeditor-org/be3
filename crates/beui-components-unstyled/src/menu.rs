@@ -340,7 +340,8 @@ pub(crate) fn MenuList(
                 title.is_some()
                     || items.items().iter().any(|item| {
                         item.is_row()
-                            && (item.glyph.with(Option::is_some) || item.checked.with(Option::is_some))
+                            && (item.glyph.with(Option::is_some)
+                                || item.checked.with(Option::is_some))
                     })
             })
         },

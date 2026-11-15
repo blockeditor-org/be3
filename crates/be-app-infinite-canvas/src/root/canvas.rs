@@ -107,9 +107,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                             <EntityEmbed state id />
                         </ForEach>
                         {(!previewing).then(|| view! {
-                                <CanvasHint state={state} camera={camera} stage={shown} />
-                                <CanvasOverlay state={state} camera={camera} />
-                                <LiveOverlay state={state} camera={camera} stage={shown} />
+                            <CanvasHint state={state} camera={camera} stage={shown} />
+                            <CanvasOverlay state={state} camera={camera} />
+                            <LiveOverlay state={state} camera={camera} stage={shown} />
                         })}
                     </Canvas>
                 </CanvasSurface>

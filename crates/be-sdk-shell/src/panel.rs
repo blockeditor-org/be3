@@ -251,10 +251,8 @@ pub(crate) fn BlockPanel(
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
                     <DeletedBar workspace={workspace} info={info.read_only()} />
                     <LinkedBar workspace={workspace} info={info.read_only()} />
-            })}
+                })}
                 <TabBar bar={move || bar.call(())} own=true />
-                // A pair, not one `Show` with a fallback: `keep_alive` would also keep the preview's
-                // live editor of the last revision built and paused after the preview closes.
                 <Show keep_alive=true condition={live}>
                     <Dynamic value={content}>|content: Content| {
                         match content {
@@ -379,9 +377,9 @@ fn DockedBlockTab(
     view! {
         <List spacing=Space::None>
             {(!session).then(|| view! {
-                    <ArtifactBar workspace={workspace} info={info} />
-                    <DeletedBar workspace={workspace} info={info} />
-                    <LinkedBar workspace={workspace} info={info} />
+                <ArtifactBar workspace={workspace} info={info} />
+                <DeletedBar workspace={workspace} info={info} />
+                <LinkedBar workspace={workspace} info={info} />
             })}
             <TabBar bar={move || bar.call(())} own />
             <ListItem grow=1.0>

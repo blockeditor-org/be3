@@ -67,15 +67,24 @@ impl DialogAction {
         }
     }
 
-    pub fn primary<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn primary<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn destructive<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn secondary<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 

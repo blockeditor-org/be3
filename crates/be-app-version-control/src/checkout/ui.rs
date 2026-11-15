@@ -342,8 +342,12 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
         >
             <Text style=TextStyle::CAPTION>{label}</Text>
             {match removed {
-                true => view! { <Text>{name}</Text> },
-                false => view! { <BlockLink editor={editor} block={target} /> },
+                true => view! {
+                    <Text>{name}</Text>
+                },
+                false => view! {
+                    <BlockLink editor={editor} block={target} />
+                },
             }}
         </List>
     }

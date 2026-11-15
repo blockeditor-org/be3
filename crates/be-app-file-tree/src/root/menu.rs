@@ -118,10 +118,12 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
     } = tools;
     let unaddable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_add));
     let edit = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit));
-    let unshareable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    let unshareable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
     let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
     let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
-    let offers_delete = move || !row.with(|row| row.as_ref().is_some_and(|row| row.id == Some(my_files)));
+    let offers_delete =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.id == Some(my_files)));
     let delete = move || {
         if let Some(shown) = row.get_untracked()
             && let Some(id) = shown.id
@@ -221,7 +223,8 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             editor.host().leave_block(id);
         }
     };
-    let restorable = move || row.with(|row| row.as_ref().is_some_and(|row| row.deleted && row.can_edit));
+    let restorable =
+        move || row.with(|row| row.as_ref().is_some_and(|row| row.deleted && row.can_edit));
     let restore = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().restore_block(id);
@@ -229,38 +232,48 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let add = create_memo(move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_add)));
     let edit = create_memo(move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_edit)));
-    let unshareable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    let unshareable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
     let unlinkable = move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
     };
     let deletable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete));
-    let delete_label = move || match row.with(|row| row.as_ref().is_some_and(|row| row.is_reference)) {
-        true => "Remove link".to_owned(),
-        false => "Delete".to_owned(),
-    };
-    let rooted = create_memo(move || edit.get() || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete)));
-    let uninspectable = move || !row.with(|row| row.as_ref().is_some_and(|row| row.inspection.is_some()));
-    let taggable = move || row.with(|row| row.as_ref().is_some_and(|row| row.can_edit && !row.deleted));
+    let delete_label =
+        move || match row.with(|row| row.as_ref().is_some_and(|row| row.is_reference)) {
+            true => "Remove link".to_owned(),
+            false => "Delete".to_owned(),
+        };
+    let rooted = create_memo(move || {
+        edit.get() || !row.with(|row| row.as_ref().is_some_and(|row| row.can_delete))
+    });
+    let uninspectable =
+        move || !row.with(|row| row.as_ref().is_some_and(|row| row.inspection.is_some()));
+    let taggable =
+        move || row.with(|row| row.as_ref().is_some_and(|row| row.can_edit && !row.deleted));
     let choosable = move || {
-        row.with(|row| row.as_ref().is_some_and(|row| {
-            row.can_edit
-                && editor
-                    .block_types()
-                    .editors_for(row.block_type, row.file_name.as_deref())
-                    .len()
-                    > 1
-        }))
+        row.with(|row| {
+            row.as_ref().is_some_and(|row| {
+                row.can_edit
+                    && editor
+                        .block_types()
+                        .editors_for(row.block_type, row.file_name.as_deref())
+                        .len()
+                        > 1
+            })
+        })
     };
     let homeable = move || {
-        row.with(|row| row.as_ref().is_some_and(|row| {
-            !row.deleted
-                && row.id.is_some_and(|id| {
-                    editor.workspace_of(id).is_some_and(|workspace| {
-                        workspace != id && editor.blocks().access(workspace).can_manage()
+        row.with(|row| {
+            row.as_ref().is_some_and(|row| {
+                !row.deleted
+                    && row.id.is_some_and(|id| {
+                        editor.workspace_of(id).is_some_and(|workspace| {
+                            workspace != id && editor.blocks().access(workspace).can_manage()
+                        })
                     })
-                })
-        }))
+            })
+        })
     };
     let rows = tree.rows();
     let destinations = create_memo(move || {
@@ -477,8 +490,10 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
 fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
     let shown = create_memo(move || row.get().and_then(|row| row.id));
     let has = create_memo(move || shown.get().and_then(|id| editor.settings_block(id)));
-    let disabled =
-        move || has.with(Option::is_none) && !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()));
+    let disabled = move || {
+        has.with(Option::is_none)
+            && !row.with(|row| row.as_ref().is_some_and(|row| row.access.can_manage()))
+    };
     let open = move || {
         if let Some(id) = shown.get_untracked()
             && let Some(settings) = editor.ensure_settings_block(id)

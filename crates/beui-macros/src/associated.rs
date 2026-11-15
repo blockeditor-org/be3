@@ -1,7 +1,10 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use proc_macro2::{Group, Punct, Spacing, TokenStream, TokenTree};
-use syn::{Block, ImplItem, ReturnType, ImplItemFn, ItemImpl, ItemTrait, TraitItem, TraitItemFn, parse_quote};
+use syn::{
+    Block, ImplItem, ImplItemFn, ItemImpl, ItemTrait, ReturnType, TraitItem, TraitItemFn,
+    parse_quote,
+};
 
 use super::*;
 

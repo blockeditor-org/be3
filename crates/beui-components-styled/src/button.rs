@@ -264,7 +264,9 @@ pub fn ButtonFace(
                                 <Picture image />
                             </Frame>
                         </Show>
-                        <Show condition={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}>
+                        <Show
+                            condition={move || !has_leading && !pictured.get() && glyph.with(Option::is_some)}
+                        >
                             <Text size=text color={label_color} align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>

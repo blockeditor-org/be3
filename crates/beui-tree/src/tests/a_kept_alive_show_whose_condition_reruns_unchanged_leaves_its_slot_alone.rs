@@ -9,9 +9,13 @@ fn a_kept_alive_show_whose_condition_reruns_unchanged_leaves_its_slot_alone() {
     let page = scope.run(|| {
         view! {
             <Element tag="div">
-                <Show keep_alive=true condition={move || count.get() > 0} fallback={|| view! {
-                    <Element tag="i" text="none" />
-                }}>
+                <Show
+                    keep_alive=true
+                    condition={move || count.get() > 0}
+                    fallback={|| view! {
+                        <Element tag="i" text="none" />
+                    }}
+                >
                     <Element tag="input" text="focused field" />
                 </Show>
             </Element>

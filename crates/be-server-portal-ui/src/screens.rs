@@ -112,7 +112,9 @@ fn Brand(page: Shown) -> NodeId {
                     <Span color=TextColor::Muted>" account"</Span>
                 </Text>
             </ListItem>
-            {elsewhere.then(|| view! { <PageLink label="Your account" href="/auth" /> })}
+            {elsewhere.then(|| view! {
+                <PageLink label="Your account" href="/auth" />
+            })}
         </List>
     }
 }
@@ -178,15 +180,15 @@ fn Notice(text: String, #[prop(default = false)] good: bool) -> Option<NodeId> {
     };
     Some(view! {
         <Frame fill radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
-                <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
-                    <Text color>
-                        <Icon glyph />
-                    </Text>
-                    <ListItem grow=1.0>
-                        <Text>{text}</Text>
-                    </ListItem>
-                </List>
-            </Frame>
+            <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
+                <Text color>
+                    <Icon glyph />
+                </Text>
+                <ListItem grow=1.0>
+                    <Text>{text}</Text>
+                </ListItem>
+            </List>
+        </Frame>
     })
 }
 

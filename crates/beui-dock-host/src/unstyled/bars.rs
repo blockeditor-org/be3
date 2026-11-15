@@ -1993,7 +1993,14 @@ fn SharedBar(
         false => 0.0,
     });
     view! {
-        <CanvasItem x=0.0 y=0.0 width={room} height={room} clip={move || !shown.get()} pointer={shown}>
+        <CanvasItem
+            x=0.0
+            y=0.0
+            width={room}
+            height={room}
+            clip={move || !shown.get()}
+            pointer={shown}
+        >
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
                     <Frame align=Align2::START>

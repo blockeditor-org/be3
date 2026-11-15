@@ -2210,8 +2210,9 @@ fn DockStack(dock: State) -> NodeId {
     let barred = create_memo(move || bar.is_some() && occupied.get());
     let gone = dock.away_from(shown);
     let left = create_memo(move || gone.with(Option::is_some) && staged.with(Option::is_none));
-    let here =
-        create_memo(move || occupied.get() && gone.with(Option::is_none) && staged.with(Option::is_none));
+    let here = create_memo(move || {
+        occupied.get() && gone.with(Option::is_none) && staged.with(Option::is_none)
+    });
     view! {
         <BackSlide
             enabled={backward}

@@ -988,22 +988,22 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                 on_close={move || menu_at.set(None)}
                 items={view! {
                     {floating.then(|| view! {
-                            <MenuItem
-                                label="Hide"
-                                glyph=ICON_EYE_OFF
-                                row_test_id="workspace.window.menu.hide"
-                                on_click={move || workspace.hide(tab)}
-                            />
-                            <MenuItem
-                                label={fullscreen_label}
-                                glyph=ICON_FULLSCREEN
-                                row_test_id="workspace.window.menu.fullscreen"
-                                on_click={move || {
-                                    workspace.on_dock_host(tab, |host, tab| {
-                                        host.toggle_window_fullscreen(tab);
-                                    });
-                                }}
-                            />
+                        <MenuItem
+                            label="Hide"
+                            glyph=ICON_EYE_OFF
+                            row_test_id="workspace.window.menu.hide"
+                            on_click={move || workspace.hide(tab)}
+                        />
+                        <MenuItem
+                            label={fullscreen_label}
+                            glyph=ICON_FULLSCREEN
+                            row_test_id="workspace.window.menu.fullscreen"
+                            on_click={move || {
+                                workspace.on_dock_host(tab, |host, tab| {
+                                    host.toggle_window_fullscreen(tab);
+                                });
+                            }}
+                        />
                     })}
                     <MenuItem
                         label="Close"

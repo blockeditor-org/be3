@@ -174,7 +174,9 @@ pub fn RowFace(
                 <Show condition={move || !lead.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                 </Show>
-                <Show condition={move || leading.get() || pictured.get() || glyph.with(Option::is_some)}>
+                <Show
+                    condition={move || leading.get() || pictured.get() || glyph.with(Option::is_some)}
+                >
                     <Frame width=side>
                         <List spacing=Space::None align=Align::Center>
                             <Show

@@ -122,9 +122,7 @@ fn NotificationRow(
                             <List spacing=ROW_SPACING>
                                 <Text style=TextStyle::CAPTION>{source}</Text>
                                 {titled.then(|| view! {
-                                    <Text color={summary_color} weight=Weight::Bold>
-                                        {heading}
-                                    </Text>
+                                    <Text color={summary_color} weight=Weight::Bold>{heading}</Text>
                                 })}
                                 {said.then(|| view! {
                                     <Text size=TextSize::Sm color={body_color}>{body}</Text>

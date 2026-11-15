@@ -121,9 +121,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         }
                                     }}
                                 />
-                                <Show
-                                    condition={move || editor.organization_settings().is_some()}
-                                >
+                                <Show condition={move || editor.organization_settings().is_some()}>
                                     <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
                                         {ONLY_YOURS}
                                     </Text>
