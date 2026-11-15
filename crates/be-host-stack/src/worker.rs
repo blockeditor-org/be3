@@ -12,18 +12,17 @@ use be_block_commit::CommitId;
 use be_block_content::BlockMetadata;
 use be_block_graph::{Access, BlockParent};
 use be_block_protocol::{AccessList, BlockSummary, client};
-use be_block_type_host::Conflict;
-use be_sdk_type_api::{Change, Description, EditorId};
+use be_sdk_type_api::{Change, EditorId};
 use be_sdk_type_guest::editor::FromEditor;
 use futures_util::future::{Either, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
-use super::graph::{Graph, Listing, Node, Owner, Query};
+use super::graph::{Listing, Node, Owner, Query};
 use super::replicas::Replicas;
 use super::types::{self, Modules};
 use super::version::{Context, LoopCall, LoopCalls, Reach, Versions};
-use super::{Config, Content, platform};
+use super::{Config, platform};
 
 mod served;
 mod uploads;
@@ -72,6 +71,10 @@ fn jitter() -> f64 {
 pub(super) struct Inbox {
     pub(super) commands: UnboundedReceiver<Command>,
     pub(super) nudged: super::nudge::Nudged,
+    /// Where the worker hands over each `Seen` it publishes for the page (`seen::Handover`).
+    pub(super) handover: Arc<crate::seen::Handover>,
+    /// The modules' clock as the host held it when the stack started (`hold_clock`).
+    pub(super) held_clock: Option<Instant>,
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
@@ -107,8 +110,13 @@ pub(super) enum Command {
     },
     #[cfg(any(test, feature = "testing"))]
     Close(Uuid),
-    /// Start or stop following the account's storage, as `Shared::storage_watched` says.
-    Storage,
+    /// Start or stop following the account's storage.
+    Storage(bool),
+    /// The full-text searches an owner shows (`want_searches`).
+    WantSearches(Owner, Vec<crate::SearchAsk>),
+    /// The page's changes to what it reads, numbered (`seen::Edit`): applied as the worker
+    /// takes the command, before any later one.
+    Edit(u64, Vec<crate::seen::Edit>),
     Operate(Uuid, Vec<u8>, Instant),
     ChangeChild {
         block: Uuid,
@@ -157,7 +165,7 @@ pub(super) enum Command {
     /// Answered with how many open blocks keep edits the device's journal does not hold yet,
     /// commands sent before it that still wait their turn, and imports unfinished, as of the
     /// answer: commands sent since do not count.
-    Flush(std::sync::mpsc::Sender<usize>),
+    Flush(FlushReply),
     /// Seals what the open blocks owe now, waiting for nothing after (`seal_owed`): unlike
     /// `Flush`, nothing stays to seal what is edited later.
     SealOwed,
@@ -278,6 +286,20 @@ pub(super) enum Command {
     Sync,
 }
 
+/// Where a flush answers how much closing now would lose (`crate::flush`): sent once the `Seen`
+/// with what the flush did is handed over, so the page reads it as it hears the answer.
+pub(super) struct FlushReply(pub(super) std::sync::mpsc::Sender<usize>);
+
+impl FlushReply {
+    pub(super) fn send(self, unsaved: usize) -> Result<(), ()> {
+        let Self(sender) = self;
+        crate::seen::after_publish(move |unsaved| {
+            let _ = sender.send(unsaved);
+        })(unsaved);
+        Ok(())
+    }
+}
+
 pub(super) enum AgentChange {
     Rotate(Box<dyn FnOnce(Result<String, String>) + Send>),
     Remove(Box<dyn FnOnce(Result<(), String>) + Send>),
@@ -302,7 +324,9 @@ impl Command {
             Command::Open { .. } => "open",
             #[cfg(any(test, feature = "testing"))]
             Command::Close(..) => "close",
-            Command::Storage => "storage",
+            Command::Storage(_) => "storage",
+            Command::WantSearches(..) => "want searches",
+            Command::Edit(..) => "edit",
             Command::Operate(..) => "operate",
             Command::ChangeChild { .. } => "change child",
             Command::FromFile { .. } => "from file",
@@ -387,7 +411,9 @@ impl Command {
                 | Command::Seed { .. }
                 | Command::Flush(_)
                 | Command::SealOwed
-                | Command::Storage
+                | Command::Storage(_)
+                | Command::WantSearches(..)
+                | Command::Edit(..)
                 | Command::WatchVersion(_)
                 | Command::UnwatchVersion(_)
                 | Command::DismissPairing(_)
@@ -409,6 +435,8 @@ impl Command {
                 | Command::Attach { .. }
                 | Command::Detach { .. }
                 | Command::Open { .. }
+                | Command::Edit(..)
+                | Command::WantSearches(..)
         )
     }
 
@@ -480,7 +508,9 @@ impl Command {
             | Command::Push(_)
             | Command::Authorship(_)
             | Command::Sync
-            | Command::Storage
+            | Command::Storage(_)
+            | Command::WantSearches(..)
+            | Command::Edit(..)
             | Command::HoldClock(_) => None,
         }
     }
@@ -583,21 +613,15 @@ const PAIRING_REQUEST_LIMIT: usize = 4;
 
 pub(super) const PEER_MESSAGE_LIMIT: usize = 4096;
 
+/// The worker's state. What the page reads is `seen`, which the worker hands over as a whole
+/// value (`seen::publish`); the rest only the worker reads. `Shared` reads as its `Seen` too.
 #[derive(Default)]
 pub struct Shared {
-    pub revision_previews: HashMap<Uuid, super::revisions::Preview>,
-    pub preview_aliases: HashMap<(Uuid, Uuid), Uuid>,
-    pub released_previews: Vec<Uuid>,
-    pub graph: Graph,
-    pub blocks: HashMap<Uuid, Content>,
-    pub described: HashMap<Uuid, Description>,
-    pub editor_frames: HashMap<EditorId, Vec<(Uuid, Vec<u8>)>>,
-    pub histories: HashMap<Uuid, History>,
+    pub seen: crate::Seen,
     pub presence: HashMap<Uuid, (u64, Vec<Presence>)>,
     pub presence_revision: u64,
     pub peer_messages: HashMap<Uuid, std::collections::VecDeque<(u64, PeerMessage)>>,
     pub peer_message_count: u64,
-    pub wakes: u64,
     /// Passes of the loop in a row whose wait was over before it began: a loop that keeps
     /// waking itself shows here.
     pub unwaited_passes: u64,
@@ -605,24 +629,9 @@ pub struct Shared {
     /// bumped. A wait (`wait_until`) fails when it stops counting, not when the worker stops
     /// waking. Bump it beside any state a test may wait on.
     pub progressed: u64,
-    pub unsealed: usize,
-    pub saves: u64,
-    pub owing: usize,
-    /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
-    pub owing_blocks: Vec<be_block_type_host::Owing>,
-    /// The blocks `undurable` counts, for `busy` to name.
-    pub undurable_blocks: Vec<be_block_type_host::Owing>,
-    /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
-    /// host keeps asking.
-    pub seals_owed: u64,
-    /// What the worker waits on the type modules for (`Host::asking`), for `busy` to name.
-    pub asking: Vec<String>,
-    /// Open replicas with edits that are not in the device's journal yet.
-    pub undurable: usize,
-    pub connected: bool,
-    pub connection: Option<Arc<be_block_client::connection::Connection>>,
-    /// The workspace's peer, which knows what content this device holds.
-    pub peer: Option<Arc<Peer<Store>>>,
+    /// How many commands the page has sent: those the worker has not finished
+    /// (`Seen::done`) are pending.
+    pub sent: Arc<std::sync::atomic::AtomicUsize>,
     #[cfg(test)]
     pub connection_due: Option<tokio::sync::watch::Receiver<Duration>>,
     /// The clock and the moment the stack waits on to try the server again. A moment the clock
@@ -644,65 +653,35 @@ pub struct Shared {
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
-    pub reached: bool,
-    /// Between connecting and having asked for everything the device must catch up on: set as
-    /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
-    /// outbox has drained and the open replicas have rejoined their sessions.
-    pub arriving: bool,
-    /// Set when a command ran or a seal moved edits into the outbox, until `report` has read
-    /// the outbox into `waiting` again: `waiting` is stale meanwhile.
-    pub recounting: bool,
-    pub draining: bool,
     /// Counts finished drains of the outbox.
     pub drains: u64,
     pub leaving: bool,
-    pub error: Option<String>,
-    /// What went wrong sending: a refused or failed drain of the outbox, or a refused append to
-    /// a session's journal. Unlike `error`, it is about being in step with the server, so it
-    /// clears once the device is connected and nothing waits to be sent (`report`).
-    pub sync_error: Option<String>,
     pub module_error: Option<(Uuid, String)>,
-    pub conflicts: HashMap<Uuid, Vec<Conflict>>,
-    pub pairing: Vec<PairingRequest>,
-    pub contacts: Vec<be_block_client::Contact>,
-    /// The account's storage, while an editor watches it (`storage_watched`).
-    pub storage: Option<be_block_protocol::AccountStorage>,
-    pub storage_watched: bool,
-    pub escrow_warning: Option<&'static str>,
-    /// The account's notification mode for each block it set to other than `all`, once read
-    /// (`Tasks::notify_modes`).
-    pub notify_modes: Option<HashMap<Uuid, be_block_protocol::NotifyMode>>,
-    /// Blocks an open replica found locked, until keys arrive (`Replicas::unlock`).
-    pub locked: std::collections::HashSet<Uuid>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
     /// whether more arrived meanwhile.
     pub(crate) relearning: Option<bool>,
     pub version_watch: std::collections::HashSet<Uuid>,
-    pub versions: HashMap<Uuid, super::version::VersionState>,
-    pub pending: usize,
-    pub typing: bool,
-    /// While the host holds the modules' clock and nothing else is in flight, when their
-    /// soonest timer that keeps a block in step comes due on it (`Modules::held_due`): what a
-    /// stopped clock must reach for that work to happen. `None` while anything else could still
-    /// make progress.
-    pub modules_due: Option<std::time::Instant>,
-    pub uploading: usize,
-    pub listing_revisions: usize,
-    /// Commands in the lane beside the loop that need only the server (`Served`).
-    pub serving: usize,
-    pub importing: usize,
-    /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
-    /// busy reason that names what queued commands wait behind.
-    pub step: Option<&'static str>,
-    pub previewed: std::collections::HashSet<Uuid>,
-    pub staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
+    /// Whether an editor watches the account's storage (`Command::Storage`).
+    pub storage_watched: bool,
     pub owned: std::collections::HashSet<Uuid>,
-    pub unreadable: HashMap<Uuid, String>,
-    pub waiting: usize,
-    pub unsent: Vec<be_block_client::UnsentBlock>,
-    pub comparison: Option<super::conflicts::Comparison>,
     pub wall: Wall,
     pub search: super::search::Searching,
+    /// The `Searching::shown_revision` that `Seen::searched` was made at.
+    pub(crate) searched_at: Option<u64>,
+}
+
+impl std::ops::Deref for Shared {
+    type Target = crate::Seen;
+
+    fn deref(&self) -> &crate::Seen {
+        &self.seen
+    }
+}
+
+impl std::ops::DerefMut for Shared {
+    fn deref_mut(&mut self) -> &mut crate::Seen {
+        &mut self.seen
+    }
 }
 
 #[derive(Clone, Default)]
@@ -732,6 +711,9 @@ impl Shared {
     /// as deleted, and the parent as missing it, which would lose it for the person. Nothing is
     /// logged, or computed, while nothing dropped.
     pub(crate) fn log_dropped(&mut self) {
+        if !self.graph.has_dropped() {
+            return;
+        }
         for dropped in self.graph.take_dropped() {
             let parent = self.graph.get(dropped.parent);
             let replica = self
@@ -777,91 +759,43 @@ impl Shared {
         crate::changes::block(block);
     }
 
-    /// What keeps the device from being in step with the server, apart from `busy`: drive's
-    /// `synced` waits until there is nothing.
-    pub fn unsynced(&self) -> Vec<String> {
-        let mut reasons = Vec::new();
-        if !self.connected {
-            reasons.push(match &self.error {
-                Some(error) => format!("the block store is not connected to the server: {error}"),
-                None => "the block store is not connected to the server".to_owned(),
-            });
-        }
-        if self.arriving {
-            reasons.push("the block store catches up with the server after connecting".to_owned());
-        }
-        if self.draining {
-            reasons.push("the block store sends the edits it kept".to_owned());
-        }
-        if self.serving > 0 {
-            reasons.push(format!(
-                "the block store waits on the server for {} command(s)",
-                self.serving
-            ));
-        }
-        if self.listing_revisions > 0 {
-            reasons.push("the block store asks the server for a block's revisions".to_owned());
-        }
-        if self.recounting {
-            reasons.push("the block store has yet to count what waits to be sent".to_owned());
-        }
-        let waiting = self.unsealed + self.waiting;
-        if waiting > 0 {
-            reasons.push(format!("{waiting} edit(s) wait to be sent"));
-        }
-        reasons
+    /// Commands the page sent that the worker has not finished.
+    pub fn pending(&self) -> usize {
+        self.sent
+            .load(std::sync::atomic::Ordering::Acquire)
+            .saturating_sub(self.seen.done)
     }
 
+    /// Why the block store keeps a driver waiting (`crate::busy`), as of now.
     pub fn busy(&self, hurried: bool) -> Vec<String> {
-        let mut reasons: Vec<String> = [
-            (
-                self.pending > 0,
-                "the block store has commands to carry out",
-            ),
-            (self.typing, "a block type module has yet to settle"),
-            (self.uploading > 0, "the block store uploads files"),
-            (
-                self.graph.fetching(),
-                "the block store loads the organization's graph",
-            ),
-        ]
-        .into_iter()
-        .filter_map(|(busy, reason)| busy.then_some(reason.to_owned()))
-        .collect();
-        if self.undurable > 0 {
-            let blocks: Vec<String> = self
-                .undurable_blocks
-                .iter()
-                .map(ToString::to_string)
-                .collect();
-            reasons.push(format!(
-                "the block store keeps edits the device's journal does not hold yet, for {}",
-                blocks.join(", ")
-            ));
+        self.seen.busy_with(
+            hurried,
+            self.pending(),
+            self.search.busy_with(super::search::wants_index(self)),
+        )
+    }
+
+    /// Brings what `Seen` derives from the worker's own state up to date, before it is handed
+    /// over (`seen::publish`).
+    pub(crate) fn refresh_seen(&mut self) {
+        let revision = self.search.shown_revision();
+        if self.searched_at != Some(revision) {
+            self.searched_at = Some(revision);
+            self.seen.searched = crate::seen::Part::new(self.search.shown());
         }
-        if hurried && self.owing > 0 {
-            let blocks: Vec<String> = self.owing_blocks.iter().map(ToString::to_string).collect();
-            reasons.push(format!(
-                "the block store owes edits a seal, for {} (sealed what was owed {} time(s))",
-                blocks.join(", "),
-                self.seals_owed
-            ));
+        self.seen.search_indexed = self.search.indexed();
+        self.seen.search_busy = self.search.busy_with(super::search::wants_index(self));
+    }
+
+    /// Applies the page's edits as the worker takes them (`Command::Edit`).
+    pub(crate) fn apply(&mut self, number: u64, edits: &[crate::seen::Edit]) {
+        for edit in edits {
+            for block in edit.apply(&mut self.seen) {
+                self.touch(block);
+            }
         }
-        if let Some(searching) = self.search.busy_with(super::search::wants_index(self)) {
-            reasons.push(format!("the block store's search is busy: {searching}"));
-        }
-        if self.pending > 0
-            && let Some(step) = self.step
-        {
-            reasons.push(format!("the block store's loop is busy with {step}"));
-        }
-        if !self.asking.is_empty() {
-            reasons.push(format!(
-                "the block store waits on its type modules for {}",
-                self.asking.join(", ")
-            ));
-        }
-        reasons
+        self.seen.edits_applied = self.seen.edits_applied.max(number);
+        self.progressed += 1;
     }
 }
 
@@ -897,10 +831,13 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     Inbox {
         mut commands,
         mut nudged,
+        handover,
+        held_clock,
     }: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
+    let _worker = crate::seen::Worker::enter(&shared, &handover);
     let mut replicas = Replicas::new(Modules::with_kinds_changed(
         types::sources().await,
         config.clock.clone(),
@@ -908,9 +845,9 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         // host's frame, which takes the notice.
         super::changes::stale,
     ));
-    replicas.modules.hold_clock(super::held_clock());
+    replicas.modules.hold_clock(held_clock);
     replicas.modules.ready().await;
-    be_host_base::host::wake();
+    crate::changes::wake();
     let started = match cached(&config, &make_store) {
         Some(peer) => Some((peer, None)),
         None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
@@ -1032,7 +969,7 @@ async fn first_connect<S: Fn() -> Result<Store, String>>(
         #[cfg(any(test, feature = "testing"))]
         reconnecting_at(shared, Some((config.clock.clone(), at)));
         changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
         let waited = config.clock.sleep_until(at);
         let nudge = std::pin::pin!(nudged.changed());
         if let Either::Right((Err(_), _)) = select(waited, nudge).await {
@@ -1200,7 +1137,7 @@ impl Session<'_> {
                 self.refresh_versions().await;
                 report(peer, shared);
                 self.changed.notify_all();
-                be_host_base::host::wake();
+                crate::changes::wake();
             }
         }
         let mut flushes = Vec::new();
@@ -1359,6 +1296,21 @@ impl Session<'_> {
                         let quick = command.is_quick();
                         step(shared, Some(command.name()));
                         match command {
+                            Command::Edit(number, edits) => {
+                                shared
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .apply(number, &edits);
+                                ran.done(false);
+                            }
+                            Command::WantSearches(owner, searches) => {
+                                shared
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .search
+                                    .want(owner, searches);
+                                ran.done(false);
+                            }
                             Command::Import(blocks) => {
                                 self.uploads.add(blocks);
                                 ran.done(false);
@@ -1396,7 +1348,7 @@ impl Session<'_> {
                         step(shared, Some(command.name()));
                         applied |= ran.run(command).await;
                     }
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                     applied
                 }
                 Woken::Event(event) => {
@@ -1540,7 +1492,7 @@ impl Session<'_> {
                 if moved || held.typing != typing {
                     held.progressed += 1;
                 }
-                let due = (idle && held.waiting == 0 && held.pending == 0 && !held.arriving)
+                let due = (idle && held.waiting == 0 && held.pending() == 0 && !held.arriving)
                     .then(|| self.replicas.modules.held_due())
                     .flatten();
                 (
@@ -1551,8 +1503,10 @@ impl Session<'_> {
             };
             self.changed.notify_all();
             if moved || was_typing != typing || was_due != due {
-                be_host_base::host::wake();
+                crate::changes::wake();
             }
+            // The pass is over: the page reads what it did, and hears of it.
+            crate::seen::publish_now();
         }
     }
 
@@ -1671,7 +1625,7 @@ impl Session<'_> {
         }
         shared_offline(self.shared);
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 
     /// Keys arrived: the replicas found locked open again, and so does a block still wanted that
@@ -1716,7 +1670,7 @@ impl Session<'_> {
             }
         }
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
         self.drained_at = self.config.clock.now();
         self.tasks.0.sync(peer, shared);
         want_open(shared, &self.wanted.blocks());
@@ -1755,7 +1709,7 @@ impl Session<'_> {
         }
         report(peer, shared);
         self.changed.notify_all();
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -1983,7 +1937,7 @@ fn set_draining(shared: &Arc<Mutex<Shared>>, draining: bool) {
             held.drains += 1;
         }
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 pub(super) fn expired_unsent(
@@ -2027,7 +1981,7 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.waiting = counts.operations;
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
-        held.unsent = peer.unsent();
+        held.unsent = crate::Part::new(peer.unsent());
         changed = true;
     }
     // What went wrong sending stops being news once the device is connected and in step: nothing
@@ -2265,7 +2219,7 @@ struct Ran<'a> {
     wanted: &'a mut Wanted,
     shared: &'a Arc<Mutex<Shared>>,
     config: &'a Config,
-    flushes: &'a mut Vec<std::sync::mpsc::Sender<usize>>,
+    flushes: &'a mut Vec<FlushReply>,
     tasks: &'a Tasks,
     served: &'a mut Served,
     calls: &'a LoopCalls,
@@ -2322,7 +2276,7 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         }
         command => return Some(command),
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
     None
 }
 
@@ -2376,7 +2330,11 @@ impl Ran<'_> {
                 crate::authorship::run(self.peer, self.tasks, command);
                 false
             }
-            Command::Storage => {
+            Command::Storage(on) => {
+                self.shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .storage_watched = on;
                 self.tasks.storage(self.peer, self.shared);
                 false
             }
@@ -2386,7 +2344,7 @@ impl Ran<'_> {
                         .await
                         .map_err(|error| error.to_string()),
                 );
-                be_host_base::host::wake();
+                crate::changes::wake();
                 false
             }
             Command::CreateAgent { name, reply } => {
@@ -2397,7 +2355,7 @@ impl Ran<'_> {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
                 reply(created.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                crate::changes::wake();
                 false
             }
             Command::CreateBlockAgent { block, name, reply } => {
@@ -2407,7 +2365,7 @@ impl Ran<'_> {
                     self.tasks.refresh(self.peer, self.shared, block);
                 }
                 reply(created.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                crate::changes::wake();
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
@@ -2417,7 +2375,7 @@ impl Ran<'_> {
                     let set = peer.set_notify_mode(block, mode).await;
                     if set.is_ok() {
                         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                        if let Some(modes) = &mut held.notify_modes {
+                        if let Some(modes) = held.notify_modes.as_mut() {
                             match mode {
                                 be_block_protocol::NotifyMode::All => modes.remove(&block),
                                 mode => modes.insert(block, mode),
@@ -2430,7 +2388,7 @@ impl Ran<'_> {
                         }
                     }
                     reply(set.map(|()| mode).map_err(|error| error.to_string()));
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                 });
                 false
             }
@@ -2460,7 +2418,7 @@ impl Ran<'_> {
                                 .map_err(|error| error.to_string()),
                         ),
                     }
-                    be_host_base::host::wake();
+                    crate::changes::wake();
                 });
                 false
             }
@@ -2487,7 +2445,7 @@ impl Ran<'_> {
     /// the server for it.
     async fn version(&mut self, block: Uuid, command: be_sdk_api::VersionCommand) {
         set_busy(self.shared, block, true, None);
-        be_host_base::host::wake();
+        crate::changes::wake();
         self.replicas.seal_all((self.peer, self.shared)).await;
         self.served.version(
             self.peer,
@@ -2504,7 +2462,7 @@ impl Ran<'_> {
         {
             let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.log_dropped();
-            held.pending = held.pending.saturating_sub(1);
+            held.done += 1;
             let (owing, undurable);
             (held.unsealed, owing, undurable) = self.replicas.counts();
             held.owing = owing.len();
@@ -2515,7 +2473,7 @@ impl Ran<'_> {
             held.recounting = true;
             held.typing = !self.replicas.modules.settled();
         }
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -2536,7 +2494,7 @@ fn asked_to_pair(shared: &Arc<Mutex<Shared>>, from: u64, payload: &[u8]) {
         held.pairing.remove(0);
     }
     drop(held);
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 async fn approve_pairing(
@@ -2600,9 +2558,9 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         Ok(contacts) => {
             let changed = {
                 let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                let changed = shared.contacts != contacts;
+                let changed = *shared.contacts != contacts;
                 if changed {
-                    shared.contacts = contacts;
+                    shared.contacts = crate::Part::new(contacts);
                     crate::changes::post(crate::Changes {
                         contacts: true,
                         ..crate::Changes::default()
@@ -2618,7 +2576,7 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         Err(error) => record(shared, error),
     }
     tend(peer, shared).await;
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 async fn tend(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -2645,7 +2603,7 @@ async fn tend_with(
         .keys()
         .escrow_warning()
         .map(be_block_client::EscrowWarning::message);
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: MembersCommand) {
@@ -2666,7 +2624,7 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
         Err(error) => Err(error),
     };
     reply(listed.map_err(|error| error.to_string()));
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 async fn invite(
@@ -2886,7 +2844,7 @@ async fn contact(
             }
         }
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool) {
@@ -2900,7 +2858,7 @@ pub(super) fn set_locked(shared: &Arc<Mutex<Shared>>, block: Uuid, locked: bool)
         held.progressed += 1;
         held.touch(block);
         drop(held);
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -2915,7 +2873,7 @@ pub(super) fn set_unreadable(shared: &Arc<Mutex<Shared>>, block: Uuid, error: Op
         held.progressed += 1;
         held.touch(block);
         drop(held);
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 }
 
@@ -2992,7 +2950,7 @@ async fn serve_command(
                 });
             tend(peer, shared).await;
             reply(failed.map_or(Ok(()), Err));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::ListAccess { block, reply } => {
             let listed = peer
@@ -3000,7 +2958,7 @@ async fn serve_command(
                 .await
                 .map_err(|error| error.to_string());
             reply(listed);
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::ReadHead { commit, reply, .. } => {
             let read = async {
@@ -3009,7 +2967,7 @@ async fn serve_command(
             }
             .await;
             reply(read.map_err(|error| error.to_string()));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::Leave { block, reply } => {
             let left = peer.leave(block).await;
@@ -3018,7 +2976,7 @@ async fn serve_command(
                 true => OFFLINE_LEAVING.to_owned(),
                 false => error.to_string(),
             }));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::ApprovePairing { from, code, reply } => {
             let approved = approve_pairing(peer, shared, from, &code).await;
@@ -3026,7 +2984,7 @@ async fn serve_command(
                 true => OFFLINE_PAIRING.to_owned(),
                 false => error.to_string(),
             }));
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         Command::Members(command) => {
             members(peer, shared, command).await;
@@ -3034,7 +2992,7 @@ async fn serve_command(
         Command::BlockAgent { agent, change } => {
             change_block_agent(peer, agent, change).await;
             tasks.sync_contacts(peer, shared).await;
-            be_host_base::host::wake();
+            crate::changes::wake();
         }
         _ => {}
     }
@@ -3045,7 +3003,7 @@ async fn apply(
     replicas: &mut Replicas,
     wanted: &mut Wanted,
     shared: &Arc<Mutex<Shared>>,
-    flushes: &mut Vec<std::sync::mpsc::Sender<usize>>,
+    flushes: &mut Vec<FlushReply>,
     tasks: &Tasks,
     command: Command,
 ) -> bool {
@@ -3086,7 +3044,9 @@ async fn apply(
         | Command::SetNotifyMode { .. }
         | Command::Push(_)
         | Command::Authorship(_)
-        | Command::Storage => false,
+        | Command::Storage(_)
+        | Command::WantSearches(..)
+        | Command::Edit(..) => false,
         // Also starts a drain of what waits in the outbox, which otherwise waits for the
         // loop's retry.
         Command::Sync => {
@@ -3107,7 +3067,7 @@ async fn apply(
                 .unwrap_or_else(PoisonError::into_inner)
                 .pairing
                 .retain(|request| request.from != from);
-            be_host_base::host::wake();
+            crate::changes::wake();
             false
         }
         // In the lane (`Ran::version`).
@@ -3146,11 +3106,11 @@ async fn apply(
                     held.graph.relist_around(block, parent);
                 }
             }
-            held.unsent = peer.unsent();
+            held.unsent = crate::Part::new(peer.unsent());
             crate::changes::stale();
             held.progressed += 1;
             drop(held);
-            be_host_base::host::wake();
+            crate::changes::wake();
             true
         }
         Command::Revision {
@@ -3171,7 +3131,7 @@ async fn apply(
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
                     .listing_revisions -= 1;
-                be_host_base::host::wake();
+                crate::changes::wake();
             });
             true
         }
@@ -3529,18 +3489,18 @@ async fn apply(
         Command::Export { block, reply } => {
             let exported = export(peer, replicas, shared, block).await;
             reply(exported.map_err(|error| error.to_string()));
-            be_host_base::host::wake();
+            crate::changes::wake();
             false
         }
         Command::PlainFile { block, reply } => {
             reply(plain_file(peer, replicas, shared, block).await);
-            be_host_base::host::wake();
+            crate::changes::wake();
             false
         }
         Command::Import(_) => false,
         Command::ContentOfFile { name, bytes, reply } => {
             reply(replicas.from_file(ctx, &name, bytes).await);
-            be_host_base::host::wake();
+            crate::changes::wake();
             false
         }
         Command::Flush(done) => {
@@ -4102,14 +4062,15 @@ impl Tasks {
         self.spawn(async move {
             if let Ok(read) = peer.notify_modes().await {
                 let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                held.notify_modes = Some(read.iter().map(|row| (row.block, row.mode)).collect());
+                held.notify_modes =
+                    crate::Part::new(Some(read.iter().map(|row| (row.block, row.mode)).collect()));
                 crate::changes::post(crate::Changes {
                     notify_modes: true,
                     ..crate::Changes::default()
                 });
                 held.progressed += 1;
                 drop(held);
-                be_host_base::host::wake();
+                crate::changes::wake();
             }
         });
     }
@@ -4163,12 +4124,12 @@ impl Tasks {
                             held.error = Some(STORAGE_FAILED.to_owned());
                         }
                         drop(held);
-                        be_host_base::host::wake();
+                        crate::changes::wake();
                         return;
                     }
                 }
                 drop(held);
-                be_host_base::host::wake();
+                crate::changes::wake();
             }
         });
     }
@@ -4181,6 +4142,9 @@ impl Tasks {
 
 fn take_listings(shared: &Arc<Mutex<Shared>>) -> (Vec<Listing>, Vec<Listing>) {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if !held.graph.has_listings_to_take() {
+        return (Vec::new(), Vec::new());
+    }
     (held.graph.take_unlisted(), held.graph.take_wanted())
 }
 

@@ -212,7 +212,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
             if self.mirror.content().is_some_and(&done) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_for_frames(id);
         }
     }
 
@@ -224,7 +224,7 @@ impl<C: LiveEdit + Clone + Default> Editor<C> {
             if done(self) {
                 return;
             }
-            crate::wait_until(|shared| shared.editor_frames.contains_key(&id).then_some(()));
+            crate::wait_for_frames(id);
         }
     }
 

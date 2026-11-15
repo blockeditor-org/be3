@@ -39,9 +39,7 @@ fn an_editor_is_only_sent_messages_its_app_session_accepts() {
     opened_first(&mut open, &opened);
     to_replica(&mut instances, block, &FromEditor::Resend);
     be_host_stack::wait_until(|shared| shared.blocks.contains_key(&block).then_some(()));
-    be_host_stack::wait_until(|shared| {
-        shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
-    });
+    be_host_stack::wait_for_frames(INSTANCE.0);
 
     let carried = next_screens(&mut instances).opened;
 

@@ -14,7 +14,7 @@ fn a_flush_counts_what_was_unsaved_as_it_answers_not_what_was_sent_after() {
     assert_eq!(flush(), 0);
 
     let (done, answered) = std::sync::mpsc::channel();
-    send(Command::Flush(done));
+    send(Command::Flush(worker::FlushReply(done)));
     send(Command::HoldClock(None));
     assert_eq!(
         answered.recv().expect("the worker answers the flush"),

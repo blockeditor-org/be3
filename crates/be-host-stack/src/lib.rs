@@ -1,4 +1,7 @@
-use std::sync::{Arc, Condvar, OnceLock, PoisonError};
+use std::sync::{
+    Arc, Condvar, OnceLock, PoisonError,
+    atomic::{AtomicUsize, Ordering},
+};
 
 use be_wasm_threads::Mutex;
 
@@ -25,6 +28,7 @@ pub mod offline_choice;
 mod replicas;
 pub mod revisions;
 pub mod search;
+mod seen;
 pub mod terminal_host;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -45,10 +49,12 @@ use web as platform;
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
 pub use search::{SearchAsk, SearchHit, Searched};
+pub use seen::{Frame, Part, Seen};
 pub use worker::{
     History, OFFLINE_LEAVING, OFFLINE_PAIRING, OFFLINE_SHARING, PairingRequest, Shared,
 };
 
+use seen::Edit;
 use worker::Command;
 
 fn refs(config: &Config) -> Result<be_block_client::RefsDb, String> {
@@ -89,7 +95,8 @@ impl Config {
 #[derive(Clone)]
 pub struct Content {
     pub content_type: Uuid,
-    bytes: Vec<u8>,
+    /// Behind an `Arc`, so copying a `Seen` to hand it over copies no open block's content.
+    bytes: Arc<Vec<u8>>,
     pub revision: u64,
 }
 
@@ -97,7 +104,7 @@ impl Content {
     pub fn new(content_type: Uuid, bytes: Vec<u8>) -> Self {
         Self {
             content_type,
-            bytes,
+            bytes: Arc::new(bytes),
             revision: 1,
         }
     }
@@ -157,19 +164,21 @@ pub enum Stale {
 }
 
 pub fn locked(block: Uuid) -> bool {
-    with_shared(|shared| {
-        shared.locked.contains(&block) || shared.graph.get(block).is_some_and(|node| node.locked)
+    with_seen(|seen| {
+        seen.locked.contains(&block) || seen.graph.get(block).is_some_and(|node| node.locked)
     })
     .unwrap_or_default()
 }
 
 pub fn staleness(block: Uuid) -> Option<Stale> {
-    let guard = stack().lock().unwrap_or_else(PoisonError::into_inner);
-    let stack = guard.as_ref()?;
-    if stack.tried.contains(&block) {
-        return None;
-    }
-    let shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let shared = {
+        let mut guard = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        let stack = guard.as_mut()?;
+        if stack.tried.contains(&block) {
+            return None;
+        }
+        stack.view()
+    };
     let node = shared.graph.get(block)?;
     let kind = kind_of(node.content_type)?;
     if kind.frozen {
@@ -213,6 +222,9 @@ pub fn try_anyway(block: Uuid) {
     be_host_base::host::changed();
 }
 
+/// The stack as the page holds it: only the page reads and writes it. What the worker does
+/// reaches it as the `Seen` the worker hands over (`seen::Handover`), never through a lock the
+/// worker takes.
 struct Stack {
     account: Uuid,
     organization: Uuid,
@@ -222,10 +234,59 @@ struct Stack {
     /// The blocks whose version status each owner shows (`want_versions`).
     versioned: std::collections::HashMap<Owner, Vec<Uuid>>,
     tried: std::collections::HashSet<Uuid>,
+    /// Where the worker hands over each `Seen` it publishes.
+    handover: Arc<seen::Handover>,
+    /// What the page reads: the last `Seen` taken from `handover`, with the page's edits the
+    /// worker had not applied by then laid over it again.
+    view: Arc<Seen>,
+    /// The page's edits the worker had not applied by `view`'s `Seen`, numbered.
+    edits: Vec<(u64, Vec<Edit>)>,
+    /// The number of the last edit.
+    edited: u64,
+    /// How many commands the page sent: those the worker has not finished are pending.
+    sent: Arc<AtomicUsize>,
+    /// Frames the host could not deliver yet (`keep_editor_frames`), by editor.
+    kept_frames: std::collections::HashMap<u64, Vec<(Uuid, Vec<u8>)>>,
+    /// Whether an editor watches the account's storage (`watch_storage`).
+    storage_watched: bool,
+    /// The full-text searches each owner shows (`want_searches`).
+    searches: std::collections::HashMap<Owner, Vec<SearchAsk>>,
+    /// The worker's own state, for a test to wait on and reach into: the page never locks it.
+    #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
     shared: Arc<Mutex<Shared>>,
-    #[cfg_attr(not(test), allow(dead_code))]
+    #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
     changed: Arc<Condvar>,
     running: platform::Running,
+}
+
+impl Stack {
+    /// Takes the `Seen` the worker last handed over, if it has not been taken.
+    fn catch_up(&mut self) {
+        let Some(seen) = self.handover.take() else {
+            return;
+        };
+        self.edits
+            .retain(|(number, _)| *number > seen.edits_applied);
+        self.view = seen;
+        if !self.edits.is_empty() {
+            let view = Arc::make_mut(&mut self.view);
+            for edit in self.edits.iter().flat_map(|(_, edits)| edits) {
+                edit.apply(view);
+            }
+        }
+    }
+
+    fn view(&mut self) -> Arc<Seen> {
+        self.catch_up();
+        Arc::clone(&self.view)
+    }
+
+    /// Commands sent that the worker had not finished by the `Seen` read.
+    fn pending(&self) -> usize {
+        self.sent
+            .load(Ordering::Acquire)
+            .saturating_sub(self.view.done)
+    }
 }
 
 impl Drop for Stack {
@@ -245,10 +306,15 @@ pub fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
     let (nudges, nudged) = nudge::channel();
-    let shared = Arc::new(Mutex::new(Shared {
+    let sent = Arc::new(AtomicUsize::new(0));
+    let handover = Arc::new(seen::Handover::default());
+    let shared = Shared {
         wall: worker::Wall::new(config.clock.clone()),
+        sent: Arc::clone(&sent),
         ..Shared::default()
-    }));
+    };
+    let seen = Arc::new(shared.seen.clone());
+    let shared = Arc::new(Mutex::new(shared));
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
@@ -257,6 +323,8 @@ pub fn start(config: Config) {
         worker::Inbox {
             commands: receiver,
             nudged,
+            handover: Arc::clone(&handover),
+            held_clock: held_clock(),
         },
         Arc::clone(&shared),
         Arc::clone(&changed),
@@ -269,6 +337,14 @@ pub fn start(config: Config) {
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashMap::new(),
         tried: std::collections::HashSet::new(),
+        handover,
+        view: seen,
+        edits: Vec::new(),
+        edited: 0,
+        sent,
+        kept_frames: std::collections::HashMap::new(),
+        storage_watched: false,
+        searches: std::collections::HashMap::new(),
         shared,
         changed,
         running,
@@ -298,18 +374,12 @@ pub fn installed_for(account: Uuid, organization: Uuid) -> bool {
 /// for the worker; the next stack's worker waits for it (use `stop_and_wait` where the process
 /// ends or its files go).
 pub fn stop() {
-    let stack = stack()
+    let mut stack = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take();
-    if let Some(stack) = &stack {
-        let connection = stack
-            .shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .connection
-            .take();
-        if let Some(connection) = connection {
+    if let Some(stack) = &mut stack {
+        if let Some(connection) = &stack.view().connection {
             connection.close();
         }
     }
@@ -377,7 +447,7 @@ pub fn retry_now() {
 pub fn flush() -> usize {
     let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
-    send(Command::Flush(done));
+    send(Command::Flush(worker::FlushReply(done)));
     platform::await_flush(sealed).unwrap_or(unsaved)
 }
 
@@ -514,7 +584,7 @@ pub fn want_versions(owner: Owner, blocks: Vec<(Uuid, Uuid)>) {
 /// A block's version status, unless it is the one `sent` names; computed while an owner wants
 /// it (`want_versions`).
 pub fn version_since(block: Uuid, sent: Option<u64>) -> Option<(u64, be_sdk_api::VersionStatus)> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         let state = shared.versions.get(&block)?;
         (sent != Some(state.revision)).then(|| (state.revision, state.status.clone()))
     })?
@@ -559,6 +629,8 @@ pub fn from_editor(block: Uuid, editor: u64, frame: &[u8]) {
     });
 }
 
+/// The modules' clock as the host holds it (`hold_clock`): only the page reads and writes it,
+/// and a stack is handed it as it starts (`Inbox::held_clock`), then each change as a command.
 static HELD_CLOCK: Mutex<Option<std::time::Instant>> = Mutex::new(None);
 
 fn held_clock() -> Option<std::time::Instant> {
@@ -584,25 +656,86 @@ pub fn pin_wall_clock(at: Option<std::time::Duration>) {
 
 pub use replicas::unframe;
 
+/// What the worker has for `editor` since the last take, after what the host kept back
+/// (`keep_editor_frames`). The worker forgets them once it hears they were taken
+/// (`Edit::TookFrames`).
 pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Vec<u8>)> {
-    with_shared_mut(|shared| shared.editor_frames.remove(&editor))
-        .flatten()
-        .unwrap_or_default()
+    let (mut frames, upto) = {
+        let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        let Some(stack) = held.as_mut() else {
+            return Vec::new();
+        };
+        let kept = stack.kept_frames.remove(&editor).unwrap_or_default();
+        let view = stack.view();
+        let queued = view.editor_frames.get(&editor);
+        (
+            kept.into_iter()
+                .chain(
+                    queued
+                        .into_iter()
+                        .flatten()
+                        .map(|frame| (frame.block, frame.bytes.to_vec())),
+                )
+                .collect::<Vec<_>>(),
+            queued.and_then(|queued| queued.last()).map(|frame| frame.number),
+        )
+    };
+    if let Some(upto) = upto {
+        edit(vec![Edit::TookFrames { editor, upto }]);
+    }
+    frames.shrink_to_fit();
+    frames
 }
 
+/// Keeps frames the host took and could not deliver yet, for the next take.
 pub fn keep_editor_frames(editor: u64, mut kept: Vec<(Uuid, Vec<u8>)>) {
     if kept.is_empty() {
         return;
     }
-    with_shared_mut(|shared| {
-        let held = shared.editor_frames.entry(editor).or_default();
-        kept.append(held);
-        *held = kept;
+    let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some(stack) = held.as_mut() {
+        let earlier = stack.kept_frames.entry(editor).or_default();
+        kept.append(earlier);
+        *earlier = kept;
+    }
+}
+
+/// Waits until the worker has frames for `editor` the page has not taken.
+#[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+#[track_caller]
+pub fn wait_for_frames(editor: u64) {
+    let taken = {
+        let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+        let stack = held.as_mut().expect("the stack is running");
+        if stack.kept_frames.contains_key(&editor) {
+            return;
+        }
+        let view = stack.view();
+        if view.editor_frames.contains_key(&editor) {
+            return;
+        }
+        stack
+            .edits
+            .iter()
+            .flat_map(|(_, edits)| edits)
+            .filter_map(|edit| match edit {
+                Edit::TookFrames { editor: took, upto } if *took == editor => Some(*upto),
+                _ => None,
+            })
+            .max()
+    };
+    wait_until(|shared| {
+        shared
+            .editor_frames
+            .get(&editor)
+            .and_then(|frames| frames.last())
+            .is_some_and(|frame| taken.is_none_or(|taken| frame.number > taken))
+            .then_some(())
     });
 }
 
 pub fn snapshot_frame(block: Uuid) -> Option<Vec<u8>> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         let content = match shared.revision_previews.get(&block) {
             Some(preview) => preview.content.as_ref()?,
             None => shared
@@ -638,7 +771,7 @@ pub fn send_to_peers(block: Uuid, to: Option<u64>, channel: Uuid, payload: Vec<u
 }
 
 pub fn history(block: Uuid) -> History {
-    with_shared(|shared| shared.histories.get(&block).copied())
+    with_seen(|shared| shared.histories.get(&block).copied())
         .flatten()
         .unwrap_or_default()
 }
@@ -661,23 +794,21 @@ pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
     metadata.remove(&be_block_content::ARTIFACT);
     let references = source.contents();
     let author = account().unwrap_or_default();
-    with_shared_mut(|shared| {
-        shared.graph.change(Node {
-            id: to,
-            content_type: source.content_type,
-            author: Some(author),
-            parent: Some(be_block_graph::BlockParent::Detached),
-            access: be_block_graph::Access::Manage,
-            references,
-            metadata: metadata.clone(),
-            head: None,
-            locked: false,
-            held: true,
-            sets_access: false,
-            size: 0,
-            tree_size: 0,
-        });
-    });
+    edit(vec![Edit::Node(Node {
+        id: to,
+        content_type: source.content_type,
+        author: Some(author),
+        parent: Some(be_block_graph::BlockParent::Detached),
+        access: be_block_graph::Access::Manage,
+        references,
+        metadata: metadata.clone(),
+        head: None,
+        locked: false,
+        held: true,
+        sets_access: false,
+        size: 0,
+        tree_size: 0,
+    })]);
     send(Command::Duplicate {
         from,
         to,
@@ -704,46 +835,19 @@ pub fn seed(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
 }
 
 fn show_staged(block: Uuid) {
-    with_shared_mut(|shared| {
-        if shared.blocks.contains_key(&block) {
-            return;
-        }
-        let Some(content) = shared
-            .staged
-            .get(&block)
-            .filter(|(content_type, _)| is_known(*content_type))
-            .map(|(content_type, bytes)| Content::new(*content_type, bytes.clone()))
-        else {
-            return;
-        };
-        shared.blocks.insert(block, content);
-        shared.previewed.insert(block);
-        shared.touch(block);
-    });
-}
-
-fn shared_content(shared: &Shared, block: Uuid) -> Option<&Content> {
-    match shared.revision_previews.get(&block) {
-        Some(preview)
-            if !preview.released
-                && shared
-                    .graph
-                    .get(preview.source)
-                    .is_some_and(|node| node.access.can_view()) =>
-        {
-            preview.content.as_ref()
-        }
-        Some(_) => None,
-        None => shared.blocks.get(&block),
+    if with_seen(|seen| !seen.blocks.contains_key(&block) && seen.staged.contains_key(&block))
+        .unwrap_or_default()
+    {
+        edit(vec![Edit::ShowStaged(block)]);
     }
 }
 
 pub fn content(block: Uuid) -> Option<Content> {
-    with_shared(|shared| shared_content(shared, block).cloned())?
+    with_seen(|seen| seen.content(block).cloned())?
 }
 
 pub fn describe_block(block: Uuid) -> Option<be_block_content::Entries> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         shared
             .described
             .get(&block)
@@ -752,7 +856,7 @@ pub fn describe_block(block: Uuid) -> Option<be_block_content::Entries> {
 }
 
 pub fn pairing_requests() -> Vec<PairingRequest> {
-    with_shared(|shared| shared.pairing.clone()).unwrap_or_default()
+    with_seen(|shared| shared.pairing.clone()).unwrap_or_default()
 }
 
 /// Approves a device asking to pair; `reply` hears whether it was, or the refusal to show where
@@ -765,7 +869,7 @@ pub fn approve_pairing(
     send(Command::ApprovePairing {
         from,
         code,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -774,21 +878,23 @@ pub fn dismiss_pairing(from: u64) {
 }
 
 pub fn contacts() -> Vec<be_block_client::Contact> {
-    with_shared(|shared| shared.contacts.clone()).unwrap_or_default()
+    with_seen(|shared| shared.contacts.to_vec()).unwrap_or_default()
 }
 
 /// The account's storage as the server last said, while `watch_storage` is on.
 pub fn storage_usage() -> Option<be_block_protocol::AccountStorage> {
-    with_shared(|shared| shared.storage.clone()).flatten()
+    with_seen(|shared| shared.storage.clone()).flatten()
 }
 
 /// Follows the account's storage while `on`, from a stream the server sends it on.
 pub fn watch_storage(on: bool) {
-    let changed =
-        with_shared_mut(|shared| std::mem::replace(&mut shared.storage_watched, on) != on)
-            .unwrap_or(false);
+    let changed = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_mut()
+        .is_some_and(|stack| std::mem::replace(&mut stack.storage_watched, on) != on);
     if changed {
-        send(Command::Storage);
+        send(Command::Storage(on));
     }
 }
 
@@ -806,7 +912,7 @@ pub fn make_contact_link(
     }
     send(Command::Contact(worker::ContactCommand::Link {
         offer,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -816,7 +922,7 @@ pub fn open_contact_link(
 ) {
     send(Command::Contact(worker::ContactCommand::Open {
         code,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -826,7 +932,7 @@ pub fn accept_contact_link(
 ) {
     send(Command::Contact(worker::ContactCommand::Accept {
         code,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -835,17 +941,20 @@ pub fn remove_contact(account: Uuid) {
 }
 
 pub fn escrow_warning() -> Option<&'static str> {
-    with_shared(|shared| shared.escrow_warning).flatten()
+    with_seen(|shared| shared.escrow_warning).flatten()
 }
 
 pub fn status() -> Status {
-    with_shared(|shared| Status {
+    let Some((shared, pending)) = with_stack(|stack| (stack.view(), stack.pending())) else {
+        return Status::default();
+    };
+    Status {
         running: true,
         connected: shared.connected,
         connecting: !shared.connected && !shared.reached,
         blocks: shared.blocks.len(),
         wakes: shared.wakes,
-        unsaved: shared.undurable + shared.pending + shared.importing,
+        unsaved: shared.undurable + pending + shared.importing,
         kept: shared.waiting,
         saves: shared.saves,
         conflicts: shared.conflicts.values().map(Vec::len).sum(),
@@ -854,12 +963,11 @@ pub fn status() -> Status {
         waiting: shared.unsealed + shared.waiting,
         syncing: shared.draining || (shared.connected && shared.unsealed + shared.waiting > 0),
         unsent: shared.unsent.len(),
-    })
-    .unwrap_or_default()
+    }
 }
 
 pub fn unsent() -> Vec<UnsentEdit> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         shared
             .unsent
             .iter()
@@ -901,18 +1009,39 @@ fn send(command: Command) {
     let Some(commands) = &stack.commands else {
         return;
     };
-    stack
-        .shared
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .pending += 1;
+    stack.sent.fetch_add(1, Ordering::AcqRel);
     if commands.send(command).is_err() {
-        stack
-            .shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .pending -= 1;
+        stack.sent.fetch_sub(1, Ordering::AcqRel);
     }
+}
+
+/// Lays `edits` over what the page reads at once, and sends them to the worker, which applies
+/// them as it takes them (`Command::Edit`). On the worker thread itself, applies them to its
+/// `Seen` there.
+fn edit(edits: Vec<Edit>) {
+    if seen::here_mut(|shared| {
+        for edit in &edits {
+            for block in edit.apply(&mut shared.seen) {
+                shared.touch(block);
+            }
+        }
+    }) {
+        return;
+    }
+    let Some((number, touched)) = with_stack(|stack| {
+        stack.catch_up();
+        stack.edited += 1;
+        let view = Arc::make_mut(&mut stack.view);
+        let touched: Vec<Uuid> = edits.iter().flat_map(|edit| edit.apply(view)).collect();
+        stack.edits.push((stack.edited, edits.clone()));
+        (stack.edited, touched)
+    }) else {
+        return;
+    };
+    for block in touched {
+        changes::block(block);
+    }
+    send(Command::Edit(number, edits));
 }
 
 /// Why the block store keeps a driver waiting (`Shared::busy`). `hurried` says whether the host
@@ -921,21 +1050,26 @@ fn send(command: Command) {
 /// spell, as for a person, which is a timer rather than work, and counts as out of step
 /// (`unsynced`) instead.
 pub fn busy(hurried: bool) -> Vec<String> {
-    with_shared(|shared| shared.busy(hurried)).unwrap_or_default()
+    with_stack(|stack| {
+        let pending = stack.pending();
+        let view = stack.view();
+        view.busy_with(hurried, pending, view.search_busy)
+    })
+    .unwrap_or_default()
 }
 
 /// Why the device is not in step with the server yet (`Shared::unsynced`): connected, nothing
 /// waiting to be sent, and everything it missed since it connected asked for. The block store
 /// not running is a reason too.
 pub fn unsynced() -> Vec<String> {
-    with_shared(Shared::unsynced)
+    with_seen(Seen::unsynced)
         .unwrap_or_else(|| vec!["the block store is not running".to_owned()])
 }
 
 /// While a held clock keeps the type modules' timers from firing, when the soonest comes due
 /// on it (`Shared::modules_due`).
 pub fn modules_due() -> Option<std::time::Instant> {
-    with_shared(|shared| shared.modules_due).flatten()
+    with_seen(|shared| shared.modules_due).flatten()
 }
 
 /// Holds this stack's outbox from draining while `hold`; letting go starts a drain.
@@ -954,7 +1088,7 @@ pub(crate) fn hold_next_version_write(held: version::HeldWrite) {
 }
 
 pub fn seal_owed() {
-    if with_shared(|shared| shared.owing > 0 && shared.pending == 0).unwrap_or_default() {
+    if with_stack(|stack| stack.view().owing > 0 && stack.pending() == 0).unwrap_or_default() {
         send(Command::SealOwed);
     }
 }
@@ -963,7 +1097,7 @@ pub fn seal_owed() {
 /// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
     let (done, _) = std::sync::mpsc::channel();
-    send(Command::Flush(done));
+    send(Command::Flush(worker::FlushReply(done)));
 }
 
 /// How long a test waits for a stack that makes no progress before failing: a wait that never
@@ -992,10 +1126,19 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
         .expect("the stack is running");
     let started = std::time::Instant::now();
     let mut deadline = started + WAIT_LIMIT;
+    let handover = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_ref()
+        .map(|stack| Arc::clone(&stack.handover))
+        .expect("the stack is running");
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut seen = held.progressed;
     loop {
         if let Some(value) = read(&held) {
+            // What the page reads has what was waited for, though the worker has not handed
+            // it over yet.
+            seen::publish(&mut held, &handover);
             return value;
         }
         // A driven clock (`Clock::driven`) never reaches the moment the stack waits on to try the
@@ -1023,7 +1166,7 @@ pub fn wait_until<T>(read: impl Fn(&Shared) -> Option<T>) -> T {
                 held.reached,
                 held.error,
                 held.reconnect.is_some(),
-                held.pending,
+                held.pending(),
                 held.owing,
                 held.owing_blocks
                     .iter()
@@ -1100,11 +1243,24 @@ pub fn refetch(query: Query) {
     send(Command::Sync);
 }
 
+/// Changes the worker's own state from a test, and hands it over for the page to read.
+#[cfg(any(test, feature = "testing"))]
 fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
     let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;
     let mut shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
-    Some(change(&mut shared))
+    let changed = change(&mut shared);
+    seen::publish(&mut shared, &stack.handover);
+    Some(changed)
+}
+
+/// Reads the worker's own state from a test.
+#[cfg(test)]
+fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {
+    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    let stack = held.as_ref()?;
+    let shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
+    Some(read(&shared))
 }
 
 pub fn account() -> Option<Uuid> {
@@ -1152,7 +1308,7 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
 /// The workspace's peer while the host is not connected, for telling apps which blocks this
 /// device cannot read (`BlockInfo::out_of_reach`).
 pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
-    with_shared(|shared| match shared.connected {
+    with_seen(|shared| match shared.connected {
         true => None,
         false => shared.peer.clone(),
     })
@@ -1171,25 +1327,21 @@ pub fn out_of_reach(block: Uuid) -> bool {
 
 pub fn ready(query: Query) -> bool {
     let query = sourced(query);
-    with_shared(|shared| shared.graph.ready(query)).unwrap_or_default()
+    with_seen(|shared| shared.graph.ready(query)).unwrap_or_default()
 }
 
 pub fn failure(query: Query) -> Option<String> {
     let query = sourced(query);
-    with_shared(|shared| shared.graph.failure(query)).flatten()
+    with_seen(|shared| shared.graph.failure(query)).flatten()
 }
 
 pub fn want(owner: Owner, queries: Vec<Query>) {
     let queries: Vec<Query> = queries.into_iter().map(sourced).collect();
-    let fetch = with_shared_mut(|shared| {
-        if shared.graph.wanted(owner) == queries.as_slice() {
-            return false;
-        }
-        shared.graph.want(owner, queries);
-        shared.graph.fetching()
-    })
-    .unwrap_or_default();
-    if fetch {
+    if with_seen(|seen| seen.graph.wanted(owner) == queries.as_slice()).unwrap_or(true) {
+        return;
+    }
+    edit(vec![Edit::Want(owner, queries)]);
+    if with_seen(|seen| seen.graph.fetching()).unwrap_or_default() {
         send(Command::Sync);
     }
 }
@@ -1197,14 +1349,32 @@ pub fn want(owner: Owner, queries: Vec<Query>) {
 /// Names the full-text searches an owner shows (guides/blocks/host.md, "Search"); `searched`
 /// answers each once it ran, and again after an index it read changed (`Changes::search`).
 pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
-    let changed = with_shared_mut(|shared| shared.search.want(owner, searches)).unwrap_or_default();
+    // Nothing asked, and nothing was: not a change, and callers say so every frame.
+    let changed = with_stack(|stack| {
+        if stack.searches.get(&owner) == Some(&searches)
+            || (searches.is_empty() && !stack.searches.contains_key(&owner))
+        {
+            return false;
+        }
+        match searches.is_empty() {
+            true => stack.searches.remove(&owner),
+            false => stack.searches.insert(owner, searches.clone()),
+        };
+        true
+    })
+    .unwrap_or_default();
     if changed {
-        send(Command::Sync);
+        send(Command::WantSearches(owner, searches));
     }
 }
 
 pub fn searched(search: &SearchAsk) -> Option<Searched> {
-    with_shared(|shared| shared.search.answer(search)).flatten()
+    with_seen(|seen| {
+        let mut shown = seen.searched.get(search)?.clone();
+        shown.complete = seen.search_indexed;
+        Some(shown)
+    })
+    .flatten()
 }
 
 fn sourced(query: Query) -> Query {
@@ -1221,7 +1391,7 @@ fn sourced(query: Query) -> Query {
 }
 
 pub fn with_graph<T>(read: impl FnOnce(&Graph) -> T) -> Option<T> {
-    with_shared(|shared| read(&shared.graph))
+    with_seen(|shared| read(&shared.graph))
 }
 
 pub fn query(query: Query) -> Vec<Node> {
@@ -1231,11 +1401,11 @@ pub fn query(query: Query) -> Vec<Node> {
         return node(id).into_iter().collect();
     }
     let query = sourced(query);
-    with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
+    with_seen(|shared| shared.graph.query(query)).unwrap_or_default()
 }
 
 pub fn node(block: Uuid) -> Option<Node> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         if let Some(preview) = shared.revision_previews.get(&block) {
             let mut node = shared.graph.get(preview.source)?.clone();
             node.id = block;
@@ -1252,7 +1422,7 @@ pub fn node(block: Uuid) -> Option<Node> {
 
 pub fn may_load(block: Uuid) -> bool {
     node(block).is_none_or(|node| node.access.can_view())
-        && with_shared(|shared| !shared.unreadable.contains_key(&block)).unwrap_or_default()
+        && with_seen(|shared| !shared.unreadable.contains_key(&block)).unwrap_or_default()
 }
 
 pub fn access(block: Uuid) -> be_block_graph::Access {
@@ -1291,31 +1461,21 @@ pub fn create(
         metadata.derived = kind.described.derived;
     }
     let author = account().unwrap_or_default();
-    with_shared_mut(|shared| {
-        if let be_block_graph::BlockParent::Block(above) = parent
-            && shared
-                .graph
-                .get(above)
-                .is_some_and(|above| !above.unfiled() && !above.references.contains(&block))
-        {
-            shared.graph.placing(block, true);
-        }
-        shared.graph.change(Node {
-            id: block,
-            content_type,
-            author: Some(author),
-            parent: Some(parent),
-            access: be_block_graph::Access::Manage,
-            references: Vec::new(),
-            metadata: metadata.clone(),
-            head: None,
-            locked: false,
-            held: true,
-            sets_access: false,
-            size: 0,
-            tree_size: 0,
-        });
-    });
+    edit(vec![Edit::Create(Node {
+        id: block,
+        content_type,
+        author: Some(author),
+        parent: Some(parent),
+        access: be_block_graph::Access::Manage,
+        references: Vec::new(),
+        metadata: metadata.clone(),
+        head: None,
+        locked: false,
+        held: true,
+        sets_access: false,
+        size: 0,
+        tree_size: 0,
+    })]);
     send(Command::Create {
         block,
         content_type,
@@ -1327,7 +1487,7 @@ pub fn create(
 }
 
 pub fn placing(block: Uuid, placing: bool) {
-    with_shared_mut(|shared| shared.graph.placing(block, placing));
+    edit(vec![Edit::Placing(block, placing)]);
 }
 
 pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
@@ -1360,19 +1520,7 @@ pub fn set_parent(block: Uuid, parent: be_block_graph::BlockParent) {
             );
         }
     }
-    with_shared_mut(|shared| {
-        let placing = match parent {
-            be_block_graph::BlockParent::Block(above) => shared
-                .graph
-                .get(above)
-                .is_some_and(|above| !above.unfiled() && !above.references.contains(&block)),
-            be_block_graph::BlockParent::Root | be_block_graph::BlockParent::Detached => false,
-        };
-        shared.graph.placing(block, placing);
-        shared
-            .graph
-            .update(block, |node| node.parent = Some(parent))
-    });
+    edit(vec![Edit::Parent(block, parent)]);
     send(Command::SetParent { block, parent });
 }
 
@@ -1386,12 +1534,11 @@ pub fn define(block: Uuid, changes: Vec<be_block_content::Definition>) {
         return;
     }
     let derived = describe_block(block);
-    with_shared_mut(|shared| {
-        shared.graph.update(block, |node| node.metadata = next);
-        if let Some(derived) = derived {
-            shared.graph.derive(block, derived);
-        }
-    });
+    edit(vec![Edit::Define {
+        block,
+        metadata: next,
+        derived,
+    }]);
     send(Command::Define { block, changes });
 }
 
@@ -1403,7 +1550,7 @@ pub fn set_name(block: Uuid, name: Option<String>) {
 }
 
 pub fn describe_implicitly(block: Uuid, derived: be_block_content::Entries) {
-    with_shared_mut(|shared| shared.graph.derive(block, derived));
+    edit(vec![Edit::Derive(block, derived)]);
 }
 
 /// Gives `account` `access` to `block`; `reply` hears whether the server did, or the refusal
@@ -1418,14 +1565,14 @@ pub fn set_access(
         block,
         account,
         access,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
 /// Every block whose notification mode the account set to other than `all`, once the server
 /// has said: read when the host connects and again whenever another device changes one.
 pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
-    with_shared(|shared| {
+    with_seen(|shared| {
         shared
             .notify_modes
             .as_ref()
@@ -1443,13 +1590,17 @@ pub fn set_notify_mode(
     send(Command::SetNotifyMode {
         block,
         mode,
-        reply: Box::new(move |set| reply(set.map(|_| ()))),
+        reply: seen::after_publish(move |set: Result<be_block_protocol::NotifyMode, String>| {
+            reply(set.map(|_| ()));
+        }),
     });
 }
 
 /// The server's VAPID public key, which a browser subscribes with.
 pub fn push_key(reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-    send(Command::Push(worker::PushCommand::Key(Box::new(reply))));
+    send(Command::Push(worker::PushCommand::Key(seen::after_publish(
+        reply,
+    ))));
 }
 
 /// Registers this device's push endpoint for the signed-in account.
@@ -1459,7 +1610,7 @@ pub fn register_push_endpoint(
 ) {
     send(Command::Push(worker::PushCommand::Register {
         endpoint,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -1469,7 +1620,7 @@ pub fn unregister_push_endpoint(
 ) {
     send(Command::Push(worker::PushCommand::Unregister {
         address,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -1482,7 +1633,7 @@ pub fn open_push(
     send(Command::Push(worker::PushCommand::Open {
         message,
         now,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -1491,28 +1642,30 @@ pub fn open_push(
 pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::Leave {
         block,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
 
 pub fn list_members(reply: MembersReply) {
-    send(Command::Members(worker::MembersCommand::List(reply)));
+    send(Command::Members(worker::MembersCommand::List(
+        seen::after_publish(reply),
+    )));
 }
 
 pub fn set_role(account: Uuid, role: be_block_protocol::OrganizationRole, reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::SetRole {
         account,
         role,
-        reply,
+        reply: seen::after_publish(reply),
     }));
 }
 
 pub fn remove_member(account: Uuid, reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::Remove {
         account,
-        reply,
+        reply: seen::after_publish(reply),
     }));
 }
 
@@ -1566,7 +1719,7 @@ pub async fn invite(
     send(Command::Invite {
         email,
         role,
-        reply: Box::new(move |made| {
+        reply: seen::after_publish(move |made| {
             let _ = reply.send(made);
         }),
     });
@@ -1577,7 +1730,7 @@ pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredenti
     let (reply, made) = tokio::sync::oneshot::channel();
     send(Command::CreateAgent {
         name,
-        reply: Box::new(move |made| {
+        reply: seen::after_publish(move |made| {
             let _ = reply.send(made);
         }),
     });
@@ -1594,7 +1747,7 @@ pub fn create_block_agent(
     send(Command::CreateBlockAgent {
         block,
         name,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -1605,14 +1758,14 @@ pub fn rotate_agent_token(
 ) {
     send(Command::BlockAgent {
         agent,
-        change: worker::AgentChange::Rotate(Box::new(reply)),
+        change: worker::AgentChange::Rotate(seen::after_publish(reply)),
     });
 }
 
 pub fn remove_block_agent(agent: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::BlockAgent {
         agent,
-        change: worker::AgentChange::Remove(Box::new(reply)),
+        change: worker::AgentChange::Remove(seen::after_publish(reply)),
     });
 }
 
@@ -1624,7 +1777,7 @@ pub fn list_access(
 ) {
     send(Command::ListAccess {
         block,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -1636,7 +1789,7 @@ pub fn read_head(
     send(Command::ReadHead {
         block,
         commit,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -1645,7 +1798,7 @@ type Exported = Result<(String, Vec<u8>), String>;
 pub fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {
     send(Command::Export {
         block,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -1655,7 +1808,7 @@ pub fn plain_file(
 ) {
     send(Command::PlainFile {
         block,
-        reply: Box::new(reply),
+        reply: seen::after_publish(reply),
     });
 }
 
@@ -1695,37 +1848,37 @@ pub fn import(
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
     let mut imported = Vec::with_capacity(blocks.len());
+    let mut edits = Vec::with_capacity(blocks.len());
     for block in blocks.iter().cloned() {
         let placed = match block.parent {
             Some(position) => be_block_graph::BlockParent::Block(blocks[position].id),
             None => parent,
         };
-        with_shared_mut(|shared| {
-            shared.graph.change(Node {
-                id: block.id,
-                content_type: block.block_type,
-                author: Some(author),
-                parent: Some(placed),
-                access: be_block_graph::Access::Manage,
-                references: block.references.clone(),
-                metadata: block.metadata.clone(),
-                head: None,
-                locked: false,
-                held: true,
-                sets_access: false,
-                size: 0,
-                tree_size: 0,
-            });
-        });
+        edits.push(Edit::Node(Node {
+            id: block.id,
+            content_type: block.block_type,
+            author: Some(author),
+            parent: Some(placed),
+            access: be_block_graph::Access::Manage,
+            references: block.references.clone(),
+            metadata: block.metadata.clone(),
+            head: None,
+            locked: false,
+            held: true,
+            sets_access: false,
+            size: 0,
+            tree_size: 0,
+        }));
         if let Some(bytes) = &block.content {
-            with_shared_mut(|shared| {
-                shared
-                    .staged
-                    .insert(block.id, (block.block_type, bytes.clone()))
+            edits.push(Edit::Stage {
+                block: block.id,
+                content_type: block.block_type,
+                bytes: Arc::new(bytes.clone()),
             });
         }
         imported.push((block, placed));
     }
+    edit(edits);
     send(Command::Import(imported));
     Ok(top)
 }
@@ -1751,7 +1904,7 @@ pub fn import_file(
     send(Command::ContentOfFile {
         name,
         bytes,
-        reply: Box::new(move |content| {
+        reply: seen::after_publish(move |content: Result<(Uuid, Vec<u8>), String>| {
             reply(content.map(|(content_type, content)| {
                 let block = Uuid::now_v7();
                 create(block, content_type, parent, metadata, Some(content), false);
@@ -1761,11 +1914,26 @@ pub fn import_file(
     });
 }
 
-fn with_shared<T>(read: impl FnOnce(&Shared) -> T) -> Option<T> {
-    let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
-    let stack = held.as_ref()?;
-    let shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
-    Some(read(&shared))
+/// Reads what the page reads: the `Seen` the worker last handed over, with the page's own edits
+/// laid over it. Never waits on the worker. On the worker thread itself, reads its `Seen` there.
+fn with_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
+    if seen::on_worker() {
+        return seen::here(read);
+    }
+    let view = with_stack(Stack::view)?;
+    Some(read(&view))
+}
+
+/// What the page reads now, for a test that checks what a call it made changed there before
+/// the worker has handed that over.
+#[cfg(any(test, feature = "testing"))]
+pub fn read_seen<T>(read: impl FnOnce(&Seen) -> T) -> Option<T> {
+    with_seen(read)
+}
+
+fn with_stack<T>(use_stack: impl FnOnce(&mut Stack) -> T) -> Option<T> {
+    let mut held = stack().lock().unwrap_or_else(PoisonError::into_inner);
+    Some(use_stack(held.as_mut()?))
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]

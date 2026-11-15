@@ -70,6 +70,33 @@ wakes. The tasks beside the loop run only while it waits, so a pass whose wait w
 over before it began yields once; a wait that fails reports how many such
 passes came in a row.
 
+### What the page reads: `Seen`
+
+The worker's state is `Shared` (`worker.rs`); the part of it the host's synchronous calls in
+`lib.rs` read (the graph mirror, open blocks' content, histories and descriptions, version
+statuses, status counts, contacts, pairing, conflicts, search answers, editors' frames) is its
+`seen: Seen` (`seen.rs`), and `Shared` derefs to it. The host never locks `Shared`: the
+worker hands `Seen` over as a whole value, an `Arc<Seen>` swapped into a one-value atomic
+slot (`Handover`), which the host swaps out as it reads. Neither side waits on the other, as
+the web's page must not (plans/web_page_never_waits.md). The large parts are `Part`s, an
+`Arc` the worker copies on its next write, so a hand-over copies pointers.
+
+The worker publishes at the end of each pass and before the host hears anything from the
+worker thread: `changes::post`, `changes::wake` and a reply to a host call
+(`seen::after_publish`, which every reply in `lib.rs` goes through, a flush's answer too)
+are held thread-locally and go out from a task that publishes once the worker yields. So a
+read changes when its `Seen` lands, never before the host is told, and a test that heard a
+reply reads what the worker did before it. `wait_until`, and a test's change to `Shared`,
+publish too.
+
+What the host changes itself is an `Edit` (`create`, `define`, `set_parent`, `want`, an
+import, revision previews, comparing conflicts, taking an editor's frames): applied at once
+to the host's own view and sent as `Command::Edit`, numbered, which the worker applies as
+it takes the command. Until a `Seen` says the worker applied it (`edits_applied`), the host
+lays it over each `Seen` it takes. Everything else the host asks for is a command;
+`Seen::done` against the commands sent is what is pending. The modules' held clock is
+handed to a stack as it starts (`Inbox::held_clock`), then as `Command::HoldClock`.
+
 Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
 caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
 all) instead of waiting forever: tests share one stack in turn, so one endless
