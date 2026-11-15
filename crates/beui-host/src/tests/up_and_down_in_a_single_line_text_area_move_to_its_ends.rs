@@ -20,7 +20,7 @@ fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
                 font_size=AREA_FONT_SIZE
                 padding=AREA_PADDING
                 state={state}
-                single_line=true
+                single_line=true scroll={plain_scroll()}
             />
         }
     });
