@@ -8,6 +8,7 @@ fn a_local_accounts_stack_saves_with_no_server() {
     let harness = Harness::start();
     let organization = Uuid::now_v7();
     let local = || Config {
+        local: true,
         server_url: String::new(),
         organization,
         ..harness.config(harness.directory.join("local"))

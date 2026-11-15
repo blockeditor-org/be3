@@ -250,11 +250,15 @@ To see it locally: `./scripts/buck build //crates/be-server-bin:dist --show-outp
 staged `be-server --allow-login --allow-registration` and open http://127.0.0.1:9090/auth,
 registering with a code from `be-server invite-code create`; mailed codes and links are in its log.
 
-### Local profiles and the default server
+### Local accounts and the default server
 
-Only the embedded server offers local profiles, whose saved token is their only credential, so
-the account picker offers "Remove account…" instead of "Log out". Browser-origin requests can't
-reach the embedded server's account protocol.
+A local account has no server (plans/local_accounts.md): be-host makes its id, its identity
+(kept in plaintext in the host's state, so no phrase is asked for) and its one organization,
+under the account's own id, on the device (`create_local_account`), and its stack runs on a
+peer of its own (guides/blocks/client.md, Saving and the outbox). It is offered on every
+platform, the web too. Having nothing to sign out of, the account picker offers "Remove
+account…" instead of "Log out", and what needs a server (sharing, members, contacts, agents,
+invitations) answers that a local account has none.
 
 `./scripts/deploy` writes `default_server` (`name`, `api_url`, `auth_url`, `gateway_required`)
 into every bundle's `build-info.json`; ordinary builds omit it and offer local or custom servers.

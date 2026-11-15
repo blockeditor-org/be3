@@ -2,7 +2,9 @@ use super::*;
 
 #[test]
 fn the_members_dialog_lists_an_organizations_members_and_their_roles() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.switch-organization");
     host.click("TextInput \"Organization name\"");
@@ -12,7 +14,7 @@ fn the_members_dialog_lists_an_organizations_members_and_their_roles() {
     host.click("#file-tree.host-menu");
     host.click("#host.menu.members");
     host.wait("Dialog \"Members\"");
-    host.wait("Label value=\"Administrator\"");
+    host.wait("Label value=\"dev@example.com, Administrator\"");
     host.crop("Dialog \"Members\"");
     host.snapshot("the_members_dialog_lists_an_organizations_members_and_their_roles");
     host.close();

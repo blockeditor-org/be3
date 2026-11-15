@@ -2,7 +2,10 @@ use super::*;
 
 #[test]
 fn leaving_a_workspace_someone_shared_asks_first() {
-    let mut host = HostTest::start(Options::default());
+    let server = Server::start();
+    let dev = server.account("Dev");
+    let ada = server.account("Ada");
+    let mut host = HostTest::device(&dev);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.click("#host.contacts.new-link");
@@ -20,14 +23,10 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     host.pause(500);
     host.gone("Dialog \"Contacts\"");
 
-    host.click("#file-tree.host-menu");
-    host.click("#host.menu.accounts");
-    host.click("Button \"Add account\"");
-    host.click("#account.local");
-    host.click("#account.name");
-    host.type_text("Ada");
-    host.click("#account.confirm");
-    host.click("Button \"Personal\"");
+    let dev_device = host;
+    let mut host = HostTest::device(&ada);
+    // Made on Dev's device, the link names the server as that device reaches it.
+    let link = link.replacen(&dev_device.server_url(), &host.server_url(), 1);
     host.click("#file-tree.host-menu");
     host.click("#host.menu.contacts");
     host.click("#host.contacts.paste");
@@ -49,15 +48,14 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     host.click("#file-tree.section.share");
     host.click("#share.query");
     host.type_text("dev");
-    host.click("Button \"Dev\"");
+    host.click("Button \"Dev (dev@example.com)\"");
     host.click("#share.add");
     host.wait("Label value=\"Dev\"");
     host.click("#share.close");
 
-    host.click("#file-tree.host-menu");
-    host.click("#host.menu.accounts");
-    host.click("#account.open.Dev");
-    host.gone("#account.open.Dev");
+    host.synced();
+    host.close();
+    let mut host = dev_device;
     host.wait("TreeItem \"Team\"");
     host.run(&["click", "TreeItem \"Team\"", "right"]);
     host.click("#file-tree.section.leave");

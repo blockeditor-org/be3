@@ -93,8 +93,6 @@ pub(crate) struct PairingRow {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ErrorAction {
     DeleteClientDatabase,
-    #[cfg(not(target_arch = "wasm32"))]
-    DeleteServerDatabase,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

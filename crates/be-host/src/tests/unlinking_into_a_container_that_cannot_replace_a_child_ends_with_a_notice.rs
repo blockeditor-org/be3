@@ -7,7 +7,7 @@ use super::*;
 #[test]
 fn unlinking_into_a_container_that_cannot_replace_a_child_ends_with_a_notice() {
     let state = HostStateStore::open(":memory:").expect("the host state opens");
-    let mut core = HostCore::with_state(state, String::new()).expect("the app starts");
+    let mut core = HostCore::with_state(state).expect("the app starts");
     let (source, container) = (Uuid::new_v4(), Uuid::new_v4());
     core.block_types
         .insert(source, be_block::TagsContent::CONTENT_TYPE);

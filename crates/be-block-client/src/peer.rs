@@ -314,6 +314,10 @@ pub struct Peer<S: ObjectStore> {
     /// A local account's peer (`Peer::local`), which has no server: what it makes is final as
     /// it is made.
     local: bool,
+    /// The blocks a local account's peer settled since they were last taken
+    /// (`take_settled_here`): with no server to list what changed, this is how its host hears
+    /// of them (a search index catching up, above all).
+    settled_here: Mutex<HashSet<Uuid>>,
 }
 
 /// What this device knows of the server's clock (`Peer::server_now`).
@@ -418,6 +422,12 @@ impl<S: ObjectStore> Peer<S> {
         self.local
     }
 
+    /// The blocks a local account's peer made, changed, moved or named since this was last
+    /// asked: what a server's `changed-since` would list for it.
+    pub fn take_settled_here(&self) -> HashSet<Uuid> {
+        std::mem::take(&mut *self.settled_here.lock().unwrap())
+    }
+
     fn assemble(
         connection: Arc<Connection>,
         account: Uuid,
@@ -471,6 +481,7 @@ impl<S: ObjectStore> Peer<S> {
                 offset: session.as_ref().and_then(|session| session.server_offset),
             }),
             local: false,
+            settled_here: Mutex::new(HashSet::new()),
         };
         for summary in peer.refs.summaries() {
             if let Some(key) = summary.key {
@@ -1232,6 +1243,12 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
+        // A local account makes the block here (`keep_creation`).
+        if self.local {
+            return self
+                .keep_creation(block, content_type, parent, metadata, owner_only)
+                .await;
+        }
         let creation = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
@@ -1275,6 +1292,13 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<BlockSummary, ClientError> {
+        // A local account refuses a second block under an id it holds, as a server does.
+        if self.local && self.refs.summary(block).is_some() {
+            return Err(ClientError::Refused(
+                ErrorCode::BlockAlreadyExists,
+                format!("block {block} already exists"),
+            ));
+        }
         let creation = self
             .creation(block, content_type, parent, metadata, owner_only)
             .await?;
@@ -1545,6 +1569,17 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn summary(&self, block: Uuid) -> Result<BlockSummary, ClientError> {
+        // A local account holds every block it has: one it does not hold is not there, as a
+        // server answers of a block it does not know.
+        if self.local {
+            return match self.refs.summary(block) {
+                Some(summary) => Ok(self.refs.current(vec![summary]).remove(0)),
+                None => Err(ClientError::Refused(
+                    ErrorCode::BlockNotFound,
+                    format!("block {block} is not on this device"),
+                )),
+            };
+        }
         // The server does not know a block whose creation waits in the outbox, or was refused.
         if self.uncreated(block)
             && let Some(summary) = self.refs.summary(block)
