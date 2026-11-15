@@ -3,8 +3,7 @@ use std::{env, error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 use be_server::{ServerConfig, backup};
 use tokio::net::TcpListener;
 
-const USAGE: &str = "\
-Usage:
+const USAGE: &str = r#"Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
             [--build-info-file FILE] [--auth-origin URL] [--account-quota BYTES]
             [--trusted-proxy ADDR]... [--object-cache BYTES] [--public-url URL]
@@ -87,7 +86,7 @@ authoritative_email has its verified emails trusted. {"id": "google", "preset":
 provider leaves the accounts that sign in only with it with no way in but
 `login-link --account ID`; the server warns of them at start.
 
-RUST_LOG sets what is logged (default: info).";
+RUST_LOG sets what is logged (default: info)."#;
 
 macro_rules! assets {
     ($($name:literal: $content_type:literal),* $(,)?) => {
@@ -459,9 +458,12 @@ fn login_link(
     };
     let link = login_links::create(&data_dir, whom)?;
     println!("{origin}{}", login_links::path(&link.token));
+    let named = match (link.email.as_str(), account) {
+        ("", Some(account)) => format!("account {account}"),
+        (email, _) => email.to_owned(),
+    };
     eprintln!(
-        "a login link for {} made, good once for fifteen minutes{}",
-        link.email,
+        "a login link for {named} made, good once for fifteen minutes{}",
         if link.registers {
             "; using it makes the account"
         } else {

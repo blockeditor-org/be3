@@ -140,7 +140,21 @@ fn validate(provider: &Provider) -> Result<(), String> {
             "provider {id}: its issuer must be https (http only on this machine, for tests)"
         ));
     }
-    if issuer.query().is_some() || issuer.fragment().is_some() || provider.issuer.contains('{') {
+    // Microsoft's multi-tenant issuers answer for every tenant: each signs its own `sub`s, so
+    // one tenant's administrator could sign in as another's people.
+    let multi_tenant = issuer.host_str() == Some("login.microsoftonline.com")
+        && issuer.path_segments().and_then(|mut segments| segments.next()).is_some_and(
+            |tenant| {
+                ["common", "organizations", "consumers"]
+                    .iter()
+                    .any(|shared| tenant.eq_ignore_ascii_case(shared))
+            },
+        );
+    if multi_tenant
+        || issuer.query().is_some()
+        || issuer.fragment().is_some()
+        || provider.issuer.contains('{')
+    {
         return Err(format!(
             "provider {id}: its issuer is one tenant's, with no query or template"
         ));

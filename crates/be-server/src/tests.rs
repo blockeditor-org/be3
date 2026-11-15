@@ -1652,10 +1652,14 @@ async fn with_provider(authoritative_email: bool) -> (Harness, crate::fake_provi
     .await;
     (harness, provider)
 }
-/// How many accounts the server has.
+/// How many accounts people have on the server, leaving out the server's own.
 fn accounts(harness: &Harness) -> i64 {
     metadata_database(&harness.directory)
-        .query_row("SELECT count(*) FROM accounts", [], |row| row.get(0))
+        .query_row(
+            "SELECT count(*) FROM accounts WHERE id NOT IN (SELECT account_id FROM server_account)",
+            [],
+            |row| row.get(0),
+        )
         .unwrap()
 }
 fn page_of(response: &str) -> be_server_portal::Page {

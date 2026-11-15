@@ -130,7 +130,10 @@ fn Footer(page: Shown) -> NodeId {
     let signed_in = account.is_some();
     let who = fixed(
         account
-            .map(|account| format!("Signed in as {} ({})", account.display_name, account.email))
+            .map(|account| match account.email.as_str() {
+                "" => format!("Signed in as {}", account.display_name),
+                email => format!("Signed in as {} ({email})", account.display_name),
+            })
             .unwrap_or_default(),
     );
     let shows_sign_out = signed_in && page.read(|page| page.screen != Screen::Approve);

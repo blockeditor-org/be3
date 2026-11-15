@@ -48,4 +48,13 @@ async fn linking_or_proving_with_a_provider_needs_the_signed_in_account() {
         .provider_sign_in(&harness, &provider, "test", "?intent=link", Grant::new("ada"))
         .await;
     assert_eq!(status, 400);
+    // A link ada began, answered once the browser is signed in as someone else, links nothing.
+    let url = ada.start_provider(&harness, "test", "?intent=link").await;
+    let own = std::mem::replace(&mut ada.cookie, eve.cookie.clone());
+    let back = provider.authorize(&url, Grant::new("carol"));
+    assert_eq!(ada.provider_callback(&harness, &back).await.0, 400);
+    ada.cookie = own;
+    assert_eq!(store.identities(account).await.unwrap().len(), 2);
+    let eve_account = store.browser_profile(&eve.cookie).await.unwrap().account;
+    assert_eq!(store.identities(eve_account).await.unwrap().len(), 1);
 }

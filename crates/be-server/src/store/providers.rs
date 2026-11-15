@@ -320,9 +320,21 @@ impl ServerStore {
         match begun.intent {
             Intent::Link => {
                 let account = begun.account.ok_or_else(|| refused("Sign in to continue."))?;
-                self.require_fresh(browser).await?;
+                let browser = hash_token(browser);
                 self.with_database(move |store, database| {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                    // The browser must still be the account that began it, and have proved so
+                    // just now: a session that changed or went stale meanwhile links nothing.
+                    let fresh: bool = transaction.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM sessions WHERE token_hash = ?1 AND account_id = ?2 AND kind = 'browser' AND expires > ?3 AND proved > ?4)",
+                        params![browser, account.to_string(), now(), now() - super::codes::FRESH_PROOF],
+                        |row| row.get(0),
+                    )?;
+                    if !fresh {
+                        return Err(refused(
+                            "Confirm it is you first, with a code to your email or a provider you sign in with.",
+                        ));
+                    }
                     add_provider_identity(&transaction, account, &subject, &email)?;
                     transaction.commit()?;
                     store.sessions_changed();

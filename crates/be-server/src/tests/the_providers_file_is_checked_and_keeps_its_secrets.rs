@@ -23,6 +23,8 @@ fn the_providers_file_is_checked_and_keeps_its_secrets() {
         format!("[{}, {}]", entry("a", "https://one.example"), entry("b", "https://one.example")),
         format!("[{}]", entry("a", "http://one.example")),
         format!("[{}]", entry("a", "https://login.example.com/{tenantid}/v2.0")),
+        format!("[{}]", entry("a", "https://login.microsoftonline.com/common/v2.0")),
+        format!("[{}]", entry("a", "https://login.microsoftonline.com/Organizations/v2.0")),
         format!("[{}]", entry("Has Space", "https://one.example")),
         r#"[{"id": "g", "preset": "google", "issuer": "https://evil.example", "client_id": "c", "client_secret": "s"}]"#.to_owned(),
     ] {
