@@ -29,8 +29,7 @@ fn an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining(
             .status(block)
             .is_none_or(|status| !status.clean || status.head.is_none())
         {
-            replicas.woken().await;
-            replicas.pump((&peer, &shared)).await;
+            step(&peer, &shared, &mut replicas).await;
         }
         let clean = replicas.status(block).expect("the text is open");
         type_at_start(&mut replicas, block, editor, &mut mirror, "socks ");
@@ -43,8 +42,7 @@ fn an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining(
         replicas.reconnect((&peer, &shared));
         assert!(replicas.joining(), "it joins its session again");
         while replicas.joining() {
-            replicas.woken().await;
-            replicas.pump((&peer, &shared)).await;
+            step(&peer, &shared, &mut replicas).await;
         }
         replicas.pump((&peer, &shared)).await;
         let bytes = replicas

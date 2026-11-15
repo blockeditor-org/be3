@@ -8,7 +8,7 @@ interface replicas {
     use types.{
         account-id, block-id, change, client-id, commit-id, content-type-id, description, editor-id,
         delivery, endpoint, failure, journal, loaded, merged, merged-parts, organization-id, part-ref, plain-file,
-        search-document, session-state, session-tag, type-info,
+        journal-entry, search-document, session-state, session-tag, type-info,
     };
 
     record opening {
@@ -20,6 +20,24 @@ interface replicas {
         account: account-id,
         client: client-id,
         tag: session-tag,
+        /// The replica's submissions name it, kept across its reopenings, so a
+        /// reopened replica knows its own in the journal.
+        origin: u64,
+        /// How many local edits the host gave earlier openings of this replica
+        /// and gives this one no more: the first edit it is given is the next.
+        taken-before: u64,
+        /// The last of the local edits it is given again that an earlier
+        /// opening submitted to the server without hearing it ordered, when it
+        /// opens before joining its session (after the host stopped): it shows
+        /// them, but neither numbers nor submits them, since the server may
+        /// hold them already. Once joined, the server's order says which.
+        doubtful-through: u64,
+        /// For local edits the host kept across a stop: how many times the
+        /// session had started over for the replica that made them
+        /// (`status.restarts`), and the number of the last of them. Opened on an order restarted since,
+        /// those edits are dropped, each told to its editor as not sent.
+        kept-restart: u64,
+        kept-through: u64,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,
@@ -30,7 +48,7 @@ interface replicas {
         /// on `head` holds some this module cannot replay, or the server
         /// marked them lost since the last commit.
         lost-edits: bool,
-        /// `journal` is this device's, holding entries the server lacks.
+        /// `journal` is this device's, numbered offline: the server lacks it.
         journal-kept: bool,
         /// Whether this device keeps commits of the block the server lacks: an
         /// edit an earlier replica kept for one is sending, failed, or held.
@@ -44,12 +62,11 @@ interface replicas {
         /// aside in the unsent area. They stay there after the edit that sent them is
         /// let go, so a replica applies the refusal of each commit once.
         refused-commits: list<commit-id>,
-        /// The block's head when it is a seal this device made on `head`, which
-        /// the journal is still on: the owner stopped after the server took the
-        /// seal and before it heard so. The replica replays the journal on
+        /// The block's head when it is a seal made on `head`, which the journal
+        /// is still on: its holder stopped after the server took the seal and
+        /// before it trimmed the journal. The replica replays the journal on
         /// `head`, then takes `sealed-head.commit` as its head, holding the
-        /// session through `sealed-head.through`, and keeps journaled what came
-        /// after.
+        /// order through `sealed-head.through`.
         sealed-head: option<sealed-head>,
         /// Which opening of this replica this is: the host counts each
         /// `reopen`, and the replica says it with every `status`, so a status
@@ -109,10 +126,15 @@ interface replicas {
         /// on opening), and those this device publishes outside the session.
         head-moved: async func(head: commit-id);
 
-        /// The session's state changed, or the host fell behind the broadcast.
-        lease: async func(session: session-state, resynchronize: bool);
+        /// The session's state changed.
+        lease: async func(session: session-state);
 
-        /// Claim a lapsed lease once the replica has caught up, as a terminal host does.
+        /// The order numbered these submissions, in order, this replica's own
+        /// among them: the host hands on every one it hears, and reopens the
+        /// replica when it missed some.
+        sequenced: async func(entries: list<journal-entry>);
+
+        /// Claim a lapsed lease once the replica has loaded, as a terminal host does.
         claim: async func();
 
         /// False when it did not apply.

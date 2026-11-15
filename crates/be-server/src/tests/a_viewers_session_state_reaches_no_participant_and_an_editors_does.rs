@@ -29,7 +29,7 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
     let (editor_id, _) = editor.join_session(block).await;
 
     let forged = guest
-        .relay(block, None, RelayKind::Edit, b"forged".to_vec())
+        .relay(block, None, RelayKind::Seal, b"forged".to_vec())
         .await;
     assert!(
         refused_as(&forged, ErrorCode::PermissionDenied),
@@ -41,14 +41,14 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
         .await;
     assert!(matches!(presence, Ok(())), "{presence:?}");
     let submit = editor
-        .relay(block, Some(owner_id), RelayKind::Edit, b"submit".to_vec())
+        .relay(block, Some(owner_id), RelayKind::Seal, b"submit".to_vec())
         .await;
     assert!(matches!(submit, Ok(())), "{submit:?}");
     let accepted = owner
         .relay(
             block,
             Some(editor_id),
-            RelayKind::Edit,
+            RelayKind::Seal,
             b"accepted".to_vec(),
         )
         .await;
@@ -60,11 +60,11 @@ async fn a_viewers_session_state_reaches_no_participant_and_an_editors_does() {
     );
     assert_eq!(
         relayed(&mut owner).await,
-        (editor_id, RelayKind::Edit, b"submit".to_vec())
+        (editor_id, RelayKind::Seal, b"submit".to_vec())
     );
     assert_eq!(
         relayed(&mut editor).await,
-        (owner_id, RelayKind::Edit, b"accepted".to_vec())
+        (owner_id, RelayKind::Seal, b"accepted".to_vec())
     );
     harness.stop().await;
 }

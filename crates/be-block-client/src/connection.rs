@@ -126,6 +126,12 @@ pub enum Event {
         /// When the server took it, by its clock (`relayed.received`).
         received: i64,
     },
+    /// The order of a block's session numbered a submission, this connection's own too
+    /// (`session-event.sequenced`); its payload sealed.
+    Sequenced {
+        block: Uuid,
+        entry: JournalEntry,
+    },
     Paired(PairingMessage),
     ContactsChanged,
     /// Keys this account may open were stored through another connection (`keys-changed`):
@@ -394,13 +400,15 @@ impl Connection {
         self.registry().client = Some(client);
     }
 
-    /// Joins a block's session: this connection's id, the session's state and the block's
-    /// journal as of joining, sealed.
+    /// Joins a block's session, running the build `tag` of its type: this connection's id, the
+    /// session's state and the block's journal as of joining, sealed. What the order numbers
+    /// after it arrives as `Event::Sequenced`.
     pub fn join_session(
         self: &Arc<Self>,
         block: Uuid,
+        tag: Hash,
     ) -> Answer<(ClientId, SessionState, Option<Journal>)> {
-        let session = Arc::new(client::sessions::Session::new(&self.peer, block));
+        let session = Arc::new(client::sessions::Session::new(&self.peer, block, tag));
         let mut joining = session.join();
         let left = self.registry().sessions.insert(block, Arc::clone(&session));
         drop(left);
@@ -413,9 +421,11 @@ impl Connection {
                     journal,
                 }) => Ok((client, state, journal)),
                 Some(SessionEvent::Refused(error)) => Err(ClientError::from(error)),
-                Some(SessionEvent::Changed(_) | SessionEvent::Relayed { .. }) => {
-                    Err(ClientError::Unexpected)
-                }
+                Some(
+                    SessionEvent::Changed(_)
+                    | SessionEvent::Relayed { .. }
+                    | SessionEvent::Sequenced(_),
+                ) => Err(ClientError::Unexpected),
                 None => Err(joining
                     .ended()
                     .and_then(Result::err)
@@ -442,6 +452,7 @@ impl Connection {
                             payload,
                             received,
                         },
+                        SessionEvent::Sequenced(entry) => Event::Sequenced { block, entry },
                         SessionEvent::Joined { .. } | SessionEvent::Refused(_) => continue,
                     });
                 }
@@ -484,10 +495,10 @@ impl Connection {
         })
     }
 
-    pub fn claim_ownership(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
+    pub fn claim_lease(&self, block: Uuid, generation: u64) -> Answer<SessionState> {
         let claimed = self
             .session(block)
-            .map(|session| session.claim_ownership(generation));
+            .map(|session| session.claim_lease(generation));
         Box::pin(async move { Ok(claimed?.await??) })
     }
 
@@ -516,30 +527,26 @@ impl Connection {
         Box::pin(async move { Ok(relayed?.await??) })
     }
 
-    pub fn append(
-        &self,
-        block: Uuid,
-        generation: u64,
-        tag: Hash,
-        entries: Vec<JournalEntry>,
-        relay: bool,
-    ) -> Answer<()> {
-        let appended = self
-            .session(block)
-            .map(|session| session.append(generation, tag, entries, relay));
-        Box::pin(async move { Ok(appended?.await??) })
+    /// Hands the session's order a submission, its payload sealed: answered once the server
+    /// numbered it and kept it in the journal, which every participant hears as
+    /// `Event::Sequenced`.
+    pub fn submit(&self, block: Uuid, submission: be_block_session::Submission) -> Answer<()> {
+        let submitted = self.session(block).map(|session| {
+            session.submit(
+                submission.id.origin,
+                submission.id.counter,
+                submission.base,
+                submission.barrier,
+                submission.payload,
+            )
+        });
+        Box::pin(async move { Ok(submitted?.await??) })
     }
 
-    pub fn rebase_journal(
-        &self,
-        block: Uuid,
-        generation: u64,
-        tag: Hash,
-        base: JournalBase,
-    ) -> Answer<()> {
+    pub fn rebase_journal(&self, block: Uuid, generation: u64, base: JournalBase) -> Answer<()> {
         let rebased = self
             .session(block)
-            .map(|session| session.rebase_journal(generation, tag, base));
+            .map(|session| session.rebase_journal(generation, base));
         Box::pin(async move { Ok(rebased?.await??) })
     }
 

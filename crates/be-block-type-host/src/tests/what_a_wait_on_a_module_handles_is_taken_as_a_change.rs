@@ -18,7 +18,7 @@ fn what_a_wait_on_a_module_handles_is_taken_as_a_change() {
             !replicas.take_changed(),
             "the pump took every change the opening made"
         );
-        let before = replicas.status(block).and_then(|status| status.head);
+        let before = replicas.status(block).map(|status| status.taken);
         let mut edited = base();
         edited.set(2, "deux");
         replicas.change_later(block, Change::Replace(edited.encode()));
@@ -30,7 +30,7 @@ fn what_a_wait_on_a_module_handles_is_taken_as_a_change() {
             .expect("the replica answers with its content");
 
         assert_ne!(
-            replicas.status(block).and_then(|status| status.head),
+            replicas.status(block).map(|status| status.taken),
             before,
             "the wait handled the status the change reported"
         );

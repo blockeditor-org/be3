@@ -1,19 +1,18 @@
-use std::collections::{HashMap, VecDeque};
-
 use be_block_commit::CommitId;
-use be_block_protocol::ClientId;
 use be_block_store::PartRef;
 use serde::{Deserialize, Serialize};
 
+/// A submission's id: the replica that made it (`origin`, random per replica and kept across
+/// its reopenings) and a counter that replica never repeats.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 pub struct OpId {
-    pub client: ClientId,
+    pub origin: u64,
     pub counter: u64,
 }
 
-/// An operation as a session carries it: its encoded bytes, or for one too large to relay
-/// (over `LARGEST_RELAYED_OPERATION` in be-sdk-type-guest) the part its sender put them as
-/// (`put-part`), which a replica reads before it applies the operation.
+/// An operation as a session carries it: its encoded bytes, or for one too large to submit
+/// inline (over `LARGEST_RELAYED_OPERATION` in be-sdk-type-guest) the part its sender put them
+/// as (`put-part`), which a replica reads before it applies the operation.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Payload {
     Inline(#[serde(with = "serde_bytes")] Vec<u8>),
@@ -38,65 +37,38 @@ impl Payload {
     }
 }
 
+/// What a replica hands the order: its id, the last sequence number the replica had applied
+/// when it made it (`base`), whether it is a barrier (a replacement or a restart, after which
+/// nothing based before it applies), and the sealed payload, which the server never opens.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Submission {
+    pub id: OpId,
+    pub base: u64,
+    pub barrier: bool,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
+}
+
+/// A submission as the order numbered it: `sequence` is its place, `floor` the lowest `base`
+/// still applied (the last barrier: an operation based below it is passed over by every replica
+/// alike), and
+/// `received` when the server took it, by its clock (none for an order kept offline).
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SessionOp {
     pub id: OpId,
     pub sequence: u64,
-    pub payload: Payload,
+    pub base: u64,
+    pub floor: u64,
+    pub received: Option<i64>,
+    #[serde(with = "serde_bytes")]
+    pub payload: Vec<u8>,
 }
 
+/// What replicas relay to each other outside the order.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum SessionMessage {
-    Submit {
-        id: OpId,
-        base: u64,
-        payload: Payload,
-    },
-    Accepted {
-        op: SessionOp,
-    },
-    /// A follower asks for what it lacks: the operations after `since`, and the head and
-    /// session state unless it already holds `base` as sealed at `sealed`.
-    Catchup {
-        since: u64,
-        base: Option<CommitId>,
-        sealed: u64,
-    },
-    Snapshot {
-        head: Option<CommitId>,
-        sealed: u64,
-        sequence: u64,
-        ops: Vec<SessionOp>,
-        #[serde(with = "serde_bytes")]
-        state: Vec<u8>,
-    },
-    /// The owner committed `head`, holding everything up to `sequence`. With `reload`,
-    /// followers load `head` with that session state; with `restart`, the session started over
-    /// from `head` loaded afresh, so what followers had pending moves onto it
-    /// (`LiveEdit::carry_over`) and undo stops there.
-    Sealed {
-        head: CommitId,
-        sequence: u64,
-        #[serde(with = "serde_bytes")]
-        reload: Option<Vec<u8>>,
-        restart: bool,
-    },
-    Replaced {
-        head: CommitId,
-    },
-    /// A follower kept edits it could not hand over as operations (what it had not saved when
-    /// a replacement landed) as `commit` on `base`; the owner keeps it in history and answers
-    /// `Saved`.
-    Kept {
-        commit: CommitId,
-        base: Option<CommitId>,
-    },
-    Saved {
-        commit: CommitId,
-    },
-    /// The owner could not read the part of a `Submit` it was sent: the follower submits what
-    /// it has pending again.
-    Resend,
+    /// The lease holder committed `head`, holding the order through `sequence`.
+    Sealed { head: CommitId, sequence: u64 },
     Presence {
         kind: uuid::Uuid,
         #[serde(with = "serde_bytes")]
@@ -109,264 +81,54 @@ pub enum SessionMessage {
     },
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Inherited {
-    Continued,
-    Duplicate,
-    Renumbered,
-    Unnumbered,
-}
-
-/// Whether a journal holds exactly what a seal of its session holds: its base is at or before
-/// the seal's sequence, and its last entry at or before that sequence is the seal's last, of the
-/// seal's generation, as are all the entries before it. `entries` are each entry's sequence and
-/// generation, in order. A journal with no entry through the seal holds nothing of it.
-pub fn reaches_seal(
-    base_sequence: u64,
-    entries: impl IntoIterator<Item = (u64, u64)>,
-    generation: u64,
-    through: u64,
-) -> bool {
-    let mut last = None;
-    for (sequence, of) in entries {
-        if sequence > through {
-            break;
-        }
-        if of != generation {
-            return false;
-        }
-        last = Some(sequence);
-    }
-    base_sequence <= through && last == Some(through)
-}
-
-#[derive(Clone, Debug, Default)]
+/// Where a session's order stands: the server's half of a live session, kept beside the block's
+/// journal (and on a device offline beside its own journal). It numbers each submission and
+/// keeps the floor.
+///
+/// - `sequence`: the last number given.
+/// - `barrier`: the last barrier's number; nothing based before it applies.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Sequencer {
-    sequence: u64,
-    head: Option<CommitId>,
-    log: VecDeque<SessionOp>,
-    /// Every operation it took, by id, with the number it has here: none for one it inherited
-    /// and could not number (`Inherited::Unnumbered`), which waits for a reload.
-    accepted: HashMap<OpId, Option<u64>>,
-    inherited: u64,
+    pub sequence: u64,
+    pub barrier: u64,
 }
 
 impl Sequencer {
-    pub fn new(head: Option<CommitId>) -> Self {
-        Self::continuing(head, 0, 0)
-    }
-
-    pub fn continuing(head: Option<CommitId>, sequence: u64, unsealed: u64) -> Self {
+    /// An order that starts after `sequence`, as a journal's base holds it.
+    pub fn starting(sequence: u64) -> Self {
         Self {
             sequence,
-            head,
-            log: VecDeque::new(),
-            accepted: HashMap::new(),
-            inherited: unsealed,
+            barrier: 0,
         }
     }
 
-    pub fn sequence(&self) -> u64 {
-        self.sequence
+    /// The floor an operation numbered now carries.
+    pub fn floor(&self) -> u64 {
+        self.barrier
     }
 
-    pub fn head(&self) -> Option<CommitId> {
-        self.head
-    }
-
-    pub fn accept(&mut self, id: OpId, payload: Payload) -> Option<SessionOp> {
-        if self.accepted.contains_key(&id) {
-            return None;
-        }
+    /// Numbers `submission`, taken at `received`.
+    pub fn number(&mut self, submission: Submission, received: Option<i64>) -> SessionOp {
         self.sequence += 1;
-        self.accepted.insert(id, Some(self.sequence));
-        let op = SessionOp {
-            id,
+        if submission.barrier {
+            self.barrier = self.sequence;
+        }
+        SessionOp {
+            id: submission.id,
             sequence: self.sequence,
-            payload,
-        };
-        self.log.push_back(op.clone());
-        Some(op)
-    }
-
-    /// The number `id` was taken as, if it was: a follower that did not hear so submits it again.
-    pub fn accepted_as(&self, id: OpId) -> Option<u64> {
-        self.accepted.get(&id).copied().flatten()
-    }
-
-    pub fn inherit(&mut self, op: &SessionOp) -> Inherited {
-        if self.accepted.contains_key(&op.id) {
-            return match self.log.iter().any(|held| held == op) {
-                true => Inherited::Duplicate,
-                false => Inherited::Renumbered,
-            };
+            base: submission.base,
+            floor: self.floor(),
+            received,
+            payload: submission.payload,
         }
-        if op.sequence != self.sequence + 1 {
-            self.accepted.insert(op.id, None);
-            return Inherited::Unnumbered;
-        }
-        self.accepted.insert(op.id, Some(op.sequence));
-        self.sequence = op.sequence;
-        self.log.push_back(op.clone());
-        Inherited::Continued
-    }
-
-    /// Takes an operation replayed from the journal, numbered as its owner numbered it: a
-    /// folded entry skips the numbers it absorbed.
-    pub fn replayed(&mut self, op: SessionOp) {
-        self.accepted.insert(op.id, Some(op.sequence));
-        self.sequence = self.sequence.max(op.sequence);
-        self.log.push_back(op);
-    }
-
-    pub fn since(&self, sequence: u64) -> Vec<SessionOp> {
-        self.log
-            .iter()
-            .filter(|op| op.sequence > sequence)
-            .cloned()
-            .collect()
-    }
-
-    pub fn sealed(&mut self, head: CommitId) {
-        self.sealed_through(head, self.sequence);
-    }
-
-    /// `head` holds every operation through `sequence`: those sequenced after it, while the
-    /// commit was on its way, stay unsealed.
-    pub fn sealed_through(&mut self, head: CommitId, sequence: u64) {
-        self.head = Some(head);
-        self.log.retain(|op| op.sequence > sequence);
-        self.inherited = 0;
-    }
-
-    pub fn inherited(&self) -> u64 {
-        self.inherited
-    }
-
-    pub fn carry_unsealed(&mut self) {
-        self.inherited += 1;
-    }
-
-    pub fn pending_operations(&self) -> usize {
-        self.log.len() + self.inherited as usize
-    }
-
-    pub fn is_clean(&self) -> bool {
-        self.log.is_empty() && self.inherited == 0
     }
 }
 
-#[derive(Clone, Debug, Default)]
-pub struct Follower {
-    client: ClientId,
-    applied: u64,
-    pending: VecDeque<(OpId, Payload)>,
-}
-
-impl Follower {
-    pub fn new(client: ClientId) -> Self {
-        Self::continuing(client, 0)
-    }
-
-    pub fn continuing(client: ClientId, sequence: u64) -> Self {
-        Self {
-            client,
-            applied: sequence,
-            pending: VecDeque::new(),
-        }
-    }
-
-    pub fn applied(&self) -> u64 {
-        self.applied
-    }
-
-    pub fn set_applied(&mut self, sequence: u64) {
-        self.applied = sequence;
-    }
-
-    pub fn pending(&self) -> usize {
-        self.pending.len()
-    }
-
-    /// Submits `payload` as this client's operation number `counter`, which its replica never
-    /// gave another operation: an owner refuses an id it took already.
-    pub fn submit(&mut self, counter: u64, payload: Payload) -> SessionMessage {
-        let id = OpId {
-            client: self.client,
-            counter,
-        };
-        self.pending.push_back((id, payload.clone()));
-        SessionMessage::Submit {
-            id,
-            base: self.applied,
-            payload,
-        }
-    }
-
-    pub fn is_mine(&self, id: OpId) -> bool {
-        id.client == self.client
-    }
-
-    pub fn front(&self) -> Option<OpId> {
-        self.pending.front().map(|(id, _)| *id)
-    }
-
-    /// Puts back what `take_pending` took, rewritten.
-    pub fn restore_pending(&mut self, pending: Vec<(OpId, Payload)>) {
-        self.pending = pending.into();
-    }
-
-    pub fn take_pending(&mut self) -> Vec<(OpId, Payload)> {
-        self.pending.drain(..).collect()
-    }
-
-    /// The parts pending operations are carried by.
-    pub fn pending_parts(&self) -> Vec<PartRef> {
-        self.pending
-            .iter()
-            .filter_map(|(_, payload)| payload.part())
-            .collect()
-    }
-
-    pub fn payloads(&self) -> Vec<Payload> {
-        self.pending
-            .iter()
-            .map(|(_, payload)| payload.clone())
-            .collect()
-    }
-
-    /// Forgets `id`, one of its own, which what it applied already holds: the owner took it, and
-    /// a snapshot, or what it confirmed, includes it. Whether it was pending.
-    pub fn included(&mut self, id: OpId) -> bool {
-        let before = self.pending.len();
-        self.pending.retain(|(pending, _)| *pending != id);
-        self.pending.len() != before
-    }
-
-    pub fn accepted(&mut self, op: &SessionOp) -> bool {
-        self.applied = self.applied.max(op.sequence);
-        let mine = op.id.client == self.client;
-        self.pending.retain(|(id, _)| *id != op.id);
-        !mine
-    }
-
-    pub fn resynchronize(&mut self, sequence: u64) -> Vec<SessionMessage> {
-        self.applied = sequence;
-        self.pending
-            .iter()
-            .map(|(id, payload)| SessionMessage::Submit {
-                id: *id,
-                base: sequence,
-                payload: payload.clone(),
-            })
-            .collect()
-    }
-
-    pub fn catchup(&self, base: Option<CommitId>, sealed: u64) -> SessionMessage {
-        SessionMessage::Catchup {
-            since: self.applied,
-            base,
-            sealed,
-        }
-    }
+/// Whether a journal holds exactly what a seal holds: its base is at or before the seal's
+/// sequence, and it reaches the seal's last entry. `entries` are each entry's sequence, in
+/// order. A journal with no entry through the seal holds nothing of it, unless its base is the
+/// seal's sequence.
+pub fn reaches_seal(base_sequence: u64, entries: impl IntoIterator<Item = u64>, through: u64) -> bool {
+    base_sequence <= through
+        && (base_sequence == through || entries.into_iter().any(|sequence| sequence == through))
 }

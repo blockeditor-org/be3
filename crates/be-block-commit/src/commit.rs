@@ -99,9 +99,9 @@ pub struct Commit {
     pub metadata: Vec<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub change: Option<ChangeId>,
-    /// For a seal of a live session's owner: the session's generation and the last sequence
-    /// number it holds. What the owner journaled past it while the commit was on its way
-    /// replays on top of it (guides/blocks/client.md, The journal).
+    /// For a seal of a live session's lease holder: the last sequence number of the session's
+    /// order it holds. What the order numbered past it while the commit was on its way replays
+    /// on top of it (guides/blocks/client.md, The journal).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sealed_through: Option<SealedThrough>,
 }
@@ -109,8 +109,10 @@ pub struct Commit {
 /// Where in its session a seal stands (`Commit::sealed_through`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SealedThrough {
-    pub generation: u64,
     pub sequence: u64,
+    /// Sealed from this device's own order, numbered offline, not the server's: its sequence
+    /// counts in that order alone.
+    pub offline: bool,
 }
 
 impl Commit {

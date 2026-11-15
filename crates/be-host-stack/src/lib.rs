@@ -293,11 +293,23 @@ pub fn installed_for(account: Uuid, organization: Uuid) -> bool {
         .is_some_and(|stack| stack.account == account && stack.organization == organization)
 }
 
-/// Does not wait on the server: closes the connection so whatever the worker waits on fails at
-/// once, and the worker keeps what open replicas hold as local commits. Returns without waiting
-/// for the worker; the next stack's worker waits for it (use `stop_and_wait` where the process
-/// ends or its files go).
+/// Stops the stack. It first waits, as a flush does and no longer, for the server to order the
+/// edits on their way to it, which closing the connection would lose. Then it closes the
+/// connection so whatever the worker waits on fails at once, and the worker keeps what open
+/// replicas hold as local commits. Returns without waiting for the worker; the next stack's
+/// worker waits for it (use `stop_and_wait` where the process ends or its files go).
 pub fn stop() {
+    let running = stack()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_some();
+    if running {
+        flush();
+    }
+    stop_now();
+}
+
+fn stop_now() {
     let stack = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -335,7 +347,7 @@ pub fn crash() {
             .unwrap_or_else(PoisonError::into_inner)
             .crashed = true;
     }
-    stop();
+    stop_now();
 }
 
 pub fn stop_and_wait() {

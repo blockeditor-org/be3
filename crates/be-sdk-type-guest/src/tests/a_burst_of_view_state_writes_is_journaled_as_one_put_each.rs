@@ -21,8 +21,8 @@ fn view_module() -> Module {
     Module::new(vec![Registration::of::<EditorViewContent>()])
 }
 
-/// An editor writes its view state on every scroll and caret move; what its replica sends on
-/// and journals holds one put for each kind, not one for each write.
+/// An editor writes its view state on every scroll and caret move; what its replica submits
+/// while its first write is on its way holds one put for each kind, not one for each write.
 #[test]
 fn a_burst_of_view_state_writes_is_journaled_as_one_put_each() {
     let mut sim = Sim::<EditorViewContent>::new(1, view_module);
@@ -45,27 +45,18 @@ fn a_burst_of_view_state_writes_is_journaled_as_one_put_each() {
         }
     }
     sim.settle();
-    sim.advance(crate::APPEND_INTERVAL + 1);
-    sim.settle();
 
-    let journal = sim.journal.clone().expect("the owner journals");
-    let operations: Vec<Edit> = journal
-        .entries
-        .iter()
-        .filter_map(|entry| {
-            let crate::wire::Wire::Session(be_block_session::SessionMessage::Accepted { op }) =
-                crate::wire::Wire::decode(&entry.payload)?
-            else {
-                return None;
-            };
-            let be_block_session::Payload::Inline(bytes) = op.payload else {
-                return None;
-            };
-            <EditorViewContent as LiveEdit>::decode_operation(&bytes).ok()
-        })
-        .collect();
-    assert_eq!(operations.len(), 1, "the burst is one journaled operation");
-    assert_eq!(operations[0].0.len(), 2, "holding one put for each kind");
+    let operations = sim.journal_operations();
+    assert!(
+        operations.len() <= 2,
+        "the burst goes as its first write and then one operation: {}",
+        operations.len()
+    );
+    assert_eq!(
+        operations.last().map(|operation| operation.0.len()),
+        Some(2),
+        "holding one put for each kind"
+    );
 
     let content = sim.content(0);
     let view: EditorView = content.root();

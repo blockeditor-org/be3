@@ -1,4 +1,4 @@
-use be_block_protocol::{JournalBase, JournalEntry};
+use be_block_protocol::JournalBase;
 use rusqlite::{OptionalExtension, params};
 
 use super::*;
@@ -123,19 +123,21 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         None,
     )
     .unwrap();
-    let generation = 1;
     let tag = Hash::from_bytes([3; 32]);
     impatient
-        .append_journal(
+        .submit_journal(
             organization,
             other,
-            generation,
             tag,
-            vec![JournalEntry {
-                generation,
-                sequence: 1,
+            be_block_session::Submission {
+                id: be_block_session::OpId {
+                    origin: 1,
+                    counter: 1,
+                },
+                base: 0,
+                barrier: false,
                 payload: b"an operation naming a part".to_vec(),
-            }],
+            },
         )
         .await
         .unwrap();
@@ -171,7 +173,6 @@ async fn a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_
         .rebase_journal(
             organization,
             other,
-            generation,
             tag,
             JournalBase {
                 commit: None,

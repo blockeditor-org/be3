@@ -20,6 +20,12 @@ pub enum Resume {
         ours: CommitId,
         theirs: CommitId,
     },
+    /// A seal of the session's order through `through`, made on the local head: the host tells
+    /// this from a fast-forward by the commit's `sealed_through`.
+    Sealed {
+        commit: CommitId,
+        through: u64,
+    },
 }
 
 #[cfg(feature = "store")]
@@ -46,13 +52,5 @@ pub fn resume<S: ObjectStore>(
                 theirs: remote,
             })
         }
-    }
-}
-
-pub fn takeover_needs_merge(clean_at: Option<CommitId>, head: Option<CommitId>) -> bool {
-    match (clean_at, head) {
-        (Some(clean), Some(head)) => clean != head,
-        (None, None) => false,
-        _ => true,
     }
 }

@@ -116,7 +116,7 @@ impl be_block_type_host::Host for Shared {
             let before = held.graph.get(block).and_then(|node| node.head);
             if before != status.head {
                 held.saves += 1;
-                if status.owner {
+                if status.holder {
                     held.search.sealed(block);
                 }
                 held.touch(block);

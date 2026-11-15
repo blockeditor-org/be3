@@ -14,7 +14,7 @@ fn what_is_typed_while_a_seal_waits_survives_a_crash_before_the_seal_is_answered
     sim.advance(crate::QUIET_INTERVAL);
     sim.type_at(0, 1, 4, " and bread");
     sim.settle();
-    sim.advance(crate::APPEND_INTERVAL);
+    sim.settle();
     sim.crash(0);
     sim.unstall();
     assert_eq!(

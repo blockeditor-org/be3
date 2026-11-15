@@ -8,6 +8,7 @@ fn abandoned(generation: u64, owner: ClientId) -> SessionState {
         owner: Some(owner),
         participants: vec![2],
         clean_at: None,
+        tag: None,
     }
 }
 
@@ -31,17 +32,17 @@ fn an_abandoned_lease_is_claimed() {
         claims.as_slice(),
         [Call::ClaimLease { generation: 4, .. }]
     ));
-    replica.lease(&mut lone.host, abandoned(4, 1), false);
+    replica.lease(&mut lone.host, abandoned(4, 1));
     let (again, _) = lone.exchange();
     assert!(
         !again
             .iter()
             .any(|call| matches!(call, Call::ClaimLease { .. }))
     );
-    replica.lease(&mut lone.host, abandoned(5, 2), false);
+    replica.lease(&mut lone.host, abandoned(5, 2));
     let (granted, _) = lone.exchange();
     assert!(granted.iter().any(|call| matches!(
         call,
-        Call::ReportStatus { status, .. } if status.owner
+        Call::ReportStatus { status, .. } if status.holder
     )));
 }
