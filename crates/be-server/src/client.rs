@@ -86,7 +86,10 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             account::Call::StorageChanged { .. } => Rule::Organization,
             account::Call::Logout { .. }
             | account::Call::Pair { .. }
-            | account::Call::Paired { .. } => Rule::SignedIn,
+            | account::Call::Paired { .. }
+            | account::Call::AccountNotices { .. }
+            | account::Call::DismissAccountNotice { .. }
+            | account::Call::AccountNoticesChanged { .. } => Rule::SignedIn,
         },
         Call::Organizations(call) => match call {
             organizations::Call::ListOrganizations { .. }
@@ -218,7 +221,10 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | account::Call::CreateLocalProfile { .. }
             | account::Call::StorageChanged { .. }
             | account::Call::Pair { .. }
-            | account::Call::Paired { .. } => false,
+            | account::Call::Paired { .. }
+            | account::Call::AccountNotices { .. }
+            | account::Call::DismissAccountNotice { .. }
+            | account::Call::AccountNoticesChanged { .. } => false,
         },
         Call::Organizations(call) => match call {
             organizations::Call::ListOrganizations { .. }
@@ -358,6 +364,7 @@ enum Route {
     Changes,
     Paired,
     Contacts,
+    AccountNotices,
     Keys,
     /// A key work stream, by its op, so one opened takes its first value alone.
     KeyWork(OpId),
@@ -733,6 +740,9 @@ impl Client {
             Push::ContactsChanged => {
                 streams.send(&mut lock, (), |route| *route == Route::Contacts)?;
             }
+            Push::AccountNoticesChanged => {
+                streams.send(&mut lock, (), |route| *route == Route::AccountNotices)?;
+            }
             Push::KeyWorkChanged => {}
             Push::KeysChanged => {
                 streams.send(&mut lock, (), |route| *route == Route::Keys)?;
@@ -1097,6 +1107,46 @@ impl Client {
                 }
                 self.streams
                     .open(&mut self.peer.lock(), stream, Route::Paired);
+            }
+            Call::AccountNotices { reply } => {
+                let connection = &self.connection;
+                let listed = async {
+                    prelude?;
+                    connection.store.account_notices(connection.account()?).await
+                }
+                .await;
+                self.reply(reply, listed);
+            }
+            Call::DismissAccountNotice { reply, id } => {
+                let connection = &self.connection;
+                let dismissed = async {
+                    prelude?;
+                    let account = connection.account()?;
+                    connection.store.dismiss_account_notice(account, id).await?;
+                    connection
+                        .hub
+                        .send_account(
+                            account,
+                            connection.client,
+                            None,
+                            &Push::AccountNoticesChanged,
+                        )
+                        .await;
+                    Ok(())
+                }
+                .await;
+                self.reply(reply, dismissed);
+            }
+            Call::AccountNoticesChanged { stream } => {
+                if prelude.is_err() {
+                    return stream.fail(&mut self.peer.lock(), OpError::Denied);
+                }
+                self.streams.open_with(
+                    &mut self.peer.lock(),
+                    stream,
+                    Route::AccountNotices,
+                    Backlog::Latest,
+                );
             }
             Call::StorageChanged { stream } => {
                 let connection = &self.connection;

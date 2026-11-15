@@ -61,6 +61,15 @@ interface account {
         quota: option<u64>,
     }
 
+    /// Something the account is told on its devices that it gets no mail for:
+    /// for an account with no email, a way to sign in added or removed.
+    record account-notice {
+        id: u64,
+        text: string,
+        /// When it was made, in milliseconds since the epoch.
+        created: s64,
+    }
+
     /// Starts a browser sign-in. Made as a one-shot call (`POST .../call`),
     /// like `poll-browser-login`: a connection's first call is `authenticate`.
     begin-browser-login: async func() -> result<browser-login, error>;
@@ -88,6 +97,17 @@ interface account {
     /// value, and one whose first value cannot be read ends with the failure.
     /// Ends at once, denied, before an organization is open.
     storage-changed: func() -> stream<account-storage>;
+
+    /// The account's notices not yet dismissed, oldest first.
+    account-notices: async func() -> result<list<account-notice>, error>;
+
+    /// Dismisses one of the account's notices, on every device.
+    dismiss-account-notice: async func(id: u64) -> result<_, error>;
+
+    /// An item whenever the account's notices changed, so the client reads
+    /// them again; a latest-value stream, so changes the client has not taken
+    /// yet are one item.
+    account-notices-changed: func() -> stream;
 
     /// Sends a pairing message to one of the account's other connections, or
     /// to all of them with no `to`. Fails when `to` is no longer connected.

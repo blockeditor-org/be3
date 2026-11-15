@@ -132,18 +132,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
 ## Steps
 
-1. **What is left of identities and emailed codes.** Codes sign in, register,
-   recover and prove, and providers sign in (guides/blocks/server.md,
-   Accounts). An account with no email has the empty string as its `email`
-   everywhere, as a local profile does, and every client already shows only
-   the name for it (decisions/an_account_with_no_email_has_an_empty_one.md).
-   The portal's two cookies (`be3-account`, `be3-attempt`) are scoped to
-   `/auth` without a prefix, so a sibling subdomain could set or shadow them;
-   move both to `__Host-` names with `Path=/` once development serves HTTPS or
-   the plain-HTTP setup uses a cookie name of its own. An account with no
-   email is told nothing when an identity is added or removed: give it the
-   notice in the app, on its other sessions, as the rules above say.
-2. **Invitations stop depending on email.** Today an invitation is already a
+1. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
@@ -197,7 +186,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-3. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+2. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
    redirect URIs), and the invitation lines in guides/blocks/keys.md

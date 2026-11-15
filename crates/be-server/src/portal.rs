@@ -57,22 +57,49 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
     });
 }
 
-/// Tells the account's email that a way to sign in was removed.
-fn identity_notice(services: &Services, email: &str, removed: &str) {
-    services.mail.send(Email {
-        recipient: email.into(),
-        subject: "A way to sign in to your be3 account was removed".into(),
-        body: format!("{removed} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
-    });
+/// Tells the account that a way to sign in was added or removed: by mail to its email, or, for
+/// an account with no email, on its devices (`store/account_notices.rs`), since there is no
+/// other place to tell it.
+async fn tell_identity(services: &Services, account: uuid::Uuid, email: &str, subject: &str, text: String) {
+    if !email.is_empty() {
+        services.mail.send(Email {
+            recipient: email.into(),
+            subject: subject.into(),
+            body: text,
+        });
+        return;
+    }
+    if services.store.add_account_notice(account, text).await.is_ok() {
+        // From no connection: every connection of the account hears it.
+        services
+            .hub
+            .send_account(account, 0, None, &crate::watch::Push::AccountNoticesChanged)
+            .await;
+    }
 }
 
-/// Tells the account's email that a way to sign in was added.
-fn identity_added_notice(services: &Services, email: &str, added: &str) {
-    services.mail.send(Email {
-        recipient: email.into(),
-        subject: "A way to sign in to your be3 account was added".into(),
-        body: format!("{added} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
-    });
+/// Tells the account that a way to sign in was removed.
+async fn identity_notice(services: &Services, account: uuid::Uuid, email: &str, removed: &str) {
+    tell_identity(
+        services,
+        account,
+        email,
+        "A way to sign in to your be3 account was removed",
+        format!("{removed} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
+    )
+    .await;
+}
+
+/// Tells the account that a way to sign in was added.
+async fn identity_added_notice(services: &Services, account: uuid::Uuid, email: &str, added: &str) {
+    tell_identity(
+        services,
+        account,
+        email,
+        "A way to sign in to your be3 account was added",
+        format!("{added} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
+    )
+    .await;
 }
 
 /// Tells an account's old email that the account's email changed.
@@ -215,7 +242,7 @@ pub(crate) async fn handle(
                     _ => config.allow_login,
                 }, services.config.clone()).await?;
                 response.attempt = Some(String::new());
-                if let Some(linked) = &entered.linked { identity_added_notice(services, &entered.email, &provider_identity_label(&services.config, linked)); }
+                if let Some(linked) = &entered.linked { identity_added_notice(services, entered.account, &entered.email, &provider_identity_label(&services.config, linked)).await; }
                 match entered.session {
                     Some(session) => {
                         if !token.is_empty() { services.store.logout(token).await?; }
@@ -228,7 +255,7 @@ pub(crate) async fn handle(
             "/auth/settings/identity/remove" => {
                 let account = account()?;
                 let removed = services.store.remove_identity(account, token, value("identity"), issuers(&services.config), passkeys::rp_id(origin)).await?;
-                if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_notice(services, &profile.email, &identity_label(&services.config, &removed)); }
+                if let Some(profile) = profile.as_ref() { identity_notice(services, profile.account, &profile.email, &identity_label(&services.config, &removed)).await; }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/passkey/sign-in" => {
@@ -266,7 +293,7 @@ pub(crate) async fn handle(
                 let credential: webauthn_rs::prelude::RegisterPublicKeyCredential = passkeys::answer(value("credential"))?;
                 let passkey = relying_party.finish_passkey_registration(&credential, &state).map_err(passkeys::not_accepted)?;
                 let added = services.store.add_passkey(&passkeys::rp_id(origin).unwrap_or_default(), account, token, passkey).await?;
-                if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_added_notice(services, &profile.email, &identity_label(&services.config, &added)); }
+                if let Some(profile) = profile.as_ref() { identity_added_notice(services, profile.account, &profile.email, &identity_label(&services.config, &added)).await; }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/link" => {
@@ -800,14 +827,13 @@ async fn provider_step(
                     link("/auth", &device_code)
                 }
                 Outcome::Linked => {
-                    if let Ok(profile) = services.store.browser_profile(token).await
-                        && !profile.email.is_empty()
-                    {
+                    if let Ok(profile) = services.store.browser_profile(token).await {
                         let added = provider_identity_label(
                             &services.config,
                             &format!("{} ", configured.issuer),
                         );
-                        identity_added_notice(services, &profile.email, &added);
+                        identity_added_notice(services, profile.account, &profile.email, &added)
+                            .await;
                     }
                     "/auth/settings?saved=1".into()
                 }

@@ -429,24 +429,19 @@ async fn serve_auth(
             std::str::from_utf8(&body[..head.length]).unwrap_or_default(),
         );
     }
-    let token = head
-        .cookie
-        .as_deref()
-        .unwrap_or_default()
-        .split(';')
-        .filter_map(|part| part.trim().split_once('='))
-        .find(|(key, _)| *key == "be3-account")
-        .map(|(_, value)| value)
-        .unwrap_or_default();
-    let attempt = head
-        .cookie
-        .as_deref()
-        .unwrap_or_default()
-        .split(';')
-        .filter_map(|part| part.trim().split_once('='))
-        .find(|(key, _)| *key == "be3-attempt")
-        .map(|(_, value)| value)
-        .unwrap_or_default();
+    let cookies = PortalCookies::for_origin(&origin);
+    let cookie = |name: &str| {
+        head.cookie
+            .as_deref()
+            .unwrap_or_default()
+            .split(';')
+            .filter_map(|part| part.trim().split_once('='))
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| value)
+            .unwrap_or_default()
+    };
+    let token = cookie(&cookies.name(ACCOUNT_COOKIE));
+    let attempt = cookie(&cookies.name(ATTEMPT_COOKIE));
     let result = crate::portal::handle(
         services,
         &head.method,
@@ -464,10 +459,15 @@ async fn serve_auth(
         extras.push_str(&format!("Location: {location}\r\n"));
     }
     if let Some(cookie) = result.cookie {
-        extras.push_str(&format!("Set-Cookie: be3-account={cookie}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if cookie.is_empty() { 0 } else { 30 * 86400 }, if origin.starts_with("https://") { "; Secure" } else { "" }));
+        let lifetime = if cookie.is_empty() { 0 } else { 30 * 86400 };
+        extras.push_str(&cookies.set(ACCOUNT_COOKIE, &cookie, lifetime));
     }
     if let Some(attempt) = result.attempt {
-        extras.push_str(&format!("Set-Cookie: be3-attempt={attempt}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if attempt.is_empty() { 0 } else { crate::store::codes::CODE_LIFETIME }, if origin.starts_with("https://") { "; Secure" } else { "" }));
+        let lifetime = match attempt.is_empty() {
+            true => 0,
+            false => crate::store::codes::CODE_LIFETIME,
+        };
+        extras.push_str(&cookies.set(ATTEMPT_COOKIE, &attempt, lifetime));
     }
     let (content_type, body, page_headers) = match result.body {
         crate::portal::Body::Html(html) => (
@@ -749,6 +749,47 @@ async fn answer(
         more: !waiting.is_empty() || !outbound.is_empty(),
         signed_in,
     })
+}
+
+/// The portal's session cookie and its code attempt's (`codes.rs`).
+pub(crate) const ACCOUNT_COOKIE: &str = "be3-account";
+pub(crate) const ATTEMPT_COOKIE: &str = "be3-attempt";
+
+/// How the portal names and scopes its cookies at its origin. Over HTTPS each is a `__Host-`
+/// cookie (Secure, `Path=/`, no `Domain`), which a sibling subdomain can neither set nor
+/// shadow. Plain HTTP, only for a server on this machine, can't set `__Host-` (it needs
+/// Secure), so there the bare name is scoped to `/auth`: nothing else at that origin to shadow
+/// it.
+pub(crate) struct PortalCookies {
+    secure: bool,
+}
+
+impl PortalCookies {
+    pub(crate) fn for_origin(origin: &str) -> Self {
+        Self {
+            secure: origin.starts_with("https://"),
+        }
+    }
+
+    pub(crate) fn name(&self, base: &str) -> String {
+        match self.secure {
+            true => format!("__Host-{base}"),
+            false => base.to_owned(),
+        }
+    }
+
+    /// The `Set-Cookie` header line that sets `base` to `value` for `max_age` seconds (0 ends
+    /// it).
+    fn set(&self, base: &str, value: &str, max_age: i64) -> String {
+        let (path, secure) = match self.secure {
+            true => ("/", "; Secure"),
+            false => ("/auth", ""),
+        };
+        format!(
+            "Set-Cookie: {}={value}; Path={path}; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}\r\n",
+            self.name(base)
+        )
+    }
 }
 
 /// Answers one call that needs no sign-in (`begin-browser-login`, `poll-browser-login`, and

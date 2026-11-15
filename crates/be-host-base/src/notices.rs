@@ -12,6 +12,9 @@ pub struct Notice {
     /// Something the person asked for that was refused for a reason they can act on, not a
     /// failure (`refuse`): it reads as plain text.
     pub refusal: bool,
+    /// The account notice on the server it shows (`account_notices`), which dismissing it
+    /// dismisses on every device.
+    pub account: Option<u64>,
 }
 
 struct Notices {
@@ -73,13 +76,56 @@ fn show(message: String, report: Option<String>, link: Option<String>, refusal: 
             report,
             link,
             refusal,
+            account: None,
         });
     }
     crate::host::wake();
 }
 
-pub fn dismiss(id: u64) {
-    notices().shown.retain(|notice| notice.id != id);
+/// Dismisses a notice; answers the account notice it showed, which the caller dismisses on the
+/// server too.
+pub fn dismiss(id: u64) -> Option<u64> {
+    let mut notices = notices();
+    let account = notices
+        .shown
+        .iter()
+        .find(|notice| notice.id == id)
+        .and_then(|notice| notice.account);
+    notices.shown.retain(|notice| notice.id != id);
+    account
+}
+
+/// Shows the account's notices from the server (`account-notices`), as plain notices, and lets
+/// go of those dismissed elsewhere.
+pub fn account_notices(listed: Vec<(u64, String)>) {
+    {
+        let mut notices = notices();
+        notices.shown.retain(|notice| {
+            notice
+                .account
+                .is_none_or(|account| listed.iter().any(|(id, _)| *id == account))
+        });
+        for (account, message) in listed {
+            if notices
+                .shown
+                .iter()
+                .any(|notice| notice.account == Some(account))
+            {
+                continue;
+            }
+            notices.next += 1;
+            let id = notices.next;
+            notices.shown.push(Notice {
+                id,
+                message,
+                report: None,
+                link: None,
+                refusal: true,
+                account: Some(account),
+            });
+        }
+    }
+    crate::host::wake();
 }
 
 pub fn report_of(id: u64) -> Option<String> {

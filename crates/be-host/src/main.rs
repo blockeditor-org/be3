@@ -3759,7 +3759,11 @@ impl HostCore {
                 }
             }
             UiCommand::CancelDiscardUnsent => self.discarding_unsent = None,
-            UiCommand::DismissToast(id) => notices::dismiss(id),
+            UiCommand::DismissToast(id) => {
+                if let Some(account) = notices::dismiss(id) {
+                    be_host_stack::dismiss_account_notice(account);
+                }
+            }
             UiCommand::CycleTheme => self.cycle_theme(),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),

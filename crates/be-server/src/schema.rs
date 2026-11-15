@@ -97,6 +97,16 @@ const SCHEMA: &str = "
         expires    INTEGER NOT NULL
     );
 
+    -- What an account with no email is told on its devices in place of mail
+    -- (`store/account_notices.rs`).
+    CREATE TABLE account_notices (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        text            TEXT NOT NULL,
+        created         INTEGER NOT NULL
+    );
+    CREATE INDEX account_notices_account ON account_notices(account_id, id);
+
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,
         account_id TEXT NOT NULL DEFAULT '',

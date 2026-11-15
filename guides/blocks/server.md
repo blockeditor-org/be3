@@ -638,7 +638,15 @@ its providers or passkeys, in the last few minutes (`sessions.proved`), which
 signing in by code, provider or passkey, or recovering, also gives.
 Removing an identity, adding a provider (from the settings page or by a link
 code) or a passkey, and a provider moving the account's email each mail the
-account's email, the old one for a move. Removing the email identity also clears
+account's email, the old one for a move; an account with no email is told of an
+identity added or removed on its devices instead (`store/account_notices.rs`,
+`account-notices`, `dismiss-account-notice` and `account-notices-changed`,
+which every connection of the account hears), and be-host shows each as a
+notice until one device dismisses it for all. The portal's cookies are
+`__Host-be3-account` and `__Host-be3-attempt` over HTTPS (Secure, `Path=/`, so
+no sibling subdomain can set or shadow them) and the bare names scoped to
+`/auth` over plain HTTP, which only a server on this machine serves
+(`http::PortalCookies`). Removing the email identity also clears
 `accounts.email`, and an account with no email never gains one from a
 provider it already has, since its owner may have removed it. An operator's login link
 (`store/login_links.rs`, `be-server login-link`) signs in once within

@@ -214,6 +214,8 @@ pub(super) enum Command {
         mode: be_block_protocol::NotifyMode,
         reply: NotifyModeReply,
     },
+    /// Dismisses an account notice on the server, so every device lets go of it.
+    DismissAccountNotice(u64),
     ReadHead {
         block: Uuid,
         commit: CommitId,
@@ -329,6 +331,7 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::ListAccess { .. } => "list access",
             Command::SetNotifyMode { .. } => "set notify mode",
+            Command::DismissAccountNotice(_) => "dismiss account notice",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
@@ -472,6 +475,7 @@ impl Command {
             | Command::SealOwed
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
+            | Command::DismissAccountNotice(_)
             | Command::Contact(_)
             | Command::Members(_)
             | Command::Invite { .. }
@@ -1765,6 +1769,7 @@ impl Session<'_> {
         spawn_listings(peer, shared, &self.tasks.0);
         self.tasks.0.contacts(peer, shared);
         self.tasks.0.notify_modes(peer, shared);
+        self.tasks.0.account_notices(peer);
         self.tasks.0.storage(peer, shared);
         self.rejoin = true;
         self.in_arrive = true;
@@ -2344,6 +2349,8 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::ApprovePairing { reply, .. } => reply(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        // Shown again once connected, and dismissed then.
+        Command::DismissAccountNotice(_) => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -2454,6 +2461,19 @@ impl Ran<'_> {
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
+            Command::DismissAccountNotice(id) => {
+                let peer = Arc::clone(self.peer);
+                platform::spawn_local(async move {
+                    let _ = be_block_client::ask(
+                        be_block_protocol::client::account::dismiss_account_notice(
+                            &peer.connection(),
+                            id,
+                        ),
+                    )
+                    .await;
+                });
+                false
+            }
             Command::SetNotifyMode { block, mode, reply } => {
                 let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
                 platform::spawn_local(async move {
@@ -3128,6 +3148,7 @@ async fn apply(
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
         | Command::SetNotifyMode { .. }
+        | Command::DismissAccountNotice(_)
         | Command::Push(_)
         | Command::Authorship(_)
         | Command::Storage => false,
@@ -3778,6 +3799,7 @@ async fn heard(
         Some(Event::ContactsChanged) => tasks.contacts(peer, shared),
         Some(Event::KeysChanged) => tasks.relearn_locked(peer, shared),
         Some(Event::NotifyModesChanged) => tasks.notify_modes(peer, shared),
+        Some(Event::AccountNoticesChanged) => tasks.account_notices(peer),
         Some(Event::KeyWork(work)) => {
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move { tend_with(&peer, &shared, Some(work)).await });
@@ -4154,6 +4176,26 @@ impl Tasks {
                 held.progressed += 1;
                 drop(held);
                 be_host_base::host::wake();
+            }
+        });
+    }
+
+    /// Reads the account's notices and shows them (`be_host_base::notices::account_notices`):
+    /// for an account with no email, what it would otherwise be mailed.
+    fn account_notices(&self, peer: &Arc<Peer<Store>>) {
+        let peer = Arc::clone(peer);
+        self.spawn(async move {
+            if let Ok(listed) = be_block_client::ask(
+                be_block_protocol::client::account::account_notices(&peer.connection()),
+            )
+            .await
+            {
+                be_host_base::notices::account_notices(
+                    listed
+                        .into_iter()
+                        .map(|notice| (notice.id, notice.text))
+                        .collect(),
+                );
             }
         });
     }
