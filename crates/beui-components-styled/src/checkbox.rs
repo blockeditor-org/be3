@@ -78,12 +78,7 @@ fn CheckboxFace(handle: ToggleHandle, size: Prop<TextSize>) -> NodeId {
                     align=Align::Center
                 >
                     <Show condition={checked}>
-                        <Frame
-                            width=mark
-                            height=mark
-                            fill=ColorRole::OnAccent
-                            radius=Radius::Xs
-                        />
+                        <Frame width=mark height=mark fill=ColorRole::OnAccent radius=Radius::Xs />
                     </Show>
                 </Frame>
                 <Show condition={move || !label.get().is_empty()}>

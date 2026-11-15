@@ -1118,12 +1118,8 @@ impl<T: SlotChild> AtMostOneChild<T> for [ChildSegment<T>; 0] {
     }
 }
 
-
-
 impl<T, H: IntoChild<T>> AtMostOneChild<T> for SingleChild<H> {
     fn at_most_one_child(self) -> Option<T> {
         Some(self.0.into_child())
     }
 }
-
-

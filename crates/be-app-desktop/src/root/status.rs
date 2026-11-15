@@ -112,7 +112,9 @@ pub(crate) fn StatusButton(
                                 <Icon glyph=ICON_POWER />
                             </Text>
                         </Show>
-                        <Show condition={move || !wireless.get() && !audible.get() && !powered.get()}>
+                        <Show
+                            condition={move || !wireless.get() && !audible.get() && !powered.get()}
+                        >
                             <Text>
                                 <Icon glyph=ICON_SLIDERS_HORIZONTAL />
                             </Text>

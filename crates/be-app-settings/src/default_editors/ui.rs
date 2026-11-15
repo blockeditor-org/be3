@@ -43,16 +43,14 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
                 <Show condition={move || types.with(Vec::is_empty)}>
                     <SettingsRow label="Every block type has one editor." />
                 </Show>
-                <ForEach keys={types}>|block_type: Uuid| {
-                    view! {
-                        <DefaultEditor
-                            editor={editor}
-                            settings={settings}
-                            block_type={block_type}
-                            separated={move || types.with(|types| types.first() != Some(&block_type))}
-                        />
-                    }
-                }</ForEach>
+                <ForEach keys={types}>|block_type: Uuid|
+                    <DefaultEditor
+                        editor={editor}
+                        settings={settings}
+                        block_type={block_type}
+                        separated={move || types.with(|types| types.first() != Some(&block_type))}
+                    />
+                </ForEach>
             </SettingsSection>
             <ChangesToast changes={settings.changes()} anchor={page} />
         </SettingsPage>

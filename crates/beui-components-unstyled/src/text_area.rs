@@ -1704,23 +1704,31 @@ pub fn TextArea(
     let built = view! {
         <Frame @node_ref=&outer>
             <List spacing=0.0>
-                <Show condition={single_line} fallback={move || view! {
-                    <ListItem grow=1.0>
-                        <Canvas width={width} height={height}>
-                            <CanvasItem x={move || gutter.get() - 1.0} y=0.0 width={move || match gutter.get() > 0.0 {
-        true => 1.0,
-        false => 0.0,
-    }} height={height}>
-                                <Frame fill={move || colors.get().gutter_border} />
-                            </CanvasItem>
-                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Scroll offset={offset} scrollbar on_change={scroll}>
-                                    <Editing field={field} />
-                                </Scroll>
-                            </CanvasItem>
-                        </Canvas>
-                    </ListItem>
-                }}>
+                <Show
+                    condition={single_line}
+                    fallback={move || view! {
+                        <ListItem grow=1.0>
+                            <Canvas width={width} height={height}>
+                                <CanvasItem
+                                    x={move || gutter.get() - 1.0}
+                                    y=0.0
+                                    width={move || match gutter.get() > 0.0 {
+                                        true => 1.0,
+                                        false => 0.0,
+                                    }}
+                                    height={height}
+                                >
+                                    <Frame fill={move || colors.get().gutter_border} />
+                                </CanvasItem>
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                    <Scroll offset={offset} scrollbar on_change={scroll}>
+                                        <Editing field={field} />
+                                    </Scroll>
+                                </CanvasItem>
+                            </Canvas>
+                        </ListItem>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Editing field={field} />
                     </ListItem>

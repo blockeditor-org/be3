@@ -73,11 +73,7 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
                 }</ForEach>
             };
             view! {
-                <styled::ContextMenu
-                    items
-                    open_at
-                    on_close={move || open_at.set(None)}
-                >
+                <styled::ContextMenu items open_at on_close={move || open_at.set(None)}>
                     <styled::Frame />
                 </styled::ContextMenu>
             }

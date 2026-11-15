@@ -319,9 +319,7 @@ fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) ->
     let same = move || {
         view! {
             <Frame padding=SAME_PADDING>
-                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>
-                    {NOTHING_DIFFERS}
-                </Text>
+                <Text style=TextStyle::CAPTION @test_id={"devices.same"}>{NOTHING_DIFFERS}</Text>
             </Frame>
         }
     };

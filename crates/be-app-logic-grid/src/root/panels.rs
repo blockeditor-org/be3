@@ -125,7 +125,9 @@ fn MetricsPanel(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={move || error.with(Option::is_some)}>
-                <Problem content={move || format!("Cannot compile: {}", error.get().unwrap_or_default())} />
+                <Problem
+                    content={move || format!("Cannot compile: {}", error.get().unwrap_or_default())}
+                />
             </Show>
             <Rows rows={rows} />
         </List>
@@ -624,7 +626,9 @@ fn ChallengePanel(session: Session) -> NodeId {
             <Show
                 condition={move || error.with(Option::is_none)}
                 fallback={move || view! {
-                    <Problem content={move || format!("Cannot run: {}", error.get().unwrap_or_default())} />
+                    <Problem
+                        content={move || format!("Cannot run: {}", error.get().unwrap_or_default())}
+                    />
                 }}
             >
                 <List spacing=Space::Xs2>

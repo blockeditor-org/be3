@@ -80,7 +80,9 @@ fn MapSidebar(state: MapState) -> NodeId {
             <Separator />
             <Show
                 condition={move || selected.get().is_some()}
-                fallback={move || view! { <PointList state={state} /> }}
+                fallback={move || view! {
+                    <PointList state={state} />
+                }}
             >
                 <PointDetails state={state} selected={selected} />
             </Show>
@@ -276,7 +278,9 @@ fn PointList(state: MapState) -> NodeId {
             <Text>"Points of interest"</Text>
             <Show
                 condition={empty}
-                fallback={|| view! { <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text> }}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
+                }}
             >
                 <Text style=TextStyle::CAPTION color={hint}>
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
@@ -323,7 +327,11 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
 #[component]
 fn Swatch(color: Memo<Color32>) -> NodeId {
     view! {
-        <Text size=TextSize::Xs color={move || TextColor::Custom(color.get().into())} align=TextAlign::Center>
+        <Text
+            size=TextSize::Xs
+            color={move || TextColor::Custom(color.get().into())}
+            align=TextAlign::Center
+        >
             <Icon glyph=ICON_CIRCLE />
         </Text>
     }

@@ -344,7 +344,9 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
             <Text style=TextStyle::CAPTION>{label}</Text>
             <Show
                 condition={removed}
-                fallback={move || view! { <BlockLink editor={editor} block={target} /> }}
+                fallback={move || view! {
+                    <BlockLink editor={editor} block={target} />
+                }}
             >|| {
                 let name = name.clone(); view! {
                     <Text>{name}</Text>

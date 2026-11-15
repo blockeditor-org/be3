@@ -14,17 +14,20 @@ fn a_show_with_a_fallback_swaps_the_one_child_a_frame_holds() {
         view! {
             <Root>
                 <List spacing=Space::None>
-                <Frame @test_id="holder" fill=ColorRole::Surface padding=Space::Md>
-                    <Show condition={editing} fallback={|| view! {
-                        <Frame @test_id="reading" height=Size::Sm>
-                            <Text>"Reading"</Text>
-                        </Frame>
-                    }}>||
-                        <Frame @test_id="editing" height=Size::Lg>
-                            <Text>"Editing, in place of what was read"</Text>
-                        </Frame>
-                    </Show>
-                </Frame>
+                    <Frame @test_id="holder" fill=ColorRole::Surface padding=Space::Md>
+                        <Show
+                            condition={editing}
+                            fallback={|| view! {
+                                <Frame @test_id="reading" height=Size::Sm>
+                                    <Text>"Reading"</Text>
+                                </Frame>
+                            }}
+                        >||
+                            <Frame @test_id="editing" height=Size::Lg>
+                                <Text>"Editing, in place of what was read"</Text>
+                            </Frame>
+                        </Show>
+                    </Frame>
                 </List>
             </Root>
         }

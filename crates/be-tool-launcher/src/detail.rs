@@ -104,7 +104,9 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 <Text style=TextStyle::CAPTION>{summary}</Text>
                             </ListItem>
                         </List>
-                        <Show condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}>
+                        <Show
+                            condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
+                        >
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -201,7 +203,12 @@ fn StateBadge(state: Memo<State>) -> NodeId {
 fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
     view! {
         <List spacing=Space::None>
-            <Dynamic value={entry} fallback={|| view! { <Frame /> }}>|entry: Entry| {
+            <Dynamic
+                value={entry}
+                fallback={|| view! {
+                    <Frame />
+                }}
+            >|entry: Entry| {
                 match entry {
                     Entry::Comment { author, verb, tone, when, url, body, inline } => view! {
                         <CommentCard model={model} author verb tone when url body inline />

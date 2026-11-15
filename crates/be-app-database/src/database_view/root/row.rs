@@ -288,28 +288,28 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <ListItem grow=1.0>
                 <Frame>
                     <Show
-                            condition={choice}
-                            fallback={move || view! {
-                                <DatabaseValueEditor
-                                    fields={move || known.get().into_iter().collect::<Vec<_>>()}
-                                    values={values}
-                                    labels={labels}
-                                    disabled={value_off}
-                                    prefix="database-view.detail"
-                                    headings=false
-                                    on_change={changed}
-                                    on_pick={pick_block}
-                                />
-                            }}
-                        >
-                            <ChoicePicker
-                                field={known}
-                                chosen={chosen}
-                                disabled={choice_off}
-                                picker_id={format!("database-view.detail.field.{field}")}
-                                on_pick={picked}
+                        condition={choice}
+                        fallback={move || view! {
+                            <DatabaseValueEditor
+                                fields={move || known.get().into_iter().collect::<Vec<_>>()}
+                                values={values}
+                                labels={labels}
+                                disabled={value_off}
+                                prefix="database-view.detail"
+                                headings=false
+                                on_change={changed}
+                                on_pick={pick_block}
                             />
-                        </Show>
+                        }}
+                    >
+                        <ChoicePicker
+                            field={known}
+                            chosen={chosen}
+                            disabled={choice_off}
+                            picker_id={format!("database-view.detail.field.{field}")}
+                            on_pick={picked}
+                        />
+                    </Show>
                 </Frame>
             </ListItem>
         </List>

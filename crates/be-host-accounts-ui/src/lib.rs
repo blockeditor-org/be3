@@ -130,10 +130,12 @@ fn AccountCard(
                     justify=Justify::End
                     spacing=Space::Xs
                 >
-                    <Tooltip label={move || match account.get().has_last_organization {
-                        true => "Open the last organization used".to_owned(),
-                        false => "Choose an organization".to_owned(),
-                    }}>
+                    <Tooltip
+                        label={move || match account.get().has_last_organization {
+                            true => "Open the last organization used".to_owned(),
+                            false => "Choose an organization".to_owned(),
+                        }}
+                    >
                         <Button
                             label="Open"
                             variant=ButtonVariant::Primary

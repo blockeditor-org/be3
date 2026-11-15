@@ -271,23 +271,23 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
             <Show
                 condition={narrow}
                 fallback={move || view! {
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::End
-                    wrap=true
-                    spacing=ACTION_SPACING
-                >
-                    <ForEach keys={start}>|index: usize|
-                        <ActionButton handle index id />
-                    </ForEach>
-                    <Show condition={move || !start.with(Vec::is_empty)}>
-                        <Spacer />
-                    </Show>
-                    <ForEach keys={end}>|index: usize|
-                        <ActionButton handle index id />
-                    </ForEach>
-                </List>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        justify=Justify::End
+                        wrap=true
+                        spacing=ACTION_SPACING
+                    >
+                        <ForEach keys={start}>|index: usize|
+                            <ActionButton handle index id />
+                        </ForEach>
+                        <Show condition={move || !start.with(Vec::is_empty)}>
+                            <Spacer />
+                        </Show>
+                        <ForEach keys={end}>|index: usize|
+                            <ActionButton handle index id />
+                        </ForEach>
+                    </List>
                 }}
             >
                 <List spacing=ACTION_SPACING>

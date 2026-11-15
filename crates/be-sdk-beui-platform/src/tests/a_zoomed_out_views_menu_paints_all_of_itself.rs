@@ -18,11 +18,7 @@ fn a_zoomed_out_views_menu_paints_all_of_itself() {
                 }</ForEach>
             };
             view! {
-                <styled::ContextMenu
-                    items
-                    open_at
-                    on_close={move || open_at.set(None)}
-                >
+                <styled::ContextMenu items open_at on_close={move || open_at.set(None)}>
                     <styled::Frame />
                 </styled::ContextMenu>
             }

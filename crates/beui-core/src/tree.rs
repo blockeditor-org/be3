@@ -5,11 +5,11 @@ use std::rc::Rc;
 
 use std::rc::Weak;
 
+use beui_tree::reactive::LazyChild;
 use beui_tree::reactive::{
     ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
     SlotHost, SlotId, create_effect, create_signal, current_component, on_cleanup,
 };
-use beui_tree::reactive::LazyChild;
 use beui_types::node::{CoreHooks, NodeCell, install_core_hooks, install_host_hook};
 
 use crate::base::canvas::CanvasNode;

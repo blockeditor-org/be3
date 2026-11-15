@@ -443,7 +443,11 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
                                 }
                             }</ForEach>
                             <Text style=TextStyle::CAPTION>"Name"</Text>
-                            <TextInput value={name} label="Agent name" @test_id={"host.agents.name"} />
+                            <TextInput
+                                value={name}
+                                label="Agent name"
+                                @test_id={"host.agents.name"}
+                            />
                             <ErrorText text={error} />
                         </List>
                     }}

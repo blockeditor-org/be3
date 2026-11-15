@@ -121,7 +121,9 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         }
                                     }}
                                 />
-                                <Show condition={move || own.get() && editor.organization_settings().is_some()}>
+                                <Show
+                                    condition={move || own.get() && editor.organization_settings().is_some()}
+                                >
                                     <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
                                         {ONLY_YOURS}
                                     </Text>
@@ -475,10 +477,12 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                 title="Settings profile"
                 description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
             >
-                <SettingsRow label={move || match used.get() {
-                    true => "Used on this device".to_owned(),
-                    false => "Not used on this device".to_owned(),
-                }}>
+                <SettingsRow
+                    label={move || match used.get() {
+                        true => "Used on this device".to_owned(),
+                        false => "Not used on this device".to_owned(),
+                    }}
+                >
                     <Show condition={move || !used.get() && !blocked.get()}>
                         <Button
                             label="Use on this device"

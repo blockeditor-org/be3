@@ -10,11 +10,14 @@ fn a_show_with_a_fallback_swaps_runs_of_different_lengths() {
         view! {
             <Element tag="div">
                 <Element tag="b" text="before" />
-                <Show condition={editing} fallback={|| view! {
-                    <Element tag="i" text="one" />
-                    <Element tag="i" text="two" />
-                    <Element tag="i" text="three" />
-                }}>||
+                <Show
+                    condition={editing}
+                    fallback={|| view! {
+                        <Element tag="i" text="one" />
+                        <Element tag="i" text="two" />
+                        <Element tag="i" text="three" />
+                    }}
+                >||
                     <Element tag="p" text="first" />
                     <Element tag="p" text="second" />
                 </Show>

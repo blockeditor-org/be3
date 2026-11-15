@@ -58,44 +58,44 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
             <Show
                 condition={listing}
                 fallback={move || view! {
-                <ListItem grow=1.0>
-                    <BackSlide
-                        on_back={back}
-                        shade={shade}
-                        behind={move || view! {
-                            <Portal node={Some(sidebar)} />
-                        }}
-                    >
-                        <Frame fill={ColorRole::custom(page)}>
-                            <List spacing=Space::None>
-                                <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
-                                    <Button
-                                        icon_only=true
-                                        glyph=ICON_ARROW_LEFT
-                                        label="Back to the pull requests"
-                                        on_click={back}
-                                    />
-                                </Frame>
-                                <ForEach keys={opened}>|number: u64| {
-                                    let pull_request = create_memo(move || {
-                                        model.opened.with(|opened| {
-                                            opened
-                                                .iter()
-                                                .find(|pull_request| pull_request.number == number)
-                                                .cloned()
-                                                .unwrap_or_else(|| placeholder(number))
-                                        })
-                                    });
-                                    view! {
-                                        <ListItem grow=1.0>
-                                            <Detail model={model} pull_request />
-                                        </ListItem>
-                                    }
-                                }</ForEach>
-                            </List>
-                        </Frame>
-                    </BackSlide>
-                </ListItem>
+                    <ListItem grow=1.0>
+                        <BackSlide
+                            on_back={back}
+                            shade={shade}
+                            behind={move || view! {
+                                <Portal node={Some(sidebar)} />
+                            }}
+                        >
+                            <Frame fill={ColorRole::custom(page)}>
+                                <List spacing=Space::None>
+                                    <Frame padding={Padding::symmetric(Space::Md, Space::Xs)}>
+                                        <Button
+                                            icon_only=true
+                                            glyph=ICON_ARROW_LEFT
+                                            label="Back to the pull requests"
+                                            on_click={back}
+                                        />
+                                    </Frame>
+                                    <ForEach keys={opened}>|number: u64| {
+                                        let pull_request = create_memo(move || {
+                                            model.opened.with(|opened| {
+                                                opened
+                                                    .iter()
+                                                    .find(|pull_request| pull_request.number == number)
+                                                    .cloned()
+                                                    .unwrap_or_else(|| placeholder(number))
+                                            })
+                                        });
+                                        view! {
+                                            <ListItem grow=1.0>
+                                                <Detail model={model} pull_request />
+                                            </ListItem>
+                                        }
+                                    }</ForEach>
+                                </List>
+                            </Frame>
+                        </BackSlide>
+                    </ListItem>
                 }}
             >
                 <ListItem grow=1.0>
@@ -298,7 +298,9 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                     <List spacing=ROW_SPACING>
                         <Text>{title}</Text>
                         <Text style=TextStyle::CAPTION>{details}</Text>
-                        <Show condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}>
+                        <Show
+                            condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
+                        >
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                     </List>

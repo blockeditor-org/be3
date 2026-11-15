@@ -44,7 +44,9 @@ impl be_sdk_beui::BeuiRoot for SettingsRoot {
                 <Loaded>
                     <Dynamic
                         value={shown}
-                        fallback={|| view! { <Frame /> }}
+                        fallback={|| view! {
+                            <Frame />
+                        }}
                     >|owner: Option<Uuid>| {
                         match owner {
                             Some(owner) => view! {

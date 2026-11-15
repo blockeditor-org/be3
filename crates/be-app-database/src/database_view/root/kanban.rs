@@ -77,7 +77,9 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
         <List direction=Direction::Horizontal spacing=Space::None>
             <Show
                 condition={folded}
-                fallback={move || view! { <OpenColumn data={data} group={group} key={key} /> }}
+                fallback={move || view! {
+                    <OpenColumn data={data} group={group} key={key} />
+                }}
             >
                 <FoldedColumn data={data} group={group} key={key} />
             </Show>
@@ -245,7 +247,9 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                             </List>
                         </Frame>
                         <Show condition={landing_shown}>
-                            <Frame height={move || Length::Size(Size::Custom(landing.get().unwrap_or(0.0)))} />
+                            <Frame
+                                height={move || Length::Size(Size::Custom(landing.get().unwrap_or(0.0)))}
+                            />
                         </Show>
                         <ListItem grow=1.0>
                             <Scroll>

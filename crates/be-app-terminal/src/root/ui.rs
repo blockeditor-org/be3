@@ -86,23 +86,27 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                     <Show
                         condition={connected}
                         fallback={move || view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                            <Text style=TextStyle::CAPTION color=TextColor::Warning>
-                                <Icon glyph={ICON_UNPLUG.to_owned()} />
-                            </Text>
-                            <Text style=TextStyle::CAPTION @test_id={"terminal.offline"}>
-                                "No machine is running this terminal"
-                            </Text>
-                            <Popover
-                                label="How to start one"
-                                glyph={ICON_INFO.to_owned()}
-                                variant=ButtonVariant::Ghost
-                                max_width=SETUP_WIDTH
-                                @test_id={"terminal.setup"}
-                            >|_|
-                                <SetupSteps editor={editor} />
-                            </Popover>
-                        </List>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=Space::Md
+                            >
+                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
+                                    <Icon glyph={ICON_UNPLUG.to_owned()} />
+                                </Text>
+                                <Text style=TextStyle::CAPTION @test_id={"terminal.offline"}>
+                                    "No machine is running this terminal"
+                                </Text>
+                                <Popover
+                                    label="How to start one"
+                                    glyph={ICON_INFO.to_owned()}
+                                    variant=ButtonVariant::Ghost
+                                    max_width=SETUP_WIDTH
+                                    @test_id={"terminal.setup"}
+                                >|_|
+                                    <SetupSteps editor={editor} />
+                                </Popover>
+                            </List>
                         }}
                     >
                         <Text style=TextStyle::CAPTION @test_id={"terminal.host"}>{place}</Text>

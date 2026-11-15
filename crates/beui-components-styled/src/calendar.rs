@@ -131,10 +131,14 @@ fn HeaderToggle(
 ) -> NodeId {
     view! {
         <unstyled::Button label accessibility on_click={on_click}>|button: unstyled::ButtonHandle|
-            <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={move || match open.get() {
-                true => ICON_CHEVRON_UP,
-                false => ICON_CHEVRON_DOWN,
-            }} />
+            <ButtonFace
+                handle={button}
+                variant=ButtonVariant::Ghost
+                trailing_glyph={move || match open.get() {
+                    true => ICON_CHEVRON_UP,
+                    false => ICON_CHEVRON_DOWN,
+                }}
+            />
         </unstyled::Button>
     }
 }

@@ -79,7 +79,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             0 => Some(0.0),
                             total => Some(done_count.get() as f32 / total as f32),
                         }}
-                        label="Checklist completion" />
+                        label="Checklist completion"
+                    />
                 </List>
                 <Card>
                     <List spacing=Space::Lg>

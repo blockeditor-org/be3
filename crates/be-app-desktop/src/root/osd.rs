@@ -145,10 +145,14 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
             @test_id={id}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text size=TextSize::Xl color={move || match muted.get() {
-                    true => TextColor::Muted,
-                    false => TextColor::Default,
-                }} align=TextAlign::Center>
+                <Text
+                    size=TextSize::Xl
+                    color={move || match muted.get() {
+                        true => TextColor::Muted,
+                        false => TextColor::Default,
+                    }}
+                    align=TextAlign::Center
+                >
                     <Icon glyph={glyph} />
                 </Text>
                 <Show

@@ -545,24 +545,34 @@ fn ShowFallback() -> NodeId {
         <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Editing" on={editing} />
             <Frame padding={Sides::all(8.0)}>
-                <Show condition={editing} fallback={|| view! { <Tile label="Reading" /> }}>||
+                <Show
+                    condition={editing}
+                    fallback={|| view! {
+                        <Tile label="Reading" />
+                    }}
+                >||
                     <Tile label="Editing: one child either way, so a frame can hold it" />
                 </Show>
             </Frame>
             <List spacing=8.0>
-                <Show condition={editing} fallback={|| view! {
-                    <Tile label="A run of three" />
-                    <Tile label="while reading" />
-                    <Tile label="in a list" />
-                }}>||
+                <Show
+                    condition={editing}
+                    fallback={|| view! {
+                        <Tile label="A run of three" />
+                        <Tile label="while reading" />
+                        <Tile label="in a list" />
+                    }}
+                >||
                     <Tile label="A run of two" />
                     <Tile label="while editing" />
                 </Show>
             </List>
-            <Tile label={move || match editing.get() {
-                true => "A closure is a prop: editing".to_owned(),
-                false => "A closure is a prop: reading".to_owned(),
-            }} />
+            <Tile
+                label={move || match editing.get() {
+                    true => "A closure is a prop: editing".to_owned(),
+                    false => "A closure is a prop: reading".to_owned(),
+                }}
+            />
         </List>
     }
 }

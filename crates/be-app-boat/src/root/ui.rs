@@ -22,7 +22,10 @@ pub fn Boat(editor: Editor) -> NodeId {
         view! {
             <Show
                 condition={move || state.key.with(Option::is_none) || state.reconnecting.get()}
-                fallback={move || view! { <Sandboxes state /> }}>
+                fallback={move || view! {
+                    <Sandboxes state />
+                }}
+            >
                 <SignIn state />
             </Show>
         }

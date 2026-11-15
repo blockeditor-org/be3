@@ -79,7 +79,9 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
             </SettingsSection>
             <Show
                 condition={toml}
-                fallback={move || view! { <EditorTab shared={shared} editor={editor} /> }}
+                fallback={move || view! {
+                    <EditorTab shared={shared} editor={editor} />
+                }}
             >
                 <TomlTab shared={shared} />
             </Show>

@@ -165,99 +165,104 @@ fn DatabaseValueControl(
         })
     });
     view! {
-        <Dynamic value={kind} fallback={|| view! { <Frame /> }}>|kind: Option<DatabaseFieldType>| {
-                let test_id = id.clone();
-                let on_change = forward(on_change);
-                let on_pick = forward(on_pick);
-                let on_submit = forward(on_submit);
-                match kind {
-                    Some(DatabaseFieldType::String) => view! {
-                        <StringValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                            on_submit={on_submit}
-                        />
-                    },
-                    Some(DatabaseFieldType::Number) => view! {
-                        <NumberValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Enum) => view! {
-                        <EnumValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Boolean) => view! {
-                        <BooleanValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Color) => view! {
-                        <ColorValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Datetime) => view! {
-                        <DatetimeValue
-                            field={field}
-                            value={value}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    None => view! {
-                        <LinksValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Relation) => view! {
-                        <RelationValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={on_change}
-                        />
-                    },
-                    Some(DatabaseFieldType::Block) => view! {
-                        <BlockValue
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            disabled={disabled}
-                            id={test_id}
-                            on_pick={on_pick}
-                        />
-                    },
-                }
-            }</Dynamic>
+        <Dynamic
+            value={kind}
+            fallback={|| view! {
+                <Frame />
+            }}
+        >|kind: Option<DatabaseFieldType>| {
+            let test_id = id.clone();
+            let on_change = forward(on_change);
+            let on_pick = forward(on_pick);
+            let on_submit = forward(on_submit);
+            match kind {
+                Some(DatabaseFieldType::String) => view! {
+                    <StringValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                        on_submit={on_submit}
+                    />
+                },
+                Some(DatabaseFieldType::Number) => view! {
+                    <NumberValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Enum) => view! {
+                    <EnumValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Boolean) => view! {
+                    <BooleanValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Color) => view! {
+                    <ColorValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Datetime) => view! {
+                    <DatetimeValue
+                        field={field}
+                        value={value}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                None => view! {
+                    <LinksValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Relation) => view! {
+                    <RelationValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={on_change}
+                    />
+                },
+                Some(DatabaseFieldType::Block) => view! {
+                    <BlockValue
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        disabled={disabled}
+                        id={test_id}
+                        on_pick={on_pick}
+                    />
+                },
+            }
+        }</Dynamic>
     }
 }
 

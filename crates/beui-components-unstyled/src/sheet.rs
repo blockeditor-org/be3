@@ -1208,13 +1208,17 @@ pub fn Sheet(
     let sheet = view! {
         <List spacing=0.0>
             <Show keep_alive=true condition={move || !gone.get()}>
-                <ListItem length={move || match rest_at.get() {
-        Rest::Free(height) => Some(height),
-        Rest::Share(_) | Rest::Fitted => None,
-    }} max={move || match rest_at.get() {
-        Rest::Share(share) => share * extent.get(),
-        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
-    }} shrink=1.0>
+                <ListItem
+                    length={move || match rest_at.get() {
+                        Rest::Free(height) => Some(height),
+                        Rest::Share(_) | Rest::Fitted => None,
+                    }}
+                    max={move || match rest_at.get() {
+                        Rest::Share(share) => share * extent.get(),
+                        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
+                    }}
+                    shrink=1.0
+                >
                     <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
                         {panel.call(view! {
                             <Frame>

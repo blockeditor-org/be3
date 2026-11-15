@@ -161,9 +161,16 @@ fn LevelRow(
             <Show condition={expanded}>|| {
                 let goal = goal.clone();
                 let detail = match quiz {
-                    true => view! { <BinaryAddition editor={editor} block={block} /> },
+                    true => view! {
+                        <BinaryAddition editor={editor} block={block} />
+                    },
                     false => view! {
-                        <Solutions editor={editor} game={game} challenge={challenge} level={level} />
+                        <Solutions
+                            editor={editor}
+                            game={game}
+                            challenge={challenge}
+                            level={level}
+                        />
                     },
                 };
                 view! {

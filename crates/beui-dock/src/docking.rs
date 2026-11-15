@@ -1318,11 +1318,16 @@ where
         };
         Some(view! {
             <Layers>
-                <Show condition={declared} fallback={|| view! { <Frame /> }}>|| {
+                <Show
+                    condition={declared}
+                    fallback={|| view! {
+                        <Frame />
+                    }}
+                >|| {
                     found
-                        .with_untracked(|found| found.empty(&key))
-                        .expect("the empty view is only shown while it is declared")
-                        .call(())
+                    .with_untracked(|found| found.empty(&key))
+                    .expect("the empty view is only shown while it is declared")
+                    .call(())
                 }</Show>
             </Layers>
         })

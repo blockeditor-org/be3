@@ -199,8 +199,14 @@ fn render_setter(
             .unwrap_or_else(|| syn::parse_quote!(()));
         let new = render_new(render);
         let (bound, build) = match &render.handle {
-            Some(_) => (render_fn_bound(render, quote! { #handle }), quote! { #new(value) }),
-            None => (render_fn_bound(render, quote! {}), quote! { #new(move |()| value()) }),
+            Some(_) => (
+                render_fn_bound(render, quote! { #handle }),
+                quote! { #new(value) },
+            ),
+            None => (
+                render_fn_bound(render, quote! {}),
+                quote! { #new(move |()| value()) },
+            ),
         };
         return Setter {
             method: method.clone(),
@@ -259,8 +265,14 @@ fn render_children_closure(
             .clone()
             .unwrap_or_else(|| syn::parse_quote!(()));
         let (bound, build) = match &render.handle {
-            Some(_) => (render_fn_bound(render, quote! { #handle }), quote! { #new(value) }),
-            None => (render_fn_bound(render, quote! {}), quote! { #new(move |()| value()) }),
+            Some(_) => (
+                render_fn_bound(render, quote! { #handle }),
+                quote! { #new(value) },
+            ),
+            None => (
+                render_fn_bound(render, quote! {}),
+                quote! { #new(move |()| value()) },
+            ),
         };
         return Setter {
             method: format_ident!("children_render"),
@@ -761,7 +773,8 @@ fn replace_ident(
         .flat_map(|token| match token {
             TokenTree::Ident(ident) if ident == *from => to.clone().into_iter().collect::<Vec<_>>(),
             TokenTree::Group(group) => {
-                let mut new = Group::new(group.delimiter(), replace_ident(group.stream(), from, to));
+                let mut new =
+                    Group::new(group.delimiter(), replace_ident(group.stream(), from, to));
                 new.set_span(group.span());
                 vec![TokenTree::Group(new)]
             }
@@ -854,10 +867,11 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         })
         .collect();
     let missing = quote! { ::__beui_tree::reactive::MissingProp };
-    let where_clause = generic_params.iter().fold(
-        quote! { #where_clause },
-        |clause, param| replace_ident(clause, param, &missing),
-    );
+    let where_clause = generic_params
+        .iter()
+        .fold(quote! { #where_clause }, |clause, param| {
+            replace_ident(clause, param, &missing)
+        });
     let params = &generics.params;
     let generics = (!params.is_empty()).then(|| quote! { <#params> });
     Ok(quote! {
@@ -1350,101 +1364,104 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         })
         .collect();
 
-    let required_impls = required.iter().enumerate().map(|(slot, index)| {
-        let prop = &props[*index];
-        let ident = &prop.ident;
-        let ty = &prop.ty;
-        if let Some(param) = &prop.generic_param {
-            return generic_setter(GenericSetter {
-                props: &props,
-                req_slot_of: &req_slot_of,
-                prop,
-                param,
-                builder_ident: &builder_ident,
-                all_generics: &all_generics,
-                builder_all: &builder_all,
-                all_args: &all_args_list,
-                where_clause: where_clause.as_ref(),
-                phantom: phantom_field.is_some().then_some(&phantom_ident),
+    let required_impls = required
+        .iter()
+        .enumerate()
+        .map(|(slot, index)| {
+            let prop = &props[*index];
+            let ident = &prop.ident;
+            let ty = &prop.ty;
+            if let Some(param) = &prop.generic_param {
+                return generic_setter(GenericSetter {
+                    props: &props,
+                    req_slot_of: &req_slot_of,
+                    prop,
+                    param,
+                    builder_ident: &builder_ident,
+                    all_generics: &all_generics,
+                    builder_all: &builder_all,
+                    all_args: &all_args_list,
+                    where_clause: where_clause.as_ref(),
+                    phantom: phantom_field.is_some().then_some(&phantom_ident),
+                });
+            }
+            let state_params: Vec<(usize, &Ident)> = req_params
+                .iter()
+                .enumerate()
+                .filter(|(_, param)| !generic_params.contains(param))
+                .collect();
+            let others: Vec<&Ident> = field_idents
+                .iter()
+                .filter(|field| *field != ident)
+                .collect();
+            let impl_params: Vec<proc_macro2::TokenStream> = comp_params
+                .iter()
+                .map(|param| quote! { #param })
+                .chain(
+                    state_params
+                        .iter()
+                        .filter(|(other, _)| *other != slot)
+                        .map(|(_, param)| quote! { #param }),
+                )
+                .collect();
+            let impl_generics = angle_bracketed(&impl_params);
+            let unset_args: Vec<proc_macro2::TokenStream> = comp_args
+                .iter()
+                .cloned()
+                .chain(state_params.iter().map(|(other, param)| {
+                    if *other == slot {
+                        quote! { ::__beui_tree::reactive::MissingProp }
+                    } else {
+                        quote! { #param }
+                    }
+                }))
+                .collect();
+            let unset_args = angle_bracketed(&unset_args);
+            let set_args: Vec<proc_macro2::TokenStream> = comp_args
+                .iter()
+                .cloned()
+                .chain(state_params.iter().map(|(other, param)| {
+                    if *other == slot {
+                        quote! { #ty }
+                    } else {
+                        quote! { #param }
+                    }
+                }))
+                .collect();
+            let set_args = angle_bracketed(&set_args);
+
+            let mut setters = vec![named_setter(prop)];
+            if children_slot == Some(*index) {
+                setters.extend(children_setters(prop));
+            }
+            let methods = setters.into_iter().map(|setter| {
+                let Setter {
+                    method,
+                    generics,
+                    args,
+                    where_clause,
+                    value,
+                } = setter;
+                let others = &others;
+                quote! {
+                    pub fn #method #generics (self, #args)
+                        -> #builder_ident #set_args
+                    #where_clause
+                    {
+                        let __prop_value = #value;
+                        let #builder_ident { #ident: _, #(#others,)* } = self;
+                        #builder_ident { #ident: __prop_value, #(#others,)* }
+                    }
+                }
             });
-        }
-        let state_params: Vec<(usize, &Ident)> = req_params
-            .iter()
-            .enumerate()
-            .filter(|(_, param)| !generic_params.contains(param))
-            .collect();
-        let others: Vec<&Ident> = field_idents
-            .iter()
-            .filter(|field| *field != ident)
-            .collect();
-        let impl_params: Vec<proc_macro2::TokenStream> = comp_params
-            .iter()
-            .map(|param| quote! { #param })
-            .chain(
-                state_params
-                    .iter()
-                    .filter(|(other, _)| *other != slot)
-                    .map(|(_, param)| quote! { #param }),
-            )
-            .collect();
-        let impl_generics = angle_bracketed(&impl_params);
-        let unset_args: Vec<proc_macro2::TokenStream> = comp_args
-            .iter()
-            .cloned()
-            .chain(state_params.iter().map(|(other, param)| {
-                if *other == slot {
-                    quote! { ::__beui_tree::reactive::MissingProp }
-                } else {
-                    quote! { #param }
-                }
-            }))
-            .collect();
-        let unset_args = angle_bracketed(&unset_args);
-        let set_args: Vec<proc_macro2::TokenStream> = comp_args
-            .iter()
-            .cloned()
-            .chain(state_params.iter().map(|(other, param)| {
-                if *other == slot {
-                    quote! { #ty }
-                } else {
-                    quote! { #param }
-                }
-            }))
-            .collect();
-        let set_args = angle_bracketed(&set_args);
 
-        let mut setters = vec![named_setter(prop)];
-        if children_slot == Some(*index) {
-            setters.extend(children_setters(prop));
-        }
-        let methods = setters.into_iter().map(|setter| {
-            let Setter {
-                method,
-                generics,
-                args,
-                where_clause,
-                value,
-            } = setter;
-            let others = &others;
-            quote! {
-                pub fn #method #generics (self, #args)
-                    -> #builder_ident #set_args
-                #where_clause
-                {
-                    let __prop_value = #value;
-                    let #builder_ident { #ident: _, #(#others,)* } = self;
-                    #builder_ident { #ident: __prop_value, #(#others,)* }
+            Ok(quote! {
+                impl #impl_generics #builder_ident #unset_args #where_clause {
+                    #(#methods)*
                 }
-            }
-        });
-
-        Ok(quote! {
-            impl #impl_generics #builder_ident #unset_args #where_clause {
-                #(#methods)*
-            }
+            })
         })
-    })
-    .collect::<syn::Result<Vec<_>>>()?;
+        .collect::<syn::Result<Vec<_>>>()?;
 
     let field_lets = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;

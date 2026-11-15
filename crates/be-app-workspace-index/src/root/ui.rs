@@ -156,27 +156,27 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             <ListItem grow=1.0>
                                 <Scroll>
                                     <Frame padding=PADDING>
-                                            <Dynamic value={mode}>|shown: FolderView| {
-                                                match shown {
-                                                    FolderView::List => view! {
-                                                        <EntryRows cells={cells} />
-                                                    },
-                                                    FolderView::LargeGrid => view! {
-                                                        <EntryTiles
-                                                            cells={cells}
-                                                            tile=LARGE_TILE
-                                                            icon_size=LARGE_ICON
-                                                        />
-                                                    },
-                                                    FolderView::SmallGrid => view! {
-                                                        <EntryTiles
-                                                            cells={cells}
-                                                            tile=SMALL_TILE
-                                                            icon_size=SMALL_ICON
-                                                        />
-                                                    },
-                                                }
-                                            }</Dynamic>
+                                        <Dynamic value={mode}>|shown: FolderView| {
+                                            match shown {
+                                                FolderView::List => view! {
+                                                    <EntryRows cells={cells} />
+                                                },
+                                                FolderView::LargeGrid => view! {
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=LARGE_TILE
+                                                        icon_size=LARGE_ICON
+                                                    />
+                                                },
+                                                FolderView::SmallGrid => view! {
+                                                    <EntryTiles
+                                                        cells={cells}
+                                                        tile=SMALL_TILE
+                                                        icon_size=SMALL_ICON
+                                                    />
+                                                },
+                                            }
+                                        }</Dynamic>
                                     </Frame>
                                 </Scroll>
                             </ListItem>

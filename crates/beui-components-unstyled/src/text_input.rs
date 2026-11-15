@@ -312,18 +312,18 @@ pub fn TextInput(
             single_line={!multiline}
             line_numbers=false
             colors={move || TextAreaColors {
-        selection: selection_color.get(),
-        caret: caret_color.get(),
-        placeholder: placeholder_color.get(),
-        syntax: SyntaxColors::uniform(color.get()),
-        gutter_border: Color::TRANSPARENT,
-        gutter_text: Color::TRANSPARENT,
-        gutter_arrow: Color::TRANSPARENT,
-        code_background: Color::TRANSPARENT,
-        widget: Color::TRANSPARENT,
-        broken_widget: Color::TRANSPARENT,
-        remote_selection_alpha: 0,
-    }}
+                selection: selection_color.get(),
+                caret: caret_color.get(),
+                placeholder: placeholder_color.get(),
+                syntax: SyntaxColors::uniform(color.get()),
+                gutter_border: Color::TRANSPARENT,
+                gutter_text: Color::TRANSPARENT,
+                gutter_arrow: Color::TRANSPARENT,
+                code_background: Color::TRANSPARENT,
+                widget: Color::TRANSPARENT,
+                broken_widget: Color::TRANSPARENT,
+                remote_selection_alpha: 0,
+            }}
             look={TextAreaLook::plain(geometry)}
             placeholder
             password={masked}

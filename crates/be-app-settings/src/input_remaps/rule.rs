@@ -413,60 +413,60 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                 <Show
                     condition={move || outline.get().does == Does::Steps}
                     fallback={move || view! {
-                    <Part title={key_heading}>
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=CONTROL_SPACING
-                            wrap=true
-                        >
-                            <ModifierToggles
-                                on={key_modifiers}
-                                disabled={read_only}
-                                id={id("key")}
-                                set={set_key_modifier}
-                            />
-                            <Text style=TextStyle::CAPTION>"+"</Text>
-                            <KeyButton
-                                label={key}
-                                disabled={read_only}
-                                id={id("key")}
-                                pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Key)}
-                            />
-                        </List>
-                    </Part>
-                    <Show condition={move || outline.get().does == Does::Tap}>
-                        <Part
-                            title="Hold the tap for"
-                            description="Some games miss taps shorter than a frame or two."
-                        >
+                        <Part title={key_heading}>
                             <List
                                 direction=Direction::Horizontal
                                 align=Align::Center
                                 spacing=CONTROL_SPACING
                                 wrap=true
                             >
-                                <HoldPresets
-                                    hold={hold}
+                                <ModifierToggles
+                                    on={key_modifiers}
                                     disabled={read_only}
-                                    id={id("hold")}
-                                    set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
+                                    id={id("key")}
+                                    set={set_key_modifier}
                                 />
-                                <Text style=TextStyle::CAPTION>"or"</Text>
-                                <ListItem length=MS_WIDTH>
-                                    <NumberInput
-                                        value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
-                                        min=0.0
-                                        decimals={Some(0)}
-                                        label="Hold for, in milliseconds"
-                                        disabled={read_only}
-                                        @test_id={id("hold")}
-                                    />
-                                </ListItem>
-                                <Text style=TextStyle::CAPTION>"ms"</Text>
+                                <Text style=TextStyle::CAPTION>"+"</Text>
+                                <KeyButton
+                                    label={key}
+                                    disabled={read_only}
+                                    id={id("key")}
+                                    pick={move |from: NodeRef| edits.pick(from, group, rule, Target::Key)}
+                                />
                             </List>
                         </Part>
-                    </Show>
+                        <Show condition={move || outline.get().does == Does::Tap}>
+                            <Part
+                                title="Hold the tap for"
+                                description="Some games miss taps shorter than a frame or two."
+                            >
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=CONTROL_SPACING
+                                    wrap=true
+                                >
+                                    <HoldPresets
+                                        hold={hold}
+                                        disabled={read_only}
+                                        id={id("hold")}
+                                        set={move |ms: i64| edit(RuleEdit::HoldMs(Some(ms)))}
+                                    />
+                                    <Text style=TextStyle::CAPTION>"or"</Text>
+                                    <ListItem length=MS_WIDTH>
+                                        <NumberInput
+                                            value={Binding::new(hold, move |ms: f64| edit(RuleEdit::HoldMs(Some(ms.round() as i64))))}
+                                            min=0.0
+                                            decimals={Some(0)}
+                                            label="Hold for, in milliseconds"
+                                            disabled={read_only}
+                                            @test_id={id("hold")}
+                                        />
+                                    </ListItem>
+                                    <Text style=TextStyle::CAPTION>"ms"</Text>
+                                </List>
+                            </Part>
+                        </Show>
                     }}
                 >
                     <Part
@@ -733,9 +733,7 @@ fn RemovableKeys(
 fn HoldPresets(hold: Memo<f64>, disabled: Memo<bool>, id: String, set: Callback<i64>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach
-                keys={HOLD_PRESETS.to_vec()}
-            >|(ms, name): (i64, &'static str)| {
+            <ForEach keys={HOLD_PRESETS.to_vec()}>|(ms, name): (i64, &'static str)| {
                 let pressed = create_memo(move || hold.get().round() as i64 == ms);
                 let control_id = format!("{id}.{ms}");
                 view! {

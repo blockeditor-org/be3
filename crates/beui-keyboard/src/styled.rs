@@ -332,11 +332,15 @@ fn EmojiTab(
             on_click={on_click}
             content={move |button: unstyled::ButtonHandle| {
                 view! {
-                    <Frame fill={move || match (selected.get(), button.hovered.get()) {
-                    (true, _) => ColorRole::AccentSoft,
-                    (false, true) => ColorRole::Hover,
-                    (false, false) => ColorRole::None,
-                }} radius=Radius::Sm padding=Space::Sm>
+                    <Frame
+                        fill={move || match (selected.get(), button.hovered.get()) {
+                            (true, _) => ColorRole::AccentSoft,
+                            (false, true) => ColorRole::Hover,
+                            (false, false) => ColorRole::None,
+                        }}
+                        radius=Radius::Sm
+                        padding=Space::Sm
+                    >
                         <Text size=TextSize::Lg>{emoji}</Text>
                     </Frame>
                 }
@@ -360,9 +364,9 @@ fn EmojiKey(emoji: &'static str, keyboard: KeyboardHandle) -> NodeId {
                         height={Size::Custom(EMOJI_SIZE)}
                         align=Align2::CENTER
                         fill={move || match button.active.get() {
-                    true => ColorRole::Pressed,
-                    false => ColorRole::None,
-                }}
+                            true => ColorRole::Pressed,
+                            false => ColorRole::None,
+                        }}
                         radius=Radius::Sm
                     >
                         <Text size=TextSize::Xl>{emoji}</Text>
@@ -386,10 +390,14 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
                 let Face { glyph, text, .. } = shown.clone();
                 view! {
                     <Frame padding=GAP>
-                        <Frame fill={move || match button.active.get() {
-                    true => ColorRole::Pressed,
-                    false => ColorRole::Surface,
-                }} radius=Radius::Sm align=Align2::CENTER>
+                        <Frame
+                            fill={move || match button.active.get() {
+                                true => ColorRole::Pressed,
+                                false => ColorRole::Surface,
+                            }}
+                            radius=Radius::Sm
+                            align=Align2::CENTER
+                        >
                             <Text size=TextSize::Lg>
                                 {text}
                                 <Icon glyph size=TextSize::Lg />

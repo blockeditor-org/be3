@@ -64,11 +64,7 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> Dynamic
     let roomy = move || {
         view! {
             <Frame padding=BAND_PADDING>
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    spacing=Space::None
-                >
+                <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
                     <ListItem grow=1.0>
                         <Portal node={spread} />
                     </ListItem>

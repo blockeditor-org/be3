@@ -4,8 +4,8 @@ use std::sync::OnceLock;
 
 use beui_tree::reactive::{
     AtMostOneChild, ChildSegment, ChildValue, Children, ComponentContext, ComponentOutput,
-    CountOne, Counted, IntoChild, IntoSegment, HostedNode, LazyChild, OneOf, ScopeContext, SingleChild,
-    SlotChild, Stored, ZeroOrOne, store,
+    CountOne, Counted, HostedNode, IntoChild, IntoSegment, LazyChild, OneOf, ScopeContext,
+    SingleChild, SlotChild, Stored, ZeroOrOne, store,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -62,7 +62,9 @@ static HOSTS: std::sync::Mutex<Vec<HostHook>> = std::sync::Mutex::new(Vec::new()
 /// renders HTML beside a native document), so a host goes to the first core that is
 /// building now, as `fill_ref` reaches only the core that knows the node.
 pub fn install_host_hook(hook: HostHook) {
-    let mut hosts = HOSTS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut hosts = HOSTS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if !hosts.iter().any(|held| std::ptr::fn_addr_eq(*held, hook)) {
         hosts.push(hook);
     }

@@ -162,11 +162,21 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     });
     let text_height = create_memo(move || text.get().y);
     let built = view! {
-        <Canvas @node_ref=&canvas width={move || {
-        let padding = cx.padding.get();
-        text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
-    }} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={move || cx.padding.get().left - cx.shift.get()} y={y} width={move || text.get().x + cx.geometry.get().caret_width} height={text_height}>
+        <Canvas
+            @node_ref=&canvas
+            width={move || {
+                let padding = cx.padding.get();
+                text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
+            }}
+            height={canvas_height}
+            scrolls_across=true
+        >
+            <CanvasItem
+                x={move || cx.padding.get().left - cx.shift.get()}
+                y={y}
+                width={move || text.get().x + cx.geometry.get().caret_width}
+                height={text_height}
+            >
                 <AreaText cx={cx} model={model} geometry bounds />
             </CanvasItem>
         </Canvas>
@@ -209,7 +219,12 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let lines = view! {
         <List spacing=0.0>
             <RowText cx model text wrap=true on_bounds=bounds />
-            <Dynamic value={shown_block} fallback={|| view! { <Frame /> }}>|index: usize| {
+            <Dynamic
+                value={shown_block}
+                fallback={|| view! {
+                    <Frame />
+                }}
+            >|index: usize| {
                 let render = cx.block.expect("a block is only shown when the area renders them");
                 let size = block.get_untracked().unwrap_or_default().1;
                 view! {
@@ -962,7 +977,11 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Show condition={move || icon.get().is_some()}>||
                     <Frame width={move || Extent::px(shape.get().icon_width)}>
-                        <Text font={move || FontId::proportional(shape.get().icon_size)} color={color} align=TextAlign::Center>
+                        <Text
+                            font={move || FontId::proportional(shape.get().icon_size)}
+                            color={color}
+                            align=TextAlign::Center
+                        >
                             <Icon glyph={icon} />
                         </Text>
                     </Frame>
@@ -1032,13 +1051,21 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
         <Frame padding=above>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
                 <Frame width={move || Extent::px(arrow_size.get())} height=height>
-                    <Text font={move || FontId::proportional(arrow_size.get())} color={move || cx.colors.get().gutter_arrow} align=TextAlign::Center>
+                    <Text
+                        font={move || FontId::proportional(arrow_size.get())}
+                        color={move || cx.colors.get().gutter_arrow}
+                        align=TextAlign::Center
+                    >
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
                 <ListItem grow=1.0>
                     <Frame height=height>
-                        <Text font={move || FontId::monospace(cx.font_size.get())} color={move || cx.colors.get().gutter_text} align=TextAlign::End>
+                        <Text
+                            font={move || FontId::monospace(cx.font_size.get())}
+                            color={move || cx.colors.get().gutter_text}
+                            align=TextAlign::End
+                        >
                             {number}
                         </Text>
                     </Frame>

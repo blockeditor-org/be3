@@ -536,7 +536,9 @@ fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
                     <Layers>
                         <Show
                             condition={primary}
-                            fallback={move || view! { <SecondaryDisplay view index /> }}
+                            fallback={move || view! {
+                                <SecondaryDisplay view index />
+                            }}
                         >
                             <Root view />
                         </Show>

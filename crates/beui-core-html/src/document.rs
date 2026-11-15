@@ -277,7 +277,9 @@ pub fn set_style(node: NodeId, property: &'static str, value: Option<String>) {
 /// to the child it holds.
 pub fn set_placed_style(node: NodeId, property: &'static str, value: Option<String>) {
     let held = HOSTS.with(|hosts| hosts.borrow().get(&node).copied());
-    restyle(node, |entry| write(&mut entry.placed, property, value.clone()));
+    restyle(node, |entry| {
+        write(&mut entry.placed, property, value.clone())
+    });
     if let Some(Some(child)) = held {
         set_placed_style(child, property, value);
     }

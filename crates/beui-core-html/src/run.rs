@@ -71,6 +71,7 @@ pub fn root() -> Option<NodeId> {
 }
 
 fn root_element(build: impl FnOnce() -> NodeId) -> Node {
+    crate::tree::install_hooks();
     let child = build();
     let root = create("Root", "div");
     set_attribute(root, "class", Some("beui-root".to_owned()));

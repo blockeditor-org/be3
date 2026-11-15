@@ -246,12 +246,19 @@ where
                 shrink=1.0
             >
                 <Scroll fit=true scrollbar>
-                    <Show condition={gridded} fallback={move || view! {
-                        <ForEach keys={shown}>|key: K|
-                            <SearchRow state key accessibility row highlight />
-                        </ForEach>
-                    }}>
-                        <Grid columns={move || vec![Track::Fraction(1.0); columns.get()]} column_spacing=spacing row_spacing=spacing>
+                    <Show
+                        condition={gridded}
+                        fallback={move || view! {
+                            <ForEach keys={shown}>|key: K|
+                                <SearchRow state key accessibility row highlight />
+                            </ForEach>
+                        }}
+                    >
+                        <Grid
+                            columns={move || vec![Track::Fraction(1.0); columns.get()]}
+                            column_spacing=spacing
+                            row_spacing=spacing
+                        >
                             <ForEach keys={shown}>|key: K|
                                 <SearchRow state key accessibility row highlight />
                             </ForEach>

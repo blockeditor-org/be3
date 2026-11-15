@@ -207,15 +207,13 @@ pub(crate) fn ReferenceMenuItem(
                 })
             })
     });
-    let detail = move || {
-        match reference.with(|reference| {
-            reference
-                .as_ref()
-                .is_some_and(|reference| reference.deleted)
-        }) {
-            true => "In Recently Deleted".to_owned(),
-            false => String::new(),
-        }
+    let detail = move || match reference.with(|reference| {
+        reference
+            .as_ref()
+            .is_some_and(|reference| reference.deleted)
+    }) {
+        true => "In Recently Deleted".to_owned(),
+        false => String::new(),
     };
     let restore = move || {
         edit.get()
@@ -232,7 +230,11 @@ pub(crate) fn ReferenceMenuItem(
     view! {
         <MenuItem label={label} detail={detail}>
             <MenuItem label="Open" on_click={move || act(BlockAction::Open)} />
-            <MenuItem label="Add" disabled={move || rights.get().is_none_or(|rights| rights.0)} on_click={move || act(BlockAction::Picker)} />
+            <MenuItem
+                label="Add"
+                disabled={move || rights.get().is_none_or(|rights| rights.0)}
+                on_click={move || act(BlockAction::Picker)}
+            />
             <MenuItem label="Set parent" disabled={edit}>
                 <MenuItem
                     label="My files"
@@ -241,7 +243,11 @@ pub(crate) fn ReferenceMenuItem(
                 />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} on_click={move || act(BlockAction::Rename)} />
-            <MenuItem label="Share" disabled={move || rights.get().is_none_or(|rights| rights.6)} on_click={move || act(BlockAction::Share)} />
+            <MenuItem
+                label="Share"
+                disabled={move || rights.get().is_none_or(|rights| rights.6)}
+                on_click={move || act(BlockAction::Share)}
+            />
             <MenuItem
                 label="Unlink"
                 disabled={move || rights.get().is_none_or(|rights| rights.3)}

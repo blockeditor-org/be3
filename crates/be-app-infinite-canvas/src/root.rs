@@ -66,7 +66,9 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
                 <Loaded>
                     <Show
                         condition={presented}
-                        fallback={move || view! { <CanvasEditor editor={editor} /> }}
+                        fallback={move || view! {
+                            <CanvasEditor editor={editor} />
+                        }}
                     >
                         <CanvasPresented editor={editor} />
                     </Show>
