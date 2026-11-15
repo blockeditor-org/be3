@@ -1,7 +1,5 @@
 use super::*;
 
-use std::sync::atomic::Ordering;
-
 fn commit(name: &[u8]) -> CommitId {
     CommitId::from_hash(be_block_store::Hash::of(name))
 }
@@ -19,25 +17,25 @@ fn a_head_change_copies_one_node_not_the_graph_a_seen_shares() {
     let (typed, remote) = (Uuid::from_u128(7), Uuid::from_u128(19_000));
     let handed = graph.clone();
 
-    NODES_COPIED.store(0, Ordering::Relaxed);
+    NODES_COPIED.set(0);
     graph.report_head(typed, Some(commit(b"sealed")));
     assert_eq!(
-        NODES_COPIED.load(Ordering::Relaxed),
+        NODES_COPIED.get(),
         1,
         "the replica's own seal copies its node"
     );
 
-    NODES_COPIED.store(0, Ordering::Relaxed);
+    NODES_COPIED.set(0);
     let handed_again = graph.clone();
     assert!(
         graph.reports(typed, Some(commit(b"sealed"))),
         "a report of the same head changes nothing"
     );
-    assert_eq!(NODES_COPIED.load(Ordering::Relaxed), 0);
+    assert_eq!(NODES_COPIED.get(), 0);
 
     graph.set_head(remote, Some(commit(b"another device's")));
     assert_eq!(
-        NODES_COPIED.load(Ordering::Relaxed),
+        NODES_COPIED.get(),
         1,
         "a head another device published copies its node"
     );

@@ -127,10 +127,15 @@ thread_local! {
 /// Runs `change` posting no change notice and no wake: for what this thread was told of
 /// already, done again (the page laying its edits over a newer `Seen`).
 pub(crate) fn quietly<T>(change: impl FnOnce() -> T) -> T {
-    let was = QUIET.replace(true);
-    let changed = change();
-    QUIET.set(was);
-    changed
+    // Put back by a guard, so a panic in `change` does not leave this thread quiet.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            QUIET.set(self.0);
+        }
+    }
+    let _restore = Restore(QUIET.replace(true));
+    change()
 }
 
 /// Tells every watcher of `changes` now.

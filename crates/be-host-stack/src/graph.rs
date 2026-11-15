@@ -30,15 +30,17 @@ pub struct Node {
     pub tree_size: u64,
 }
 
-/// How many nodes were copied, for a test to tell that a change copies what it changes, not
-/// the graph a `Seen` handed over shares.
 #[cfg(test)]
-pub(crate) static NODES_COPIED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+thread_local! {
+    /// How many nodes this thread copied, for a test to tell that a change copies what it
+    /// changes, not the graph a `Seen` handed over shares. Per thread: tests run side by side.
+    pub(crate) static NODES_COPIED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
 
 #[cfg(test)]
 impl Clone for Node {
     fn clone(&self) -> Self {
-        NODES_COPIED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        NODES_COPIED.set(NODES_COPIED.get() + 1);
         Self {
             id: self.id,
             content_type: self.content_type,
@@ -148,7 +150,11 @@ pub struct Graph {
     /// Blocks made here that the drain has not sent yet (`made`): no listing the server answers
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
-    unpublished: HashSet<Uuid>,
+    unpublished: imbl::HashSet<Uuid>,
+    /// Nodes a change copied because a `Seen` handed over still shared them (`node_mut`), for a
+    /// test to count.
+    #[cfg(test)]
+    pub(crate) copied_on_write: u64,
     derived: imbl::HashMap<Uuid, Entries>,
     referenced: imbl::HashMap<Uuid, Vec<Uuid>>,
     /// The head an open block's replica last reported, which what the server lists of it does not
@@ -604,7 +610,12 @@ impl Graph {
     /// A node to change, copied first if a `Seen` handed over shares it: the persistent map
     /// copies the path to it, and the node itself only when shared.
     fn node_mut(&mut self, block: Uuid) -> Option<&mut Node> {
-        self.nodes.get_mut(&block).map(Arc::make_mut)
+        let node = self.nodes.get_mut(&block)?;
+        #[cfg(test)]
+        if Arc::strong_count(node) > 1 {
+            self.copied_on_write += 1;
+        }
+        Some(Arc::make_mut(node))
     }
 
     pub fn update(&mut self, block: Uuid, change: impl FnOnce(&mut Node)) {

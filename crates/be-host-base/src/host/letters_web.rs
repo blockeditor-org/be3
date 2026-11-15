@@ -49,12 +49,12 @@ pub fn be_letter_arrived(letter: usize) {
     // unsafe(memory)
     let letter = unsafe { Box::from_raw(letter as *mut (ThreadId, Letter)) };
     let (to, letter) = *letter;
-    assert_eq!(
-        to,
-        thread::current().id(),
-        "a worker posted to a mailbox another worker made: only the page makes mailboxes on \
-         the web, since only the page takes a worker's letters"
-    );
+    // Only the page makes mailboxes (`Desk::mailbox`), so this is a bug elsewhere: the page
+    // says so and drops it rather than trap.
+    if to != thread::current().id() {
+        eprintln!("be-host: a letter for a mailbox another thread made reached the page");
+        return;
+    }
     arrived(letter);
 }
 
