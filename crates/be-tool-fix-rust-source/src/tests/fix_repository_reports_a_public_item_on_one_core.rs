@@ -37,7 +37,7 @@ pub fn shared() {}
         "pub struct Leaked;\n\npub(crate) fn body() {}\n\nimpl Leaked {\n    pub fn method(&self) {}\n}\n",
     )
     .unwrap();
-    let facade = root.join("crates/beui/src");
+    let facade = root.join("crates/beui-documents/src");
     fs::create_dir_all(&facade).unwrap();
     fs::write(
         facade.join("lib.rs"),
@@ -61,8 +61,8 @@ pub fn shared() {}
     assert!(error.contains("public item in a core: crates/beui-view/src/native/text.rs:1"));
     assert!(!error.contains("crates/beui-view/src/native/text.rs:3"));
     assert!(!error.contains("crates/beui-view/src/native/text.rs:6"));
-    assert!(error.contains("one-core public item: crates/beui/src/lib.rs:6"));
-    assert!(!error.contains("crates/beui/src/lib.rs:3"));
+    assert!(error.contains("one-core public item: crates/beui-documents/src/lib.rs:6"));
+    assert!(!error.contains("crates/beui-documents/src/lib.rs:3"));
 
     fs::remove_dir_all(root).unwrap();
 }

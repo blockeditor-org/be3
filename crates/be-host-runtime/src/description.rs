@@ -136,7 +136,7 @@ pub fn describe(context: &beui::native::Context) {
     });
     regions.sort_by_key(|region| region.document);
     for (_, requested) in context.action_requests() {
-        let (pane, id) = match requested.split_once(beui_host::native::drive::PANE) {
+        let (pane, id) = match requested.split_once(beui_layer_drive::PANE) {
             Some((pane, id)) => (Some(pane), id),
             None => (None, requested.as_str()),
         };

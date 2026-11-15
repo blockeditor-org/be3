@@ -3,8 +3,9 @@ use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 26] = [
+const PRIMITIVE_USERS: [&str; 28] = [
     "crates/beui/",
+    "crates/beui-documents/",
     "crates/beui-host/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
@@ -18,6 +19,7 @@ const PRIMITIVE_USERS: [&str; 26] = [
     "crates/beui-demo/src/base_pages.rs",
     "crates/beui-tests/",
     "crates\\beui\\",
+    "crates\\beui-documents\\",
     "crates\\beui-host\\",
     "crates\\beui-view\\",
     "crates\\beui-components-styled\\",
@@ -52,11 +54,13 @@ const BASE_CRATES: [&str; 4] = [
     "crates\\beui-types\\",
 ];
 
-const CORE_CHOOSERS: [&str; 6] = [
+const CORE_CHOOSERS: [&str; 8] = [
     "crates/beui/",
+    "crates/beui-documents/",
     "crates/beui-view/",
     "crates/beui-core-html/",
     "crates\\beui\\",
+    "crates\\beui-documents\\",
     "crates\\beui-view\\",
     "crates\\beui-core-html\\",
 ];
@@ -356,7 +360,7 @@ fn core_cfg_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String>
             let offset = u32::from(token.text_range().start()) as usize;
             let line = source[..offset].matches('\n').count() + 1;
             format!(
-                "core cfg outside the cores: {relative}:{line} only beui-view, beui and beui-core-html choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
+                "core cfg outside the cores: {relative}:{line} only beui-view, beui-documents, beui and beui-core-html choose by cfg(beui_html); elsewhere branch on `if CORE == Core::Html`"
             )
         })
         .collect()
