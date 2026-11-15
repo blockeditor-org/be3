@@ -271,7 +271,6 @@ impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
     }
 }
 
-
 /// How an optional render prop, `Option<RenderFn<H, C>>` or `Option<Render<H, C>>`, takes
 /// what a tag passes it: what the render prop takes, as `Some`, a `|| ..` closure that
 /// ignores what it is handed, or another component's optional render prop passed on as it

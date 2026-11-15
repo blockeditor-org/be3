@@ -21,16 +21,17 @@ pub mod reactive {
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
-        ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp, Render, RenderFn,
-        component, current_component, try_current_component,
+        ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp,
+        Render, RenderFn, component, current_component, try_current_component,
     };
     pub use crate::control::{
-        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs, RowKey, Show,
-        ShowValue,
+        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs,
+        RowKey, Show, ShowValue,
     };
     pub use crate::into_prop_via;
     pub use crate::prop::{
-        ByClosure, ByClosureLifted, ByLift, ByValue, Given, PassedOn, Func, Getter, IntoFunc, IntoLiftedProp, IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, Prop,
+        ByClosure, ByClosureLifted, ByLift, ByValue, Func, Getter, Given, IntoFunc, IntoLiftedProp,
+        IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{

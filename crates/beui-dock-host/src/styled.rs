@@ -988,7 +988,9 @@ fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
                             padding=DROP_LABEL_PADDING
                             @test_id="dock.drop.label"
                         >
-                            <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>{label}</Text>
+                            <Text color=TextColor::OnAccent overflow=Overflow::Ellipsis>
+                                {label}
+                            </Text>
                         </Frame>
                     </Frame>
                 }

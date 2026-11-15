@@ -257,7 +257,9 @@ fn OrderPicker(data: Data) -> NodeId {
                         on_change={picked}
                     />
                 </ListItem>
-                <Show value={move || data.sort.get().map(|sort| sort.direction)}>|direction: ReadSignal<SortDirection>|
+                <Show
+                    value={move || data.sort.get().map(|sort| sort.direction)}
+                >|direction: ReadSignal<SortDirection>|
                     <Button
                         icon_only=true
                         glyph={move || match direction.get() {
@@ -480,7 +482,10 @@ pub fn FieldPicker(
         <Select
             options={view! {
                 <ChoiceOption label={none} />
-                <ForEach value={options} key={|field: &DatabaseField| field.id}>|field: ReadSignal<DatabaseField>| {
+                <ForEach
+                    value={options}
+                    key={|field: &DatabaseField| field.id}
+                >|field: ReadSignal<DatabaseField>| {
                     let name = create_memo(move || field.with(|field| field.name.clone()));
                     view! {
                         <ChoiceOption label={name} />

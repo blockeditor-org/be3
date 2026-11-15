@@ -206,7 +206,10 @@ fn TypeItems(
         {placing.then(|| view! {
             <LocationItem picker held act />
         })}
-        <ForEach value={common} key={tile_key}>|entry: ReadSignal<TemplateEntry>, index: ReadSignal<usize>|
+        <ForEach
+            value={common}
+            key={tile_key}
+        >|entry: ReadSignal<TemplateEntry>, index: ReadSignal<usize>|
             <TypeItem act entry separated={move || placing && index.get() == 0} />
         </ForEach>
         <MoreItem act label="More blocks…" />
@@ -635,7 +638,10 @@ fn TypeGroupView(act: Act, group: ReadSignal<TypeGroup>) -> NodeId {
     view! {
         <List spacing=GROUP_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
-            <ForEach value={move || group.with(|group| group.types.clone())} key={tile_key}>|entry: ReadSignal<TemplateEntry>|
+            <ForEach
+                value={move || group.with(|group| group.types.clone())}
+                key={tile_key}
+            >|entry: ReadSignal<TemplateEntry>|
                 <TypeRow act entry />
             </ForEach>
         </List>

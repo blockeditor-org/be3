@@ -164,23 +164,23 @@ pub(super) fn KeyPicker(
                     @test_id={"input-remaps.picker.tabs"}
                 />
                 <Show value={current}>|current: ReadSignal<Tab>|
-                <Match value={current}>
-                    <Case is={Tab::Press}>
-                        <PressTab
-                            target={target}
-                            listening={listening}
-                            capture={capture}
-                            listen_again={listen_again}
-                            pick={pick}
-                        />
-                    </Case>
-                    <Case is={Tab::Mouse}>
-                        <MouseTab wheel={wheel} pick={pick} />
-                    </Case>
-                    <Case is={Tab::AllKeys}>
-                        <AllKeysTab query={query} wheel={wheel} pick={pick} />
-                    </Case>
-                </Match>
+                    <Match value={current}>
+                        <Case is={Tab::Press}>
+                            <PressTab
+                                target={target}
+                                listening={listening}
+                                capture={capture}
+                                listen_again={listen_again}
+                                pick={pick}
+                            />
+                        </Case>
+                        <Case is={Tab::Mouse}>
+                            <MouseTab wheel={wheel} pick={pick} />
+                        </Case>
+                        <Case is={Tab::AllKeys}>
+                            <AllKeysTab query={query} wheel={wheel} pick={pick} />
+                        </Case>
+                    </Match>
                 </Show>
                 <Separator />
                 <Show value={move || target.get() == Some(Target::Key)}>

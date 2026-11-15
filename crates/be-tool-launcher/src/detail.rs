@@ -393,7 +393,9 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);
     let cells: Vec<Vec<Block>> = rows
         .iter()
-        .flat_map(|row| (0..columns).map(move |column| row.get(column).cloned().unwrap_or_default()))
+        .flat_map(|row| {
+            (0..columns).map(move |column| row.get(column).cloned().unwrap_or_default())
+        })
         .collect();
     view! {
         <Frame

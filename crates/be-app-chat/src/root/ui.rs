@@ -611,7 +611,9 @@ pub fn Chat(editor: Editor) -> NodeId {
             <Separator />
             <Frame padding={Padding::all(Space::Lg)}>
                 <List spacing=Space::Sm>
-                    <Show value={move || unread.get().filter(|count| *count > 0)}>|count: ReadSignal<usize>|
+                    <Show
+                        value={move || unread.get().filter(|count| *count > 0)}
+                    >|count: ReadSignal<usize>|
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Button
                                 label={move || match count.get() {

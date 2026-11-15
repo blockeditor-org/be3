@@ -49,9 +49,7 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                 {unsupported.then(|| view! {
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 })}
-                <Show
-                    value={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}
-                >
+                <Show value={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
             </List>

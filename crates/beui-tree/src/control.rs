@@ -10,11 +10,11 @@ use beui_reactive::{
     create_signal, store, untrack,
 };
 
+use crate::child_list::SlotId;
 use crate::children::{
     Branch, ChildSlot, Children, Count, Counted, DynamicSegment, Fallback, FormOf, NestedHost, Or,
     SlotChild, SlotHost, ValueFallback,
 };
-use crate::child_list::SlotId;
 use crate::component::{MissingProp, Render, RenderFn};
 use crate::prop::Prop;
 
@@ -125,7 +125,8 @@ where
     });
     let visible = Prop::dynamic(move || V::split(value.with(Prop::get)).is_some());
     let refresh = move || {
-        if let (Some(signal), Some(inner)) = (handed.get(), V::split(value.with(Prop::get_untracked)))
+        if let (Some(signal), Some(inner)) =
+            (handed.get(), V::split(value.with(Prop::get_untracked)))
         {
             V::refresh(signal, inner);
         }
@@ -189,9 +190,7 @@ fn keep<C: SlotChild>(
             scope.pause();
         }
         let built = held[visible].is_some();
-        if !built
-            && let Some(branch) = branches[visible]
-        {
+        if !built && let Some(branch) = branches[visible] {
             let scope = Scope::detached().pausable();
             let host = scope
                 .context()
@@ -450,7 +449,9 @@ impl<C: SlotChild> Rows<C> {
             Err(children) => {
                 let host: Rc<dyn SlotHost<C>> = self.clone();
                 let slot = ChildSlot::in_host(host);
-                let id = slot.host_slot().expect("a slot opened in a host knows its id");
+                let id = slot
+                    .host_slot()
+                    .expect("a slot opened in a host knows its id");
                 Row::Run(id, children.mount_in(slot))
             }
         }
@@ -538,7 +539,9 @@ where
                 untrack(|| rows.publish());
             });
         }
-        let pending = Rc::new(RefCell::new(HashMap::<(KF::Key, usize), (T, usize)>::default()));
+        let pending = Rc::new(RefCell::new(
+            HashMap::<(KF::Key, usize), (T, usize)>::default(),
+        ));
         let built = {
             let rows = rows.clone();
             let pending = pending.clone();
@@ -714,7 +717,9 @@ where
     let fallback = fallback.into_render();
     let cases = cases.into_run();
     DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let held = store(RefCell::new(None::<(Option<usize>, Option<Signal<V>>, Option<Scope>)>));
+        let held = store(RefCell::new(
+            None::<(Option<usize>, Option<Signal<V>>, Option<Scope>)>,
+        ));
         let cases = cases.clone();
         create_binding(move || {
             let next = value.get();

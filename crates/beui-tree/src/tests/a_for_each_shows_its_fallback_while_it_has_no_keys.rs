@@ -27,7 +27,10 @@ fn a_for_each_shows_its_fallback_while_it_has_no_keys() {
     keys.set(vec![1, 2]);
     let html = page.html();
     assert!(!html.contains("empty"), "{html}");
-    assert!(html.contains(">1</li>") && html.contains(">2</li>"), "{html}");
+    assert!(
+        html.contains(">1</li>") && html.contains(">2</li>"),
+        "{html}"
+    );
 
     keys.set(Vec::new());
     let html = page.html();

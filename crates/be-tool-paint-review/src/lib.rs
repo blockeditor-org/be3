@@ -112,37 +112,39 @@ fn PaintReview(
                         </ListItem>
                     }}
                 >
-                <Case is={Fetch::Loading}>
-                    <ListItem grow=1.0>
-                        <Frame align=Align::Center>
-                            <List
-                                align=Align::Center
-                                spacing=MESSAGE_SPACING
-                                @test_id={"paint_review.loading"}
-                            >
-                                <Progress
-                                    width=INLINE_PROGRESS_WIDTH
-                                    label="Loading the paintings"
-                                />
-                                <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
-                            </List>
-                        </Frame>
-                    </ListItem>
-                </Case>
-                <Case when={|manifest: &Fetch<Rc<Manifest>>| matches!(manifest, Fetch::Ready(_))}>
-                    <Show
-                        value={move || review.open.with(Option::is_some)}
-                        fallback={move || view! {
-                            <ListItem grow=1.0>
-                                <Gallery review={review} />
-                            </ListItem>
-                        }}
-                    >
+                    <Case is={Fetch::Loading}>
                         <ListItem grow=1.0>
-                            <Viewer review={review} />
+                            <Frame align=Align::Center>
+                                <List
+                                    align=Align::Center
+                                    spacing=MESSAGE_SPACING
+                                    @test_id={"paint_review.loading"}
+                                >
+                                    <Progress
+                                        width=INLINE_PROGRESS_WIDTH
+                                        label="Loading the paintings"
+                                    />
+                                    <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
+                                </List>
+                            </Frame>
                         </ListItem>
-                    </Show>
-                </Case>
+                    </Case>
+                    <Case
+                        when={|manifest: &Fetch<Rc<Manifest>>| matches!(manifest, Fetch::Ready(_))}
+                    >
+                        <Show
+                            value={move || review.open.with(Option::is_some)}
+                            fallback={move || view! {
+                                <ListItem grow=1.0>
+                                    <Gallery review={review} />
+                                </ListItem>
+                            }}
+                        >
+                            <ListItem grow=1.0>
+                                <Viewer review={review} />
+                            </ListItem>
+                        </Show>
+                    </Case>
                 </Match>
             </List>
         </Frame>

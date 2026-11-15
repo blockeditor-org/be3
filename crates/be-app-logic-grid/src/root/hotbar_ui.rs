@@ -219,7 +219,10 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
                     <ForEach
                         value={entries}
                         fallback={|| view! {
-                            <Frame width={Size::Custom(SLOT_SIZE)} height={Size::Custom(SLOT_SIZE)} />
+                            <Frame
+                                width={Size::Custom(SLOT_SIZE)}
+                                height={Size::Custom(SLOT_SIZE)}
+                            />
                         }}
                     >|path: Vec<usize>|
                         <HotbarSlotButton session={session} path={path} />

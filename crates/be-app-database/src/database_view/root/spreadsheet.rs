@@ -176,10 +176,12 @@ fn HeaderCell(
                         <Spacer />
                         <Show value={sorted}>|direction: ReadSignal<SortDirection>|
                             <Text color=TextColor::Muted align=TextAlign::Center>
-                                <Icon glyph={move || match direction.get() {
-                                    SortDirection::Ascending => Some(ICON_ARROW_UP),
-                                    SortDirection::Descending => Some(ICON_ARROW_DOWN),
-                                }} />
+                                <Icon
+                                    glyph={move || match direction.get() {
+                                        SortDirection::Ascending => Some(ICON_ARROW_UP),
+                                        SortDirection::Descending => Some(ICON_ARROW_DOWN),
+                                    }}
+                                />
                             </Text>
                         </Show>
                     </List>

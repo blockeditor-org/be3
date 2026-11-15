@@ -112,9 +112,7 @@ pub(crate) fn StatusButton(
                                 <Icon glyph=ICON_POWER />
                             </Text>
                         </Show>
-                        <Show
-                            value={move || !wireless.get() && !audible.get() && !powered.get()}
-                        >
+                        <Show value={move || !wireless.get() && !audible.get() && !powered.get()}>
                             <Text>
                                 <Icon glyph=ICON_SLIDERS_HORIZONTAL />
                             </Text>
@@ -154,18 +152,18 @@ fn QuickSettings(
                     <WifiPanel editor={editor} status={wifi} on_back={back} />
                 </Case>
                 <Case is={Page::Rotate}>
-                <List spacing=SPACING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <BackButton on_click={back} />
-                        <Text style=TextStyle::HEADING>"Rotate the screen"</Text>
+                    <List spacing=SPACING>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <BackButton on_click={back} />
+                            <Text style=TextStyle::HEADING>"Rotate the screen"</Text>
+                        </List>
+                        <ScreenRotation
+                            editor={editor}
+                            display={screen}
+                            test_id={"desktop.quick.rotate".to_owned()}
+                            on_picked={close}
+                        />
                     </List>
-                    <ScreenRotation
-                        editor={editor}
-                        display={screen}
-                        test_id={"desktop.quick.rotate".to_owned()}
-                        on_picked={close}
-                    />
-                </List>
                 </Case>
             </Match>
         </List>

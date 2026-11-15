@@ -24,7 +24,10 @@ fn a_match_shows_the_first_case_that_holds() {
                     <Case when={|count: &u32| *count < 3}>|count: ReadSignal<u32>| {
                         built.set(built.get() + 1);
                         view! {
-                            <Element tag="p" text={create_memo(move || format!("a few: {}", count.get()))} />
+                            <Element
+                                tag="p"
+                                text={create_memo(move || format!("a few: {}", count.get()))}
+                            />
                         }
                     }</Case>
                 </Match>
@@ -37,11 +40,18 @@ fn a_match_shows_the_first_case_that_holds() {
     assert!(page.html().contains(">a few: 1</p>"), "{}", page.html());
     count.set(2);
     assert!(page.html().contains(">a few: 2</p>"), "{}", page.html());
-    assert_eq!(built.get(), 1, "a case is kept while it stays the one that holds");
+    assert_eq!(
+        built.get(),
+        1,
+        "a case is kept while it stays the one that holds"
+    );
 
     count.set(7);
     let html = page.html();
-    assert!(html.contains(">many</i>") && !html.contains("</p>"), "{html}");
+    assert!(
+        html.contains(">many</i>") && !html.contains("</p>"),
+        "{html}"
+    );
 
     let picked = create_signal(None::<u8>);
     let page = scope.run(|| {
@@ -60,5 +70,9 @@ fn a_match_shows_the_first_case_that_holds() {
     });
     assert!(page.html().contains(">nothing</i>"), "{}", page.html());
     picked.set(Some(1));
-    assert!(page.html().contains(">one</p>"), "a `Match` over an `Option` compares with `Some(..)`: {}", page.html());
+    assert!(
+        page.html().contains(">one</p>"),
+        "a `Match` over an `Option` compares with `Some(..)`: {}",
+        page.html()
+    );
 }

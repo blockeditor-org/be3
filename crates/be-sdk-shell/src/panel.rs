@@ -247,11 +247,13 @@ pub(crate) fn BlockPanel(
                 })}
                 <TabBar bar={move || bar.call(())} own=true />
                 <Show keep_alive=true value={move || !previewing.get()}>
-                    <Dynamic value={move || match info.get() {
-                        Some(info) if !info.access.can_view() => Content::Denied,
-                        Some(info) if info.out_of_reach => Content::OutOfReach,
-                        Some(_) | None => Content::Block,
-                    }}>|content: Content| {
+                    <Dynamic
+                        value={move || match info.get() {
+                            Some(info) if !info.access.can_view() => Content::Denied,
+                            Some(info) if info.out_of_reach => Content::OutOfReach,
+                            Some(_) | None => Content::Block,
+                        }}
+                    >|content: Content| {
                         match content {
                             Content::Denied => view! {
                                 <ListItem grow=1.0>

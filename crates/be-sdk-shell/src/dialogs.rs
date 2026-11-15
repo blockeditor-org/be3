@@ -429,9 +429,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_TRIANGLE_ALERT />
                         </Text>
-                        <Text style=TextStyle::CAPTION @test_id={"share.inside"}>
-                            {inside}
-                        </Text>
+                        <Text style=TextStyle::CAPTION @test_id={"share.inside"}>{inside}</Text>
                     </List>
                 </Show>
                 <Text style=TextStyle::HEADING>"People with access"</Text>

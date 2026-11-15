@@ -436,10 +436,10 @@ fn GridLabel(label: ReadSignal<ComponentLabel>, zoom: Memo<f32>) -> CanvasItem {
     let width = create_memo(move || rect.get()[2] - rect.get()[0]);
     let height = create_memo(move || rect.get()[3] - rect.get()[1]);
     let text = create_memo(move || label.with(|label| label.text.clone()));
-    let size = create_memo(move || {
-        TextSize::Custom(label.with(|label| label.kind).font_size(zoom.get()))
-    });
-    let color = create_memo(move || TextColor::Custom(label.with(|label| label.kind.color()).into()));
+    let size =
+        create_memo(move || TextSize::Custom(label.with(|label| label.kind).font_size(zoom.get())));
+    let color =
+        create_memo(move || TextColor::Custom(label.with(|label| label.kind.color()).into()));
     let align = create_memo(move || label.with(|label| label.align));
     let vertical_align = create_memo(move || label.with(|label| label.vertical_align));
     view! {
