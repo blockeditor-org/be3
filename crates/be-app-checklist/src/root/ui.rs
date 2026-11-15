@@ -56,16 +56,11 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 .collect::<Vec<ObjectId>>()
         })
     });
-    let progress = create_memo(move || match total.get() {
-        0 => Some(0.0),
-        total => Some(done_count.get() as f32 / total as f32),
-    });
     let summary = create_memo(move || match total.get() {
         0 => "Add your first task below".to_owned(),
         total => format!("{} of {total} complete", done_count.get()),
     });
     let empty = create_memo(move || visible.get().is_empty());
-    let clear_disabled = create_memo(move || done_count.get() == 0);
 
     let rows = move |id: ObjectId| {
         view! {
@@ -79,7 +74,13 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <List spacing=Space::Sm>
                     <Text style=TextStyle::HEADING>"Checklist"</Text>
                     <Text style=TextStyle::CAPTION>{summary}</Text>
-                    <Progress value={progress} label="Checklist completion" />
+                    <Progress
+                        value={move || match total.get() {
+                            0 => Some(0.0),
+                            total => Some(done_count.get() as f32 / total as f32),
+                        }}
+                        label="Checklist completion"
+                    />
                 </List>
                 <Card>
                     <List spacing=Space::Lg>
@@ -131,7 +132,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                             <Button
                                 label="Clear completed"
                                 variant=ButtonVariant::Secondary
-                                disabled={clear_disabled}
+                                disabled={move || done_count.get() == 0}
                                 @test_id={"checklist.clear-done"}
                                 on_click={move || {
                                     if let Ok(edit) = checklist.read(|content| content.root().clear_done()) {

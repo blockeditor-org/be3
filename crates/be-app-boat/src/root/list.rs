@@ -193,9 +193,8 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
             .with(|status| status.get(&block).cloned())
     });
     let has_terminal = create_memo(move || block.get().is_some());
-    let connectable = create_memo(move || {
-        block.get().is_none() && phase.get() == Phase::Running && state.account().is_some()
-    });
+    let connectable =
+        create_memo(move || phase.get() == Phase::Running && state.account().is_some());
     let text = create_memo(move || match status.get() {
         Some(TerminalStatus::Connecting) => "Connecting the terminal…".to_owned(),
         Some(TerminalStatus::Reconnecting) => "Terminal offline, reconnecting…".to_owned(),
@@ -206,11 +205,11 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
         _ if !own.get() => "Terminal, shared with you".to_owned(),
         _ => "Terminal".to_owned(),
     });
-    let color = create_memo(move || match status.get() {
+    let color = move || match status.get() {
         Some(TerminalStatus::Failed(_) | TerminalStatus::NotRemoved(_)) => TextColor::Danger,
         Some(TerminalStatus::Connecting | TerminalStatus::Reconnecting) => TextColor::Muted,
         _ => TextColor::Default,
-    });
+    };
     let failed = create_memo(move || matches!(status.get(), Some(TerminalStatus::Failed(_))));
     let busy = create_memo(move || {
         matches!(
@@ -245,7 +244,21 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={has_terminal}>
+            <Show
+                condition={has_terminal}
+                fallback={move || view! {
+                    <Show condition={connectable}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                            <Button
+                                label="Connect a terminal"
+                                glyph=ICON_SQUARE_TERMINAL
+                                @test_id={part("connect")}
+                                on_click={connect}
+                            />
+                        </List>
+                    </Show>
+                }}
+            >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <Text color=TextColor::Muted>
                         <Icon glyph=ICON_SQUARE_TERMINAL />
@@ -275,16 +288,6 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                     <Button label="Open" @test_id={part("open")} on_click={open} />
                 </List>
             </Show>
-            <Show condition={connectable}>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Connect a terminal"
-                        glyph=ICON_SQUARE_TERMINAL
-                        @test_id={part("connect")}
-                        on_click={connect}
-                    />
-                </List>
-            </Show>
         </List>
     }
 }
@@ -312,13 +315,12 @@ fn KeyNotice(state: State) -> NodeId {
             .to_owned(),
         _ => String::new(),
     });
-    let urgent = create_memo(move || {
-        standing.with(|standing| !matches!(standing, Some(KeyStanding::Expiring(_))))
-    });
-    let color = create_memo(move || match urgent.get() {
-        true => TextColor::Danger,
-        false => TextColor::Warning,
-    });
+    let color = move || match standing
+        .with(|standing| matches!(standing, Some(KeyStanding::Expiring(_))))
+    {
+        true => TextColor::Warning,
+        false => TextColor::Danger,
+    };
     view! {
         <List spacing=Space::None>
             <Show condition={shown}>

@@ -110,15 +110,15 @@ fn MonthCell(
             false => String::new(),
         }
     });
-    let fill = create_memo(move || match (today, in_month.get()) {
+    let fill = move || match (today, in_month.get()) {
         (true, _) => ColorRole::AccentSoft,
         (false, true) => ColorRole::Surface,
         (false, false) => ColorRole::Background,
-    });
-    let number_color = create_memo(move || match in_month.get() {
+    };
+    let number_color = move || match in_month.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
-    });
+    };
     let pick = move || on_pick_day.call(day);
     view! {
         <Frame

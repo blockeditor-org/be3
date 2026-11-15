@@ -49,21 +49,9 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     action_scope(&content);
     let formats = format_actions(state);
 
-    let hex = state.hex_view;
-    let text_shown = create_memo(move || !hex.get());
-    let hex_shown = create_memo(move || hex.get());
     let text_surface = move || {
         view! {
-            <ListItem grow=1.0>
-                <TextSurface state={state} />
-            </ListItem>
-        }
-    };
-    let hex_surface = move || {
-        view! {
-            <ListItem grow=1.0>
-                <HexView state={state} />
-            </ListItem>
+            <TextSurface state={state} />
         }
     };
     view! {
@@ -73,10 +61,9 @@ pub fn TextEditor(editor: Editor) -> NodeId {
                 <Loaded label="Loading the text">|| {
                     editor.block_content::<TextContent>();
                     view! {
-                        <List spacing=Space::None>
-                            <Show condition={text_shown} then={text_surface} />
-                            <Show condition={hex_shown} then={hex_surface} />
-                        </List>
+                        <Show condition={state.hex_view} fallback={text_surface}>
+                            <HexView state={state} />
+                        </Show>
                     }
                 }</Loaded>
             </ListItem>

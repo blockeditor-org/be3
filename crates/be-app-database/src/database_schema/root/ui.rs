@@ -60,9 +60,8 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
 #[component]
 pub fn SchemaView(editor: Editor) -> NodeId {
     let schema = editor.block_content::<DatabaseSchemaContent>();
-    let fields = schema.project(|schema| schema.root().fields());
+    let rows = schema.project(|schema| schema.root().fields());
     let schema = Schema(schema);
-    let rows = create_memo(move || fields.get());
     let keys = create_memo(move || {
         rows.with(|rows| rows.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
@@ -451,7 +450,6 @@ fn OptionalNumber(
             .read(options)
             .unwrap_or_else(|| bound.fallback(options))
     });
-    let unset = create_memo(move || !set.get() || read_only.get());
     let write = move |value: Option<f64>| {
         let mut next = options.get_untracked();
         bound.write(&mut next, value);
@@ -474,7 +472,7 @@ fn OptionalNumber(
                 <NumberInput
                     value={Binding::new(value, typed)}
                     label={bound.label()}
-                    disabled={unset}
+                    disabled={move || !set.get() || read_only.get()}
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}
                 />
             </Frame>

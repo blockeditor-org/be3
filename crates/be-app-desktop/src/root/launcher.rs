@@ -137,10 +137,6 @@ pub(super) fn ProgramSearch(
         !searching.get() && catalog.with(|catalog| catalog.listed && catalog.programs.is_empty())
     });
     let steady = create_memo(move || catalog.with(|catalog| !catalog.programs.is_empty()));
-    let columns = create_memo(move || match searching.get() {
-        true => 1,
-        false => COLUMNS,
-    });
     view! {
         <List spacing=Space::Sm>
             <SearchList
@@ -148,7 +144,10 @@ pub(super) fn ProgramSearch(
                 score
                 query
                 highlighted={programs.highlighted}
-                columns
+                columns={move || match searching.get() {
+                    true => 1,
+                    false => COLUMNS,
+                }}
                 focused
                 list_height=RESULTS_HEIGHT
                 fill_height={steady}

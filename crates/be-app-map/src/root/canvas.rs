@@ -80,7 +80,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
             .get()
             .map(|preview| view.region_rect(preview))
     });
-    let has_region = create_memo(move || outline.get().is_some());
+    let has_region = create_memo(move || outline.with(Option::is_some));
     let region_rect = create_memo(move || outline.get().unwrap_or(Rect::ZERO));
 
     let points = state.points;

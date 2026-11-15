@@ -42,7 +42,6 @@ pub(crate) fn ScreenRotation(
     let settings = LayeredSettings::<DisplaySettings>::this_device(editor);
     let effective = settings.effective();
     let ready = settings.ready();
-    let waiting = create_memo(move || !ready.get());
     let chosen = create_memo(move || {
         display.with(|display| {
             display.as_ref().map_or(Rotation::Normal, |display| {
@@ -65,7 +64,7 @@ pub(crate) fn ScreenRotation(
                 test_id={test_id}
                 display={display}
                 chosen={chosen}
-                read_only={waiting}
+                read_only={move || !ready.get()}
                 on_pick={pick}
             />
         </List>

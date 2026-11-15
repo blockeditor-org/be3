@@ -221,9 +221,6 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
     };
     let groups = create_memo(move || (0..outline.with(Vec::len)).collect::<Vec<usize>>());
     let blocked = create_memo(move || unreadable.get().is_some());
-    let no_everywhere = create_memo(move || {
-        !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
-    });
     let message = create_memo(move || {
         unreadable
             .get()
@@ -237,7 +234,6 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
             })
             .unwrap_or_default()
     });
-    let warned = create_memo(move || !message.get().is_empty());
     let adding_off = create_memo(move || shared.read_only.get() || blocked.get());
     let add_first = NodeRef::new();
     let current = Callback::new(move |group: usize| {
@@ -258,14 +254,18 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
         Callback::new(move |(picking, picked): (Picking, Picked)| edits.picked(picking, picked));
     view! {
         <List spacing=SECTION_SPACING>
-            <Show condition={warned}>
+            <Show condition={move || message.with(|message| !message.is_empty())}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
                         <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{message}</Text>
                     </SettingsRow>
                 </SettingsSection>
             </Show>
-            <Show condition={no_everywhere}>
+            <Show
+                condition={move || {
+                    !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
+                }}
+            >
                 <SettingsSection title=EVERYWHERE description="In every program.">
                     <SettingsRow
                         label="No remaps yet"
@@ -313,14 +313,14 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
 #[component]
 fn GroupSection(edits: Edits, group: usize) -> NodeId {
     let outline = edits.group(group);
-    let title = create_memo(move || {
+    let title = move || {
         let name = outline.get().name;
         match name.is_empty() {
             true => format!("Group {}", group + 1),
             false => name,
         }
-    });
-    let scope = create_memo(move || {
+    };
+    let scope = move || {
         let outline = outline.get();
         let named: Vec<String> = [
             ("", outline.exe),
@@ -338,15 +338,14 @@ fn GroupSection(edits: Edits, group: usize) -> NodeId {
                 named.join(", ")
             ),
         }
-    });
+    };
     let rules = create_memo(move || {
         (0..outline.with(|outline| outline.rules.len())).collect::<Vec<usize>>()
     });
-    let empty = create_memo(move || rules.with(Vec::is_empty));
     let add = NodeRef::new();
     view! {
         <SettingsSection title={title} description={scope}>
-            <Show condition={empty}>
+            <Show condition={move || rules.with(Vec::is_empty)}>
                 <SettingsRow
                     label="No remaps here yet"
                     description="Add one, then pick the key you want to change."

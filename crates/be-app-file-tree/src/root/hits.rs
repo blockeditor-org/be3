@@ -28,7 +28,7 @@ pub(crate) fn content_hits(editor: Editor, filter: Memo<String>) -> Memo<Vec<Sea
 }
 
 #[component]
-pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> NodeId {
+pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> DynamicSegment<ListItem> {
     let keys = create_memo(move || {
         hits.with(|hits| {
             hits.iter()
@@ -38,32 +38,30 @@ pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> NodeId 
     });
     let shown = create_memo(move || !hits.with(Vec::is_empty));
     view! {
-        <List spacing=Space::None>
-            <Show condition={shown}>
-                <Frame padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}>
-                    <Text style=TextStyle::CAPTION @test_id={"file-tree.content-hits"}>
-                        "In content"
-                    </Text>
-                </Frame>
-                <Frame padding={Padding::ZERO.top(Space::Xs2).left(PADDING).right(PADDING)}>
-                    <List spacing=Space::Xs2>
-                        <ForEach keys={keys}>|(block, key): (Uuid, String)| {
-                            let hit = create_memo(move || {
-                                hits.with(|hits| {
-                                    hits.iter()
-                                        .find(|hit| hit.block == block && hit.key == key)
-                                        .cloned()
-                                        .unwrap_or_default()
-                                })
-                            });
-                            view! {
-                                <HitRow editor hit block />
-                            }
-                        }</ForEach>
-                    </List>
-                </Frame>
-            </Show>
-        </List>
+        <Show condition={shown}>
+            <Frame padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}>
+                <Text style=TextStyle::CAPTION @test_id={"file-tree.content-hits"}>
+                    "In content"
+                </Text>
+            </Frame>
+            <Frame padding={Padding::ZERO.top(Space::Xs2).left(PADDING).right(PADDING)}>
+                <List spacing=Space::Xs2>
+                    <ForEach keys={keys}>|(block, key): (Uuid, String)| {
+                        let hit = create_memo(move || {
+                            hits.with(|hits| {
+                                hits.iter()
+                                    .find(|hit| hit.block == block && hit.key == key)
+                                    .cloned()
+                                    .unwrap_or_default()
+                            })
+                        });
+                        view! {
+                            <HitRow editor hit block />
+                        }
+                    }</ForEach>
+                </List>
+            </Frame>
+        </Show>
     }
 }
 

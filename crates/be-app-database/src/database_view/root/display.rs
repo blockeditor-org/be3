@@ -74,12 +74,8 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             </Show>
             <Show condition={listed}>
                 <EmptyGroups data={data} />
-            </Show>
-            <Show condition={listed}>
-                <List spacing=SPACING>
-                    <Separator />
-                    <ShownFields data={data} />
-                </List>
+                <Separator />
+                <ShownFields data={data} />
             </Show>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -192,10 +188,10 @@ fn GroupPicker(data: Data) -> NodeId {
         let _ = &options;
         data.operate_view(DatabaseView::set_group_by(field));
     };
-    let label = create_memo(move || match data.kind.get() {
+    let label = move || match data.kind.get() {
         DatabaseViewKind::Kanban => "Columns".to_owned(),
         _ => "Group by".to_owned(),
-    });
+    };
     view! {
         <Labelled label={label}>
             <FieldPicker
@@ -237,21 +233,17 @@ fn OrderPicker(data: Data) -> NodeId {
             }
         })));
     };
-    let sorted = create_memo(move || data.sort.get().is_some());
-    let glyph = create_memo(move || {
-        match data.sort.get().map(|sort| sort.direction) {
-            Some(SortDirection::Descending) => ICON_ARROW_DOWN,
-            _ => ICON_ARROW_UP,
-        }
-        .to_owned()
-    });
-    let direction_label = create_memo(move || {
+    let glyph = move || match data.sort.get().map(|sort| sort.direction) {
+        Some(SortDirection::Descending) => ICON_ARROW_DOWN,
+        _ => ICON_ARROW_UP,
+    };
+    let direction_label = move || {
         match data.sort.get().map(|sort| sort.direction) {
             Some(SortDirection::Descending) => "Descending",
             _ => "Ascending",
         }
         .to_owned()
-    });
+    };
     let flip = move || {
         if let Some(sort) = data.sort.get_untracked() {
             let direction = match sort.direction {
@@ -277,7 +269,7 @@ fn OrderPicker(data: Data) -> NodeId {
                         on_change={picked}
                     />
                 </ListItem>
-                <Show condition={sorted}>
+                <Show condition={move || data.sort.get().is_some()}>
                     <Button
                         icon_only=true
                         glyph={glyph}

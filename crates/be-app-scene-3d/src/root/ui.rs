@@ -55,7 +55,6 @@ pub(crate) fn Scene3DView() -> NodeId {
     let clock = StoredCell::new(now());
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
     let looking = create_signal(false);
-    let idle = create_memo(move || !looking.get());
 
     let stepping = create_timer(move || {
         let stepped = now();
@@ -113,9 +112,14 @@ pub(crate) fn Scene3DView() -> NodeId {
         >|_: PointerLockHandle|
             <List spacing=Space::None>
                 <ListItem grow=1.0>
-                    <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                    <Drawing draw={move || draw_gpu(drawing.get())} />
                 </ListItem>
-                <Floating anchor={anchor} edge=Edge::Bottom open={idle} interactive=false>
+                <Floating
+                    anchor={anchor}
+                    edge=Edge::Bottom
+                    open={move || !looking.get()}
+                    interactive=false
+                >
                     <Hint />
                 </Floating>
             </List>

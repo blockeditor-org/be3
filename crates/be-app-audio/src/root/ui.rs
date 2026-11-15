@@ -64,14 +64,6 @@ fn Track(editor: Editor) -> NodeId {
     let status = editor.audio();
 
     let playing = create_memo(move || status.with(|status| status.playing));
-    let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE,
-        false => ICON_PLAY,
-    });
-    let action = create_memo(move || match playing.get() {
-        true => "Pause".to_owned(),
-        false => "Play".to_owned(),
-    });
     let received = create_memo(move || status.with(|_| now()));
     let clock = create_signal(now());
     let position = create_memo(move || {
@@ -154,8 +146,8 @@ fn Track(editor: Editor) -> NodeId {
                 <ListItem align=Align::Center>
                     <Button
                         icon_only=true
-                        glyph={glyph}
-                        label={action}
+                        glyph={move || if playing.get() { ICON_PAUSE } else { ICON_PLAY }}
+                        label={move || if playing.get() { "Pause" } else { "Play" }.to_owned()}
                         @test_id={"audio.play"}
                         on_click={toggle}
                     />
@@ -185,9 +177,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
 
     let read_only = editor.read_only();
     let busy = chooser.busy();
-    let blocked = create_memo(move || busy.get() || read_only.get());
     let error = chooser.error();
-    let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
     let replace = move || chooser.open();
     view! {
@@ -198,11 +188,11 @@ fn AudioPanel(editor: Editor) -> NodeId {
                         <Button
                             label="Replace audio..."
                             variant=ButtonVariant::Secondary
-                            disabled={blocked}
+                            disabled={move || busy.get() || read_only.get()}
                             @test_id={"audio.replace"}
                             on_click={replace}
                         />
-                        <Show condition={failed}>
+                        <Show condition={move || error.with(Option::is_some)}>
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>

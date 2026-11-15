@@ -502,7 +502,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
             content_size.get(),
         )
     });
-    let draw: Prop<Draw> = Prop::dynamic(move || drawn.get().draw());
+    let draw = move || drawn.get().draw();
 
     let cx = HexSurface {
         state,

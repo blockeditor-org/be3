@@ -69,10 +69,6 @@ pub(crate) fn tools_open(state: CanvasState, shown: ReadSignal<bool>) -> Memo<bo
 pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) -> NodeId {
     let bar = use_dock_bar();
     let direction = create_memo(move || bar.map_or(Direction::Horizontal, |bar| bar.direction()));
-    let across = create_memo(move || match direction.get() {
-        Direction::Horizontal => Direction::Vertical,
-        Direction::Vertical => Direction::Horizontal,
-    });
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tool_keys = create_memo(move || {
         let profile = state.profile.get();
@@ -118,7 +114,13 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                     @test_id={"infinite-canvas.dock.block"}
                     on_click={add_block}
                 />
-                <Separator direction={across} length=Size::Md />
+                <Separator
+                    direction={move || match direction.get() {
+                        Direction::Horizontal => Direction::Vertical,
+                        Direction::Vertical => Direction::Horizontal,
+                    }}
+                    length=Size::Md
+                />
                 <ToggleButton
                     icon_only=true
                     action={actions.ignore_touch.clone()}
@@ -207,11 +209,9 @@ pub(crate) fn SelectionDock(
     });
     view! {
         <Frame align={align} padding={padding}>
-            <List spacing=Space::None>
-                <Show condition={chosen}>
-                    <SelectionTools state layout direction />
-                </Show>
-            </List>
+            <Show condition={chosen}>
+                <SelectionTools state layout direction />
+            </Show>
         </Frame>
     }
 }

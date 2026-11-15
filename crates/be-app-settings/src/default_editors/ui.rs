@@ -33,7 +33,6 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
             .map(|(_, block_type)| block_type)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || types.with(Vec::is_empty));
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
@@ -41,22 +40,17 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
                 title="Default editors"
                 description="The editor a block of each type opens in. Open with, in Files, opens one in another."
             >
-                <Show condition={empty}>
+                <Show condition={move || types.with(Vec::is_empty)}>
                     <SettingsRow label="Every block type has one editor." />
                 </Show>
-                <ForEach keys={types}>|block_type: Uuid| {
-                    let separated = create_memo(move || {
-                        types.with(|types| types.first() != Some(&block_type))
-                    });
-                    view! {
-                        <DefaultEditor
-                            editor={editor}
-                            settings={settings}
-                            block_type={block_type}
-                            separated={separated}
-                        />
-                    }
-                }</ForEach>
+                <ForEach keys={types}>|block_type: Uuid|
+                    <DefaultEditor
+                        editor={editor}
+                        settings={settings}
+                        block_type={block_type}
+                        separated={move || types.with(|types| types.first() != Some(&block_type))}
+                    />
+                </ForEach>
             </SettingsSection>
             <ChangesToast changes={settings.changes()} anchor={page} />
         </SettingsPage>
@@ -68,7 +62,7 @@ fn DefaultEditor(
     editor: Editor,
     settings: LayeredSettings<EditorSettings>,
     block_type: Uuid,
-    separated: Memo<bool>,
+    separated: Prop<bool>,
 ) -> NodeId {
     let choices = create_memo(move || {
         let catalog = editor.block_types();
@@ -89,7 +83,7 @@ fn DefaultEditor(
     let below = settings.fallback(&setting);
     let set = settings.setter(&setting);
     let row = settings.row(&setting);
-    let inherited_label = create_memo(move || {
+    let inherited_label = move || {
         let wanted = below.get();
         let name = choices.with(|choices| {
             wanted
@@ -99,7 +93,7 @@ fn DefaultEditor(
                 .unwrap_or_default()
         });
         format!("Default ({name})")
-    });
+    };
     let names = create_memo(move || {
         choices.with(|choices| (0..choices.editors.len()).collect::<Vec<usize>>())
     });

@@ -283,18 +283,7 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
     let stale = create_memo(move || {
         history.busy.get() || history.listed.get() != history.target.get().map(|item| item.id)
     });
-    let has_file = create_memo(move || !no_file.get());
-    let first_load = create_memo(move || {
-        history.loading.get() && history.listed.get() != history.target.get().map(|item| item.id)
-    });
-    let empty = create_memo(move || {
-        !no_file.get()
-            && !history.loading.get()
-            && history.error.get().is_none()
-            && history.entries.with(Vec::is_empty)
-    });
     let error = create_memo(move || history.error.get().unwrap_or_default());
-    let failed = create_memo(move || history.error.get().is_some());
     let name = create_memo(move || {
         history
             .target
@@ -307,24 +296,38 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
             <Frame padding=Space::Lg>
                 <List spacing=Space::Md>
                     <Text style=TextStyle::HEADING>"Revision history"</Text>
-                    <Show condition={no_file}>
+                    <Show
+                        condition={no_file}
+                        fallback={move || view! {
+                            <Text>{name}</Text>
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>
                             "Open a file to see its revision history."
                         </Text>
                     </Show>
-                    <Show condition={has_file}>
-                        <Text>{name}</Text>
-                    </Show>
-                    <Show condition={first_load}>
+                    <Show
+                        condition={move || {
+                            history.loading.get()
+                                && history.listed.get() != history.target.get().map(|item| item.id)
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>
                         <Text style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
-                    <Show condition={empty}>
+                    <Show
+                        condition={move || {
+                            !no_file.get()
+                                && !history.loading.get()
+                                && history.error.with(Option::is_none)
+                                && history.entries.with(Vec::is_empty)
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
-                    <Show condition={failed}>
+                    <Show condition={move || history.error.with(Option::is_some)}>
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{error}</Text>
                             <Button
@@ -379,12 +382,6 @@ pub(crate) fn RevisionPreviewBar(
             .map(|selected| format!("Revision from {} · Read only", revision_time(selected.time)))
             .unwrap_or_default()
     });
-    let can_restore = create_memo(move || {
-        history
-            .target
-            .get()
-            .is_some_and(|item| workspace.can_edit(item.id))
-    });
     view! {
         <List spacing=Space::None>
             <Show condition={visible}>
@@ -399,7 +396,14 @@ pub(crate) fn RevisionPreviewBar(
                                 @test_id={"workspace.revision.current"}
                                 on_click={move || history.current()}
                             />
-                            <Show condition={can_restore}>
+                            <Show
+                                condition={move || {
+                                    history
+                                        .target
+                                        .get()
+                                        .is_some_and(|item| workspace.can_edit(item.id))
+                                }}
+                            >
                                 <Button
                                     variant=ButtonVariant::Primary
                                     label="Restore this revision"
