@@ -356,7 +356,11 @@ use an editor extension's rust-analyzer: the toolchain's panics on this workspac
   `cargo_package()` defines and a package without a crate calls itself): be-tool-buck's `fix` runs
   be-tool-fix-rust-source, then rustfmt, over its Rust files and starlark_fmt over its Starlark;
   a fix that enables another shows up on the next run. A new package outside `crates/` calls
-  `package_fix()` in its BUCK.
+  `package_fix()` in its BUCK. `:fix` is a build target, not a binary, so `buck run` refuses it
+  ("not a binary rule"). To apply one package's fixes without verify, run `./scripts/buck build
+  //crates/NAME:fix --show-full-output`. The output it prints is a directory: copy the files
+  under its `changed/` over the checkout at the same paths, and delete the paths its `deleted`
+  file lists.
 - **`UNAUTHENTICATED`** from the server is a wrong or missing key, which buck2 reports as failing
   to reach it.
 - **Downloads**: every `http_archive` needs `size_bytes` as well as `sha256`, or buck2 sends a
