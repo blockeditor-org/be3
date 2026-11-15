@@ -101,28 +101,42 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// Keeps what the host holds of an open block's local edits no journal holds yet, each
-    /// frame sealed with the block's key; none forgets them (`refs::OpenEdits`).
+    /// sealed with the block's key; none forgets them (`refs::OpenEdits`).
     pub async fn keep_open_edits(
         &self,
         block: Uuid,
-        mut edits: crate::OpenEdits,
+        kept: crate::OpenEdits,
+        edits: Vec<crate::KeptEdit>,
     ) -> Result<(), ClientError> {
-        if !edits.edits.is_empty() {
+        let mut sealed = Vec::with_capacity(edits.len());
+        if !edits.is_empty() {
             let key = self.sealing_key(block).await?;
-            for (_, frame) in &mut edits.edits {
-                *frame = self.commits.vault().seal(key, frame)?;
+            for edit in &edits {
+                let encoded = be_block_store::encode_value(edit)?;
+                sealed.push(self.commits.vault().seal(key, &encoded)?);
             }
         }
-        Ok(self.refs.keep_open_edits(block, edits)?)
+        Ok(self.refs.keep_open_edits(
+            block,
+            crate::OpenEdits {
+                edits: sealed,
+                ..kept
+            },
+        )?)
     }
 
     /// What the host kept of `block`'s local edits before it last stopped, opened.
-    pub fn open_edits(&self, block: Uuid) -> Option<crate::OpenEdits> {
-        let mut edits = self.refs.open_edits(block)?;
-        for (_, frame) in &mut edits.edits {
-            *frame = self.commits.vault().open(frame).ok()?;
-        }
-        Some(edits)
+    pub fn open_edits(&self, block: Uuid) -> Option<(crate::OpenEdits, Vec<crate::KeptEdit>)> {
+        let kept = self.refs.open_edits(block)?;
+        let edits = kept
+            .edits
+            .iter()
+            .map(|sealed| {
+                let plain = self.commits.vault().open(sealed).ok()?;
+                be_block_store::decode_value(&plain).ok()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some((kept, edits))
     }
 
     /// This device's journal of `block`, sealed as it keeps it.

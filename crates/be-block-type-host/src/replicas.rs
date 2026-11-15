@@ -1194,7 +1194,7 @@ impl<H: Host> Replicas<H> {
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
         // may hold only show (`opening.doubtful-through`).
-        let recovered = peer.open_edits(block);
+        let (recovered, recovered_edits) = peer.open_edits(block).unzip();
         let origin = recovered
             .as_ref()
             .map_or_else(|| Uuid::new_v4().as_u64_pair().0, |recovered| recovered.origin);
@@ -1203,15 +1203,20 @@ impl<H: Host> Replicas<H> {
             .as_ref()
             .map_or(0, |recovered| recovered.submitted_through);
         let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
-        let replay: Vec<Replayed> = recovered
-            .map(|recovered| recovered.edits)
+        let replay: Vec<Replayed> = recovered_edits
             .unwrap_or_default()
             .into_iter()
-            .map(|(editor, bytes)| Replayed::Message {
-                from: Endpoint::Editor(editor),
-                bytes,
-                at: 0,
-                delivery: None,
+            .map(|edit| match edit {
+                be_block_client::KeptEdit::Frame { editor, bytes } => Replayed::Message {
+                    from: Endpoint::Editor(editor),
+                    bytes,
+                    at: 0,
+                    delivery: None,
+                },
+                be_block_client::KeptEdit::Change(change) => Replayed::Change {
+                    change: api_change(change),
+                    op: None,
+                },
             })
             .collect();
         let departed: BTreeMap<EditorId, bool> = replay
@@ -1810,6 +1815,7 @@ impl<H: Host> Replicas<H> {
             .flatten()?;
         let open = self.open.get_mut(&replica)?;
         open.sent += 1;
+        open.edits_changed = true;
         open.replay.push(match replayed {
             Replayed::Change { change, .. } => Replayed::Change {
                 change,
@@ -1910,9 +1916,9 @@ impl<H: Host> Replicas<H> {
             if !std::mem::take(&mut open.edits_changed) {
                 continue;
             }
-            let kept = kept_edits(open);
+            let (kept, edits) = kept_edits(open);
             // Kept at the next pass: this one could not seal them (no key yet) or write.
-            if peer.keep_open_edits(open.block, kept).await.is_err() {
+            if peer.keep_open_edits(open.block, kept, edits).await.is_err() {
                 open.edits_changed = true;
             }
         }
@@ -3299,7 +3305,8 @@ impl<H: Host> Replicas<H> {
         );
         // Kept on the device only as far as nothing holds them: none, once it ended clean.
         open.reported_clean(held);
-        let _ = peer.keep_open_edits(open.block, kept_edits(&open)).await;
+        let (kept, edits) = kept_edits(&open);
+        let _ = peer.keep_open_edits(open.block, kept, edits).await;
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
@@ -4105,8 +4112,9 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     Some(sealed)
 }
 
-/// What the device keeps of `open`'s local edits no journal holds yet (`refs::OpenEdits`).
-fn kept_edits(open: &Open) -> be_block_client::OpenEdits {
+/// What the device keeps of `open`'s local edits no journal holds yet (`refs::OpenEdits`): each,
+/// in the order given, so one opened again numbers them as this one did.
+fn kept_edits(open: &Open) -> (be_block_client::OpenEdits, Vec<be_block_client::KeptEdit>) {
     let edits = open
         .replay
         .iter()
@@ -4115,15 +4123,65 @@ fn kept_edits(open: &Open) -> be_block_client::OpenEdits {
                 from: Endpoint::Editor(editor),
                 bytes,
                 ..
-            } => Some((*editor, bytes.clone())),
+            } => Some(be_block_client::KeptEdit::Frame {
+                editor: *editor,
+                bytes: bytes.clone(),
+            }),
+            Replayed::Change { change, .. } => {
+                Some(be_block_client::KeptEdit::Change(kept_change(change)))
+            }
             _ => None,
         })
         .collect();
-    be_block_client::OpenEdits {
+    let kept = be_block_client::OpenEdits {
         origin: open.origin,
         given_up: open.given_up,
         submitted_through: open.submitted_through,
-        edits,
+        edits: Vec::new(),
+    };
+    (kept, edits)
+}
+
+fn kept_change(change: &Change) -> be_block_client::KeptChange {
+    use be_block_client::KeptChange;
+    use be_sdk_type_api::ChildChange;
+    match change.clone() {
+        Change::Child(ChildChange::Add(block)) => KeptChange::AddChild(block),
+        Change::Child(ChildChange::Delete(block)) => KeptChange::DeleteChild(block),
+        Change::Child(ChildChange::Replace(replace)) => KeptChange::ReplaceChild {
+            old: replace.old,
+            new: replace.new,
+        },
+        Change::Child(ChildChange::Reorder(reorder)) => KeptChange::ReorderChild {
+            block: reorder.block,
+            after: reorder.after,
+        },
+        Change::FromFile(file) => KeptChange::FromFile {
+            name: file.name,
+            bytes: file.bytes,
+        },
+        Change::Replace(bytes) => KeptChange::Replace(bytes),
+        Change::Undo => KeptChange::Undo,
+        Change::Redo => KeptChange::Redo,
+    }
+}
+
+fn api_change(kept: be_block_client::KeptChange) -> Change {
+    use be_block_client::KeptChange;
+    use be_sdk_type_api::{ChildChange, FileChange, ReorderChild, ReplaceChild};
+    match kept {
+        KeptChange::AddChild(block) => Change::Child(ChildChange::Add(block)),
+        KeptChange::DeleteChild(block) => Change::Child(ChildChange::Delete(block)),
+        KeptChange::ReplaceChild { old, new } => {
+            Change::Child(ChildChange::Replace(ReplaceChild { old, new }))
+        }
+        KeptChange::ReorderChild { block, after } => {
+            Change::Child(ChildChange::Reorder(ReorderChild { block, after }))
+        }
+        KeptChange::FromFile { name, bytes } => Change::FromFile(FileChange { name, bytes }),
+        KeptChange::Replace(bytes) => Change::Replace(bytes),
+        KeptChange::Undo => Change::Undo,
+        KeptChange::Redo => Change::Redo,
     }
 }
 

@@ -374,8 +374,28 @@ pub struct OpenEdits {
     pub given_up: u64,
     /// The last of them submitted to the server, which may hold it.
     pub submitted_through: u64,
-    /// Each edit's editor and frame, sealed with the block's key.
-    pub edits: Vec<(u64, Vec<u8>)>,
+    /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
+    pub edits: Vec<Vec<u8>>,
+}
+
+/// A local edit the host gave a replica: an editor's frame, or a change the host made.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptEdit {
+    Frame { editor: u64, bytes: Vec<u8> },
+    Change(KeptChange),
+}
+
+/// A change the host asked of a replica (`be_sdk_type_api::Change`), as kept.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptChange {
+    AddChild(Uuid),
+    DeleteChild(Uuid),
+    ReplaceChild { old: Uuid, new: Uuid },
+    ReorderChild { block: Uuid, after: Option<Uuid> },
+    FromFile { name: String, bytes: Vec<u8> },
+    Replace(Vec<u8>),
+    Undo,
+    Redo,
 }
 
 #[derive(Clone, Debug)]

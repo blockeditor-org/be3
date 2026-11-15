@@ -590,6 +590,8 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// Those edits, in the order made, with the number of the first.
     doubtful: Vec<C::Op>,
     first_doubtful: Option<u64>,
+    /// Whether the local edit being taken is doubtful: `edit` keeps what it makes in `doubtful`.
+    doubtful_now: bool,
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
@@ -834,6 +836,7 @@ where
             doubtful_through: opened.doubtful_through,
             doubtful: Vec::new(),
             first_doubtful: None,
+            doubtful_now: false,
             replacing_from: None,
             epoch: opened.epoch,
             beaten: None,
@@ -1216,9 +1219,8 @@ where
         }
         // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
         // the edit it was made on, and given again with it once the replica joins.
-        if local && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some()) {
-            return self.job_doubtful(job);
-        }
+        self.doubtful_now = local
+            && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some());
         match job {
             Job::Input(input) => self.handle(input),
             Job::Heard { from, message, .. } => self.heard(from, message),
@@ -1229,6 +1231,7 @@ where
             Job::Unblocked => self.flush(),
             Job::Release => self.release(),
         }
+        self.doubtful_now = false;
     }
 
     /// A local edit the order already holds, given again: its editor counts it, a change is
@@ -1242,32 +1245,6 @@ where
             }) => match FromEditor::decode(&bytes) {
                 Some(FromEditor::Operate(_)) => {
                     *self.acknowledged.entry(editor).or_default() += 1;
-                }
-                Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
-                Some(message) => self.handle_editor(editor, message),
-            },
-            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(true)),
-            _ => {}
-        }
-    }
-
-    /// A local edit an earlier opening submitted without hearing it ordered, given again before
-    /// this one joined: it shows, and waits for the server's order to say whether it holds it.
-    fn job_doubtful(&mut self, job: Job<C>) {
-        match job {
-            Job::Input(Input::Message {
-                from: Endpoint::Editor(editor),
-                bytes,
-                ..
-            }) => match FromEditor::decode(&bytes) {
-                Some(FromEditor::Operate(bytes)) => {
-                    *self.acknowledged.entry(editor).or_default() += 1;
-                    if let Ok(operation) = C::decode_operation(&bytes) {
-                        self.first_doubtful.get_or_insert(self.edit_number());
-                        self.doubtful.push(operation);
-                        self.rebuild_visible();
-                        self.reproject();
-                    }
                 }
                 Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
                 Some(message) => self.handle_editor(editor, message),
@@ -2694,6 +2671,18 @@ where
             return true;
         }
         self.visible.apply(&operation);
+        if self.doubtful_now {
+            self.journal(
+                Journaled::Edited {
+                    operation: operation.clone(),
+                    unsettled: self.unsettled(),
+                },
+                origin,
+            );
+            self.first_doubtful.get_or_insert(self.edit_number());
+            self.doubtful.push(operation);
+            return true;
+        }
         // Asked as the edit is made, so the host keeps it with the edit from here on.
         let announcements = self.visible.announcements(&operation);
         let unsettled = self.unsettled() + 1;
