@@ -20,6 +20,8 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week;
+mod an_account_changes_its_ways_to_sign_in_only_so_often_a_day;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -83,7 +85,6 @@ mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_bloc
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_passkey_assertion_counts_once;
 mod a_passkey_for_an_old_origin_is_no_way_in;
-mod an_account_with_no_email_is_told_of_its_identities_on_its_devices;
 mod a_passkey_for_another_rp_id_or_origin_is_refused;
 mod a_passkey_signs_in_with_no_email_typed;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;

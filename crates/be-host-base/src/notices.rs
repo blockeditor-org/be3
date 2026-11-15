@@ -20,11 +20,15 @@ pub struct Notice {
 struct Notices {
     next: u64,
     shown: Vec<Notice>,
+    /// Account notices dismissed on this device, which stay hidden here though the server
+    /// keeps them for the account's other devices.
+    dismissed: Vec<u64>,
 }
 
 static NOTICES: Mutex<Notices> = Mutex::new(Notices {
     next: 0,
     shown: Vec::new(),
+    dismissed: Vec::new(),
 });
 
 fn notices() -> MutexGuard<'static, Notices> {
@@ -82,8 +86,8 @@ fn show(message: String, report: Option<String>, link: Option<String>, refusal: 
     crate::host::wake();
 }
 
-/// Dismisses a notice; answers the account notice it showed, which the caller dismisses on the
-/// server too.
+/// Dismisses a notice; answers the account notice it showed, which stays hidden on this device
+/// and which the caller dismisses on the server too (where it changes nothing in its first week).
 pub fn dismiss(id: u64) -> Option<u64> {
     let mut notices = notices();
     let account = notices
@@ -92,6 +96,9 @@ pub fn dismiss(id: u64) -> Option<u64> {
         .find(|notice| notice.id == id)
         .and_then(|notice| notice.account);
     notices.shown.retain(|notice| notice.id != id);
+    if let Some(account) = account {
+        notices.dismissed.push(account);
+    }
     account
 }
 
@@ -105,11 +112,15 @@ pub fn account_notices(listed: Vec<(u64, String)>) {
                 .account
                 .is_none_or(|account| listed.iter().any(|(id, _)| *id == account))
         });
+        notices
+            .dismissed
+            .retain(|dismissed| listed.iter().any(|(id, _)| id == dismissed));
         for (account, message) in listed {
-            if notices
-                .shown
-                .iter()
-                .any(|notice| notice.account == Some(account))
+            if notices.dismissed.contains(&account)
+                || notices
+                    .shown
+                    .iter()
+                    .any(|notice| notice.account == Some(account))
             {
                 continue;
             }

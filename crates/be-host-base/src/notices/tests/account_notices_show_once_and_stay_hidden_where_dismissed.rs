@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn account_notices_show_once_and_go_when_dismissed_anywhere() {
+fn account_notices_show_once_and_stay_hidden_where_dismissed() {
     let ours = |notices: &[Notice]| -> Vec<(u64, String)> {
         notices
             .iter()
@@ -22,7 +22,10 @@ fn account_notices_show_once_and_go_when_dismissed_anywhere() {
         .unwrap()
         .id;
     assert_eq!(dismiss(id), Some(9001));
-    // Dismissed on another device, it goes from the list the server answers, and here too.
+    // The server keeps it through its first week, but this device keeps it hidden.
+    account_notices(vec![added.clone(), removed.clone()]);
+    assert_eq!(ours(&shown()), vec![removed.clone()]);
+    // Dismissed for everyone, it goes from the list the server answers, and here too.
     account_notices(vec![]);
     assert!(ours(&shown()).is_empty());
 }

@@ -214,8 +214,6 @@ pub(super) enum Command {
         mode: be_block_protocol::NotifyMode,
         reply: NotifyModeReply,
     },
-    /// Dismisses an account notice on the server, so every device lets go of it.
-    DismissAccountNotice(u64),
     ReadHead {
         block: Uuid,
         commit: CommitId,
@@ -331,7 +329,6 @@ impl Command {
             Command::SetAccess { .. } => "set access",
             Command::ListAccess { .. } => "list access",
             Command::SetNotifyMode { .. } => "set notify mode",
-            Command::DismissAccountNotice(_) => "dismiss account notice",
             Command::ReadHead { .. } => "read head",
             Command::Export { .. } => "export",
             Command::PlainFile { .. } => "plain file",
@@ -475,7 +472,6 @@ impl Command {
             | Command::SealOwed
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
-            | Command::DismissAccountNotice(_)
             | Command::Contact(_)
             | Command::Members(_)
             | Command::Invite { .. }
@@ -2349,8 +2345,6 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::ApprovePairing { reply, .. } => reply(Err(OFFLINE_PAIRING.to_owned())),
         Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        // Shown again once connected, and dismissed then.
-        Command::DismissAccountNotice(_) => {}
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
@@ -2461,19 +2455,6 @@ impl Ran<'_> {
                 false
             }
             // Not a task of the worker's: its end changes nothing the worker keeps.
-            Command::DismissAccountNotice(id) => {
-                let peer = Arc::clone(self.peer);
-                platform::spawn_local(async move {
-                    let _ = be_block_client::ask(
-                        be_block_protocol::client::account::dismiss_account_notice(
-                            &peer.connection(),
-                            id,
-                        ),
-                    )
-                    .await;
-                });
-                false
-            }
             Command::SetNotifyMode { block, mode, reply } => {
                 let (peer, shared) = (Arc::clone(self.peer), Arc::clone(self.shared));
                 platform::spawn_local(async move {
@@ -3148,7 +3129,6 @@ async fn apply(
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
         | Command::SetNotifyMode { .. }
-        | Command::DismissAccountNotice(_)
         | Command::Push(_)
         | Command::Authorship(_)
         | Command::Storage => false,

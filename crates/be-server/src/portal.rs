@@ -10,7 +10,7 @@ use crate::{
 };
 use base64::Engine;
 use be_server_portal::{
-    Account, Asset, IdentityRow, Page, PasskeyStep, Portal, Problem, ProviderLink, Screen, Session,
+    Account, Asset, IdentityChange, IdentityRow, Page, PasskeyStep, Portal, Problem, ProviderLink, Screen, Session,
     SessionKind,
 };
 use sha2::{Digest, Sha256};
@@ -57,19 +57,38 @@ fn deliver_code(services: &Services, origin: &str, mail: MailedCode) {
     });
 }
 
-/// Tells the account that a way to sign in was added or removed: by mail to its email, or, for
-/// an account with no email, on its devices (`store/account_notices.rs`), since there is no
-/// other place to tell it.
-async fn tell_identity(services: &Services, account: uuid::Uuid, email: &str, subject: &str, text: String) {
+/// Tells the account that a way to sign in was added or removed: on its devices and in the
+/// settings page's history (`store/account_notices.rs`), and by mail when it has an email.
+async fn tell_identity(
+    services: &Services,
+    account: uuid::Uuid,
+    email: &str,
+    added: bool,
+    label: &str,
+) {
+    let (subject, text) = match added {
+        true => (
+            "A way to sign in to your be3 account was added",
+            format!("{label} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
+        ),
+        false => (
+            "A way to sign in to your be3 account was removed",
+            format!("{label} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
+        ),
+    };
     if !email.is_empty() {
         services.mail.send(Email {
             recipient: email.into(),
             subject: subject.into(),
-            body: text,
+            body: text.clone(),
         });
-        return;
     }
-    if services.store.add_account_notice(account, text).await.is_ok() {
+    if services
+        .store
+        .identity_changed(account, added, label.to_owned(), text)
+        .await
+        .is_ok()
+    {
         // From no connection: every connection of the account hears it.
         services
             .hub
@@ -80,26 +99,12 @@ async fn tell_identity(services: &Services, account: uuid::Uuid, email: &str, su
 
 /// Tells the account that a way to sign in was removed.
 async fn identity_notice(services: &Services, account: uuid::Uuid, email: &str, removed: &str) {
-    tell_identity(
-        services,
-        account,
-        email,
-        "A way to sign in to your be3 account was removed",
-        format!("{removed} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
-    )
-    .await;
+    tell_identity(services, account, email, false, removed).await;
 }
 
 /// Tells the account that a way to sign in was added.
 async fn identity_added_notice(services: &Services, account: uuid::Uuid, email: &str, added: &str) {
-    tell_identity(
-        services,
-        account,
-        email,
-        "A way to sign in to your be3 account was added",
-        format!("{added} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
-    )
-    .await;
+    tell_identity(services, account, email, true, added).await;
 }
 
 /// Tells an account's old email that the account's email changed.
@@ -254,6 +259,7 @@ pub(crate) async fn handle(
             },
             "/auth/settings/identity/remove" => {
                 let account = account()?;
+                services.store.identity_change_room(account).await?;
                 let removed = services.store.remove_identity(account, token, value("identity"), issuers(&services.config), passkeys::rp_id(origin)).await?;
                 if let Some(profile) = profile.as_ref() { identity_notice(services, profile.account, &profile.email, &identity_label(&services.config, &removed)).await; }
                 response.location = Some("/auth/settings?saved=1".into());
@@ -289,6 +295,7 @@ pub(crate) async fn handle(
                 let Some(passkeys::Ceremony::Add { account: began, state }) = ceremony else { return Err(invalid("Open your account settings and try again.")) };
                 if began != account { return Err(invalid("Open your account settings and try again.")); }
                 services.store.require_fresh(token).await?;
+                services.store.identity_change_room(account).await?;
                 let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
                 let credential: webauthn_rs::prelude::RegisterPublicKeyCredential = passkeys::answer(value("credential"))?;
                 let passkey = relying_party.finish_passkey_registration(&credential, &state).map_err(passkeys::not_accepted)?;
@@ -633,6 +640,23 @@ pub(crate) async fn handle(
                 .unwrap_or_default(),
             _ => String::new(),
         },
+        identity_changes: match (display_path.as_str(), profile.as_ref()) {
+            ("/auth/settings", Some(profile)) => services
+                .store
+                .identity_changes(profile.account)
+                .await?
+                .into_iter()
+                .map(|change| IdentityChange {
+                    text: format!(
+                        "{} {}",
+                        if change.added { "Added" } else { "Removed" },
+                        change.label
+                    ),
+                    when: passkeys::utc_minute(change.created),
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
         fresh,
         passkey,
         code_email,
@@ -749,8 +773,9 @@ async fn provider_step(
             if intent != Intent::SignIn && !providers::is_start_check(token, value("check")) {
                 return Err(invalid("Open your account settings and try again."));
             }
-            if intent == Intent::Link {
+            if let (Intent::Link, Some(account)) = (intent, account) {
                 services.store.require_fresh(token).await?;
+                services.store.identity_change_room(account).await?;
             }
             // Before the provider is called, so strangers can't make the server call it more.
             services.store.provider_room(address).await?;

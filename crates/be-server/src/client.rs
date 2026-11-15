@@ -1122,7 +1122,9 @@ impl Client {
                 let dismissed = async {
                     prelude?;
                     let account = connection.account()?;
-                    connection.store.dismiss_account_notice(account, id).await?;
+                    if !connection.store.dismiss_account_notice(account, id).await? {
+                        return Ok(());
+                    }
                     connection
                         .hub
                         .send_account(

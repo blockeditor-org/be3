@@ -1448,11 +1448,6 @@ pub fn notify_modes() -> Option<Vec<(Uuid, be_block_protocol::NotifyMode)>> {
 }
 
 /// Sets how the signed-in account is notified about `block`.
-/// Dismisses an account notice on every device (`account-notices`).
-pub fn dismiss_account_notice(id: u64) {
-    send(Command::DismissAccountNotice(id));
-}
-
 pub fn set_notify_mode(
     block: Uuid,
     mode: be_block_protocol::NotifyMode,

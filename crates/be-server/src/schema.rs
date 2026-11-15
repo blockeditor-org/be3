@@ -97,15 +97,27 @@ const SCHEMA: &str = "
         expires    INTEGER NOT NULL
     );
 
-    -- What an account with no email is told on its devices in place of mail
+    -- What an account is told on its devices of its ways to sign in changing
     -- (`store/account_notices.rs`).
     CREATE TABLE account_notices (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
         text            TEXT NOT NULL,
-        created         INTEGER NOT NULL
+        created         INTEGER NOT NULL,
+        dismissed       INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX account_notices_account ON account_notices(account_id, id);
+
+    -- Ways to sign in added to or removed from an account, kept `IDENTITY_HISTORY` for the
+    -- portal's settings page and to cap how many change a day.
+    CREATE TABLE identity_changes (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        added           INTEGER NOT NULL,
+        label           TEXT NOT NULL,
+        created         INTEGER NOT NULL
+    );
+    CREATE INDEX identity_changes_account ON identity_changes(account_id, created);
 
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,
