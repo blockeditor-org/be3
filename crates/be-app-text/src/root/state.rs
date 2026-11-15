@@ -146,7 +146,7 @@ impl State {
             let Some(inner) = state.inner.try_value() else {
                 return;
             };
-            let _ = inner.content.revision();
+            inner.content.track();
             untrack(|| state.pump());
         });
         state
