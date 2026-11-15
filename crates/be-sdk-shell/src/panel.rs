@@ -206,8 +206,9 @@ pub(crate) fn BlockPanel(
     });
     let editor = workspace.editor();
     let phone = workspace.phone;
+    // On a phone the stacked dock's bar stands in for the frame's own (`FrameSpec::phone`).
     let top_bar = create_memo(move || match phone.get() {
-        true => TopBar::Phone,
+        true => TopBar::Hidden,
         false => TopBar::Shown,
     });
     let session = untrack(|| workspace.tab(tab)).is_some_and(|item| {

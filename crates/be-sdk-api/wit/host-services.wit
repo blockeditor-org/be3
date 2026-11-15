@@ -190,6 +190,11 @@ interface host-services {
     /// follow their press; a refusal answers a failure.
     set-push-device: async func(on: bool) -> result<_, failure>;
 
+    /// The shell lays out as on a phone, or no longer does. The host sets `frame-spec.phone` on
+    /// every frame from it, and back to false when the shell changes. Any other app is answered
+    /// with a failure, and changes nothing.
+    set-phone-layout: async func(on: bool) -> result<_, failure>;
+
     /// Who signed bytes, as far as this device can tell
     /// (plans/authorship.md).
     enum signer {

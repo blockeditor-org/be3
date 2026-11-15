@@ -573,6 +573,17 @@ impl Instances {
                     move |set| answering.send_or_fail(set),
                 );
             }
+            Call::SetPhoneLayout { reply, on } => {
+                let answering = self.answering(instance, reply);
+                match self.shell == Some(instance) {
+                    true => {
+                        crate::runtime::ask_phone_layout(&self.app_id, instance, on);
+                        answering.send(Ok(()));
+                    }
+                    false => answering
+                        .send_or_fail(Err("Only the shell says how the host lays out.".to_owned())),
+                }
+            }
             Call::SetPushDevice { reply, on } => {
                 let answering = self.answering(instance, reply);
                 be_host_base::push_device::set(

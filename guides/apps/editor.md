@@ -8,7 +8,8 @@ parts that span many editors.
 
 An editor gets the whole frame and the framework draws nothing across it. When
 the host asks for a top bar (`FrameSpec::top_bar`: `Shown` on a desktop,
-`Phone`, `Hidden`), the framework sends the host the frame's menu: undo, redo,
+`Hidden` on a phone, where the stacked dock's bar stands in, and for a frame
+placed bare), the framework sends the host the frame's menu: undo, redo,
 rename, share, the command palette, the editor's own commands, file details,
 and Close for a child that took the frame over. An editor draws no undo, redo
 or exit buttons of its own.
@@ -82,7 +83,9 @@ Prefer one layout for both. The canvas keeps tools and zoom in `DockBar`s the
 user can move to any edge or window. `be_sdk_beui::Toolbar` is for a band
 outside a dock (the file tree's); its buttons scroll sideways on a narrow
 frame. `narrow_chrome()` tests the frame's width, which a desktop pane can be
-too; `phone_layout()` says the host itself is on a phone.
+too; `phone_layout()` says the shell lays out as on a phone (its frame's
+`FrameSpec::phone`, which the host sets on every frame from what the shell
+says, `EditorHost::set_phone_layout`).
 
 ## Pan and zoom
 

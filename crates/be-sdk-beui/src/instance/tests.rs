@@ -70,6 +70,7 @@ fn frame(session: &mut EditorSession, content: Option<Rect>, top_bar: TopBar) {
                 top_bar,
                 dialog: None,
                 anchor: None,
+                phone: false,
             }),
             windows: false,
             host_place: None,

@@ -248,10 +248,6 @@ impl TopBar {
     pub fn shown(self) -> bool {
         matches!(self, Self::Shown)
     }
-
-    pub fn phone(self) -> bool {
-        matches!(self, Self::Phone)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

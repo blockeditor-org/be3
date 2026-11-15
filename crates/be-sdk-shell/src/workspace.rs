@@ -1116,8 +1116,12 @@ impl Workspace {
         self.host().close_editor(id);
     }
 
+    /// The workspace lays out as on a phone (its dock stacks), and tells the host, which sets
+    /// `FrameSpec::phone` on every frame from it.
     pub fn set_phone(&self, phone: bool) {
         self.phone.set(phone);
+        let asked = self.host().set_phone_layout(phone);
+        self.editor.then(asked, |_| {});
     }
 
     pub fn can_edit(&self, id: Uuid) -> bool {

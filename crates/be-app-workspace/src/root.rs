@@ -318,7 +318,6 @@ fn SidePanel(
     loading: &'static str,
     id: &'static str,
 ) -> NodeId {
-    let phone = workspace.phone();
     let editor = workspace.editor();
     view! {
         <List spacing=Space::None>
@@ -328,10 +327,7 @@ fn SidePanel(
                     block={target}
                     mode=ChildMode::Live
                     own_frame=true
-                    top_bar={move || match phone.get() {
-                        true => TopBar::Phone,
-                        false => TopBar::Hidden,
-                    }}
+                    top_bar=TopBar::Hidden
                     @test_id={id}
                 >|handle: ChildBlockHandle|
                     <PanelStatus state={handle.state} loading={loading.to_owned()} />

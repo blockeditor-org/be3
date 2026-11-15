@@ -863,12 +863,11 @@ exclusive: a child that owns a frame of its own never takes the frame it was
 placed in.
 
 A child that owns a frame of its own may also be given the framework's top bar
-over it, and the placement says which: the plain bar, or the one a phone
-shows, which carries how many files the parent has open. The phone bar's back
-button, title and file count do nothing inside the child: the instance reports
-which of them was pressed, and the host hands that to the instance that placed
-the child, which decides what going back, switching file or showing the file's
-details means.
+over it (`child-placement.top-bar`). Whether frames lay out as on a phone is not
+the placer's to say: the shell tells the host (`set-phone-layout`, heard only
+from the shell; workspace-ui says so while its dock stacks), and the host sets
+`frame-spec.phone` on every frame from it, placed, joined to a dock or shown in
+a dialog, so they all agree.
 
 The panels the host draws itself - its debugging panels - are placed by the
 instance that draws the window, never by the host: the host asks that
