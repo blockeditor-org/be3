@@ -21,6 +21,15 @@ impl MessageHash {
     }
 }
 
+/// A message another names as coming before it (`Message::seen`, `Message::own_previous`): its
+/// id, by which a reader finds it, or the closed segment that may hold it (`Segment::may_hold`),
+/// and its hash, so it is that message and no other under its id.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub struct Prior {
+    pub id: ObjectId,
+    pub hash: MessageHash,
+}
+
 pub(crate) struct Signed(Vec<u8>);
 
 impl Signed {
@@ -74,6 +83,18 @@ impl Signed {
             Some(seen) => {
                 self.0.push(1);
                 self.0.extend_from_slice(&seen.0);
+            }
+            None => self.0.push(0),
+        }
+        self
+    }
+
+    pub(crate) fn prior(&mut self, prior: Option<Prior>) -> &mut Self {
+        match prior {
+            Some(prior) => {
+                self.0.push(1);
+                self.uuid(prior.id.as_uuid());
+                self.0.extend_from_slice(&prior.hash.0);
             }
             None => self.0.push(0),
         }

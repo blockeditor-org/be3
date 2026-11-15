@@ -20,8 +20,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments (child blocks), its author's
   signature and when the server took it (`arrival`, below). Its id is its
-  `ObjectId`. It stores the hash of the last message its author saw (`seen`);
-  a message's hash is SHA-256 over its signed bytes.
+  `ObjectId`. It names, by id and hash (`Prior`), the last message its author
+  saw (`seen`) and its author's own message before it (`own_previous`), both
+  signed; a message's hash is SHA-256 over its signed bytes.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
@@ -207,7 +208,14 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   names. A deletion is asked about once when it appears (`forged_deletions`);
   a forged one keeps a muted, italic "Message deleted" row in the message's
   place (after `Deletion::after` among the recent messages, where it was in a
-  closed segment read back), while a signed one leaves none.
+  closed segment read back), while a signed one leaves none. A recent message
+  removed outright, which no deletion records, is told by the later messages
+  that name it (`seen`, `own_previous`; `ChatContent::missing_before`): a
+  muted, italic "A message that was here is no longer in the chat" row takes
+  its place, before the first message naming it. A named message that may be
+  in a closed segment counts as there, rows read back from closed segments are
+  not checked, and one removed after its author's last message is named by
+  none, so it shows nothing.
 
 ## Notifications
 

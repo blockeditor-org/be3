@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::chat::{Carried, Message, Segment, Signature};
-use crate::signed::MessageHash;
+use crate::signed::Prior;
 
 /// A segment holds at least this many encoded bytes of messages once it is closed, unless the
 /// chat has fewer: parts of about 64 to 256 KiB (a part past `LARGEST` is never closed over).
@@ -29,7 +29,8 @@ struct Stored {
     body: String,
     reply_to: Option<ObjectId>,
     attachments: Vec<Uuid>,
-    seen: Option<MessageHash>,
+    seen: Option<Prior>,
+    own_previous: Option<Prior>,
     #[serde(with = "serde_bytes")]
     signature: Vec<u8>,
     arrival: Option<i64>,
@@ -49,6 +50,7 @@ impl Stored {
                 .map(|attachment| attachment.0)
                 .collect(),
             seen: message.seen,
+            own_previous: message.own_previous,
             signature: message.signature.0.clone(),
             arrival: message.arrival,
         }
@@ -62,6 +64,7 @@ impl Stored {
             reply_to: self.reply_to,
             attachments: self.attachments.into_iter().map(BlockRef).collect(),
             seen: self.seen,
+            own_previous: self.own_previous,
             signature: Signature(self.signature),
             arrival: self.arrival,
         };

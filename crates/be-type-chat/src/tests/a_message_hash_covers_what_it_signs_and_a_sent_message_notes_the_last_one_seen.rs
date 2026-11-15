@@ -8,7 +8,10 @@ fn a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_see
     let second = chat.message(there).expect("the second message was sent");
 
     assert_eq!(first.seen, None, "the first message saw nothing before it");
-    assert_eq!(second.seen, chat.hash(CHAT, hello));
+    assert_eq!(first.own_previous, None, "nor did its author send any");
+    let hello_prior = chat.hash(CHAT, hello).map(|hash| crate::Prior { id: hello, hash });
+    assert_eq!(second.seen, hello_prior);
+    assert_eq!(second.own_previous, hello_prior, "its author's previous message");
     assert!(first.signature.0.is_empty(), "nothing signs messages yet");
 
     let hash = first.hash(CHAT, hello);
@@ -33,6 +36,16 @@ fn a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_see
         }
         .hash(CHAT, hello),
         first.clone().replying_to(Some(there)).hash(CHAT, hello),
+        Message {
+            seen: hello_prior,
+            ..first.clone()
+        }
+        .hash(CHAT, hello),
+        Message {
+            own_previous: hello_prior,
+            ..first.clone()
+        }
+        .hash(CHAT, hello),
         first.hash(Uuid::from_u128(1), hello),
         first.hash(CHAT, there),
     ];
