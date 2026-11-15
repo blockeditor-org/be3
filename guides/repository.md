@@ -41,6 +41,12 @@ same pull request. They are not part of the core and are named without `be-`: `t
 (guides/adding_a_game.md) and the deterministic-game app, `logicgame` and the logic-grid app,
 and the scene-3d app.
 
+## Prototypes
+
+`prototypes/` holds standalone cargo projects that try out an idea before it is built into the
+product: not in the workspace and not built by buck or `./scripts/verify`. Each says what it
+found beside its code (`prototypes/wasm_on_v8/FINDINGS.md`).
+
 ## Unrelated
 
 `cvl2` is a compiler for its own language that writes Minecraft datapacks. Nothing depends on

@@ -1,0 +1,14 @@
+[package]
+name = "wasm-on-wasmtime"
+version = "0.1.0"
+publish = false
+edition = "2024"
+
+# Standalone: not a member of the repository's workspace, and not built by buck.
+[workspace]
+
+[dependencies]
+wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "runtime", "std", "threads", "wat", "parallel-compilation"] }
+
+[profile.release]
+debug = false

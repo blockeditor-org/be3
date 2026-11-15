@@ -1,0 +1,12 @@
+[package]
+name = "wasm-on-v8"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone: not a member of the repository's workspace, and not built by buck.
+[workspace]
+
+[dependencies]
+v8 = "=152.2.0"
+wat = "1"
