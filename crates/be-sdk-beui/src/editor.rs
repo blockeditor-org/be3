@@ -439,7 +439,8 @@ impl Editor {
         }
         let found = self.blocks().watch(BlockQuery::Block(block));
         wait_for(move || {
-            if !projection.is_alive() || projection.ready().is_ok() {
+            // Read, or failed to: what failed is reported by whoever reads it, not waited on.
+            if !projection.is_alive() || !matches!(projection.ready(), Err(Pending::Loading)) {
                 return Ok(());
             }
             let viewable = found
