@@ -363,7 +363,7 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
                     fallback={|| view! {
                         <SettingsRow label="No workspaces yet" compact=true />
                     }}
-                >|workspace: Uuid| {
+                >|workspace: Uuid, index: ReadSignal<usize>| {
                     let setting = keep_setting(workspace);
                     let personal = create_memo(move || editor.organization_settings().is_none());
                     let choice = create_memo(move || {
@@ -380,7 +380,7 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
                                 true => FIXED.to_owned(),
                                 false => String::new(),
                             }}
-                            separated={move || workspaces.with(|all| all.first() != Some(&workspace))}
+                            separated={move || index.get() != 0}
                             locked={fixed}
                             compact=true
                         >

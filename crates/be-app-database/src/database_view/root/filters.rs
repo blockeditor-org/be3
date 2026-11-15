@@ -23,7 +23,7 @@ const EDITOR_WIDTH: f32 = 300.0;
 const EDITOR_POPOVER_WIDTH: Size = Size::Custom(EDITOR_WIDTH + PANEL_PADDING.px() * 2.0);
 const CHOICES_HEIGHT: Size = Size::Custom(280.0);
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Kind {
     AnyOf,
     NoneOf,
@@ -359,7 +359,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         let kind = kind.get();
         kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
     });
-    let kind_keys = create_memo(move || (0..kinds.with(Vec::len)).collect::<Vec<usize>>());
     let recondition = move |index: Option<usize>| {
         let Some(kind) =
             index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied()))
@@ -419,16 +418,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         <Frame>
                             <Select
                                 options={view! {
-                                    <ForEach value={kind_keys}>|index: usize| {
-                                        let label = create_memo(move || {
-                                            kinds.with(|kinds| {
-                                                kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
-                                            })
-                                        });
-                                        view! {
-                                            <ChoiceOption label={label} />
-                                        }
-                                    }</ForEach>
+                                    <ForEach value={kinds}>|kind: Kind|
+                                        <ChoiceOption label={kind.label().to_owned()} />
+                                    </ForEach>
                                 }}
                                 selected={Binding::new(selected, recondition)}
                                 label="Condition"
@@ -635,10 +627,7 @@ pub fn FilterList(data: Data) -> NodeId {
         data.filter_items
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
     });
-    let none = create_memo(move || keys.with(Vec::is_empty));
     let names = data.fields;
-    let field_keys =
-        create_memo(move || names.with(|fields| (0..fields.len()).collect::<Vec<usize>>()));
     let add = move |index: Option<usize>| {
         let Some(field) = index.and_then(|index| {
             data.fields
@@ -651,10 +640,12 @@ pub fn FilterList(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <List spacing=Space::Lg>
-            <Show value={none}>
-                <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
-            </Show>
-            <ForEach value={keys}>|id: ObjectId| {
+            <ForEach
+                value={keys}
+                fallback={|| view! {
+                    <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
+                }}
+            >|id: ObjectId| {
                 let remove = move || data.operate_view(DatabaseView::remove_filter(id));
                 let read_only = data.read_only;
                 view! {
@@ -682,14 +673,12 @@ pub fn FilterList(data: Data) -> NodeId {
                     <Frame>
                         <Select
                             options={view! {
-                                <ForEach value={field_keys}>|index: usize| {
-                                    let label = create_memo(move || {
-                                        names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
-                                }</ForEach>
+                                <ForEach
+                                    value={names}
+                                    key={|field: &DatabaseField| field.id}
+                                >|field: ReadSignal<DatabaseField>|
+                                    <ChoiceOption label={move || field.with(|field| field.name.clone())} />
+                                </ForEach>
                             }}
                             selected={Binding::new(None, add)}
                             label="Add a filter"

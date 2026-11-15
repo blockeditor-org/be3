@@ -418,7 +418,6 @@ fn ActionBar(panel: Panel) -> NodeId {
 #[component]
 fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
     let names = create_memo(move || seat.get().names);
-    let seat_keys = create_memo(move || (0..names.get().len()).collect::<Vec<_>>());
     let playing = create_memo(move || Some(seat.get().playing));
     let seated = move |seat: Option<usize>| {
         if let Some(seat) = seat {
@@ -430,14 +429,9 @@ fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
             <ListItem shrink=1.0>
                 <Select
                     options={view! {
-                        <ForEach value={seat_keys}>|seat: usize| {
-                            let label = create_memo(move || {
-                                names.with(|names| names.get(seat).cloned().unwrap_or_default())
-                            });
-                            view! {
-                                <ChoiceOption label />
-                            }
-                        }</ForEach>
+                        <ForEach value={names}>|label: String|
+                            <ChoiceOption label />
+                        </ForEach>
                     }}
                     selected={Binding::new(playing, seated)}
                     label="Playing as"
