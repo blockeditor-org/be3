@@ -921,14 +921,11 @@ fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
 #[derive(Clone)]
 enum CopyStage {
     Duplicate,
-    Replace {
-        copy_id: Uuid,
-        block_type: Uuid,
-    },
-    /// The copy is placed in the container only once its type put it in the original's place.
+    /// The container's type was asked to put `copy_id` in the original's place, before the
+    /// copy is made: the copy is made, and placed in the container, only once the type did, so a
+    /// refusal leaves no copy behind.
     Replacing {
         copy_id: Uuid,
-        block_type: Uuid,
         answer: be_host_stack::ChildChanged,
     },
 }
@@ -2689,8 +2686,6 @@ impl HostCore {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                // Asked before duplicating, so a container that cannot take the copy leaves no
-                // orphaned copy behind.
                 match self
                     .with_editor(copy.container, |editor| editor.takes_replace())
                     .flatten()
@@ -2705,24 +2700,15 @@ impl HostCore {
                     }
                     Some(true) => {}
                 }
-                let Some((copy_id, block_type)) = be_host_stack::duplicate(copy.source) else {
-                    self.pending_copies.push(copy);
-                    continue;
-                };
-                copy.stage = CopyStage::Replace {
-                    copy_id,
-                    block_type,
-                };
-            }
-            if let CopyStage::Replace {
-                copy_id,
-                block_type,
-            } = copy.stage
-            {
-                if !self.ensure_editor(copy.container) {
+                // What `duplicate` needs, known before the container is asked: once it takes
+                // the copy, the copy is made at once.
+                let duplicable = be_host_stack::node(copy.source)
+                    .is_some_and(|source| be_host_stack::is_known(source.content_type));
+                if !duplicable {
                     self.pending_copies.push(copy);
                     continue;
                 }
+                let copy_id = Uuid::now_v7();
                 let replacing = self
                     .with_editor(copy.container, |editor| {
                         editor.replace_child(copy.source, copy_id)
@@ -2732,35 +2718,33 @@ impl HostCore {
                     self.pending_copies.push(copy);
                     continue;
                 };
-                copy.stage = CopyStage::Replacing {
-                    copy_id,
-                    block_type,
-                    answer,
-                };
+                copy.stage = CopyStage::Replacing { copy_id, answer };
             }
-            let CopyStage::Replacing {
-                copy_id,
-                block_type,
-                answer,
-            } = &copy.stage
-            else {
+            let CopyStage::Replacing { copy_id, answer } = &copy.stage else {
                 unreachable!("copy stage was just set to Replacing")
             };
-            let (copy_id, block_type) = (*copy_id, *block_type);
+            let copy_id = *copy_id;
             match answer.answer() {
                 None => {
                     self.pending_copies.push(copy);
                     continue;
                 }
-                // The copy stays detached, as it was made: placed nowhere, it is deleted as a
-                // block the person deletes is, and goes no further.
+                // Refused before any copy was made: nothing is left behind.
                 Some(false) => {
                     refuse_copy(copy.container);
                     continue;
                 }
                 Some(true) => {}
             }
-
+            let Some(block_type) = be_host_stack::duplicate(copy.source, copy_id) else {
+                // The source left the graph while the container answered: the container names
+                // a copy that was never made.
+                notices::report(format!(
+                    "The copy couldn't be made, so {} names a block that isn't there.",
+                    name_of(copy.container, "that block")
+                ));
+                continue;
+            };
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));
             self.show_block(
                 Some(copy.container),
