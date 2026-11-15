@@ -85,7 +85,7 @@ pub fn told_key(block: Uuid, key: &str) -> be_block_store::Hash {
 /// sender and the block itself, from its own contacts and graph: the sealed part holds only
 /// the text, bound to the organization, block, sender and time it was sent
 /// (`be_block_client::Notification`).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct PushMessage {
     pub organization: Uuid,
     pub block: Uuid,

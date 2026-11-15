@@ -89,9 +89,8 @@ would change nothing must not be made: reaching a `Part` mutably copies it, so h
 first (`Graph::reports`, `refers`, `derives`, `wanted`) and write only on a change.
 
 The worker publishes at the end of each pass and before the host hears anything from the
-worker thread: `changes::post`, `changes::wake` and a reply to a host call
-(`seen::after_publish`, which every reply in `lib.rs` goes through, a flush's answer too)
-are held thread-locally and go out from a task that publishes once the worker yields. So a
+worker thread: `changes::post`, `changes::wake` and a reply to a host call (every reply
+goes through `seen::after_publish`, a flush's answer too) are held thread-locally and go out from a task that publishes once the worker yields. So a
 read changes when its `Seen` lands, never before the host is told, and a test that heard a
 reply reads what the worker did before it. `wait_until`, and a test's change to `Shared`,
 publish too.
@@ -104,7 +103,12 @@ a `Seen` says the worker applied it (`edits_applied`), the host lays it over eac
 takes, quietly (`changes::quietly`): the host heard of it when it made it. The host takes
 the newest `Seen` as it reads, not once a frame, so two reads in one frame may read two.
 Everything else the host asks for is a command;
-`Seen::done` against the commands sent is what is pending. What only the worker's `Peer`
+`Seen::done` against the commands sent is what is pending. A command is data: the host sends
+it as its bytes (`worker::CommandPost`, postcard) and the worker decodes it as it takes it
+(`worker::Commands`), so nothing in one is a pointer or a callback. A reply is a number
+(`replies::Reply`): the host keeps what it calls back (`replies::expect`), and the worker
+answers with the answer's bytes, or drops it unanswered, which drops what waits on it. A
+`Seen` encodes the same way (`Seen::encode`). What only the worker's `Peer`
 can say is worked out into `Seen` too: offline, which blocks are out of reach
 (`Seen::out_of_reach`, worked out again only for the nodes that moved and the blocks the worker let go of, `Shared::refresh_reach`), so the host holds neither
 the `Peer` nor the connection; stopping drops a oneshot (`Inbox::stopped`) on which the

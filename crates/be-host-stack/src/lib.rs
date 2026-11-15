@@ -7,7 +7,6 @@ use be_wasm_threads::Mutex;
 
 use std::path::PathBuf;
 
-use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
 pub mod accounts;
@@ -26,6 +25,7 @@ pub mod link;
 mod nudge;
 pub mod offline_choice;
 mod replicas;
+mod replies;
 pub mod revisions;
 pub mod search;
 mod seen;
@@ -231,7 +231,7 @@ pub fn try_anyway(block: Uuid) {
 struct Stack {
     account: Uuid,
     organization: Uuid,
-    commands: Option<UnboundedSender<Command>>,
+    commands: Option<worker::CommandPost>,
     nudges: Option<nudge::Nudges>,
     /// Dropped as the stack stops, which has the worker close its connection
     /// (`Inbox::stopped`).
@@ -314,7 +314,7 @@ fn stack() -> &'static Mutex<Option<Stack>> {
 
 pub fn start(config: Config) {
     stop();
-    let (commands, receiver) = unbounded_channel();
+    let (commands, receiver) = worker::command_channel();
     let (nudges, nudged) = nudge::channel();
     let (stopping, stopped) = tokio::sync::oneshot::channel();
     let sent = Arc::new(AtomicUsize::new(0));
@@ -455,7 +455,11 @@ pub fn retry_now() {
 pub fn flush() -> usize {
     let unsaved = status().unsaved;
     let (done, sealed) = std::sync::mpsc::channel();
-    send(Command::Flush(worker::FlushReply(done)));
+    send(Command::Flush(worker::FlushReply(replies::expect(
+        move |unsaved| {
+            let _ = done.send(unsaved);
+        },
+    ))));
     platform::await_flush(sealed).unwrap_or(unsaved)
 }
 
@@ -880,7 +884,7 @@ pub fn approve_pairing(
     send(Command::ApprovePairing {
         from,
         code,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -923,7 +927,7 @@ pub fn make_contact_link(
     }
     send(Command::Contact(worker::ContactCommand::Link {
         offer,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -933,7 +937,7 @@ pub fn open_contact_link(
 ) {
     send(Command::Contact(worker::ContactCommand::Open {
         code,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -943,7 +947,7 @@ pub fn accept_contact_link(
 ) {
     send(Command::Contact(worker::ContactCommand::Accept {
         code,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -1114,8 +1118,9 @@ pub fn seal_owed() {
 /// Flushes without waiting, and deliberately keeps the flush's late settle (unlike
 /// `seal_owed`): edits made before the app is really suspended are sealed with it too.
 pub fn backgrounded() {
-    let (done, _) = std::sync::mpsc::channel();
-    send(Command::Flush(worker::FlushReply(done)));
+    send(Command::Flush(worker::FlushReply(replies::expect(
+        |_: usize| {},
+    ))));
 }
 
 /// How long a test waits for a stack that makes no progress before failing: a wait that never
@@ -1583,7 +1588,7 @@ pub fn set_access(
         block,
         account,
         access,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1608,7 +1613,7 @@ pub fn set_notify_mode(
     send(Command::SetNotifyMode {
         block,
         mode,
-        reply: seen::after_publish(move |set: Result<be_block_protocol::NotifyMode, String>| {
+        reply: replies::expect(move |set: Result<be_block_protocol::NotifyMode, String>| {
             reply(set.map(|_| ()));
         }),
     });
@@ -1616,9 +1621,9 @@ pub fn set_notify_mode(
 
 /// The server's VAPID public key, which a browser subscribes with.
 pub fn push_key(reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-    send(Command::Push(worker::PushCommand::Key(
-        seen::after_publish(reply),
-    )));
+    send(Command::Push(worker::PushCommand::Key(replies::expect(
+        reply,
+    ))));
 }
 
 /// Registers this device's push endpoint for the signed-in account.
@@ -1628,7 +1633,7 @@ pub fn register_push_endpoint(
 ) {
     send(Command::Push(worker::PushCommand::Register {
         endpoint,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -1638,7 +1643,7 @@ pub fn unregister_push_endpoint(
 ) {
     send(Command::Push(worker::PushCommand::Unregister {
         address,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -1651,7 +1656,9 @@ pub fn open_push(
     send(Command::Push(worker::PushCommand::Open {
         message,
         now,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(move |opened: Result<replies::Opened, String>| {
+            reply(opened.map(|replies::Opened(opened)| opened));
+        }),
     }));
 }
 
@@ -1660,7 +1667,7 @@ pub fn open_push(
 pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::Leave {
         block,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1668,7 +1675,7 @@ type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String
 
 pub fn list_members(reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::List(
-        seen::after_publish(reply),
+        replies::expect(reply),
     )));
 }
 
@@ -1676,14 +1683,14 @@ pub fn set_role(account: Uuid, role: be_block_protocol::OrganizationRole, reply:
     send(Command::Members(worker::MembersCommand::SetRole {
         account,
         role,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
 pub fn remove_member(account: Uuid, reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::Remove {
         account,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -1741,7 +1748,7 @@ pub async fn invite() -> Result<String, String> {
 /// `invite`, answering through `reply`.
 pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) {
     send(Command::Invitations(worker::InvitationsCommand::Create(
-        seen::after_publish(reply),
+        replies::expect(reply),
     )));
 }
 
@@ -1777,7 +1784,7 @@ pub fn is_own_invitation(
 }
 
 /// An invitation in the organization's invite list.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Invite {
     pub id: Uuid,
     /// Who made it.
@@ -1799,7 +1806,7 @@ type InvitationsReply = Box<dyn FnOnce(Result<Vec<Invite>, String>) + Send>;
 /// The organization's invitations, newest first; an administrator's only.
 pub fn list_invitations(reply: InvitationsReply) {
     send(Command::Invitations(worker::InvitationsCommand::List(
-        seen::after_publish(reply),
+        replies::expect(reply),
     )));
 }
 
@@ -1807,7 +1814,7 @@ pub fn list_invitations(reply: InvitationsReply) {
 pub fn revoke_invitation(link: Uuid, reply: InvitationsReply) {
     send(Command::Invitations(worker::InvitationsCommand::Revoke {
         link,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     }));
 }
 
@@ -1815,7 +1822,7 @@ pub async fn create_agent(name: String) -> Result<crate::accounts::AgentCredenti
     let (reply, made) = tokio::sync::oneshot::channel();
     send(Command::CreateAgent {
         name,
-        reply: seen::after_publish(move |made| {
+        reply: replies::expect(move |made| {
             let _ = reply.send(made);
         }),
     });
@@ -1832,7 +1839,7 @@ pub fn create_block_agent(
     send(Command::CreateBlockAgent {
         block,
         name,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1843,14 +1850,14 @@ pub fn rotate_agent_token(
 ) {
     send(Command::BlockAgent {
         agent,
-        change: worker::AgentChange::Rotate(seen::after_publish(reply)),
+        change: worker::AgentChange::Rotate(replies::expect(reply)),
     });
 }
 
 pub fn remove_block_agent(agent: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'static) {
     send(Command::BlockAgent {
         agent,
-        change: worker::AgentChange::Remove(seen::after_publish(reply)),
+        change: worker::AgentChange::Remove(replies::expect(reply)),
     });
 }
 
@@ -1862,7 +1869,7 @@ pub fn list_access(
 ) {
     send(Command::ListAccess {
         block,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1874,7 +1881,7 @@ pub fn read_head(
     send(Command::ReadHead {
         block,
         commit,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1883,7 +1890,7 @@ type Exported = Result<(String, Vec<u8>), String>;
 pub fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {
     send(Command::Export {
         block,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1893,7 +1900,7 @@ pub fn plain_file(
 ) {
     send(Command::PlainFile {
         block,
-        reply: seen::after_publish(reply),
+        reply: replies::expect(reply),
     });
 }
 
@@ -1989,7 +1996,7 @@ pub fn import_file(
     send(Command::ContentOfFile {
         name,
         bytes,
-        reply: seen::after_publish(move |content: Result<(Uuid, Vec<u8>), String>| {
+        reply: replies::expect(move |content: Result<(Uuid, Vec<u8>), String>| {
             reply(content.map(|(content_type, content)| {
                 let block = Uuid::now_v7();
                 create(block, content_type, parent, metadata, Some(content), false);

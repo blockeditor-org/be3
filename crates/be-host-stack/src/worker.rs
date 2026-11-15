@@ -23,6 +23,7 @@ use super::replicas::Replicas;
 use super::types::{self, Modules};
 use super::version::{Context, LoopCall, LoopCalls, Reach, Versions};
 use super::{Config, platform};
+use crate::replies::Reply;
 
 mod served;
 mod uploads;
@@ -69,7 +70,7 @@ fn jitter() -> f64 {
 }
 
 pub(super) struct Inbox {
-    pub(super) commands: UnboundedReceiver<Command>,
+    pub(super) commands: Commands,
     pub(super) nudged: super::nudge::Nudged,
     /// Where the worker hands over each `Seen` it publishes for the page (`seen::Handover`).
     pub(super) handover: Arc<crate::seen::Handover>,
@@ -80,17 +81,18 @@ pub(super) struct Inbox {
     pub(super) stopped: tokio::sync::oneshot::Receiver<()>,
 }
 
-type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
-type NotifyModeReply = Box<dyn FnOnce(Result<be_block_protocol::NotifyMode, String>) + Send>;
+type AccessReply = Reply<Result<AccessList, String>>;
+type NotifyModeReply = Reply<Result<be_block_protocol::NotifyMode, String>>;
 
-type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
+type ExportReply = Reply<Result<(String, Vec<u8>), String>>;
 
-type HeadReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
+type HeadReply = Reply<Result<Vec<u8>, String>>;
 
-type PlainReply = Box<dyn FnOnce(Result<be_block_type_host::PlainFile, String>) + Send>;
+type PlainReply = Reply<Result<be_block_type_host::PlainFile, String>>;
 
-type ContentReply = Box<dyn FnOnce(Result<(Uuid, Vec<u8>), String>) + Send>;
+type ContentReply = Reply<Result<(Uuid, Vec<u8>), String>>;
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum Command {
     Unsent {
         block: Uuid,
@@ -104,7 +106,7 @@ pub(super) enum Command {
     Revision {
         block: Uuid,
         request: super::revisions::Asked,
-        reply: Box<dyn FnOnce(super::revisions::Answered) + Send>,
+        reply: Reply<super::revisions::Answered>,
     },
     Open {
         block: Uuid,
@@ -120,7 +122,11 @@ pub(super) enum Command {
     /// The page's changes to what it reads, numbered (`seen::Edit`): applied as the worker
     /// takes the command, before any later one.
     Edit(u64, Vec<crate::seen::Edit>),
-    Operate(Uuid, Vec<u8>, Instant),
+    Operate(
+        Uuid,
+        #[serde(with = "serde_bytes")] Vec<u8>,
+        #[serde(with = "crate::seen::moment")] Instant,
+    ),
     ChangeChild {
         block: Uuid,
         content_type: Uuid,
@@ -130,6 +136,7 @@ pub(super) enum Command {
         block: Uuid,
         content_type: Uuid,
         name: String,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     Attach {
@@ -145,10 +152,12 @@ pub(super) enum Command {
     FromEditor {
         block: Uuid,
         editor: EditorId,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
+        #[serde(with = "crate::seen::moment")]
         at: Instant,
     },
-    HoldClock(Option<Instant>),
+    HoldClock(#[serde(with = "crate::seen::moment::option")] Option<Instant>),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -158,11 +167,13 @@ pub(super) enum Command {
     Seed {
         block: Uuid,
         content_type: Uuid,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     Replace {
         block: Uuid,
         content_type: Uuid,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
     },
     /// Answered with how many open blocks keep edits the device's journal does not hold yet,
@@ -199,6 +210,7 @@ pub(super) enum Command {
         content_type: Uuid,
         parent: BlockParent,
         metadata: BlockMetadata,
+        #[serde(with = "serde_bytes")]
         bytes: Option<Vec<u8>>,
         owner_only: bool,
     },
@@ -241,6 +253,7 @@ pub(super) enum Command {
     Import(Vec<(be_block_client::transfer::Saved, BlockParent)>),
     ContentOfFile {
         name: String,
+        #[serde(with = "serde_bytes")]
         bytes: Vec<u8>,
         reply: ContentReply,
     },
@@ -287,33 +300,86 @@ pub(super) enum Command {
 
 /// Where a flush answers how much closing now would lose (`crate::flush`): sent once the `Seen`
 /// with what the flush did is handed over, so the page reads it as it hears the answer.
-pub(super) struct FlushReply(pub(super) std::sync::mpsc::Sender<usize>);
+#[derive(serde::Deserialize, serde::Serialize)]
+pub(super) struct FlushReply(pub(super) Reply<usize>);
 
 impl FlushReply {
     pub(super) fn send(self, unsaved: usize) -> Result<(), ()> {
-        let Self(sender) = self;
-        crate::seen::after_publish(move |unsaved| {
-            let _ = sender.send(unsaved);
-        })(unsaved);
+        let Self(reply) = self;
+        reply.send(unsaved);
         Ok(())
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum AgentChange {
-    Rotate(Box<dyn FnOnce(Result<String, String>) + Send>),
-    Remove(Box<dyn FnOnce(Result<(), String>) + Send>),
+    Rotate(Reply<Result<String, String>>),
+    Remove(Reply<Result<(), String>>),
 }
 
 impl AgentChange {
     fn fail(self, error: String) {
         match self {
-            Self::Rotate(reply) => reply(Err(error)),
-            Self::Remove(reply) => reply(Err(error)),
+            Self::Rotate(reply) => reply.send(Err(error)),
+            Self::Remove(reply) => reply.send(Err(error)),
         }
     }
 }
 
+/// Where the page sends its commands, each as its bytes (`Command::encode`), as a page whose
+/// memory the worker does not share sends them.
+pub(super) struct CommandPost(tokio::sync::mpsc::UnboundedSender<Vec<u8>>);
+
+impl CommandPost {
+    pub(super) fn send(&self, command: Command) -> Result<(), ()> {
+        let bytes = command.encode();
+        drop(command);
+        self.0.send(bytes).map_err(|unsent| {
+            // Decoded only to be dropped: what waits on its replies hears none.
+            drop(Command::decode(&unsent.0));
+        })
+    }
+}
+
+/// The page's commands as the worker takes them, decoded from their bytes.
+pub(super) struct Commands(UnboundedReceiver<Vec<u8>>);
+
+impl Commands {
+    async fn recv(&mut self) -> Option<Command> {
+        let bytes = self.0.recv().await?;
+        Some(Command::decode(&bytes))
+    }
+
+    fn try_recv(&mut self) -> Result<Command, tokio::sync::mpsc::error::TryRecvError> {
+        self.0.try_recv().map(|bytes| Command::decode(&bytes))
+    }
+}
+
+impl Drop for Commands {
+    /// Drops the commands the worker never took, so what waits on their replies hears none.
+    fn drop(&mut self) {
+        self.0.close();
+        while let Ok(bytes) = self.0.try_recv() {
+            drop(Command::decode(&bytes));
+        }
+    }
+}
+
+pub(super) fn command_channel() -> (CommandPost, Commands) {
+    let (post, commands) = tokio::sync::mpsc::unbounded_channel();
+    (CommandPost(post), Commands(commands))
+}
+
 impl Command {
+    fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("a command encodes")
+    }
+
+    /// The page encoded it from a `Command`: bytes that do not decode are a bug.
+    fn decode(bytes: &[u8]) -> Self {
+        postcard::from_bytes(bytes).expect("a command decodes")
+    }
+
     /// What the command is, for a busy reason that names the work the block store is stuck on.
     fn name(&self) -> &'static str {
         match self {
@@ -542,27 +608,29 @@ impl Command {
     }
 }
 
-type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+type MembersReply = Reply<Result<Vec<be_block_protocol::Member>, String>>;
 
 /// What a device does with push notifications; a reply is the peer's error as text.
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum PushCommand {
-    Key(Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>),
+    Key(Reply<Result<Vec<u8>, String>>),
     Register {
         endpoint: be_block_protocol::PushEndpoint,
-        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+        reply: Reply<Result<(), String>>,
     },
     Unregister {
         address: String,
-        reply: Box<dyn FnOnce(Result<(), String>) + Send>,
+        reply: Reply<Result<(), String>>,
     },
     /// Opens one a push carried, offline, from the keys the device keeps.
     Open {
         message: be_block_protocol::PushMessage,
         now: i64,
-        reply: Box<dyn FnOnce(Result<be_block_client::OpenedNotification, String>) + Send>,
+        reply: Reply<Result<crate::replies::Opened, String>>,
     },
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum MembersCommand {
     List(MembersReply),
     SetRole {
@@ -576,11 +644,12 @@ pub(super) enum MembersCommand {
     },
 }
 
-type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+type LinkReply = Reply<Result<String, String>>;
 
-type InvitationsReply = Box<dyn FnOnce(Result<Vec<crate::Invite>, String>) + Send>;
+type InvitationsReply = Reply<Result<Vec<crate::Invite>, String>>;
 
 /// The organization's invitations: making one, listing them, revoking one.
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum InvitationsCommand {
     /// Answers the new invitation's link.
     Create(LinkReply),
@@ -592,13 +661,13 @@ pub(super) enum InvitationsCommand {
     },
 }
 
-type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
+type AgentReply = Reply<Result<crate::accounts::AgentCredentials, String>>;
 
-type BlockAgentReply =
-    Box<dyn FnOnce(Result<(Uuid, crate::accounts::AgentCredentials), String>) + Send>;
+type BlockAgentReply = Reply<Result<(Uuid, crate::accounts::AgentCredentials), String>>;
 
-type CardReply = Box<dyn FnOnce(Result<be_block_keys::ContactCard, String>) + Send>;
+type CardReply = Reply<Result<be_block_keys::ContactCard, String>>;
 
+#[derive(serde::Deserialize, serde::Serialize)]
 pub(super) enum ContactCommand {
     Link {
         offer: Option<(Uuid, Access)>,
@@ -1210,7 +1279,7 @@ impl Line {
 struct Session<'a> {
     config: &'a Config,
     peer: &'a Arc<Peer<Store>>,
-    commands: &'a mut UnboundedReceiver<Command>,
+    commands: &'a mut Commands,
     nudged: &'a mut super::nudge::Nudged,
     shared: &'a Arc<Mutex<Shared>>,
     changed: &'a Arc<Condvar>,
@@ -2297,7 +2366,7 @@ async fn yielded() {
 }
 
 async fn wait(
-    commands: &mut UnboundedReceiver<Command>,
+    commands: &mut Commands,
     line: &mut Line,
     nudged: &mut super::nudge::Nudged,
     uploads: &mut Uploads,
@@ -2376,7 +2445,7 @@ struct Ran<'a> {
     calls: &'a LoopCalls,
 }
 
-type DoneReply = Box<dyn FnOnce(Result<(), String>) + Send>;
+type DoneReply = Reply<Result<(), String>>;
 
 /// What a change to who can read a block answers offline: it needs the server.
 pub const OFFLINE_SHARING: &str =
@@ -2395,37 +2464,37 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
     match command {
         // Opening a push needs only the keys the device kept.
         Command::Push(PushCommand::Open { .. }) => return Some(command),
-        Command::Push(PushCommand::Key(reply)) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Push(PushCommand::Key(reply)) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Push(
             PushCommand::Register { reply, .. } | PushCommand::Unregister { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         // These need the server's say, so they are refused, not kept for later: the caller
         // shows the refusal where the person acted.
-        Command::SetAccess { reply, .. } => reply(Err(OFFLINE_SHARING.to_owned())),
-        Command::Leave { reply, .. } => reply(Err(OFFLINE_LEAVING.to_owned())),
-        Command::ApprovePairing { reply, .. } => reply(Err(OFFLINE_PAIRING.to_owned())),
-        Command::ListAccess { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::SetNotifyMode { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetAccess { reply, .. } => reply.send(Err(OFFLINE_SHARING.to_owned())),
+        Command::Leave { reply, .. } => reply.send(Err(OFFLINE_LEAVING.to_owned())),
+        Command::ApprovePairing { reply, .. } => reply.send(Err(OFFLINE_PAIRING.to_owned())),
+        Command::ListAccess { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::SetNotifyMode { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
             | MembersCommand::Remove { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Invitations(InvitationsCommand::Create(reply)) => {
-            reply(Err(NEEDS_CONNECTION.to_owned()))
+            reply.send(Err(NEEDS_CONNECTION.to_owned()))
         }
         Command::Invitations(
             InvitationsCommand::List(reply) | InvitationsCommand::Revoke { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::CreateBlockAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateAgent { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
+        Command::CreateBlockAgent { reply, .. } => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::BlockAgent { change, .. } => change.fail(NEEDS_CONNECTION.to_owned()),
         Command::Contact(ContactCommand::Link { reply, .. }) => {
-            reply(Err(NEEDS_CONNECTION.to_owned()))
+            reply.send(Err(NEEDS_CONNECTION.to_owned()))
         }
         Command::Contact(
             ContactCommand::Open { reply, .. } | ContactCommand::Accept { reply, .. },
-        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
+        ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Contact(ContactCommand::Remove(_)) => {
             shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                 Some(NEEDS_CONNECTION.to_owned());
@@ -2506,7 +2575,7 @@ impl Ran<'_> {
                 if created.is_ok() {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                 }
-                reply(created.map_err(|error| error.to_string()));
+                reply.send(created.map_err(|error| error.to_string()));
                 crate::changes::wake();
                 false
             }
@@ -2516,7 +2585,7 @@ impl Ran<'_> {
                     self.tasks.sync_contacts(self.peer, self.shared).await;
                     self.tasks.refresh(self.peer, self.shared, block);
                 }
-                reply(created.map_err(|error| error.to_string()));
+                reply.send(created.map_err(|error| error.to_string()));
                 crate::changes::wake();
                 false
             }
@@ -2539,7 +2608,7 @@ impl Ran<'_> {
                             held.progressed += 1;
                         }
                     }
-                    reply(set.map(|()| mode).map_err(|error| error.to_string()));
+                    reply.send(set.map(|()| mode).map_err(|error| error.to_string()));
                     crate::changes::wake();
                 });
                 false
@@ -2549,14 +2618,14 @@ impl Ran<'_> {
                 platform::spawn_local(async move {
                     match command {
                         PushCommand::Key(reply) => {
-                            reply(peer.push_key().await.map_err(|error| error.to_string()))
+                            reply.send(peer.push_key().await.map_err(|error| error.to_string()))
                         }
-                        PushCommand::Register { endpoint, reply } => reply(
+                        PushCommand::Register { endpoint, reply } => reply.send(
                             peer.register_endpoint(endpoint)
                                 .await
                                 .map_err(|error| error.to_string()),
                         ),
-                        PushCommand::Unregister { address, reply } => reply(
+                        PushCommand::Unregister { address, reply } => reply.send(
                             peer.unregister_endpoint(address)
                                 .await
                                 .map_err(|error| error.to_string()),
@@ -2565,8 +2634,9 @@ impl Ran<'_> {
                             message,
                             now,
                             reply,
-                        } => reply(
+                        } => reply.send(
                             peer.open_notification(&message, now)
+                                .map(crate::replies::Opened)
                                 .map_err(|error| error.to_string()),
                         ),
                     }
@@ -2776,18 +2846,18 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
         Ok(()) => peer.members().await,
         Err(error) => Err(error),
     };
-    reply(listed.map_err(|error| error.to_string()));
+    reply.send(listed.map_err(|error| error.to_string()));
     crate::changes::wake();
 }
 
 async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCommand) {
     match command {
-        InvitationsCommand::Create(reply) => reply(
+        InvitationsCommand::Create(reply) => reply.send(
             invite(peer, config)
                 .await
                 .map_err(|error| error.to_string()),
         ),
-        InvitationsCommand::List(reply) => reply(
+        InvitationsCommand::List(reply) => reply.send(
             list_invitations(peer, config)
                 .await
                 .map_err(|error| error.to_string()),
@@ -2802,7 +2872,7 @@ async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCo
                 Ok(()) => list_invitations(peer, config).await,
                 Err(error) => Err(error),
             };
-            reply(listed.map_err(|error| error.to_string()))
+            reply.send(listed.map_err(|error| error.to_string()))
         }
     }
 }
@@ -2954,7 +3024,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         return change.fail("That agent is not a block's agent of yours.".to_owned());
     }
     match change {
-        AgentChange::Rotate(reply) => reply(
+        AgentChange::Rotate(reply) => reply.send(
             ask(client::members::rotate_agent_token(
                 &connection,
                 organization,
@@ -2965,7 +3035,7 @@ async fn change_block_agent(peer: &Peer<Store>, agent: Uuid, change: AgentChange
         ),
         // An agent not listed (removed, or collected with its block) is as removed as asked,
         // and is never sent to `remove-member`, which would remove whoever the id now names.
-        AgentChange::Remove(reply) => reply(match own {
+        AgentChange::Remove(reply) => reply.send(match own {
             None => Ok(()),
             Some(_) => match ask(client::members::remove_member(&connection, agent)).await {
                 Ok(_)
@@ -3009,7 +3079,7 @@ async fn contact(
                 .await
             }
             .await;
-            reply(
+            reply.send(
                 made.map(|code| {
                     crate::invite_link::contact_link(
                         &crate::accounts::link_base(&config.server_url),
@@ -3027,7 +3097,7 @@ async fn contact(
             )
             .await
             .map(|(_, card)| card);
-            reply(opened.map_err(|error| error.to_string()));
+            reply.send(opened.map_err(|error| error.to_string()));
         }
         ContactCommand::Accept { code, reply } => {
             let accepted = be_block_client::contacts::accept_link(
@@ -3042,7 +3112,7 @@ async fn contact(
             if accepted.is_ok() {
                 tasks.sync_contacts(peer, shared).await;
             }
-            reply(accepted.map_err(|error| error.to_string()));
+            reply.send(accepted.map_err(|error| error.to_string()));
         }
         ContactCommand::Remove(account) => {
             match be_block_client::contacts::remove_contact(&peer.connection(), account).await {
@@ -3156,7 +3226,7 @@ async fn serve_command(
                     false => error.to_string(),
                 });
             tend(peer, shared).await;
-            reply(failed.map_or(Ok(()), Err));
+            reply.send(failed.map_or(Ok(()), Err));
             crate::changes::wake();
         }
         Command::ListAccess { block, reply } => {
@@ -3164,7 +3234,7 @@ async fn serve_command(
                 .list_access(block)
                 .await
                 .map_err(|error| error.to_string());
-            reply(listed);
+            reply.send(listed);
             crate::changes::wake();
         }
         Command::ReadHead {
@@ -3179,13 +3249,13 @@ async fn serve_command(
             .await;
             // A read can leave the device holding a version of the block it did not count.
             reach_may_change(shared, block);
-            reply(read.map_err(|error| error.to_string()));
+            reply.send(read.map_err(|error| error.to_string()));
             crate::changes::wake();
         }
         Command::Leave { block, reply } => {
             let left = peer.leave(block).await;
             tasks.refresh(peer, shared, block);
-            reply(left.map_err(|error| match error.is_unreachable() {
+            reply.send(left.map_err(|error| match error.is_unreachable() {
                 true => OFFLINE_LEAVING.to_owned(),
                 false => error.to_string(),
             }));
@@ -3193,7 +3263,7 @@ async fn serve_command(
         }
         Command::ApprovePairing { from, code, reply } => {
             let approved = approve_pairing(peer, shared, from, &code).await;
-            reply(approved.map_err(|error| match error.is_unreachable() {
+            reply.send(approved.map_err(|error| match error.is_unreachable() {
                 true => OFFLINE_PAIRING.to_owned(),
                 false => error.to_string(),
             }));
@@ -3343,7 +3413,7 @@ async fn apply(
                 .listing_revisions += 1;
             let (peer, shared) = (Arc::clone(peer), Arc::clone(shared));
             tasks.spawn(async move {
-                reply(super::revisions::Answered::Listed(
+                reply.send(super::revisions::Answered::Listed(
                     super::revisions::list(&peer, block).await,
                 ));
                 shared
@@ -3361,7 +3431,7 @@ async fn apply(
         } => {
             let result = super::revisions::run(peer, replicas, shared, block, request).await;
             reach_may_change(shared, block);
-            reply(result);
+            reply.send(result);
             true
         }
         Command::Open {
@@ -3708,18 +3778,18 @@ async fn apply(
         }
         Command::Export { block, reply } => {
             let exported = export(peer, replicas, shared, block).await;
-            reply(exported.map_err(|error| error.to_string()));
+            reply.send(exported.map_err(|error| error.to_string()));
             crate::changes::wake();
             false
         }
         Command::PlainFile { block, reply } => {
-            reply(plain_file(peer, replicas, shared, block).await);
+            reply.send(plain_file(peer, replicas, shared, block).await);
             crate::changes::wake();
             false
         }
         Command::Import(_) => false,
         Command::ContentOfFile { name, bytes, reply } => {
-            reply(replicas.from_file(ctx, &name, bytes).await);
+            reply.send(replicas.from_file(ctx, &name, bytes).await);
             crate::changes::wake();
             false
         }
