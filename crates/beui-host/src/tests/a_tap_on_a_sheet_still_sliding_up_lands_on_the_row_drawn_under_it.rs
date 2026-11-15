@@ -40,5 +40,8 @@ fn a_tap_on_a_sheet_still_sliding_up_lands_on_the_row_drawn_under_it() {
         sliding.top(),
         resting.top()
     );
-    assert!(tapped.get_untracked(), "the row drawn under the tap took it");
+    assert!(
+        tapped.get_untracked(),
+        "the row drawn under the tap took it"
+    );
 }
