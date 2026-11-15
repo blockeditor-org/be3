@@ -123,7 +123,6 @@ pub fn in_process<G: Guest + 'static>(name: impl Into<String>) -> Source {
 pub fn wasm(
     name: impl Into<String>,
     tag: Result<SessionTag, String>,
-    cache: Option<std::path::PathBuf>,
     load: impl Fn(&be_wasm_host::Host) -> Result<be_wasm_host::App, String> + Clone + Send + 'static,
 ) -> Source {
     let name = name.into();
@@ -133,7 +132,7 @@ pub fn wasm(
         start: Box::new(move |wake, waiting| {
             let tag = tag.clone()?;
             let load = load.clone();
-            let host = be_wasm_host::Host::pure(cache.as_deref())?;
+            let host = be_wasm_host::Host::pure()?;
             let channel = host.spawn(
                 name.clone(),
                 move |host| load(host),
