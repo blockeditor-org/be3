@@ -55,7 +55,7 @@ fn exporting_any_block_as_a_block_file_asks_the_host_for_it() {
     fixture.settle();
     assert_eq!(
         fixture.test.take_reported_failures(),
-        ["The disk is full"],
+        ["The block could not be exported. The disk is full"],
         "an export that failed has the host say why"
     );
     assert!(

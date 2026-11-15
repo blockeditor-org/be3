@@ -161,11 +161,13 @@ person to read (a `Failure`'s `Display` usually is), to the host, which shows
 it as it shows its own failures: a toast (`be_host_base::notices::report`,
 drawn by `notice_toasts` in `crates/be-host/src/ui.rs`). It is the
 `report-failure` shell message (`shell.wit`), told in order with the editor's
-other messages; a revision preview may tell it too. Write it as "The X could
-not be Y." followed by the reason as a sentence of its own (`"The slide could
-not be duplicated. {failure}"`). A failure identical to one still showing is
-not shown again, so an editor need not throttle its reports. The editor keeps no error
-signal and no `Banner` for it, and nothing to dismiss. A failure that belongs
+other messages; a revision preview may tell it too. Lead with what failed,
+"The X could not be Y.", and follow it with the reason as a sentence of its
+own (`"The slide could not be duplicated. {failure}"`); a reason that already
+says what failed (boat's "Your plan's compute hours are used up for this
+month.") can stand alone. A failure identical to one still showing is not
+shown again, so an editor need not throttle its reports. The editor keeps no
+error signal and no `Banner` for it, and nothing to dismiss. A failure that belongs
 to a place in the editor (a field that does not parse, a child that could not
 open, a list that could not load) is still drawn there. In a test,
 `BeuiTest::take_reported_failures()` returns the messages reported since the
@@ -221,7 +223,8 @@ picker at once. `picked` gets the block, or nothing when cancelled; a pick
 that failed is reported to the host (Reporting a failure) and `picked` hears
 nothing of it either. A new pick replaces the one before.
 `Creation::pick_block` does the same in a creation dialog, which is how the
-game editor gets its game module before its own block exists. Tests: `BeuiTest::placed_picker()` and `answer_picker(pick)`.
+game editor gets its game module before its own block exists. Tests:
+`BeuiTest::placed_picker()` and `answer_picker(pick)`.
 
 `editor.rename_block(block, anchor)` and `editor.show_host_menu(anchor)` are
 the same kind of popup, holding `SubregionContent::Rename` (run in the

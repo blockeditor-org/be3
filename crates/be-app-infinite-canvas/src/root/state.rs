@@ -3045,7 +3045,9 @@ impl CanvasState {
             }
             Err(error) => {
                 self.cells.value().pending_image_center.set(None);
-                self.editor.host().report_failure(error);
+                self.editor
+                    .host()
+                    .report_failure(format!("The image could not be added. {error}"));
             }
             Ok(None) => self.cells.value().pending_image_center.set(None),
         }

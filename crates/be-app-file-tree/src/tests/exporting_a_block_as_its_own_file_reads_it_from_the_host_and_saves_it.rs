@@ -71,7 +71,7 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
     fixture.settle();
     assert_eq!(
         fixture.test.take_reported_failures(),
-        ["The disk is full"],
+        ["The block could not be exported. The disk is full"],
         "a save that failed has the host say why"
     );
 
@@ -95,7 +95,7 @@ fn exporting_a_block_as_its_own_file_reads_it_from_the_host_and_saves_it() {
     fixture.settle();
     assert_eq!(
         fixture.test.take_reported_failures(),
-        ["The block could not be read"],
+        ["The block could not be exported. The block could not be read"],
         "a read that failed has the host say why"
     );
 }

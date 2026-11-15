@@ -22,7 +22,7 @@ fn an_image_that_could_not_be_read_is_reported_to_the_host() {
 
     assert_eq!(
         editor.take_reported_failures(),
-        ["The file could not be read."],
+        ["The image could not be added. The file could not be read."],
         "the canvas has the host say why"
     );
     assert!(entities(&editor).is_empty(), "nothing is added");

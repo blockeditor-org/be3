@@ -34,7 +34,7 @@ impl Exporter {
         let reporter = host.clone();
         let saved = move |save: FileSave| {
             if let FileSave::Failed(failure) = save {
-                reporter.report_failure(failure);
+                reporter.report_failure(format!("The block could not be exported. {failure}"));
             }
         };
         let task = match export.format {
