@@ -5,7 +5,7 @@ use std::{
 
 use be_sdk_beui::beui::datetime::DateTime;
 use be_sdk_beui::beui::{NodeId, dock::TabId, reactive::*, styled::*};
-use be_sdk_beui::{ChildTarget, Editor, Pushed};
+use be_sdk_beui::{ChildTarget, Editor, Pushed, answer};
 use be_sdk_beui::{Revision, RevisionPreview};
 use uuid::Uuid;
 
@@ -69,11 +69,7 @@ impl RevisionHistory {
                 let Some((block, asked)) = asked else {
                     return Ok(None);
                 };
-                match asked.await {
-                    Some(Ok(entries)) => Ok(Some((block, entries))),
-                    Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
-                    None => Err(Pending::Loading),
-                }
+                Ok(Some((block, answer(asked).await?)))
             }
         });
         let listed = create_memo(move |last: Option<&Listed>| {

@@ -5,7 +5,9 @@ use std::rc::Rc;
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
-use be_sdk_beui::{BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor, PickAnchor};
+use be_sdk_beui::{
+    BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor, PickAnchor, answer,
+};
 use be_sdk_beui::ContentProjection;
 use be_type_deterministic_game::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
@@ -269,14 +271,11 @@ impl GameCreation {
         let files = create_async_memo(move || {
             let asked = host.list_data();
             async move {
-                match asked.await {
-                    Some(Ok(files)) => Ok(files
-                        .into_iter()
-                        .filter(|file| file.starts_with(STAGED_GAMES) && file.ends_with(".wasm"))
-                        .collect()),
-                    Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
-                    None => Err(Pending::Loading),
-                }
+                Ok(answer(asked)
+                    .await?
+                    .into_iter()
+                    .filter(|file| file.starts_with(STAGED_GAMES) && file.ends_with(".wasm"))
+                    .collect())
             }
         });
         let host = creation.host().clone();
@@ -285,16 +284,13 @@ impl GameCreation {
             create_async_memo(move || {
                 let asked = host.read_data(file.clone());
                 async move {
-                    match asked.await {
-                        Some(Ok(data)) => Game::load(&data)
-                            .map(|game| StagedGame {
-                                name: game.name().to_owned(),
-                                data: Rc::new(data),
-                            })
-                            .map_err(Pending::Failed),
-                        Some(Err(failure)) => Err(Pending::Failed(failure.to_string())),
-                        None => Err(Pending::Loading),
-                    }
+                    let data = answer(asked).await?;
+                    Game::load(&data)
+                        .map(|game| StagedGame {
+                            name: game.name().to_owned(),
+                            data: Rc::new(data),
+                        })
+                        .map_err(Pending::Failed)
                 }
             })
         });

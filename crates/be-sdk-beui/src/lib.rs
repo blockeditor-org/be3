@@ -47,7 +47,7 @@ pub use instance::BeuiApp;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
-pub use loading::{FailedPane, Loaded, LoadingPane};
+pub use loading::{FailedPane, Loaded, LoadingPane, answer};
 pub use picking::PickAnchor;
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
