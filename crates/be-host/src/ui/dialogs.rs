@@ -5,11 +5,10 @@ use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::text::Phrase;
-use uuid::Uuid;
 
 use be_host_accounts_ui::ErrorText;
 
-use super::{HostUiStore, UiCommand, send};
+use super::{AgentRow, ContactRow, HostUiStore, MemberRow, UiCommand, UnsentRow, send};
 use beui::{Align, Direction};
 
 #[component]
@@ -162,14 +161,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
     let shown = create_memo(move || members.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .members
-            .iter()
-            .map(|member| member.account)
-            .collect::<Vec<Uuid>>()
-    });
+    let rows = create_memo(move || shown.get().members);
     let removing = create_memo(move || shown.get().removing.unwrap_or_default());
     view! {
         <Frame>
@@ -177,15 +169,8 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
-                <ForEach value={keys}>|account: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .members
-                            .into_iter()
-                            .find(|member| member.account == account)
-                            .unwrap_or_default()
-                    });
+                <ForEach value={rows} key={|member: &MemberRow| member.account}>|row: ReadSignal<MemberRow>| {
+                    let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || row.get().detail);
                     let next_role = move || match row.get_untracked().administrator {
@@ -252,14 +237,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
     let shown = create_memo(move || contacts.get().unwrap_or_default());
     let busy = create_memo(move || shown.get().busy);
     let error = create_memo(move || shown.get().error);
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .contacts
-            .iter()
-            .map(|contact| contact.account)
-            .collect::<Vec<Uuid>>()
-    });
+    let rows = create_memo(move || shown.get().contacts);
     let offer = create_memo(move || shown.get().offer.unwrap_or_default());
     let offered = create_memo(move || !offer.with(String::is_empty));
     let connected = create_memo(move || shown.get().connected.unwrap_or_default());
@@ -278,19 +256,13 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
                 <ForEach
-                    value={keys}
+                    value={rows}
+                    key={|contact: &ContactRow| contact.account}
                     fallback={|| view! {
                         <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
                     }}
-                >|account: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .contacts
-                            .into_iter()
-                            .find(|contact| contact.account == account)
-                            .unwrap_or_default()
-                    });
+                >|row: ReadSignal<ContactRow>| {
+                    let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
@@ -391,14 +363,7 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
     let organization = create_memo(move || format!("Organization: {}", shown.get().organization));
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .agents
-            .iter()
-            .map(|agent| agent.account)
-            .collect::<Vec<Uuid>>()
-    });
+    let rows = create_memo(move || shown.get().agents);
     view! {
         <Frame>
             <List spacing=Space::Md>
@@ -411,20 +376,14 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
                                 "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                             </Text>
                             <ForEach
-                                value={keys}
+                                value={rows}
+                                key={|agent: &AgentRow| agent.account}
                                 fallback={|| view! {
                                     <Text style=TextStyle::CAPTION>"No agents yet."</Text>
                                 }}
-                            >|account: Uuid| {
-                                let label = create_memo(move || {
-                                    shown
-                                        .get()
-                                        .agents
-                                        .iter()
-                                        .find(|agent| agent.account == account)
-                                        .map(|agent| agent.name.clone())
-                                        .unwrap_or_default()
-                                });
+                            >|agent: ReadSignal<AgentRow>| {
+                                let account = agent.with_untracked(|agent| agent.account);
+                                let label = create_memo(move || agent.with(|agent| agent.name.clone()));
                                 view! {
                                     <List
                                         direction=Direction::Horizontal
@@ -528,14 +487,7 @@ fn UnsentDialog(view: HostUiStore) -> NodeId {
 fn UnsentPanel(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
     let shown = create_memo(move || unsent.get().unwrap_or_default());
-    let keys = create_memo(move || {
-        shown
-            .get()
-            .rows
-            .iter()
-            .map(|row| row.block)
-            .collect::<Vec<Uuid>>()
-    });
+    let rows = create_memo(move || shown.get().rows);
     let discarding = create_memo(move || {
         let shown = shown.get();
         let block = shown.discarding?;
@@ -558,19 +510,13 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                     "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
                 <ForEach
-                    value={keys}
+                    value={rows}
+                    key={|row: &UnsentRow| row.block}
                     fallback={|| view! {
                         <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
                     }}
-                >|block: Uuid| {
-                    let row = create_memo(move || {
-                        shown
-                            .get()
-                            .rows
-                            .into_iter()
-                            .find(|row| row.block == block)
-                            .unwrap_or_default()
-                    });
+                >|row: ReadSignal<UnsentRow>| {
+                    let block = row.with_untracked(|row| row.block);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
