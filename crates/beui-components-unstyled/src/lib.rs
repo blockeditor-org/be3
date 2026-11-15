@@ -22,6 +22,7 @@ pub mod dialog;
 pub mod disclosure;
 pub mod drag;
 mod drag_board;
+pub mod drop_site;
 pub mod first_fit;
 pub mod fling;
 pub mod floating;
@@ -109,6 +110,7 @@ pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
 };
 pub use drag_board::{Board, drag_board};
+pub use drop_site::{DropSiteHandle, carrying, is_carried, slots_in, use_drop_site};
 pub use first_fit::FirstFit;
 pub use floating::{Edge, Floating};
 pub use form::Form;
