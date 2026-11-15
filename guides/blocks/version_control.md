@@ -72,9 +72,8 @@ neither reads again what the other holds; it keeps the `TREES_KEPT` trees and
 `COMMITS_KEPT` commits used last. Edits go on while a command runs, so
 a block it writes may have moved since it read it: the write merges with what
 the block moved to (`merge_over`), from the two heads' common ancestor found
-within `MERGE_BASE_DEPTH` levels of each (`Peer::merge_base`, which fetches a
-level of both sides in one round of requests and
-only the commits it reaches), or else from the head the command read.
+within `MERGE_BASE_DEPTH` levels of each (`Peer::merge_base`, which fetches
+only the commits it reaches, a level of both sides in one round of requests), or else from the head the command read.
 
 A checkout replaces content someone has open through the replica's reconcile
 on `head-moved` (a head another connection published, which `changes` tells as
