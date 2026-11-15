@@ -63,14 +63,9 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
     let items = children.into_run();
     let nodes = create_memo(move || items.items());
     let count = create_memo(move || nodes.get().len());
-    let stage = create_signal(Stage::Probe(0));
-    let naturals = create_signal(Vec::<Option<f32>>::new());
+    let stage = create_linked_signal(move || Stage::Probe(0).settle(nodes.with(Vec::len)));
+    let naturals = create_linked_signal(move || vec![None::<f32>; nodes.with(Vec::len)]);
     let width = create_signal(None::<f32>);
-    create_effect(move || {
-        let count = nodes.get().len();
-        naturals.set(vec![None; count]);
-        stage.set(Stage::Probe(0).settle(count));
-    });
     let staged = create_memo(move || {
         let stage = stage.get().settle(count.get());
         let at = match stage {
