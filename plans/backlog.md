@@ -50,4 +50,6 @@ Depends on #686 (session catch-ups replaced by server ordering).
   idleness, as nothing tells be-host-stack the user is away
   (`Windows::idle` stays in be-host) or that the device is on power. Done: the
   host passes both to the stack, and the pass waits for them, shown by a stack
-  test where an index over the cap is left alone on battery.
+  test where an index over the cap is left alone on battery. Until then the pass
+  is capped at `IDLE_MERGE_BYTES` (128 MiB); with both signals it could merge
+  larger tiers, once a merge no longer reads its segments whole into memory.
