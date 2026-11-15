@@ -145,7 +145,6 @@ where
     let chosen = chooser.name();
     let name = create_memo(move || chosen.get().unwrap_or_else(|| "No file chosen".to_owned()));
     let failure = chooser.error();
-    let failed = create_memo(move || failure.get().is_some());
     let reason = create_memo(move || failure.get().unwrap_or_default());
     let busy = chooser.busy();
     let choose = move || chooser.open();
@@ -181,7 +180,7 @@ where
                     <Text style=TextStyle::CAPTION>{name}</Text>
                 </ListItem>
             </List>
-            <Show condition={failed}>
+            <Show condition={move || failure.with(Option::is_some)}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
                     {reason}
                 </Text>

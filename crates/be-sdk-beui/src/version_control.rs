@@ -85,7 +85,6 @@ pub fn VersionSteps(
                 let short = short_id(&id);
                 let (step_test_id, undo_test_id) =
                     (format!("version.step.{short}"), format!("version.undo.{short}"));
-                let disabled = create_memo(move || blocked.get() || undone);
                 view! {
                     <List
                         direction=Direction::Horizontal
@@ -104,7 +103,7 @@ pub fn VersionSteps(
                             glyph=ICON_UNDO_2
                             variant=ButtonVariant::Ghost
                             size=ButtonSize::Compact
-                            disabled={disabled}
+                            disabled={move || blocked.get() || undone}
                             @test_id=undo_test_id
                             on_click={move || editor.version(VersionCommand::Undo { operation: id })}
                         />

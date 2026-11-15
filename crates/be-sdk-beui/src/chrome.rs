@@ -57,31 +57,30 @@ pub fn Toolbar(
 
 #[component]
 fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> DynamicSegment<ListItem> {
-    let shown = create_memo(move || shown.get());
-    let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
     let narrow = create_memo(move || squeezed.get() && !fit.get());
-    let roomy = create_memo(move || !narrow.get());
-    let spread = create_memo(move || roomy.get().then_some(children));
+    let spread = create_memo(move || (!narrow.get()).then_some(children));
     let scrolled = create_memo(move || narrow.get().then_some(children));
+    let roomy = move || {
+        view! {
+            <Frame padding=BAND_PADDING>
+                <List
+                    direction=Direction::Horizontal
+                    align=Align::Center
+                    spacing=Space::None
+                >
+                    <ListItem grow=1.0>
+                        <Portal node={spread} />
+                    </ListItem>
+                </List>
+            </Frame>
+        }
+    };
     view! {
         <Show keep_alive=true condition={shown}>
             <Frame fill=ColorRole::Surface>
                 <List spacing=Space::None>
-                    <Show condition={roomy}>
-                        <Frame padding=BAND_PADDING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=Space::None
-                            >
-                                <ListItem grow=1.0>
-                                    <Portal node={spread} />
-                                </ListItem>
-                            </List>
-                        </Frame>
-                    </Show>
-                    <Show condition={narrow}>
+                    <Show condition={narrow} fallback={roomy}>
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center

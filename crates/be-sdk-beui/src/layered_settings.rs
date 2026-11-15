@@ -505,15 +505,13 @@ pub fn LayeredSettingsRow(
     let unresettable = create_memo(move || !modified.get() || locked.get());
     let menu: Children<MenuItem> = match device {
         true => {
-            let checked = create_memo(move || Some(kept.get()));
-            let unkeepable = create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
             let keeping = (!only_here).then(|| {
                 view! {
                     <MenuItem
                         label="Keep on this device"
                         glyph=ICON_PIN
-                        checked={checked}
-                        disabled={unkeepable}
+                        checked={move || kept.get()}
+                        disabled={move || locked.get() || (!kept.get() && !keepable.get())}
                         row_test_id={format!("{id}.keep")}
                         on_click={move || keep.call(!kept.get_untracked())}
                     />
@@ -542,7 +540,7 @@ pub fn LayeredSettingsRow(
         .into_iter()
         .collect(),
     };
-    let note = create_memo(move || {
+    let note = move || {
         if overridden.get() {
             return DEVELOPER_OVERRIDE.to_owned();
         }
@@ -555,7 +553,7 @@ pub fn LayeredSettingsRow(
             (false, _, _, true) => IN_PROFILE.to_owned(),
             _ => String::new(),
         }
-    });
+    };
     view! {
         <SettingsRow
             label
