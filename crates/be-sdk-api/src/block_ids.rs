@@ -127,6 +127,7 @@ impl crate::embed::host_services::Call {
             | Self::Verify { .. }
             | Self::ListData { .. }
             | Self::SetPushDevice { .. }
+            | Self::SetPhoneLayout { .. }
             | Self::ReadData { .. } => {}
         }
     }

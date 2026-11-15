@@ -2056,6 +2056,12 @@ impl EditorHost {
         Asked::of(self.ask(|| host_services::set_push_device(on)))
     }
 
+    /// Tells the host the shell lays out as on a phone, or no longer does: every frame's
+    /// `FrameSpec::phone` follows it. Only the shell's is heard.
+    pub fn set_phone_layout(&self, on: bool) -> Asked<Result<(), Failure>> {
+        Asked::of(self.ask(|| host_services::set_phone_layout(on)))
+    }
+
     pub fn load_audio(&self, media_type: impl Into<String>, bytes: Vec<u8>) {
         self.command_audio(AudioCommand::Load(AudioSource {
             media_type: media_type.into(),

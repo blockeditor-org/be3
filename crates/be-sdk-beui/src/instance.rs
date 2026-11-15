@@ -390,7 +390,7 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                     shown: view.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
                     framed: view.chrome_drawn(),
                     closable: spec.content.is_some(),
-                    on_phone: spec.top_bar.phone(),
+                    on_phone: spec.phone,
                     docked: view.docked,
                 });
                 let picks = self.host.take_menu_picks(be_sdk::ViewId::MAIN);
@@ -412,6 +412,14 @@ impl<A: BeuiRoot> Shown for Parts<A> {
                 }
             }
             ViewPlacement::Dock => {
+                // A joined editor may show no main view: the dock tab view holding its content,
+                // the one given a frame (with its chrome), carries the phone flag.
+                let phone = view.spec.phone;
+                if view.chrome_drawn()
+                    && views.chrome.bar().with_untracked(|bar| bar.on_phone) != phone
+                {
+                    views.chrome.bar().update(|bar| bar.on_phone = phone);
+                }
                 if let Some(editor) = views.editor.as_deref() {
                     editor.begin_frame();
                 }

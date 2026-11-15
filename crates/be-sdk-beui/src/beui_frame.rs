@@ -94,8 +94,7 @@ pub(crate) fn FrameChrome(
     let published = Rc::clone(&chrome.menu);
     let listed = chrome.listed.handle();
     let content_slot_writer = chrome.content.clone();
-    let stacked = docked.joined_stacked();
-    let phone = create_memo(move || bar.get().on_phone || stacked.get());
+    let phone = create_memo(move || bar.get().on_phone);
     provide_context(PhoneLayout(phone));
     let anchor = editor.frame_anchor();
     beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
