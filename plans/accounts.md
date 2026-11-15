@@ -48,17 +48,22 @@ signs in. One mechanism, three kinds:
    doubles as recovery (it can add or replace any other identity).
 2. **Passkey (WebAuthn).** An upgrade offered after sign-in and used when
    present; never required.
-3. **OIDC identity `(issuer, sub)`.** Sign in with Google, Apple, Microsoft or an
-   organization's own provider. Generic OIDC is the one implementation; Google
-   is a preset of it, and Apple a later one (plans/deferred/apple_sign_in.md).
-   A server with no providers configured shows no such buttons.
+3. **OIDC identity `(issuer, sub)`.** Sign in with Google, Microsoft (one
+   tenant) or an organization's own provider. Generic OIDC is the one
+   implementation, single-tenant: each provider is configured with its own
+   issuer, and multi-tenant ones (Microsoft's `common` or `organizations`) wait
+   until asked. Google is a preset of it, and Apple a later one
+   (plans/deferred/apple_sign_in.md). A server with no providers configured
+   shows no such buttons.
 
 An account needs no email: one whose identities are only providers or passkeys
 is allowed, and those are its recovery. An account always keeps at least one
-identity; the last can't be removed. Where an email is shown for an account
-today, the contact card and "Connect with NAME (EMAIL)?" among them, an account
-with no verified email shows the email its provider verified if the operator
-marks that provider authoritative for email (below), else only its name.
+identity; the last can't be removed, and an account with only one (a provider
+or a passkey alone) is nudged to add a second. An email verified by a provider
+the operator marks authoritative for email (step 4) becomes the account's
+verified email. Where an email is shown for an account today, the contact card
+and "Connect with NAME (EMAIL)?" among them, an account with no verified email
+shows only its name.
 
 Sign-in stays in the browser portal (`begin-browser-login`,
 `poll-browser-login`, and the portal's `/auth/code`, approve and deny), so the
@@ -90,7 +95,8 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   account (login CSRF).
 - **Mail limits strangers can't spend.** Today resets are capped at three per
   account, which a stranger can use up to lock the owner out of recovery.
-  Instead: caps per address (an IPv6 address by its /64, as now), and a large
+  Instead: caps per address (an IPv6 address counted by its /64, as now, and
+  also by its /48, so one allocation can't spread across many /64s), and a large
   per-account budget that refills quickly, counting only requests from addresses
   that never completed a sign-in for that account (a small, bounded remembered
   addresses table, as passwords keep today). A request for an email with no
@@ -98,7 +104,9 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   number of accounts times the per-account rate, and no global cap is needed
   (one reachable by anonymous traffic would lock everyone out). Registration
   links stay capped per invite code, and the global cap stays only on
-  registration and email-change links, as now.
+  registration and email-change links, as now. Someone crowded out by a
+  stranger sharing their address signs in with a passkey or a provider, which
+  send no mail.
 - **Registration enumeration.** Registering with an email that has an account
   is refused today (`unregistered` in `store/portal.rs`), which tells a stranger
   the email is registered. Behind an operator invite code that leak is small.
@@ -110,9 +118,12 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   with whichever identity the account has: a code sent to its email, a passkey,
   or a provider sign-in. An email change (the existing `email_change_link` flow,
   now behind fresh proof) also mails the old address. Every identity added or
-  removed mails a notice to the account's email, if it has one. Signing
-  in through an emailed code after "I can't sign in" (recovery) ends every
-  other session by default, as a password change does today.
+  removed mails a notice to the account's email; an account with no email gets
+  the notice in the app, on its other sessions.
+- **Recovery** has its own entry in the portal, "I can't sign in", apart from
+  an ordinary code sign-in. Signing in through it, or through an operator login
+  link, ends every other session by default, as a password change does today,
+  and counts as fresh proof.
 - **Mail goes to the log.** Real delivery is deferred
   (plans/deferred/mail_delivery.md); `LogDelivery` stays, so the server's
   journal holds every live sign-in code and link, and whoever reads it can sign
@@ -123,7 +134,8 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   in.
 - **Operator links.** `be-server login-link` (step 3) makes a single-use link
   valid fifteen minutes, keeps only its hash, and builds it from
-  `--auth-origin`.
+  `--auth-origin`. It is also the rescue for an account whose only identity was
+  a provider the operator removed.
 
 ## Steps
 
@@ -161,35 +173,43 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    a link signs in once and a second use and an expired one are refused, and
    one where a link for a new email makes its account.
 4. **OIDC providers.** Operator config lists providers: issuer, client id and
-   secret, and whether the provider is authoritative for email. Use the
+   secret, and whether the provider is authoritative for email. Providers are
+   single-tenant: the issuer is the tenant's own, and a multi-tenant one
+   (Microsoft's `common` or `organizations`, whose discovery returns a templated
+   issuer) is not supported until asked. Removing a provider leaves accounts
+   whose only identity it was with no way in but `login-link --account ID`, so
+   the server warns at start, naming how many accounts it strands. Use the
    `openidconnect` crate. Rules:
    - Authorization code with PKCE, `state` and `nonce`, and a full ID token
      check: signature against the provider's JWKS, `aud` and `azp`, expiry,
      nonce. The redirect is fixed at
      `{auth-origin}/auth/oidc/{provider}/callback`.
-   - Key on `(iss, sub)`, with `iss` exactly as discovery gives it
-     (Microsoft's multi-tenant issuer names the tenant), never on email: emails
+   - Key on `(iss, sub)` with the configured issuer, never on email: emails
      change, and Apple's may be a relay address.
    - Trust `email_verified` only from providers the operator marks as
      authoritative for email (Google). Never store or reserve an email the
      provider has not verified. An account made through a provider needs no
      email of its own.
-   - When a provider's verified email (from an authoritative provider) matches
-     an existing account's email, linking asks once for a code sent to that
-     email first; it never links automatically. Otherwise a provider sign-in
-     with no linked identity makes a new account, and only a signed-in user
-     adds a provider to an existing one, with fresh proof.
+   - An authoritative provider's verified email becomes the account's verified
+     email, under the same rule as a registered one: no two accounts hold it.
+     When it matches an existing account's email, the only choices are linking,
+     after a code sent to that email, or signing in another way; it never makes
+     a second account showing that email, and never links automatically. If
+     the provider's email changes later, the stored one follows only when no
+     other account holds the new one.
+   - Otherwise a provider sign-in with no linked identity makes a new account,
+     and only a signed-in user adds a provider to an existing one, with fresh
+     proof.
    - The portal's CSP has `form-action 'self'`, so sign-in with a provider
      starts as a GET link to `/auth/oidc/{provider}/start`, which redirects.
    - Registering through a provider needs the operator invite code while
      registration needs one.
-   - Nudge anyone whose only identity is a provider to link a second one, so
-     losing a Google account does not lock them out.
    - GitHub is OAuth2, not OIDC; skip it until asked.
    Done: tests against a fake OIDC provider: a token with the wrong `aud`, a
    bad signature, an old nonce or a reused `state` is refused; an unverified
    email links nothing; a provider email matching an account links only after
-   the emailed code.
+   the emailed code and never makes a second account; a changed provider email
+   held by another account is not taken.
 5. **Passkeys.** Register and use WebAuthn credentials in the portal with
    `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
    wasm, which the CSP already allows (`script-src 'self'
@@ -303,5 +323,7 @@ asking for the code when the server wants one.
 - Providers are configured by the operator, per server; accounts do not federate
   across servers.
 - An account needs no email; its providers and passkeys are its recovery. A
-  provider's email links to an existing account only after a code sent to it.
+  provider's email links to an existing account only after a code sent to it,
+  and is held by one account at most.
+- OIDC providers are single-tenant until a multi-tenant one is asked for.
 
