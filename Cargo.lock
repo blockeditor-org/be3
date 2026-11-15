@@ -1156,7 +1156,6 @@ dependencies = [
  "be-block-model",
  "be-block-store",
  "be-lib-graphemes",
- "be-lib-search",
  "be-lib-ui-preferences",
  "icu_properties",
  "postcard",
@@ -1327,6 +1326,20 @@ dependencies = [
  "postcard",
  "serde",
  "serde_bytes",
+ "uuid",
+]
+
+[[package]]
+name = "be-block-search-index"
+version = "0.1.0"
+dependencies = [
+ "be-block-commit",
+ "be-block-content",
+ "be-block-graph",
+ "be-block-store",
+ "be-lib-search",
+ "postcard",
+ "serde",
  "uuid",
 ]
 
@@ -1645,6 +1658,7 @@ dependencies = [
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
+ "be-block-search-index",
  "be-block-store",
  "be-block-type-host",
  "be-block-vcs",
@@ -2158,6 +2172,7 @@ name = "be-sdk-type-host"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-block-search-index",
  "be-sdk-type-guest",
 ]
 
@@ -2215,6 +2230,7 @@ dependencies = [
  "be-block-graph",
  "be-block-keys",
  "be-block-protocol",
+ "be-block-search-index",
  "be-block-session",
  "be-block-sqlite-schema",
  "be-block-store",

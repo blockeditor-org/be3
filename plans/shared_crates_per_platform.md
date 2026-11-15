@@ -46,24 +46,20 @@ crates. What is left is used:
 | be-sdk-type-api, be-wasm-ops, be-wasm-guest-abi | the protocol and the guest ABI |
 | be-lib-ui-keys, logicgame, rand | be-type-terminal and be-type-logic-grid's own needs |
 
-The apps (`wasi_guest`) still build all of be-block, so be-lib-search and its
-unicode and icu data build for them too, though no app indexes anything:
+The apps (`wasi_guest`) still build all of be-block, and with it
+be-lib-graphemes and the icu crates (be-block's `display`, for screen names):
 
 - be-sdk depends on be-block and re-exports it (`be_sdk::be_block`), so every
   app compiles it. Eight apps use built-ins from it (database, desktop,
   file-tree, infinite-canvas, logic-grid, settings, version-control,
   workspace), as do be-sdk's `root_settings` and be-sdk-beui's settings.
-- be-lib-search is used only by be-block's `search_index` and by
-  be-host-stack.
+- The search index is be-block-search-index's, which only hosts, the server
+  and the test library hold, so be-lib-search, caseless and
+  unicode-normalization are not in an app's build.
 
 ## Steps
 
-1. Move `search_index` out of be-block into a host-only crate (for example
-   `be-block-search-index`) that be-host-stack and be-block-client depend on.
-   be-block then drops be-lib-search, and the apps stop building be-lib-search,
-   be-lib-graphemes, caseless, unicode-normalization and the icu crates.
-   Mechanical.
-2. Make be-sdk depend on be-block-content only, and have the apps that use a
+1. Make be-sdk depend on be-block-content only, and have the apps that use a
    built-in (the eight above, plus be-sdk-beui's settings) depend on be-block
    themselves; or move what be-sdk's `root_settings` needs into a crate the
    SDK owns; and do the same for be-sdk-beui, which depends on be-block too.
@@ -72,16 +68,16 @@ unicode and icu data build for them too, though no app indexes anything:
    be-block; cutting be-sdk's alone frees one. Mostly
    mechanical; deciding which of `root_settings` is SDK surface is the design
    part.
-3. Split be-block-commit's host-only parts from what the replica uses:
+2. Split be-block-commit's host-only parts from what the replica uses:
    `retention` and `CommitStore` (already behind `store`) are server and
    client only. Small, and only a compile-time win, since the linker already
    drops them.
-4. `similar` in type modules: replacing it means writing the line diff that
+3. `similar` in type modules: replacing it means writing the line diff that
    `merge_lines` needs (Myers over slices) in be-block-model or
    be-lib-sequence. That is a design change, not a split: worth it only if
    it measurably shrinks the modules (`similar` was ~190 KB of a dev
    checklist; release drops most of it).
-5. Build the web in verify (above), if the user wants it.
+4. Build the web in verify (above), if the user wants it.
 
 ## Size levers for type modules
 

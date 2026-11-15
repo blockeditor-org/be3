@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 be-block = { path = "../be-block" }
+be-block-search-index = { path = "../be-block-search-index" }
 be-sdk-type-guest = { path = "../be-sdk-type-guest" }
 
 [lints]

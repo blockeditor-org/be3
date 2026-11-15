@@ -21,7 +21,6 @@ mod screens_turn_off_after_ten_minutes_unless_told_otherwise;
 mod setting_every_pointer_replaces_what_each_device_overrode;
 mod settings_resolve_from_the_organization_the_nearest_block_and_the_viewer;
 mod settings_split_across_two_blocks_read_as_one;
-mod two_search_indexes_merge_by_parts_into_one_finding_both;
 mod visiting_a_block_puts_it_first_in_the_recents_once;
 
 fn edited<C: LiveEdit + Clone>(start: &C, edits: impl IntoIterator<Item = C::Op>) -> C {
