@@ -366,7 +366,9 @@ Costs:
   later plan.
 - **Starting early:** be-host starts a restored workspace's apps before its window
   (decisions/host_startup_overlaps_app_loading.md). Once the root guest spawns apps, the host
-  starts the root guest that early too, so it can spawn them before the window opens.
+  starts the root guest that early too, so it can spawn them before the window opens. Until
+  the window and the GPU exist, the root guest can only spawn and link apps: it cannot make
+  surfaces or draw.
 - **Locking:** after a resume or a lock request, the host shows nothing new until the root guest
   commits a frame it marks as locked.
 - **Desktop interfaces:** be3:desktop's shell-only interfaces (`shell_only` in
