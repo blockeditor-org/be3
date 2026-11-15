@@ -21,7 +21,10 @@ itself is a dock joined into this one, whose group lives in this dock's layout, 
 another tab, or building its view again, must not make it let go: be-sdk-beui's
 `a_root_hosts_a_childs_dock_again_after_the_child_withdraws_and_redeclares_it` saw a holder's
 `Kept` released one change before the new one took it (the pane's view built again), and the join
-let go in between. `awake` still keeps a holder running; this keeps its join.
+let go in between. `awake` still keeps a holder running; this keeps its join. A panel hidden
+behind another tab reading as shown lets nothing go that should: a tab whose dock joined leaves
+the layout as itself (it is a holder, never a tab hidden behind another), and every other hidden
+panel is paused, so nothing in it acts on what it reads.
 
 ## Rejected
 
