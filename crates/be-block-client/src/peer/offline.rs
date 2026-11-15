@@ -126,6 +126,7 @@ impl<S: ObjectStore> Peer<S> {
         }))?;
         summary.parent = Some(parent);
         self.refs.revise(summary)?;
+        self.settle_locally()?;
         Ok(())
     }
 
@@ -143,6 +144,7 @@ impl<S: ObjectStore> Peer<S> {
             objects: objects.to_vec(),
             lasting: matches!(hold, be_block_protocol::Hold::Lasting),
         }))?;
+        self.settle_locally()?;
         Ok(())
     }
 
@@ -192,6 +194,7 @@ impl<S: ObjectStore> Peer<S> {
         }))?;
         summary.metadata = metadata;
         self.refs.revise(summary.clone())?;
+        self.settle_locally()?;
         Ok(summary)
     }
 
@@ -291,7 +294,79 @@ impl<S: ObjectStore> Peer<S> {
     pub(super) fn create_locally(&self, creation: Creation) -> Result<BlockSummary, ClientError> {
         let summary = self.record_creation(&creation)?;
         self.refs.push(Op::Create(creation))?;
+        self.settle_locally()?;
         Ok(summary)
+    }
+
+    /// A local account's outbox settled as a server would answer it (`Peer::local`): every
+    /// creation, move, definition and hold is final as it was kept, and a commit is the block's
+    /// head when it goes on the head the block has (`publish_locally`). One that does not waits
+    /// as a divergence to merge, as the drain would find it, and what follows of its block
+    /// waits behind it. Does nothing for a peer with a server.
+    pub(super) fn settle_locally(&self) -> Result<Vec<Drained>, ClientError> {
+        let mut outcomes = Vec::new();
+        if !self.local {
+            return Ok(outcomes);
+        }
+        let mut stopped = HashSet::new();
+        for (sequence, op) in self.refs.outbox() {
+            let block = op.block();
+            if stopped.contains(&block) || !self.refs.holds(sequence) {
+                continue;
+            }
+            let outcome = match op {
+                Op::Publish(pending) => match self.publish_locally(&pending)? {
+                    PublishOutcome::Published(head) => {
+                        self.settle(sequence, &pending, head)?;
+                        Drained::Published { block, head }
+                    }
+                    PublishOutcome::Rejected(remote) => {
+                        stopped.insert(block);
+                        Drained::Diverged {
+                            block,
+                            local: self.local_head(block).unwrap_or(pending.commit),
+                            remote,
+                        }
+                    }
+                },
+                Op::Create(_) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Created { block }
+                }
+                Op::Move(moving) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Moved {
+                        block,
+                        from: moving.from,
+                    }
+                }
+                Op::Define(_) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Defined { block }
+                }
+                Op::Hold(_) => {
+                    self.refs.remove(&[sequence])?;
+                    Drained::Held { block }
+                }
+            };
+            outcomes.push(outcome);
+        }
+        Ok(outcomes)
+    }
+
+    /// What a server answers a publish, for a local account: taken when it goes on the block's
+    /// head, a commit already reached by it settled, and otherwise refused with that head.
+    pub(super) fn publish_locally(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
+        let head = self.known_remote_head(pending.block);
+        if pending.expected == head {
+            return Ok(PublishOutcome::Published(pending.commit));
+        }
+        match head {
+            Some(head) if self.commits.is_ancestor(pending.commit, head)? => {
+                Ok(PublishOutcome::Published(head))
+            }
+            head => Ok(PublishOutcome::Rejected(head)),
+        }
     }
 
     pub(super) fn record_creation(&self, creation: &Creation) -> Result<BlockSummary, ClientError> {
@@ -400,6 +475,9 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn drain_outbox(&self, skip: impl Fn(Uuid) -> bool) -> Result<Vec<Drained>, ClientError> {
+        if self.local {
+            return self.settle_locally();
+        }
         let mut outcomes: Vec<Drained> = Vec::new();
         let mut stopped = HashSet::new();
         for (sequence, op) in self.refs.outbox() {
