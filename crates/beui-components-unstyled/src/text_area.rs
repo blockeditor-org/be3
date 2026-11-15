@@ -26,7 +26,7 @@ use beui_text_editor_core::{
 
 use beui_macros::{component, view};
 
-use crate::{Scroll, ScrollbarStyle};
+use crate::{Scroll, ScrollStyle};
 use beui_view::primitives::*;
 use beui_view::reactive::ImeCursor;
 use beui_view::reactive::NodeId;
@@ -1339,7 +1339,7 @@ pub fn TextArea(
     #[prop(default = None)] prose: Prop<Option<Prose>>,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
     accessibility: Option<Prop<Node>>,
     frame: Option<Render<Child>>,
     block: Option<RenderFn<usize>>,
@@ -1376,7 +1376,7 @@ pub fn TextArea(
     });
     let scale = pixels_per_point();
     let fonts = use_font_revision();
-    let scroll = create_signal(ScrollPosition::ZERO);
+    let scrolled = create_signal(ScrollPosition::ZERO);
     let offset = create_signal(0.0_f32);
     let shift = create_signal(0.0_f32);
     let focused = create_signal(false);
@@ -1532,7 +1532,7 @@ pub fn TextArea(
         metrics: create_memo(move || (scale.get(), fonts.get())),
         gutter,
         padding,
-        scroll: scroll.read_only(),
+        scroll: scrolled.read_only(),
         offset,
         shift,
         view_width,
@@ -1649,7 +1649,7 @@ pub fn TextArea(
     // that started it rather than in later frames that ask for no time.
     let rights = cx.rights;
     create_effect(move || {
-        let position = scroll.get();
+        let position = scrolled.get();
         rights.with(|_| ());
         if single_line || position.viewport <= 0.0 {
             return;
@@ -1665,7 +1665,7 @@ pub fn TextArea(
     });
     let viewport_was = StoredCell::new(0.0_f32);
     create_effect(move || {
-        let position = scroll.get();
+        let position = scrolled.get();
         let was = viewport_was.replace(position.viewport);
         untrack(|| cx.keep_caret_in_sight(position, was));
     });
@@ -1723,7 +1723,7 @@ pub fn TextArea(
                                 <Frame fill=border_color />
                             </CanvasItem>
                             <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Scroll offset={offset} scrollbar on_change={scroll}>
+                                <Scroll offset={offset} style={scroll} on_change={scrolled}>
                                     <Editing field={field} />
                                 </Scroll>
                             </CanvasItem>

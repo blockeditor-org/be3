@@ -4378,7 +4378,7 @@ fn MarkdownEditor() -> NodeId {
                 />
             </List>
             <ListItem length=EDITOR_HEIGHT>
-                <TextArea state={state} />
+                <TextArea @test_id="demo.markdown-editor" state={state} />
             </ListItem>
         </List>
     }

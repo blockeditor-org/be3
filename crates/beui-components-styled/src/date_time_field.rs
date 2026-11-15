@@ -7,7 +7,7 @@ use crate::calendar::{CALENDAR_WIDTH, Calendar};
 use crate::focus_ring::FocusRing;
 use crate::list::List;
 use crate::popover::{PANEL_PADDING, popover_surface};
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::tabs::Tabs;
 use crate::text::{Icon, Text, TextColor};
 use crate::theme::field_border;
@@ -427,7 +427,7 @@ fn TimePane(
                 max_columns
                 spacing={if centred { TIME_GRID_SPACING.px() } else { 0.0 }}
                 label="Time"
-                scrollbar={scrollbar_style()}
+                scroll={scroll_style()}
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}

@@ -13,7 +13,7 @@ use beui_view::types::Placement;
 use beui_view::types::{LayerLevel, LayerPolicy};
 
 use crate::floating::Edge;
-use crate::scroll::{Scroll, ScrollbarStyle};
+use crate::scroll::{Scroll, ScrollStyle};
 use beui_view::types::{Extent, Sides};
 
 pub const TOAST_DURATION: Duration = Duration::from_secs(8);
@@ -84,7 +84,7 @@ pub fn Toasts(
     spacing: Prop<f32>,
     #[prop(default = String::from("Notifications"))] label: Prop<String>,
     #[prop(default = TOAST_LIMIT)] limit: Prop<usize>,
-    #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
+    #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
     on_dismiss: Callback<u64>,
     on_action: Callback<(u64, String)>,
     on_activate: Callback<u64>,
@@ -118,7 +118,7 @@ pub fn Toasts(
             open={open}
         >
             <Frame width={outer}>
-                <Scroll fit=true follow_end={bottom} scrollbar>
+                <Scroll fit=true follow_end={bottom} style={scroll}>
                     <Frame padding={padding}>
                         <ToastStack
                             toasts={toasts}

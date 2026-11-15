@@ -5,7 +5,7 @@ use beui_macros::{component, view};
 use crate::button::ButtonSize;
 use crate::button::{Button, ButtonVariant};
 use crate::list::List;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Icon, Text, TextColor, TextSize, Weight};
 use crate::tokens::{Padding, Size, Space};
 use beui_components_unstyled as unstyled;
@@ -60,7 +60,7 @@ pub fn Toasts(
             width={WIDTH.px()}
             margin={MARGIN.px()}
             spacing={SPACING.px()}
-            scrollbar={scrollbar_style()}
+            scroll={scroll_style()}
             on_dismiss
             on_action
             on_activate

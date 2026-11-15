@@ -47,7 +47,7 @@ Colours on primitives are `beui::Color`: a literal, or a reference to a `ColorVa
 
 ## Scrolling
 
-Program code wants `styled::Scroll`, which adds the overlay scrollbar ([decision](../../decisions/beui_overlay_scrollbars.md)) and edge fades. `unstyled::Scroll` owns input and momentum and takes a `ScrollbarStyle`; a control that scrolls something of its own takes one and passes it down (as `Select` does). Under both is the base `Offset`, which answers no input and never clamps.
+Program code wants `styled::Scroll`, which adds the overlay scrollbar ([decision](../../decisions/beui_overlay_scrollbars.md)) and edge fades. `unstyled::Scroll` owns input and momentum and takes a `ScrollStyle`: the bar, the edge fade and the marker a middle-button autoscroll shows where it started. A control that scrolls something of its own takes one and passes it down (as `Select` and `TextArea` do), so `styled::scroll_style()` gives it the whole look. Under both is the base `Offset`, which answers no input and never clamps.
 
 - Padding goes inside a scroll because a focus ring needs room at the content's edges; a scroll that is part of a padded surface takes `bleed` instead.
 - Content is laid out at least as long as the scroll, and content that overflows is first shrunk to `Element::least_length` (shrinking children give up length), like a flex box in `overflow: auto`. A scroll sized to its content up to a bound is `max_length`; a `Frame` with a `max` around it fills up to the max instead.

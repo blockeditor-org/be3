@@ -10,7 +10,7 @@ use crate::button::{Button, ButtonSize};
 use crate::checkbox::Checkbox;
 use crate::context_menu::menu_style;
 use crate::frame::ColorRole;
-use crate::scroll::scrollbar_style;
+use crate::scroll::scroll_style;
 use crate::text::{Text, TextColor, TextSize};
 use crate::theme::{ThemeTokens, use_theme};
 use beui_components_unstyled as unstyled;
@@ -199,7 +199,7 @@ pub fn TextArea(
                         password
                         show_runs
                         client_colors
-                        scrollbar={scrollbar_style()}
+                        scroll={scroll_style()}
                         on_widget_press={on_widget_press}
                         on_focus_change={on_focus_change}
                         on_image_paste={on_image_paste}

@@ -1,5 +1,5 @@
 use super::*;
-use beui_components_unstyled::{Scroll, ScrollbarStyle};
+use beui_components_unstyled::{Scroll, ScrollStyle};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -17,10 +17,7 @@ fn scrolling() -> Document {
                     <List spacing=0.0>
                         <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
                         <Frame height=40.0 fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
-                            <Scroll
-                                @test_id="scroll"
-                                scrollbar={ScrollbarStyle::default().fading(12.0)}
-                            >
+                            <Scroll @test_id="scroll" style={ScrollStyle::default().fading(12.0)}>
                                 <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
                                     <Frame
                                         height=10.0
