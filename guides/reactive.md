@@ -173,7 +173,10 @@ Data that arrives later comes from one of two roots, never a
   like a memo, and returns the future that computes a `Ready<T>`; when what it
   read changes it runs again and drops (cancels) the future before. It reads
   `Err(Loading)` until the first answer, then keeps the last good answer while
-  a newer one is on its way (`pending()` says so); a failure replaces it. The
+  a newer one is on its way (`pending()` says so); a failure replaces it. Read
+  like a memo, it asks again first if what it read changed, and a future whose
+  answer is already there (a value held locally) lands at once, without a
+  turn of the executor. The
   futures run on the spawner the host installs (`spawn_with`): a program's
   `Runner` polls them at the start of the frame after they are woken; an app
   runs them on be-sdk's executor instead, which its host calls answer on.

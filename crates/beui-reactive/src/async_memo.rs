@@ -83,9 +83,7 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
         cancelled: Cell::new(false),
     });
     let polled = Rc::clone(&running);
-    hand_over(
-        Rc::clone(&running),
-        Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+    let mut wrapped: LocalFuture = Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
             let mut held = polled.future.borrow_mut();
             let Some(future) = held.as_mut() else {
                 return Poll::Ready(());
@@ -104,8 +102,13 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
                     Poll::Pending
                 }
             }
-        })),
-    );
+        }));
+    // A future whose answer is already there (a value held locally) lands at once, with no
+    // turn of the executor between; one still waiting goes to the spawner, whose first poll
+    // gives it the waker that counts.
+    if wrapped.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending() {
+        hand_over(Rc::clone(&running), wrapped);
+    }
     running
 }
 
@@ -116,6 +119,9 @@ pub struct AsyncMemo<T: 'static> {
     value: Source<T>,
     pending: Signal<bool>,
     rerun: Trigger,
+    /// What asks: read like a memo, it runs first if what it read changed, so a read never
+    /// sees the answer for an input that is gone, and an answer already there lands at once.
+    binding: Effect,
 }
 
 impl<T> Clone for AsyncMemo<T> {
@@ -179,6 +185,7 @@ where
         value,
         pending,
         rerun,
+        binding: made,
     };
     value.with_node(|node| {
         ErrorBoundary::hold_refresh(node, std::rc::Rc::new(move || memo.refresh()))
@@ -191,6 +198,7 @@ impl<T: 'static> AsyncMemo<T> {
     #[track_caller]
     pub fn pending(&self) -> bool {
         check_tracked_read::<Self>();
+        self.binding.run_if_due();
         self.pending.get()
     }
 
@@ -213,19 +221,18 @@ impl<T: 'static> AsyncMemo<T> {
         self.value.is_alive()
     }
 
-    pub(crate) fn source(&self) -> Source<T> {
-        self.value
-    }
 }
 
 impl<T: 'static> Get<Ready<T>> for AsyncMemo<T> {
     #[track_caller]
     fn with<R>(&self, f: impl FnOnce(&Ready<T>) -> R) -> R {
         check_tracked_read::<Self>();
+        self.binding.run_if_due();
         self.value.with(f)
     }
 
     fn with_untracked<R>(&self, f: impl FnOnce(&Ready<T>) -> R) -> R {
+        self.binding.run_if_due();
         self.value.with_untracked(f)
     }
 }
