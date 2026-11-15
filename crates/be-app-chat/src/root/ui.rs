@@ -58,6 +58,9 @@ struct Row {
     /// The row of a message whose deletion is forged, in the deleted message's place: it shows
     /// who claims to have deleted it, and takes no reply, reaction or edit.
     deleted: bool,
+    /// The row of a message removed outright, which a later message names
+    /// (`ChatContent::missing_before`): a line saying so, in its place.
+    missing: bool,
 }
 
 /// One record a member signed (plans/authorship.md), to ask the host who signed it.
@@ -528,19 +531,29 @@ pub fn Chat(editor: Editor) -> NodeId {
 
     let message_rows = move |id: ObjectId| {
         let shown = rows.get(&id);
+        // A message removed outright keeps its id, so its row turns into a missing one's.
+        let missing = create_memo(move || shown.with(|row| row.missing));
+        let present = create_memo(move || !missing.get());
         view! {
-            <MessageRow
-                editor
-                chat={chat}
-                me
-                id
-                row={shown}
-                composer
-                unsent
-                block
-                signing
-                attached
-            />
+            <List spacing=Space::None>
+                <Show value={missing}>
+                    <MissingRow id />
+                </Show>
+                <Show value={present}>
+                    <MessageRow
+                        editor
+                        chat={chat}
+                        me
+                        id
+                        row={shown}
+                        composer
+                        unsent
+                        block
+                        signing
+                        attached
+                    />
+                </Show>
+            </List>
         }
     };
     let older_message_rows = move |id: ObjectId| {
@@ -905,8 +918,38 @@ fn row_list(
             rows.insert(at, (*message, deleted_row(*message, deletion, me, today)));
         }
     }
+    // A recent message removed outright, before the first message that names it: rows read
+    // back from closed segments are not checked.
+    if order.is_none() {
+        for (before, gone) in content.missing_before() {
+            if let Some(at) = rows.iter().position(|(id, _)| *id == before) {
+                rows.insert(at, (gone, missing_row()));
+            }
+        }
+    }
     rows
 }
+
+/// The row of a message removed outright (`Row::missing`).
+fn missing_row() -> Row {
+    Row {
+        author: String::new(),
+        mine: false,
+        time: String::new(),
+        arrived: None,
+        body: MISSING.to_owned(),
+        edited: false,
+        reply: None,
+        reactions: Vec::new(),
+        attachments: Vec::new(),
+        proofs: Vec::new(),
+        deleted: false,
+        missing: true,
+    }
+}
+
+/// What a removed message's row says: that it is gone, not who removed it, which nothing tells.
+const MISSING: &str = "A message that was here is no longer in the chat";
 
 /// How many messages others sent since this account last read the chat, none until its
 /// owner-only `ChatReads` loaded. Each device keeps its own place there and the furthest
@@ -1010,6 +1053,7 @@ fn row(shown: &HashMap<ObjectId, &Shown>, message: &Shown, me: Uuid, today: i64)
             .map(|attachment| attachment.0)
             .collect(),
         deleted: false,
+        missing: false,
     }
 }
 
@@ -1131,6 +1175,7 @@ fn deleted_row(message: ObjectId, deletion: &Deletion, me: Uuid, today: i64) -> 
             record: Record::Deletion(message, deletion.clone()),
         }],
         deleted: true,
+        missing: false,
     }
 }
 
@@ -1334,6 +1379,19 @@ fn toggle_reaction(
             chat.operate(change.into());
         }
     });
+}
+
+/// The row of a message removed outright: one quiet line in its place, with nothing to act on.
+#[component]
+fn MissingRow(id: ObjectId) -> NodeId {
+    view! {
+        <Frame
+            padding={Padding::symmetric(Space::Md, Space::Xs)}
+            @test_id={format!("chat.missing.{id}")}
+        >
+            <Text style=TextStyle::CAPTION italic=true color=TextColor::Muted>{MISSING}</Text>
+        </Frame>
+    }
 }
 
 #[component]

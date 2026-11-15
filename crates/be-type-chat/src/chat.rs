@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::segment;
-use crate::signed::{MessageHash, Signed};
+use crate::signed::{MessageHash, Prior, Signed};
 
 /// The chat's header, the first part of its stored form and the only one 1a writes: the
 /// recent messages, and every edit, deletion and reaction, kept apart from the messages and
@@ -66,8 +66,11 @@ pub struct Message {
     pub reply_to: Option<ObjectId>,
     /// Child blocks of the chat.
     pub attachments: Vec<BlockRef>,
-    /// The hash of the last message its author saw when writing it.
-    pub seen: Option<MessageHash>,
+    /// The last message its author saw when writing it.
+    pub seen: Option<Prior>,
+    /// Its author's own message before it, which a reader finds unless it was removed: the
+    /// gap shows even when nobody else saw that message (`ChatContent::missing_before`).
+    pub own_previous: Option<Prior>,
     pub signature: Signature,
     /// When the server took the operation that sent it, in milliseconds since the Unix epoch
     /// by the server's clock, as the session owner stamped it (`LiveEdit::arrival`); none when
@@ -181,7 +184,8 @@ impl Message {
     }
 
     /// What its author's signature covers: the chat, the message, author, claimed time, the
-    /// body's hash, what it replies to, its attachments and the last message its author saw.
+    /// body's hash, what it replies to, its attachments, the last message its author saw and
+    /// its author's own message before it.
     pub fn signed_bytes(&self, chat: Uuid, id: ObjectId) -> Vec<u8> {
         Signed::new("be3.chat.message", chat, id)
             .uuid(self.author)
@@ -189,7 +193,8 @@ impl Message {
             .body(&self.body)
             .reply(self.reply_to)
             .blocks(&self.attachments)
-            .seen(self.seen)
+            .prior(self.seen)
+            .prior(self.own_previous)
             .finish()
     }
 
@@ -684,11 +689,22 @@ impl ChatContent {
     /// The id and message `send` would send, for its author to sign
     /// (`Message::signed_bytes`) before `send_as` sends it.
     pub fn draft(&self, chat: Uuid, message: Message) -> (ObjectId, Message) {
-        let seen = self
-            .messages()
-            .last()
-            .and_then(|last| self.hash(chat, *last));
-        (ObjectId::new(), Message { seen, ..message })
+        let prior = |id: ObjectId| self.hash(chat, id).map(|hash| Prior { id, hash });
+        let recent = self.messages();
+        let seen = recent.last().and_then(|last| prior(*last));
+        let own_previous = recent
+            .iter()
+            .rev()
+            .find(|id| self.message(**id).is_some_and(|sent| sent.author == message.author))
+            .and_then(|id| prior(*id));
+        (
+            ObjectId::new(),
+            Message {
+                seen,
+                own_previous,
+                ..message
+            },
+        )
     }
 
     /// Sends `message` as `id`, after every message there is.
@@ -1166,6 +1182,33 @@ impl ChatContent {
     }
 
     /// Whether `message` may be in a closed segment, rather than recent or unknown here.
+    /// The messages missing from the recent ones, each before the first recent message that
+    /// names it (`Message::seen`, `Message::own_previous`) as `(that message, the missing one)`:
+    /// a message named so that is neither recent, deleted, nor maybe in a closed segment was
+    /// removed outright, which no signature covers. Only recent messages are checked, and a
+    /// message removed after its author's last is not named by any: it shows nothing.
+    pub fn missing_before(&self) -> Vec<(ObjectId, ObjectId)> {
+        let recent = self.messages();
+        let held: std::collections::HashSet<ObjectId> = recent.iter().copied().collect();
+        let deletions = self.deletions();
+        let mut named = std::collections::HashSet::new();
+        let mut missing = Vec::new();
+        for id in recent {
+            let Some(message) = self.message(id) else {
+                continue;
+            };
+            for prior in [message.seen, message.own_previous].into_iter().flatten() {
+                let gone = !held.contains(&prior.id)
+                    && !deletions.written(&prior.id)
+                    && !self.may_be_closed(prior.id);
+                if gone && named.insert(prior.id) {
+                    missing.push((id, prior.id));
+                }
+            }
+        }
+        missing
+    }
+
     pub fn may_be_closed(&self, message: ObjectId) -> bool {
         self.segments()
             .iter()

@@ -11,9 +11,6 @@ or that is forged.
 
 ## What is left open
 
-- **A recent message can be dropped unnoticed.** Removing a message from the
-  recent series leaves no record a signature covers; only the `seen` hashes of
-  its author's later messages show the gap (below).
 - **A chain restarts after a forged overwrite.** An author's next edit or
   reaction names only their own latest record as `previous`, so once a record
   of theirs is overwritten by someone else's (which shows as forged), their
