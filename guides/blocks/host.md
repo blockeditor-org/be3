@@ -78,8 +78,9 @@ statuses, status counts, contacts, pairing, conflicts, search answers, editors' 
 `seen: Seen` (`seen.rs`), and `Shared` derefs to it. The host never locks `Shared`: the
 worker hands `Seen` over in bytes (postcard), the whole of it first and then each time what
 changed since the last (`seen::Update`, `diff.rs`), onto a lock-free stack (`Handover`) the
-host takes every update from as it reads, and applies in order to its copy. Neither side
-waits on the other, as the web's page must not (plans/web_page_never_waits.md). The large
+host takes every update from at once (`take_updates`), and applies in order to its copy.
+Past 64 updates or 4 MiB the host has not taken (a hidden tab runs no frames), the worker
+swaps its whole `Seen` in for them (`Handover::replace`). Neither side waits on the other, as the web's page must not (plans/web_page_never_waits.md). The large
 parts are `Part`s, an `Arc` the worker's last handed-over copy (`Shared::handed`) shares until
 the worker writes it. The maps in them are persistent and ordered (`imbl::OrdMap`), and the
 graph's nodes are `Arc<Node>`, so that write copies the path to what it changes, not the
@@ -96,26 +97,31 @@ diff misses cannot drift apart unnoticed. A write that would change nothing must
 reaching a `Part` mutably copies it, so hot paths ask first (`Graph::reports`, `refers`,
 `derives`, `wanted`) and write only on a change.
 
-The worker publishes at the end of each pass and before the host hears anything from the
-worker thread: `changes::post`, `changes::wake` and a reply to a host call (every reply
-goes through `seen::after_publish`, a flush's answer too) are held thread-locally and go out from a task that publishes once the worker yields. So a
-read changes when its update lands, never before the host is told, and a test that heard a
-reply reads what the worker did before it. `wait_until`, and a test's change to `Shared`,
-publish too.
+The worker publishes at the end of each pass and before the host hears anything from it:
+change notices (`changes::post`) and the answers to the host's replies (`seen::hold_answer`,
+a flush's too) are held thread-locally and go in the update a task publishes once the worker
+yields, which then wakes the host. The host takes the updates once a frame, as be-host's
+frame starts (`take_updates` in `frame.rs`), so every read in a frame, be-host's and the app
+runtimes', reads one snapshot; then its watchers hear the changes and the replies' callbacks
+run with their answers, reading what the worker did before answering. A test has no frames:
+under `testing` a thread takes each update as it lands (`start`). What must block on the
+worker natively (a flush as the window closes, a push opened by the running stack) takes
+updates as it waits (`wait_for_answer`); the web's page never blocks. `wait_until`, and a
+test's change to `Shared`, publish and take too.
 
 What the host changes itself is an `Edit` (`create`, `define`, `set_parent`, `want`, an
 import, revision previews, comparing conflicts, taking an editor's frames): applied at once
 to the host's own view and sent as `Command::Edit`, numbered, which the worker applies as
 it takes the command, in the order numbered (`edit` numbers and sends under one lock). Until
 a `Seen` says the worker applied it (`edits_applied`), the host lays it over each `Seen` it
-takes, quietly (`changes::quietly`): the host heard of it when it made it. The host takes
-the newest `Seen` as it reads, not once a frame, so two reads in one frame may read two.
+takes, quietly (`changes::quietly`): the host heard of it when it made it.
 Everything else the host asks for is a command;
 `Seen::done` against the commands sent is what is pending. A command is data: the host sends
 it as its bytes (`worker::CommandPost`, postcard) and the worker decodes it as it takes it
 (`worker::Commands`), so nothing in one is a pointer or a callback. A reply is a number
-(`replies::Reply`): the host keeps what it calls back (`replies::expect`), and the worker
-answers with the answer's bytes, or drops it unanswered, which drops what waits on it. A
+(`replies::Reply`): the host keeps what it calls back in its stack (`replies::expect`,
+`Stack::waiting`), and the worker answers with the answer's bytes in an update, or drops it
+unanswered, which drops what waits on it; what still waits when the stack stops is dropped. A
 `Seen` encodes the same way (`Seen::encode`). What only the worker's `Peer`
 can say is worked out into `Seen` too: offline, which blocks are out of reach
 (`Seen::out_of_reach`, worked out again only for the nodes that moved and the blocks the worker let go of, `Shared::refresh_reach`), so the host holds neither

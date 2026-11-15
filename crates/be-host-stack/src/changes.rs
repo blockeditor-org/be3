@@ -13,7 +13,7 @@ use std::sync::{Arc, PoisonError, Weak};
 use uuid::Uuid;
 
 /// What changed since a watcher last heard.
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Changes {
     /// The graph mirror: a query may answer differently, and so may what apps are told of a
     /// block (`BlockInfo::out_of_reach` changes with the connection).
@@ -102,8 +102,8 @@ impl Default for ChangeWatch {
     }
 }
 
-/// Tells every watcher of `changes`: from the worker thread, once the `Seen` that has them is
-/// handed over (`seen::hold_changes`).
+/// Tells every watcher of `changes`: from the worker thread, with the update that has them
+/// (`seen::hold_changes`), which the page tells them as it takes it.
 pub(crate) fn post(changes: Changes) {
     if changes.is_empty() || QUIET.get() {
         return;
@@ -113,7 +113,7 @@ pub(crate) fn post(changes: Changes) {
     }
 }
 
-/// Wakes the host: from the worker thread, once the `Seen` with what it did is handed over.
+/// Wakes the host: from the worker thread, as the update with what it did is handed over.
 pub(crate) fn wake() {
     if !QUIET.get() && !crate::seen::hold_wake() {
         be_host_base::host::wake();
