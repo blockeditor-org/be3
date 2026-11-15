@@ -932,6 +932,14 @@ pub(super) fn heard(app: &str, messages: Vec<DockMessage>) -> bool {
     with_changed(|docks| docks.heard(app, messages)).1
 }
 
+/// The app and instance that place a docked instance, and the child it is to them.
+pub(super) fn placed_by(instance: EditorInstanceId) -> Option<(String, EditorInstanceId, ChildId)> {
+    with(|docks| {
+        let (placer, child, _) = docks.placer_of(instance)?;
+        Some((docks.apps.get(&placer)?.clone(), placer, child))
+    })
+}
+
 pub(super) fn docked(instance: EditorInstanceId) -> bool {
     DOCKS.with(|docks| docks.borrow().docked(instance))
 }
