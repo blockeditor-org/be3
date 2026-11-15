@@ -791,16 +791,12 @@ pub fn ProgramTab(
             back_closes=false
         >
             <Layers>
-                <Dynamic value={window}>|window: Option<HostWindowId>| {
-                    match window {
-                        Some(window) => view! {
-                            <WindowBody workspace tab window floating />
-                        },
-                        None => view! {
-                            <Placeholder workspace tab />
-                        },
-                    }
-                }</Dynamic>
+                <Dynamic
+                    value={window}
+                    fallback={move || view! { <Placeholder workspace tab /> }}
+                >|window: HostWindowId|
+                    <WindowBody workspace tab window floating />
+                </Dynamic>
             </Layers>
         </DockTab>
     }
@@ -897,7 +893,7 @@ pub fn WindowDialog(
     view! {
         <DockDialog
             id={tab}
-            parent={create_memo(move || workspace.window_tab_of(parent))}
+            parent={move || workspace.window_tab_of(parent)}
             title={title}
             size
             modal
@@ -980,10 +976,10 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
             menu_at.set(Some(shown.rect.min + asked.at.to_vec2()));
         }
     });
-    let fullscreen_label = create_memo(move || match fullscreen.get() {
+    let fullscreen_label = move || match fullscreen.get() {
         true => "Leave full screen".to_owned(),
         false => "Full screen".to_owned(),
-    });
+    };
     view! {
         <Layers>
             <ContextMenu
@@ -1098,10 +1094,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
         record.with(|record| record.as_ref().map(window_title).unwrap_or_default())
     });
     let picture = create_memo(move || workspace.placeholder_picture(tab));
-    let pictured = create_memo(move || picture.with(Option::is_some));
-    let plain = create_memo(move || !pictured.get());
     let openable = workspace.placeholder_openable(tab);
-    let unopenable = create_memo(move || !openable.get());
     view! {
         <Frame
             fill=ColorRole::Background
@@ -1109,15 +1102,17 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
             @test_id={format!("workspace.placeholder.{}", tab.value())}
         >
             <List spacing=BODY_SPACING align=Align::Center justify=Justify::Center>
-                <Show condition={pictured}>
+                <Show
+                    condition={move || picture.with(Option::is_some)}
+                    fallback={|| view! {
+                        <Text size=TextSize::Xl5 color=TextColor::Muted>
+                            <Icon glyph=ICON_APP_WINDOW />
+                        </Text>
+                    }}
+                >
                     <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
                         <Picture image={picture} />
                     </Frame>
-                </Show>
-                <Show condition={plain}>
-                    <Text size=TextSize::Xl5 color=TextColor::Muted>
-                        <Icon glyph=ICON_APP_WINDOW />
-                    </Text>
                 </Show>
                 <Text style=TextStyle::HEADING>{heading}</Text>
                 <Text style=TextStyle::CAPTION>{title}</Text>
@@ -1126,7 +1121,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
                         label="Open"
                         glyph=ICON_EXTERNAL_LINK
                         variant=ButtonVariant::Primary
-                        disabled={unopenable}
+                        disabled={move || !openable.get()}
                         @test_id={format!("workspace.placeholder.{}.open", tab.value())}
                         on_click={move || workspace.open_placeholder(tab)}
                     />

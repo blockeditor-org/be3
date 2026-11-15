@@ -29,7 +29,7 @@ pub(crate) fn LinkedBar(
                 .unwrap_or_default()
         })
     });
-    let shown = create_memo(move || {
+    let shown = move || {
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
                 info.access.can_view()
@@ -38,7 +38,7 @@ pub(crate) fn LinkedBar(
                     && info.parent.is_some()
             })
         })
-    });
+    };
     let via_reference = create_memo(move || {
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
@@ -47,7 +47,6 @@ pub(crate) fn LinkedBar(
             })
         })
     });
-    let original = create_memo(move || !via_reference.get());
     let count = create_memo(move || backrefs.with(|places| places.list.len()));
     let elsewhere = create_memo(move || {
         let others = count.get().saturating_sub(1);
@@ -71,7 +70,6 @@ pub(crate) fn LinkedBar(
                 .is_some_and(|info| unlink_permission(&workspace, info.container).is_ok())
         })
     });
-    let unlink_off = create_memo(move || !permission.get());
     let nowhere = create_memo(|| None);
     let heading_color = TextColor::Default;
     view! {
@@ -86,22 +84,36 @@ pub(crate) fn LinkedBar(
                             <Icon glyph=ICON_LINK />
                         </Text>
                         <Text>"Linked block"</Text>
-                        <Show condition={via_reference}>
+                        <Show
+                            condition={via_reference}
+                            fallback={move || view! {
+                                <ListItem shrink=1.0>
+                                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
+                                        {everywhere}
+                                    </Text>
+                                </ListItem>
+                            }}
+                        >
                             <ListItem shrink=1.0>
                                 <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
                                     {elsewhere}
                                 </Text>
                             </ListItem>
                         </Show>
-                        <Show condition={original}>
-                            <ListItem shrink=1.0>
-                                <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
-                                    {everywhere}
-                                </Text>
-                            </ListItem>
-                        </Show>
                     </List>
-                    <Show condition={via_reference}>
+                    <Show
+                        condition={via_reference}
+                        fallback={move || view! {
+                            <ReferenceMenu
+                                workspace={workspace}
+                                name="Show references"
+                                empty="No backrefs"
+                                refs={backrefs}
+                                containing={nowhere}
+                                named="workspace.linked.references"
+                            />
+                        }}
+                    >
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Button
                                 @test_id={"workspace.linked.original"}
@@ -121,7 +133,7 @@ pub(crate) fn LinkedBar(
                                 label="Unlink"
                                 glyph=ICON_UNLINK
                                 variant=ButtonVariant::Secondary
-                                disabled={unlink_off}
+                                disabled={move || !permission.get()}
                                 on_click={move || {
                                     let Some(info) = info.get_untracked() else {
                                         return;
@@ -132,16 +144,6 @@ pub(crate) fn LinkedBar(
                                 }}
                             />
                         </List>
-                    </Show>
-                    <Show condition={original}>
-                        <ReferenceMenu
-                            workspace={workspace}
-                            name="Show references"
-                            empty="No backrefs"
-                            refs={backrefs}
-                            containing={nowhere}
-                            named="workspace.linked.references"
-                        />
                     </Show>
                 </List>
             </Frame>
