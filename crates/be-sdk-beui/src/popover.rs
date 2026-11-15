@@ -34,7 +34,7 @@ pub(crate) fn ChildPopover(
     shown: Shown,
     face: Memo<Face>,
     size: Memo<Vec2>,
-    sized: Memo<bool>,
+    sized: Prop<bool>,
     testing: &'static str,
     on_state: Callback<ChildState>,
     on_dismiss: Callback<()>,
@@ -301,7 +301,7 @@ fn PoppedChild(editor: Editor, popped: Popped) -> NodeId {
             }}
             face={create_memo(move || face)}
             size={create_memo(move || size.get())}
-            sized={create_memo(|| true)}
+            sized=true
             testing
             on_state
             on_dismiss={move || editor.close_popped(serial)}

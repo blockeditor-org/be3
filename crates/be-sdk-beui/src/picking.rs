@@ -179,7 +179,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             }}
             face
             size={shown}
-            sized={create_memo(move || sized.get())}
+            sized={sized}
             testing="picker.child"
             on_state
             on_dismiss={move || editor.finish_pick(serial, Ok(None))}
