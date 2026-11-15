@@ -254,12 +254,23 @@ pub struct Defining {
     pub references: Vec<Uuid>,
 }
 
+/// Objects held for a block (`Peer::hold`) made offline, uploaded and held once the drain sends
+/// it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Holding {
+    pub block: Uuid,
+    pub objects: Vec<Hash>,
+    /// Held for good (`Hold::Lasting`), or until a commit that uses them publishes.
+    pub lasting: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum Op {
     Create(Creation),
     Publish(Pending),
     Move(Moving),
     Define(Defining),
+    Hold(Holding),
 }
 
 impl Op {
@@ -269,6 +280,7 @@ impl Op {
             Self::Publish(pending) => pending.block,
             Self::Move(moving) => moving.block,
             Self::Define(defining) => defining.block,
+            Self::Hold(holding) => holding.block,
         }
     }
 }
@@ -768,7 +780,7 @@ impl Refs {
             match op {
                 Op::Move(moving) => summary.parent = Some(moving.parent),
                 Op::Define(defining) => summary.metadata = defining.metadata.clone(),
-                Op::Create(_) | Op::Publish(_) => {}
+                Op::Create(_) | Op::Publish(_) | Op::Hold(_) => {}
             }
         }
         summary
@@ -1408,7 +1420,7 @@ impl Refs {
         state
             .outbox
             .values()
-            .any(|op| op.block() == block && !matches!(op, Op::Publish(_)))
+            .any(|op| op.block() == block && !matches!(op, Op::Publish(_) | Op::Hold(_)))
     }
 
     pub fn below(&self, root: Uuid) -> HashSet<Uuid> {
