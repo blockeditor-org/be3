@@ -1,15 +1,17 @@
 use be_block_protocol::OrganizationRole;
 use beui::NodeId;
 use beui::Overflow;
-use beui::icons::{ICON_TRASH, ICON_USER_MINUS};
+use beui::icons::{ICON_COPY, ICON_TRASH, ICON_USER_MINUS};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::text::Phrase;
 
 use be_host_accounts_ui::ErrorText;
 
-use super::{AgentRow, ContactRow, HostUiStore, MemberRow, UiCommand, UnsentRow, send};
-use beui::{Align, Direction};
+use super::{
+    AgentRow, ContactRow, HostUiStore, InvitationRow, MemberRow, UiCommand, UnsentRow, send,
+};
+use beui::{Align, Direction, Extent};
 
 #[component]
 pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
@@ -18,6 +20,7 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
             <DiscardDialog view={view} />
             <LeaveDialog view={view} />
             <InviteDialog view={view} />
+            <InvitationsDialog view={view} />
             <AgentsDialog view={view} />
             <ContactsDialog view={view} />
             <MembersDialog view={view} />
@@ -31,36 +34,182 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
 fn InviteDialog(view: HostUiStore) -> NodeId {
     let invite = view.invite;
     let open = create_memo(move || invite.with(Option::is_some));
-    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
-    let sent = create_memo(move || invite.get().map(|invite| invite.sent));
-    let email = create_linked_signal(move || {
-        sent.track();
-        String::new()
-    });
-    let administrator = create_signal(false);
-    let role = create_memo(move || match administrator.get() {
-        true => OrganizationRole::Administrator,
-        false => OrganizationRole::Editor,
-    });
-    let cannot = create_memo(move || email.get().trim().is_empty());
+    let link = create_memo(move || invite.get().and_then(|invite| invite.link));
+    let made = create_memo(move || link.with(Option::is_some));
     view! {
         <Dialog
             open={open}
             title="Invite member"
-            width={Size::Custom(380.0)}
+            width={Size::Custom(400.0)}
             id="host.invite"
             actions={vec![
-                DialogAction::primary("Create invite link", move || {
-                    send(UiCommand::SendInvite(email.get_untracked(), role.get_untracked()))
+                DialogAction::primary("Copy link", move || {
+                    if let Some(link) = link.get_untracked() {
+                        copy(Clip::text(link));
+                    }
                 })
-                .disabled(cannot)
-                .busy(busy)
-                .named("send"),
+                .disabled(move || !made.get())
+                .named("copy"),
+                DialogAction::cancel("Done"),
             ]}
             on_dismiss={|| send(UiCommand::CloseInvite)}
         >
-            <InvitePanel view email administrator role />
+            <InvitePanel view />
         </Dialog>
+    }
+}
+
+/// What the Invite member dialog shows: the link it made, as text and as a QR code, and that
+/// nothing was sent.
+#[component]
+fn InvitePanel(view: HostUiStore) -> NodeId {
+    let invite = view.invite;
+    let organization = create_memo(move || {
+        format!(
+            "Anyone who opens this link with an account on this server can join {} as an editor, once, within seven days.",
+            invite
+                .get()
+                .map(|invite| invite.organization)
+                .unwrap_or_default()
+        )
+    });
+    let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
+    let error = create_memo(move || invite.get().and_then(|invite| invite.error));
+    view! {
+        <Frame>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::PARAGRAPH>{organization}</Text>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <ErrorText text={error} />
+                <Show
+                    value={move || invite.get().and_then(|invite| invite.link)}
+                >|link: ReadSignal<String>| {
+                    let code = create_memo(move || link.with(|link| crate::qr::image(link)));
+                    view! {
+                        <List spacing=Space::Md>
+                            <Text style=TextStyle::CAPTION @test_id={"host.invite.help"}>
+                                "Nothing was sent: send this link yourself, through an app you trust, or show them the code to scan. You can copy it again from Invitations."
+                            </Text>
+                            <TextInput
+                                value={Binding::new(link, Callback::empty())}
+                                label="Invite link"
+                                @test_id={"host.invite.link"}
+                            />
+                            <List align=Align::Center spacing=Space::None>
+                                <Frame
+                                    width={Extent::px(Size::Custom(192.0).px())}
+                                    height={Extent::px(Size::Custom(192.0).px())}
+                                    @test_id={"host.invite.qr"}
+                                >
+                                    <Picture image={code} smooth=false />
+                                </Frame>
+                            </List>
+                        </List>
+                    }
+                }</Show>
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+fn InvitationsDialog(view: HostUiStore) -> NodeId {
+    let invitations = view.invitations;
+    let open = create_memo(move || invitations.with(Option::is_some));
+    view! {
+        <Dialog
+            open={open}
+            title="Invitations"
+            width={Size::Custom(520.0)}
+            size=DialogSize::Large
+            id="host.invitations"
+            actions={vec![
+                DialogAction::primary("New invite link", || send(UiCommand::InviteMember))
+                    .named("new"),
+            ]}
+            on_dismiss={|| send(UiCommand::CloseInvitations)}
+        >
+            <InvitationsPanel view />
+        </Dialog>
+    }
+}
+
+/// The organization's invite list: each invitation's state, whose it is and when, its link again
+/// for the person's own, revoking one still open, and a fresh link for one expired.
+#[component]
+fn InvitationsPanel(view: HostUiStore) -> NodeId {
+    let invitations = view.invitations;
+    let shown = create_memo(move || invitations.get().unwrap_or_default());
+    let busy = create_memo(move || shown.get().busy);
+    let error = create_memo(move || shown.get().error);
+    let rows = create_memo(move || shown.get().rows);
+    let empty = create_memo(move || rows.with(Vec::is_empty) && !busy.get());
+    view! {
+        <Frame>
+            <List spacing=Space::Md>
+                <Text style=TextStyle::CAPTION>
+                    "An invite link joins whoever opens it as an editor, once, within seven days. Revoke one you no longer want used; remove someone who joined from Members."
+                </Text>
+                <Show value={empty}>
+                    <Text style=TextStyle::PARAGRAPH>"No invitations yet."</Text>
+                </Show>
+                <ForEach
+                    value={rows}
+                    key={|row: &InvitationRow| row.id}
+                >|row: ReadSignal<InvitationRow>| {
+                    let id = row.with_untracked(|row| row.id);
+                    let title = create_memo(move || row.get().title);
+                    let detail = create_memo(move || row.get().detail);
+                    let link = create_memo(move || row.get().link);
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
+                            <ListItem grow=1.0>
+                                <List spacing=Space::Xs2>
+                                    <Text>{title}</Text>
+                                    <Text style=TextStyle::CAPTION>{detail}</Text>
+                                </List>
+                            </ListItem>
+                            <Show value={move || link.with(Option::is_some)}>
+                                <Button
+                                    icon_only=true
+                                    glyph=ICON_COPY
+                                    label="Copy link"
+                                    @test_id={format!("host.invitations.copy.{id}")}
+                                    on_click={move || {
+                                        if let Some(link) = link.get_untracked() {
+                                            copy(Clip::text(link));
+                                        }
+                                    }}
+                                />
+                            </Show>
+                            <Show value={move || row.get().revocable}>
+                                <Button
+                                    label="Revoke"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={busy}
+                                    @test_id={format!("host.invitations.revoke.{id}")}
+                                    on_click={move || send(UiCommand::RevokeInvitation(id))}
+                                />
+                            </Show>
+                            <Show value={move || row.get().renewable}>
+                                <Button
+                                    label="New link"
+                                    variant=ButtonVariant::Secondary
+                                    @test_id={format!("host.invitations.renew.{id}")}
+                                    on_click={|| send(UiCommand::InviteMember)}
+                                />
+                            </Show>
+                        </List>
+                    }
+                }</ForEach>
+                <Show value={busy}>
+                    <Progress width=INLINE_PROGRESS_WIDTH />
+                </Show>
+                <ErrorText text={error} />
+            </List>
+        </Frame>
     }
 }
 
@@ -583,74 +732,6 @@ fn AboutDialog(view: HostUiStore) -> NodeId {
         >
             <AboutPanel />
         </Dialog>
-    }
-}
-
-#[component]
-fn InvitePanel(
-    view: HostUiStore,
-    email: Signal<String>,
-    administrator: Signal<bool>,
-    role: Memo<OrganizationRole>,
-) -> NodeId {
-    let invite = view.invite;
-    let organization = create_memo(move || {
-        format!(
-            "Organization: {}",
-            invite
-                .get()
-                .map(|invite| invite.organization)
-                .unwrap_or_default()
-        )
-    });
-    let error = create_memo(move || invite.get().and_then(|invite| invite.error));
-    let description = create_memo(move || match role.get() {
-        OrganizationRole::Administrator => "Can open every block in the organization.".to_owned(),
-        OrganizationRole::Editor => {
-            "Can only open blocks they create or are given access to.".to_owned()
-        }
-    });
-    view! {
-        <Frame>
-            <List spacing=Space::Md>
-                <Text style=TextStyle::CAPTION>{organization}</Text>
-                <Text style=TextStyle::CAPTION>"Email address"</Text>
-                <TextInput value={email} label="Email address" @test_id={"host.invite.email"} />
-                <Text style=TextStyle::CAPTION>"Role"</Text>
-                <SegmentedControl
-                    label="Role"
-                    selected={Binding::new(role, move |role: OrganizationRole| {
-                        administrator.set(role == OrganizationRole::Administrator)
-                    })}
-                    options={view! {
-                        <ChoiceOption
-                            value=OrganizationRole::Editor
-                            label={OrganizationRole::Editor.label()}
-                        />
-                        <ChoiceOption
-                            value=OrganizationRole::Administrator
-                            label={OrganizationRole::Administrator.label()}
-                        />
-                    }}
-                />
-                <Text style=TextStyle::CAPTION>{description}</Text>
-                <ErrorText text={error} />
-                <Show
-                    value={move || invite.get().and_then(|invite| invite.link)}
-                >|link: ReadSignal<String>|
-                    <List spacing=Space::Sm>
-                        <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
-                            "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
-                        </Text>
-                        <TextInput
-                            value={Binding::new(link, Callback::empty())}
-                            label="Invite link"
-                            @test_id={"host.invite.link"}
-                        />
-                    </List>
-                </Show>
-            </List>
-        </Frame>
     }
 }
 

@@ -272,6 +272,16 @@ impl Me {
 pub struct Invited {
     pub organization_name: String,
     pub invitation: Invitation,
+    /// Who invited them: the name and email on the inviter's card, opened with the code.
+    pub inviter: String,
+}
+
+/// How a person is named from their card: their name, and their email when it has one.
+fn named(card: &be_block_keys::ContactCard) -> String {
+    match card.email.is_empty() {
+        true => card.display_name.clone(),
+        false => format!("{} ({})", card.display_name, card.email),
+    }
 }
 
 /// The invitation `code` opens; a contact link's code is refused as not one
@@ -282,7 +292,7 @@ pub async fn invitation(
     code: be_block_keys::InviteCode,
 ) -> Result<Invited, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let (link, _) = be_block_client::contacts::open_link(
+    let (link, card) = be_block_client::contacts::open_link(
         &connection,
         &code,
         be_block_client::contacts::Expected::Invitation,
@@ -292,6 +302,29 @@ pub async fn invitation(
     Ok(Invited {
         organization_name,
         invitation: invitation_of(link)?,
+        inviter: named(&card),
+    })
+}
+
+/// An invitation as anyone holding its link reads it before signing in: whose it is, into what,
+/// and where it stands.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InvitationPreview {
+    pub organization_name: String,
+    pub inviter: String,
+    pub state: be_block_protocol::InvitationState,
+}
+
+/// Reads the invitation `code` opens at `server_url`, with no sign-in (a one-shot call).
+pub async fn preview_invitation(
+    server_url: String,
+    code: be_block_keys::InviteCode,
+) -> Result<InvitationPreview, AccountError> {
+    let (preview, card) = be_block_client::contacts::preview_invitation(&server_url, &code).await?;
+    Ok(InvitationPreview {
+        organization_name: preview.organization_name,
+        inviter: named(&card),
+        state: preview.state,
     })
 }
 

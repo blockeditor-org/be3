@@ -6,7 +6,7 @@ use be_block_keys::{
 use std::collections::HashMap;
 
 use be_block_protocol::{
-    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OrganizationRole, OwnKind,
+    ErrorCode, EscrowKey, Invitation, KeyChange, Link, LinkKind, OwnKind,
     OwnSealed, PendingGrant, SealedKey, client,
 };
 use uuid::Uuid;

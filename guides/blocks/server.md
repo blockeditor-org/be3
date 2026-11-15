@@ -722,11 +722,21 @@ reach the cap (`store/portal.rs`). `Be3-Gateway-Authorization` is left to a gate
 
 Contact links and invitations are one table, `links`, and one set of calls
 (`create-link`, `get-link`, `accept-link`, `list-links`, `delete-link`;
-guides/blocks/keys.md, "Contacts"). An administrator invites an email with a
-link of kind `invitation` under an id the inviting client picks; only an
-account with that email can read or accept it, once, and the id reaches the
-invitee only in the link (guides/blocks/keys.md, "Identity, new phrases and
-devices"). Its inviter lists it and revokes it as any link of its own.
+guides/blocks/keys.md, "Contacts"). An administrator invites with a link of
+kind `invitation` under an id the inviting client picks, bound to no email: any
+account that opens it may accept it, once, before `INVITATION_LIFETIME`, and
+joins as an editor; the id reaches the invitee only in the link
+(guides/blocks/keys.md, "Inviting"). An organization has at most
+`MAX_INVITATIONS_PER_ORGANIZATION` outstanding. `read-invitation`, the only
+one-shot call besides signing in, reads one by its id before sign-in (its
+organization's name, the inviter's sealed card and its state) and marks it
+opened. The row stays after it is accepted, expires or is revoked
+(`invite_ended`, `invite_revoked`, `invite_finished` once the inviter's
+device made the accepter a contact) for the organization's invite list
+(`list-invitations`, administrators only, which hands each inviter back only
+their own sealed code), until `INVITATION_RETENTION` passes or
+`MAX_INVITATIONS_KEPT_PER_ORGANIZATION` pushes the oldest ended out. Any
+administrator revokes an open one with `delete-link`.
 `CreateAgent` makes a passwordless editor account with a token
 (guides/tracker.md), at most `MAX_AGENTS_PER_CREATOR` per creator. Agents are
 members: `list-members` names an agent's creator (`created-by`) and, for a

@@ -1,0 +1,178 @@
+//! The organization's invitations: the Invite member dialog, which makes one and ends on its
+//! link, and the invite list, where an administrator sees each one's state, copies its own
+//! links again, revokes outstanding ones and makes a fresh link for an expired one
+//! (guides/blocks/keys.md, "Inviting").
+
+use be_block_protocol::InvitationState;
+use be_host_base::host::{Mailbox, Post};
+use be_host_stack::Invite;
+use uuid::Uuid;
+
+use crate::ui::{InvitationRow, InvitationsView, InviteView};
+
+enum Reply {
+    Made(Result<String, String>),
+    Listed(Result<Vec<Invite>, String>),
+}
+
+pub(crate) struct Invitations {
+    /// The Invite member dialog is open.
+    inviting: bool,
+    /// The link it made.
+    made: Option<String>,
+    /// The invite list is open.
+    listing: bool,
+    rows: Vec<Invite>,
+    busy: bool,
+    error: Option<String>,
+    replies: (Mailbox, Post<Reply>),
+}
+
+impl Default for Invitations {
+    fn default() -> Self {
+        Self {
+            inviting: false,
+            made: None,
+            listing: false,
+            rows: Vec::new(),
+            busy: false,
+            error: None,
+            replies: crate::desk().mailbox(|core: &mut crate::HostCore, reply| {
+                core.invitations.replied(reply);
+            }),
+        }
+    }
+}
+
+impl Invitations {
+    fn listed(&self) -> Box<dyn FnOnce(Result<Vec<Invite>, String>) + Send> {
+        let post = self.replies.1.clone();
+        Box::new(move |reply| post.send(Reply::Listed(reply)))
+    }
+
+    /// Opens the Invite member dialog and makes an invitation at once: there is nothing to
+    /// fill in, since the link is for whoever it is sent to.
+    pub(crate) fn invite(&mut self) {
+        self.inviting = true;
+        self.made = None;
+        self.error = None;
+        self.busy = true;
+        let post = self.replies.1.clone();
+        be_host_stack::create_invitation(Box::new(move |made| post.send(Reply::Made(made))));
+    }
+
+    pub(crate) fn close_invite(&mut self) {
+        self.inviting = false;
+        self.made = None;
+        self.error = None;
+    }
+
+    pub(crate) fn show(&mut self) {
+        self.listing = true;
+        self.error = None;
+        self.busy = true;
+        be_host_stack::list_invitations(self.listed());
+    }
+
+    pub(crate) fn close(&mut self) {
+        let inviting = (self.inviting, self.made.take());
+        *self = Self::default();
+        (self.inviting, self.made) = inviting;
+    }
+
+    pub(crate) fn revoke(&mut self, link: Uuid) {
+        self.busy = true;
+        self.error = None;
+        be_host_stack::revoke_invitation(link, self.listed());
+    }
+
+    fn replied(&mut self, reply: Reply) {
+        self.busy = false;
+        match reply {
+            Reply::Made(Ok(link)) => {
+                self.made = Some(link);
+                if self.listing {
+                    self.busy = true;
+                    be_host_stack::list_invitations(self.listed());
+                }
+            }
+            Reply::Listed(Ok(rows)) => self.rows = rows,
+            Reply::Made(Err(error)) | Reply::Listed(Err(error)) => self.error = Some(error),
+        }
+    }
+
+    pub(crate) fn invite_view(&self, organization: String) -> Option<InviteView> {
+        self.inviting.then(|| InviteView {
+            organization,
+            busy: self.busy && self.made.is_none(),
+            error: self.error.clone(),
+            link: self.made.clone(),
+        })
+    }
+
+    pub(crate) fn view(&self) -> Option<InvitationsView> {
+        self.listing.then(|| InvitationsView {
+            rows: self.rows.iter().map(row).collect(),
+            busy: self.busy,
+            error: self.error.clone().filter(|_| !self.inviting),
+        })
+    }
+}
+
+fn row(invite: &Invite) -> InvitationRow {
+    let open = matches!(
+        invite.state,
+        InvitationState::Waiting | InvitationState::Opened
+    );
+    let (state, detail) = match invite.state {
+        InvitationState::Waiting => (
+            "Waiting".to_owned(),
+            format!("Not opened yet · expires {}", date(invite.expires)),
+        ),
+        InvitationState::Opened => (
+            "Opened".to_owned(),
+            format!(
+                "Opened {} · expires {}",
+                date(invite.opened),
+                date(invite.expires)
+            ),
+        ),
+        InvitationState::Accepted => (
+            "Accepted".to_owned(),
+            format!("By {} on {}", invite.accepter, date(invite.ended)),
+        ),
+        InvitationState::Expired => (
+            "Expired".to_owned(),
+            format!("On {}", date(invite.expires)),
+        ),
+        InvitationState::Revoked => (
+            "Revoked".to_owned(),
+            format!("On {}", date(invite.ended)),
+        ),
+    };
+    InvitationRow {
+        id: invite.id,
+        title: format!("{state} · made by {} on {}", invite.inviter, date(invite.created)),
+        detail,
+        link: invite.link.clone().filter(|_| open),
+        revocable: open,
+        renewable: invite.state == InvitationState::Expired,
+    }
+}
+
+/// A day in UTC, from milliseconds since the epoch, as `2026-11-15`.
+fn date(milliseconds: i64) -> String {
+    let days = milliseconds.div_euclid(86_400_000);
+    // Howard Hinnant's civil_from_days.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let day_of_era = z - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let shifted = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * shifted + 2) / 5 + 1;
+    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    format!("{year}-{month:02}-{day:02}")
+}
