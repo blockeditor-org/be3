@@ -3,6 +3,7 @@ pub mod drawing;
 pub mod frame;
 pub mod grid;
 pub mod interactive;
+pub mod keep_alive;
 pub mod layers;
 pub mod list;
 pub mod offset;

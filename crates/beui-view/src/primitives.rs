@@ -7,6 +7,7 @@ pub use crate::components::layers::{Layer, Layers};
 pub use crate::components::list::{List, ListItem, Spacer};
 pub use crate::components::offset::Offset;
 pub use crate::components::overlay::{Modality, Overlay, use_modal};
+pub use crate::components::keep_alive::{KeepAlive, Kept, kept_shown};
 pub use crate::components::portal::Portal;
 pub use crate::components::root::{Root, SystemBars};
 pub use crate::components::selectable::Selectable;

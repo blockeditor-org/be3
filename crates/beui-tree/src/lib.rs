@@ -6,6 +6,7 @@ pub mod child_list;
 pub mod children;
 pub mod component;
 pub mod control;
+pub mod keep;
 pub mod prop;
 
 pub mod reactive {
@@ -30,6 +31,7 @@ pub mod reactive {
         RowKey, Show, ShowValue,
     };
     pub use crate::into_prop_via;
+    pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::prop::{
         ByClosure, ByClosureLifted, ByLift, ByValue, Func, Getter, Given, IntoFunc, IntoLiftedProp,
         IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,
