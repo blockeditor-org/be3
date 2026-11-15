@@ -219,7 +219,14 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         self.replicas.claim(self.block);
     }
 
+    /// Seals what the order holds, once it holds every edit submitted here.
     pub async fn seal(&mut self) {
+        while self.replicas.ordering() {
+            let woken = self.next().await;
+            if self.handle(woken).await.is_err() {
+                break;
+            }
+        }
         self.replicas
             .seal((&self.peer, &self.shared), self.block, false)
             .await;
