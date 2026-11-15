@@ -235,7 +235,9 @@ Traps:
   own content: `editor.block_content()` reads whether it arrived where it is
   called, so asked for in a body under a `<Loaded>`, it holds that boundary
   however the editor reads it afterwards (in effects, callbacks, paintings).
-  `content_of` another block does not.
+  Called outside the boundary (in the root around `<Loaded>`, or while
+  building state there), it holds nothing. `content_of` another block does
+  not hold one either.
 - A callback (`on_touched`, a button's `on_click`) is no read: it runs later,
   outside the scope, so what it reads holds nothing back.
 
