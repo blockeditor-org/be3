@@ -3,7 +3,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_block_graph::BlockParent;
+use be_block_graph::{BlockGraph, BlockParent};
 use be_block_protocol::{
     BlockSummary, ClientId, Listing, OrganizationRole, PairingMessage, SessionState,
 };
@@ -75,7 +75,9 @@ struct Joined {
     interests: HashMap<u64, Interest>,
 }
 
-/// What a connection was told of a block that decides which of its listings hold it.
+/// What a connection was told of a block that decides which of its listings hold it, and
+/// nothing the graph answers: not its references, which a folder's may run to
+/// `MAX_REFERENCES` (`Links` reads them from the graph instead).
 pub(crate) struct Facts {
     parent: Option<BlockParent>,
     held: bool,
@@ -83,8 +85,9 @@ pub(crate) struct Facts {
     /// Told with its references, as a summary the connection may view: so a change may be told
     /// as what it did to them (`moved-references`).
     viewed: bool,
-    /// A set, since a referrer's may run to `MAX_REFERENCES` and is asked of every change.
-    references: HashSet<Uuid>,
+    /// Held by one of the connection's listings through references (`Links::hold`) when told:
+    /// what keeps it known when another listing that held it is dropped (`WatchHub::unlist`).
+    linked: bool,
     opens_inside: bool,
 }
 
@@ -94,9 +97,8 @@ impl Facts {
     pub(crate) fn new(
         parent: Option<BlockParent>,
         held: bool,
-        entry: bool,
+        Seen { entry, linked }: Seen,
         viewed: bool,
-        references: HashSet<Uuid>,
         opens_inside: bool,
     ) -> Self {
         Self {
@@ -104,20 +106,66 @@ impl Facts {
             held,
             entry,
             viewed,
-            references,
+            linked,
             opens_inside,
         }
     }
 
-    pub(crate) fn of(summary: &BlockSummary, entry: bool) -> Self {
-        Self {
-            parent: summary.parent,
-            held: summary.held,
-            entry,
-            viewed: summary.access.can_view(),
-            references: summary.references.iter().copied().collect(),
-            opens_inside: summary.opens_inside,
-        }
+    pub(crate) fn of(summary: &BlockSummary, seen: Seen) -> Self {
+        Self::new(
+            summary.parent,
+            summary.held,
+            seen,
+            summary.access.can_view(),
+            summary.opens_inside,
+        )
+    }
+
+    /// The bytes the hub keeps for these facts: the same for every block.
+    #[cfg(test)]
+    pub(crate) const BYTES: usize = std::mem::size_of::<(Uuid, Self)>();
+}
+
+/// What a graph job works out of a block for one connection beside its summary.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Seen {
+    /// One of the caller's shared entry points (`Listing::Shared`).
+    pub(crate) entry: bool,
+    /// Held by one of the connection's listings through references (`Links::hold`).
+    pub(crate) linked: bool,
+}
+
+/// A connection's listings that hold blocks through references, as the hub had them when a
+/// graph job began (`WatchHub::links`): the job reads from the graph which of its blocks they
+/// hold, so the hub keeps no block's references.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Links {
+    /// `Listing::References`: blocks whose references the connection listed.
+    referrers: Vec<Uuid>,
+    /// `Listing::Backrefs`: blocks whose referrers the connection listed.
+    targets: Vec<Uuid>,
+    /// `Interest::linking` when read, so `tell` knows a listing came since.
+    generation: u64,
+}
+
+impl Links {
+    /// Whether one of these listings holds `block`, by the references of the blocks `can_view`
+    /// allows: a summary the caller may not view tells none.
+    pub(crate) fn hold(
+        &self,
+        graph: &BlockGraph,
+        block: Uuid,
+        can_view: impl Fn(Uuid) -> bool,
+    ) -> bool {
+        (self
+            .targets
+            .iter()
+            .any(|target| graph.refers(block, *target))
+            && can_view(block))
+            || self
+                .referrers
+                .iter()
+                .any(|referrer| graph.refers(*referrer, block) && can_view(*referrer))
     }
 }
 
@@ -125,10 +173,15 @@ impl Facts {
 struct Interest {
     listings: HashSet<Listing>,
     refused: HashSet<Listing>,
-    /// The `Listing::References` and `Listing::OpenSettings` among `listings`, kept apart so
-    /// matching a block costs a few lookups rather than a pass over every listing.
+    /// The `Listing::References`, `Listing::Backrefs` and `Listing::OpenSettings` among
+    /// `listings`, kept apart so matching a block costs a few lookups rather than a pass over
+    /// every listing.
     references: HashSet<Uuid>,
+    backrefs: HashSet<Uuid>,
     open_settings: usize,
+    /// Counts the `Listing::References` and `Listing::Backrefs` listed, so a change matched
+    /// against `Links` read before one was is not taken to have left them (`WatchHub::tell`).
+    linking: u64,
     /// The listings that count against `MAX_LISTINGS_PER_CONNECTION`: every one but a block's
     /// own (`Listing::Block`), which a client never unlists. Those are bounded instead by the blocks
     /// the caller may know of, and refused ones by `REFUSED_LISTINGS`.
@@ -160,6 +213,11 @@ impl Interest {
         match listing {
             Listing::References(referrer) => {
                 self.references.insert(referrer);
+                self.linking += 1;
+            }
+            Listing::Backrefs(target) => {
+                self.backrefs.insert(target);
+                self.linking += 1;
             }
             Listing::OpenSettings(_) => self.open_settings += 1,
             _ => {}
@@ -178,8 +236,19 @@ impl Interest {
             Listing::References(referrer) => {
                 self.references.remove(&referrer);
             }
+            Listing::Backrefs(target) => {
+                self.backrefs.remove(&target);
+            }
             Listing::OpenSettings(_) => self.open_settings -= 1,
             _ => {}
+        }
+    }
+
+    fn links(&self) -> Links {
+        Links {
+            referrers: self.references.iter().copied().collect(),
+            targets: self.backrefs.iter().copied().collect(),
+            generation: self.linking,
         }
     }
 
@@ -191,15 +260,7 @@ impl Interest {
             || (facts.parent.is_some() && !facts.held && self.listings.contains(&Listing::Deleted))
             || (facts.entry && self.listings.contains(&Listing::Shared))
             || (facts.opens_inside && self.open_settings > 0)
-            || facts
-                .references
-                .iter()
-                .any(|target| self.listings.contains(&Listing::Backrefs(*target)))
-            || self.references.iter().any(|referrer| {
-                self.known
-                    .get(referrer)
-                    .is_some_and(|referrer| referrer.references.contains(&block))
-            })
+            || facts.linked
     }
 
     fn told(&mut self, block: Uuid, facts: Facts) -> bool {
@@ -334,7 +395,11 @@ impl WatchHub {
         let interest = joined.interests.entry(client).or_default();
         interest.reading = interest.reading.saturating_sub(1);
         interest.refused.remove(&listing);
-        for (block, facts) in told {
+        for (block, mut facts) in told {
+            // `Links` read before another listing linked the block may miss it, while a listing
+            // that links it says so as it is read, so being linked stays until a change
+            // matches the block again (`tell`).
+            facts.linked |= interest.known.get(&block).is_some_and(|known| known.linked);
             interest.told(block, facts);
         }
     }
@@ -346,6 +411,11 @@ impl WatchHub {
         };
         interest.unlist(listing);
         interest.refused.remove(&listing);
+        if interest.references.is_empty() && interest.backrefs.is_empty() {
+            for facts in interest.known.values_mut() {
+                facts.linked = false;
+            }
+        }
         let known = std::mem::take(&mut interest.known);
         interest.known = known
             .into_iter()
@@ -353,20 +423,40 @@ impl WatchHub {
             .collect();
     }
 
+    /// The listings each of `clients` holds blocks through references by, for a graph job to
+    /// match a change's blocks against (`Links::hold`).
+    pub(crate) async fn links(&self, clients: &[u64]) -> Vec<Links> {
+        let joined = self.joined.lock().await;
+        clients
+            .iter()
+            .map(|client| {
+                joined
+                    .interests
+                    .get(client)
+                    .map(Interest::links)
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+
     /// Tells `client` of a change if one of its listings holds the block, or it was told of the
-    /// block before. A change of a block it was told with its references tells what the change
-    /// did to them in their place, so a large folder's change costs what changed.
-    pub async fn tell(&self, client: u64, mut message: Push, entry: bool) {
+    /// block before; `seen` is what the graph job worked out with `links`. A change of a block
+    /// it was told with its references tells what the change did to them in their place, so a
+    /// large folder's change costs what changed.
+    pub(crate) async fn tell(&self, client: u64, mut message: Push, mut seen: Seen, links: &Links) {
         let told = {
             let mut joined = self.joined.lock().await;
             let interest = joined.interests.entry(client).or_default();
+            // A listing that links blocks came after `links` was read: whether it holds this
+            // one is not known here, so it is taken to.
+            seen.linked |= interest.linking != links.generation;
             match &mut message {
                 Push::BlockChanged { block, moved, .. } => {
                     let holds = interest
                         .known
                         .get(&block.id)
                         .is_some_and(|facts| facts.viewed);
-                    let facts = Facts::of(block, entry);
+                    let facts = Facts::of(block, seen);
                     match holds && block.access.can_view() && moved.is_some() {
                         true => block.references = Vec::new(),
                         false => *moved = None,
@@ -603,6 +693,19 @@ impl WatchHub {
         for target in targets {
             deliver(&mut clients, target, message.clone());
         }
+    }
+
+    /// What the hub keeps for `client`: its listings and the facts of each block it was told of.
+    #[cfg(test)]
+    pub(crate) async fn bytes_kept(&self, client: u64) -> usize {
+        let joined = self.joined.lock().await;
+        joined.interests.get(&client).map_or(0, |interest| {
+            let listing = std::mem::size_of::<Listing>();
+            let id = std::mem::size_of::<Uuid>();
+            (interest.listings.len() + interest.refused.len()) * listing
+                + (interest.references.len() + interest.backrefs.len()) * id
+                + interest.known.len() * Facts::BYTES
+        })
     }
 
     pub async fn remove(&self, client: u64) {
