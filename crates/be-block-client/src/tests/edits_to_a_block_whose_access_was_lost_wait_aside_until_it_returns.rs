@@ -36,7 +36,7 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
         offline
             .save(note, &TextBlock::of("written while away"), Some(base))
             .await
-            .is_err()
+            .is_ok_and(|saved| matches!(saved, Saved::Kept(_)))
     );
     let unsent = offline.local_head(note).unwrap();
 
