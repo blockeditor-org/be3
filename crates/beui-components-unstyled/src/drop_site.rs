@@ -64,6 +64,11 @@ where
             None => DragSpec::Floating,
         }),
         over: Rc::new(move |drop: Option<Erased>| {
+            // The board may tell a site whose scope is already gone, in whatever order a
+            // teardown runs; it hears nothing then.
+            if !over.is_alive() {
+                return;
+            }
             let drop = drop.and_then(|drop| drop.downcast_ref::<D>().cloned());
             over.update(|over| *over = drop);
         }),
