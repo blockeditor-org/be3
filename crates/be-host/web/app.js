@@ -2,7 +2,7 @@
 // worker (src/guest.js) loads for an app, which answers the imports that
 // worker does not.
 //
-// An app is the same bindgen-free wasm that wasmtime runs on every other
+// An app is the same bindgen-free wasm that V8 runs natively on every other
 // platform: its only imports are be3_host, its world's and the be3 gpu abi,
 // WASI and be-wasm-threads if it uses them, and, when it was linked against
 // libraries, the libraries, which are fetched from beside it and linked to it

@@ -4,7 +4,7 @@
 //! A browser traps `memory.atomic.wait` on a page's (a window's) thread, so a lock that thread
 //! finds held cannot be waited for there: std's `Mutex::lock` would trap once its brief spin
 //! ends. Every other thread waits for real: a worker (`Atomics.wait`), a WASI thread under
-//! wasmtime, and every native thread. guides/running/web.md says which locks the page shares.
+//! V8 natively, and every native thread. guides/running/web.md says which locks the page shares.
 
 use std::cell::Cell;
 

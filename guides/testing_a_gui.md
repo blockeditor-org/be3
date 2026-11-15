@@ -207,7 +207,7 @@ and says how to set it up locally. Fix dynamic ids, form tokens and times in fix
 ## 5. Running them
 
 An app's tests are compiled to wasm32-wasip1-threads and run by crates/be-sdk-test-runner,
-the same wasmtime runtime be-host opens apps with, against the libraries the app ships with
+the same V8 runtime (be-wasm-host) be-host opens apps with, against the libraries the app ships with
 (guides/app_libraries.md, Tests), so what they paint is what the shipped app paints
 (decisions/app_tests_run_as_wasm_guests.md). A native build or test of an editor package
 checks something that never ships. The host's own crates (be-host and its desktop and
@@ -231,7 +231,7 @@ build log.
 - A panic aborts the wasm guest. The runner then reruns each test in its own instance and lists
   every failure with its panic message and call stack (function names, no line numbers: wasm
   has no Rust backtraces).
-- Each module is precompiled to a cached `.cwasm` once, so a rerun takes seconds. The runner
+- V8 compiles the module and its libraries when the runner loads them. The runner
   opens a GPU adapter only when a test calls the gpu ABI; nothing a test compares passes
   through a GPU.
 

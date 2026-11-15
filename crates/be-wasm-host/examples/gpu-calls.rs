@@ -170,7 +170,7 @@ fn main() {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
     let host = Host::new(device, queue).expect("the host should start");
     let mut app = host
-        .load_bytes(guest().as_bytes())
+        .load_bytes(&wat::parse_str(guest()).expect("the guest should assemble"))
         .expect("the guest should load");
     app.start().expect("the guest should start");
     let mut fastest = Duration::MAX;
