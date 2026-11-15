@@ -230,6 +230,9 @@ struct Stack {
     organization: Uuid,
     commands: Option<UnboundedSender<Command>>,
     nudges: Option<nudge::Nudges>,
+    /// Dropped as the stack stops, which has the worker close its connection
+    /// (`Inbox::stopped`).
+    _stopping: tokio::sync::oneshot::Sender<()>,
     held: std::collections::HashSet<Uuid>,
     /// The blocks whose version status each owner shows (`want_versions`).
     versioned: std::collections::HashMap<Owner, Vec<Uuid>>,
@@ -306,6 +309,7 @@ pub fn start(config: Config) {
     stop();
     let (commands, receiver) = unbounded_channel();
     let (nudges, nudged) = nudge::channel();
+    let (stopping, stopped) = tokio::sync::oneshot::channel();
     let sent = Arc::new(AtomicUsize::new(0));
     let handover = Arc::new(seen::Handover::default());
     let shared = Shared {
@@ -325,6 +329,7 @@ pub fn start(config: Config) {
             nudged,
             handover: Arc::clone(&handover),
             held_clock: held_clock(),
+            stopped,
         },
         Arc::clone(&shared),
         Arc::clone(&changed),
@@ -334,6 +339,7 @@ pub fn start(config: Config) {
         organization,
         commands: Some(commands),
         nudges: Some(nudges),
+        _stopping: stopping,
         held: std::collections::HashSet::new(),
         versioned: std::collections::HashMap::new(),
         tried: std::collections::HashSet::new(),
@@ -374,15 +380,10 @@ pub fn installed_for(account: Uuid, organization: Uuid) -> bool {
 /// for the worker; the next stack's worker waits for it (use `stop_and_wait` where the process
 /// ends or its files go).
 pub fn stop() {
-    let mut stack = stack()
+    let stack = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .take();
-    if let Some(stack) = &mut stack {
-        if let Some(connection) = &stack.view().connection {
-            connection.close();
-        }
-    }
     let stopped = stack.is_some();
     drop(stack);
     if stopped {
@@ -1318,24 +1319,12 @@ pub fn made_by_app_in_unfiled(block: Uuid, app_id: &str) -> bool {
     .unwrap_or(false)
 }
 
-/// The workspace's peer while the host is not connected, for telling apps which blocks this
-/// device cannot read (`BlockInfo::out_of_reach`).
-pub(crate) fn offline_peer() -> Option<std::sync::Arc<be_block_client::Peer<worker::Store>>> {
-    with_seen(|shared| match shared.connected {
-        true => None,
-        false => shared.peer.clone(),
-    })
-    .flatten()
-}
-
 /// Whether the host is offline and holds no version of the block's content whole, so it can
 /// neither open the block nor change it, a child added or moved in included
 /// (`BlockInfo::out_of_reach`).
 pub fn out_of_reach(block: Uuid) -> bool {
-    let Some(peer) = offline_peer() else {
-        return false;
-    };
-    node(block).is_some_and(|node| app_graph::out_of_reach(&peer, &node))
+    let block = revisions::source(block).unwrap_or(block);
+    with_seen(|seen| seen.out_of_reach.contains(&block)).unwrap_or_default()
 }
 
 pub fn ready(query: Query) -> bool {

@@ -39,7 +39,7 @@ use crate::{
     conflicts::Comparison,
     revisions::Preview,
     version::VersionState,
-    worker::{History, PairingRequest, Shared, Store},
+    worker::{History, PairingRequest, Shared},
 };
 
 /// A part of `Seen` the worker and the copies it handed over share until the worker changes
@@ -123,9 +123,9 @@ pub struct Seen {
     /// Open replicas with edits that are not in the device's journal yet.
     pub undurable: usize,
     pub connected: bool,
-    pub connection: Option<Arc<be_block_client::connection::Connection>>,
-    /// The workspace's peer, which knows what content this device holds.
-    pub peer: Option<Arc<be_block_client::Peer<Store>>>,
+    /// Offline, the blocks this device holds no version of whole, so it can neither open nor
+    /// change them (`BlockInfo::out_of_reach`); empty while connected.
+    pub out_of_reach: Part<HashSet<Uuid>>,
     pub reached: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
