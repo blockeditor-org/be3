@@ -312,7 +312,7 @@ pub(super) fn AddAccountDialog(
                 <Show value={editing}>
                     <List spacing=Space::Xl>
                         <Match value={selection}>
-                            <Case when={|selection: &Option<u8>| *selection == Some(1)}>
+                            <Case is={Some(1)}>
                             <List spacing=Space::Xl>
                                 <Text style=TextStyle::PARAGRAPH>
                                     "Your data stays on this device. You only need a display name."
@@ -329,13 +329,13 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                             </Case>
-                            <Case when={|selection: &Option<u8>| *selection == Some(0)}>
+                            <Case is={Some(0)}>
                             <List spacing=Space::Xs>
                                 <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                             </Case>
-                            <Case when={|selection: &Option<u8>| *selection == Some(2)}>
+                            <Case is={Some(2)}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput

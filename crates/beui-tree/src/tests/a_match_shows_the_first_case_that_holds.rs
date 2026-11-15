@@ -34,4 +34,23 @@ fn a_match_shows_the_first_case_that_holds() {
     count.set(7);
     let html = page.html();
     assert!(html.contains(">many</i>") && !html.contains("</p>"), "{html}");
+
+    let picked = create_signal(None::<u8>);
+    let page = scope.run(|| {
+        view! {
+            <Element tag="div">
+                <Match value={picked}>
+                    <Case is={None}>
+                        <Element tag="i" text="nothing" />
+                    </Case>
+                    <Case is={Some(1)}>
+                        <Element tag="p" text="one" />
+                    </Case>
+                </Match>
+            </Element>
+        }
+    });
+    assert!(page.html().contains(">nothing</i>"), "{}", page.html());
+    picked.set(Some(1));
+    assert!(page.html().contains(">one</p>"), "a `Match` over an `Option` compares with `Some(..)`: {}", page.html());
 }
