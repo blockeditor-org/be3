@@ -62,7 +62,6 @@ pub fn Anchored(
     #[prop(default = true)] traps_focus: Prop<bool>,
     #[prop(default = LayerPolicy::BlocksAll)] policy: Prop<LayerPolicy>,
     trigger: Option<NodeRef>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = NodeRef::new())] overlay: NodeRef,
     on_dismiss: Callback<()>,
     #[prop(children)] content: RenderFn<AnchoredHandle>,
@@ -99,7 +98,6 @@ pub fn Anchored(
                 traps_focus
                 trigger={trigger}
                 open={dropped}
-                keep_alive
                 on_dismiss={move |_: Dismiss| on_dismiss.call(())}
                 content={move || style.dropdown.call(content.call(AnchoredHandle {
                     sheet: false,

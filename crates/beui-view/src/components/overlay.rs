@@ -6,7 +6,7 @@ use crate::reactive::Prop;
 use crate::reactive::RenderFn;
 use crate::reactive::{
     Get, Memo, Set, Signal, StoredCell, create_effect, create_memo, create_signal, on_cleanup,
-    untrack, use_context,
+    provide_context, untrack, use_context,
 };
 use crate::types::Color;
 use crate::types::Dismiss;
@@ -34,7 +34,6 @@ pub fn Overlay(
     #[prop(default = 0.0)] beak: Prop<f32>,
     #[prop(default = None)] window: Prop<Option<WindowSpec>>,
     open: Prop<bool>,
-    #[prop(default = false)] keep_alive: bool,
     #[prop(default = true)] dismissable: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     #[prop(children)] content: RenderFn<()>,
@@ -65,7 +64,6 @@ pub fn Overlay(
         pointer,
         beak,
         window,
-        keep_alive,
         dismissable,
         on_dismiss,
         presence,
@@ -154,6 +152,14 @@ impl OverlayPresence {
 
     pub fn open(self) -> Memo<bool> {
         self.open
+    }
+
+    /// Provides this presence, and whether it is modal, to what is built in it: what an
+    /// overlay's content reads, for a `Kept` inside the content to carry into its kept
+    /// subtree, which reads only the context around its `KeepAlive`.
+    pub fn provide(self) {
+        provide_context(self);
+        provide_context(self.modality());
     }
 
     pub fn linger_while(self, showing: Memo<bool>) {

@@ -18,7 +18,7 @@ pub mod reactive {
         Count, CountMany, CountNone, CountOne, CountZero, CountZeroOrOne, Counted, DynamicSegment,
         Fallback, FixedChild, FormOf, HostedNode, IntoChild, IntoSegment, IntoSegments,
         IntoSlotHost, LazyChild, NeedsFallback, OneChild, OneOf, Or, Run, SingleChild, SlotChild,
-        SlotHost, ValueFallback, ZeroOrOne, into_child, into_segment,
+        SlotHost, Unwrapped, ValueFallback, ZeroOrOne, into_child, into_segment,
     };
     pub use crate::component::{
         BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
@@ -27,7 +27,7 @@ pub mod reactive {
     };
     pub use crate::control::kept_shown;
     pub use crate::control::{
-        Case, CaseIs, CaseOf, CaseWhen, as_form, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs,
+        Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs,
         RowKey, Show, ShowValue,
     };
     pub use crate::into_prop_via;

@@ -930,16 +930,17 @@ fn Scrolling(
                     <Frame outline={ring_when(focused, focus_ring)}>
                         <List direction={marker_axis} spacing=0.0>
                             <ListItem grow shrink>{node}</ListItem>
-                            <Overlay
-                                anchor
-                                placement=Placement::Around
-                                policy=LayerPolicy::Inert
-                                traps_focus=false
-                                open={marked}
-                                keep_alive=true
-                            >
-                                {marker}
-                            </Overlay>
+                            <KeepAlive>
+                                <Overlay
+                                    anchor
+                                    placement=Placement::Around
+                                    policy=LayerPolicy::Inert
+                                    traps_focus=false
+                                    open={marked}
+                                >
+                                    <Kept>{marker}</Kept>
+                                </Overlay>
+                            </KeepAlive>
                         </List>
                     </Frame>
                 </Interactive>
