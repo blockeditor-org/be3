@@ -8,7 +8,8 @@ use crate::runtime::{
     untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::signal::{Signal, Set, Tracked, create_signal};
+use crate::memo::Compute;
+use crate::signal::{Get, Set, Signal, Tracked, create_signal};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -520,10 +521,14 @@ pub fn create_effect_on_change<D: 'static>(
 /// `source` reads changes, like Angular's `linkedSignal`: a draft seeded from a saved value
 /// and reset when the saved value changes. `source` runs now, and the reset is a binding,
 /// so a change to its inputs reaches the signal when effects next run.
-pub fn create_linked_signal<T: PartialEq + 'static>(
-    mut source: impl FnMut() -> T + 'static,
+///
+/// Like `create_memo`'s, the closure may take an annotated `previous: Option<&T>`: what the
+/// signal holds when the reset comes (`None` the first time), so a reset can keep part of
+/// what was written, such as text typed that still means the new value.
+pub fn create_linked_signal<T: PartialEq + 'static, M>(
+    mut source: impl Compute<T, M> + 'static,
 ) -> Signal<T> {
-    let probed = probe(false, &mut source);
+    let probed = probe(false, || source.compute(None));
     let constant = probed.constant();
     let signal = create_signal(probed.value);
     if constant {
@@ -533,7 +538,7 @@ pub fn create_linked_signal<T: PartialEq + 'static>(
         return signal;
     }
     let computation = Computation::new(None, move || {
-        let value = source();
+        let value = signal.with_untracked(|held| source.compute(Some(held)));
         signal.set(value);
         false
     });
