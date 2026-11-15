@@ -95,6 +95,7 @@ APPS = {
     "my_files_offers_no_delete": [],
     "on_a_phone_a_demos_dock_tabs_are_tabs_of_the_workspace": ["example-beui-gallery"],
     "on_a_phone_a_held_file_rises_its_menu_as_a_sheet_over_the_whole_host": [],
+    "on_a_phone_a_new_text_opens_from_its_row_with_one_tap_after_back": ["text"],
     "on_a_phone_an_editor_stacks_over_the_files_with_its_panes_gathered_below_its_stage": ["example-pan-zoom"],
     "on_a_phone_back_leaves_each_document_opened_from_the_files": ["text"],
     "on_a_phone_renaming_a_canvas_opens_a_sheet": ["infinite-canvas"],

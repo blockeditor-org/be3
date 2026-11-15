@@ -1026,10 +1026,14 @@ fn picker(
     tree_ref: ComponentRef<TreeApi<RowKey>>,
 ) -> Picker {
     let host = editor.host();
+    // On a phone the block opens in the files' place, so its row cannot be renamed where it
+    // shows: a name field left open there would come back with the files and take their first
+    // tap. It is named from its own title instead.
+    let phone = be_sdk_beui::phone_layout();
     let picked: Picked = std::rc::Rc::new(move |picked, parent| {
         let block_type = Uuid::from_bytes(picked.block_type);
         tree.remember(picked.id(), block_type);
-        if !picked.named {
+        if !picked.named && !phone.get_untracked() {
             renaming.rename_when_shown(picked.id(), Some(parent));
         }
         if !picked.placed {
