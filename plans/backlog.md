@@ -92,3 +92,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   a quota and so on), each option naming its value beside its label, with no
   position or parallel array left, and the organization's settings tests still
   pass.
+
+## 12. Notifications
+
+- **An app icon for notifications.** Android shows a pushed notification with
+  its built-in `stat_notify_chat` icon, as the app has none of its own
+  (`crates/be-host/android`). Done: the APK carries a monochrome notification
+  icon of its own and `PushRaise` uses it.
