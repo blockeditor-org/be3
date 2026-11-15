@@ -20,6 +20,7 @@ mod scope;
 mod selector;
 mod signal;
 mod stored;
+mod trigger;
 
 pub use beui_reactive_macros::Store;
 pub use computation::{Effect, create_binding, create_effect};
@@ -37,6 +38,7 @@ pub use scope::{
 pub use selector::{Selector, create_selector};
 pub use signal::{Get, OwnedSignal, ReadSignal, Set, Signal, create_signal};
 pub use stored::{OwnedStored, Stored, StoredCell, store};
+pub use trigger::{Trackable, Trigger, create_trigger};
 
 #[cfg(test)]
 mod tests;

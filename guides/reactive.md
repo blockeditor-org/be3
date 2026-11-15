@@ -61,6 +61,8 @@ disposed later in the same flush; one still alive that reads it panics.
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
 | Shared non-reactive state | `store`, or `StoredCell` for a `Copy` value |
+| An event with no value ("the list moved") | `create_trigger`: `notify` wakes whatever `track`ed it, where a counter would be kept only to bump |
+| A prop that only asks when something changed | `Trackable`: any `Signal`, `ReadSignal`, `Memo` or `Trigger` converts into one (and into `Option<Trackable>`), or `Trackable::new` for anything else |
 
 Reading and writing are the `Get` and `Set` traits, implemented by signals,
 memos, stores, `Prop` and `Binding`; import them with the types, and take
