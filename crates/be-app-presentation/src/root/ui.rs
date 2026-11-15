@@ -413,13 +413,13 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                             </List>
                         </Frame>
                         </Case>
-                        <Case when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}>|notes: Notes|
+                        <Case when={|notes: &Notes| matches!(notes, Notes::Loading | Notes::Missing)}>|notes: ReadSignal<Notes>|
                         <Frame padding=NOTES_PADDING>
                             <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
-                                {match notes {
-                                    Notes::Loading => "Loading the notes…",
-                                    _ => "This slide's notes could not be found.",
-                                }}
+                                {create_memo(move || match notes.with(|notes| matches!(notes, Notes::Loading)) {
+                                    true => "Loading the notes…".to_owned(),
+                                    false => "This slide's notes could not be found.".to_owned(),
+                                })}
                             </Text>
                         </Frame>
                         </Case>

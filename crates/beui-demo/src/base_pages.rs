@@ -691,6 +691,7 @@ fn MatchShape() -> NodeId {
         Caption,
         Square,
         Circle,
+        Wide(u8),
     }
     let theme = use_theme();
     let shape = create_signal(Shape::Caption);
@@ -703,7 +704,9 @@ fn MatchShape() -> NodeId {
                     *shape = match shape {
                         Shape::Caption => Shape::Square,
                         Shape::Square => Shape::Circle,
-                        Shape::Circle => Shape::Caption,
+                        Shape::Circle => Shape::Wide(2),
+                        Shape::Wide(3) => Shape::Caption,
+                        Shape::Wide(wide) => Shape::Wide(*wide + 1),
                     }
                 })}
             />
@@ -716,6 +719,16 @@ fn MatchShape() -> NodeId {
                 </Case>
                 <Case is={Shape::Circle}>
                     <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
+                </Case>
+                <Case when={|shape: &Shape| matches!(shape, Shape::Wide(_))}>|shape: ReadSignal<Shape>|
+                    <Frame
+                        width={move || match shape.get() {
+                            Shape::Wide(wide) => Extent::px(SWATCH * f32::from(wide)),
+                            _ => Extent::px(SWATCH),
+                        }}
+                        height=SWATCH
+                        fill={theme.accent}
+                    />
                 </Case>
             </Match>
         </List>
