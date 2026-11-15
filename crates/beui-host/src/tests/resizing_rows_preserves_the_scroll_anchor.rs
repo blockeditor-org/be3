@@ -19,7 +19,7 @@ fn resizing_rows_preserves_the_scroll_anchor() {
                     on_change={move |position| reported.set(Some(position))}
                     style={plain_scroll()}
                 >
-                    <ForEach keys={indices(rows.len())}>|index: usize|
+                    <ForEach value={indices(rows.len())}>|index: usize|
                         <Frame
                             @node_ref={&rows[index]}
                             padding={Sides::symmetric(0.0, 10.0 + (index % 3) as f32)}

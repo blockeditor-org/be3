@@ -73,10 +73,10 @@ pub fn TagsView(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <SettingsSection title="Tags" description={description}>
-                <Show condition={move || ids.with(Vec::is_empty)}>
+                <Show value={move || ids.with(Vec::is_empty)}>
                     <SettingsRow label="No tags yet." compact=true />
                 </Show>
-                <ForEach keys={ids}>|tag: Uuid|
+                <ForEach value={ids}>|tag: Uuid|
                     <TagRow editor={editor} tag={tag} />
                 </ForEach>
                 <SettingsRow label="New tag">
@@ -148,7 +148,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                             label="Color"
                             options={view! {
                                 <ForEach
-                                    keys={(0..TagColor::ALL.len()).collect::<Vec<usize>>()}
+                                    value={(0..TagColor::ALL.len()).collect::<Vec<usize>>()}
                                 >|index: usize|
                                     <ChoiceOption label={TagColor::ALL[index].label().to_owned()} />
                                 </ForEach>
@@ -168,7 +168,7 @@ fn TagRow(editor: Editor, tag: Uuid) -> NodeId {
                     />
                 </List>
             </SettingsRow>
-            <ForEach keys={tagged}>|block: Uuid|
+            <ForEach value={tagged}>|block: Uuid|
                 <TaggedBlock editor={editor} block={block} />
             </ForEach>
         </List>

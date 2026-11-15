@@ -163,13 +163,13 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 @test_id={"video.timeline"}
             >
                 <Canvas view={camera}>
-                    <ForEach keys={lane_keys}>|lane: usize|
+                    <ForEach value={lane_keys}>|lane: usize|
                         <LaneStrip lane content />
                     </ForEach>
-                    <ForEach keys={ticks}>|tick: Tick|
+                    <ForEach value={ticks}>|tick: Tick|
                         <RulerTick tick />
                     </ForEach>
-                    <ForEach keys={ids}>|id: Uuid| {
+                    <ForEach value={ids}>|id: Uuid| {
                         let selected = selection.memo(Some(id));
                         let row = create_memo(move || {
                             rows.get().into_iter().find(|row| row.id == id).unwrap_or(Lane {
@@ -387,7 +387,7 @@ fn DropMarker(
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Frame fill=ColorRole::AccentSoft radius=CLIP_RADIUS border={Border::FOCUS} />
             </CanvasItem>

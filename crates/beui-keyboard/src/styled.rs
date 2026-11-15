@@ -266,7 +266,7 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                     spacing=Space::None
                     justify=Justify::SpaceEvenly
                 >
-                    <ForEach keys={groups}>|index: usize| {
+                    <ForEach value={groups}>|index: usize| {
                         {
                             let (_, emoji, label) = EMOJI_GROUPS[index];
                             let selected = create_memo(move || group.get() == index);
@@ -285,7 +285,7 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
             <ListItem grow=1.0>
                 <Scroll>
                     <List direction=Direction::Horizontal wrap=true spacing=Space::None>
-                        <ForEach keys={shown}>|emoji: &'static str|
+                        <ForEach value={shown}>|emoji: &'static str|
                             <EmojiKey emoji keyboard />
                         </ForEach>
                     </List>

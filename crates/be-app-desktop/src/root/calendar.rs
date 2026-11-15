@@ -70,9 +70,9 @@ pub(crate) fn DesktopCalendar(workspace: Workspace, popover: PopoverHandle) -> N
                 <List spacing=EVENT_SPACING @test_id={"desktop.calendar.events"}>
                     <Text weight=Weight::Bold>{heading}</Text>
                     <Show
-                        condition={none}
+                        value={none}
                         fallback={move || view! {
-                            <ForEach keys={events}>|event: DayEvent|
+                            <ForEach value={events}>|event: DayEvent|
                                 <EventRow event />
                             </ForEach>
                         }}

@@ -69,7 +69,7 @@ pub(crate) fn TrayItems(
     });
     view! {
         <List direction align=Align::Center spacing=TRAY_SPACING @test_id={"desktop.tray"}>
-            <ForEach keys>|id: String|
+            <ForEach value={keys}>|id: String|
                 <TrayButton editor={editor} listed={listed} id />
             </ForEach>
         </List>
@@ -212,7 +212,7 @@ fn TrayEntries(
         })
     });
     view! {
-        <ForEach keys>|(id, radio): (i32, bool)|
+        <ForEach value={keys}>|(id, radio): (i32, bool)|
             <TrayEntry entries={entries} id radio chosen={chosen} prefix={prefix.clone()} />
         </ForEach>
     }

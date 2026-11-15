@@ -126,7 +126,7 @@ pub(crate) fn HiddenBands(edges: HiddenEdges, layout: DockHostLayout, display: u
     });
     view! {
         <Layers>
-            <ForEach keys={hidden}>|edge: DockEdge|
+            <ForEach value={hidden}>|edge: DockEdge|
                 <HiddenBandEdge edges layout display edge />
             </ForEach>
         </Layers>

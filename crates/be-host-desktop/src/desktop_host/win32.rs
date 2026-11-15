@@ -546,7 +546,7 @@ impl DesktopHost for Win32 {
                         </Interactive>
                     </CanvasItem>
                 </Canvas>
-                <ForEach keys={keys}>|key: (u64, Option<(u32, u32)>)| {
+                <ForEach value={keys}>|key: (u64, Option<(u32, u32)>)| {
                     let handle = Handle(key.0);
                     let placed = create_memo(move || {
                         popups.with(|popups| {

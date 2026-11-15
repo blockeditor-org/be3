@@ -108,7 +108,7 @@ pub fn CalendarView(data: Data) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show
-                    condition={ready}
+                    value={ready}
                     fallback={|| view! {
                         <Frame padding=GUTTER>
                             <Text style=TextStyle::CAPTION>

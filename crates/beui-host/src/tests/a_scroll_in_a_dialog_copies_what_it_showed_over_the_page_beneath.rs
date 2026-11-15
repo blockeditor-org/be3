@@ -13,7 +13,7 @@ fn a_scroll_in_a_dialog_copies_what_it_showed_over_the_page_beneath() {
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <ForEach keys={(0..40).collect::<Vec<usize>>()}>|line: usize|
+                <ForEach value={(0..40).collect::<Vec<usize>>()}>|line: usize|
                     <Text>{format!("the page beneath the dialog, line {line}")}</Text>
                 </ForEach>
                 <Dialog open=true title="Add block" width={Size::Custom(300.0)} on_dismiss={|| {}}>

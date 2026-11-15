@@ -177,7 +177,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                 </Text>
-                <ForEach keys={keys}>|account: Uuid| {
+                <ForEach value={keys}>|account: Uuid| {
                     let row = create_memo(move || {
                         shown
                             .get()
@@ -224,7 +224,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                         </List>
                     }
                 }</ForEach>
-                <Show condition={busy}>
+                <Show value={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <ErrorText text={error} />
@@ -278,10 +278,10 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "You can share only with your contacts. Someone becomes one when you send them a contact link yourself, through an app you trust, and they open it, or when they send you theirs."
                 </Text>
-                <Show condition={move || keys.with(Vec::is_empty)}>
+                <Show value={move || keys.with(Vec::is_empty)}>
                     <Text style=TextStyle::CAPTION>"No contacts yet."</Text>
                 </Show>
-                <ForEach keys={keys}>|account: Uuid| {
+                <ForEach value={keys}>|account: Uuid| {
                     let row = create_memo(move || {
                         shown
                             .get()
@@ -330,7 +330,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                 </Dialog>
-                <Show condition={move || !link.with(String::is_empty)}>
+                <Show value={move || !link.with(String::is_empty)}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
@@ -374,7 +374,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.offer"}>{offer}</Text>
                 </Dialog>
-                <Show condition={move || !connected.with(String::is_empty)}>
+                <Show value={move || !connected.with(String::is_empty)}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                 </Show>
                 <ErrorText text={error} />
@@ -402,17 +402,17 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
         <Frame>
             <List spacing=Space::Md>
                 <Show
-                    condition={move || created.with(Option::is_some)}
+                    value={move || created.with(Option::is_some)}
                     fallback={move || view! {
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{organization}</Text>
                             <Text style=TextStyle::CAPTION>
                                 "An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                             </Text>
-                            <Show condition={move || keys.with(Vec::is_empty)}>
+                            <Show value={move || keys.with(Vec::is_empty)}>
                                 <Text style=TextStyle::CAPTION>"No agents yet."</Text>
                             </Show>
-                            <ForEach keys={keys}>|account: Uuid| {
+                            <ForEach value={keys}>|account: Uuid| {
                                 let label = create_memo(move || {
                                     shown
                                         .get()
@@ -487,7 +487,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 checked={proxy}
                 @test_id={"host.agents.proxy"}
             />
-            <Show condition={proxy}>
+            <Show value={proxy}>
                 <List spacing=Space::Sm>
                     <Text style=TextStyle::PARAGRAPH>
                         "Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
@@ -561,10 +561,10 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                 <Text style=TextStyle::CAPTION>
                     "These edits were made on this device but could not be sent: you can no longer edit these blocks, or the server refused them. They stay here until you restore or discard them. Restore sends them again."
                 </Text>
-                <Show condition={move || keys.with(Vec::is_empty)}>
+                <Show value={move || keys.with(Vec::is_empty)}>
                     <Text style=TextStyle::CAPTION>"No unsent edits."</Text>
                 </Show>
-                <ForEach keys={keys}>|block: Uuid| {
+                <ForEach value={keys}>|block: Uuid| {
                     let row = create_memo(move || {
                         shown
                             .get()
@@ -688,7 +688,7 @@ fn InvitePanel(
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>
                 <ErrorText text={error} />
-                <Show condition={move || !link.with(String::is_empty)}>
+                <Show value={move || !link.with(String::is_empty)}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
@@ -769,7 +769,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
-            <Show condition={move || !refused.with(String::is_empty)}>
+            <Show value={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
             </Show>
         </Dialog>

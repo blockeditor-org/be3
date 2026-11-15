@@ -123,7 +123,7 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={keys}>|remapper: Uuid| {
+                            <ForEach value={keys}>|remapper: Uuid| {
                                 let label = create_memo(move || {
                                     remappers.with(|remappers| {
                                         remappers

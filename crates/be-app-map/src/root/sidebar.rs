@@ -77,7 +77,7 @@ fn MapSidebar(state: MapState) -> NodeId {
             <RegionInspector state={state} />
             <Separator />
             <Show
-                condition={move || selected.with(Option::is_some)}
+                value={move || selected.with(Option::is_some)}
                 fallback={move || view! {
                     <PointList state={state} />
                 }}
@@ -105,7 +105,7 @@ fn RegionInspector(state: MapState) -> NodeId {
                 @test_id={"map.preview-region"}
             />
             <Show
-                condition={fixed}
+                value={fixed}
                 fallback={move || view! {
                     <Text style=TextStyle::CAPTION color={loose_color}>
                         "Previews show the whole world."
@@ -265,7 +265,7 @@ fn PointList(state: MapState) -> NodeId {
         <List spacing=Space::Sm>
             <Text>"Points of interest"</Text>
             <Show
-                condition={empty}
+                value={empty}
                 fallback={|| view! {
                     <Text style=TextStyle::CAPTION>"Select a marker to edit it."</Text>
                 }}
@@ -274,7 +274,7 @@ fn PointList(state: MapState) -> NodeId {
                     "Add blocks with the + button, by dragging them in from Files, or by pasting an image."
                 </Text>
             </Show>
-            <ForEach keys={ids}>|id: Uuid|
+            <ForEach value={ids}>|id: Uuid|
                 <PointRow state id />
             </ForEach>
         </List>
@@ -429,7 +429,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
             <Text>"Colour"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                 <ForEach
-                    keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
+                    value={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
                 >|name: String|
                     <ColorPreset state point={point} name />
                 </ForEach>

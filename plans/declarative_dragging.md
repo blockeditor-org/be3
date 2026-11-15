@@ -185,7 +185,7 @@ fn TodoList(todos: Signal<Vec<Todo>>) -> NodeId {
     });
     view! {
         <List drop={site} spacing=0.0>
-            <ForEach keys={order} handle={rows}>|id: TodoId, index: ReadSignal<usize>| {
+            <ForEach value={order} handle={rows}>|id: TodoId, index: ReadSignal<usize>| {
                 let title = create_memo(move || todos.with(|t| t.iter().find(|t| t.id == id).map(|t| t.title.clone())));
                 let carried = board().is_carried(&id);
                 view! {

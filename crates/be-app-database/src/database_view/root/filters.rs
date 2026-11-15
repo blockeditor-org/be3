@@ -191,7 +191,7 @@ pub fn FilterBar(data: Data) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
-            <ForEach keys={keys}>|id: ObjectId|
+            <ForEach value={keys}>|id: ObjectId|
                 <FilterChip data={data} id={id} />
             </ForEach>
             <AddFilter data={data} />
@@ -296,7 +296,7 @@ fn FieldChoices(data: Data, on_pick: be_sdk_beui::beui::reactive::Callback<Objec
     view! {
         <List spacing=Space::Xs2>
             <Text style=TextStyle::CAPTION>"Filter by"</Text>
-            <ForEach keys={keys}>|field: Uuid| {
+            <ForEach value={keys}>|field: Uuid| {
                 let name = create_memo(move || {
                     data.fields.with(|fields| {
                         fields
@@ -419,7 +419,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         <Frame>
                             <Select
                                 options={view! {
-                                    <ForEach keys={kind_keys}>|index: usize| {
+                                    <ForEach value={kind_keys}>|index: usize| {
                                         let label = create_memo(move || {
                                             kinds.with(|kinds| {
                                                 kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
@@ -438,10 +438,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         </Frame>
                     </ListItem>
                 </List>
-                <Show condition={choosing}>
+                <Show value={choosing}>
                     <ValueChoices data={data} id={id} filter={filter} field={field} />
                 </Show>
-                <Show condition={comparing}>
+                <Show value={comparing}>
                     <DatabaseValueEditor
                         fields={move || field.get().into_iter().collect::<Vec<_>>()}
                         values={values}
@@ -453,7 +453,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                         on_pick={picked}
                     />
                 </Show>
-                <Show condition={searching}>
+                <Show value={searching}>
                     <TextInput
                         value={Binding::new(needle, searched_for)}
                         placeholder="Text"
@@ -564,7 +564,7 @@ fn ValueChoices(
     let typed = move |text: String| query.set(text);
     view! {
         <List spacing=SPACING>
-            <Show condition={many}>
+            <Show value={many}>
                 <TextInput
                     value={Binding::new(query, typed)}
                     placeholder="Search"
@@ -573,7 +573,7 @@ fn ValueChoices(
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=Space::Xs2>
-                    <ForEach keys={keys}>|index: usize| {
+                    <ForEach value={keys}>|index: usize| {
                         let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
                         let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
                         let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
@@ -608,7 +608,7 @@ fn ValueChoices(
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Show condition={marked}>
+                                <Show value={marked}>
                                     <ChoiceMark option={option} size=MARK />
                                 </Show>
                                 <ListItem grow=1.0 shrink=1.0>
@@ -651,10 +651,10 @@ pub fn FilterList(data: Data) -> NodeId {
     let read_only = data.read_only;
     view! {
         <List spacing=Space::Lg>
-            <Show condition={none}>
+            <Show value={none}>
                 <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
             </Show>
-            <ForEach keys={keys}>|id: ObjectId| {
+            <ForEach value={keys}>|id: ObjectId| {
                 let remove = move || data.operate_view(DatabaseView::remove_filter(id));
                 let read_only = data.read_only;
                 view! {
@@ -682,7 +682,7 @@ pub fn FilterList(data: Data) -> NodeId {
                     <Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={field_keys}>|index: usize| {
+                                <ForEach value={field_keys}>|index: usize| {
                                     let label = create_memo(move || {
                                         names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
                                     });

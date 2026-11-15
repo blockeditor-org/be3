@@ -10,7 +10,7 @@ fn a_show_among_a_run_adds_no_host_node() {
         view! {
             <Element tag="div">
                 <Show
-                    condition={shown}
+                    value={shown}
                     fallback={|| view! {
                         <Element tag="i" text="hidden" />
                     }}

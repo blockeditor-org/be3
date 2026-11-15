@@ -14,7 +14,7 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @test_id="strip" direction=Direction::Horizontal style={plain_scroll()}>
-                        <ForEach keys={indices(40)}>|index: usize|
+                        <ForEach value={indices(40)}>|index: usize|
                             <Frame width=120.0>
                                 <LabelledButton
                                     label={format!("Card {index}")}

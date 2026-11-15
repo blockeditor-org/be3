@@ -60,7 +60,7 @@ pub fn ScrollFixture() -> NodeId {
                         })
                     }}
                 >
-                    <ForEach keys={(1..=30).collect::<Vec<u32>>()}>|row: u32|
+                    <ForEach value={(1..=30).collect::<Vec<u32>>()}>|row: u32|
                         <Button
                             label={format!("Item {row}")}
                             @test_id={format!("scroll.item{row}")}
@@ -94,7 +94,7 @@ pub fn ScrollChainFixture() -> NodeId {
                     <Text>"Above"</Text>
                     <Frame height=Size::Custom(120.0)>
                         <Scroll on_change={move |at: ScrollPosition| inner.set(reach(at))}>
-                            <ForEach keys={(1..=20).collect::<Vec<u32>>()}>|row: u32|
+                            <ForEach value={(1..=20).collect::<Vec<u32>>()}>|row: u32|
                                 <Button
                                     label={format!("Inner {row}")}
                                     @test_id={format!("nest.inner{row}")}
@@ -102,7 +102,7 @@ pub fn ScrollChainFixture() -> NodeId {
                             </ForEach>
                         </Scroll>
                     </Frame>
-                    <ForEach keys={(1..=10).collect::<Vec<u32>>()}>|row: u32|
+                    <ForEach value={(1..=10).collect::<Vec<u32>>()}>|row: u32|
                         <Button
                             label={format!("Outer {row}")}
                             @test_id={format!("nest.outer{row}")}
@@ -224,7 +224,7 @@ pub fn ReorderFixture() -> NodeId {
                     }}
                 >|reorder: ReorderHandle<&'static str, &'static str>|
                     <List spacing=Space::Xs>
-                        <ForEach keys={reorder.order}>|fruit: &'static str|
+                        <ForEach value={reorder.order}>|fruit: &'static str|
                             <ReorderItem reorder item=fruit>|_: ReorderItemHandle|
                                 <Card @test_id={format!("reorder.{fruit}")}>
                                     <Text>{fruit}</Text>
@@ -284,7 +284,7 @@ fn LongList() -> NodeId {
                         }}
                     >|reorder: ReorderHandle<u32, u32>|
                         <List spacing=SHELF_GAP>
-                            <ForEach keys={reorder.order}>|row: u32|
+                            <ForEach value={reorder.order}>|row: u32|
                                 <ReorderItem reorder item=row>|_: ReorderItemHandle|
                                     <Frame
                                         height=Size::Custom(SHELF_ROW)
@@ -354,7 +354,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
                 })}
             >|reorder: ReorderHandle<Vegetable, Vegetable>|
                 <List spacing=SHELF_GAP>
-                    <ForEach keys={reorder.order}>|vegetable: Vegetable|
+                    <ForEach value={reorder.order}>|vegetable: Vegetable|
                         <ReorderItem reorder item=vegetable>|_: ReorderItemHandle|
                             <Frame
                                 height=Size::Custom(SHELF_ROW)

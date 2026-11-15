@@ -11,7 +11,7 @@ fn Docked() -> NodeId {
         <dock_host::styled::DockHost>
             <dock::Docking layout focus=2u64>
                 <DockPane id="tabs">
-                    <ForEach keys={vec![1u64, 2]}>|id: u64|
+                    <ForEach value={vec![1u64, 2]}>|id: u64|
                         <DockTab
                             id
                             title={format!("Tab {id}")}

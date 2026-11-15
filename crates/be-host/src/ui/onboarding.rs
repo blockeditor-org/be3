@@ -265,7 +265,7 @@ pub(super) fn AddAccountDialog(
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
             <List spacing=Space::Xl2>
-                <Show condition={move || selection.with(Option::is_none) && !pending.get()}>
+                <Show value={move || selection.with(Option::is_none) && !pending.get()}>
                     <List spacing=Space::Lg>
                         <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
                         <Frame
@@ -309,9 +309,9 @@ pub(super) fn AddAccountDialog(
                         </Frame>
                     </List>
                 </Show>
-                <Show condition={editing}>
+                <Show value={editing}>
                     <List spacing=Space::Xl>
-                        <Show condition={local}>
+                        <Show value={local}>
                             <List spacing=Space::Xl>
                                 <Text style=TextStyle::PARAGRAPH>
                                     "Your data stays on this device. You only need a display name."
@@ -328,13 +328,13 @@ pub(super) fn AddAccountDialog(
                                 </List>
                             </List>
                         </Show>
-                        <Show condition={move || selection.get() == Some(0)}>
+                        <Show value={move || selection.get() == Some(0)}>
                             <List spacing=Space::Xs>
                                 <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
                         </Show>
-                        <Show condition={move || selection.get() == Some(2)}>
+                        <Show value={move || selection.get() == Some(2)}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
@@ -346,7 +346,7 @@ pub(super) fn AddAccountDialog(
                                 />
                             </List>
                         </Show>
-                        <Show condition={move || remote.get() && platform::SENDS_HEADERS}>
+                        <Show value={move || remote.get() && platform::SENDS_HEADERS}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>{gateway_label}</Text>
                                 <TextInput
@@ -358,14 +358,14 @@ pub(super) fn AddAccountDialog(
                                 />
                             </List>
                         </Show>
-                        <Show condition={remote}>
+                        <Show value={remote}>
                             <Text style=TextStyle::CAPTION>
                                 "Next, you’ll sign in or create an account in your browser."
                             </Text>
                         </Show>
                     </List>
                 </Show>
-                <Show condition={waiting}>
+                <Show value={waiting}>
                     <List spacing=Space::Xl>
                         <Text style=TextStyle::PARAGRAPH>
                             "Sign in and approve this code in your browser. You can also use a browser on another device. This is checked every few seconds; once you have approved it, choose Check now."
@@ -434,10 +434,10 @@ pub(super) fn AddAccountDialog(
                         </Text>
                     </List>
                 </Show>
-                <Show condition={connecting}>
+                <Show value={connecting}>
                     <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                 </Show>
-                <Show condition={move || error.with(Option::is_some)}>
+                <Show value={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -505,7 +505,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                 </List>
             </Card>
             <Text style=TextStyle::HEADING>"Open an organization"</Text>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let label = create_memo(move || {
                     organizations.get()
                         .organizations
@@ -533,7 +533,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Show condition={move || keys.with(Vec::is_empty)}>
+            <Show value={move || keys.with(Vec::is_empty)}>
                 <Card>
                     <OrganizationsPlaceholder state />
                 </Card>
@@ -577,7 +577,7 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     view! {
         <List spacing=Space::Md @test_id={"host.join"}>
             <Show
-                condition={move || joining.with(Option::is_some)}
+                value={move || joining.with(Option::is_some)}
                 fallback={move || view! {
                     <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
@@ -659,7 +659,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Show condition={loading}>
+            <Show value={loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading sessions and profiles…"</Text>
@@ -669,7 +669,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::CAPTION>
                 "The settings this device uses. Each device starts with a profile of its own."
             </Text>
-            <ForEach keys={profile_keys}>|id: Uuid| {
+            <ForEach value={profile_keys}>|id: Uuid| {
                 let row = create_memo(move || {
                     status.get().profiles.into_iter().find(|profile| profile.id == id)
                 });
@@ -713,7 +713,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
             <Text style=TextStyle::CAPTION>
                 "The blocks you had open. Start a new session to begin again with the same settings."
             </Text>
-            <ForEach keys={session_keys}>|id: Uuid| {
+            <ForEach value={session_keys}>|id: Uuid| {
                 let label = create_memo(move || {
                     status.get()
                         .sessions
@@ -743,7 +743,7 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 menu_label="New session of another type"
                 disabled={loading}
                 items={view! {
-                    <ForEach keys={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>|index: usize|
+                    <ForEach value={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>|index: usize|
                         <MenuItem
                             label={format!("New {} session", SESSION_TYPES[index].1)}
                             on_click={move || send(UiCommand::OpenNewSession(SESSION_TYPES[index].0))}
@@ -773,12 +773,12 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
 fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
     view! {
         <List spacing=Space::None>
-            <Show condition={move || state.get() == OrganizationsState::Loaded}>
+            <Show value={move || state.get() == OrganizationsState::Loaded}>
                 <Text style=TextStyle::CAPTION>
                     "You do not have any organizations yet. Create one below."
                 </Text>
             </Show>
-            <Show condition={move || state.get() == OrganizationsState::Failed}>
+            <Show value={move || state.get() == OrganizationsState::Failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
@@ -788,7 +788,7 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
                     />
                 </List>
             </Show>
-            <Show condition={move || state.get() == OrganizationsState::Loading}>
+            <Show value={move || state.get() == OrganizationsState::Loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
@@ -859,7 +859,7 @@ pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
         >
             <List spacing=Space::Xl2>
                 <Text style=TextStyle::PARAGRAPH>{message}</Text>
-                <Show condition={move || error.with(Option::is_some)}>
+                <Show value={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>

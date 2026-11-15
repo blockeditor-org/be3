@@ -253,7 +253,7 @@ fn RenameBody(
                         />
                     </ListItem>
                 </List>
-                <Show condition={invalid}>
+                <Show value={invalid}>
                     <Text style=TextStyle::CAPTION>
                         {format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")}
                     </Text>
@@ -267,7 +267,7 @@ fn RenameBody(
                         selected={move || look.get().color.is_none()}
                         on_click={move || set_color.call(None)}
                     />
-                    <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
+                    <ForEach value={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
                         <SwatchButton
                             @test_id={format!("rename.color.{}", name.to_lowercase())}
                             label={name}
@@ -297,12 +297,12 @@ fn RenameBody(
             <ListItem grow=1.0>
                 <Scroll bleed={Bleed::DIALOG.top(false)}>
                     <List spacing=TILE_SPACING>
-                        <Show condition={empty}>
+                        <Show value={empty}>
                             <Text style=TextStyle::CAPTION>"No icons match."</Text>
                         </Show>
                         <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
                             <List direction=Direction::Horizontal spacing=TILE_SPACING>
-                                <ForEach keys={row}>|tile: Tile|
+                                <ForEach value={row}>|tile: Tile|
                                     <IconTile tile look shown set_icon />
                                 </ForEach>
                             </List>

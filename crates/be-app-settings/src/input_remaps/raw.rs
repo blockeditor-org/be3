@@ -81,7 +81,7 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
                         emoji=false
                     />
                 </ListItem>
-                <Show condition={move || error.with(Option::is_some)}>
+                <Show value={move || error.with(Option::is_some)}>
                     <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{problem}</Text>
                 </Show>
                 <List direction=Direction::Horizontal spacing=ROW_SPACING>

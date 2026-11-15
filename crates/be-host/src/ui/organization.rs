@@ -35,7 +35,7 @@ fn OrganizationBody(view: HostUiStore) -> NodeId {
     provide_context(HostStatus(status));
     view! {
         <List spacing=Space::None>
-            <Show condition={move || !presenting.get()}>
+            <Show value={move || !presenting.get()}>
                 <ListItem grow=1.0>
                     <MainSurface />
                 </ListItem>
@@ -132,7 +132,7 @@ fn HostMenu(
             detail={sync_detail}
             disabled=true
         />
-        <Show condition={has_unsent}>
+        <Show value={has_unsent}>
             <MenuItem
                 row_test_id={"host.menu.unsent".to_owned()}
                 label="Unsent edits"
@@ -141,7 +141,7 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::Unsent(true))}
             />
         </Show>
-        <Show condition={warned}>
+        <Show value={warned}>
             <MenuItem
                 row_test_id={"host.menu.escrow-warning".to_owned()}
                 label="Escrow key not verified"
@@ -157,7 +157,7 @@ fn HostMenu(
             separated=true
             on_click={move || pick(UiCommand::OpenContacts)}
         />
-        <Show condition={company}>
+        <Show value={company}>
             <MenuItem
                 row_test_id={"host.menu.invite".to_owned()}
                 label="Invite member"
@@ -166,7 +166,7 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::InviteMember)}
             />
         </Show>
-        <Show condition={administrator}>
+        <Show value={administrator}>
             <MenuItem
                 row_test_id={"host.menu.members".to_owned()}
                 label="Members"
@@ -212,7 +212,7 @@ fn HostMenu(
             glyph=ICON_INFO
             on_click={move || pick(UiCommand::About(true))}
         />
-        <Show condition={can_close}>
+        <Show value={can_close}>
             <MenuItem
                 row_test_id={"host.menu.close".to_owned()}
                 label="Close be-host"
@@ -220,7 +220,7 @@ fn HostMenu(
                 on_click={move || pick(UiCommand::CloseApp)}
             />
         </Show>
-        <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
+        <ForEach value={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
                 row_test_id={format!("host.menu.panel.{shown:?}")}
                 label={shown.title().to_owned()}

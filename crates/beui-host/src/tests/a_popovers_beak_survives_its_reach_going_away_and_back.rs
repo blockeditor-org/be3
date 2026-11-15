@@ -10,7 +10,7 @@ fn a_popovers_beak_survives_its_reach_going_away_and_back() {
         [view! {
             <List spacing=0.0>
                 <Frame @node_ref=&button width=40.0 height=20.0 />
-                <Show condition={shown}>|| {
+                <Show value={shown}>|| {
                     let pointer = NodeRef::new();
                     let placement = create_memo(move || if carded.get() { Placement::Popover { gap: 4, margin: 8 } } else { Placement::BelowStart });
                     let inner = view! {

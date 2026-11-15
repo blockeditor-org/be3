@@ -12,7 +12,7 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
         [
             view! {
                 <List spacing=0.0>
-                    <Show keep_alive=true condition={shown}>
+                    <Show keep_alive=true value={shown}>
                         <LabelledButton
                             @node_ref=&button
                             label="Click"

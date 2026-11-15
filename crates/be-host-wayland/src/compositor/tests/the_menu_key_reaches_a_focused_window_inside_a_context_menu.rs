@@ -14,7 +14,7 @@ fn InMenu(windows: Windows) -> NodeId {
         <ContextMenu items>
             <List spacing=Space::None>
                 <Button @test_id={"test.button"} label="Button" />
-                <ForEach keys={ids}>|id: WindowId|
+                <ForEach value={ids}>|id: WindowId|
                     <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                         <WindowView windows id />
                     </Frame>

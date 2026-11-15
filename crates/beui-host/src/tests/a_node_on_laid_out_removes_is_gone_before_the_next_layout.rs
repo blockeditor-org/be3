@@ -18,7 +18,7 @@ fn a_node_on_laid_out_removes_is_gone_before_the_next_layout() {
                         <Frame @node_ref=&inner height={tall} />
                     </List>
                 </Frame>
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Interactive @node_ref=&gone focusable=true>
                         <Frame height=20.0 />
                     </Interactive>

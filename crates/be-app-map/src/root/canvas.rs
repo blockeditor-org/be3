@@ -101,24 +101,24 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
             <ListItem grow=1.0>
                 <MapSurface state={state} @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
-                        <ForEach keys={covering}>|tile: TileId| {
+                        <ForEach value={covering}>|tile: TileId| {
                             let world = world;
                             let scale = scale;
                             view! {
                                 <Tile state tile world scale underlay=true />
                             }
                         }</ForEach>
-                        <ForEach keys={covering}>|tile: TileId| {
+                        <ForEach value={covering}>|tile: TileId| {
                             let scale = scale;
                             view! {
                                 <Tile state tile world scale />
                             }
                         }</ForEach>
-                        <ForEach keys={label_keys}>|key: labels::LabelKey|
+                        <ForEach value={label_keys}>|key: labels::LabelKey|
                             <MapLabel key shown={by_key} scale />
                         </ForEach>
                         <RegionOutline shown={has_region} rect={region_rect} />
-                        <ForEach keys={ids}>|id: Uuid| {
+                        <ForEach value={ids}>|id: Uuid| {
                             let selected = selection.memo(Some(id));
                             let world = world;
                             let scale = scale;
@@ -141,7 +141,7 @@ fn RegionOutline(shown: Memo<bool>, rect: Memo<Rect>) -> DynamicSegment<CanvasIt
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Frame
                     border={Border::new(ColorRole::Custom(REGION_COLOR.into())).width(Stroke::Focus)}

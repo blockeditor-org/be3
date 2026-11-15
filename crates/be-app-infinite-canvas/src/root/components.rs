@@ -35,7 +35,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     view! {
         <Accordion title="Components" open={open}>
             <List spacing=SPACING>
-                <ForEach keys={schemas}>|schema_id: Uuid|
+                <ForEach value={schemas}>|schema_id: Uuid|
                     <ComponentRow state schema_id />
                 </ForEach>
                 <List direction=Direction::Horizontal spacing=Space::None>
@@ -154,7 +154,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     view! {
         <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>{named}</Text>
-            <Show condition={partial}>|| {
+            <Show value={partial}>|| {
                 let add_id = add_id.clone(); view! {
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::CAPTION>{coverage}</Text>
@@ -184,7 +184,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                     on_click={remove}
                 />
             </List>
-            <Show condition={move || !partial.get()}>
+            <Show value={move || !partial.get()}>
                 <DatabaseValueEditor
                     fields={fields}
                     values={values}

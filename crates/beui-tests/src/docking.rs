@@ -118,7 +118,7 @@ pub fn DockingFixture() -> NodeId {
                             size={SplitSize::Fraction(0.5)}
                         >
                             <DockPane id="left">
-                                <ForEach keys={open}>|tab: TabId|
+                                <ForEach value={open}>|tab: TabId|
                                     <DockTab id=tab title={name(tab)} on_close={move || close(tab)}>
                                         <Panel tab />
                                     </DockTab>

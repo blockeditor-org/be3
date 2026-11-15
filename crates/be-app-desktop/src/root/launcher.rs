@@ -159,10 +159,10 @@ pub(super) fn ProgramSearch(
                     close.call(());
                 }}
             />
-            <Show condition={waiting}>
+            <Show value={waiting}>
                 <Text style=TextStyle::CAPTION>"Loading programs…"</Text>
             </Show>
-            <Show condition={none}>
+            <Show value={none}>
                 <Text style=TextStyle::CAPTION>"No programs found."</Text>
             </Show>
         </List>

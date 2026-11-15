@@ -287,7 +287,7 @@ pub(crate) fn WindowChips(
     });
     let chips_row = view! {
         <List @node_ref=&row direction align=Align::Center spacing=CHIP_SPACING>
-            <ForEach keys={chips}>|chip: ChipKey|
+            <ForEach value={chips}>|chip: ChipKey|
                 <ListItem grow=chip_grow max=chip_max>
                     <WindowChip windows chip icons count />
                 </ListItem>
@@ -303,10 +303,10 @@ pub(crate) fn WindowChips(
     });
     view! {
         <List direction align=Align::Center spacing=CHIP_SPACING @test_id={"desktop.windows"}>
-            <Show condition={waiting}>
+            <Show value={waiting}>
                 <RestoreChip workspace vertical />
             </Show>
-            <Show condition={listed}>
+            <Show value={listed}>
                 <ListItem shrink=1.0>
                     <Scroll direction fit=true>
                         <ListItem shrink=1.0>
@@ -318,7 +318,7 @@ pub(crate) fn WindowChips(
                     </Scroll>
                 </ListItem>
             </Show>
-            <Show condition={empty}>
+            <Show value={empty}>
                 <Frame
                     width={Length::Size(CHIP_WIDTH)}
                     align=Align::Center
@@ -464,7 +464,7 @@ fn WindowChip(
                         </>
                     },
                 }}
-                <ForEach keys={targets}>|target: u32|
+                <ForEach value={targets}>|target: u32|
                     <MenuItem
                         label={format!("Move to display {}", target + 1)}
                         glyph=ICON_MONITOR

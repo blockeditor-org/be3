@@ -33,7 +33,7 @@ pub fn Spreadsheet(data: Data) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show
-                    condition={empty}
+                    value={empty}
                     fallback={move || view! {
                         <ListItem grow=1.0>
                             <Grid
@@ -115,7 +115,7 @@ fn HeaderRow(data: Data) -> NodeId {
                 fill=ColorRole::Surface
                 border={Border::new(ColorRole::Border)}
             />
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });
@@ -180,7 +180,7 @@ fn HeaderCell(
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text>{label}</Text>
                         <Spacer />
-                        <Show condition={move || sorted.get().is_some()}>
+                        <Show value={move || sorted.get().is_some()}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
@@ -234,7 +234,7 @@ fn Row(
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{number}</Text>
                 </Frame>
             </ListItem>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });
@@ -348,12 +348,12 @@ fn Cell(
             <Interactive @test_id={element_test_id} on_click={click}>
                 <Frame padding={Padding::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
-                        <Show condition={boolean}>
+                        <Show value={boolean}>
                             <Text color={glyph_color} align=TextAlign::Center>
                                 <Icon glyph={check_glyph} />
                             </Text>
                         </Show>
-                        <Show condition={colored}>
+                        <Show value={colored}>
                             <ListItem length=SWATCH_WIDTH>
                                 <Frame
                                     height=SWATCH_HEIGHT

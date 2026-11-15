@@ -247,9 +247,9 @@ where
             >
                 <Scroll fit=true style={scroll}>
                     <Show
-                        condition={gridded}
+                        value={gridded}
                         fallback={move || view! {
-                            <ForEach keys={shown}>|key: K|
+                            <ForEach value={shown}>|key: K|
                                 <SearchRow state key accessibility row highlight />
                             </ForEach>
                         }}
@@ -259,7 +259,7 @@ where
                             column_spacing=spacing
                             row_spacing=spacing
                         >
-                            <ForEach keys={shown}>|key: K|
+                            <ForEach value={shown}>|key: K|
                                 <SearchRow state key accessibility row highlight />
                             </ForEach>
                         </Grid>

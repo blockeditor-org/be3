@@ -143,7 +143,7 @@ pub(super) fn Hotbar(session: Session) -> NodeId {
                 </List>
             </HotbarHeader>
             <List direction=Direction::Horizontal spacing=COLUMN_GAP>
-                <ForEach keys={columns}>|column: usize|
+                <ForEach value={columns}>|column: usize|
                     <ListItem length=COLUMN_WIDTH>
                         <HotbarColumn session={session} column={column} />
                     </ListItem>
@@ -217,10 +217,10 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
             >
                 <List align=Align::Center spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{title}</Text>
-                    <Show condition={empty}>
+                    <Show value={empty}>
                         <Frame width={Size::Custom(SLOT_SIZE)} height={Size::Custom(SLOT_SIZE)} />
                     </Show>
-                    <ForEach keys={entries}>|path: Vec<usize>|
+                    <ForEach value={entries}>|path: Vec<usize>|
                         <HotbarSlotButton session={session} path={path} />
                     </ForEach>
                 </List>
@@ -395,7 +395,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         {label}
                     </Text>
                 </CanvasItem>
-                <Show condition={move || hotkey.with(|hotkey| !hotkey.is_empty())}>
+                <Show value={move || hotkey.with(|hotkey| !hotkey.is_empty())}>
                     <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
                         <Frame fill=ColorRole::Background radius=Radius::Xs>
                             <Text
@@ -455,7 +455,7 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show
-                condition={merger}
+                value={merger}
                 fallback={move || view! {
                     <List spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>"Scale"</Text>
@@ -470,7 +470,7 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
                     <ScalePicker session={session} output=true />
                 </List>
             </Show>
-            <Show condition={labelled}>
+            <Show value={labelled}>
                 <TextInput
                     value={Binding::new(label, typed)}
                     label="Label"
@@ -521,7 +521,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
         <Select
             label
             options={view! {
-                <ForEach keys={SCALES.to_vec()}>|value: u8|
+                <ForEach value={SCALES.to_vec()}>|value: u8|
                     <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}

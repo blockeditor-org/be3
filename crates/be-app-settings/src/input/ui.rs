@@ -50,14 +50,14 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
-            <Show condition={move || !keyboard.get() && !pasting.get() && !pointers.get()}>
+            <Show value={move || !keyboard.get() && !pasting.get() && !pointers.get()}>
                 <SettingsSection title="Input">
                     <SettingsRow
                         label="These settings take effect in a desktop session on Linux, and this session is not one."
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={keyboard}>
+            <Show value={keyboard}>
                 <SettingsSection
                     title="Keyboard"
                     description={move || match pointers.get() {
@@ -117,7 +117,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={pointers}>
+            <Show value={pointers}>
                 <Pointers
                     settings={settings}
                     devices={devices}
@@ -125,7 +125,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     read_only={read_only}
                 />
             </Show>
-            <Show condition={pasting}>
+            <Show value={pasting}>
                 <SettingsSection title="Programs">
                     <SwitchSetting
                         label="Middle-click paste"
@@ -139,7 +139,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                     />
                 </SettingsSection>
             </Show>
-            <Show condition={pointers}>
+            <Show value={pointers}>
                 <RemapperSetting editor={editor} settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />
@@ -245,7 +245,7 @@ fn Pointers(
                     <Select
                         options={view! {
                             <ChoiceOption label="All pointers" />
-                            <ForEach keys={keys}>|key: DeviceKey|
+                            <ForEach value={keys}>|key: DeviceKey|
                                 <ChoiceOption label={key.0} />
                             </ForEach>
                         }}
@@ -261,7 +261,7 @@ fn Pointers(
                     />
                 </ListItem>
             </SettingsRow>
-            <ForEach keys={scopes}>|scope: Option<DeviceKey>|
+            <ForEach value={scopes}>|scope: Option<DeviceKey>|
                 <PointerRows
                     settings={settings}
                     devices={devices}
@@ -356,7 +356,7 @@ fn PointerRows(
     );
     view! {
         <List spacing=Space::None>
-            <ForEach keys={pointed}>|key: DeviceKey|
+            <ForEach value={pointed}>|key: DeviceKey|
                 <DisplayChoice
                     settings={settings}
                     devices={devices}
@@ -365,7 +365,7 @@ fn PointerRows(
                     read_only={read_only}
                 />
             </ForEach>
-            <Show condition={move || speed.with(|speed| speed.supported)}>
+            <Show value={move || speed.with(|speed| speed.supported)}>
                 <SliderSetting
                     label="Speed"
                     description="How far the pointer moves for each movement of the device."
@@ -381,7 +381,7 @@ fn PointerRows(
                     }}
                 />
             </Show>
-            <Show condition={has_tap}>
+            <Show value={has_tap}>
                 <SwitchSetting
                     label="Tap to click"
                     description="A tap on a touchpad clicks."
@@ -395,7 +395,7 @@ fn PointerRows(
                     }}
                 />
             </Show>
-            <Show condition={has_natural}>
+            <Show value={has_natural}>
                 <SwitchSetting
                     label="Natural scrolling"
                     description="Content moves the way your fingers do."
@@ -475,7 +475,7 @@ fn DisplayChoice(
                     width={Extent::fraction(1.0)}
                     options={view! {
                         <ChoiceOption label={automatic} />
-                        <ForEach keys={shown}>|display: (String, String)|
+                        <ForEach value={shown}>|display: (String, String)|
                             <ChoiceOption label={display.1} />
                         </ForEach>
                     }}

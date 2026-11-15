@@ -87,7 +87,7 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                 <DockPane id="stage" locked=true bare=true>
                     <DockTab id=STAGE title="View">
                         <List spacing=Space::None>
-                            <Show condition={chrome}>
+                            <Show value={chrome}>
                                 <ViewHeader data={data} />
                             </Show>
                             <ListItem grow=1.0>
@@ -98,7 +98,7 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                         </List>
                     </DockTab>
                 </DockPane>
-                <Show condition={beside}>
+                <Show value={beside}>
                     <DockPane id="row" locked=true>
                         <DockTab id=ROW title={code} on_close={move || data.deselect()}>
                             <OpenRow data={data} row={opened} />
@@ -107,7 +107,7 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                 </Show>
             </DockSplit>
             <Show
-                condition={move || chrome.get() && data.kind.get() == DatabaseViewKind::Spreadsheet}
+                value={move || chrome.get() && data.kind.get() == DatabaseViewKind::Spreadsheet}
             >
                 <DockBar
                     id=CELL_BAR
@@ -233,7 +233,7 @@ fn CellEditor(data: Data) -> NodeId {
                         <Text @test_id={"database-view.cell-editor.cell"}>{label}</Text>
                     </Frame>
                 </ListItem>
-                <Show condition={chosen}>
+                <Show value={chosen}>
                     <ListItem length=CELL_EDITOR_WIDTH>
                         <DatabaseValueEditor
                             fields={move || field.get().into_iter().collect::<Vec<_>>()}

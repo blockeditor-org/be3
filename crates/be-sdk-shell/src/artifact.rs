@@ -93,7 +93,7 @@ pub(crate) fn ArtifactBar(
     let unlink = block_command(&workspace, block, Command::Unlink);
     let heading_color = TextColor::Default;
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
@@ -110,10 +110,10 @@ pub(crate) fn ArtifactBar(
                                 <Icon glyph=ICON_SPARKLES />
                             </Text>
                             <Text>"Dynamic artifact"</Text>
-                            <Show condition={waiting}>
+                            <Show value={waiting}>
                                 <Text style=TextStyle::CAPTION>"Loading…"</Text>
                             </Show>
-                            <Show condition={described}>
+                            <Show value={described}>
                                 <ListItem shrink=1.0>
                                     <List
                                         direction=Direction::Horizontal
@@ -145,7 +145,7 @@ pub(crate) fn ArtifactBar(
                         </List>
                         <Spacer />
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Show condition={running}>
+                            <Show value={running}>
                                 <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
                             </Show>
                             <Button
@@ -174,7 +174,7 @@ pub(crate) fn ArtifactBar(
                             />
                         </List>
                     </List>
-                    <Show condition={move || failure.with(|failure| !failure.is_empty())}>
+                    <Show value={move || failure.with(|failure| !failure.is_empty())}>
                         <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
                     </Show>
                 </List>

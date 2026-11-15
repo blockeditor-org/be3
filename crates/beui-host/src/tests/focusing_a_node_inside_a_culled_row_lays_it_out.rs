@@ -18,7 +18,7 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
                     <ListItem grow=1.0>
                         <Offset>
                             <List spacing=0.0>
-                                <ForEach keys={indices(ROWS)}>|index: usize| {
+                                <ForEach value={indices(ROWS)}>|index: usize| {
                                     let row = rows[index];
                                     view! {
                                         <Frame @node_ref=&row>

@@ -19,7 +19,7 @@ impl BeuiRoot for RebuiltRoot {
         view! {
             <Root>
                 <Layers>
-                    <Show condition={move || !presenting.get()}>
+                    <Show value={move || !presenting.get()}>
                         <Deck />
                     </Show>
                 </Layers>

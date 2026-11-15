@@ -12,7 +12,7 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
         move || {
             view! {
                 <Scroll @node_ref=&scroll style={plain_scroll()}>
-                    <ForEach keys={indices(buttons.len())}>|index: usize|
+                    <ForEach value={indices(buttons.len())}>|index: usize|
                         <LabelledButton
                             @node_ref={&buttons[index]}
                             label={format!("Button {index}")}

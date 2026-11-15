@@ -215,7 +215,7 @@ where
     I: PartialEq + 'static,
 {
     view! {
-        <ForEach keys={documents.slots()}>|slot: DockSlot| {
+        <ForEach value={documents.slots()}>|slot: DockSlot| {
             let content = documents.contents.get(&slot);
             tab.call(DockDocument {
                 documents,

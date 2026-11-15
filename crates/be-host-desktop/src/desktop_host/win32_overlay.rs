@@ -60,7 +60,7 @@ pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
     });
     view! {
         <Layers>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let part = create_memo(move || {
                     off_screen.with(|parts| parts.get(index).copied().unwrap_or(Rect::ZERO))
                 });
@@ -74,7 +74,7 @@ pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
                     false => ColorRole::None,
                 }}
             />
-            <Show condition={secure}>
+            <Show value={secure}>
                 <Frame align=Align::Center padding={Padding::all(Space::Md)}>
                     <Frame
                         @test_id="win32.secure-desktop"

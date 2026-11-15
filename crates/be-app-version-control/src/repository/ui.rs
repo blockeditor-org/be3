@@ -71,19 +71,19 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                         <List spacing=SECTION_SPACING>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::HEADING>"Repository"</Text>
-                                <Show condition={move || !note.with(String::is_empty)}>
+                                <Show value={move || !note.with(String::is_empty)}>
                                     <Text style=TextStyle::CAPTION @test_id={"repository.note"}>
                                         {note}
                                     </Text>
                                 </Show>
                             </List>
                             <Show
-                                condition={unversioned}
+                                value={unversioned}
                                 fallback={move || view! {
                                     <Card>
                                         <List spacing=Space::Md>
                                             <Text style=TextStyle::HEADING>"Branches"</Text>
-                                            <ForEach keys={branches} view={rows} />
+                                            <ForEach value={branches} view={rows} />
                                         </List>
                                     </Card>
                                 }}
@@ -109,7 +109,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                 <List spacing=Space::Md>
                                     <Text style=TextStyle::HEADING>"Original"</Text>
                                     <Show
-                                        condition={has_upstream}
+                                        value={has_upstream}
                                         fallback={|| view! {
                                             <Text style=TextStyle::CAPTION>
                                                 "A copy of a repository follows the one it was made from: it can bring in its changes and send its own back."

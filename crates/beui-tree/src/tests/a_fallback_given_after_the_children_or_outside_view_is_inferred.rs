@@ -9,7 +9,7 @@ fn a_fallback_given_after_the_children_or_outside_view_is_inferred() {
     let shown = create_signal(false);
     let page = scope.run(|| {
         let after = Show()
-            .condition(shown)
+            .value(shown)
             .children_block(|| {
                 SingleChild(view! {
                     <Element tag="b" text="then" />
@@ -27,7 +27,7 @@ fn a_fallback_given_after_the_children_or_outside_view_is_inferred() {
                     <Element tag="i" text="else" />
                 }
             })
-            .condition(shown)
+            .value(shown)
             .then(|| {
                 view! {
                     <Element tag="b" text="then" />

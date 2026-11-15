@@ -145,7 +145,7 @@ fn Carried(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     view! {
         <Layers>
-            <ForEach keys={ids}>|id: WindowId| {
+            <ForEach value={ids}>|id: WindowId| {
                 let carrier = crate::view::Carrier {
                     begin: std::rc::Rc::new(|grab| {
                         BEGUN.with(|begun| begun.borrow_mut().push(grab));
@@ -258,7 +258,7 @@ fn Shown(windows: Windows) -> NodeId {
             >
                 <List spacing=Space::None>
                     <TextInput @test_id={"test.input"} value={text} />
-                    <ForEach keys={ids}>|(id, _): (WindowId, u32)| {
+                    <ForEach value={ids}>|(id, _): (WindowId, u32)| {
                         let list = windows.list();
                         let size = create_memo(move || {
                             list.with(|list| {

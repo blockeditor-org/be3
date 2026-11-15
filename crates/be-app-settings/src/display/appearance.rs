@@ -127,7 +127,7 @@ pub(super) fn AppearanceSection(
                         width={Extent::fraction(1.0)}
                         options={view! {
                             <ChoiceOption label={inherited_scale_label} />
-                            <ForEach keys={DisplaySettings::SCALES.to_vec()}>|percent: u32|
+                            <ForEach value={DisplaySettings::SCALES.to_vec()}>|percent: u32|
                                 <ChoiceOption label={format!("{percent}%")} />
                             </ForEach>
                         }}
@@ -157,7 +157,7 @@ pub(super) fn AppearanceSection(
                         options={view! {
                             <ChoiceOption label={inherited_keyboard_label} />
                             <ForEach
-                                keys={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
+                                value={DisplaySettings::KEYBOARD_HEIGHTS.to_vec()}
                             >|percent: u32|
                                 <ChoiceOption label={format!("{percent}%")} />
                             </ForEach>
@@ -226,7 +226,7 @@ fn PreferenceSelect(
         <Select
             width={Extent::fraction(1.0)}
             options={view! {
-                <ForEach keys={labels}>|label: String|
+                <ForEach value={labels}>|label: String|
                     <ChoiceOption label />
                 </ForEach>
             }}

@@ -53,7 +53,7 @@ pub(crate) fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                     @test_id={"desktop.volume.mute"}
                 />
             </List>
-            <Show condition={listed}>
+            <Show value={listed}>
                 <OutputPicker editor={editor} levels={levels} />
             </Show>
         </List>
@@ -88,7 +88,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <Text style=TextStyle::CAPTION>"Output"</Text>
             <Select
                 options={view! {
-                    <ForEach keys={keys}>|id: String| {
+                    <ForEach value={keys}>|id: String| {
                         let label = create_memo(move || {
                             outputs.with(|outputs| {
                                 outputs

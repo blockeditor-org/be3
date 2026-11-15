@@ -254,7 +254,7 @@ pub(crate) fn Popovers(editor: Editor) -> NodeId {
     });
     view! {
         <Layers>
-            <ForEach keys>|serial: u64| {
+            <ForEach value={keys}>|serial: u64| {
                 match popped.get_untracked().filter(|popped| popped.serial == serial) {
                     Some(popped) => view! {
                         <PoppedChild editor popped />

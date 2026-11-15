@@ -54,7 +54,7 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
         view! {
             <Legend @node_ref=&legend>
                 <Noted label="first" disposals={disposals} />
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Noted label="second" disposals={disposals} />
                 </Show>
             </Legend>

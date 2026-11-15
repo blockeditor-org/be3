@@ -69,7 +69,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Levels"</Text>
-                    <Show condition={move || hotbar.with(Option::is_some)}>
+                    <Show value={move || hotbar.with(Option::is_some)}>
                         <Button
                             icon_only=true
                             glyph=ICON_BLOCKS
@@ -78,7 +78,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                             on_click={open_hotbar}
                         />
                     </Show>
-                    <Show condition={manages}>
+                    <Show value={manages}>
                         <Button
                             icon_only=true
                             glyph=ICON_EARTH
@@ -95,7 +95,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                 <ListItem grow=1.0>
                     <Scroll>
                         <List spacing=Space::Xs>
-                            <ForEach keys={keys}>|challenge: ChallengeId| {
+                            <ForEach value={keys}>|challenge: ChallengeId| {
                                 let level = level_of(levels, challenge);
                                 let here = open.memo(Some(challenge));
                                 let toggle = move || {
@@ -149,7 +149,7 @@ fn LevelRow(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text>{challenge.name()}</Text>
-                    <Show condition={completed}>
+                    <Show value={completed}>
                         <Text color=TextColor::Success align=TextAlign::Center>
                             <Icon glyph=ICON_CIRCLE_CHECK />
                         </Text>
@@ -158,7 +158,7 @@ fn LevelRow(
                     <Text style=TextStyle::CAPTION>{attempts}</Text>
                 </List>
             </ListRow>
-            <Show condition={expanded}>|| {
+            <Show value={expanded}>|| {
                 let goal = goal.clone();
                 let detail = match quiz {
                     true => view! {
@@ -211,7 +211,7 @@ fn Solutions(
     };
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={keys}>|reference: Uuid| {
+            <ForEach value={keys}>|reference: Uuid| {
                 let solution = solution_of(level, reference);
                 view! {
                     <SolutionRow
@@ -261,7 +261,7 @@ fn SolutionRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Link label={name} disabled={missing} on_click={open} />
-            <Show condition={passed}>
+            <Show value={passed}>
                 <Text color=TextColor::Success align=TextAlign::Center>
                     <Icon glyph=ICON_CIRCLE_CHECK />
                 </Text>

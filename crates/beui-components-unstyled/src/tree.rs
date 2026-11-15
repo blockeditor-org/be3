@@ -289,7 +289,7 @@ where
     let rows = move |parted: Option<ReorderHandle<K, ()>>| {
         view! {
             <List spacing @node_ref=&list>
-                <ForEach keys>|key: K| {
+                <ForEach value={keys}>|key: K| {
                     let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));
@@ -511,7 +511,7 @@ pub fn TreeToggle(
 ) -> DynamicSegment<ListItem> {
     let expanded = create_memo(move || item.get().expanded);
     view! {
-        <Show condition={move || item.get().expandable}>|| {
+        <Show value={move || item.get().expandable}>|| {
             let button_test_id = button_test_id.clone();
             view! {
                 <Button

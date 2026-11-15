@@ -121,7 +121,7 @@ pub(crate) fn HostedSurface(
     });
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: (EditorInstanceId, View)| {
+            <ForEach value={keys}>|_key: (EditorInstanceId, View)| {
                 let Some(hosted) = region.get_untracked() else {
                     return view! {
                         <Frame />

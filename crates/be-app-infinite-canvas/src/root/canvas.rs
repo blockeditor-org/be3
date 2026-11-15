@@ -91,19 +91,19 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                         on_reveal={reveal_by(state.editor())}
                         @test_id={"infinite-canvas.canvas"}
                     >
-                        <ForEach keys={frame_ids}>|id: Uuid| {
+                        <ForEach value={frame_ids}>|id: Uuid| {
                             let camera = camera;
                             view! {
                                 <FrameBackdropItem state id camera />
                             }
                         }</ForEach>
-                        <ForEach keys={tiles}>|tile: GridTile|
+                        <ForEach value={tiles}>|tile: GridTile|
                             <GridTileItem tile look={grid} frames />
                         </ForEach>
-                        <ForEach keys={ids}>|id: Uuid|
+                        <ForEach value={ids}>|id: Uuid|
                             <EntityShape state id />
                         </ForEach>
-                        <ForEach keys={embedding}>|id: Uuid|
+                        <ForEach value={embedding}>|id: Uuid|
                             <EntityEmbed state id />
                         </ForEach>
                         {(!previewing).then(|| view! {
@@ -222,7 +222,7 @@ fn CanvasHint(
     let shown = create_memo(move || hint.with(Option::is_some));
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <CanvasItem
                 x={move || visible.get().left()}
                 y={move || visible.get().top()}
@@ -303,7 +303,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     let present = create_memo(move || bounds.with(Option::is_some));
     let rect = create_memo(move || bounds.get().unwrap_or(Rect::ZERO));
     view! {
-        <Show condition={present}>
+        <Show value={present}>
             <CanvasItem
                 x={create_memo(move || rect.get().left())}
                 y={create_memo(move || rect.get().top())}
@@ -363,7 +363,7 @@ fn LiveOverlay(
         }));
     });
     view! {
-        <Show condition={present}>
+        <Show value={present}>
             <CanvasItem
                 x={move || visible.get().left()}
                 y={move || visible.get().top()}
@@ -550,10 +550,10 @@ fn EntityShape(state: CanvasState, id: Uuid) -> CanvasItem {
         >
             <Layers>
                 <Drawing draw={draw} />
-                <Show condition={guided}>
+                <Show value={guided}>
                     <RasterGuideDrawing state entity raster corner />
                 </Show>
-                <Show condition={live}>
+                <Show value={live}>
                     <EntityText state id entity outer={bounds} editing />
                 </Show>
             </Layers>
@@ -615,7 +615,7 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
             width={move || shown.get().width().max(least.get())}
             height={move || shown.get().height().max(least.get())}
         >
-            <Show condition={linked}>
+            <Show value={linked}>
                 <ChildBlock
                     editor={editor}
                     block={target}

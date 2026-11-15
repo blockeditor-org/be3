@@ -36,7 +36,7 @@ pub fn DialogsFixture() -> NodeId {
             </Dialog>
             <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=3).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=3).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             on_click={move || {

@@ -145,7 +145,7 @@ fn Header(review: Review) -> NodeId {
                         {position}
                     </Text>
                 </List>
-                <Show condition={move || !detail.with(String::is_empty)}>
+                <Show value={move || !detail.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.detail"}>{detail}</Text>
                 </Show>
             </List>
@@ -200,10 +200,10 @@ fn Controls(review: Review) -> NodeId {
         <Frame padding={Padding::horizontal(PADDING).bottom(SPACING)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
                 <Text style=TextStyle::CAPTION @test_id={"paint_review.showing"}>{showing}</Text>
-                <Show condition={move || !pixels.with(String::is_empty)}>
+                <Show value={move || !pixels.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION @test_id={"paint_review.pixels"}>{pixels}</Text>
                 </Show>
-                <Show condition={move || count.get() > 1}>
+                <Show value={move || count.get() > 1}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             icon_only=true
@@ -385,7 +385,7 @@ fn Stage(review: Review) -> NodeId {
                                             width={move || if comparing.get() { HANDLE_WIDTH / scale.get().max(0.01) } else { 0.0 }}
                                             height={move || content.get().map_or(0.0, |size| size.y)}
                                         >
-                                            <Show condition={comparing}>
+                                            <Show value={comparing}>
                                                 <Interactive
                                                     cursor={Some(CursorIcon::ResizeColumn)}
                                                     on_press={drag}
@@ -408,7 +408,7 @@ fn Stage(review: Review) -> NodeId {
                                 </Frame>
                             }
                         }</PanZoom>
-                        <Show condition={comparing}>
+                        <Show value={comparing}>
                             <Frame
                                 align={Align2::new(Align::Start, Align::Start)}
                                 padding=Space::Lg
@@ -416,14 +416,14 @@ fn Stage(review: Review) -> NodeId {
                                 <Text style=TextStyle::CAPTION>"Before"</Text>
                             </Frame>
                         </Show>
-                        <Show condition={comparing}>
+                        <Show value={comparing}>
                             <Frame align={Align2::new(Align::End, Align::Start)} padding=Space::Lg>
                                 <Text style=TextStyle::CAPTION>"After"</Text>
                             </Frame>
                         </Show>
                         <Frame align=Align::Center padding=Space::Xl3>
                             <List spacing=Space::None>
-                                <Show condition={loading}>
+                                <Show value={loading}>
                                     <List
                                         align=Align::Center
                                         spacing=SPACING
@@ -436,7 +436,7 @@ fn Stage(review: Review) -> NodeId {
                                         <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                                     </List>
                                 </Show>
-                                <Show condition={move || !notice.with(String::is_empty)}>
+                                <Show value={move || !notice.with(String::is_empty)}>
                                     <Text
                                         style=TextStyle::HEADING
                                         @test_id={"paint_review.image.none"}
@@ -444,7 +444,7 @@ fn Stage(review: Review) -> NodeId {
                                         {notice}
                                     </Text>
                                 </Show>
-                                <Show condition={move || failure.with(Option::is_some)}>
+                                <Show value={move || failure.with(Option::is_some)}>
                                     <Text
                                         color=TextColor::Danger
                                         @test_id={"paint_review.image.failed"}

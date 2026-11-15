@@ -179,7 +179,7 @@ where
                     <Text style=TextStyle::CAPTION>{name}</Text>
                 </ListItem>
             </List>
-            <Show condition={move || failure.with(Option::is_some)}>
+            <Show value={move || failure.with(Option::is_some)}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={error_id.clone()}>
                     {reason}
                 </Text>

@@ -1103,7 +1103,7 @@ pub(crate) fn ExportDialog(exporter: Exporter) -> NodeId {
             on_dismiss={move || dialog.set(None)}
         >
             <List spacing=DIALOG_SPACING>
-                <Show condition={move || dialog.get() == Some(ExportFormat::Png)}>
+                <Show value={move || dialog.get() == Some(ExportFormat::Png)}>
                     <List
                         direction=Direction::Horizontal
                         align=Align::Center

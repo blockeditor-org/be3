@@ -113,7 +113,7 @@ fn VideoEditor(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
             </DockSplit>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=FRAME_RATE_BAR
                     parent=PLAYER
@@ -177,7 +177,7 @@ fn FrameRateBar(state: VideoState) -> NodeId {
             </Frame>
             <Select
                 options={view! {
-                    <ForEach keys={options}>|index: usize|
+                    <ForEach value={options}>|index: usize|
                         <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
                     </ForEach>
                 }}

@@ -156,7 +156,7 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
                     <Icon glyph={glyph} />
                 </Text>
                 <Show
-                    condition={present}
+                    value={present}
                     fallback={move || view! {
                         <Frame width=BAR_WIDTH>
                             <Text color=TextColor::Muted>{label}</Text>

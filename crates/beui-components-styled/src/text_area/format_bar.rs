@@ -30,7 +30,7 @@ pub fn FormatBar(
     let keys: Vec<usize> = (0..tools.len()).collect();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING wrap=true>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let (tool, glyph) = tools[index];
                 let id = format!("{test_prefix}.{}", tool.name);
                 view! {

@@ -178,7 +178,7 @@ pub(super) fn RuleItem(edits: Edits, group: usize, rule: usize) -> NodeId {
             >|handle: unstyled::ButtonHandle|
                 <RuleRowFace handle on result taps tags open />
             </unstyled::Button>
-            <Show condition={open}>
+            <Show value={open}>
                 <RuleEditor edits={edits} group={group} rule={rule} outline={outline} />
             </Show>
         </List>
@@ -210,7 +210,7 @@ fn RuleRowFace(
                     <Text color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph=ICON_ARROW_RIGHT />
                     </Text>
-                    <Show condition={taps}>
+                    <Show value={taps}>
                         <Text style=TextStyle::CAPTION>"taps"</Text>
                     </Show>
                     <Caps caps={result} />
@@ -238,7 +238,7 @@ fn Caps(caps: Memo<Vec<Cap>>) -> NodeId {
     let indices = create_memo(move || (0..caps.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING wrap=true>
-            <ForEach keys={indices}>|index: usize| {
+            <ForEach value={indices}>|index: usize| {
                 let cap = create_memo(move || caps.with(|caps| caps.get(index).cloned()));
                 let text = create_memo(move || cap.get().map(|cap| cap.label).unwrap_or_default());
                 let muted = create_memo(move || cap.get().is_some_and(|cap| cap.muted));
@@ -251,7 +251,7 @@ fn Caps(caps: Memo<Vec<Cap>>) -> NodeId {
                 };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING>
-                        <Show condition={joined}>
+                        <Show value={joined}>
                             <Text style=TextStyle::CAPTION>"+"</Text>
                         </Show>
                         <KeyCap label={text} muted={muted} />
@@ -411,7 +411,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                     />
                 </Part>
                 <Show
-                    condition={move || does.get() == Does::Steps}
+                    value={move || does.get() == Does::Steps}
                     fallback={move || view! {
                         <Part title={key_heading}>
                             <List
@@ -435,7 +435,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 />
                             </List>
                         </Part>
-                        <Show condition={move || does.get() == Does::Tap}>
+                        <Show value={move || does.get() == Does::Tap}>
                             <Part
                                 title="Hold the tap for"
                                 description="Some games miss taps shorter than a frame or two."
@@ -474,7 +474,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                         description="Plays in order each time. Choose a key to change it."
                     >
                         <List spacing=CONTROL_SPACING>
-                            <ForEach keys={steps}>|step: usize|
+                            <ForEach value={steps}>|step: usize|
                                 <StepTile
                                     edits={edits}
                                     group={group}
@@ -547,7 +547,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                                 @test_id={id("keep")}
                             />
                         </MoreOption>
-                        <Show condition={move || does.get() != Does::Send}>
+                        <Show value={move || does.get() != Does::Send}>
                             <MoreOption
                                 title="Keep held modifiers"
                                 description="Otherwise the Shift, Ctrl, Alt and Super you hold are let go during the taps."
@@ -598,7 +598,7 @@ fn Part(
         <List spacing=CONTROL_SPACING>
             <List spacing=LABEL_SPACING>
                 <Text weight=Weight::Bold>{title}</Text>
-                <Show condition={move || description.with(|description| !description.is_empty())}>
+                <Show value={move || description.with(|description| !description.is_empty())}>
                     <Text style=TextStyle::CAPTION>{description}</Text>
                 </Show>
             </List>
@@ -656,7 +656,7 @@ fn KeyButton(
                             spacing=CONTROL_SPACING
                         >
                             <KeyCap label={label} />
-                            <Show condition={move || !handle.disabled.get()}>
+                            <Show value={move || !handle.disabled.get()}>
                                 <Text style={TextStyle::CAPTION.color(TextColor::Accent)}>
                                     "Change"
                                 </Text>
@@ -679,7 +679,7 @@ fn ModifierToggles(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach keys={Modifier::ALL.to_vec()}>|modifier: Modifier| {
+            <ForEach value={Modifier::ALL.to_vec()}>|modifier: Modifier| {
                 let pressed = create_memo(move || on.with(|on| on.contains(&modifier)));
                 let control_id = format!("{id}.{}", modifier.name().to_lowercase());
                 view! {
@@ -705,7 +705,7 @@ fn RemovableKeys(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=CAP_SPACING>
-            <ForEach keys={names}>|name: String| {
+            <ForEach value={names}>|name: String| {
                 let shown = label(&name);
                 let removed = name.clone();
                 let control_id = format!("{id}.{}.remove", super::keys::id_part(&name));
@@ -733,7 +733,7 @@ fn RemovableKeys(
 fn HoldPresets(hold: Memo<f64>, disabled: Memo<bool>, id: String, set: Callback<i64>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=CAP_SPACING>
-            <ForEach keys={HOLD_PRESETS.to_vec()}>|(ms, name): (i64, &'static str)| {
+            <ForEach value={HOLD_PRESETS.to_vec()}>|(ms, name): (i64, &'static str)| {
                 let pressed = create_memo(move || hold.get().round() as i64 == ms);
                 let control_id = format!("{id}.{ms}");
                 view! {
@@ -791,7 +791,7 @@ fn StepTile(
             <List direction=Direction::Horizontal align=Align::Center spacing=CONTROL_SPACING>
                 <Text style=TextStyle::CAPTION>{number}</Text>
                 <Show
-                    condition={tap}
+                    value={tap}
                     fallback={|| view! {
                         <Text style=TextStyle::CAPTION>
                             <Icon glyph=ICON_TIMER />

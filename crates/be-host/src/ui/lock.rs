@@ -222,10 +222,10 @@ fn LockCard(
                         on_submit={on_submit}
                     />
                 </Frame>
-                <Show condition={move || busy.get() && error.with(Option::is_none)}>
+                <Show value={move || busy.get() && error.with(Option::is_none)}>
                     <Text style=TextStyle::CAPTION>"Checking…"</Text>
                 </Show>
-                <Show condition={move || error.with(Option::is_some)}>
+                <Show value={move || error.with(Option::is_some)}>
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger
@@ -236,7 +236,7 @@ fn LockCard(
                 </Show>
             </List>
             <List direction=Direction::Horizontal spacing=ACTION_SPACING>
-                <ForEach keys={slots}>|index: usize| {
+                <ForEach value={slots}>|index: usize| {
                     let glyph = create_memo(move || {
                         actions.with(|actions| actions.get(index).map(|action| action.glyph))
                     });

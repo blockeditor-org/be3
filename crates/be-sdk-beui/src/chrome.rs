@@ -73,10 +73,10 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: NodeId) -> Dynamic
         }
     };
     view! {
-        <Show keep_alive=true condition={shown}>
+        <Show keep_alive=true value={shown}>
             <Frame fill=ColorRole::Surface>
                 <List spacing=Space::None>
-                    <Show condition={narrow} fallback={roomy}>
+                    <Show value={narrow} fallback={roomy}>
                         <List
                             direction=Direction::Horizontal
                             align=Align::Center

@@ -10,7 +10,7 @@ fn a_closure_is_a_prop_read_as_a_getter() {
     let page = scope.run(|| {
         view! {
             <Element tag="div">
-                <Show condition={move || !hex.get()}>
+                <Show value={move || !hex.get()}>
                     <Element tag="p" text={move || format!("{} lines", count.get())} />
                 </Show>
             </Element>

@@ -330,7 +330,7 @@ fn GamePlay(
     view! {
         <List spacing=Space::None>
             <Show
-                condition={chrome}
+                value={chrome}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <Stage content={stage} editor play drawn layout hand steps />
@@ -380,7 +380,7 @@ fn GameDock(
             >
                 <ActionBar panel />
             </DockBar>
-            <Show condition={move || !play.choices.with(Vec::is_empty)}>
+            <Show value={move || !play.choices.with(Vec::is_empty)}>
                 <DockBar
                     id=CHOICES
                     parent=STAGE
@@ -430,7 +430,7 @@ fn SeatPicker(game: Stored<Rc<dyn GameModel>>, seat: Memo<Seat>) -> NodeId {
             <ListItem shrink=1.0>
                 <Select
                     options={view! {
-                        <ForEach keys={seat_keys}>|seat: usize| {
+                        <ForEach value={seat_keys}>|seat: usize| {
                             let label = create_memo(move || {
                                 names.with(|names| names.get(seat).cloned().unwrap_or_default())
                             });
@@ -479,7 +479,7 @@ fn Controls(
 ) -> NodeId {
     view! {
         <List direction={direction} align=Align::Center spacing=Space::Sm>
-            <ForEach keys={controls}>|action: Action|
+            <ForEach value={controls}>|action: Action|
                 <ControlButton game action editable={editable} />
             </ForEach>
         </List>
@@ -502,7 +502,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
             <Show
-                condition={confirming}
+                value={confirming}
                 fallback={move || view! {
                     <Button
                         icon_only=true
@@ -599,7 +599,7 @@ fn ChoiceButtons(play: Play) -> NodeId {
             align=Align::Center
             spacing=Space::Sm
         >
-            <ForEach keys={choices}>|action: Action| {
+            <ForEach value={choices}>|action: Action| {
                 let index = action.index;
                 view! {
                     <Button
@@ -693,7 +693,7 @@ pub(crate) fn GameCreation(
             on_dismiss={move || creation.value().cancel()}
         >
             <List spacing=Space::Md align=Align::Start>
-                <ForEach keys={games}>|game: StagedChoice| {
+                <ForEach value={games}>|game: StagedChoice| {
                     let index = game.index;
                     let (variant, disabled, caption) = match &game.state {
                         StagedState::Loading => (ButtonVariant::Secondary, true, String::new()),
@@ -729,7 +729,7 @@ pub(crate) fn GameCreation(
                     @test_id={"game.choose"}
                     on_click={move || creation.value().choose_module()}
                 />
-                <Show condition={move || !status.with(String::is_empty)}>
+                <Show value={move || !status.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION color={status_color} @test_id={"game.selection"}>
                         {status}
                     </Text>

@@ -172,7 +172,7 @@ fn PaletteTile(handle: CommandRowHandle) -> NodeId {
             <Frame fill radius=Radius::Md padding={Padding::all(TILE_PADDING)}>
                 <List align=Align::Center spacing=TILE_SPACING>
                     <Show
-                        condition={pictured}
+                        value={pictured}
                         fallback={move || view! {
                             <Frame width=TILE_ICON height=TILE_ICON>
                                 <List align=Align::Center spacing=Space::None>

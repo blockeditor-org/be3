@@ -263,7 +263,7 @@ pub(crate) fn ReferenceMenuItem(
                 disabled={move || rights.get().is_none_or(|rights| rights.7)}
                 on_click={move || act(BlockAction::Settings)}
             />
-            <Show condition={move || rights.get().is_none_or(|rights| rights.8)}>
+            <Show value={move || rights.get().is_none_or(|rights| rights.8)}>
                 <MenuItem
                     label={delete_label}
                     disabled={delete}

@@ -97,23 +97,23 @@ pub(crate) fn StatusButton(
                 open
                 leading={view! {
                     <List direction align=Align::Center spacing=ICON_SPACING>
-                        <Show condition={wireless}>
+                        <Show value={wireless}>
                             <Text @test_id={"desktop.status.wifi"}>
                                 <Icon glyph={wifi_glyph} />
                             </Text>
                         </Show>
-                        <Show condition={audible}>
+                        <Show value={audible}>
                             <Text @test_id={"desktop.status.volume"}>
                                 <Icon glyph={volume_glyph} />
                             </Text>
                         </Show>
-                        <Show condition={powered}>
+                        <Show value={powered}>
                             <Text @test_id={"desktop.status.power"}>
                                 <Icon glyph=ICON_POWER />
                             </Text>
                         </Show>
                         <Show
-                            condition={move || !wireless.get() && !audible.get() && !powered.get()}
+                            value={move || !wireless.get() && !audible.get() && !powered.get()}
                         >
                             <Text>
                                 <Icon glyph=ICON_SLIDERS_HORIZONTAL />
@@ -146,13 +146,13 @@ fn QuickSettings(
     } = status;
     view! {
         <List spacing=SPACING @test_id={"desktop.quick"}>
-            <Show condition={move || page.get() == Page::Main}>
+            <Show value={move || page.get() == Page::Main}>
                 <QuickMain status={status} power={power} page={page} close={close} />
             </Show>
-            <Show condition={move || page.get() == Page::Wifi}>
+            <Show value={move || page.get() == Page::Wifi}>
                 <WifiPanel editor={editor} status={wifi} on_back={back} />
             </Show>
-            <Show condition={move || page.get() == Page::Rotate}>
+            <Show value={move || page.get() == Page::Rotate}>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <BackButton on_click={back} />
@@ -210,7 +210,7 @@ fn QuickMain(
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=TILE_SPACING>
-                <Show condition={wireless}>
+                <Show value={wireless}>
                     <QuickTile
                         id="desktop.quick.wifi"
                         label={network}
@@ -226,7 +226,7 @@ fn QuickMain(
                     glyph=ICON_KEYBOARD
                     on_click={keyboard}
                 />
-                <Show condition={move || screen.with(Option::is_some)}>
+                <Show value={move || screen.with(Option::is_some)}>
                     <QuickTile
                         id="desktop.quick.rotate"
                         label="Rotate"
@@ -234,7 +234,7 @@ fn QuickMain(
                         on_click={move || page.set(Page::Rotate)}
                     />
                 </Show>
-                <Show condition={epaper}>
+                <Show value={epaper}>
                     <QuickTile
                         id="desktop.quick.refresh"
                         label="Refresh"
@@ -243,13 +243,13 @@ fn QuickMain(
                     />
                 </Show>
             </List>
-            <Show condition={audible}>
+            <Show value={audible}>
                 <List spacing=SPACING>
                     <Separator />
                     <VolumePanel editor={editor} levels={levels} />
                 </List>
             </Show>
-            <Show condition={powered}>
+            <Show value={powered}>
                 <List spacing=SPACING>
                     <Separator />
                     <PowerRow choice={power} on_chose={close} />

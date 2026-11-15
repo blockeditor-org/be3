@@ -291,12 +291,12 @@ where
     // finishes once, so each rename builds a fresh one.
     let named_field = view! {
         <List align=Align::Stretch spacing=Space::None>
-            <Show keep_alive=true condition={move || !editing.get()}>
+            <Show keep_alive=true value={move || !editing.get()}>
                 <ListItem grow=1.0>
                     <unstyled::TreeRowArea target>{area}</unstyled::TreeRowArea>
                 </ListItem>
             </Show>
-            <Show condition={editing}>{field()}</Show>
+            <Show value={editing}>{field()}</Show>
         </List>
     };
     let body = match menu {

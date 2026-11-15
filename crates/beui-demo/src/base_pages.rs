@@ -475,7 +475,7 @@ fn ListJustify() -> NodeId {
                 <Tile label="B" />
             </List>
             <List direction=Direction::Horizontal spacing=8.0 wrap=true>
-                <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                <ForEach value={PLANETS.to_vec()}>|planet: &'static str|
                     <Tile label={planet.to_owned()} />
                 </ForEach>
             </List>
@@ -530,7 +530,7 @@ fn ShowToggle() -> NodeId {
     view! {
         <List spacing={SECTION_SPACING.px()}>
             <LabelledSwitch label="Shown" on={shown} />
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
         </List>
@@ -546,7 +546,7 @@ fn ShowFallback() -> NodeId {
             <LabelledSwitch label="Editing" on={editing} />
             <Frame padding={Sides::all(8.0)}>
                 <Show
-                    condition={editing}
+                    value={editing}
                     fallback={|| view! {
                         <Tile label="Reading" />
                     }}
@@ -556,7 +556,7 @@ fn ShowFallback() -> NodeId {
             </Frame>
             <List spacing=8.0>
                 <Show
-                    condition={editing}
+                    value={editing}
                     fallback={|| view! {
                         <Tile label="A run of three" />
                         <Tile label="while reading" />
@@ -596,7 +596,7 @@ fn PlanetList() -> NodeId {
                     on_click={move || count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
                 />
             </List>
-            <ForEach keys={planets}>|planet: &'static str|
+            <ForEach value={planets}>|planet: &'static str|
                 <Tile label={planet.to_owned()} />
             </ForEach>
         </List>
@@ -864,7 +864,7 @@ fn GlidingPlanets() -> NodeId {
                 />
             </List>
             <List direction=Direction::Horizontal spacing=8.0>
-                <ForEach keys={order}>|planet: usize|
+                <ForEach value={order}>|planet: usize|
                     <Glide arm={moved}>
                         <Tile label={PLANETS[planet].to_owned()} />
                     </Glide>
@@ -914,7 +914,7 @@ fn FadedStrip() -> NodeId {
         <Frame fade_edges={edges}>
             <Scroll direction=Direction::Horizontal>
                 <List direction=Direction::Horizontal spacing=8.0>
-                    <ForEach keys={PLANETS.to_vec()}>|planet: &'static str|
+                    <ForEach value={PLANETS.to_vec()}>|planet: &'static str|
                         <Tile label={planet.to_owned()} />
                     </ForEach>
                 </List>
@@ -928,7 +928,7 @@ fn FadedStrip() -> NodeId {
 fn FadedTiles() -> NodeId {
     view! {
         <List @test_id="demo.layering.opacity" direction=Direction::Horizontal spacing=8.0>
-            <ForEach keys={vec![100_u32, 60, 30]}>|percent: u32|
+            <ForEach value={vec![100_u32, 60, 30]}>|percent: u32|
                 <Frame opacity={percent as f32 / 100.0}>
                     <Tile label={format!("{percent}%")} />
                 </Frame>
@@ -946,7 +946,7 @@ fn FadedOverlap() -> NodeId {
     let offset = Sides::new(SWATCH / 2.0, SWATCH / 2.0, 0.0, 0.0);
     view! {
         <List @test_id="demo.layering.faded_overlap" direction=Direction::Horizontal spacing=24.0>
-            <ForEach keys={vec![100_u32, 50]}>|percent: u32|
+            <ForEach value={vec![100_u32, 50]}>|percent: u32|
                 <Frame opacity={percent as f32 / 100.0}>
                     <Layers>
                         <Frame
@@ -1313,7 +1313,7 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
     let keys = create_memo(move || (0..count).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal spacing={ROW_SPACING.px()} wrap=true>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let paint = tiles[index];
                 let draw: Prop<Draw> = Prop::dynamic(move || {
                     let colors = colors.get();

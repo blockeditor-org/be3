@@ -60,19 +60,19 @@ pub fn DisplayOptions(data: Data) -> NodeId {
         <List spacing=SPACING>
             <KindSwitch data={data} />
             <Separator />
-            <Show condition={grouped}>
+            <Show value={grouped}>
                 <GroupPicker data={data} />
             </Show>
-            <Show condition={ordered}>
+            <Show value={ordered}>
                 <OrderPicker data={data} />
             </Show>
-            <Show condition={scatter}>
+            <Show value={scatter}>
                 <AxisPickers data={data} />
             </Show>
-            <Show condition={calendar}>
+            <Show value={calendar}>
                 <DatePickers data={data} />
             </Show>
-            <Show condition={listed}>
+            <Show value={listed}>
                 <EmptyGroups data={data} />
                 <Separator />
                 <ShownFields data={data} />
@@ -93,10 +93,10 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                     />
                 </ListItem>
             </List>
-            <Show condition={shared}>
+            <Show value={shared}>
                 <List spacing=Space::Xs2 @test_id={"database-view.prefix-shared"}>
                     <Text style=TextStyle::CAPTION color=TextColor::Muted>{sharing}</Text>
-                    <ForEach keys={others}>|other: Uuid| {
+                    <ForEach value={others}>|other: Uuid| {
                         let editor = data.editor();
                         let found = editor.watch_blocks(BlockQuery::Block(other));
                         let name = create_memo(move || {
@@ -134,7 +134,7 @@ fn KindSwitch(data: Data) -> NodeId {
     let keys = create_memo(|| (0..KINDS.len()).collect::<Vec<usize>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap=true>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let (wanted, label, glyph) = KINDS[index];
                 let pressed = create_memo(move || data.kind.get() == wanted);
                 let choose = move |_: bool| {
@@ -269,7 +269,7 @@ fn OrderPicker(data: Data) -> NodeId {
                         on_change={picked}
                     />
                 </ListItem>
-                <Show condition={move || data.sort.get().is_some()}>
+                <Show value={move || data.sort.get().is_some()}>
                     <Button
                         icon_only=true
                         glyph={glyph}
@@ -409,7 +409,7 @@ fn ShownFields(data: Data) -> NodeId {
         <List spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>"Shown on each row"</Text>
             <List direction=Direction::Horizontal spacing=Space::Sm wrap=true>
-                <ForEach keys={keys}>|field: Uuid| {
+                <ForEach value={keys}>|field: Uuid| {
                     let name = create_memo(move || {
                         data.fields.with(|fields| {
                             fields.iter().find(|known| known.id == field).map_or_else(String::new, |known| known.name.clone())
@@ -487,7 +487,7 @@ pub fn FieldPicker(
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let name = create_memo(move || match index {
                         0 => none.to_owned(),
                         index => options.with(|options| {

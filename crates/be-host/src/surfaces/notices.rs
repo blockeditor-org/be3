@@ -26,12 +26,12 @@ pub(crate) fn CrashNotice(
                     <Icon glyph=ICON_CIRCLE_ALERT />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
-                <Show condition={move || !detail.with(String::is_empty)}>
+                <Show value={move || !detail.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
                         {detail}
                     </Text>
                 </Show>
-                <Show condition={reloadable}>|| {
+                <Show value={reloadable}>|| {
                     let reload_id = reload_id.clone(); view! {
                         <Button
                             @test_id={reload_id}
@@ -87,7 +87,7 @@ pub(crate) fn StaleNotice(
                         variant=ButtonVariant::Secondary
                         on_click={on_delete}
                     />
-                    <Show condition={can_try}>|| {
+                    <Show value={can_try}>|| {
                         let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}

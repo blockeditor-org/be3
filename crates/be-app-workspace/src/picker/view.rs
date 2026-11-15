@@ -225,18 +225,18 @@ fn TypeItems(
     match placing {
         true => view! {
             <LocationItem picker held act />
-            <ForEach keys>|key: String| { row(key) }</ForEach>
+            <ForEach value={keys}>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
-            <Show condition={templated}>
+            <Show value={templated}>
                 <TemplatesItem picker held act />
             </Show>
             <LinkItem act />
             <ImportItem held act />
         },
         false => view! {
-            <ForEach keys>|key: String| { row(key) }</ForEach>
+            <ForEach value={keys}>|key: String| { row(key) }</ForEach>
             <MoreItem act label="More blocks…" />
-            <Show condition={templated}>
+            <Show value={templated}>
                 <TemplatesItem picker held act />
             </Show>
             <LinkItem act />
@@ -276,7 +276,7 @@ fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<Me
     view! {
         <MenuCaption label={caption} />
         <MenuGrid columns=2 row_test_id="picker.slides">
-            <ForEach keys>|key: String| {
+            <ForEach value={keys}>|key: String| {
                 let entry = create_memo({ let key = key.clone(); move || {
                     slides.get().into_iter().find(|entry| tile_key(entry) == key)
                 } });
@@ -339,7 +339,7 @@ fn TemplatesItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem
             disabled
             row_test_id="picker.templates"
         >
-            <ForEach keys={templates}>|template: Uuid| {
+            <ForEach value={templates}>|template: Uuid| {
                 let label = create_memo(move || {
                     let types = picker.types();
                     picker
@@ -436,7 +436,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
     });
     view! {
         <MenuItem lead="New in" label={label} glyph={glyph} page=true row_test_id="picker.location">
-            <ForEach keys>|key: TreeKey| {
+            <ForEach value={keys}>|key: TreeKey| {
                 let row = create_memo({ let key = key.clone(); move || {
                     rows.get().into_iter().find(|row| row.key == key)
                 } });
@@ -658,10 +658,10 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             <ListItem grow=1.0>
                 <Scroll bleed=SIDE_BLEED>
                     <List spacing=ROW_SPACING>
-                        <Show condition={move || titles.with(Vec::is_empty)}>
+                        <Show value={move || titles.with(Vec::is_empty)}>
                             <Text style=TextStyle::CAPTION>"No block types match."</Text>
                         </Show>
-                        <ForEach keys={titles}>|title: String| {
+                        <ForEach value={titles}>|title: String| {
                             let group = create_memo({ let title = title.clone(); move || {
                                 groups.get().into_iter().find(|group| group.title == title)
                             } });
@@ -684,7 +684,7 @@ fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
     view! {
         <List spacing=GROUP_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
-            <ForEach keys>|key: String| {
+            <ForEach value={keys}>|key: String| {
                 let entry = create_memo({ let key = key.clone(); move || {
                     types.get().into_iter().find(|entry| tile_key(entry) == key)
                 } });
@@ -803,7 +803,7 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                 placeholder="Search by name or UUID"
                 act
             />
-            <Show condition={move || keys.with(Vec::is_empty)}>
+            <Show value={move || keys.with(Vec::is_empty)}>
                 <Text style=TextStyle::CAPTION>{empty_text}</Text>
             </Show>
             <ListItem grow=1.0>
@@ -832,9 +832,9 @@ fn LinkBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                     }
                 }</Tree>
             </ListItem>
-            <Show condition={move || name.with(|name| !name.is_empty())}>
+            <Show value={move || name.with(|name| !name.is_empty())}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=HEADER_SPACING>
-                    <Show condition={move || above.with(|above| !above.is_empty())}>
+                    <Show value={move || above.with(|above| !above.is_empty())}>
                         <Text size=TextSize::Sm color=TextColor::Muted overflow=Overflow::Ellipsis>
                             {above}
                         </Text>

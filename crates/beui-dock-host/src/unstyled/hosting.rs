@@ -751,7 +751,7 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         }
         let ready = create_memo(known);
         view! {
-            <Show condition={ready}>|| { place(tab) }</Show>
+            <Show value={ready}>|| { place(tab) }</Show>
         }
         .into_output()
     });

@@ -40,10 +40,10 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
                 title="Default editors"
                 description="The editor a block of each type opens in. Open with, in Files, opens one in another."
             >
-                <Show condition={move || types.with(Vec::is_empty)}>
+                <Show value={move || types.with(Vec::is_empty)}>
                     <SettingsRow label="Every block type has one editor." />
                 </Show>
-                <ForEach keys={types}>|block_type: Uuid|
+                <ForEach value={types}>|block_type: Uuid|
                     <DefaultEditor
                         editor={editor}
                         settings={settings}
@@ -123,7 +123,7 @@ fn DefaultEditor(
                     width={Extent::fraction(1.0)}
                     options={view! {
                         <ChoiceOption label={inherited_label} />
-                        <ForEach keys={names}>|index: usize| {
+                        <ForEach value={names}>|index: usize| {
                             let label = create_memo(move || {
                                 choices.with(|choices| {
                                     choices

@@ -281,7 +281,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let built = view! {
         <Frame @node_ref=&row>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Show condition={move || cx.gutter.get() > 0.0}>
+                <Show value={move || cx.gutter.get() > 0.0}>
                     <Frame width=gutter>
                         <Gutter cx={cx} model={model} />
                     </Frame>
@@ -696,10 +696,10 @@ fn RowText(
             glyphs={glyphs}
             carets={carets}
         >
-            <ForEach keys={keys}>|(key, _): (PieceKey, usize)|
+            <ForEach value={keys}>|(key, _): (PieceKey, usize)|
                 <RowPiece cx model={model} key />
             </ForEach>
-            <Show condition={anchored}>
+            <Show value={anchored}>
                 <TextItem at={anchor_at}>
                     <Portal node={move || anchored.get().then_some(anchor)} />
                 </TextItem>
@@ -1002,7 +1002,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame @node_ref=&pill height fill=fill radius>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Show condition={move || icon.with(Option::is_some)}>||
+                <Show value={move || icon.with(Option::is_some)}>||
                     <Frame width={move || Extent::px(shape.get().icon_width)}>
                         <Text
                             font={move || FontId::proportional(shape.get().icon_size)}
@@ -1014,7 +1014,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                     </Frame>
                 </Show>
                 <Text font={font} color={color} vertical_align=TextAlign::Center>{label}</Text>
-                <Show condition={selected}>|| {
+                <Show value={selected}>|| {
                     let render = cx
                         .selected_widget
                         .expect("a widget only offers a popup when the area was given one");

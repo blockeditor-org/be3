@@ -32,7 +32,7 @@ pub fn Scatter(data: Data) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show
-                    condition={ready}
+                    value={ready}
                     fallback={|| view! {
                         <Frame padding=Space::Lg>
                             <Text style=TextStyle::CAPTION>
@@ -148,10 +148,10 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                 <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
                     <Text style=TextStyle::CAPTION>{y_name}</Text>
                 </CanvasItem>
-                <ForEach keys={keys}>|row: usize|
+                <ForEach value={keys}>|row: usize|
                     <Dot placed={placed} data={data} row={row} />
                 </ForEach>
-                <Show condition={empty}>
+                <Show value={empty}>
                     <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
                         <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
                     </CanvasItem>

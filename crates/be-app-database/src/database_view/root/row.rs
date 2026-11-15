@@ -178,15 +178,15 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     />
                                 </List>
                                 <List spacing=Space::Xs2>
-                                    <ForEach keys={properties}>|field: Uuid|
+                                    <ForEach value={properties}>|field: Uuid|
                                         <Property data={data} row={row} field={field} />
                                     </ForEach>
                                 </List>
-                                <ForEach keys={link_fields}>|field: Uuid|
+                                <ForEach value={link_fields}>|field: Uuid|
                                     <LinkSection data={data} row={row} field={field} />
                                 </ForEach>
                                 <Separator />
-                                <Show condition={move || page.get().is_none()}>
+                                <Show value={move || page.get().is_none()}>
                                     <List direction=Direction::Horizontal spacing=Space::None>
                                         <Button
                                             glyph=ICON_FILE_PLUS
@@ -202,7 +202,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         </Frame>
                     </Scroll>
                 </ListItem>
-                <Show condition={move || page.get().is_some()}>
+                <Show value={move || page.get().is_some()}>
                     <ListItem grow=1.0>
                         <ChildBlock
                             editor={editor}
@@ -288,7 +288,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             <ListItem grow=1.0>
                 <Frame>
                     <Show
-                        condition={choice}
+                        value={choice}
                         fallback={move || view! {
                             <DatabaseValueEditor
                                 fields={move || known.get().into_iter().collect::<Vec<_>>()}
@@ -392,7 +392,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     <Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={add_keys}>|link: RowRef| {
+                                <ForEach value={add_keys}>|link: RowRef| {
                                     let label = create_memo(move || {
                                         addable.with(|rows| {
                                             rows.iter()
@@ -414,7 +414,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     </Frame>
                 </ListItem>
             </List>
-            <ForEach keys={links}>|link: RowRef|
+            <ForEach value={links}>|link: RowRef|
                 <LinkedRow data={data} row={row} field={field} link={link} links={links} />
             </ForEach>
         </List>
@@ -489,7 +489,7 @@ fn LinkedRow(
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
-                            <Show condition={marked}>
+                            <Show value={marked}>
                                 <ChoiceMark option={option} size=MARK />
                             </Show>
                         </Frame>

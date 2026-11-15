@@ -28,14 +28,14 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
         <Frame fill={ColorRole::Custom(STAGE.into())} padding=Space::Md>
             <List spacing=Space::None>
                 <Show
-                    condition={empty}
+                    value={empty}
                     fallback={move || view! {
                         <Frame
                             aspect_ratio=DEFAULT_ASPECT_RATIO
                             fill={ColorRole::Custom(Color32::BLACK.into())}
                         >
                             <List spacing=Space::None>
-                                <ForEach keys={visible}>|id: Uuid|
+                                <ForEach value={visible}>|id: Uuid|
                                     <Layer state id />
                                 </ForEach>
                             </List>

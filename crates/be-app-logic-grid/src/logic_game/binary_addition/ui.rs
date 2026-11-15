@@ -100,12 +100,12 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                     @test_id={"quiz.reset"}
                     on_click={reset}
                 />
-                <Show condition={move || checked.get() && correct.get()}>
+                <Show value={move || checked.get() && correct.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
                         "This page is correct."
                     </Text>
                 </Show>
-                <Show condition={move || checked.get() && !correct.get()}>
+                <Show value={move || checked.get() && !correct.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Danger>
                         "Some blanks still need work."
                     </Text>
@@ -120,7 +120,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                     @test_id={"quiz.previous"}
                     on_click={back}
                 />
-                <Show condition={move || !last.get()}>
+                <Show value={move || !last.get()}>
                     <Button
                         label="Next"
                         variant=ButtonVariant::Primary
@@ -129,7 +129,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::root::Gam
                         on_click={forward}
                     />
                 </Show>
-                <Show condition={move || last.get() && correct.get() && finished.get()}>
+                <Show value={move || last.get() && correct.get() && finished.get()}>
                     <Text style=TextStyle::CAPTION color=TextColor::Success>
                         <Icon glyph=ICON_CIRCLE_CHECK />
                         "Every problem is correct."
@@ -196,7 +196,7 @@ fn OperandRows(operands: Memo<Vec<String>>) -> NodeId {
     let rows = create_memo(move || (0..operands.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=ROW_SPACING>
-            <ForEach keys={rows}>|index: usize| {
+            <ForEach value={rows}>|index: usize| {
                 let operand = create_memo(move || {
                     operands.with(|operands| operands.get(index).cloned().unwrap_or_default())
                 });
@@ -222,7 +222,7 @@ fn OperandRow(sign: Memo<String>, operand: Memo<String>) -> NodeId {
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION align=TextAlign::End>{sign}</Text>
             </Frame>
-            <ForEach keys={bits}>|column: usize| {
+            <ForEach value={bits}>|column: usize| {
                 let bit = create_memo(move || {
                     operand.with(|operand| {
                         operand.chars().nth(column).map(String::from).unwrap_or_default()
@@ -255,7 +255,7 @@ fn BitRow(
             <Frame width=LABEL_WIDTH>
                 <Text style=TextStyle::CAPTION align=TextAlign::End>{label}</Text>
             </Frame>
-            <ForEach keys={columns}>|column: usize| {
+            <ForEach value={columns}>|column: usize| {
                 let answer = create_memo(move || {
                     answers.with(|answers| answers.get(column).copied().flatten())
                 });

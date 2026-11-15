@@ -28,7 +28,7 @@ fn a_canvas_finds_items_added_and_removed_between_its_others() {
                 </Button>
                 <ListItem grow=1.0>
                     <Canvas @node_ref=&canvas>
-                        <ForEach keys={keys}>|key: u32| {
+                        <ForEach value={keys}>|key: u32| {
                             let (x, y) = spot(key);
                             view! {
                                 <CanvasItem x={x} y={y} width=20.0 height=10.0 />

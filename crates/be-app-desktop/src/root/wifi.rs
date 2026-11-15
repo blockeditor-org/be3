@@ -161,16 +161,16 @@ pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callb
             </List>
             <Frame height={Length::Size(LIST_HEIGHT)}>
                 <Scroll bleed={Bleed::POPOVER.top(false)}>
-                    <Show condition={move || !enabled.get()}>
+                    <Show value={move || !enabled.get()}>
                         <Text style=TextStyle::CAPTION>"Wi-Fi is off."</Text>
                     </Show>
-                    <Show condition={none}>
+                    <Show value={none}>
                         <Text style=TextStyle::CAPTION>"No networks found."</Text>
                     </Show>
-                    <ForEach keys={ssids}>|ssid: String|
+                    <ForEach value={ssids}>|ssid: String|
                         <NetworkRow editor={editor} status={status} ssid asking={asking} />
                     </ForEach>
-                    <Show condition={enabled}>
+                    <Show value={enabled}>
                         <OtherNetwork editor={editor} status={status} other={other} />
                     </Show>
                 </Scroll>
@@ -259,12 +259,12 @@ fn NetworkRow(
                             <ListItem grow=1.0>
                                 <List spacing=ROW_SPACING>
                                     <Text>{ssid.clone()}</Text>
-                                    <Show condition={captioned}>
+                                    <Show value={captioned}>
                                         <Text style=TextStyle::CAPTION>{said}</Text>
                                     </Show>
                                 </List>
                             </ListItem>
-                            <Show condition={secured}>
+                            <Show value={secured}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -276,7 +276,7 @@ fn NetworkRow(
                         </List>
                     </ListRow>
                 </ListItem>
-                <Show condition={connected}>
+                <Show value={connected}>
                     <Button
                         label="Disconnect"
                         variant=ButtonVariant::Ghost
@@ -285,7 +285,7 @@ fn NetworkRow(
                     />
                 </Show>
             </List>
-            <Show condition={asked}>
+            <Show value={asked}>
                 <PasswordEntry
                     editor={editor}
                     ssid={entered.clone()}
@@ -362,7 +362,7 @@ fn OtherNetwork(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -
                     </ListItem>
                 </List>
             </ListRow>
-            <Show condition={other}>
+            <Show value={other}>
                 <HiddenEntry editor={editor} status={status} other={other} />
             </Show>
         </List>
@@ -446,7 +446,7 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 }}
                 selected={chosen}
             />
-            <Show condition={keyed}>
+            <Show value={keyed}>
                 <TextInput
                     value={password}
                     kind={InputKind::Password}

@@ -1034,7 +1034,7 @@ pub fn UnshownWindows(workspace: Workspace) -> NodeId {
     view! {
         <Frame width={Size::Custom(0.0)} height={Size::Custom(0.0)}>
             <Layers>
-                <ForEach keys={unshown}>|(window, tab): (HostWindowId, TabId)|
+                <ForEach value={unshown}>|(window, tab): (HostWindowId, TabId)|
                     <UnshownWindow workspace window tab />
                 </ForEach>
             </Layers>
@@ -1103,7 +1103,7 @@ fn Placeholder(workspace: Workspace, tab: TabId) -> NodeId {
         >
             <List spacing=BODY_SPACING align=Align::Center justify=Justify::Center>
                 <Show
-                    condition={move || picture.with(Option::is_some)}
+                    value={move || picture.with(Option::is_some)}
                     fallback={|| view! {
                         <Text size=TextSize::Xl5 color=TextColor::Muted>
                             <Icon glyph=ICON_APP_WINDOW />

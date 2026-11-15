@@ -34,7 +34,7 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
             on_dismiss={move || settings.set(false)}
         >
             <Show
-                condition={state.hex_view}
+                value={state.hex_view}
                 fallback={move || view! {
                     <TextSettings state={state} />
                 }}
@@ -208,11 +208,11 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<Li
                             <ListItem grow=1.0>
                                 <Scroll direction=Direction::Horizontal>
                                     <Frame padding=FORMAT_PADDING>
-                                        <Show condition={markdown} then={controls} />
+                                        <Show value={markdown} then={controls} />
                                     </Frame>
                                 </Scroll>
                             </ListItem>
-                            <Show condition={keyboard}>
+                            <Show value={keyboard}>
                                 <Frame padding=FORMAT_PADDING>
                                     <Button
                                         icon_only=true
@@ -230,7 +230,7 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<Li
         }
     };
     view! {
-        <Show condition={shown} then={bar} />
+        <Show value={shown} then={bar} />
     }
 }
 
@@ -239,7 +239,7 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
     let count = formats.len();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                 let action = formats[index].clone();
                 let id = action.id().to_owned();
                 view! {
@@ -315,7 +315,7 @@ fn TextSettings(state: State) -> NodeId {
                     @test_id={"text.language"}
                     options={view! {
                         <ForEach
-                            keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
+                            value={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
                         >|index: usize|
                             <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
                         </ForEach>
@@ -343,7 +343,7 @@ fn TextSettings(state: State) -> NodeId {
                     }}
                 />
             </List>
-            <Show condition={spaces}>
+            <Show value={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
                     <ListItem grow=1.0>
                         <Text>"Indentation width"</Text>

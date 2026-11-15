@@ -254,7 +254,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
         Callback::new(move |(picking, picked): (Picking, Picked)| edits.picked(picking, picked));
     view! {
         <List spacing=SECTION_SPACING>
-            <Show condition={move || message.with(|message| !message.is_empty())}>
+            <Show value={move || message.with(|message| !message.is_empty())}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
                         <Text style={TextStyle::CAPTION.color(TextColor::Danger)}>{message}</Text>
@@ -262,7 +262,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                 </SettingsSection>
             </Show>
             <Show
-                condition={move || {
+                value={move || {
                     !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
                 }}
             >
@@ -286,7 +286,7 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                     </SettingsRow>
                 </SettingsSection>
             </Show>
-            <ForEach keys={groups}>|group: usize|
+            <ForEach value={groups}>|group: usize|
                 <GroupSection edits={edits} group={group} />
             </ForEach>
             <SettingsSection>
@@ -345,13 +345,13 @@ fn GroupSection(edits: Edits, group: usize) -> NodeId {
     let add = NodeRef::new();
     view! {
         <SettingsSection title={title} description={scope}>
-            <Show condition={move || rules.with(Vec::is_empty)}>
+            <Show value={move || rules.with(Vec::is_empty)}>
                 <SettingsRow
                     label="No remaps here yet"
                     description="Add one, then pick the key you want to change."
                 />
             </Show>
-            <ForEach keys={rules}>|rule: usize|
+            <ForEach value={rules}>|rule: usize|
                 <RuleItem edits={edits} group={group} rule={rule} />
             </ForEach>
             <SettingsRow label="" separated=true compact=true>

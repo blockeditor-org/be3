@@ -41,7 +41,7 @@ pub(crate) fn DeletedBar(
         })
     });
     view! {
-        <Show condition={move || deleted.with(Option::is_some)}>
+        <Show value={move || deleted.with(Option::is_some)}>
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}

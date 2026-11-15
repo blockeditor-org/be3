@@ -122,7 +122,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                                 on_move={moved}
                             >|reorder: ReorderHandle<Uuid, Uuid>|
                                 <List spacing=SECTION_SPACING>
-                                    <ForEach keys={reorder.order}>|id: Uuid| {
+                                    <ForEach value={reorder.order}>|id: Uuid| {
                                         let field = create_memo(move || {
                                             rows.with(|rows| {
                                                 rows.iter().find(|field| field.id == id).cloned()
@@ -233,7 +233,7 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach keys={type_keys}>|index: usize|
+                                <ForEach value={type_keys}>|index: usize|
                                     <ChoiceOption label={FIELD_TYPES[index].1} />
                                 </ForEach>
                             }}
@@ -275,17 +275,17 @@ fn FieldRow(
                     on_click={remove}
                 />
             </List>
-            <Show condition={number_kind}>
+            <Show value={number_kind}>
                 <Interactive capture_presses=true>
                     <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
                 </Interactive>
             </Show>
-            <Show condition={enum_kind}>
+            <Show value={enum_kind}>
                 <Interactive capture_presses=true>
                     <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
                 </Interactive>
             </Show>
-            <Show condition={block_kind}>
+            <Show value={block_kind}>
                 <Interactive capture_presses=true>
                     <BlockOptions
                         editor={editor}
@@ -296,7 +296,7 @@ fn FieldRow(
                     />
                 </Interactive>
             </Show>
-            <Show condition={relation_kind}>
+            <Show value={relation_kind}>
                 <Interactive capture_presses=true>
                     <RelationOptions
                         editor={editor}
@@ -370,7 +370,7 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach keys={scale_keys}>|index: usize|
+                                <ForEach value={scale_keys}>|index: usize|
                                     <ChoiceOption label={NUMBER_SCALES[index].1} />
                                 </ForEach>
                             }}
@@ -510,7 +510,7 @@ fn EnumOptions(
     view! {
         <Frame padding={Padding::ZERO.left(Space::Xl3)}>
             <List spacing=ROW_SPACING>
-                <ForEach keys={keys}>|option_id: Uuid|
+                <ForEach value={keys}>|option_id: Uuid|
                     <EnumOptionRow
                         schema={schema}
                         id={id}
@@ -635,7 +635,7 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
-                    <ForEach keys={icon_keys}>|index: usize| {
+                    <ForEach value={icon_keys}>|index: usize| {
                         let icon = ChoiceIcon::ALL[index];
                         view! {
                             <MenuItem
@@ -668,7 +668,7 @@ fn EnumOptionRow(
                 }}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
-                    <ForEach keys={color_keys}>|index: usize| {
+                    <ForEach value={color_keys}>|index: usize| {
                         let color = ChoiceColor::ALL[index];
                         view! {
                             <MenuItem
@@ -793,7 +793,7 @@ fn BlockOptions(
                 <Text>"Block type"</Text>
                 <Select
                     options={view! {
-                        <ForEach keys={keys}>|id: Option<Uuid>| {
+                        <ForEach value={keys}>|id: Option<Uuid>| {
                             let label = create_memo(move || {
                                 entries.with(|entries| {
                                     entries

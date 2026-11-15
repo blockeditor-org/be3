@@ -58,10 +58,10 @@ fn CanvasPanels(state: CanvasState) -> NodeId {
     let raster = create_memo(move || state.profile.get() == CanvasProfile::Raster);
     view! {
         <List spacing=Space::None>
-            <Show condition={vector}>
+            <Show value={vector}>
                 <Inspector state={state} />
             </Show>
-            <Show condition={raster}>
+            <Show value={raster}>
                 <RasterPanel state={state} />
             </Show>
         </List>
@@ -82,10 +82,10 @@ fn Inspector(state: CanvasState) -> NodeId {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
             <Show
-                condition={empty}
+                value={empty}
                 fallback={move || view! {
                     <List spacing=SPACING>
-                        <Show condition={styled}>
+                        <Show value={styled}>
                             <AppearanceSection state={state} />
                         </Show>
                         <TransformSection state={state} />
@@ -98,7 +98,7 @@ fn Inspector(state: CanvasState) -> NodeId {
             >
                 <Text style=TextStyle::CAPTION>"Select an object to edit its appearance."</Text>
             </Show>
-            <Show condition={move || !narrow.get()}>
+            <Show value={move || !narrow.get()}>
                 <List spacing=SPACING>
                     <Separator />
                     <ShortcutsSection />
@@ -140,7 +140,7 @@ fn FrameSection(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Accordion title="Frame" open={open}>
                     <List spacing=Space::Sm>
                         <TextInput
@@ -149,7 +149,7 @@ fn FrameSection(state: CanvasState) -> NodeId {
                             disabled={locked}
                             @test_id={"infinite-canvas.frame.name"}
                         />
-                        <Show condition={first}>
+                        <Show value={first}>
                             <Text style=TextStyle::CAPTION>
                                 "The first frame is what other editors show when they embed this canvas."
                             </Text>
@@ -230,7 +230,7 @@ fn FrameBackground(
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
                 />
-                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let (name, color) = swatches[index];
                     view! {
                         <Swatch
@@ -292,7 +292,7 @@ fn TransformSection(state: CanvasState) -> NodeId {
         <Accordion title="Transform" open={open}>
             <List spacing=Space::Sm>
                 <Show
-                    condition={single}
+                    value={single}
                     fallback={|| view! {
                         <Text style=TextStyle::CAPTION>
                             "Select one object to edit exact transform values."
@@ -455,7 +455,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
     let toggled = move || state.toggle_selected_block_mode();
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Accordion title="Block" open={open}>
                     <List spacing=Space::Sm>
                         <Button
@@ -468,7 +468,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.block-mode"}
                             on_click={toggled}
                         />
-                        <Show condition={direct}>
+                        <Show value={direct}>
                             <EditorScale state={state} />
                         </Show>
                     </List>
@@ -556,7 +556,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                     spacing=Space::Xs
                     wrap=true
                 >
-                    <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                    <ForEach value={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, alignment) = ALIGNMENTS[index];
                         view! {
                             <Button
@@ -596,7 +596,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
                     spacing=Space::Xs
                     wrap=true
                 >
-                    <ForEach keys={(0..LAYERS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                    <ForEach value={(0..LAYERS.len()).collect::<Vec<usize>>()}>|index: usize| {
                         let (label, movement) = LAYERS[index];
                         let blocked = create_memo(move || {
                             !state.can_reorder(movement)
@@ -738,7 +738,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=Space::Sm>
                     <Text style=TextStyle::CAPTION>"Color"</Text>
                     <ColorInput
@@ -775,7 +775,7 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=Space::Xs>
                     <MixedLabel label="Line width" mixed={mixed} />
                     <Slider
@@ -796,7 +796,7 @@ fn MixedLabel(label: &'static str, mixed: Memo<bool>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
             <Text style=TextStyle::CAPTION>{label}</Text>
-            <Show condition={mixed}>
+            <Show value={mixed}>
                 <Text style=TextStyle::CAPTION>"Mixed"</Text>
             </Show>
             <Spacer />
@@ -863,7 +863,7 @@ fn LineOptions(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Line"</Text>
@@ -946,7 +946,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     let none = create_memo(move || fill.get() == CommonValue::Uniform(None));
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Shape"</Text>
@@ -962,7 +962,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                             pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
                         />
-                        <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                        <ForEach value={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = STROKES[index];
                             let value = create_memo(move || match fill.get() {
                                 CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
@@ -1128,7 +1128,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=Space::Sm>
                     <Separator />
                     <Text style=TextStyle::CAPTION>"Text"</Text>
@@ -1173,7 +1173,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         wrap=true
                     >
                         <ForEach
-                            keys={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
+                            value={(0..ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (label, wanted) = ALIGN_OPTIONS[index];
                             let pressed = create_memo(move || {
@@ -1199,7 +1199,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         wrap=true
                     >
                         <ForEach
-                            keys={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
+                            value={(0..VERTICAL_ALIGN_OPTIONS.len()).collect::<Vec<usize>>()}
                         >|index: usize| {
                             let (label, wanted) = VERTICAL_ALIGN_OPTIONS[index];
                             let pressed = create_memo(move || {
@@ -1266,7 +1266,7 @@ pub(crate) fn ShortcutsSection(#[prop(default = false)] raster: bool) -> NodeId 
     view! {
         <Accordion title="Shortcuts" open={open}>
             <List spacing=Space::Xs>
-                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let action = tools[index].clone();
                     let keys = action
                         .shortcuts()
@@ -1278,7 +1278,7 @@ pub(crate) fn ShortcutsSection(#[prop(default = false)] raster: bool) -> NodeId 
                         <Shortcut keys={keys} description={action.label()} />
                     }
                 }</ForEach>
-                <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                     let (action, keys) = SHORTCUTS[index];
                     view! {
                         <Shortcut keys={keys} description={action} />

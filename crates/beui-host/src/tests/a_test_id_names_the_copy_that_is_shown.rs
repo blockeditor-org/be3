@@ -10,7 +10,7 @@ fn a_test_id_names_the_copy_that_is_shown() {
         view! {
             <List spacing=0.0>
                 <Show
-                    condition={wide}
+                    value={wide}
                     fallback={|| view! {
                         <Frame @test_id="tool" width=20.0 height=20.0 />
                     }}
