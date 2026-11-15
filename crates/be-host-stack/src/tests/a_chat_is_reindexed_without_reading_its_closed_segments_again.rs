@@ -132,7 +132,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
             removed: vec![(segment.doc.clone(), later(1))],
             ..be_lib_search::Batch::default()
         };
-        crate::search::write(&peer, index, removed)
+        crate::search::write(&peer, index, removed, be_block::search_index::MERGE_BYTES)
             .await
             .expect("the removal is written");
         let unchanged = be_lib_search::Batch {
@@ -145,7 +145,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
             }],
             ..be_lib_search::Batch::default()
         };
-        crate::search::write(&peer, index, unchanged)
+        crate::search::write(&peer, index, unchanged, be_block::search_index::MERGE_BYTES)
             .await
             .expect("the put is written")
     });

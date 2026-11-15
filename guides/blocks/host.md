@@ -377,6 +377,17 @@ index and search it locally.
   drops its index and the blocks waiting for it.
   `Searched::complete` is true when nothing this device could index is queued,
   being made or written; an edit on a root it cannot edit is never queued.
+- **Compaction.** A batch's write also compacts a few segments
+  (`SearchIndexContent::compact`), none whose merge reads more than
+  `MERGE_BYTES` (8 MiB), so no edit waits on a large merge. What the cap leaves
+  (`SearchIndexContent::merges_over`) is merged while the host is idle
+  (`compact_idle_indexes`): nothing queued, written or caught up for search, no
+  search running, no command waiting, the outbox empty and no module working.
+  One index at a time, a commit a pass, with no cap, sealed and sent like a batch
+  (it counts as one being written, so the host is busy meanwhile and that index's
+  batches wait). An index is looked at again only once its head moves. There is
+  no signal yet for the device being idle or on power, so this is the host's own
+  idleness.
 - **Catching up.** When this device is connected and may edit a root whose
   index is named, `start_catch_ups` asks `Peer::changed_since(root, watermark)`
   (the index's `Index::watermark`) once per connection: the blocks it lists
