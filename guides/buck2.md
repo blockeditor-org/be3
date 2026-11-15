@@ -216,8 +216,9 @@ is new or differs. When one does, or the test made one of the paintings `be3.aga
 dynamic action (`_again`) runs the test once more as `record` does and `paint-compare --again`
 compares the second run's paintings with the first's, writing `[again]`'s `flaky`, a line per
 difference or for a second run that failed, which crates/be-tool-verify prints and
-be-tool-local's `ci` puts on the pull request's summary comment; neither reads it when
-something failed to build, since a first run that failed leaves an earlier report at its path.
+be-tool-local's `ci` puts on the pull request's summary comment. A test that failed leaves an earlier report at its path, so neither reads the reports
+of a package with a failed test, nor any when something else failed (a compile, which may have
+kept a test from running at all): be-tool-verify's failures.rs reads which from the event log.
 It only reports. Otherwise it is an empty directory and nothing runs. `./scripts/ci --previews
 BASE` sets `be3.again` (`-c`) to the accepted paintings the branch changed since its merge base
 with BASE, so a run after a painting was accepted, by the author's verify or by CI's autofix,

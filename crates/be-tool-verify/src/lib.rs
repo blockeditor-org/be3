@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 mod binds;
+mod failures;
 mod links;
 
 const USAGE: &str = "usage: verify verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--app-tests] [--previews BASE OUT] [--bootstrap DIR] [--event-log PATH]";
@@ -206,8 +207,15 @@ impl Run {
         };
         let mut command = Command::new(tool);
         command.arg("ci").arg(&self.options.manifest);
-        if self.options.build_failed {
-            command.arg("--build-failed");
+        match self.unchecked() {
+            failures::Unchecked::All => {
+                command.arg("--unchecked-all");
+            }
+            failures::Unchecked::Packages(packages) => {
+                for package in packages {
+                    command.arg("--unchecked").arg(package);
+                }
+            }
         }
         if let Some((base, out)) = &self.options.previews {
             command.arg("--previews").arg(base).arg(out);
@@ -636,17 +644,33 @@ impl Run {
         }
     }
 
+    /// Whose reports of a second run this build cannot stand behind
+    /// (failures.rs): none when everything built.
+    fn unchecked(&self) -> failures::Unchecked {
+        if !self.options.build_failed {
+            return failures::Unchecked::Packages(BTreeSet::new());
+        }
+        match &self.options.event_log {
+            Some(events) => failures::unchecked(&fs::read_to_string(events).unwrap_or_default()),
+            None => failures::Unchecked::All,
+        }
+    }
+
     /// What the second run of each test whose paintings changed found
     /// (_again in buck/dev/test.bzl). It only reports: the paintings the first
-    /// run made are the ones accepted. When something failed to build, a
-    /// report at its path can be an earlier build's, left there by a first run
-    /// that failed this time, so none is read.
+    /// run made are the ones accepted. A report whose test failed, or that
+    /// something else failing may have left from an earlier build, is not read
+    /// (failures.rs).
     fn flakes(&mut self) {
-        if self.options.build_failed {
-            return;
-        }
+        let unchecked = self.unchecked();
         let mut found = Vec::new();
         for (package, directory) in self.built_in("flaky") {
+            if match &unchecked {
+                failures::Unchecked::All => true,
+                failures::Unchecked::Packages(packages) => packages.contains(&slashed(&package)),
+            } {
+                continue;
+            }
             let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
             for line in flaky.lines() {
                 found.push(format!("  {}: {line}", slashed(&package)));

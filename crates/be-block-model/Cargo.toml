@@ -6,6 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-lib-cbor = { path = "../be-lib-cbor" }
 be-block-commit = { path = "../be-block-commit", default-features = false }
 be-block-model-derive = { path = "../be-block-model-derive" }
 be-block-store = { path = "../be-block-store", default-features = false }

@@ -18,12 +18,7 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, String> {
 
 /// The one value `bytes` holds; an error when anything follows it.
 pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
-    let mut rest = bytes;
-    let value = ciborium::from_reader(&mut rest).map_err(|error| error.to_string())?;
-    if !rest.is_empty() {
-        return Err(format!("{} bytes follow the value", rest.len()));
-    }
-    Ok(value)
+    be_lib_cbor::decode(bytes).map_err(|error| error.to_string())
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

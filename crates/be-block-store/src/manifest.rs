@@ -239,6 +239,7 @@ pub fn encode_value<T: Serialize>(value: &T) -> Result<Vec<u8>, StoreError> {
     Ok(encoded)
 }
 
+/// The one value `bytes` holds: bytes after it make them not that value.
 pub fn decode_value<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
-    ciborium::from_reader(bytes).map_err(|_| StoreError::Encoding)
+    be_lib_cbor::decode(bytes).map_err(|_| StoreError::Encoding)
 }

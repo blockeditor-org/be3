@@ -5,6 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+be-lib-cbor = { path = "../be-lib-cbor" }
 ciborium = "0.2"
 serde_bytes = "0.11"
 serde = { version = "1", features = ["derive"] }

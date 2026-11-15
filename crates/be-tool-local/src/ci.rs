@@ -5,12 +5,15 @@ use std::process::ExitCode;
 use crate::git;
 use crate::previews::{PAINTINGS, stage};
 
-const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT] [--build-failed]";
+const USAGE: &str = "usage: local-tools ci MANIFEST [--previews BASE OUT] [--unchecked PACKAGE]... [--unchecked-all]";
 
 struct Options {
     previews: Option<(String, PathBuf)>,
-    /// Something failed to build, so a report at its path may be an earlier build's.
-    build_failed: bool,
+    /// The packages whose reports of a second run may be an earlier build's,
+    /// since something failed (be-tool-verify's failures.rs), and whether that
+    /// is every package.
+    unchecked: Vec<String>,
+    unchecked_all: bool,
 }
 
 struct Run {
@@ -72,12 +75,14 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut options = Options {
         previews: None,
-        build_failed: false,
+        unchecked: Vec::new(),
+        unchecked_all: false,
     };
     while let Some(argument) = arguments.next() {
         let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
         match argument.as_str() {
-            "--build-failed" => options.build_failed = true,
+            "--unchecked" => options.unchecked.push(value()?),
+            "--unchecked-all" => options.unchecked_all = true,
             "--previews" => {
                 let base = value()?;
                 options.previews = Some((base, value()?.into()));
@@ -105,18 +110,32 @@ impl Run {
     }
 
     /// The comment's section on the tests whose second run disagreed with
-    /// their first (_again in buck/dev/test.bzl), empty when none did, and a
-    /// line saying it was not looked for when something failed to build.
+    /// their first (_again in buck/dev/test.bzl), empty when none did, and
+    /// what was not looked at because something failed.
     fn flaky(&self) -> String {
-        if self.options.build_failed {
-            return "## Flaky paintings\n\nNot looked for: something failed to build, so a report may be an earlier build's.\n\n".to_owned();
+        if self.options.unchecked_all {
+            return "## Flaky paintings\n\nNot looked for: something besides a test failed to build, so a report may be an earlier build's.\n\n".to_owned();
         }
         let mut section = String::new();
         for (package, directory) in self.built_in("flaky") {
+            if self.options.unchecked.contains(&package) {
+                continue;
+            }
             let flaky = fs::read_to_string(directory.join("flaky")).unwrap_or_default();
             for line in flaky.lines() {
                 section.push_str(&format!("- `{package}`: {line}\n"));
             }
+        }
+        if !self.options.unchecked.is_empty() {
+            section.push_str(&format!(
+                "- Not looked for in {}, whose tests failed.\n",
+                self.options
+                    .unchecked
+                    .iter()
+                    .map(|package| format!("`{package}`"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
         }
         if section.is_empty() {
             return section;

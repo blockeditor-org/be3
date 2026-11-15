@@ -179,8 +179,9 @@ fn changed_paintings(base: &str) -> Vec<String> {
 /// ran (be-tool-verify's links.rs). `again` is the accepted paintings the pull
 /// request changed, as `be3.again`, whose tests run a second time
 /// (_again in buck/dev/test.bzl) even when the checkout already holds what
-/// they paint.
-fn bxl_arguments(
+/// they paint. That value grows with the pull request, by a path of about a
+/// hundred bytes for each painting it changed.
+pub(crate) fn bxl_arguments(
     host: &str,
     parts: &[&str],
     events: &std::path::Path,

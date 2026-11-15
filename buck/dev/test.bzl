@@ -12,6 +12,10 @@ TEST_TIME_LIMIT = "20m"
 # request names those the pull request changed (`-c be3.again=PATH,...`, the
 # bootstrap's verify.rs), so that a run after the painting was accepted, whether
 # by the author's verify or by CI's own autofix, still says whether it is flaky.
+# It is read here, when this file loads, on purpose: it decides only whether
+# _again declares its actions, and is in none of their digests, so a new list
+# analyses the tests again and runs nothing that has run before. Passed into an
+# action's command or environment it would make every second run a new action.
 _AGAIN = [path for path in read_root_config("be3", "again", "").split(",") if path]
 
 # The label of a thorough test: one that stays costly however it is written, which

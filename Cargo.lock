@@ -1295,6 +1295,7 @@ dependencies = [
  "be-block-commit",
  "be-block-model-derive",
  "be-block-store",
+ "be-lib-cbor",
  "be-lib-sequence",
  "be-tool-bench",
  "ciborium",
@@ -1350,6 +1351,7 @@ dependencies = [
 name = "be-block-store"
 version = "0.1.0"
 dependencies = [
+ "be-lib-cbor",
  "chacha20poly1305",
  "ciborium",
  "libc",
@@ -1766,6 +1768,14 @@ name = "be-lib-build-record"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "be-lib-cbor"
+version = "0.1.0"
+dependencies = [
+ "ciborium",
+ "serde",
 ]
 
 [[package]]
@@ -3273,6 +3283,7 @@ dependencies = [
 name = "beui-paint-format"
 version = "0.1.0"
 dependencies = [
+ "be-lib-cbor",
  "ciborium",
  "serde",
  "serde_bytes",
