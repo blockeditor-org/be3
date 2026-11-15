@@ -22,10 +22,14 @@ fn a_move_into_a_container_whose_type_refuses_it_puts_the_block_back() {
     // As the file tree does, which lists the folder, so the child's name is known.
     be_host_stack::want(
         be_host_stack::Owner::Editor(1),
-        vec![be_host_stack::Query::Subtree(folder)],
+        vec![
+            be_host_stack::Query::Roots,
+            be_host_stack::Query::Parents(folder),
+            be_host_stack::Query::Subtree(folder),
+        ],
     );
-    be_host_stack::wait_until("listed the folder", |_| {
-        be_host_stack::node(child).map(|_| ())
+    be_host_stack::wait_until("listed the folder", |shared| {
+        shared.graph.get(child).map(|_| ())
     });
     let mut core = core();
     core.block_types.insert(folder, FolderContent::CONTENT_TYPE);
