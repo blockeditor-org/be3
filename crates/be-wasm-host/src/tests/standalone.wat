@@ -1,7 +1,7 @@
 ;; A standalone app (guides/app_libraries.md, "The raw app interface"): one
 ;; module with no dylink.0, no SDK, no WASI, no threads and no thread-local
 ;; storage, which owns a memory that is not shared and paints through be3:gpu.
-;; block-wasm-host's tests run it on wasmtime, and :standalone-web-test
+;; be-wasm-host's tests run it on V8, and :standalone-web-test
 ;; (crates/be-wasm-host/BUCK) in Chromium through app.js and
 ;; block-gpu-shim.
 ;;
