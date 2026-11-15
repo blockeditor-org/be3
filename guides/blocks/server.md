@@ -515,7 +515,7 @@ have byte limits (refused as `InvalidRequest`). A commit of a search index may
 hold at most `MAX_INDEX_BYTES` (refused as `OverQuota`), since any editor of its
 root writes what every viewer's search reads, and no commit's time may be more
 than `MAX_COMMIT_AHEAD` (an hour) past the server's clock (refused as
-`InvalidRequest`), since a far-future time wins every comparison by commit time
+`CommitAhead`), since a far-future time wins every comparison by commit time
 and escapes history's thinning by age. `open-organization` answers the server's
 clock, and a peer stamps its commits no later than that plus
 `COMMIT_CLOCK_SLACK` (`Peer::commit_time`), so a device whose clock runs fast is

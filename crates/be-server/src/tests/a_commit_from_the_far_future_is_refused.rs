@@ -18,7 +18,7 @@ async fn a_commit_from_the_far_future_is_refused() {
         .publish(&author, block, forged, chunks, None, far)
         .await;
     assert!(
-        refused_as(&refused, ErrorCode::InvalidRequest),
+        refused_as(&refused, ErrorCode::CommitAhead),
         "{refused:?}"
     );
 

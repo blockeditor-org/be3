@@ -847,8 +847,11 @@ pub(super) fn lost_access(code: ErrorCode) -> bool {
 }
 
 /// A refusal sending the same change again cannot get past: the change itself is wrong (a
-/// malformed request, an object over the size limit), where a quota, a missing key or the
-/// store may come right by the next try.
+/// malformed request, an object over the size limit, a time too far ahead), where a quota, a
+/// missing key or the store may come right by the next try.
 fn never_taken(code: ErrorCode) -> bool {
-    matches!(code, ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge)
+    matches!(
+        code,
+        ErrorCode::InvalidRequest | ErrorCode::ObjectTooLarge | ErrorCode::CommitAhead
+    )
 }
