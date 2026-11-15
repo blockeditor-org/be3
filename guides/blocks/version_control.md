@@ -68,7 +68,8 @@ mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
 operation so every head is current. The statuses, computed in the worker's
 loop, and the commands, run in its lane (guides/blocks/host.md), share one
 cache of the trees and commits either read or wrote (`version::Objects`), so
-neither reads again what the other holds. Edits go on while a command runs, so
+neither reads again what the other holds; it keeps the `TREES_KEPT` trees and
+`COMMITS_KEPT` commits used last. Edits go on while a command runs, so
 a block it writes may have moved since it read it: the write merges with what
 the block moved to (`merge_over`), from the two heads' common ancestor found
 within `MERGE_BASE_DEPTH` levels of each (`Peer::merge_base`, which fetches

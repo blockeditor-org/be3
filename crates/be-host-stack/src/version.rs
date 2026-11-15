@@ -59,14 +59,60 @@ pub(super) struct Versions {
 
 /// The trees and commits version control read or wrote, by commit, which never change: one
 /// cache for the loop's `Versions`, which computes the statuses, and each version command's in
-/// the lane (`Served::version`), so neither reads again what the other holds.
+/// the lane (`Served::version`), so neither reads again what the other holds. It keeps the
+/// `TREES_KEPT` trees and `COMMITS_KEPT` commits used last.
 #[derive(Clone, Default)]
-pub(super) struct Objects(Arc<Mutex<Held>>);
+pub(crate) struct Objects(Arc<Mutex<Held>>);
+
+/// How many trees `Objects` keeps: a few for each followed checkout's status (its working
+/// change, its branch's head and its upstream's) and what a command in the lane reads.
+pub(crate) const TREES_KEPT: usize = 64;
+/// How many commits `Objects` keeps; a commit is far smaller than a tree.
+pub(crate) const COMMITS_KEPT: usize = 1024;
 
 #[derive(Default)]
 struct Held {
-    trees: HashMap<CommitId, Tree>,
-    commits: HashMap<CommitId, Commit>,
+    trees: Recent<Tree>,
+    commits: Recent<Commit>,
+}
+
+/// Values by commit, the least recently used let go once there are more than a limit. Eviction
+/// scans every value, which at these limits costs less than keeping them in order.
+struct Recent<V> {
+    values: HashMap<CommitId, (V, u64)>,
+    used: u64,
+}
+
+impl<V> Default for Recent<V> {
+    fn default() -> Self {
+        Self {
+            values: HashMap::new(),
+            used: 0,
+        }
+    }
+}
+
+impl<V: Clone> Recent<V> {
+    fn get(&mut self, id: CommitId) -> Option<V> {
+        self.used += 1;
+        let (value, used) = self.values.get_mut(&id)?;
+        *used = self.used;
+        Some(value.clone())
+    }
+
+    fn put(&mut self, id: CommitId, value: V, limit: usize) {
+        self.used += 1;
+        self.values.insert(id, (value, self.used));
+        if self.values.len() > limit
+            && let Some(oldest) = self
+                .values
+                .iter()
+                .min_by_key(|(_, (_, used))| *used)
+                .map(|(id, _)| *id)
+        {
+            self.values.remove(&oldest);
+        }
+    }
 }
 
 /// How many times each tree and commit was read from the peer, whichever `Objects` keeps it,
@@ -80,20 +126,27 @@ impl Objects {
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn tree(&self, commit: CommitId) -> Option<Tree> {
-        self.held().trees.get(&commit).cloned()
+    pub(crate) fn tree(&self, commit: CommitId) -> Option<Tree> {
+        self.held().trees.get(commit)
     }
 
-    fn commit(&self, commit: CommitId) -> Option<Commit> {
-        self.held().commits.get(&commit).cloned()
+    pub(crate) fn commit(&self, commit: CommitId) -> Option<Commit> {
+        self.held().commits.get(commit)
     }
 
-    fn put_tree(&self, commit: CommitId, tree: Tree) {
-        self.held().trees.insert(commit, tree);
+    pub(crate) fn put_tree(&self, commit: CommitId, tree: Tree) {
+        self.held().trees.put(commit, tree, TREES_KEPT);
     }
 
-    fn put_commit(&self, id: CommitId, commit: Commit) {
-        self.held().commits.insert(id, commit);
+    pub(crate) fn put_commit(&self, id: CommitId, commit: Commit) {
+        self.held().commits.put(id, commit, COMMITS_KEPT);
+    }
+
+    /// How many trees and commits it keeps.
+    #[cfg(test)]
+    pub(crate) fn kept(&self) -> (usize, usize) {
+        let held = self.held();
+        (held.trees.values.len(), held.commits.values.len())
     }
 }
 
