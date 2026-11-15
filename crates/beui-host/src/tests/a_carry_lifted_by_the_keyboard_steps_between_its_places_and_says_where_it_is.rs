@@ -24,8 +24,12 @@ fn a_carry_lifted_by_the_keyboard_steps_between_its_places_and_says_where_it_is(
             Func::new(|_: u32| true),
             Func::new(move |_: u32| {
                 closest(baskets.iter().zip(names).map(|(basket, name)| {
-                    Candidate::new(name, Rect::from_min_size(Pos2::ZERO, vec2(100.0, 40.0)), *basket)
-                        .labelled(format!("the {name} basket"))
+                    Candidate::new(
+                        name,
+                        Rect::from_min_size(Pos2::ZERO, vec2(100.0, 40.0)),
+                        *basket,
+                    )
+                    .labelled(format!("the {name} basket"))
                 }))
             }),
             Callback::new(move |(_, name): (u32, &'static str)| {
@@ -61,11 +65,21 @@ fn a_carry_lifted_by_the_keyboard_steps_between_its_places_and_says_where_it_is(
         "and says where it is"
     );
     harness.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(said(&harness).as_deref(), Some("Over the middle basket, place 2 of 3"));
+    assert_eq!(
+        said(&harness).as_deref(),
+        Some("Over the middle basket, place 2 of 3")
+    );
     harness.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(said(&harness).as_deref(), Some("Over the right basket, place 3 of 3"));
+    assert_eq!(
+        said(&harness).as_deref(),
+        Some("Over the right basket, place 3 of 3")
+    );
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(dropped.get_untracked(), ["right"], "Enter drops it where it is");
+    assert_eq!(
+        dropped.get_untracked(),
+        ["right"],
+        "Enter drops it where it is"
+    );
     assert_eq!(said(&harness).as_deref(), Some("Dropped"));
 
     harness.key(Key::Space, Modifiers::NONE);

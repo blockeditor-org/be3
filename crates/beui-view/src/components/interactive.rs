@@ -179,9 +179,7 @@ fn carrying(
 ) {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use std::cell::RefCell;
-    use crate::components::overlay::Overlay;
-    use crate::primitives::{Frame, List};
-    use crate::types::{LayerLevel, LayerPolicy, Placement, Rect};
+    use crate::types::Rect;
     use std::cell::Cell;
     use std::rc::Rc;
 
@@ -279,28 +277,7 @@ fn carrying(
         }) as Rc<dyn Fn(crate::drag::CarryId, Option<Preview>)>
     };
     let wrapped = view! {
-        <Frame raised={raised}>
-            <List spacing=0.0>
-                <CarryStatus said={said} />
-                <Frame translate={offset} children={children} />
-                <Overlay
-                    anchor={anchor}
-                    placement=Placement::At
-                    policy=LayerPolicy::Inert
-                    level=LayerLevel::Top
-                    traps_focus=false
-                    open={open}
-                >
-                    || {
-                        let shown = preview.borrow().clone();
-                        match shown {
-                            Some(preview) => preview(),
-                            None => view! { <Frame /> },
-                        }
-                    }
-                </Overlay>
-            </List>
-        </Frame>
+        <CarriedFace raised offset said anchor open preview={Rc::clone(&preview)} children />
     };
     let laid_out = crate::measure::measure(wrapped);
     measured.set(Some(laid_out));
@@ -443,6 +420,48 @@ fn lift_by_keys(
             true
         }
         None => false,
+    }
+}
+
+/// What an `Interactive` given `drag` wraps its children in: drawn raised and offset by
+/// `offset` while carried, a live region saying what the carry does, and the overlay its
+/// `preview` floats in.
+#[component]
+fn CarriedFace(
+    raised: crate::reactive::Memo<bool>,
+    offset: crate::reactive::Memo<Vec2>,
+    said: crate::reactive::Memo<Option<String>>,
+    anchor: crate::reactive::Memo<crate::reactive::OverlayAnchor>,
+    open: crate::reactive::Memo<bool>,
+    preview: std::rc::Rc<std::cell::RefCell<Option<Preview>>>,
+    children: Option<Child>,
+) -> NodeId {
+    use crate::components::overlay::Overlay;
+    use crate::primitives::{Frame, List};
+    use crate::types::{LayerLevel, LayerPolicy, Placement};
+    view! {
+        <Frame raised={raised}>
+            <List spacing=0.0>
+                <CarryStatus said={said} />
+                <Frame translate={offset} children={children} />
+                <Overlay
+                    anchor={anchor}
+                    placement=Placement::At
+                    policy=LayerPolicy::Inert
+                    level=LayerLevel::Top
+                    traps_focus=false
+                    open={open}
+                >
+                    || {
+                        let shown = preview.borrow().clone();
+                        match shown {
+                            Some(preview) => preview(),
+                            None => view! { <Frame /> },
+                        }
+                    }
+                </Overlay>
+            </List>
+        </Frame>
     }
 }
 

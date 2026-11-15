@@ -202,7 +202,10 @@ pub fn press_at(
         predicted: None,
         time,
         pointer: if touch {
-            beui_types::input::PointerId::Touch(beui_types::TouchId { device: 0, finger: 0 })
+            beui_types::input::PointerId::Touch(beui_types::TouchId {
+                device: 0,
+                finger: 0,
+            })
         } else {
             beui_types::input::PointerId::Mouse
         },

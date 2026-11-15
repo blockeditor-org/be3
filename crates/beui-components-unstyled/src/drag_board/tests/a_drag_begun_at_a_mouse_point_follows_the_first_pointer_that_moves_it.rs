@@ -17,7 +17,11 @@ fn a_drag_begun_at_a_mouse_point_follows_the_first_pointer_that_moves_it() {
         finger: 1,
     });
     let order = |_| (Vec::new(), WindowId::MAIN);
-    Driver::track(&fixture.board, at_point(pos2(50.0, 50.0)).by(finger), &order);
+    Driver::track(
+        &fixture.board,
+        at_point(pos2(50.0, 50.0)).by(finger),
+        &order,
+    );
     assert!(
         fixture.log.take().contains(&"list over 50 50".to_owned()),
         "the finger moves a drag begun at a mouse point"

@@ -158,16 +158,18 @@ impl Board {
     /// Moves a carry the keyboard holds to the nearest place `toward` from the one it is
     /// over, aiming at the place's zone when it has one, and says the place then chosen.
     pub fn step(&self, toward: beui_view::types::Vec2) -> bool {
-        let Some((item, chosen, drawn, last)) = self.placing.borrow().as_ref().and_then(|placing| {
-            (placing.pointer == PointerId::Keyboard).then(|| {
-                (
-                    placing.carry.item,
-                    placing.frame.chosen,
-                    placing.frame.item.center(),
-                    placing.last,
-                )
+        let Some((item, chosen, drawn, last)) =
+            self.placing.borrow().as_ref().and_then(|placing| {
+                (placing.pointer == PointerId::Keyboard).then(|| {
+                    (
+                        placing.carry.item,
+                        placing.frame.chosen,
+                        placing.frame.item.center(),
+                        placing.last,
+                    )
+                })
             })
-        }) else {
+        else {
             return false;
         };
         let Some(last) = last else {
@@ -216,7 +218,10 @@ impl Board {
         let Some(at) = rests.iter().position(|rest| rest.id == chosen) else {
             return Some("over a place".to_owned());
         };
-        let name = rests[at].label.clone().unwrap_or_else(|| "a place".to_owned());
+        let name = rests[at]
+            .label
+            .clone()
+            .unwrap_or_else(|| "a place".to_owned());
         Some(format!("over {name}, place {} of {}", at + 1, rests.len()))
     }
 

@@ -68,7 +68,9 @@ impl Fixture {
     }
 
     fn release(&self) {
-        Driver::release(&*self.board, PointerId::Mouse, false, &|_| (Vec::new(), WindowId::MAIN));
+        Driver::release(&*self.board, PointerId::Mouse, false, &|_| {
+            (Vec::new(), WindowId::MAIN)
+        });
     }
 }
 
