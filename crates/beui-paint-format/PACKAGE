@@ -17,6 +17,7 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -29,6 +30,7 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -41,6 +43,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -53,6 +56,7 @@ write_package_value("be3.cargo", {
         "linux-x86_64-html": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -65,6 +69,7 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -77,6 +82,7 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -89,6 +95,7 @@ write_package_value("be3.cargo", {
         "wasi": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -101,6 +108,7 @@ write_package_value("be3.cargo", {
         "wasi-guest": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -113,6 +121,7 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
@@ -125,6 +134,7 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {},
             "deps": [
+                "//crates/be-lib-cbor:be-lib-cbor",
                 "//third-party/rust:ciborium-0.2.2",
                 "//third-party/rust:serde-1.0.228",
                 "//third-party/rust:serde_bytes-0.11.19",
