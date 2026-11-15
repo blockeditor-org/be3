@@ -248,20 +248,34 @@ fn hear(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mu
 async fn step(peer: &Arc<Peer<MemoryStore>>, shared: &Arc<Mutex<Quiet>>, replicas: &mut Replicas<Quiet>) {
     hear(peer, shared, replicas);
     let listened = EVENTS.with(|events| events.borrow_mut().take());
+    // A module's timer (a seal due once its edits go quiet) is fired as the worker's loop would.
+    let wake_at = replicas.modules.wake_at();
+    let clock = replicas.modules.clock().clone();
+    let timer = async move {
+        match wake_at {
+            Some(at) => clock.sleep_until(at).await,
+            None => std::future::pending().await,
+        }
+    };
     let listened = match listened {
         Some((connection, mut receiver)) => {
             let heard = tokio::select! {
                 () = replicas.woken() => None,
+                () = timer => None,
                 heard = receiver.recv() => heard.ok(),
             };
             EVENTS.with(|events| *events.borrow_mut() = Some((connection, receiver)));
             heard
         }
         None => {
-            replicas.woken().await;
+            tokio::select! {
+                () = replicas.woken() => {}
+                () = timer => {}
+            }
             None
         }
     };
+    replicas.modules.tick_due();
     if let Some(event) = listened {
         replicas.heard((peer, shared), &event);
     }
