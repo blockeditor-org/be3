@@ -578,9 +578,15 @@ impl<S: ObjectStore> Peer<S> {
         let made = match self.summary(settings).await {
             Ok(summary) => summary,
             Err(ClientError::Refused(ErrorCode::BlockNotFound, _)) => {
-                self.create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
-                    .await?;
-                self.share_with_server(settings).await?;
+                match self
+                    .create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
+                    .await
+                {
+                    Ok(_) => self.share_with_server(settings).await?,
+                    // Another administrator's device made it since: that device shares it.
+                    Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {}
+                    Err(error) => return Err(error),
+                }
                 self.summary(settings).await?
             }
             Err(error) => return Err(error),
