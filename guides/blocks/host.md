@@ -104,7 +104,11 @@ a `Seen` says the worker applied it (`edits_applied`), the host lays it over eac
 takes, quietly (`changes::quietly`): the host heard of it when it made it. The host takes
 the newest `Seen` as it reads, not once a frame, so two reads in one frame may read two.
 Everything else the host asks for is a command;
-`Seen::done` against the commands sent is what is pending. The modules' held clock is
+`Seen::done` against the commands sent is what is pending. What only the worker's `Peer`
+can say is worked out into `Seen` too: offline, which blocks are out of reach
+(`Seen::out_of_reach`, worked out again only for the nodes that moved and the blocks the worker let go of, `Shared::refresh_reach`), so the host holds neither
+the `Peer` nor the connection; stopping drops a oneshot (`Inbox::stopped`) on which the
+worker closes its connection. The modules' held clock is
 handed to a stack as it starts (`Inbox::held_clock`), then as `Command::HoldClock`.
 
 Tests wait on the stack with `be_host_stack::wait_until(what, read)`, which

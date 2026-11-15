@@ -85,6 +85,8 @@ impl be_block_type_host::Host for Shared {
 
     fn content(shared: &Arc<Mutex<Self>>, block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        // A replica that opened the block may hold a version of it the device did not count.
+        held.reach_dirty.insert(block);
         let revision = held
             .blocks
             .get(&block)

@@ -75,6 +75,9 @@ pub(super) struct Inbox {
     pub(super) handover: Arc<crate::seen::Handover>,
     /// The modules' clock as the host held it when the stack started (`hold_clock`).
     pub(super) held_clock: Option<Instant>,
+    /// Ends when the page stops the stack (`crate::stop`), which drops its sender: the worker
+    /// then closes its connection, so whatever it waits on from the server fails at once.
+    pub(super) stopped: tokio::sync::oneshot::Receiver<()>,
 }
 
 type AccessReply = Box<dyn FnOnce(Result<AccessList, String>) + Send>;
@@ -663,6 +666,18 @@ pub struct Shared {
     /// hold. Each start makes a fresh `Shared`, so the next stack starts with it unset.
     #[cfg(any(test, feature = "testing"))]
     pub crashed: bool,
+    pub connection: Option<Arc<be_block_client::connection::Connection>>,
+    /// The workspace's peer, which knows what content this device holds.
+    pub peer: Option<Arc<Peer<Store>>>,
+    /// Whether `Seen::out_of_reach` was worked out offline, for every node: from then on only
+    /// for the nodes that moved (`Graph::take_nodes_moved`) and those in `reach_dirty`.
+    pub(crate) reach_offline: bool,
+    /// Blocks whose content the worker let go of (`expire_unsent`, a discarded unsent edit),
+    /// whose reach is worked out again though their node did not move.
+    pub(crate) reach_dirty: HashSet<Uuid>,
+    /// How many blocks' reach was worked out, for a test to tell it is only what changed.
+    #[cfg(test)]
+    pub(crate) reach_worked_out: u64,
     pub leaving: bool,
     pub module_error: Option<(Uuid, String)>,
     /// Whether locked nodes are being read again as keys arrived (`Tasks::relearn_locked`), and
@@ -812,6 +827,64 @@ impl Shared {
         }
         self.seen.search_indexed = self.search.indexed();
         self.seen.search_busy = self.search.busy_with(super::search::wants_index(self));
+        self.refresh_reach();
+    }
+
+    /// Works out which blocks are out of reach (`Seen::out_of_reach`) when the graph or the
+    /// connection moved since: offline, a node with a head this device holds no version of
+    /// whole (`app_graph::out_of_reach`). The page reads the answer, never the peer.
+    ///
+    /// Offline, what this device holds of a block changes only with a commit made here, which
+    /// its replica reports as the block's head (its node moves), or as the worker opens it, reads
+    /// a version of it (which can record one held, `refs.hold`) or lets go of its content: those
+    /// mark it in `reach_dirty` (`reach_may_change`). Nothing arrives without the server, and
+    /// what the peer once found held whole it keeps finding (`Peer::held_head`). So the work is
+    /// proportional to what moved, after one pass over the graph as the device goes offline.
+    ///
+    /// It runs as the worker publishes, under the lock on `Shared`, held_head calls and all:
+    /// `Seen` is copied and put under that lock so puts land in order (`seen::publish`), and
+    /// only the worker and a test take it, so nothing that must not wait waits on it.
+    fn refresh_reach(&mut self) {
+        let moved = match self.seen.graph.has_nodes_moved() {
+            true => self.seen.graph.take_nodes_moved(),
+            false => imbl::HashSet::new(),
+        };
+        let Some(peer) = self.peer.clone().filter(|_| !self.seen.connected) else {
+            if self.reach_offline {
+                self.reach_offline = false;
+                self.seen.out_of_reach = imbl::HashSet::new();
+            }
+            self.reach_dirty.clear();
+            return;
+        };
+        let blocks: Vec<Uuid> = match std::mem::replace(&mut self.reach_offline, true) {
+            false => {
+                self.seen.out_of_reach = imbl::HashSet::new();
+                self.seen.graph.nodes().map(|node| node.id).collect()
+            }
+            true => moved
+                .into_iter()
+                .chain(self.reach_dirty.iter().copied())
+                .collect(),
+        };
+        self.reach_dirty.clear();
+        #[cfg(test)]
+        {
+            self.reach_worked_out += blocks.len() as u64;
+        }
+        for block in blocks {
+            let lost = self
+                .seen
+                .graph
+                .get(block)
+                .is_some_and(|node| super::app_graph::out_of_reach(&peer, node));
+            if lost != self.seen.out_of_reach.contains(&block) {
+                match lost {
+                    true => self.seen.out_of_reach.insert(block),
+                    false => self.seen.out_of_reach.remove(&block),
+                };
+            }
+        }
     }
 
     /// Applies the page's edits as the worker takes them (`Command::Edit`).
@@ -860,11 +933,24 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         mut nudged,
         handover,
         held_clock,
+        stopped,
     }: Inbox,
     shared: Arc<Mutex<Shared>>,
     changed: Arc<Condvar>,
 ) {
     let _worker = crate::seen::Worker::enter(&shared, &handover);
+    let closing = Arc::clone(&shared);
+    platform::spawn_local(async move {
+        let _ = stopped.await;
+        let connection = closing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .connection
+            .take();
+        if let Some(connection) = connection {
+            connection.close();
+        }
+    });
     let mut replicas = Replicas::new(Modules::with_kinds_changed(
         types::sources().await,
         config.clock.clone(),
@@ -921,7 +1007,12 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     held.peer = None;
     held.set_connected(false);
+    // Whatever else still holds the connection, the stack that made it is done with it.
+    let connection = held.connection.take();
     drop(held);
+    if let Some(connection) = connection {
+        connection.close();
+    }
     changed.notify_all();
 }
 
@@ -1987,13 +2078,28 @@ pub(super) fn expired_unsent(
         .collect()
 }
 
-pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) {
+/// Has `Seen::out_of_reach` worked out again for `block`, whose versions this device holds may
+/// have changed though its node did not move: a replica opened it, or a version of it was read
+/// (which can record a held version, `refs.hold`), or the worker let go of its content.
+pub(crate) fn reach_may_change(shared: &Arc<Mutex<Shared>>, block: Uuid) {
+    shared
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .reach_dirty
+        .insert(block);
+}
+
+/// Lets go of the unsent edits too old to keep, and their blocks' cached content: answers the
+/// blocks let go of (`Shared::reach_dirty`).
+pub(super) fn expire_unsent(peer: &Peer<Store>, now: i64) -> Vec<Uuid> {
     let company = peer.kind() == be_block_protocol::OrganizationKind::Company;
     let choice = crate::offline_choice::choice(Uuid::nil());
-    for block in expired_unsent(&peer.unsent(), company, &choice, now) {
-        let _ = peer.discard_unsent(block);
-        let _ = peer.forget_cached(block);
+    let expired = expired_unsent(&peer.unsent(), company, &choice, now);
+    for block in &expired {
+        let _ = peer.discard_unsent(*block);
+        let _ = peer.forget_cached(*block);
     }
+    expired
 }
 
 fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
@@ -2002,10 +2108,11 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .unwrap_or_else(PoisonError::into_inner)
         .wall
         .now();
-    expire_unsent(peer, now);
+    let expired = expire_unsent(peer, now);
     let counts = peer.pending();
     let outbox = peer.outbox();
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.reach_dirty.extend(expired);
     let mut changed = held.waiting != counts.operations || held.recounting;
     held.waiting = counts.operations;
     held.outbox = outbox;
@@ -3045,12 +3152,18 @@ async fn serve_command(
             reply(listed);
             crate::changes::wake();
         }
-        Command::ReadHead { commit, reply, .. } => {
+        Command::ReadHead {
+            block,
+            commit,
+            reply,
+        } => {
             let read = async {
                 let commit = peer.load_commit(commit).await?;
                 peer.read_manifest(&commit.manifest).await
             }
             .await;
+            // A read can leave the device holding a version of the block it did not count.
+            reach_may_change(shared, block);
             reply(read.map_err(|error| error.to_string()));
             crate::changes::wake();
         }
@@ -3177,6 +3290,7 @@ async fn apply(
                 tasks.sync(peer, shared);
             }
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.reach_dirty.insert(block);
             if let Err(error) = done {
                 held.error = Some(error.to_string());
             }
@@ -3226,6 +3340,7 @@ async fn apply(
             reply,
         } => {
             let result = super::revisions::run(peer, replicas, shared, block, request).await;
+            reach_may_change(shared, block);
             reply(result);
             true
         }
