@@ -2242,22 +2242,8 @@ impl<H: Host> Replicas<H> {
                 Reconciled::Done => return Ok(peer.known_remote_head(block)),
                 Reconciled::Merge { base, ours, theirs } => (base, ours, theirs),
             };
-            // Two seals of one session's order made on the base: the one sealed further holds
-            // what the other does, so it is the merge, not the sum of both over the base,
-            // which would count what both hold twice.
-            let base_side = match (peer.sealed_on(ours), peer.sealed_on(theirs)) {
-                (Some((on_ours, ours_through)), Some((on_theirs, theirs_through)))
-                    if on_ours == base && on_theirs == base =>
-                {
-                    match ours_through.sequence >= theirs_through.sequence {
-                        true => Some(theirs),
-                        false => Some(ours),
-                    }
-                }
-                _ => base,
-            };
             let mut manifests = Vec::new();
-            for commit in [base_side, Some(ours), Some(theirs)] {
+            for commit in [base, Some(ours), Some(theirs)] {
                 manifests.push(match commit {
                     Some(commit) => Some(peer.load_commit(commit).await?.manifest),
                     None => None,
@@ -2944,7 +2930,8 @@ impl<H: Host> Replicas<H> {
                 let head = peer.remote_head(block).await?;
                 // The head may be a seal of the journal (`journal_for`), which needs the commit.
                 if let Some(head) = head {
-                    peer.fetch_history(head).await?;
+                    // Only to tell a seal: a head it cannot read yet is opened as before.
+                    let _ = peer.fetch_history(head).await;
                 }
                 let journal = match journal {
                     Some(journal) => Some(journal),
@@ -3678,7 +3665,10 @@ impl<H: Host> Replicas<H> {
                     .described(content.references, content.derived)
                     .sealed_through(
                         sealed_through
-                            .map(|sequence| be_block_commit::SealedThrough { sequence }),
+                            .map(|sequence| be_block_commit::SealedThrough {
+                                sequence,
+                                offline: made_up,
+                            }),
                     );
                     if let Some(merging) = merging {
                         write = write.merging(merging.base, merging.ours);
@@ -3915,7 +3905,8 @@ fn joining<S: be_block_store::ObjectStore + 'static>(
         let head = peer.remote_head(block).await?;
         // The head may be a seal of the journal (`journal_for`), which needs the commit here.
         if let Some(head) = head {
-            peer.fetch_history(head).await?;
+            // Only to tell a seal: a head it cannot read yet (no key) is opened as before.
+            let _ = peer.fetch_history(head).await;
         }
         let journal = match journal {
             Some(journal) => Some(journal),
@@ -4178,6 +4169,7 @@ fn sealed_here<S: be_block_store::ObjectStore>(
 ) -> be_block_session::Resume {
     if let be_block_session::Resume::FastForward { to } = resume
         && let Some((parent, sealed)) = peer.sealed_on(to)
+        && !sealed.offline
         && parent.is_some()
         && parent == local
     {

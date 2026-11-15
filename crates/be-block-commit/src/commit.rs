@@ -110,6 +110,9 @@ pub struct Commit {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SealedThrough {
     pub sequence: u64,
+    /// Sealed from this device's own order, numbered offline, not the server's: its sequence
+    /// counts in that order alone.
+    pub offline: bool,
 }
 
 impl Commit {

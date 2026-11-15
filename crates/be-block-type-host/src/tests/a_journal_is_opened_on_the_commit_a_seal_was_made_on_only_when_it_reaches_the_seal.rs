@@ -36,7 +36,10 @@ async fn seal(
     let mut content = base();
     content.set(0, text);
     let write = Write::encoded(Sections::CONTENT_TYPE, content.parts(), parent)
-        .sealed_through(Some(SealedThrough { sequence: through }));
+        .sealed_through(Some(SealedThrough {
+            sequence: through,
+            offline: true,
+        }));
     match peer.seal(block, write).await.expect("the seal is kept") {
         Sealed::Sealed(commit) => commit,
         Sealed::Unchanged(_) => panic!("the content changed"),
