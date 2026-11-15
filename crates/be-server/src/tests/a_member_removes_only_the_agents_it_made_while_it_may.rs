@@ -13,12 +13,9 @@ async fn a_member_removes_only_the_agents_it_made_while_it_may() {
     let creator_id = creator.register("creator@example.com").await;
     let mut colleague = harness.client().await;
     let colleague_id = colleague.register("colleague@example.com").await;
-    for (member, email) in [
-        (&mut creator, "creator@example.com"),
-        (&mut colleague, "colleague@example.com"),
-    ] {
+    for member in [&mut creator, &mut colleague] {
         let invitation = admin
-            .invite(organization, email)
+            .invite(organization)
             .await
             .expect("an administrator invites");
         let joined = member.accept(invitation, &[]).await;

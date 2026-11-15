@@ -19,6 +19,14 @@ pub const MAX_CONTACT_LINKS_PER_ACCOUNT: i64 = 1_000;
 pub const MAX_CONTACTS_PER_ACCOUNT: i64 = 10_000;
 /// Invitations an organization may have outstanding.
 pub const MAX_INVITATIONS_PER_ORGANIZATION: i64 = 1_000;
+/// Invitations an organization's list keeps, outstanding and ended; making one past it lets go
+/// of the oldest ended.
+pub const MAX_INVITATIONS_KEPT_PER_ORGANIZATION: i64 = 2_000;
+/// How long an invitation's link works, in seconds.
+pub const INVITATION_LIFETIME: i64 = 7 * 86_400;
+/// How long an ended invitation (accepted, expired or revoked) stays in its organization's list,
+/// in seconds.
+pub const INVITATION_RETENTION: i64 = 30 * 86_400;
 /// Escrow keys an organization may make; each rotation makes one.
 pub const MAX_ESCROWS_PER_ORGANIZATION: i64 = 1_000;
 

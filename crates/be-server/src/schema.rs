@@ -133,15 +133,26 @@ const SCHEMA: &str = "
         grant_key       TEXT NOT NULL DEFAULT '',
         grant_sealed    BLOB NOT NULL DEFAULT x'',
         invite_organization TEXT NOT NULL DEFAULT '',
-        invite_email    TEXT NOT NULL DEFAULT '',
-        invite_role     TEXT NOT NULL DEFAULT '',
         invite_escrow   BLOB NOT NULL DEFAULT x'',
+        -- An invitation's times, in seconds since the epoch: made, expiring, first read, and
+        -- accepted or revoked (0 for not yet).
+        invite_created  INTEGER NOT NULL DEFAULT 0,
+        invite_expires  INTEGER NOT NULL DEFAULT 0,
+        invite_opened   INTEGER NOT NULL DEFAULT 0,
+        invite_ended    INTEGER NOT NULL DEFAULT 0,
+        invite_revoked  INTEGER NOT NULL DEFAULT 0,
+        -- Its inviter's device made the accepter a contact (`delete-link` on an accepted one);
+        -- the row stays for the organization's invite list until its retention passes.
+        invite_finished INTEGER NOT NULL DEFAULT 0,
         accepter_id     TEXT NOT NULL DEFAULT '',
         accepter_card   BLOB NOT NULL DEFAULT x''
     );
 
     CREATE INDEX links_owner
         ON links (owner_id);
+
+    CREATE INDEX links_invitations
+        ON links (invite_organization, invite_created);
 
     CREATE TABLE contacts (
         account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

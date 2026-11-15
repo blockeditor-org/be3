@@ -363,8 +363,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner.keys().identity(),
         &owner_card,
         organization,
-        scene::EDITOR_EMAIL.into(),
-        OrganizationRole::Administrator,
         owner.keys().escrow().as_ref(),
     )
     .await
@@ -386,6 +384,14 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await
     .map_err(text)?;
     owner.refresh_contacts().await.map_err(text)?;
+    // An invitation joins as an editor; the owner then makes the contact an administrator.
+    ask(client::members::set_role(
+        &owner.connection(),
+        editor.account(),
+        OrganizationRole::Administrator,
+    ))
+    .await
+    .map_err(text)?;
     let editor = reopen(&socket, &editor, organization, ChunkerConfig::DEFAULT).await?;
     owner.tend().await.map_err(text)?;
     let editor_public = owner
@@ -398,8 +404,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner.keys().identity(),
         &owner_card,
         organization,
-        scene::INVITED_EMAIL.into(),
-        OrganizationRole::Editor,
         owner.keys().escrow().as_ref(),
     )
     .await

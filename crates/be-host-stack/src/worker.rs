@@ -252,11 +252,7 @@ pub(super) enum Command {
     },
     Members(MembersCommand),
     Push(PushCommand),
-    Invite {
-        email: String,
-        role: be_block_protocol::OrganizationRole,
-        reply: LinkReply,
-    },
+    Invitations(InvitationsCommand),
     CreateAgent {
         name: String,
         reply: AgentReply,
@@ -343,7 +339,7 @@ impl Command {
             Command::Leave { .. } => "leave",
             Command::Members(..) => "members",
             Command::Push(..) => "push",
-            Command::Invite { .. } => "invite",
+            Command::Invitations(..) => "invitations",
             Command::CreateAgent { .. } => "create agent",
             Command::CreateBlockAgent { .. } => "create block agent",
             Command::BlockAgent { .. } => "block agent",
@@ -474,7 +470,7 @@ impl Command {
             | Command::DismissPairing(_)
             | Command::Contact(_)
             | Command::Members(_)
-            | Command::Invite { .. }
+            | Command::Invitations(_)
             | Command::CreateAgent { .. }
             | Command::BlockAgent { .. }
             | Command::Push(_)
@@ -548,6 +544,17 @@ pub(super) enum MembersCommand {
 }
 
 type LinkReply = Box<dyn FnOnce(Result<String, String>) + Send>;
+
+type InvitationsReply = Box<dyn FnOnce(Result<Vec<crate::Invite>, String>) + Send>;
+
+/// The organization's invitations: making one, listing them, revoking one.
+pub(super) enum InvitationsCommand {
+    /// Answers the new invitation's link.
+    Create(LinkReply),
+    List(InvitationsReply),
+    /// Answers the list as it is after.
+    Revoke { link: Uuid, reply: InvitationsReply },
+}
 
 type AgentReply = Box<dyn FnOnce(Result<crate::accounts::AgentCredentials, String>) + Send>;
 
@@ -2349,7 +2356,12 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
             | MembersCommand::SetRole { reply, .. }
             | MembersCommand::Remove { reply, .. },
         ) => reply(Err(NEEDS_CONNECTION.to_owned())),
-        Command::Invite { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
+        Command::Invitations(InvitationsCommand::Create(reply)) => {
+            reply(Err(NEEDS_CONNECTION.to_owned()))
+        }
+        Command::Invitations(
+            InvitationsCommand::List(reply) | InvitationsCommand::Revoke { reply, .. },
+        ) => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::CreateAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::CreateBlockAgent { reply, .. } => reply(Err(NEEDS_CONNECTION.to_owned())),
         Command::BlockAgent { change, .. } => change.fail(NEEDS_CONNECTION.to_owned()),
@@ -2423,12 +2435,8 @@ impl Ran<'_> {
                 self.tasks.storage(self.peer, self.shared);
                 false
             }
-            Command::Invite { email, role, reply } => {
-                reply(
-                    invite(self.peer, self.config, email, role)
-                        .await
-                        .map_err(|error| error.to_string()),
-                );
+            Command::Invitations(command) => {
+                invitations(self.peer, self.config, command).await;
                 be_host_base::host::wake();
                 false
             }
@@ -2713,12 +2721,61 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
     be_host_base::host::wake();
 }
 
-async fn invite(
+async fn invitations(peer: &Peer<Store>, config: &Config, command: InvitationsCommand) {
+    match command {
+        InvitationsCommand::Create(reply) => {
+            reply(invite(peer, config).await.map_err(|error| error.to_string()))
+        }
+        InvitationsCommand::List(reply) => reply(
+            list_invitations(peer, config)
+                .await
+                .map_err(|error| error.to_string()),
+        ),
+        InvitationsCommand::Revoke { link, reply } => {
+            let revoked = be_block_client::ask(be_block_protocol::client::contacts::delete_link(
+                &peer.connection(),
+                link,
+            ))
+            .await;
+            let listed = match revoked {
+                Ok(()) => list_invitations(peer, config).await,
+                Err(error) => Err(error),
+            };
+            reply(listed.map_err(|error| error.to_string()))
+        }
+    }
+}
+
+/// The organization's invitations, newest first, each of the person's own with its link again.
+async fn list_invitations(
     peer: &Peer<Store>,
     config: &Config,
-    email: String,
-    role: be_block_protocol::OrganizationRole,
-) -> Result<String, ClientError> {
+) -> Result<Vec<crate::Invite>, ClientError> {
+    let rows = be_block_client::ask(be_block_protocol::client::contacts::list_invitations(
+        &peer.connection(),
+        peer.organization(),
+    ))
+    .await?;
+    let base = crate::accounts::link_base(&config.server_url);
+    let identity = peer.keys().identity();
+    Ok(rows
+        .into_iter()
+        .map(|row| crate::Invite {
+            link: be_block_client::contacts::invitation_link_code(identity, &row.code)
+                .map(|code| crate::invite_link::link(&base, &code)),
+            id: row.id,
+            inviter: row.inviter_name,
+            state: row.state,
+            accepter: row.accepter_name,
+            created: row.created,
+            expires: row.expires,
+            opened: row.opened,
+            ended: row.ended,
+        })
+        .collect())
+}
+
+async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientError> {
     let identity = peer.keys().identity();
     let me = be_block_client::contacts::card(
         peer.account(),
@@ -2731,8 +2788,6 @@ async fn invite(
         identity,
         &me,
         peer.organization(),
-        email,
-        role,
         peer.keys().escrow().as_ref(),
     )
     .await?;
@@ -3123,7 +3178,7 @@ async fn apply(
         | Command::ApprovePairing { .. }
         | Command::Contact(_)
         | Command::Members(_)
-        | Command::Invite { .. }
+        | Command::Invitations(_)
         | Command::CreateAgent { .. }
         | Command::CreateBlockAgent { .. }
         | Command::BlockAgent { .. }
