@@ -506,23 +506,65 @@ pub fn hold(block: Uuid, content_type: Uuid) {
     }
 }
 
+/// What a child change (`change_child`) came to: none while the container's type has yet to
+/// answer, then whether it made the change. Polled on a frame; the host is woken when it answers.
+#[derive(Clone, Debug)]
+pub struct ChildChanged(Arc<OnceLock<bool>>);
+
+impl ChildChanged {
+    /// A change refused before it was sent, such as one the container's manifest does not take.
+    pub fn refused() -> Self {
+        let refused = Self(Arc::default());
+        let _ = refused.0.set(false);
+        refused
+    }
+
+    pub fn answer(&self) -> Option<bool> {
+        self.0.get().copied()
+    }
+}
+
+/// The worker's end of a `ChildChanged`. One dropped unanswered (the stack stopped before the
+/// type answered, or the command was never run) answers refused, so nothing waits on it for good.
+pub(crate) struct ChildReply(Arc<OnceLock<bool>>);
+
+impl ChildReply {
+    pub(crate) fn answer(self, made: bool) {
+        let _ = self.0.set(made);
+        be_host_base::host::wake();
+    }
+}
+
+impl Drop for ChildReply {
+    fn drop(&mut self) {
+        if self.0.set(false).is_ok() {
+            be_host_base::host::wake();
+        }
+    }
+}
+
+/// Adds, deletes, replaces or reorders a child in `block`'s content through its type, which
+/// answers whether it made the change (`ChildChanged`). None while the type is not known yet; a
+/// container this device cannot reach (`out_of_reach`) is refused at once.
 pub fn change_child(
     block: Uuid,
     content_type: Uuid,
     change: be_block_content::ChildChange,
-) -> Option<bool> {
+) -> Option<ChildChanged> {
     if !is_known(content_type) {
         return None;
     }
     if out_of_reach(block) {
-        return Some(false);
+        return Some(ChildChanged::refused());
     }
+    let answer = Arc::new(OnceLock::new());
     send(Command::ChangeChild {
         block,
         content_type,
         change: api_child(change),
+        reply: ChildReply(Arc::clone(&answer)),
     });
-    Some(true)
+    Some(ChildChanged(answer))
 }
 
 fn api_child(change: be_block_content::ChildChange) -> be_sdk_type_api::ChildChange {

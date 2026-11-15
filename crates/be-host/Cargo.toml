@@ -84,6 +84,8 @@ tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "sync", "ti
 # The block stack with the apps' type modules in process.
 be-host-testing = { path = "../be-host-testing" }
 be-sdk-test = { path = "../be-sdk-test" }
+be-type-text = { path = "../be-type-text" }
+be-type-workspace = { path = "../be-type-workspace" }
 
 # Linux runs the app as a Wayland compositor, and BEUI_PLATFORM=drm runs it on the
 # displays and input devices themselves rather than in a window.
