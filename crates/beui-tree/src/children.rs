@@ -730,7 +730,7 @@ impl<C: SlotChild> Clone for ChildSlot<C> {
 }
 
 impl<C: SlotChild> ChildSlot<C> {
-    fn in_host(host: Rc<dyn SlotHost<C>>) -> Self {
+    pub(crate) fn in_host(host: Rc<dyn SlotHost<C>>) -> Self {
         let slot = host.open();
         Self {
             place: Place::Host { host, slot },
@@ -851,30 +851,30 @@ impl<T: SlotChild> IntoSegment<T> for Option<Children<T>> {
 
 #[macro_export]
 macro_rules! child_type {
-    (<$($generic:ident),*> $ty:ty) => {
-        impl<$($generic: 'static),*> $crate::reactive::IntoChild<$ty> for $ty {
+    (<$($generic:ident $(: $bound:path)?),*> $ty:ty) => {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoChild<$ty> for $ty {
             fn into_child(self) -> $ty {
                 self
             }
         }
 
-        impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for $ty {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoSegment<$ty> for $ty {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::One(self)
             }
         }
 
-        impl<$($generic: 'static),*> $crate::reactive::IntoSegment<$ty> for ::core::option::Option<$ty> {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoSegment<$ty> for ::core::option::Option<$ty> {
             fn into_segment(self) -> $crate::reactive::ChildSegment<$ty> {
                 $crate::reactive::ChildSegment::Many(self.into_iter().collect())
             }
         }
 
-        impl<$($generic: 'static),*> $crate::reactive::Counted for $ty {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::Counted for $ty {
             type Count = $crate::reactive::CountOne;
         }
 
-        impl<$($generic: 'static),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
+        impl<$($generic: 'static $(+ $bound)?),*> ::core::convert::From<$ty> for $crate::reactive::Children<$ty> {
             fn from(child: $ty) -> Self {
                 Self::from($crate::reactive::ChildSegment::One(child))
             }
@@ -887,12 +887,12 @@ macro_rules! child_type {
 
 #[macro_export]
 macro_rules! value_child_type {
-    (<$($generic:ident),*> $ty:ty) => {
-        $crate::child_type!(<$($generic),*> $ty);
+    (<$($generic:ident $(: $bound:path)?),*> $ty:ty) => {
+        $crate::child_type!(<$($generic $(: $bound)?),*> $ty);
 
-        impl<$($generic: 'static),*> $crate::reactive::ChildValue for $ty {}
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::ChildValue for $ty {}
 
-        impl<$($generic: 'static),*> $crate::reactive::SlotChild for $ty {
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::SlotChild for $ty {
             type Stored = ::std::rc::Rc<$ty>;
 
             fn store(self) -> Self::Stored {

@@ -509,17 +509,6 @@ fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
             display.placement
         });
     let title = display.get_untracked().map(|display| display.name);
-    let index = create_memo({
-        let key = id.clone();
-        move || {
-            shown.with(|shown| {
-                shown
-                    .iter()
-                    .position(|display| display.id == key)
-                    .unwrap_or_default()
-            })
-        }
-    });
     let displays = create_memo(move || {
         shown.with(|shown| shown.iter().map(|display| display.rect).collect::<Vec<_>>())
     });
@@ -565,7 +554,17 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
                             && shell.with(Option::is_some)
                     }}
                 >
-                    <Dynamic value={index}>|index: usize| {
+                    <Dynamic value={{
+        let key = id.clone();
+        move || {
+            shown.with(|shown| {
+                shown
+                    .iter()
+                    .position(|display| display.id == key)
+                    .unwrap_or_default()
+            })
+        }
+    }}>|index: usize| {
                         let display = u32::try_from(index).unwrap_or(u32::MAX);
                         view! {
                             <ListItem grow=1.0>

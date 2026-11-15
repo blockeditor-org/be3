@@ -149,16 +149,48 @@ pub struct ByClosure;
 pub struct ByLift;
 pub struct ByClosureLifted;
 
-/// The markers that pass a value as the prop's own type, without lifting it into an `Option`.
-/// A `Prop<V>` whose `V` is a type parameter of its component takes only these, since its type
-/// comes from the other props: `Dynamic` and `Keyed` with a `fallback` take an `Option`.
+/// How a prop typed by a type parameter of its own component (`Show`'s, `Dynamic`'s and
+/// `Keyed`'s `value`) takes what a tag passes it: a signal, memo or `Prop` of the value, or a
+/// closure computing it. The value's type comes from what is passed, so a plain value, which
+/// every type would convert from, is not taken: a value fixed when the view is built is
+/// plain Rust (`shown.then(|| view! {..})`).
 #[diagnostic::on_unimplemented(
-    message = "this prop's type comes from the component's other props, so a value is not lifted into an `Option`: pass `Some(..)` (for a `Dynamic` or `Keyed`, a `fallback` makes `value` an `Option`)",
-    label = "this is not an `Option`"
+    message = "this prop is read as it changes and its type comes from what is passed, so a `{Self}` cannot fill it",
+    label = "pass a signal, memo or closure (`move || ..`); for a value fixed when the view is built, write plain Rust such as `shown.then(|| view! {{..}})`"
 )]
-pub trait Exact {}
-impl Exact for ByValue {}
-impl Exact for ByClosure {}
+pub trait IntoReadProp<T, M> {
+    fn into_read_prop(self) -> Prop<T>;
+}
+
+impl<T: 'static> IntoReadProp<T, ByValue> for Prop<T> {
+    fn into_read_prop(self) -> Prop<T> {
+        self
+    }
+}
+
+impl<T: Clone + 'static> IntoReadProp<T, ByValue> for ReadSignal<T> {
+    fn into_read_prop(self) -> Prop<T> {
+        self.into_prop()
+    }
+}
+
+impl<T: Clone + 'static> IntoReadProp<T, ByValue> for Signal<T> {
+    fn into_read_prop(self) -> Prop<T> {
+        self.into_prop()
+    }
+}
+
+impl<T: Clone + PartialEq + 'static> IntoReadProp<T, ByValue> for Memo<T> {
+    fn into_read_prop(self) -> Prop<T> {
+        self.into_prop()
+    }
+}
+
+impl<T: 'static, F: Fn() -> T + 'static> IntoReadProp<T, ByClosure> for F {
+    fn into_read_prop(self) -> Prop<T> {
+        Prop::dynamic(self)
+    }
+}
 
 /// A value, signal or memo of `T` passed where a `Prop<Option<T>>` is taken: it is `Some`.
 pub trait IntoLiftedProp<T> {

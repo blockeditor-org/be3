@@ -2441,7 +2441,6 @@ fn closing_switcher(nodes: Vec<MenuNode>, switching: Signal<bool>) -> Vec<MenuNo
 #[component]
 fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
-    let main = create_memo(move || current.with(DockState::main));
     let windows = create_memo(move || {
         let mut windows = current.with(DockState::shown_windows);
         windows.sort();
@@ -2467,7 +2466,7 @@ fn DockTiles(dock: State) -> NodeId {
             });
             view! {
                 <List spacing=0.0>
-                    <Dynamic value={main}>|surface: SurfaceId| {
+                    <Dynamic value={move || current.with(DockState::main)}>|surface: SurfaceId| {
                         let dock = dock;
                         view! {
                             <ListItem grow=1.0>
@@ -2687,20 +2686,20 @@ fn DockTreeCanvas(
                     </CanvasItem>
                 }
             }</ForEach>
-            <Show value={marked_surface.is_some()}>
+            {marked_surface.map(|surface| view! {
                 <DockDropMarker
                     dock={dock}
-                    surface={marked_surface.unwrap_or_else(|| unreachable!())}
+                    surface
                     origin={pane_origin}
                     refused=false
                 />
                 <DockDropMarker
                     dock={dock}
-                    surface={marked_surface.unwrap_or_else(|| unreachable!())}
+                    surface
                     origin={pane_origin}
                     refused=true
                 />
-            </Show>
+            })}
         </Canvas>
     };
     let placement_measured = measure(built);
@@ -2785,11 +2784,6 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
         .unwrap_or_else(|| state.with_untracked(DockState::main));
     let nested = matches!(tree, Tree::Group(_));
     let floating = !nested && state.with_untracked(|state| state.window_rect(surface).is_some());
-    let chrome = create_memo(move || {
-        let bare = state.with(|state| state.is_bare(leaf));
-        let vertical = !hoisted && !bare && state.with(|state| state.is_vertical(leaf));
-        (vertical, bare)
-    });
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -2830,7 +2824,11 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             }}
         >
             <List spacing=0.0>
-                <Dynamic value={chrome}>|(vertical, bare): (bool, bool)| {
+                <Dynamic value={move || {
+        let bare = state.with(|state| state.is_bare(leaf));
+        let vertical = !hoisted && !bare && state.with(|state| state.is_vertical(leaf));
+        (vertical, bare)
+    }}>|(vertical, bare): (bool, bool)| {
                     let dock = dock;
                     let bar = (!hoisted && !bare).then(|| DockBarHandle {
                         floating,

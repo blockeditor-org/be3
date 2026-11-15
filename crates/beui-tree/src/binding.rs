@@ -132,6 +132,12 @@ impl IntoBinding<String> for &'static str {
     }
 }
 
+impl<T: Clone + 'static> crate::prop::IntoReadProp<T, crate::prop::ByValue> for Binding<T> {
+    fn into_read_prop(self) -> Prop<T> {
+        self.into_prop()
+    }
+}
+
 impl<T: Clone + 'static> IntoProp<T> for Binding<T> {
     fn into_prop(self) -> Prop<T> {
         match self.0 {
