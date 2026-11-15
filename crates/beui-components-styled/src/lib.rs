@@ -82,7 +82,7 @@ pub use beui_components_unstyled::{
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{
-    Reorder, ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
+    ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
 };
 pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile, TreemapTileKey};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
@@ -121,7 +121,7 @@ pub use number_input::{NumberInput, NumberInputTextApi};
 pub use picture::Picture;
 pub use popover::{Popover, popover_surface};
 pub use progress::{INLINE_PROGRESS_WIDTH, Progress};
-pub use reorder::{LIFT_DROP, ReorderItem};
+pub use reorder::{LIFT_DROP, Reorder, ReorderItem};
 pub use root::Root;
 pub use row::{RowFace, RowSize, RowTrailing};
 pub use scroll::{Bleed, Scroll};

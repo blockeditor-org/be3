@@ -299,6 +299,29 @@ impl<V, R> IntoFunc<V, R> for Func<V, R> {
     }
 }
 
+/// How an optional prop of type `Option<Func<V, R>>` takes what a tag passes it: anything a
+/// `Func<V, R>` prop takes, as `Some`, or another component's `Option<Func<V, R>>` passed on
+/// as it is.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be passed as an optional function prop",
+    label = "pass a closure, a `Func`, or an `Option<Func<..>>` to pass on"
+)]
+pub trait IntoOptionalFunc<V, R, M> {
+    fn into_optional_func(self) -> Option<Func<V, R>>;
+}
+
+impl<V, R, F: IntoFunc<V, R>> IntoOptionalFunc<V, R, Given<()>> for F {
+    fn into_optional_func(self) -> Option<Func<V, R>> {
+        Some(self.into_func())
+    }
+}
+
+impl<V, R> IntoOptionalFunc<V, R, PassedOn> for Option<Func<V, R>> {
+    fn into_optional_func(self) -> Option<Func<V, R>> {
+        self
+    }
+}
+
 #[macro_export]
 macro_rules! into_prop_via {
     ($target:ty, $value:ty, $convert:expr) => {
