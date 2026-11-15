@@ -163,6 +163,9 @@ interface types {
         /// Whatever is not clean is in the journal: an owner appended all it
         /// sequenced.
         journaled: bool,
+        /// While `journaled` is false, what keeps the replica's edits out of the
+        /// journal, in words, for a host to name when it waits on them.
+        unjournaled: option<string>,
         owes-seal: bool,
         incompatible: bool,
         diverged: bool,

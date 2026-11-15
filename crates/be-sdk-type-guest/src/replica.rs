@@ -3297,6 +3297,52 @@ where
         }
     }
 
+    /// What keeps edits out of the journal (`Status::unjournaled`), with the timers it waits on.
+    fn unjournaled(&self) -> String {
+        let mut waits = Vec::new();
+        if !self.loaded {
+            waits.push("not loaded".to_owned());
+        }
+        match &self.role {
+            Role::Owner(_) => {
+                if !self.unappended.is_empty() {
+                    waits.push(format!(
+                        "{} sequenced to append at {:?}",
+                        self.unappended.len(),
+                        self.append_at
+                    ));
+                }
+                if !self.held.is_empty() {
+                    waits.push(format!(
+                        "{} held back{}",
+                        self.held.len(),
+                        match self.putting() {
+                            true => " behind a part being put",
+                            false => "",
+                        }
+                    ));
+                }
+            }
+            Role::Follower(_) => waits.push(format!(
+                "a follower with {} unsettled",
+                self.unsettled()
+            )),
+        }
+        for (what, at) in [
+            ("put retry", self.put_retry_at),
+            ("merge retry", self.merge_retry_at),
+            ("seal retry", self.seal_retry_at),
+        ] {
+            if let Some(at) = at {
+                waits.push(format!("{what} at {at}"));
+            }
+        }
+        if self.merge_failures > 0 {
+            waits.push(format!("{} merge failure(s)", self.merge_failures));
+        }
+        waits.join(", ")
+    }
+
     fn report(&mut self) {
         let clean = self.loaded && self.is_clean();
         if clean {
@@ -3324,14 +3370,16 @@ where
             restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
             lost_edits: self.lost_edits,
         });
+        let journaled = match self.role {
+            Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
+            Role::Follower(_) => self.is_clean(),
+        };
         let status = Status {
             head: self.base,
             owner: self.is_owner(),
             clean: self.is_clean(),
-            journaled: match self.role {
-                Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
-                Role::Follower(_) => self.is_clean(),
-            },
+            journaled,
+            unjournaled: (!journaled).then(|| self.unjournaled()),
             owes_seal: self.loaded && self.seal_would_settle(),
             taken: self.taken,
             sealed_taken,
