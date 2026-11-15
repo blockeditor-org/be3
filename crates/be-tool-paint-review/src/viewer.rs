@@ -385,24 +385,24 @@ fn Stage(review: Review) -> NodeId {
                                             width={move || if comparing.get() { HANDLE_WIDTH / scale.get().max(0.01) } else { 0.0 }}
                                             height={move || content.get().map_or(0.0, |size| size.y)}
                                         >
-                                                <Show condition={comparing}>
-                                                    <Interactive
-                                                        cursor={Some(CursorIcon::ResizeColumn)}
-                                                        on_press={drag}
-                                                        on_drag={drag}
-                                                        @test_id="paint_review.split"
+                                            <Show condition={comparing}>
+                                                <Interactive
+                                                    cursor={Some(CursorIcon::ResizeColumn)}
+                                                    on_press={drag}
+                                                    on_drag={drag}
+                                                    @test_id="paint_review.split"
+                                                >
+                                                    <Frame
+                                                        align={Align2::new(Align::Center, Align::Stretch)}
                                                     >
                                                         <Frame
-                                                            align={Align2::new(Align::Center, Align::Stretch)}
-                                                        >
-                                                            <Frame
-                                                                width={Size::Custom(HANDLE_LINE)}
-                                                                height=Length::FILL
-                                                                fill=ColorRole::Accent
-                                                            />
-                                                        </Frame>
-                                                    </Interactive>
-                                                </Show>
+                                                            width={Size::Custom(HANDLE_LINE)}
+                                                            height=Length::FILL
+                                                            fill=ColorRole::Accent
+                                                        />
+                                                    </Frame>
+                                                </Interactive>
+                                            </Show>
                                         </CanvasItem>
                                     </Canvas>
                                 </Frame>

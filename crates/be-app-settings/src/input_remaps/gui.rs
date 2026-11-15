@@ -261,9 +261,11 @@ pub(super) fn EditorTab(shared: Shared, editor: Editor) -> NodeId {
                     </SettingsRow>
                 </SettingsSection>
             </Show>
-            <Show condition={move || {
-                !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
-            }}>
+            <Show
+                condition={move || {
+                    !blocked.get() && outline.with(|outline| !outline.iter().any(everywhere))
+                }}
+            >
                 <SettingsSection title=EVERYWHERE description="In every program.">
                     <SettingsRow
                         label="No remaps yet"

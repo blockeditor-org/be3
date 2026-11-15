@@ -33,7 +33,12 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
             anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={move || settings.set(false)}
         >
-            <Show condition={state.hex_view} fallback={move || view! { <TextSettings state={state} /> }}>
+            <Show
+                condition={state.hex_view}
+                fallback={move || view! {
+                    <TextSettings state={state} />
+                }}
+            >
                 <HexSettings state={state} />
             </Show>
         </Dialog>

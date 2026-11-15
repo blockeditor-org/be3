@@ -11,7 +11,10 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     let page = NodeRef::new();
     let document = build_node(move || {
         view! {
-            <BackSlide enabled={move || depth.get() > 0} on_back={move || depth.set(depth.get_untracked() - 1)}>
+            <BackSlide
+                enabled={move || depth.get() > 0}
+                on_back={move || depth.set(depth.get_untracked() - 1)}
+            >
                 <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
             </BackSlide>
         }

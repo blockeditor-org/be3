@@ -286,7 +286,12 @@ fn PageCanvas(
         <List spacing=Space::None>
             <ListItem grow=1.0>
                 <Canvas view={view}>
-                    <CanvasItem x=0.0 y=0.0 width={move || size.get().x} height={move || size.get().y}>
+                    <CanvasItem
+                        x=0.0
+                        y=0.0
+                        width={move || size.get().x}
+                        height={move || size.get().y}
+                    >
                         <Frame fill={ColorRole::Custom(PAGE_FILL.into())} />
                     </CanvasItem>
                     <ForEach keys={keys}>|index: usize| {

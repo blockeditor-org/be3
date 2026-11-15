@@ -234,10 +234,12 @@ fn RenameBody(
                             size=TextSize::Xl
                             align=TextAlign::Center
                         >
-                            <Icon glyph={move || {
-                                let look = look.get();
-                                look.icon.and_then(named).or(look.type_icon)
-                            }} />
+                            <Icon
+                                glyph={move || {
+                                    let look = look.get();
+                                    look.icon.and_then(named).or(look.type_icon)
+                                }}
+                            />
                         </Text>
                     </Frame>
                     <ListItem grow=1.0>

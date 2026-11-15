@@ -9,7 +9,12 @@ fn a_show_among_a_run_adds_no_host_node() {
     let page = scope.run(|| {
         view! {
             <Element tag="div">
-                <Show condition={shown} fallback={|| view! { <Element tag="i" text="hidden" /> }}>
+                <Show
+                    condition={shown}
+                    fallback={|| view! {
+                        <Element tag="i" text="hidden" />
+                    }}
+                >
                     <Element tag="b" text="shown" />
                 </Show>
             </Element>

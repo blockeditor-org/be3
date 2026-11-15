@@ -171,11 +171,7 @@ fn NewButton(adding: Adding) -> NodeId {
                 open={opening}
                 @test_id={"file-tree.new"}
                 leading={view! {
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=Space::Xs2
-                    >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs2>
                         <Text align=TextAlign::Center>
                             <Icon glyph=ICON_PLUS />
                         </Text>

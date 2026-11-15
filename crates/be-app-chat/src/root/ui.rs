@@ -261,7 +261,9 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
         >
             <Show
                 condition={move || target.get().is_some()}
-                fallback={|| view! { <NoAccess /> }}
+                fallback={|| view! {
+                    <NoAccess />
+                }}
             >
                 <BlockLink editor block={target} />
             </Show>
@@ -1557,33 +1559,33 @@ fn MessageRow(
                                         </Text>
                                     }}
                                 >
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    color=TextColor::Danger
-                                    @test_id={format!("chat.message.{id}.not_sent")}
-                                >
-                                    "Not sent"
-                                </Text>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Xs
-                                >
-                                    <Button
-                                        label="Send again"
-                                        variant=ButtonVariant::Ghost
-                                        size=ButtonSize::Small
-                                        @test_id={format!("chat.message.{id}.retry")}
-                                        on_click={move || let_go(true)}
-                                    />
-                                    <Button
-                                        label="Discard"
-                                        variant=ButtonVariant::Ghost
-                                        size=ButtonSize::Small
-                                        @test_id={format!("chat.message.{id}.discard")}
-                                        on_click={move || let_go(false)}
-                                    />
-                                </List>
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        color=TextColor::Danger
+                                        @test_id={format!("chat.message.{id}.not_sent")}
+                                    >
+                                        "Not sent"
+                                    </Text>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Xs
+                                    >
+                                        <Button
+                                            label="Send again"
+                                            variant=ButtonVariant::Ghost
+                                            size=ButtonSize::Small
+                                            @test_id={format!("chat.message.{id}.retry")}
+                                            on_click={move || let_go(true)}
+                                        />
+                                        <Button
+                                            label="Discard"
+                                            variant=ButtonVariant::Ghost
+                                            size=ButtonSize::Small
+                                            @test_id={format!("chat.message.{id}.discard")}
+                                            on_click={move || let_go(false)}
+                                        />
+                                    </List>
                                 </Show>
                             </Show>
                             <Show condition={unverified}>

@@ -86,11 +86,13 @@ fn ActionBarFace(
     view! {
         <List direction=direction align=Align::Center spacing=SPACING>
             <ForEach keys={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
-            <Show condition={move || {
-                labels == ActionLabels::Shown
-                    && icons.with(|icons| !icons.is_empty())
-                    && labelled.with(|labelled| !labelled.is_empty())
-            }}>
+            <Show
+                condition={move || {
+                    labels == ActionLabels::Shown
+                        && icons.with(|icons| !icons.is_empty())
+                        && labelled.with(|labelled| !labelled.is_empty())
+                }}
+            >
                 <Frame padding={Padding::horizontal(DIVIDER_MARGIN)}>
                     <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>

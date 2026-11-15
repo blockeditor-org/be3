@@ -227,27 +227,33 @@ pub fn NumberInput(
     }));
     view! {
         <List spacing=0.0>
-            <Show keep_alive=true condition={editing} fallback={move || view! {
-                <Interactive
-                    focusable=true
-                    tab_stop
-                    focused={refocus}
-                    on_focus_change={button_focus}
-                    on_activate={open}
-                    cursor={move || match drag != NumberDrag::Off && !off.get() {
-        true => CursorIcon::ResizeHorizontal,
-        false => CursorIcon::Default,
-    }}
-                    capture_presses=true
-                    on_press={pressed}
-                    on_drag={dragged}
-                    on_click={clicked}
-                    on_cancel={cancelled}
-                    on_hover_change={hovered}
-                    on_active_change={active}
-                    children={Some(face)}
-                />
-            }}>{field}</Show>
+            <Show
+                keep_alive=true
+                condition={editing}
+                fallback={move || view! {
+                    <Interactive
+                        focusable=true
+                        tab_stop
+                        focused={refocus}
+                        on_focus_change={button_focus}
+                        on_activate={open}
+                        cursor={move || match drag != NumberDrag::Off && !off.get() {
+                            true => CursorIcon::ResizeHorizontal,
+                            false => CursorIcon::Default,
+                        }}
+                        capture_presses=true
+                        on_press={pressed}
+                        on_drag={dragged}
+                        on_click={clicked}
+                        on_cancel={cancelled}
+                        on_hover_change={hovered}
+                        on_active_change={active}
+                        children={Some(face)}
+                    />
+                }}
+            >
+                {field}
+            </Show>
         </List>
     }
 }

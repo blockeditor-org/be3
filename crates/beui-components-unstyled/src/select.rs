@@ -162,13 +162,13 @@ pub fn Select(
             <unstyled::Button
                 @node_ref={&state.trigger}
                 accessibility={move || {
-        let mut node = accessibility.get();
-        if let Some(label) = label.get() {
-            node.set_value(label);
-        }
-        node.set_expanded(state.open.get());
-        node
-    }}
+                    let mut node = accessibility.get();
+                    if let Some(label) = label.get() {
+                        node.set_value(label);
+                    }
+                    node.set_expanded(state.open.get());
+                    node
+                }}
                 disabled={disabled}
                 content={trigger_content}
                 on_click={move || toggle(state)}

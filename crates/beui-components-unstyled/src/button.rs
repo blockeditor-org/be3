@@ -170,9 +170,7 @@ pub fn Button(
                 .collect();
             match link {
                 true => view! {
-                    <html::A href={move || href.get().filter(|_| !disabled.get())}>
-                        {inner}
-                    </html::A>
+                    <html::A href={move || href.get().filter(|_| !disabled.get())}>{inner}</html::A>
                 },
                 false => view! {
                     <html::Button r#type="submit" disabled={disabled}>{inner}</html::Button>

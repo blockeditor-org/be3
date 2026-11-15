@@ -123,9 +123,9 @@ pub fn Toggle(
             on_activate_change={key_active}
             on_activate={key_toggle}
             cursor={move || match disabled.get() {
-        true => CursorIcon::Default,
-        false => CursorIcon::PointingHand,
-    }}
+                true => CursorIcon::Default,
+                false => CursorIcon::PointingHand,
+            }}
             key_active
             on_click={toggle_checked}
             on_hover_change={hovered}

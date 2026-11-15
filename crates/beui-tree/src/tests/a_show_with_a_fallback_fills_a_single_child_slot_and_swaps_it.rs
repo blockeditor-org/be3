@@ -24,11 +24,17 @@ fn a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it() {
             </Holder>
         }
     });
-    assert_eq!(page.html(), "<div id=2><host id=0><p id=1>reading</p></host></div>");
+    assert_eq!(
+        page.html(),
+        "<div id=2><host id=0><p id=1>reading</p></host></div>"
+    );
 
     editing.set(true);
     flush();
-    assert_eq!(page.html(), "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>");
+    assert_eq!(
+        page.html(),
+        "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>"
+    );
     assert_eq!(disposed.get(), 1, "the branch it left is dropped");
 
     editing.set(false);

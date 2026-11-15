@@ -1288,7 +1288,12 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
     });
     view! {
         <Layers>
-            <Dynamic value={shown} fallback={|| view! { <Frame /> }}>|shown: be_host_desktop::programs::Shown| {
+            <Dynamic
+                value={shown}
+                fallback={|| view! {
+                    <Frame />
+                }}
+            >|shown: be_host_desktop::programs::Shown| {
                 match shown {
                     be_host_desktop::programs::Shown::Window(window) => view! {
                         <PlacedWindow window={window} focus />

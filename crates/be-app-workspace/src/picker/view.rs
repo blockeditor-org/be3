@@ -506,11 +506,13 @@ fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
             let viewport = use_viewport_size();
             let sheet = move || layout.is_some_and(|layout| layout.sheet.get());
             view! {
-                <Frame height={move || match (creating.get(), sheet()) {
-                    (true, _) => Length::INTRINSIC,
-                    (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
-                    (false, false) => Length::Size(DIALOG_HEIGHT),
-                }}>
+                <Frame
+                    height={move || match (creating.get(), sheet()) {
+                        (true, _) => Length::INTRINSIC,
+                        (false, true) => Length::Size(Size::Custom(modal_sheet_room(viewport.get().y))),
+                        (false, false) => Length::Size(DIALOG_HEIGHT),
+                    }}
+                >
                     <PickerSurface picker />
                 </Frame>
             }

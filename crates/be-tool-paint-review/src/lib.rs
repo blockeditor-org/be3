@@ -92,7 +92,9 @@ fn PaintReview(
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Loading))}>
+                <Show
+                    condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Loading))}
+                >
                     <ListItem grow=1.0>
                         <Frame align=Align::Center>
                             <List
@@ -127,7 +129,9 @@ fn PaintReview(
                         </Frame>
                     </ListItem>
                 </Show>
-                <Show condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_)))}>
+                <Show
+                    condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_)))}
+                >
                     <Show
                         condition={move || review.open.with(Option::is_some)}
                         fallback={move || view! {

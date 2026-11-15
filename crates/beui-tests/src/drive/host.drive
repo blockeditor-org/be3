@@ -6,7 +6,7 @@ clock stop
 wait 'Row 97x20 193x20 Grid 100x20 200x20 Swaps 0'
 click '#host.first'
 wait 'Swaps 1'
-wait 'Row 97x40 193x40 Grid 100x20 200x20 Swaps 1'
+wait 'Row 97x20 193x20 Grid 100x20 200x20 Swaps 1'
 drag '#host.second' '#host.second+60,0' 6
 wait 'Swaps 2'
 find '#host.first'

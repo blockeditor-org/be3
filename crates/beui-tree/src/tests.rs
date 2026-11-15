@@ -3,29 +3,29 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
-    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal,
-    flush, on_cleanup, store, view,
+    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal, flush,
+    on_cleanup, store, view,
 };
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
-mod a_closure_is_a_prop_read_as_a_getter;
-mod a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one;
-mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
-mod a_show_among_a_run_adds_no_host_node;
-mod a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it;
-mod a_show_with_a_fallback_swaps_runs_of_different_lengths;
-mod a_show_without_a_fallback_fills_an_optional_single_slot;
-mod dynamic_and_keyed_show_their_fallback_while_the_value_is_none;
 mod a_callback_given_a_signal_sets_it;
 mod a_child_list_refilled_keeps_the_items_it_held_wherever_they_move;
+mod a_closure_is_a_prop_read_as_a_getter;
 mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
+mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
+mod a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
 mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
+mod a_show_among_a_run_adds_no_host_node;
+mod a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it;
+mod a_show_with_a_fallback_swaps_runs_of_different_lengths;
+mod a_show_without_a_fallback_fills_an_optional_single_slot;
 mod a_tracked_read_in_a_component_body_panics_naming_its_type;
 mod components_can_return_and_collect_child_runs;
+mod dynamic_and_keyed_show_their_fallback_while_the_value_is_none;
 mod handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic;
 mod modifiers_are_functions_on_built_values;
 mod modifiers_run_after_props_and_inside_render_slots;

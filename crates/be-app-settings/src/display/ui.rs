@@ -55,10 +55,12 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
         <SettingsPage @node_ref=&page>
             <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
             <Show condition={move || bar.get() || offered.get()}>
-                <SettingsSection title={move || match offered.get() {
-                    true => "Screens".to_owned(),
-                    false => "Desktop bar".to_owned(),
-                }}>
+                <SettingsSection
+                    title={move || match offered.get() {
+                        true => "Screens".to_owned(),
+                        false => "Desktop bar".to_owned(),
+                    }}
+                >
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>

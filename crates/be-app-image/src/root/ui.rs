@@ -161,7 +161,8 @@ fn Artwork(
                 y={move || shape.get().top()}
                 width={move || shape.get().width()}
                 height={move || shape.get().height()}
-                @test_id={"image.picture"}>
+                @test_id={"image.picture"}
+            >
                 <Picture image={image} thumbhash={thumbhash} fit=ImageFit::Fill />
             </CanvasItem>
         </Canvas>

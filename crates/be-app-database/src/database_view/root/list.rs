@@ -324,7 +324,9 @@ fn AnyLine(
         <List spacing=Space::None>
             <Dynamic
                 value={header}
-                fallback={move || view! { <RowLine data={data} row={row} viewport={viewport} /> }}
+                fallback={move || view! {
+                    <RowLine data={data} row={row} viewport={viewport} />
+                }}
             >|key: GroupKey|
                 <GroupHeader data={data} groups={groups} key={key} />
             </Dynamic>

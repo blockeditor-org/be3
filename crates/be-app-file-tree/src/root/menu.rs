@@ -236,9 +236,9 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let deletable = move || !row.get().is_some_and(|row| row.can_delete);
     let delete_label = move || match row.get().is_some_and(|row| row.is_reference) {
-            true => "Remove link".to_owned(),
-            false => "Delete".to_owned(),
-        };
+        true => "Remove link".to_owned(),
+        false => "Delete".to_owned(),
+    };
     let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
     let uninspectable = move || !row.get().is_some_and(|row| row.inspection.is_some());
     let taggable = move || row.get().is_some_and(|row| row.can_edit && !row.deleted);
@@ -477,9 +477,8 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
 fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
     let shown = create_memo(move || row.get().and_then(|row| row.id));
     let has = create_memo(move || shown.get().and_then(|id| editor.settings_block(id)));
-    let disabled = move || {
-        has.get().is_none() && !row.get().is_some_and(|row| row.access.can_manage())
-    };
+    let disabled =
+        move || has.get().is_none() && !row.get().is_some_and(|row| row.access.can_manage());
     let open = move || {
         if let Some(id) = shown.get_untracked()
             && let Some(settings) = editor.ensure_settings_block(id)

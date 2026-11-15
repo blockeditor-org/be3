@@ -239,7 +239,11 @@ fn Button(id: &'static str, label: &'static str, on_click: Callback<()>) -> Node
 fn FrameFixture() -> NodeId {
     let wide = create_signal(false);
     let inner = view! {
-        <Frame width={move || Extent::px(if wide.get() { 100.0 } else { 50.0 })} height=20.0 fill={GREEN} />
+        <Frame
+            width={move || Extent::px(if wide.get() { 100.0 } else { 50.0 })}
+            height=20.0
+            fill={GREEN}
+        />
     };
     let outer = view! {
         <Frame
@@ -534,26 +538,26 @@ fn HostFixture() -> NodeId {
         <Frame height=20.0 fill={BLUE} />
     };
     let hosted: NodeId = into_child(view! {
-        <Show condition={swapped} fallback={move || view! {
-            <Interactive
-                @test_id="host.first"
-                focusable=true
-                on_key={move |press: KeyPress| {
-                    if press.pressed && press.key == Key::Enter {
-                        swap();
-                    }
-                    false
-                }}
-                on_press={move |_: beui::PointerPress| swap()}
-            >
-                <Frame height=20.0 fill={GREEN} />
-            </Interactive>
-        }}>
-            <Interactive
-                @test_id="host.second"
-                on_drag={move |_: beui::PointerPress| swap()}
-            >
-                <Frame height=40.0 fill={AMBER} />
+        <Show
+            condition={swapped}
+            fallback={move || view! {
+                <Interactive
+                    @test_id="host.first"
+                    focusable=true
+                    on_key={move |press: KeyPress| {
+                        if press.pressed && press.key == Key::Enter {
+                            swap();
+                        }
+                        false
+                    }}
+                    on_press={move |_: beui::PointerPress| swap()}
+                >
+                    <Frame height=20.0 fill={GREEN} />
+                </Interactive>
+            }}
+        >
+            <Interactive @test_id="host.second" on_drag={move |_: beui::PointerPress| swap()}>
+                <Frame height=20.0 fill={AMBER} />
             </Interactive>
         </Show>
     });
@@ -561,7 +565,12 @@ fn HostFixture() -> NodeId {
         <Frame height=20.0 fill={BLUE} />
     };
     let cell_hosted: NodeId = into_child(view! {
-        <Show condition={swapped} fallback={|| view! { <Frame height=20.0 fill={GREEN} /> }}>
+        <Show
+            condition={swapped}
+            fallback={|| view! {
+                <Frame height=20.0 fill={GREEN} />
+            }}
+        >
             <Frame height=20.0 fill={AMBER} />
         </Show>
     });

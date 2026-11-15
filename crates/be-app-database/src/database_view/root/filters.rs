@@ -269,7 +269,10 @@ fn AddFilter(data: Data) -> NodeId {
                 <Dynamic
                     value={adding}
                     fallback={move || view! {
-                        <FieldChoices data={data} on_pick={move |id: ObjectId| adding.set(Some(id))} />
+                        <FieldChoices
+                            data={data}
+                            on_pick={move |id: ObjectId| adding.set(Some(id))}
+                        />
                     }}
                 >|id: ObjectId|
                     <FilterEditor data={data} id={id} />

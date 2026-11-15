@@ -416,24 +416,27 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
-            <Show condition={paged} fallback={move || {
-                let title_test_id = title_test_id.clone();
-                let lines = lines();
-                view! {
-                    <List spacing={state.spacing}>
-                        <Show condition={state.titled}>
-                            <MenuBackRow
-                                state={state}
-                                title
-                                test_id={title_test_id.clone()}
-                                focused={focused}
-                                row={row}
-                            />
-                        </Show>
-                        {lines}
-                    </List>
-                }
-            }}>
+            <Show
+                condition={paged}
+                fallback={move || {
+                    let title_test_id = title_test_id.clone();
+                    let lines = lines();
+                    view! {
+                        <List spacing={state.spacing}>
+                            <Show condition={state.titled}>
+                                <MenuBackRow
+                                    state={state}
+                                    title
+                                    test_id={title_test_id.clone()}
+                                    focused={focused}
+                                    row={row}
+                                />
+                            </Show>
+                            {lines}
+                        </List>
+                    }
+                }}
+            >
                 <MenuPage state={state} row={row} panel={panel} />
             </Show>
         </List>

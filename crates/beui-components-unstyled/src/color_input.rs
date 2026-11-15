@@ -59,9 +59,9 @@ pub fn ColorInput(
     let swatch_node = view! {
         <Popover
             label={move || match label.get() {
-        label if label.is_empty() => "Choose a color".to_owned(),
-        label => format!("Choose {label}"),
-    }}
+                label if label.is_empty() => "Choose a color".to_owned(),
+                label => format!("Choose {label}"),
+            }}
             icon_only=true
             disabled={disabled}
             surface

@@ -335,7 +335,9 @@ fn KeyNotice(state: State) -> NodeId {
             .to_owned(),
         _ => String::new(),
     });
-    let color = move || match standing.with(|standing| matches!(standing, Some(KeyStanding::Expiring(_)))) {
+    let color = move || match standing
+        .with(|standing| matches!(standing, Some(KeyStanding::Expiring(_))))
+    {
         true => TextColor::Warning,
         false => TextColor::Danger,
     };

@@ -1,8 +1,8 @@
+use be_sdk_beui::beui::Key;
 use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
 use be_sdk_beui::beui::dock_host::styled::DockWindowActions;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::Key;
 use be_sdk_beui::{Editor, ScreenLockedWatch, SuperKeptWatch};
 use beui::KeyAt;
 

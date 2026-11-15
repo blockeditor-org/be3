@@ -292,26 +292,35 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
             <Frame padding=Space::Lg>
                 <List spacing=Space::Md>
                     <Text style=TextStyle::HEADING>"Revision history"</Text>
-                    <Show condition={no_file} fallback={move || view! { <Text>{name}</Text> }}>
+                    <Show
+                        condition={no_file}
+                        fallback={move || view! {
+                            <Text>{name}</Text>
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>
                             "Open a file to see its revision history."
                         </Text>
                     </Show>
-                    <Show condition={move || {
-                        history.loading.get()
-                            && history.listed.get() != history.target.get().map(|item| item.id)
-                    }}>
+                    <Show
+                        condition={move || {
+                            history.loading.get()
+                                && history.listed.get() != history.target.get().map(|item| item.id)
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>
                         <Text style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
-                    <Show condition={move || {
-                        !no_file.get()
-                            && !history.loading.get()
-                            && history.error.with(Option::is_none)
-                            && history.entries.with(Vec::is_empty)
-                    }}>
+                    <Show
+                        condition={move || {
+                            !no_file.get()
+                                && !history.loading.get()
+                                && history.error.with(Option::is_none)
+                                && history.entries.with(Vec::is_empty)
+                        }}
+                    >
                         <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
                     <Show condition={move || history.error.with(Option::is_some)}>
@@ -384,12 +393,14 @@ pub(crate) fn RevisionPreviewBar(
                                 @test_id={"workspace.revision.current"}
                                 on_click={move || history.current()}
                             />
-                            <Show condition={move || {
-                                history
-                                    .target
-                                    .get()
-                                    .is_some_and(|item| workspace.can_edit(item.id))
-                            }}>
+                            <Show
+                                condition={move || {
+                                    history
+                                        .target
+                                        .get()
+                                        .is_some_and(|item| workspace.can_edit(item.id))
+                                }}
+                            >
                                 <Button
                                     variant=ButtonVariant::Primary
                                     label="Restore this revision"

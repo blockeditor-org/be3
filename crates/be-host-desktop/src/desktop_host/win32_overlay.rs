@@ -68,10 +68,12 @@ pub fn EntryOverlay(secure: Memo<bool>, off_screen: Memo<Vec<Rect>>) -> NodeId {
                     <OffScreenPart part labelled={index == 0} />
                 }
             }</ForEach>
-            <Frame fill={move || match secure.get() {
-                true => ColorRole::Dim,
-                false => ColorRole::None,
-            }} />
+            <Frame
+                fill={move || match secure.get() {
+                    true => ColorRole::Dim,
+                    false => ColorRole::None,
+                }}
+            />
             <Show condition={secure}>
                 <Frame align=Align::Center padding={Padding::all(Space::Md)}>
                     <Frame

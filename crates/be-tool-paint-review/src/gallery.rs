@@ -252,27 +252,24 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
     view! {
         <Frame align={Align2::CENTER}>
             <Show condition={move || shown.with(Option::is_some)}>
-                    <Frame
-                        fill=ColorRole::Surface
-                        border={Some(Border::DEFAULT)}
-                        radius=Radius::Md
-                        padding=Space::Sm
-                        @test_id={"paint_review.preview"}
-                    >
-                        <List spacing=Space::Xs align=Align::Center>
-                            <Show condition={move || picture.with(Option::is_some)}>
-                                <Frame width={width} height={height}>
-                                    <Picture image={image} fit=ImageFit::Fill smooth=false />
-                                </Frame>
-                            </Show>
-                            <Text
-                                style=TextStyle::CAPTION
-                                @test_id={"paint_review.preview.caption"}
-                            >
-                                {caption}
-                            </Text>
-                        </List>
-                    </Frame>
+                <Frame
+                    fill=ColorRole::Surface
+                    border={Some(Border::DEFAULT)}
+                    radius=Radius::Md
+                    padding=Space::Sm
+                    @test_id={"paint_review.preview"}
+                >
+                    <List spacing=Space::Xs align=Align::Center>
+                        <Show condition={move || picture.with(Option::is_some)}>
+                            <Frame width={width} height={height}>
+                                <Picture image={image} fit=ImageFit::Fill smooth=false />
+                            </Frame>
+                        </Show>
+                        <Text style=TextStyle::CAPTION @test_id={"paint_review.preview.caption"}>
+                            {caption}
+                        </Text>
+                    </List>
+                </Frame>
             </Show>
         </Frame>
     }

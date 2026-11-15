@@ -299,56 +299,51 @@ fn PanelBody(
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let body = match shape {
         DateTimePanelLayout::Beside => view! {
-                <List direction=Direction::Horizontal spacing=PANEL_SPACING>
-                    <CalendarPane handle={calendar} width={beside} first_weekday />
-                    <ListItem grow=1.0>
+            <List direction=Direction::Horizontal spacing=PANEL_SPACING>
+                <CalendarPane handle={calendar} width={beside} first_weekday />
+                <ListItem grow=1.0>
+                    <TimePane handle={times} step_minutes max_columns=1 height=TIME_LIST_HEIGHT />
+                </ListItem>
+            </List>
+        },
+        DateTimePanelLayout::Date => view! {
+            <Centred>
+                <CalendarPane handle={calendar} width={alone} first_weekday />
+            </Centred>
+        },
+        DateTimePanelLayout::Time => view! {
+            <TimePane
+                handle={times}
+                step_minutes
+                max_columns=MAX_GRID_COLUMNS
+                height=TIME_GRID_HEIGHT
+            />
+        },
+        DateTimePanelLayout::Paged => view! {
+            <List spacing=PANEL_SPACING>
+                <Tabs
+                    options={view! {
+                        <ChoiceOption label="Date" />
+                        <ChoiceOption label="Time" />
+                    }}
+                    selected={Binding::new(page, show_page)}
+                />
+                <Show
+                    condition={move || page.get() == 0}
+                    fallback={move || view! {
                         <TimePane
                             handle={times}
                             step_minutes
-                            max_columns=1
-                            height=TIME_LIST_HEIGHT
+                            max_columns=MAX_GRID_COLUMNS
+                            height=TIME_GRID_HEIGHT
                         />
-                    </ListItem>
-                </List>
-        },
-        DateTimePanelLayout::Date => view! {
-                <Centred>
-                    <CalendarPane handle={calendar} width={alone} first_weekday />
-                </Centred>
-        },
-        DateTimePanelLayout::Time => view! {
-                <TimePane
-                    handle={times}
-                    step_minutes
-                    max_columns=MAX_GRID_COLUMNS
-                    height=TIME_GRID_HEIGHT
-                />
-        },
-        DateTimePanelLayout::Paged => view! {
-                <List spacing=PANEL_SPACING>
-                    <Tabs
-                        options={view! {
-                            <ChoiceOption label="Date" />
-                            <ChoiceOption label="Time" />
-                        }}
-                        selected={Binding::new(page, show_page)}
-                    />
-                    <Show
-                        condition={move || page.get() == 0}
-                        fallback={move || view! {
-                            <TimePane
-                                handle={times}
-                                step_minutes
-                                max_columns=MAX_GRID_COLUMNS
-                                height=TIME_GRID_HEIGHT
-                            />
-                        }}
-                    >
-                        <Centred>
-                            <CalendarPane handle={calendar} width={alone} first_weekday />
-                        </Centred>
-                    </Show>
-                </List>
+                    }}
+                >
+                    <Centred>
+                        <CalendarPane handle={calendar} width={alone} first_weekday />
+                    </Centred>
+                </Show>
+            </List>
         },
     };
     view! {

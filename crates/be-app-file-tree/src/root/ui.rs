@@ -195,7 +195,10 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             <FilesToolbar adding shown={chrome} />
             <ListItem grow=1.0>
                 <Frame @node_ref={&content_node}>
-                    <BackSlide enabled={move || narrow.get() && focus.with(Option::is_some)} on_back={move || zoom.up()}>
+                    <BackSlide
+                        enabled={move || narrow.get() && focus.with(Option::is_some)}
+                        on_back={move || zoom.up()}
+                    >
                         <Frame fill=ColorRole::Background>
                             <List spacing=Space::None>
                                 <Show condition={filtering}>
@@ -484,7 +487,9 @@ fn TreeRow(
                     <TagChip tag={shown} size=TextSize::Xs />
                 }
             }</ForEach>
-            <Show condition={move || row.with(|row| row.as_ref().is_some_and(|row| row.dynamic_artifact))}>
+            <Show
+                condition={move || row.with(|row| row.as_ref().is_some_and(|row| row.dynamic_artifact))}
+            >
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
                         <Icon glyph=ICON_SPARKLES />
@@ -670,27 +675,25 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             disabled={move || keys.with(Vec::is_empty)}
             row_test_id={"file-tree.open-with".to_owned()}
         >
-            <ForEach keys={keys}>|chosen: Uuid| {
-                view! {
-                    <MenuItem
-                        label={move || {
-                            editors.with(|editors| {
-                                editors
-                                    .iter()
-                                    .find(|(id, _)| *id == chosen)
-                                    .map(|(_, name)| name.clone())
-                                    .unwrap_or_default()
-                            })
-                        }}
-                        row_test_id={format!("file-tree.open-with.{chosen}")}
-                        on_click={move || {
-                            if let Some((id, block_type)) = block.get_untracked() {
-                                editor.host().open_block_with(id, block_type, chosen);
-                            }
-                        }}
-                    />
-                }
-            }</ForEach>
+            <ForEach keys={keys}>|chosen: Uuid|
+                <MenuItem
+                    label={move || {
+                        editors.with(|editors| {
+                            editors
+                                .iter()
+                                .find(|(id, _)| *id == chosen)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_default()
+                        })
+                    }}
+                    row_test_id={format!("file-tree.open-with.{chosen}")}
+                    on_click={move || {
+                        if let Some((id, block_type)) = block.get_untracked() {
+                            editor.host().open_block_with(id, block_type, chosen);
+                        }
+                    }}
+                />
+            </ForEach>
         </MenuItem>
     }
 }
@@ -803,12 +806,14 @@ fn RowActions(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show condition={move || {
-                row.with(|row| {
-                    row.as_ref()
-                        .is_some_and(|row| row.sets_access && row.access.can_manage())
-                })
-            }}>
+            <Show
+                condition={move || {
+                    row.with(|row| {
+                        row.as_ref()
+                            .is_some_and(|row| row.sets_access && row.access.can_manage())
+                    })
+                }}
+            >
                 <RowButton
                     row_focused={row_focused}
                     glyph=ICON_SHARE_2

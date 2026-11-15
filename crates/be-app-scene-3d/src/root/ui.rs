@@ -114,7 +114,12 @@ pub(crate) fn Scene3DView() -> NodeId {
                 <ListItem grow=1.0>
                     <Drawing draw={move || draw_gpu(drawing.get())} />
                 </ListItem>
-                <Floating anchor={anchor} edge=Edge::Bottom open={move || !looking.get()} interactive=false>
+                <Floating
+                    anchor={anchor}
+                    edge=Edge::Bottom
+                    open={move || !looking.get()}
+                    interactive=false
+                >
                     <Hint />
                 </Floating>
             </List>

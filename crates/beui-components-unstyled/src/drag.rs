@@ -189,7 +189,12 @@ where
                     open={floating}
                 >
                     <List spacing=0.0>
-                        <Dynamic value={carried} fallback={|| view! { <Frame /> }}>|carried: P| {
+                        <Dynamic
+                            value={carried}
+                            fallback={|| view! {
+                                <Frame />
+                            }}
+                        >|carried: P| {
                             preview.call(carried)
                         }</Dynamic>
                     </List>

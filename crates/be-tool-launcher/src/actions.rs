@@ -272,7 +272,10 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
             <Show condition={logged}>
                 <Button
                     label={move || if open.get() { "Hide the log" } else { "Show the log" }.to_owned()}
-                    glyph=ICON_TERMINAL variant=ButtonVariant::Ghost on_click={toggle} />
+                    glyph=ICON_TERMINAL
+                    variant=ButtonVariant::Ghost
+                    on_click={toggle}
+                />
             </Show>
             <Show condition={move || logged.get() && open.get()}>
                 <ListItem length=LOG_HEIGHT>

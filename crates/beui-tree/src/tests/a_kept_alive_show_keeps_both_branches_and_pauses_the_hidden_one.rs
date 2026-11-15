@@ -15,19 +15,29 @@ fn a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one() {
         });
         view! {
             <Holder tag="div">
-                <Show keep_alive=true condition={editing} fallback={move || view! {
-                    <Element tag="p" text={text} />
-                }}>||
+                <Show
+                    keep_alive=true
+                    condition={editing}
+                    fallback={move || view! {
+                        <Element tag="p" text={text} />
+                    }}
+                >||
                     <Element tag="textarea" text="editing" />
                 </Show>
             </Holder>
         }
     });
-    assert_eq!(page.html(), "<div id=2><host id=0><p id=1>0</p></host></div>");
+    assert_eq!(
+        page.html(),
+        "<div id=2><host id=0><p id=1>0</p></host></div>"
+    );
 
     editing.set(true);
     flush();
-    assert_eq!(page.html(), "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>");
+    assert_eq!(
+        page.html(),
+        "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>"
+    );
     for next in 1..=5 {
         note.set(next);
     }
@@ -48,5 +58,8 @@ fn a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one() {
 
     editing.set(true);
     flush();
-    assert_eq!(page.html(), "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>");
+    assert_eq!(
+        page.html(),
+        "<div id=2><host id=0><textarea id=3>editing</textarea></host></div>"
+    );
 }

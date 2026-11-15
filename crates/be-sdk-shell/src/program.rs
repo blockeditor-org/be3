@@ -793,7 +793,9 @@ pub fn ProgramTab(
             <Layers>
                 <Dynamic
                     value={window}
-                    fallback={move || view! { <Placeholder workspace tab /> }}
+                    fallback={move || view! {
+                        <Placeholder workspace tab />
+                    }}
                 >|window: HostWindowId|
                     <WindowBody workspace tab window floating />
                 </Dynamic>

@@ -187,10 +187,12 @@ pub fn StackFixture() -> NodeId {
                 <Button label="Narrow" on_click={move || wide.set(false)} />
                 <Button label="Wide" on_click={move || wide.set(true)} />
             </List>
-            <Frame width={move || match wide.get() {
-                true => Length::Size(Size::Custom(900.0)),
-                false => Length::Size(Size::Custom(400.0)),
-            }}>
+            <Frame
+                width={move || match wide.get() {
+                    true => Length::Size(Size::Custom(900.0)),
+                    false => Length::Size(Size::Custom(400.0)),
+                }}
+            >
                 <beui::unstyled::Container>|_|
                     <StackBody />
                 </beui::unstyled::Container>

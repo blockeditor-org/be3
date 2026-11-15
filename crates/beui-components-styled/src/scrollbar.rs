@@ -25,9 +25,7 @@ pub fn Scrollbar(
     let ends_horizontal = inset_when(&direction, Direction::Horizontal);
     let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
-        <Frame
-            padding={move || Padding::symmetric(ends_horizontal.get(), ends_vertical.get())}
-        >
+        <Frame padding={move || Padding::symmetric(ends_horizontal.get(), ends_vertical.get())}>
             <unstyled::Scrollbar
                 position
                 direction

@@ -16,7 +16,9 @@ fn switching_a_show_damages_both_panels() {
             <List spacing=0.0>
                 <Show
                     condition={second}
-                    fallback={|| view! { <Frame height=FIRST fill=Color32::WHITE radius=0.0 /> }}
+                    fallback={|| view! {
+                        <Frame height=FIRST fill=Color32::WHITE radius=0.0 />
+                    }}
                 >
                     <Frame height=SECOND fill={Color32::from_gray(40)} radius=0.0 />
                 </Show>

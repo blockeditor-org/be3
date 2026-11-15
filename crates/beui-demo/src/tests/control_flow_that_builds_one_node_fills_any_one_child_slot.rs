@@ -24,7 +24,12 @@ fn control_flow_that_builds_one_node_fills_any_one_child_slot() {
                         </Show>
                     </Frame>
                     <ListItem grow=1.0>
-                        <Show condition={shown} fallback={|| view! { <Frame @test_id="item_fallback" height=Size::Sm /> }}>
+                        <Show
+                            condition={shown}
+                            fallback={|| view! {
+                                <Frame @test_id="item_fallback" height=Size::Sm />
+                            }}
+                        >
                             <Frame @test_id="in_item" height=Size::Lg />
                         </Show>
                     </ListItem>

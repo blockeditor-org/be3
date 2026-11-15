@@ -594,7 +594,11 @@ fn ChoiceButtons(play: Play) -> NodeId {
     let cancel = move || play.cancel();
     let bar = use_dock_bar();
     view! {
-        <List direction={move || bar.map_or(Direction::Vertical, |bar| bar.direction())} align=Align::Center spacing=Space::Sm>
+        <List
+            direction={move || bar.map_or(Direction::Vertical, |bar| bar.direction())}
+            align=Align::Center
+            spacing=Space::Sm
+        >
             <ForEach keys={choices}>|action: Action| {
                 let index = action.index;
                 view! {

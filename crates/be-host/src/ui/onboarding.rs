@@ -580,7 +580,9 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                 condition={move || joining.get().is_some()}
                 fallback={move || view! {
                     <List spacing=Space::Md>
-                        <Text style=TextStyle::CAPTION>"Paste the invite link someone sent you."</Text>
+                        <Text style=TextStyle::CAPTION>
+                            "Paste the invite link someone sent you."
+                        </Text>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <ListItem grow=1.0>
                                 <TextInput

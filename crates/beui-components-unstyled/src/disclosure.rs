@@ -29,15 +29,14 @@ pub fn Disclosure(
 ) -> NodeId {
     api.fill(DisclosureApi(State { open }));
 
-
     view! {
         <List spacing=0.0>
             <unstyled::Button
                 accessibility={move || {
-        let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(open.get());
-        node
-    }}
+                    let mut node = Node::new(Role::DisclosureTriangle);
+                    node.set_expanded(open.get());
+                    node
+                }}
                 on_click={move || {
                     open.update(|open| *open = !*open);
                 }}

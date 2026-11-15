@@ -26,9 +26,7 @@ pub fn StoragePage(editor: Editor) -> NodeId {
     let usage = editor.watch::<StorageUsageWatch>();
     let unknown = move || {
         view! {
-            <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">
-                {NO_SERVER}
-            </Text>
+            <Text style=TextStyle::CAPTION @test_id="settings.storage.unknown">{NO_SERVER}</Text>
         }
     };
     view! {

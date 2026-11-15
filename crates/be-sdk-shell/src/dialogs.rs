@@ -153,20 +153,18 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
             size=DialogSize::Large
             anchor={move || DialogAnchor::Rect(tab.get())}
             on_dismiss={dismiss}
-        >|| {
-            view! {
-                <Frame height={move || Length::Size(Size::Custom(height.get()))}>
-                    <Subregion
-                        editor={editor}
-                        placed={placed}
-                        mode=ChildMode::Live
-                        dialog=true
-                        @test_id={"artifact-settings.editor"}
-                        on_state={answered}
-                    />
-                </Frame>
-            }
-        }</DialogFrame>
+        >||
+            <Frame height={move || Length::Size(Size::Custom(height.get()))}>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    dialog=true
+                    @test_id={"artifact-settings.editor"}
+                    on_state={answered}
+                />
+            </Frame>
+        </DialogFrame>
     }
 }
 
@@ -342,7 +340,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 <Show condition={move || suggestions.with(Option::is_some)}>
                     <Card>
                         <List spacing=Space::Xs>
-                            <Show condition={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}>
+                            <Show
+                                condition={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}
+                            >
                                 <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
                             </Show>
                             <ForEach keys={suggestion_keys}>|id: Uuid| {
@@ -600,7 +600,9 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             on_click={|| {}}
                         />
                     </Show>
-                    <Show condition={move || member.with(|member| member.as_ref().is_some_and(|member| member.removable))}>
+                    <Show
+                        condition={move || member.with(|member| member.as_ref().is_some_and(|member| member.removable))}
+                    >
                         <Button
                             icon_only=true
                             glyph=ICON_X

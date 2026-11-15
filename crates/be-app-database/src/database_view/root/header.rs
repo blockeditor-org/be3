@@ -26,7 +26,12 @@ pub fn ViewHeader(data: Data) -> NodeId {
             let narrow = create_memo(move || chrome.get() || squeezed.get());
             view! {
                 <List spacing=Space::None>
-                    <Show condition={narrow} fallback={move || view! { <WideHeader data={data} /> }}>
+                    <Show
+                        condition={narrow}
+                        fallback={move || view! {
+                            <WideHeader data={data} />
+                        }}
+                    >
                         <NarrowHeader data={data} />
                     </Show>
                     <Banner

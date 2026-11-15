@@ -296,7 +296,12 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
                 >
                     <List spacing={move || Space::Custom(spacing.get())}>
                         <Text size={move || TextSize::Custom(title_size.get())}>{card.name}</Text>
-                        <Text size={move || TextSize::Custom(label_size.get())} color=TextColor::Muted>{position}</Text>
+                        <Text
+                            size={move || TextSize::Custom(label_size.get())}
+                            color=TextColor::Muted
+                        >
+                            {position}
+                        </Text>
                     </List>
                 </Frame>
             </Interactive>
