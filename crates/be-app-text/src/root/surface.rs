@@ -86,6 +86,8 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             remote_cursors={remote_cursors}
             drop_caret={drop_caret}
             read_only={state.editor.read_only()}
+            line_numbers={state.line_numbers}
+            scroll_past_end=true
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
             on_focus_change={typing}

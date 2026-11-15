@@ -1,7 +1,7 @@
 use std::ops::Range;
 use tree_sitter_md::{MarkdownCursor, MarkdownTree};
 
-use super::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
+use super::{Language, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
 use crate::TextChange;
 use crate::schema::{LineLook, ListMarker, TableLine, TableRow, join_neighbours};
 
@@ -607,10 +607,68 @@ pub(super) fn parse_window(source: &[u8]) -> MarkdownWindow {
             looks: Vec::new(),
         };
     };
+    let mut styles = styles_in(&tree, 0..source.len());
+    highlight_code(&tree, source, &mut styles);
     MarkdownWindow {
         len: source.len(),
-        styles: styles_in(&tree, 0..source.len()),
+        styles,
         looks: looks(&tree, source),
+    }
+}
+
+/// Colors the contents of each fenced code block whose info string names a language with a
+/// highlighter (`Language::for_code_block`; the first word, so `rust,ignore` is Rust) as that
+/// language, leaving its font as code's. One cursor walks the block tree.
+fn highlight_code(tree: &MarkdownTree, source: &[u8], styles: &mut [SynHlStyle]) {
+    let mut cursor = tree.block_tree().walk();
+    loop {
+        let node = cursor.node();
+        let descend = node.kind() != "fenced_code_block";
+        if !descend {
+            let mut language = None;
+            let mut content = None;
+            if cursor.goto_first_child() {
+                loop {
+                    let child = cursor.node();
+                    match child.kind() {
+                        "info_string" => {
+                            language = std::str::from_utf8(&source[child.byte_range()])
+                                .ok()
+                                .and_then(|info| {
+                                    info.split(|c: char| c.is_whitespace() || c == ',')
+                                        .find(|word| !word.is_empty())
+                                })
+                                .and_then(Language::for_code_block);
+                        }
+                        "code_fence_content" => content = Some(child.byte_range()),
+                        _ => {}
+                    }
+                    if !cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+                cursor.goto_parent();
+            }
+            if let (Some(language), Some(range)) = (language, content) {
+                let colors = super::decorations(language, &source[range.clone()]);
+                for (style, color) in styles[range].iter_mut().zip(colors) {
+                    if style.color == SynHlColorScope::MarkdownCode {
+                        style.color = color.color;
+                    }
+                }
+            }
+        }
+        if descend && cursor.goto_first_child() {
+            continue;
+        }
+        loop {
+            if cursor.goto_next_sibling() {
+                break;
+            }
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
     }
 }
 

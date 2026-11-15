@@ -373,12 +373,7 @@ impl Schema for Basic {
     }
 
     fn decorate(&self, block: &MarkSet) -> Option<Language> {
-        match block.get(CODE_BLOCK)?.as_text()? {
-            "rust" => Some(Language::Rust),
-            "toml" => Some(Language::Toml),
-            "zig" => Some(Language::Zig),
-            _ => None,
-        }
+        Language::for_code_block(block.get(CODE_BLOCK)?.as_text()?)
     }
 
     fn tools(&self) -> &[Tool] {

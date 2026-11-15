@@ -120,7 +120,8 @@ pub fn TextArea(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] read_only: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
-    #[prop(default = true)] line_numbers: bool,
+    #[prop(default = true)] line_numbers: Prop<bool>,
+    #[prop(default = false)] scroll_past_end: bool,
     #[prop(default = true)] find: bool,
     #[prop(default = false)] show_runs: Prop<bool>,
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
@@ -191,6 +192,7 @@ pub fn TextArea(
                         read_only
                         focused
                         line_numbers
+                        scroll_past_end
                         find
                         on_content_size
                         remote_cursors
