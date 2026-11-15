@@ -2872,7 +2872,10 @@ impl<H: Host> Replicas<H> {
         self.close_if_asked(replica);
     }
 
-    pub async fn restart(&mut self, peer: &Peer<H::Store>, module: usize) {
+    /// Opens every replica of `module` again after it restarted, on this device's journal, and
+    /// joins a live session again so the replica takes the server's journal: this device keeps
+    /// only what it heard, which another device's seals never trimmed.
+    pub async fn restart(&mut self, peer: &Arc<Peer<H::Store>>, module: usize) {
         let restarted: Vec<ReplicaId> = self
             .open
             .iter()
@@ -2988,6 +2991,10 @@ impl<H: Host> Replicas<H> {
             };
             open.handle = handle;
             self.handles.insert((module, handle.op()), replica);
+            if !open.made_up && !open.joining {
+                let rejoin = self.rejoins;
+                self.rejoin(peer, replica, rejoin);
+            }
         }
     }
 

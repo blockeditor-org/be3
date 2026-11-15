@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use be_block_content::{BlockContent, LiveEdit};
 use be_sdk_type_guest::editor::FromEditor;

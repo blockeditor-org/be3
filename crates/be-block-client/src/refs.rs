@@ -1191,6 +1191,15 @@ impl Refs {
         tag: Hash,
         submission: be_block_session::Submission,
     ) -> Result<JournalEntry, StoreError> {
+        // A journal this device starts offline starts on the head it holds.
+        if self.journal(block).is_none() {
+            let base = JournalBase {
+                commit: self.head(block),
+                sequence: 0,
+                state: Vec::new(),
+            };
+            self.rebase_journal(block, tag, base)?;
+        }
         let entry = {
             let mut state = self.state.lock().unwrap();
             let journal = Self::journaled(&mut state, block, tag);
