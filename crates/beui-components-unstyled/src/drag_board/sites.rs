@@ -138,6 +138,14 @@ impl Board {
         Some(id)
     }
 
+    /// What the inspector draws of the carry: every fixed place it can land in, where each
+    /// is now, and the frame it shows (which place is chosen, where the item draws). None
+    /// when nothing is carried; untracked.
+    pub fn inspect(&self) -> Option<(Vec<beui_view::drag::Rest>, DragFrame)> {
+        let frame = self.placing.borrow().as_ref()?.frame;
+        Some((self.rests(), frame))
+    }
+
     /// Every fixed place of the carry, where it is now.
     fn rests(&self) -> Vec<beui_view::drag::Rest> {
         let space = Rc::clone(&self.space);
