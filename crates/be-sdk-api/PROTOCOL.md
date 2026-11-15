@@ -998,7 +998,7 @@ are informational, require no response, and may arrive independently of a
 rendered frame.
 
 Neither peer polls the other: an app runs beside the host - a thread of its
-own under wasmtime, a worker of its own in the browser - and either side may
+own natively, a worker of its own in the browser - and either side may
 send at any time.
 
 Every host call that changes what an app lays out against - the screens,
@@ -1116,8 +1116,8 @@ surfaces whose screens changed, and the damage it reports names the screen
 each rectangle falls on.
 
 An app never learns where its pixels live. It asks its host for a render
-target and draws into an opaque texture, which is the host's own under
-wasmtime and the worker's offscreen canvas in the browser. Which surface each
+target and draws into an opaque texture, which is the host's own
+natively and the worker's offscreen canvas in the browser. Which surface each
 screen is drawn into is the layout the app sends whenever its screens
 change, and the host shows each screen's texture until another frame presents
 it. A frame that presented anything counts its presents, which is how the host
