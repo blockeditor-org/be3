@@ -1809,11 +1809,13 @@ pub fn sent_press(view: &GiftView, asked: u64) {
 }
 
 /// Routes the keys of input forwarded to `view`, whose app stands at `app`: they are held while
-/// its editor's gift of the keyboard is pending, and keys owed to it come first, as the editor
-/// that placed it (`placer`) gave it the keyboard or as its own gift gave them back.
+/// its editor's gift of the keyboard is pending, and keys owed to it come first, as an editor that
+/// placed it (`placers`) gave it the keyboard or as its own gift gave them back. A docked
+/// instance's dock tab view has two: the editor that hosts the tab, and the editor that placed the
+/// instance, whose gift moves there with the instance's content (`forget_keys`).
 pub fn route_keys(
     view: &GiftView,
-    placer: Option<(&str, EditorInstanceId)>,
+    placers: &[(&str, EditorInstanceId)],
     app: KeyProgress,
     input: &mut beui::ForwardedInput,
 ) {
@@ -1824,9 +1826,9 @@ pub fn route_keys(
         }
         runtime.instances.hold_keys(view.1, view, app, input, pass);
     });
-    if let Some((placer, instance)) = placer {
+    for (placer, instance) in placers {
         with(placer, |runtime| {
-            runtime.instances.owe_keys(instance, view, app, input, pass);
+            runtime.instances.owe_keys(*instance, view, app, input, pass);
         });
     }
 }
@@ -1836,7 +1838,7 @@ pub fn route_keys(
 /// take now (`route_keys`).
 pub fn settle_keys(
     view: &GiftView,
-    placer: Option<(&str, EditorInstanceId)>,
+    placers: &[(&str, EditorInstanceId)],
     app: KeyProgress,
     focused: bool,
 ) -> Option<Modifiers> {
@@ -1850,36 +1852,41 @@ pub fn settle_keys(
             .settle_own_keys(view.1, view, app, focused, pass)
     })
     .flatten();
-    let owed = placer.and_then(|(placer, instance)| {
-        with(placer, |runtime| {
+    let mut owed = None;
+    for (placer, instance) in placers {
+        let settled = with(placer, |runtime| {
             runtime
                 .instances
-                .settle_owed_keys(instance, view, app, focused, pass)
+                .settle_owed_keys(*instance, view, app, focused, pass)
         })
-        .flatten()
-    });
+        .flatten();
+        owed = owed.or(settled);
+    }
     own.or(owed)
 }
 
 /// The view `view` is gone: what it held and was owed goes with it, unless its instance's content
 /// now shows in another of its views (`content_moved`), which takes the keyboard it was given.
-pub fn forget_keys(view: &GiftView, placer: Option<(&str, EditorInstanceId)>) {
+pub fn forget_keys(view: &GiftView, placers: &[(&str, EditorInstanceId)]) {
     let moved = content_moved(&view.0, view.1, view.2).map(|to| (view.0.clone(), view.1, to));
     let pass = host::pass();
     with(&view.0, |runtime| {
         runtime.instances.forget_keys(view, moved.as_ref(), pass)
     });
-    if let Some((placer, _)) = placer {
+    for (placer, _) in placers {
         with(placer, |runtime| {
             runtime.instances.forget_keys(view, moved.as_ref(), pass)
         });
     }
 }
 
-/// The view other than `from` that holds the instance's content: where it moved when `from` goes,
-/// as a joined editor's content moves from its main view into its dock tab view once its dock is
-/// hosted.
+/// Where the instance's content moved when its view `from` goes: for its main view, the dock tab
+/// view that holds it, as a joined editor's content moves there once its dock is hosted. Content
+/// moves only that way; a dock tab view that goes leaves nothing to the main view.
 pub fn content_moved(app_id: &str, instance: EditorInstanceId, from: ViewId) -> Option<ViewId> {
+    if from != ViewId::MAIN {
+        return None;
+    }
     with(app_id, |runtime| {
         runtime.instances.content_view_besides(instance, Some(from))
     })
