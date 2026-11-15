@@ -1,4 +1,3 @@
-use super::*;
 use crate::oidc::{GOOGLE_ISSUER, parse_providers};
 
 #[test]
