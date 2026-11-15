@@ -73,10 +73,12 @@ pub fn TagsView(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <SettingsSection title="Tags" description={description}>
-                <Show value={move || ids.with(Vec::is_empty)}>
-                    <SettingsRow label="No tags yet." compact=true />
-                </Show>
-                <ForEach value={ids}>|tag: Uuid|
+                <ForEach
+                    value={ids}
+                    fallback={|| view! {
+                        <SettingsRow label="No tags yet." compact=true />
+                    }}
+                >|tag: Uuid|
                     <TagRow editor={editor} tag={tag} />
                 </ForEach>
                 <SettingsRow label="New tag">

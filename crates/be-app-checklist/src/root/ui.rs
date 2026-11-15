@@ -60,7 +60,6 @@ pub fn Checklist(editor: Editor) -> NodeId {
         0 => "Add your first task below".to_owned(),
         total => format!("{} of {total} complete", done_count.get()),
     });
-    let empty = create_memo(move || visible.get().is_empty());
 
     let rows = move |id: ObjectId| {
         view! {
@@ -146,13 +145,18 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <ListItem grow=1.0>
                     <Card>
                         <List spacing=Space::Md>
-                            <Show value={empty}>
-                                <Text align=TextAlign::Center>"No tasks match this view."</Text>
-                            </Show>
                             <ListItem grow=1.0>
                                 <Scroll>
                                     <List spacing=Space::Md>
-                                        <ForEach value={visible} view={rows} />
+                                        <ForEach
+                                            value={visible}
+                                            view={rows}
+                                            fallback={|| view! {
+                                                <Text align=TextAlign::Center>
+                                                    "No tasks match this view."
+                                                </Text>
+                                            }}
+                                        />
                                     </List>
                                 </Scroll>
                             </ListItem>

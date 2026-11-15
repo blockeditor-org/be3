@@ -98,27 +98,18 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let above_kinds = create_memo(move || {
-        above
-            .get()
-            .into_iter()
-            .map(|(kind, _)| kind)
-            .collect::<Vec<_>>()
-    });
     view! {
         <SettingsPage>
             <SettingsSection title={move || name_of(editor, owner)} description={description}>
-                <Show value={move || kinds_here.with(Vec::is_empty)}>
-                    <SettingsRow label={NOTHING_HERE.to_owned()} compact=true />
-                </Show>
-                <ForEach value={kinds_here}>|kind: Uuid| {
-                    let block = create_memo(move || {
-                        here.with(|here| {
-                            here.iter()
-                                .find(|(found, _)| *found == kind)
-                                .map(|(_, block)| *block)
-                        })
-                    });
+                <ForEach
+                    value={here}
+                    key={|(kind, _): &(Uuid, Uuid)| *kind}
+                    fallback={|| view! {
+                        <SettingsRow label={NOTHING_HERE.to_owned()} compact=true />
+                    }}
+                >|entry: ReadSignal<(Uuid, Uuid)>| {
+                    let kind = entry.with_untracked(|(kind, _)| *kind);
+                    let block = create_memo(move || entry.with(|(_, block)| *block));
                     let changes = create_memo(move || match EDIT_KINDS.contains(&kind) {
                         true => editor.blocks().access(owner).can_edit(),
                         false => manages.get(),
@@ -133,15 +124,12 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
                     title="From above"
                     description="Set on a folder or workspace this is inside. What is set here replaces it."
                 >
-                    <ForEach value={above_kinds}>|kind: Uuid| {
-                        let set = create_memo(move || {
-                            above.with(|above| {
-                                above
-                                    .iter()
-                                    .find(|(found, _)| *found == kind)
-                                    .map(|(_, set)| *set)
-                            })
-                        });
+                    <ForEach
+                        value={above}
+                        key={|(kind, _): &(Uuid, SetKind)| *kind}
+                    >|entry: ReadSignal<(Uuid, SetKind)>| {
+                        let kind = entry.with_untracked(|(kind, _)| *kind);
+                        let set = create_memo(move || entry.with(|(_, set)| *set));
                         view! {
                             <KindAbove editor={editor} kind={kind} set={set} />
                         }
@@ -153,12 +141,13 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
 }
 
 #[component]
-fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo<bool>) -> NodeId {
+fn KindHere(editor: Editor, kind: Uuid, block: Memo<Uuid>, manages: Memo<bool>) -> NodeId {
     let open_inside = create_signal(None::<bool>);
     // Why the last choice did not take, to show on the row (offline, it needs the server).
     let refused = create_signal(String::new());
     create_effect(move || {
-        if let (Some(block), true) = (block.get(), manages.get()) {
+        if manages.get() {
+            let block = block.get();
             let asked = untrack(|| editor.host().list_access(block));
             editor.then(asked, move |listed| {
                 if let Ok(AccessListing { grants, .. }) = listed {
@@ -178,9 +167,10 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
         })
     });
     let choose = move |index: Option<usize>| {
-        let (Some(index), Some(block)) = (index, block.get_untracked()) else {
+        let Some(index) = index else {
             return;
         };
+        let block = block.get_untracked();
         let open = index == 0;
         let before = open_inside.get_untracked();
         open_inside.set(Some(open));
@@ -199,11 +189,7 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
             },
         );
     };
-    let open = move || {
-        if let Some(block) = block.get_untracked() {
-            editor.host().open_block(block, kind);
-        }
-    };
+    let open = move || editor.host().open_block(block.get_untracked(), kind);
     let remove = move || editor.clear_block_kind(editor.block_id(), kind);
     view! {
         <SettingsRow
@@ -243,16 +229,10 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Option<Uuid>>, manages: Memo
 }
 
 #[component]
-fn KindAbove(editor: Editor, kind: Uuid, set: Memo<Option<SetKind>>) -> NodeId {
-    let source = move || {
-        set.get().map_or_else(String::new, |set| {
-            format!("Set in {}", name_of(editor, set.owner))
-        })
-    };
+fn KindAbove(editor: Editor, kind: Uuid, set: Memo<SetKind>) -> NodeId {
+    let source = move || format!("Set in {}", name_of(editor, set.get().owner));
     let open = move || {
-        let Some(set) = set.get_untracked() else {
-            return;
-        };
+        let set = set.get_untracked();
         match EDIT_KINDS.contains(&kind) {
             true => editor.host().open_block(set.block, kind),
             false => editor

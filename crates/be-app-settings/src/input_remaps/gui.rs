@@ -345,13 +345,15 @@ fn GroupSection(edits: Edits, group: usize) -> NodeId {
     let add = NodeRef::new();
     view! {
         <SettingsSection title={title} description={scope}>
-            <Show value={move || rules.with(Vec::is_empty)}>
-                <SettingsRow
-                    label="No remaps here yet"
-                    description="Add one, then pick the key you want to change."
-                />
-            </Show>
-            <ForEach value={rules}>|rule: usize|
+            <ForEach
+                value={rules}
+                fallback={|| view! {
+                    <SettingsRow
+                        label="No remaps here yet"
+                        description="Add one, then pick the key you want to change."
+                    />
+                }}
+            >|rule: usize|
                 <RuleItem edits={edits} group={group} rule={rule} />
             </ForEach>
             <SettingsRow label="" separated=true compact=true>

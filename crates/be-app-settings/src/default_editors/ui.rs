@@ -40,10 +40,12 @@ pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettin
                 title="Default editors"
                 description="The editor a block of each type opens in. Open with, in Files, opens one in another."
             >
-                <Show value={move || types.with(Vec::is_empty)}>
-                    <SettingsRow label="Every block type has one editor." />
-                </Show>
-                <ForEach value={types}>|block_type: Uuid|
+                <ForEach
+                    value={types}
+                    fallback={|| view! {
+                        <SettingsRow label="Every block type has one editor." />
+                    }}
+                >|block_type: Uuid|
                     <DefaultEditor
                         editor={editor}
                         settings={settings}
