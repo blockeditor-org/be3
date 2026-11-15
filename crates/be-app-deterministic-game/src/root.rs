@@ -3,12 +3,12 @@ use be_sdk_beui::beui::styled::Root;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_sdk_beui::ContentProjection;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::{NodeId, Vec2};
 use be_sdk_beui::{
     BlockFilter, BlockList, BlockParent, BlockQuery, Creation, Editor, PickAnchor, answer,
 };
-use be_sdk_beui::ContentProjection;
 use be_type_deterministic_game::{
     DeterministicGame, DeterministicGameContent, GameModuleContent, GameModuleFile,
 };

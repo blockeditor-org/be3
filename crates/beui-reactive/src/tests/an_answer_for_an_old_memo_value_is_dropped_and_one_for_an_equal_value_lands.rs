@@ -23,7 +23,11 @@ fn an_answer_for_an_old_memo_value_is_dropped_and_one_for_an_equal_value_lands()
     answers.borrow()[0].give(10);
     run_futures();
     assert_eq!(memo.get_untracked(), Ok(10));
-    assert_eq!(answers.borrow().len(), 1, "an equal memo value does not ask again");
+    assert_eq!(
+        answers.borrow().len(),
+        1,
+        "an equal memo value does not ask again"
+    );
     // The memo it read changes, and the answer lands before the async memo runs again: the
     // answer is for the old value, so it is dropped.
     again.notify();
@@ -31,7 +35,11 @@ fn an_answer_for_an_old_memo_value_is_dropped_and_one_for_an_equal_value_lands()
     id.set(4);
     answers.borrow()[1].give(30);
     run_futures();
-    assert_eq!(memo.get_untracked(), Ok(10), "the answer for the old value is dropped");
+    assert_eq!(
+        memo.get_untracked(),
+        Ok(10),
+        "the answer for the old value is dropped"
+    );
     answers.borrow()[2].give(20);
     run_futures();
     assert_eq!(memo.get_untracked(), Ok(22));

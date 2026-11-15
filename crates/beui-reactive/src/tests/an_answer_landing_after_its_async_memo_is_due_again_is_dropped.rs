@@ -20,7 +20,10 @@ fn an_answer_landing_after_its_async_memo_is_due_again_is_dropped() {
     id.set(2);
     answers.borrow()[0].give(10);
     run_futures();
-    assert!(memo.get_untracked().is_err(), "the answer for the old id is dropped");
+    assert!(
+        memo.get_untracked().is_err(),
+        "the answer for the old id is dropped"
+    );
     answers.borrow()[1].give(20);
     run_futures();
     assert_eq!(memo.get_untracked(), Ok(22));

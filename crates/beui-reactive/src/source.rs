@@ -172,9 +172,7 @@ impl<T: 'static> Set<Ready<T>> for Source<T> {
         assert_writable();
         let inner = self.stored();
         let result = f(&mut inner.value.borrow_mut());
-        inner
-            .source
-            .set_readiness(readiness(&inner.value.borrow()));
+        inner.source.set_readiness(readiness(&inner.value.borrow()));
         inner.source.changed();
         result
     }

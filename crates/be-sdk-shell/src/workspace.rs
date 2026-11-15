@@ -16,9 +16,10 @@ use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
 use be_sdk_beui::beui::{NodeId, Rect};
 use be_sdk_beui::{
-    AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor, EditorHost,
-    Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId, NotifyMode,
-    NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog, WindowsWatch,
+    AccessLevel, AccessListing, BlockFilter, ChildState, ContactsWatch, DisplaysWatch, Editor,
+    EditorHost, Failure, FocusedBlock, HostPanel, HostProgram, HostWindow, HostWindowId,
+    NotifyMode, NotifyModesWatch, PickAnchor, PickedBlock, ProgramsWatch, Pushed, ShellDialog,
+    WindowsWatch,
 };
 use be_sdk_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks, ChildTarget};
 use uuid::Uuid;
@@ -113,7 +114,8 @@ impl Workspace {
         let phone = create_signal(false);
         let dialog = create_signal(None);
         let share = create_signal(None::<Share>);
-        let shared = create_memo(move || share.with(|share| share.as_ref().map(|share| share.block)));
+        let shared =
+            create_memo(move || share.with(|share| share.as_ref().map(|share| share.block)));
         let share_listing = {
             let host = editor.host();
             create_async_memo(move || {
@@ -217,7 +219,10 @@ impl Workspace {
             workspace.open_landing();
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
-        create_effect_on(move || shows.track(), move |_, _| workspace.show_requested());
+        create_effect_on(
+            move || shows.track(),
+            move |_, _| workspace.show_requested(),
+        );
         // An Enter pressed while the members were listed is carried out once they are.
         let me = workspace.host().account_id();
         create_effect_on(
@@ -226,10 +231,9 @@ impl Workspace {
                 let Ok(listing) = listing else {
                     return;
                 };
-                if workspace
-                    .share
-                    .with_untracked(|share| share.as_ref().is_some_and(|share| share.submit_waiting))
-                {
+                if workspace.share.with_untracked(|share| {
+                    share.as_ref().is_some_and(|share| share.submit_waiting)
+                }) {
                     workspace.share.update(|share| {
                         if let Some(share) = share {
                             share.listed(listing, me);

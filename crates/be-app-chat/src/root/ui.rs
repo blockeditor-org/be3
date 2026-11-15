@@ -739,12 +739,7 @@ struct Older {
 }
 
 impl Older {
-    fn new(
-        chat: Chat,
-        editor: Editor,
-        me: Uuid,
-        forged: Memo<Vec<(ObjectId, Deletion)>>,
-    ) -> Self {
+    fn new(chat: Chat, editor: Editor, me: Uuid, forged: Memo<Vec<(ObjectId, Deletion)>>) -> Self {
         let segments = chat.project(|content: &ChatContent| content.segments());
         let read: Signal<Vec<(Segment, Vec<(ObjectId, Message)>)>> = create_signal(Vec::new());
         let rows = KeyedStore::new();
@@ -824,9 +819,8 @@ impl Older {
         let this = *self;
         let segment = segment.clone();
         let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
-        self.editor.then(
-            async move { Some(reading.await) },
-            move |bytes| {
+        self.editor
+            .then(async move { Some(reading.await) }, move |bytes| {
                 let messages = bytes.ok().and_then(|bytes| {
                     this.chat
                         .read(|content| content.read_segment(index, &bytes))
@@ -846,8 +840,7 @@ impl Older {
                         this.failed.set(true);
                     }
                 }
-            },
-        );
+            });
     }
 }
 

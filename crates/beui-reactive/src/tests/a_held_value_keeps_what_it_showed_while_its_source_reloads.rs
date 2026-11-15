@@ -20,7 +20,11 @@ fn a_held_value_keeps_what_it_showed_while_its_source_reloads() {
     source.set(Err(Pending::Loading));
     flush();
     assert_eq!(held.get(), "first");
-    assert_eq!(runs.get(), 2, "a reader hears that it waits again, to wait with it");
+    assert_eq!(
+        runs.get(),
+        2,
+        "a reader hears that it waits again, to wait with it"
+    );
 
     source.set(Ok("second".to_owned()));
     flush();
