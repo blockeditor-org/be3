@@ -36,9 +36,10 @@ use std::{
 use std::path::Path;
 
 use accounts::{AccountError, Session};
-use be_block::{DisplaySettings, InputSettings, WORKSPACE_EDITOR};
+use be_block::{DisplaySettings, WORKSPACE_EDITOR};
 use be_block_content::Root;
 use be_block_graph::{Access, BlockParent};
+use be_block_input::InputSettings;
 use be_block_protocol::{Organization, OrganizationRole};
 use be_host_base::{host, host_state, notices, panic_guard, performance, platform};
 use be_host_desktop::desktop_host::{DesktopHost, Host};

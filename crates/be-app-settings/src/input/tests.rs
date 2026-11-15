@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::InputSettingsContent;
-use be_sdk_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
+use be_block_input::InputSettingsContent;
+use be_block_input::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use be_sdk_beui::beui::{Key, Modifiers};
 use be_sdk_beui::{
     DisplayMode, DisplaysWatch, EditorHost, HostDisplay, HostInputDevice, InputDevicesWatch,

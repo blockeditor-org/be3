@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use be_block::{InputRemapper, InputSettings};
 use be_block_content::be_block_model::Document;
 use be_block_content::{BlockContent, Root};
+use be_block_input::{InputRemapper, InputSettings};
 use be_host_remap_host::Remapper;
 use be_host_remap_host::be_lib_remap::Wheel;
 use be_host_remap_host::be_lib_remap::protocol::{decode, encode};

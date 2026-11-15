@@ -1,5 +1,5 @@
 use super::*;
-use crate::version_control::{local_id, masked, scope_mask};
+use crate::{local_id, masked, scope_mask};
 use be_block_content::BlockMetadata;
 
 #[test]

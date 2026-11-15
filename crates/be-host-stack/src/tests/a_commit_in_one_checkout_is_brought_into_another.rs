@@ -8,8 +8,11 @@ fn a_commit_in_one_checkout_is_brought_into_another() {
     harness.connect();
     let versioned = start_versioning("hello\n");
     let second = second_checkout(&versioned);
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
-    show_version(second, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
+    show_version(second, be_block_repository::CheckoutContent::CONTENT_TYPE);
 
     hold(versioned.note, be_type_text::TextContent::CONTENT_TYPE);
     wait_until("opened the note", |shared| {

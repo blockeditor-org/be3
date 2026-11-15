@@ -1,3 +1,7 @@
+//! The repository and checkout blocks of version control (guides/blocks/version_control.md),
+//! which the version control app edits and the hosts act on. Apart from be-block, since no other
+//! editor reads them.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use be_block_commit::CommitId;
@@ -260,3 +264,6 @@ pub fn local_id(real: Uuid, metadata: &BlockMetadata, mask: u128) -> Uuid {
         _ => real,
     }
 }
+
+#[cfg(test)]
+mod tests;

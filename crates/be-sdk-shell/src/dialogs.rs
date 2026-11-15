@@ -193,7 +193,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     .unwrap_or_default();
                 Phrase::new()
                     .text("Share ")
-                    .quoted(be_sdk_beui::be_block::quotable_name(&name))
+                    .quoted(be_lib_quoted_name::quotable_name(&name))
             })
             .unwrap_or_default()
     });

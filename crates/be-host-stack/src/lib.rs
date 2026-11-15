@@ -511,8 +511,8 @@ pub fn version_since(block: Uuid, sent: Option<u64>) -> Option<(u64, be_sdk_api:
 }
 
 pub fn is_versioned(content_type: Uuid) -> bool {
-    content_type == <be_block::Checkout as be_block_content::Root>::CONTENT_TYPE
-        || content_type == <be_block::Repository as be_block_content::Root>::CONTENT_TYPE
+    content_type == <be_block_repository::Checkout as be_block_content::Root>::CONTENT_TYPE
+        || content_type == <be_block_repository::Repository as be_block_content::Root>::CONTENT_TYPE
 }
 
 pub fn operate(block: Uuid, operation: Vec<u8>) {

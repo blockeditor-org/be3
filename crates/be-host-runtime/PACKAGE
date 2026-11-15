@@ -43,6 +43,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -82,6 +83,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -121,6 +123,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -160,6 +163,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -199,6 +203,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -270,6 +275,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",
@@ -309,6 +315,7 @@ write_package_value("be3.cargo", {
             "examples": {},
             "features": [],
             "test_deps": [
+                "//crates/be-block-repository:be-block-repository",
                 "//crates/be-host-testing:be-host-testing",
                 "//crates/be-type-browser-tab:be-type-browser-tab",
                 "//crates/be-type-checklist:be-type-checklist",

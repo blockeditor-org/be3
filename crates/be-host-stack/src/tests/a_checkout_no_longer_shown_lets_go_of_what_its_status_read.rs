@@ -5,7 +5,10 @@ fn a_checkout_no_longer_shown_lets_go_of_what_its_status_read() {
     let harness = Harness::start();
     harness.connect();
     let versioned = start_versioning("hello\n");
-    show_version(versioned.checkout, be_block::CheckoutContent::CONTENT_TYPE);
+    show_version(
+        versioned.checkout,
+        be_block_repository::CheckoutContent::CONTENT_TYPE,
+    );
     wait_until("read the checkout's status and listed its root", |shared| {
         version_status(shared, versioned.checkout).is_some()
             && !shared.graph.wanted(Owner::Version).is_empty()

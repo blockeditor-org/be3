@@ -1,9 +1,9 @@
 use be_block::{
-    CheckoutContent, DisplaySettingsContent, HomeContent, InputRemapperContent,
-    InputSettingsContent, OfflineSettingsContent, OrganizationPoliciesContent,
-    PrefixRegistryContent, RepositoryContent, SettingsContent, SettingsProfileContent, TagContent,
-    TagsContent,
+    DisplaySettingsContent, HomeContent, OfflineSettingsContent, OrganizationPoliciesContent,
+    PrefixRegistryContent, SettingsContent, SettingsProfileContent, TagContent, TagsContent,
 };
+use be_block_input::{InputRemapperContent, InputSettingsContent};
+use be_block_repository::{CheckoutContent, RepositoryContent};
 use be_block_search_index::SearchIndexContent;
 
 be_sdk_type_guest::be_block_types![

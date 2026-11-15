@@ -1056,6 +1056,7 @@ dependencies = [
 name = "be-app-settings"
 version = "0.1.0"
 dependencies = [
+ "be-block-input",
  "be-lib-remap",
  "be-sdk-beui",
  "be-sdk-database",
@@ -1102,6 +1103,7 @@ dependencies = [
 name = "be-app-version-control"
 version = "0.1.0"
 dependencies = [
+ "be-block-repository",
  "be-sdk-beui",
  "be-sdk-test",
  "beui",
@@ -1153,11 +1155,10 @@ dependencies = [
  "be-block-commit",
  "be-block-content",
  "be-block-graph",
+ "be-block-input",
  "be-block-model",
  "be-block-store",
- "be-lib-graphemes",
  "be-lib-ui-preferences",
- "icu_properties",
  "postcard",
  "serde",
  "uuid",
@@ -1273,6 +1274,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-block-input"
+version = "0.1.0"
+dependencies = [
+ "be-block-content",
+ "be-block-model",
+ "be-lib-ui-preferences",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "be-block-keys"
 version = "0.1.0"
 dependencies = [
@@ -1326,6 +1338,18 @@ dependencies = [
  "postcard",
  "serde",
  "serde_bytes",
+ "uuid",
+]
+
+[[package]]
+name = "be-block-repository"
+version = "0.1.0"
+dependencies = [
+ "be-block-commit",
+ "be-block-content",
+ "be-block-model",
+ "be-block-store",
+ "serde",
  "uuid",
 ]
 
@@ -1444,6 +1468,7 @@ dependencies = [
  "be-block",
  "be-block-commit",
  "be-block-content",
+ "be-block-repository",
  "be-block-store",
  "serde",
  "uuid",
@@ -1457,6 +1482,7 @@ dependencies = [
  "be-block-client",
  "be-block-content",
  "be-block-graph",
+ "be-block-input",
  "be-block-keys",
  "be-block-protocol",
  "be-block-session",
@@ -1472,6 +1498,7 @@ dependencies = [
  "be-host-win32-capture",
  "be-lib-build-id",
  "be-lib-dmabuf",
+ "be-lib-quoted-name",
  "be-sdk-api",
  "be-sdk-manifest",
  "be-sdk-test",
@@ -1559,6 +1586,7 @@ version = "0.1.0"
 dependencies = [
  "be-block",
  "be-block-content",
+ "be-block-input",
  "be-block-type-host",
  "be-host-base",
  "be-host-remap-host",
@@ -1595,6 +1623,7 @@ dependencies = [
  "be-block-commit",
  "be-block-content",
  "be-block-graph",
+ "be-block-repository",
  "be-host-base",
  "be-host-stack",
  "be-host-testing",
@@ -1656,8 +1685,10 @@ dependencies = [
  "be-block-content",
  "be-block-fault-relay",
  "be-block-graph",
+ "be-block-input",
  "be-block-keys",
  "be-block-protocol",
+ "be-block-repository",
  "be-block-search-index",
  "be-block-store",
  "be-block-type-host",
@@ -1838,6 +1869,14 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "be-lib-quoted-name"
+version = "0.1.0"
+dependencies = [
+ "be-lib-graphemes",
+ "icu_properties",
 ]
 
 [[package]]
@@ -2070,6 +2109,7 @@ dependencies = [
 name = "be-sdk-shell"
 version = "0.1.0"
 dependencies = [
+ "be-lib-quoted-name",
  "be-sdk-beui",
  "be-type-settings",
  "beui",
@@ -2172,6 +2212,8 @@ name = "be-sdk-type-host"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-block-input",
+ "be-block-repository",
  "be-block-search-index",
  "be-sdk-type-guest",
 ]

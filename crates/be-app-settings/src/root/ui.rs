@@ -1,7 +1,8 @@
+use be_block_input::InputSettingsContent;
 use be_sdk_beui::be_block::settings::{Settings, SettingsProfile};
 use be_sdk_beui::be_block::{
-    DisplaySettings, DisplaySettingsContent, InputSettingsContent, OfflineSettings,
-    OfflineSettingsContent, SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
+    DisplaySettings, DisplaySettingsContent, OfflineSettings, OfflineSettingsContent,
+    SettingsContent, SettingsProfileContent, TagsContent, WORKSPACE_TYPE,
 };
 use be_sdk_beui::be_block_content::{BlockContent, LiveEdit};
 use be_sdk_beui::beui::icons::Glyph;

@@ -1,5 +1,5 @@
-use be_sdk_beui::be_block::input_settings::RemapperChoice;
-use be_sdk_beui::be_block::{InputRemapper, InputRemapperContent, InputSettings};
+use be_block_input::input_settings::RemapperChoice;
+use be_block_input::{InputRemapper, InputRemapperContent, InputSettings};
 use be_sdk_beui::be_block_content::Root;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::reactive::*;

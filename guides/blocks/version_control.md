@@ -8,7 +8,7 @@ rewritten, conflicts are data, and every operation can be undone.
 
 ## The pieces
 
-- A **repository** (`be_block::Repository`) holds branch heads, an optional
+- A **repository** (`be_block_repository::Repository`) holds branch heads, an optional
   upstream repository in the same organization, and the operation log. It
   keeps its history alive with `Peer::hold` (`HoldObjects`, `Hold::Lasting`), whatever its own
   commits' retention does.
@@ -21,7 +21,7 @@ rewritten, conflicts are data, and every operation can be undone.
 - A **change** is the line of snapshots sharing a `ChangeId`
   (`Commit::change`); rewriting keeps the change id and makes a new commit id.
   A commit with none is its own change (`Commit::change_id`).
-- A **checkout** (`be_block::Checkout`) is the parent of a working tree of
+- A **checkout** (`be_block_repository::Checkout`) is the parent of a working tree of
   ordinary blocks, edited by every editor and session as usual. Sharing the
   checkout block is working together; two checkouts are working apart. It
   records its repository, branch, `working` snapshot, root, each block's head

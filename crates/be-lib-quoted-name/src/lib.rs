@@ -134,3 +134,6 @@ fn straight_quote(c: char) -> Option<char> {
         _ => None,
     }
 }
+
+#[cfg(test)]
+mod tests;

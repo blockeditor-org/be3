@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block::{CheckoutContent, ConflictKind, Repository};
+use be_block_repository::{CheckoutContent, ConflictKind, Repository};
 use be_sdk_beui::be_block_content::Root as _;
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::{

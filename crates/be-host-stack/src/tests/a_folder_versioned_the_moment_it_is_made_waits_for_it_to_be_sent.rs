@@ -12,14 +12,17 @@ fn a_folder_versioned_the_moment_it_is_made_waits_for_it_to_be_sent() {
     let (folder, note, repository) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     create(
         repository,
-        be_block::RepositoryContent::CONTENT_TYPE,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
         be_block_graph::BlockParent::Root,
         be_block_content::BlockMetadata::named("History"),
-        Some(be_block::RepositoryContent::default().encode()),
+        Some(be_block_repository::RepositoryContent::default().encode()),
         false,
     );
     flush_and_send();
-    show_version(repository, be_block::RepositoryContent::CONTENT_TYPE);
+    show_version(
+        repository,
+        be_block_repository::RepositoryContent::CONTENT_TYPE,
+    );
 
     ask_for(vec![Query::Roots, Query::Subtree(folder)]);
     let mut listing = be_type_workspace::FolderContent::default();

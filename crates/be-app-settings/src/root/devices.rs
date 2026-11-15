@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+use be_block_input::{InputSettings, InputSettingsContent};
 use be_sdk_beui::be_block::display_settings::Rotation;
 use be_sdk_beui::be_block::{
-    DeviceClass, DisplaySettings, DisplaySettingsContent, InputSettings, InputSettingsContent,
-    SettingsContent, SettingsProfileContent,
+    DeviceClass, DisplaySettings, DisplaySettingsContent, SettingsContent, SettingsProfileContent,
 };
 use be_sdk_beui::be_block_content::BlockContent;
 use be_sdk_beui::be_block_content::setting::Setting;
