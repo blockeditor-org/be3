@@ -74,6 +74,10 @@ pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     beui_core_html::focus::holds_focus(node)
 }
 
+pub(crate) fn focus_held() -> Memo<bool> {
+    beui_core_html::focus::focus_held()
+}
+
 pub(crate) fn on_key(
     at: KeyAt,
     phase: KeyPhase,

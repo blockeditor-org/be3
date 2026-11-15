@@ -41,6 +41,11 @@ pub fn focus_visible() -> bool {
     signals().visible.get_untracked()
 }
 
+pub fn focus_held() -> Memo<bool> {
+    let focused = signals().focused;
+    create_memo(move || focused.get().is_some())
+}
+
 pub fn holds_focus(node: NodeRef) -> Memo<bool> {
     let focused = signals().focused;
     create_memo(move || focused.get().is_some() && node.try_get().is_some_and(focus_is_within))
