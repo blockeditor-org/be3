@@ -1191,6 +1191,7 @@ impl<S: ObjectStore> Peer<S> {
         };
         self.recorded(&creation.keys);
         self.note(&response);
+        self.escrow_created(&creation.keys).await;
         Ok(response)
     }
 
@@ -2477,6 +2478,28 @@ impl<S: ObjectStore> Peer<S> {
     async fn own_scope(&self, block: Uuid) -> Result<KeySet, ClientError> {
         let parent = parent_of(&self.summary(block).await?)?;
         self.rescope(block, parent, true).await
+    }
+
+    /// Once the server holds a creation, wraps its scope keys under this device's escrow when
+    /// they were made under an earlier one: an escrow key adopted meanwhile (`make_escrow`) was
+    /// minted after the creation read which escrow to wrap them under. A creation the server
+    /// took before that adoption is in the key work the rotation reads after it; if this fails,
+    /// the key stays in that key work for the next `tend`.
+    pub(crate) async fn escrow_created(&self, keys: &KeySet) {
+        let Some(escrow) = self.keys.escrow() else {
+            return;
+        };
+        let mut late = KeySet::default();
+        for row in keys.keys.iter().filter(|row| row.kind == KeyKind::Scope) {
+            let wrapped = keys
+                .wrapped
+                .iter()
+                .any(|wrap| wrap.key == row.id && wrap.wrapped_by == WrappedBy::Key(escrow.id));
+            if !wrapped && let Ok(Some(wrap)) = self.keys.escrow_wrap_under(row.id, &escrow) {
+                late.wrapped.push(wrap);
+            }
+        }
+        let _ = self.put_keys(late).await;
     }
 
     async fn put_keys(&self, keys: KeySet) -> Result<(), ClientError> {
