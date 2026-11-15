@@ -164,8 +164,8 @@ interface types {
         /// sequenced.
         journaled: bool,
         /// While `journaled` is false, what keeps the replica's edits out of the
-        /// journal, in words, for a host to name when it waits on them.
-        unjournaled: option<string>,
+        /// journal, for a host to name when it waits on them.
+        unjournaled: option<unjournaled>,
         owes-seal: bool,
         incompatible: bool,
         diverged: bool,
@@ -261,6 +261,25 @@ interface types {
     }
 
     /// What undo and redo can do on this device, and why they cannot.
+    /// What keeps a replica's edits out of the journal (`status.unjournaled`),
+    /// with the timers that may bring them in, on the replica's clock.
+    record unjournaled {
+        loaded: bool,
+        /// An owner's edits sequenced and not yet appended to the journal.
+        unappended: u32,
+        /// An owner's edits held back, behind a seal or a part being put.
+        held: u32,
+        /// A part of one of its operations is being put.
+        putting: bool,
+        /// A follower's edits its owner has not yet accepted.
+        unsettled: bool,
+        append-at: option<u64>,
+        put-retry-at: option<u64>,
+        merge-retry-at: option<u64>,
+        seal-retry-at: option<u64>,
+        merge-failures: u8,
+    }
+
     record undo-state {
         can-undo: bool,
         can-redo: bool,
