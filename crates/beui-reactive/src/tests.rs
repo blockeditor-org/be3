@@ -60,6 +60,15 @@ mod a_trigger_wakes_what_tracked_it_each_time_it_fires;
 mod a_write_outside_an_entry_wakes_the_host_once;
 mod a_zone_is_woken_once_when_its_first_effect_waits;
 mod all_cleanups_run_even_when_one_panics;
+mod an_answer_for_an_old_memo_value_is_dropped_and_one_for_an_equal_value_lands;
+mod a_failure_goes_to_the_errored_above_it_whichever_way_it_nests_with_a_loading;
+mod a_failure_with_no_errored_above_it_shows_in_an_unrevealed_loading;
+mod a_diamond_over_a_pending_source_is_pending_until_it_settles_and_wakes_once;
+mod a_memo_of_a_memo_over_a_pending_source_holds_a_loading;
+mod settling_alone_wakes_a_reader_whose_value_stays_equal;
+mod disposing_an_async_memo_in_flight_cancels_its_future;
+mod an_async_memo_in_a_paused_scope_asks_only_where_bindings_run;
+mod a_reset_asks_again_only_what_failed_under_its_errored;
 mod an_answer_landing_after_its_async_memo_is_due_again_is_dropped;
 mod an_async_memo_reads_loading_then_its_answer;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
@@ -122,7 +131,10 @@ mod executor {
     }
 
     pub(super) fn install() {
-        crate::spawn_with(|future| SPAWNED.with(|spawned| spawned.borrow_mut().push(future)));
+        crate::spawn_with(|future| {
+            SPAWNED.with(|spawned| spawned.borrow_mut().push(future));
+            Ok(())
+        });
     }
 
     /// Polls every spawned future once more, dropping those that finished, and flushes.

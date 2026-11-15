@@ -2070,6 +2070,7 @@ dependencies = [
  "beui-core",
  "beui-font-freetype",
  "beui-host",
+ "beui-reactive",
  "beui-renderer-wgpu",
  "beui-runner",
  "beui-types",
@@ -3561,6 +3562,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "beui-core",
+ "beui-reactive",
  "beui-types",
  "raw-window-handle",
 ]
