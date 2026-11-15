@@ -37,6 +37,7 @@ struct ArtifactSignals {
 impl Artifacts {
     pub fn new(host: EditorHost, artifact: crate::Artifact) -> Self {
         defer_graph_changes(&host);
+        run_async_memos(&host);
         let core = ArtifactsCore::new(host, artifact);
         let settings = OwnedSignal::new(core.settings());
         let saved = OwnedSignal::new(core.saved_settings());
@@ -193,6 +194,21 @@ pub(crate) fn defer_graph_changes(host: &EditorHost) {
     host.defer_graph_changes_unless(|| beui::native::try_with_document(|_| ()).is_some());
 }
 
+/// Runs async memos (`create_async_memo`) on be-sdk's executor through `host`, which redraws
+/// the editor once each answer lands and drops what is still running when the host closes.
+pub(crate) fn run_async_memos(host: &EditorHost) {
+    let host = host.clone();
+    spawn_with(move |future| {
+        host.then(
+            async move {
+                future.await;
+                Some(())
+            },
+            |()| {},
+        );
+    });
+}
+
 #[derive(Default)]
 pub(crate) struct Contents {
     live: Rc<ContentCache>,
@@ -278,6 +294,7 @@ impl OwnedEditor {
         contents: Rc<Contents>,
     ) -> Self {
         defer_graph_changes(&host);
+        run_async_memos(&host);
         let core = EditorCore::scaled(host.clone(), block, scale, Rc::clone(&contents.live));
         let owner = RootScope::new();
         let shown = ShownSignals::new(&core.shown());
@@ -1354,6 +1371,7 @@ impl Creation {
 
     pub fn for_template(host: EditorHost, template: impl Into<String>) -> Self {
         defer_graph_changes(&host);
+        run_async_memos(&host);
         Self(Rc::new(CreationSignals {
             pushed: Mirror::new(&host),
             children: OwnedEditor::new(host.clone(), Uuid::nil()),
