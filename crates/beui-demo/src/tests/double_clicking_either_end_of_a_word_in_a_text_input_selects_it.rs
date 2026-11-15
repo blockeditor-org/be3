@@ -40,5 +40,6 @@ fn double_clicking_either_end_of_a_word_in_a_text_input_selects_it() {
     // A double click a second later is a new gesture. Past the end, the last word.
     test.advance(Duration::from_secs(1));
     assert_eq!(double_click(&mut test, 12, 24.0), [8..12]);
+    test.record();
     test.snapshot("double_clicking_either_end_of_a_word_in_a_text_input_selects_it");
 }

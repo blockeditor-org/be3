@@ -8,7 +8,7 @@ fn a_narrow_pane_moves_its_labelled_pin_into_its_menu() {
     let mut test = demo(WIDE);
     open(&mut test, Page::Docking);
     assert!(
-        test.shows("dock.pages.pin.demo.reset"),
+        test.shown("dock.pages.pin.demo.reset"),
         "a wide pane's bar holds the action pinned with a label"
     );
 
@@ -19,11 +19,11 @@ fn a_narrow_pane_moves_its_labelled_pin_into_its_menu() {
     );
     test.settle();
     assert!(
-        test.shows("dock.pages.pin.demo.edit"),
+        test.shown("dock.pages.pin.demo.edit"),
         "a narrow pane's bar keeps the action pinned as an icon"
     );
     assert!(
-        !test.shows("dock.pages.pin.demo.reset"),
+        !test.shown("dock.pages.pin.demo.reset"),
         "but leaves out the one pinned with a label"
     );
     test.snapshot("docking_narrow_pane");
@@ -31,7 +31,7 @@ fn a_narrow_pane_moves_its_labelled_pin_into_its_menu() {
     test.click("dock.pages.menu");
     test.settle();
     assert!(
-        test.shows("dock.pages.menu.demo.reset"),
+        test.shown("dock.pages.menu.demo.reset"),
         "and its menu offers it instead"
     );
 }

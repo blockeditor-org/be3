@@ -42,11 +42,8 @@ pub(super) fn palette_runs(editor: &mut BeuiTest<CanvasRoot>, typed: &str) {
             ..ctrl
         },
     );
-    editor.run();
     editor.type_text(typed);
-    editor.run();
     editor.key(Key::Enter, Modifiers::NONE);
-    editor.run();
 }
 
 #[test]
@@ -90,7 +87,6 @@ fn copying_as_svg_writes_every_shape_kind() {
             ..Modifiers::NONE
         },
     );
-    editor.run();
     palette_runs(&mut editor, "copy as svg");
 
     let copied = editor.take_copied_text();

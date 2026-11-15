@@ -27,6 +27,7 @@ fn a_drafts_made_blocks_come_back_as_chips_when_the_chat_opens_again() {
     // Sent, it is the message's.
     again.click("chat.send");
     again.editor.advance(Duration::from_millis(500));
+    again.editor.run();
     again.run();
     let sent = again.id(1);
     assert_eq!(

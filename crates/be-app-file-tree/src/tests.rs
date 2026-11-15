@@ -2,6 +2,7 @@ use be_sdk_beui::be_block_content::EditorViewContent;
 use be_sdk_beui::beui::native::Document;
 use be_sdk_beui::beui::{Input, Modifiers, NodeId, PointerButton, Pos2, Vec2};
 use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_workspace::{FolderContent, WorkspaceContent};
 use uuid::Uuid;
@@ -152,9 +153,7 @@ impl Fixture {
     fn lift(&mut self, block: Uuid) {
         let from = self.row(block).center();
         self.test.down(from, PointerButton::Primary);
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 4.0));
-        self.test.next_frame();
         self.test.hover(from + Vec2::new(0.0, 10.0));
         self.settle();
     }
@@ -398,7 +397,6 @@ fn expand(
     fixture
         .test
         .click(format!("file-tree.{}.chevron", folder.id));
-    fixture.test.run();
     fixture
         .host
         .set_blocks(be_sdk_beui::BlockQuery::References(folder.id), inside);

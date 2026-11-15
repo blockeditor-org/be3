@@ -24,9 +24,9 @@ use be_sdk_beui::{
 };
 use beui::native::Document;
 use beui::{
-    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, TouchPhase, Vec2,
+    Input, Key, KeyChord, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
 };
-use beui_host::native::testing::{Target, button_name};
+use beui_host::native::testing::{FRAME_INTERVAL, Gui, Recording, Snapshots, Target, Wakes};
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 
@@ -45,21 +45,18 @@ impl Inbound {
 
 pub type HostCall = Call;
 
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::ContentStore;
 use crate::link::Sent;
 use beui_host::native::drive;
 use beui_host::native::drive::gestures::{Frames, Gestures};
-use beui_host::native::testing::{FRAME_INTERVAL, assert_fits};
 use beui_paint_snapshot::Snapshot;
 
 mod desk;
 
 const SIZE: Vec2 = Vec2::new(800.0, 600.0);
-const EAGER_FRAMES: usize = 8;
-const SETTLE_DEADLINE: std::time::Duration = std::time::Duration::from_secs(30);
 const HOST_ROUNDS: usize = 8;
 const MINIMUM_ZOOM: f32 = 1.0 / 64.0;
 const MAXIMUM_ZOOM: f32 = 32.0;
@@ -75,16 +72,6 @@ thread_local! {
 const ADOPTED_EDITOR: [u8; 16] = [0; 16];
 const SCREEN: ScreenId = ScreenId(1);
 
-/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
-/// its host: there is no server or block store, and every call goes over a be-wasm-ops
-/// connection encoded as on the wire, so a call the app refuses fails the test.
-///
-/// Gestures (`click`, `drag`, `text`, `tap`, ...) are drive's and only queue input: nothing
-/// they cause shows until the next `run()`, so call it after each one. A click reveals an
-/// out-of-view target first and panics when no node has the test id. Whatever the app sends
-/// the host is kept for the `take_*` methods; `clear_calls` drops it. Calls such as
-/// `set_view` queue what be-host would send; setting the same state on the `EditorHost`
-/// directly skips the protocol and is overwritten by the session on the next frame.
 /// A revision preview an editor asked for (`BeuiTest::take_revision_previews`).
 pub struct AskedPreview {
     pub block: [u8; 16],
@@ -92,6 +79,19 @@ pub struct AskedPreview {
     pub reply: Reply<Result<[u8; 16], be_sdk_api::Failure>>,
 }
 
+/// Runs an editor headless through the app's own session (`be_sdk::headless`), acting as
+/// its host: there is no server or block store, and every call goes over a be-wasm-ops
+/// connection encoded as on the wire, so a call the app refuses fails the test.
+///
+/// It is a `Gui` (beui's `testing::Gui`): gestures (`click`, `drag`, `type_text`, `tap`, ...)
+/// are drive's and paint the frames that take them before they return. A click reveals an
+/// out-of-view target first and panics when no node has the test id. Input that is no drive
+/// gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`, `hold_modifiers`) paints its
+/// own frame too, unless given inside `in_one_frame`; `step` paints a frame with exactly the
+/// events it is given. Whatever the app sends the host is kept for the `take_*` methods;
+/// `clear_calls` drops it. Calls such as `set_view` queue what be-host would send; setting the
+/// same state on the `EditorHost` directly skips the protocol and is overwritten by the
+/// session on the next frame.
 pub struct BeuiTest<A: BeuiRoot> {
     app: HeadlessApp,
     kind: Kind,
@@ -104,6 +104,8 @@ pub struct BeuiTest<A: BeuiRoot> {
     gestures: Gestures,
     steps: Vec<String>,
     frames: Vec<Vec<Input>>,
+    /// Whether input is being gathered for `in_one_frame`, so it waits to be painted.
+    one_frame: bool,
     inbox: Vec<Inbound>,
     answered: Vec<Vec<u8>>,
     acknowledged: std::collections::HashSet<OpId>,
@@ -137,8 +139,7 @@ pub struct BeuiTest<A: BeuiRoot> {
     output: Option<beui::native::FrameOutput>,
     shown_window: Option<beui::WindowId>,
     drew: bool,
-    recording: Option<Snapshot>,
-    overflows: Vec<String>,
+    recording: Recording,
     viewport: Option<Viewport>,
     children: Vec<ChildPlacement>,
     views_children: Vec<(ViewId, Vec<ChildPlacement>)>,
@@ -166,31 +167,6 @@ pub struct BeuiTest<A: BeuiRoot> {
     root: PhantomData<A>,
 }
 
-#[derive(Default)]
-struct Wakes {
-    count: Mutex<u64>,
-    woken: Condvar,
-}
-
-impl Wakes {
-    fn count(&self) -> u64 {
-        *self.count.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-
-    fn wake(&self) {
-        *self.count.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-        self.woken.notify_all();
-    }
-
-    fn wait_past(&self, seen: u64, deadline: std::time::Duration) {
-        let count = self.count.lock().unwrap_or_else(PoisonError::into_inner);
-        drop(
-            self.woken
-                .wait_timeout_while(count, deadline, |count| *count == seen)
-                .unwrap_or_else(PoisonError::into_inner),
-        );
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -425,6 +401,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             steps: Vec::new(),
             gestures: Gestures::default(),
             frames: Vec::new(),
+            one_frame: false,
             inbox: Vec::new(),
             answered: Vec::new(),
             acknowledged: std::collections::HashSet::new(),
@@ -449,8 +426,7 @@ impl<A: BeuiRoot> BeuiTest<A> {
             output: None,
             shown_window: None,
             drew: false,
-            recording: None,
-            overflows: Vec::new(),
+            recording: Recording::default(),
             viewport: None,
             children: Vec::new(),
             views_children: Vec::new(),
@@ -863,6 +839,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self
     }
 
+    /// Gives the editor's window this size in points, as the host does when its frame or
+    /// window changes size.
     pub fn set_size(&mut self, size: Vec2) {
         self.size = size;
         self.place();
@@ -929,25 +907,12 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.shown_output().filter(|_| self.drew)
     }
 
-    pub fn test_ids(&self) -> std::rc::Rc<beui::native::accessibility_dump::TestIds> {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_ids()
-    }
-
     fn shown_output(&self) -> Option<&beui::native::WindowOutput> {
         self.output.as_ref()?.window(self.shown_window?)
     }
 
     fn shown_changed(&self) -> bool {
         self.shown_output().is_some_and(|shown| shown.changed)
-    }
-
-    pub fn document(&self) -> std::cell::Ref<'_, Document> {
-        self.app
-            .document()
-            .expect("the editor has not built its view yet")
     }
 
     pub fn children(&self) -> &[ChildPlacement] {
@@ -976,7 +941,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
-    pub fn resize(&mut self, size: Vec2) {
+    /// Tells the editor its embed was resized to `size`, as the host does when a person
+    /// resizes the embed in the block that holds it (`Editor::resized`). The window keeps
+    /// its size, which `set_size` changes.
+    pub fn resize_embed(&mut self, size: Vec2) {
         let size = be_sdk_api::Vec2 {
             x: size.x,
             y: size.y,
@@ -1135,98 +1103,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         });
         let frames = self.connection.take_outbound();
         self.inbox.push(Inbound::Frames(frames));
-    }
-
-    pub fn rect(&self) -> Rect {
-        Rect::from_min_size(Pos2::ZERO, self.size)
-    }
-
-    pub fn size(&self) -> Vec2 {
-        self.size
-    }
-
-    /// Paints the queued frames, then applies the editor's operations to what the host holds
-    /// and sends them back marked as its own, painting again until nothing changes.
-    pub fn run(&mut self) {
-        let frames = std::mem::take(&mut self.frames);
-        if frames.is_empty() {
-            self.step(Vec::new());
-        }
-        for events in frames {
-            self.step(events);
-        }
-        for _ in 0..HOST_ROUNDS {
-            if self.inbox.is_empty() && !self.store.pending() {
-                break;
-            }
-            self.step(Vec::new());
-        }
-    }
-
-    /// Moves the test's clock on and paints. The editor's frame clock is this clock, one frame
-    /// interval per painted frame, so timers cost no real time and land on the same frame on
-    /// every machine.
-    pub fn advance(&mut self, by: std::time::Duration) {
-        self.clock += by;
-        self.run();
-    }
-
-    /// Moves the clock on without painting and hands the app what the host queued, as a call
-    /// reaches an idle editor between frames; the next `run()` paints the frame that takes it.
-    pub fn wait(&mut self, by: std::time::Duration) {
-        self.clock += by;
-        for message in std::mem::take(&mut self.inbox) {
-            self.deliver(message);
-        }
-        self.hear();
-    }
-
-    /// Paints until a frame stops asking to be painted again at once. Call it before a
-    /// snapshot of something that animates in.
-    pub fn settle(&mut self) {
-        self.settle_until("its animations to finish", |test| {
-            test.output.as_ref().is_none_or(|output| {
-                !test.shown_changed() && output.repaint_after > std::time::Duration::ZERO
-            })
-        });
-    }
-
-    /// Paints until `ready` holds, failing with `what` at a deadline. Between frames it waits
-    /// as be-host does, for the editor's `Waker` or the delay it asked for, never a fixed
-    /// time; use it for work on another thread, where a few more `run()`s only widen a race.
-    /// Work that lands without waking the editor stalls it until the deadline, as it would
-    /// in be-host.
-    pub fn settle_until(&mut self, what: &str, ready: impl Fn(&Self) -> bool) {
-        let started = std::time::Instant::now();
-        let mut eager = 0;
-        while started.elapsed() < SETTLE_DEADLINE {
-            let seen = self.wakes.count();
-            self.run();
-            if ready(self) {
-                return;
-            }
-            let (changed, requested) = self
-                .output
-                .as_ref()
-                .map_or((false, std::time::Duration::MAX), |output| {
-                    (self.shown_changed(), output.repaint_after)
-                });
-            if changed && eager < EAGER_FRAMES {
-                eager += 1;
-                continue;
-            }
-            eager = 0;
-            if requested < std::time::Duration::MAX {
-                self.clock += requested.saturating_sub(FRAME_INTERVAL);
-                continue;
-            }
-            let left = SETTLE_DEADLINE.saturating_sub(started.elapsed());
-            self.wakes.wait_past(seen, left);
-        }
-        panic!(
-            "the editor was still waiting for {what} after {SETTLE_DEADLINE:?}\n{}",
-            self.replay()
-        );
     }
 
     /// Paints one frame with exactly these events, ignoring what gestures queued.
@@ -2124,10 +2000,6 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.window.pointer_locked
     }
 
-    pub fn pointer_motion(&mut self, delta: Vec2) {
-        self.push(Input::PointerMotion(delta));
-    }
-
     pub fn intrinsic_size(&self) -> Option<Vec2> {
         self.intrinsic
     }
@@ -2140,32 +2012,28 @@ impl<A: BeuiRoot> BeuiTest<A> {
         }
     }
 
-    fn push(&mut self, event: Input) {
-        match self.frames.last_mut() {
-            Some(frame) => frame.push(event),
-            None => self.frames.push(vec![event]),
-        }
-    }
-
+    /// Paints `frames` before returning, as a gesture does, or keeps them for the frame
+    /// `in_one_frame` paints.
     fn perform(&mut self, frames: Frames) {
-        for (index, frame) in frames.into_iter().enumerate() {
-            if index > 0 {
-                self.next_frame();
-            }
-            for event in frame {
-                self.push(event);
-            }
+        self.frames.extend(frames);
+        if !self.one_frame {
+            self.run();
         }
     }
 
-    pub fn next_frame(&mut self) {
-        if self.frames.last().is_some_and(|frame| !frame.is_empty()) {
-            self.frames.push(Vec::new());
-        }
-    }
-
-    pub fn back(&mut self) {
-        self.drive("back", &[], &[]);
+    /// Paints everything `input` gives with `pen`, `eraser`, `predict`, `hold_modifiers` and
+    /// the host's keys in one frame, as a device that coalesces its samples delivers them. The
+    /// other gestures paint their own frames, so they are not given inside it.
+    pub fn in_one_frame(&mut self, input: impl FnOnce(&mut Self)) {
+        assert!(!self.one_frame, "in_one_frame does not nest");
+        self.one_frame = true;
+        input(self);
+        self.one_frame = false;
+        let events: Vec<Input> = std::mem::take(&mut self.frames)
+            .into_iter()
+            .flatten()
+            .collect();
+        self.perform(vec![events]);
     }
 
     pub fn handles_back(&self) -> bool {
@@ -2195,28 +2063,32 @@ impl<A: BeuiRoot> BeuiTest<A> {
         {
             return false;
         }
-        self.hold_modifiers(modifiers);
+        let mut frames = self.gestures.hold(modifiers);
         let presses = std::iter::once((true, false))
             .chain(std::iter::repeat_n((true, true), repeats))
-            .chain(std::iter::once((false, false)));
-        for (pressed, repeat) in presses {
-            self.push(Input::InterceptedKey {
+            .chain(std::iter::once((false, false)))
+            .map(|(pressed, repeat)| Input::InterceptedKey {
                 key,
                 pressed,
                 repeat,
             });
+        match frames.last_mut() {
+            Some(last) => last.extend(presses),
+            None => frames.push(presses.collect()),
         }
+        self.perform(frames);
         true
     }
 
     pub fn host_tap(&mut self, key: Key) -> bool {
-        if let Some(tapped) = self.desk_tap(key) {
-            return tapped;
+        if self.desk_tap(key) {
+            self.perform(Vec::new());
+            return true;
         }
         if !self.intercepted_keys().contains(&KeyChord::tap(key)) {
             return false;
         }
-        self.push(Input::InterceptedTap(key));
+        self.perform(vec![vec![Input::InterceptedTap(key)]]);
         true
     }
 
@@ -2225,92 +2097,8 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.perform(frames);
     }
 
-    pub fn shown(&self, test_id: &str) -> bool {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_id_rect(test_id)
-            .is_some()
-    }
-
-    pub fn label(&self, test_id: &str) -> String {
-        let node = self
-            .document()
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        let mut collected = Vec::new();
-        collect_text(&self.document(), node, &mut collected);
-        collected.join(" ")
-    }
-
-    pub fn accessible_label(&self, test_id: &str) -> Option<String> {
-        let document = self.document();
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document
-            .accessibility
-            .get(&node)?
-            .label()
-            .map(str::to_owned)
-    }
-
-    pub fn accessible_description(&self, test_id: &str) -> Option<String> {
-        let document = self.document();
-        let node = document
-            .find_test_id(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-        document
-            .accessibility
-            .get(&node)?
-            .description()
-            .map(str::to_owned)
-    }
-
-    pub fn rect_of(&self, test_id: &str) -> Rect {
-        self.output
-            .as_ref()
-            .expect("the editor has not drawn a frame yet")
-            .test_id_rect(test_id)
-            .unwrap_or_else(|| panic!("no element with test id {test_id:?}\n{}", self.replay()))
-    }
-
-    pub fn point_of(&self, test_id: &str) -> Pos2 {
-        let rect = self.rect_of(test_id);
-        let shown = rect.intersect(self.rect());
-        match shown.is_positive() {
-            true => shown.center(),
-            false => rect.center(),
-        }
-    }
-
-    pub fn reveal(&mut self, test_id: &str) {
-        let cut = crate::document::scroll_cuts(&self.document(), test_id);
-        let painted = self
-            .output
-            .as_ref()
-            .and_then(|output| output.test_id_rect(test_id));
-        if !cut
-            && painted.is_some_and(|rect| self.desk.is_some() || self.rect().contains_rect(rect))
-        {
-            return;
-        }
-        {
-            let mut document = self
-                .app
-                .document_mut()
-                .expect("the editor has not built its view yet");
-            let node = document
-                .find_test_id(test_id)
-                .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
-            document.reveal_node(node);
-        }
-        self.run();
-    }
-
     pub fn secondary_drag(&mut self, from: Pos2, to: Pos2) {
         self.down(from, PointerButton::Secondary);
-        self.next_frame();
         self.up(to, PointerButton::Secondary);
     }
 
@@ -2336,7 +2124,9 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.perform(frames);
     }
 
-    pub fn pinch(&mut self, pos: Pos2, factor: f32) {
+    /// Zooms the editor's view as the host does for a pinch on it, without the pinch
+    /// reaching the editor (a `pinch` gesture is the pinch itself).
+    pub fn zoom_view(&mut self, pos: Pos2, factor: f32) {
         self.steps.push(format!(
             "drive pinch {} {factor}",
             Target::point(pos).word(1.0)
@@ -2349,40 +2139,10 @@ impl<A: BeuiRoot> BeuiTest<A> {
         self.run();
     }
 
+    /// Gives where the device predicts the pointer goes next, painting the frame that takes
+    /// it; `in_one_frame` gives it with the samples it follows.
     pub fn predict(&mut self, pos: Pos2) {
-        self.push(Input::Predicted(pos));
-    }
-
-    pub fn hover(&mut self, target: impl Into<Target>) {
-        self.drive_at("move", &[target.into()], &[]);
-    }
-
-    pub fn click(&mut self, target: impl Into<Target>) {
-        self.drive_at("click", &[target.into()], &[]);
-    }
-
-    pub fn click_with(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("click", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn double_click(&mut self, target: impl Into<Target>) {
-        self.drive_at("click", &[target.into()], &["double".to_owned()]);
-    }
-
-    pub fn tap(&mut self, target: impl Into<Target>) {
-        self.drive_at("tap", &[target.into()], &[]);
-    }
-
-    pub fn down(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("down", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn up(&mut self, target: impl Into<Target>, button: PointerButton) {
-        self.drive_at("up", &[target.into()], &[button_name(button)]);
-    }
-
-    pub fn drag(&mut self, from: impl Into<Target>, to: impl Into<Target>) {
-        self.drive_at("drag", &[from.into(), to.into()], &[]);
+        self.perform(vec![vec![Input::Predicted(pos)]]);
     }
 
     /// Spends a frame on each point and releases in a frame of its own, for a gesture whose
@@ -2393,93 +2153,76 @@ impl<A: BeuiRoot> BeuiTest<A> {
         };
         self.down(from, PointerButton::Primary);
         for &at in &points[1..] {
-            self.next_frame();
             self.hover(at);
         }
-        self.next_frame();
         self.up(to, PointerButton::Primary);
     }
 
     /// Takes the keyboard from the editor's view, as when its window loses the focus (`drive
     /// blur`); `focus` gives it back.
     pub fn blur(&mut self) {
-        self.drive("blur", &[], &[]);
+        self.gesture("blur", &[], &[]);
     }
 
     pub fn focus(&mut self) {
-        self.drive("focus", &[], &[]);
+        self.gesture("focus", &[], &[]);
     }
 
-    pub fn scroll(&mut self, target: impl Into<Target>, by: Vec2) {
-        self.drive_at(
-            "scroll",
-            &[target.into()],
-            &[by.y.to_string(), by.x.to_string()],
+    fn painted(&self) -> Snapshot {
+        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
+        let shown = self
+            .shown_output()
+            .expect("the editor has not drawn its window yet");
+        let painting = beui::native::painting::painting(
+            shown,
+            self.size,
+            shown.pixels_per_point,
+            behind,
+            beui::native::painting::Punches::Shown,
+        )
+        .and_then(Snapshot::of_painting);
+        painting.expect("the painting could not be rendered")
+    }
+}
+
+impl<A: BeuiRoot> Gui for BeuiTest<A> {
+    type DocumentRef<'a> = std::cell::Ref<'a, Document>;
+    type DocumentMut<'a> = std::cell::RefMut<'a, Document>;
+
+    fn document(&self) -> std::cell::Ref<'_, Document> {
+        self.app
+            .document()
+            .expect("the editor has not built its view yet")
+    }
+
+    fn document_mut(&mut self) -> std::cell::RefMut<'_, Document> {
+        self.app
+            .document_mut()
+            .expect("the editor has not built its view yet")
+    }
+
+    fn tree(&self) -> std::rc::Rc<beui::native::accessibility_dump::Rendered> {
+        self.output
+            .as_ref()
+            .map(beui::native::FrameOutput::tree)
+            .unwrap_or_default()
+    }
+
+    fn size(&self) -> Vec2 {
+        self.size
+    }
+
+    fn pixels_per_point(&self) -> f32 {
+        1.0
+    }
+
+    /// Plans the gesture's frames as drive does, queues them (on the desk, through its
+    /// windows) and paints them with `run`.
+    fn gesture(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
+        assert!(
+            !self.one_frame,
+            "{command} paints its own frames, so in_one_frame does not take it"
         );
-    }
-
-    pub fn fingers<T: Into<Target> + Clone>(&mut self, phase: TouchPhase, fingers: &[(u64, T)]) {
-        let targets: Vec<Target> = fingers
-            .iter()
-            .map(|(_, target)| target.clone().into())
-            .collect();
-        let phase = match phase {
-            TouchPhase::Start => "down",
-            TouchPhase::Move => "move",
-            TouchPhase::End => "up",
-            TouchPhase::Cancel => "cancel",
-        };
-        let words: Vec<String> = std::iter::once(phase.to_owned())
-            .chain(
-                fingers
-                    .iter()
-                    .zip(&targets)
-                    .map(|((finger, _), target)| format!("{finger}={}", target.word(1.0))),
-            )
-            .collect();
-        self.drive("touch", &words, &targets);
-    }
-
-    pub fn type_text(&mut self, text: &str) {
-        self.drive("type", &[text.to_owned()], &[]);
-    }
-
-    pub fn key(&mut self, key: Key, modifiers: Modifiers) {
-        let chord = beui::input::typing::chord_name(key, modifiers)
-            .unwrap_or_else(|| panic!("drive has no name for {modifiers:?}+{key:?}"));
-        self.drive("key", &[chord], &[]);
-    }
-
-    pub fn key_down(&mut self, key: Key) {
-        self.held_key(key, true);
-    }
-
-    pub fn key_up(&mut self, key: Key) {
-        self.held_key(key, false);
-    }
-
-    fn held_key(&mut self, key: Key, pressed: bool) {
-        let command = if pressed { "keydown" } else { "keyup" };
-        let name = key
-            .name()
-            .unwrap_or_else(|| panic!("drive has no name for {key:?}"));
-        self.drive(command, &[name], &[]);
-    }
-
-    pub fn steps(&self) -> &[String] {
-        &self.steps
-    }
-
-    fn drive_at(&mut self, command: &str, targets: &[Target], rest: &[String]) {
-        let words: Vec<String> = targets
-            .iter()
-            .map(|target| target.word(1.0))
-            .chain(rest.iter().cloned())
-            .collect();
-        self.drive(command, &words, targets);
-    }
-
-    fn drive(&mut self, command: &str, arguments: &[String], targets: &[Target]) {
         let mut step = format!("drive {command}");
         for word in arguments {
             let plain = !word.is_empty()
@@ -2508,8 +2251,65 @@ impl<A: BeuiRoot> BeuiTest<A> {
             .unwrap_or_else(|error| panic!("{error}\n{}", self.replay()));
         match self.desk.is_some() && matches!(command, "click" | "move" | "down" | "up" | "drag") {
             true => self.desk_perform(frames),
-            false => self.perform(frames),
+            false => self.frames.extend(frames),
         }
+        self.run();
+    }
+
+    /// Paints the queued frames, then applies the editor's operations to what the host holds
+    /// and sends them back marked as its own, painting again until nothing changes.
+    fn run(&mut self) {
+        let frames = std::mem::take(&mut self.frames);
+        if frames.is_empty() {
+            self.step(Vec::new());
+        }
+        for events in frames {
+            self.step(events);
+        }
+        for _ in 0..HOST_ROUNDS {
+            if self.inbox.is_empty() && !self.store.pending() {
+                break;
+            }
+            self.step(Vec::new());
+        }
+    }
+
+    fn settled(&self) -> bool {
+        self.output.as_ref().is_none_or(|output| {
+            !self.shown_changed() && output.repaint_after > std::time::Duration::ZERO
+        })
+    }
+
+    fn last_frame(&self) -> (bool, std::time::Duration) {
+        self.output
+            .as_ref()
+            .map_or((false, std::time::Duration::MAX), |output| {
+                (self.shown_changed(), output.repaint_after)
+            })
+    }
+
+    /// Moves the test's clock on without painting and hands the app what the host queued, as
+    /// a call reaches an idle editor between frames. The editor's frame clock is this clock,
+    /// one frame interval per painted frame, so timers cost no real time and land on the same
+    /// frame on every machine.
+    fn advance(&mut self, by: std::time::Duration) {
+        self.clock += by;
+        for message in std::mem::take(&mut self.inbox) {
+            self.deliver(message);
+        }
+        self.hear();
+    }
+
+    fn wakes(&self) -> &Wakes {
+        &self.wakes
+    }
+
+    fn steps(&self) -> &[String] {
+        &self.steps
+    }
+
+    fn shows_whole(&self, rect: Rect) -> bool {
+        self.desk.is_some() || self.rect().contains_rect(rect)
     }
 
     fn point(&mut self, target: Target) -> Pos2 {
@@ -2537,87 +2337,29 @@ impl<A: BeuiRoot> BeuiTest<A> {
             ),
         }
     }
+}
 
-    fn replay(&self) -> String {
-        let mut replay = String::from("the steps so far, as drive commands:\n");
-        for step in &self.steps {
-            replay.push_str("  ");
-            replay.push_str(step);
-            replay.push('\n');
-        }
-        replay
+impl<A: BeuiRoot> Snapshots for BeuiTest<A> {
+    fn capture(&mut self) -> Snapshot {
+        self.painted()
     }
 
-    pub fn record(&mut self) {
-        let frame = self.painted();
-        self.note_overflows();
-        match &mut self.recording {
-            Some(recording) => recording.append(frame),
-            None => self.recording = Some(frame),
-        }
-    }
-
-    pub fn snapshot(&mut self, name: &str) {
-        let painting = match self.recording.take() {
-            Some(recording) => recording,
-            None => {
-                self.note_overflows();
-                self.painted()
-            }
-        };
-        beui_paint_snapshot::assert_accepted(name, &painting, beui_paint_snapshot::HOW_TO_ACCEPT);
-        assert_fits(name, std::mem::take(&mut self.overflows));
-    }
-
-    fn note_overflows(&mut self) {
-        let found: Vec<String> = self
-            .document()
+    fn out_of_bounds(&self) -> Vec<String> {
+        self.document()
             .overflows()
             .iter()
             .map(ToString::to_string)
-            .collect();
-        self.overflows.extend(found);
+            .collect()
     }
 
-    fn painted(&mut self) -> Snapshot {
-        let behind = beui::styled::Theme::of(self.document().preferences().theme).background;
-        let shown = self
-            .shown_output()
-            .expect("the editor has not drawn its window yet");
-        let painting = beui::native::painting::painting(
-            shown,
-            self.size,
-            shown.pixels_per_point,
-            behind,
-            beui::native::painting::Punches::Shown,
-        )
-        .and_then(Snapshot::of_painting);
-        painting.expect("the painting could not be rendered")
+    fn recording(&mut self) -> &mut Recording {
+        &mut self.recording
     }
 }
 
 fn roundtrip<T: serde::Serialize + serde::de::DeserializeOwned>(value: T, what: &str) -> T {
     be_sdk_api::ops::decode(&be_sdk_api::ops::encode(&value))
         .unwrap_or_else(|| panic!("{what} could not be read back"))
-}
-
-fn collect_text(document: &Document, node: beui::NodeId, collected: &mut Vec<String>) {
-    if document.node_kind(node) == "text" {
-        let detail = document.node_detail(node).unwrap_or_default();
-        let text = detail.trim_matches('"');
-        collected.extend(
-            document
-                .text_icons(node)
-                .into_iter()
-                .map(|glyph| glyph.as_str().to_owned()),
-        );
-        if !text.is_empty() {
-            collected.push(text.to_owned());
-        }
-    }
-    for child in document.children(node) {
-        collect_text(document, child, collected);
-    }
 }
 
 struct Viewport {

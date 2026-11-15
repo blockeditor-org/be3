@@ -16,16 +16,16 @@ fn the_treemap_sample_goes_into_a_folder_and_back_out() {
     test.click("demo.treemap.tile.0");
     test.frame(Vec::new());
     assert!(
-        test.shows("demo.treemap.tile.5"),
+        test.shown("demo.treemap.tile.5"),
         "a press goes into Photos"
     );
-    assert!(!test.shows("demo.treemap.tile.1"), "the top level is gone");
+    assert!(!test.shown("demo.treemap.tile.1"), "the top level is gone");
     assert!(
         focused(&test, "demo.treemap.tile.5"),
         "the largest tile inside takes the focus"
     );
     press_key(&mut test, beui::Key::Enter);
-    assert!(test.shows("demo.treemap.tile.7"), "Enter goes into 2025");
+    assert!(test.shown("demo.treemap.tile.7"), "Enter goes into 2025");
 
     press_key(&mut test, beui::Key::Backspace);
     assert!(
@@ -40,9 +40,9 @@ fn the_treemap_sample_goes_into_a_folder_and_back_out() {
     test.click("demo.treemap.up");
     test.frame(Vec::new());
     assert!(
-        test.shows("demo.treemap.tile.4"),
+        test.shown("demo.treemap.tile.4"),
         "Up comes back to the top"
     );
-    assert!(!test.shows("demo.treemap.tile.5"));
+    assert!(!test.shown("demo.treemap.tile.5"));
     test.snapshot("treemap_back_at_the_top");
 }

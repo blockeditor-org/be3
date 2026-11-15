@@ -3,7 +3,7 @@ use std::time::Duration;
 use beui::native::WindowSize;
 use beui::{native::Context, vec2};
 use beui_host::native::FreetypeFonts;
-use beui_host::native::testing::{Showing, Stepped};
+use beui_host::native::testing::{Gui, Showing, Snapshots, Stepped};
 
 use super::*;
 use crate::ui::{HostUi, Root as HostRoot, StatusView};

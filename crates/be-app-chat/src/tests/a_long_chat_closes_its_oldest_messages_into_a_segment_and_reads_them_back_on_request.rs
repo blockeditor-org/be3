@@ -13,6 +13,7 @@ fn a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_
         .collect();
     let mut chat = Harness::new(&initial);
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
 
     let content = chat.content();
@@ -36,6 +37,7 @@ fn a_long_chat_closes_its_oldest_messages_into_a_segment_and_reads_them_back_on_
         chat.editor
             .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
         chat.editor.advance(Duration::from_millis(100));
+        chat.editor.run();
         chat.run();
     };
     to_start(&mut chat);

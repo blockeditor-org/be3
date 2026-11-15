@@ -19,7 +19,7 @@ use crate::input::InputState;
 use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, PainterState, Scope, Shape};
 use crate::program::Waker;
-use crate::program::accessibility_dump::{AccessibilityDump, TestIds};
+use crate::program::accessibility_dump::{AccessibilityDump, Rendered, TestIds};
 use crate::screen_simulation::ScreenSimulation;
 use crate::window::{Appearance, WindowHosting, WindowState};
 use beui_types::ClipItem;
@@ -311,11 +311,16 @@ impl FrameOutput {
         self.pixels_per_point
     }
 
-    pub fn test_ids(&self) -> Rc<TestIds> {
+    /// The accessibility tree as `drive` reads it, empty unless the frame was automated.
+    pub fn tree(&self) -> Rc<Rendered> {
         self.dump
             .as_ref()
-            .map(|dump| Rc::clone(dump.rendered().test_ids()))
+            .map(AccessibilityDump::rendered)
             .unwrap_or_default()
+    }
+
+    pub fn test_ids(&self) -> Rc<TestIds> {
+        Rc::clone(self.tree().test_ids())
     }
 
     pub fn test_id_rect(&self, test_id: &str) -> Option<Rect> {

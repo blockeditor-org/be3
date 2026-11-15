@@ -11,7 +11,7 @@ fn an_added_painting_has_nothing_before_the_line() {
         review.text("paint_review.showing"),
         "Showing before and after"
     );
-    assert!(review.test.shows("paint_review.split"));
+    assert!(review.test.shown("paint_review.split"));
     review
         .test
         .snapshot("an_added_painting_has_nothing_before_the_line");
@@ -20,7 +20,7 @@ fn an_added_painting_has_nothing_before_the_line() {
     review.deliver();
     review.test.settle();
     assert_eq!(review.shown_name(), "checklist.an_old_list");
-    assert!(review.test.shows("paint_review.split"));
+    assert!(review.test.shown("paint_review.split"));
     review
         .test
         .snapshot("a_removed_painting_has_nothing_after_the_line");

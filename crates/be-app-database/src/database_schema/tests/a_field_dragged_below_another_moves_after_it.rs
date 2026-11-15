@@ -30,17 +30,12 @@ fn a_field_dragged_below_another_moves_after_it() {
     let first = harness.rect_of(&name(ids[0]));
     let below = grip + Vec2::new(0.0, last.center().y - first.center().y + 12.0);
     harness.down(grip, PointerButton::Primary);
-    harness.next_frame();
     harness.hover(grip + Vec2::new(0.0, 8.0));
-    harness.next_frame();
     harness.hover(below);
-    harness.next_frame();
     harness.up(below, PointerButton::Primary);
-    harness.run();
     assert_eq!(order(&harness), vec![ids[1], ids[2], ids[0]]);
 
     harness.click(format!("database-schema.up.{}", ids[0]));
-    harness.run();
     assert_eq!(
         order(&harness),
         vec![ids[1], ids[0], ids[2]],

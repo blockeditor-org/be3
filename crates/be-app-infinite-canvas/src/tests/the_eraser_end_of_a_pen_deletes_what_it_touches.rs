@@ -19,7 +19,6 @@ fn the_eraser_end_of_a_pen_deletes_what_it_touches() {
     locked.locked = true;
     let mut editor = editor(&[first.clone(), second.clone(), locked.clone()]);
     editor.click("infinite-canvas.dock.tool.Pen");
-    editor.run();
     let at = |editor: &BeuiTest<CanvasRoot>, entity: &CanvasEntity| {
         editor
             .rect_of(&format!("infinite-canvas.entity.{}", entity.id))
@@ -28,15 +27,11 @@ fn the_eraser_end_of_a_pen_deletes_what_it_touches() {
     let (top, middle) = (at(&editor, &locked), at(&editor, &first));
 
     editor.eraser(PenPhase::Move, top);
-    editor.next_frame();
     editor.eraser(PenPhase::Down(PointerButton::Primary), top);
     for step in 1..=8 {
-        editor.next_frame();
         editor.eraser(PenPhase::Move, top + (middle - top) * (step as f32 / 8.0));
     }
-    editor.next_frame();
     editor.eraser(PenPhase::Up(PointerButton::Primary), middle);
-    editor.run();
 
     assert_eq!(
         entities(&editor),

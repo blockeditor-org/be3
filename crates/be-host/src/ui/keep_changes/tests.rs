@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use beui::{Key, Modifiers, Vec2};
 
+use be_sdk_test::prelude::*;
 use be_sdk_test::DocumentTest;
 use beui::native::Document;
 

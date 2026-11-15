@@ -12,6 +12,7 @@ fn a_message_shows_as_sending_until_it_is_delivered() {
         "a message its replica confirmed is sending until the server holds it"
     );
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     assert!(
         !chat.row(on).contains("Sending"),
         "the server took the journal entry"
@@ -22,6 +23,7 @@ fn a_message_shows_as_sending_until_it_is_delivered() {
     chat.click("chat.send");
     let offline = chat.id(2);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     assert!(
         chat.row(offline).contains("Sending"),
         "a message sent offline is sending, sealed or not, until it is published"

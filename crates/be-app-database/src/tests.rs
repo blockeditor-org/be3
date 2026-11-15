@@ -1,4 +1,5 @@
 use be_sdk_beui::{Creation, Editor, EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_database::database::{Database, DatabaseContent};
 use uuid::Uuid;

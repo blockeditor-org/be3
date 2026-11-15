@@ -7,7 +7,6 @@ fn a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger() {
     paint(&mut editor, layer.id, &[(1, 1)], RED);
     let center = editor.rect_of("infinite-canvas.canvas").center();
     editor.click(center + Vec2::new(4.0, 4.0));
-    editor.run();
 
     let handle = center + Vec2::new(32.0, 0.0);
     editor.drag_along(&[
@@ -16,7 +15,6 @@ fn a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger() {
         handle + Vec2::new(20.0, 0.0),
         handle + Vec2::new(33.0, 0.0),
     ]);
-    editor.run();
     let raster = raster_of(&editor, layer.id);
     assert_eq!(
         (raster.width(), raster.height()),
@@ -35,11 +33,9 @@ fn a_raster_layer_scaled_by_its_handles_draws_its_pixels_larger() {
     assert_eq!(raster.pixel(1, 1), Some(RED), "and every pixel");
 
     editor.click("infinite-canvas.dock.tool.pencil");
-    editor.run();
     let pixel = 12.0 / 8.0;
     let at = CanvasPoint::new(bounds.min.x + pixel * 5.5, bounds.min.y + pixel * 5.5);
     editor.click(center + Vec2::new(at.x * RASTER_ZOOM, at.y * RASTER_ZOOM));
-    editor.run();
     let raster = raster_of(&editor, layer.id);
     assert_eq!(
         raster.pixel(5, 5),

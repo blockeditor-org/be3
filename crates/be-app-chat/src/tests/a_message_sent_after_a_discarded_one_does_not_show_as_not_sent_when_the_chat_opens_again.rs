@@ -8,11 +8,13 @@ fn a_message_sent_after_a_discarded_one_does_not_show_as_not_sent_when_the_chat_
     chat.click("chat.send");
     let refused = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().refuse_kept();
     chat.run();
     assert!(chat.row(refused).contains("Not sent"));
     chat.click(&format!("chat.message.{refused}.discard"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
 
     // The refused commit is still on this device. A message sent after it is not refused.
     chat.editor.store().set_online(false);
@@ -20,6 +22,7 @@ fn a_message_sent_after_a_discarded_one_does_not_show_as_not_sent_when_the_chat_
     chat.click("chat.send");
     let later = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     assert!(chat.row(later).contains("Sending"));
 
     chat.editor.store().close_replica(None);

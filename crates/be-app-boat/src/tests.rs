@@ -10,6 +10,7 @@ use be_sdk_beui::{
     BlockAgent, EditorHost, Failure, OwnedEditor, TerminalHostBe, TerminalHostDownload,
     TerminalHostSource,
 };
+use be_sdk_test::prelude::*;
 use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
@@ -181,9 +182,7 @@ impl Boat {
     fn connect(&mut self) {
         self.test.click("boat.sign-in.key");
         self.test.type_text(self.secret);
-        self.test.run();
         self.test.click("boat.sign-in.connect");
-        self.test.run();
     }
 
     /// The one fetch the editor sent.
@@ -222,6 +221,7 @@ impl Boat {
     /// Lets `by` pass, as the editor's poll sees it.
     fn wait(&mut self, by: Duration) {
         self.test.advance(by);
+        self.test.run();
     }
 
     fn label(&self, test_id: &str) -> String {
@@ -351,7 +351,6 @@ impl Boat {
     fn connect_terminal(&mut self, agent: Uuid) -> Uuid {
         self.test
             .click(&format!("boat.sandbox.{RUNNING}.terminal.connect"));
-        self.test.run();
         let (reply, block, name) = self.host_call("the agent", |call| match call {
             HostCall::CreateBlockAgent { reply, block, name } => Ok((reply, block, name)),
             call => Err(call),

@@ -67,6 +67,7 @@ fn every_message_shows_once(base: &ChatContent, merged: ChatContent, deleted: Ob
     // Tall enough that every row that is read is laid out, so nothing is hidden by the viewport.
     chat.editor.set_size(vec2(480.0, 60_000.0));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     let recent = chat.content().messages()[0];
 
@@ -78,6 +79,7 @@ fn every_message_shows_once(base: &ChatContent, merged: ChatContent, deleted: Ob
     chat.editor
         .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
     chat.editor.advance(Duration::from_millis(100));
+    chat.editor.run();
     let mut seen: HashSet<ObjectId> = HashSet::new();
     for _ in 0..8 {
         // One segment: the reads it asked for go through, then the view settles.

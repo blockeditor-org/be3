@@ -8,7 +8,6 @@ fn reconnecting_replaces_the_key() {
     boat.answer(&poll, 403, EXPIRED);
 
     boat.test.click("boat.reconnect");
-    boat.test.run();
     boat.secret = NEW_SECRET;
     boat.connect();
     let me = boat.fetch();

@@ -44,18 +44,15 @@ control drawn in two places gives each copy its own id.
 ## 3. Write the test
 
 Tests live in the editor's crate, one test per file under `src/tests/`
-(`./scripts/verify` splits them).
+(`./scripts/verify` splits them), and import `be_sdk_test::prelude::*`.
 
     let mut test = BeuiTest::<ChecklistRoot>::editing(Uuid::new_v4());
     test.hold(None, ChecklistContent::default());
     test.run();
 
     test.click("checklist.draft");
-    test.run();
-    test.text("buy milk");
-    test.run();
+    test.type_text("buy milk");
     test.click("checklist.add");
-    test.run();
 
     let items = test.content::<ChecklistContent>(None);
     assert_eq!(items.root().items[0].text, "buy milk");
@@ -76,14 +73,26 @@ window, and with `stress`.
 
 ### Gestures
 
-- A gesture only queues events: nothing it causes shows in `shown()`, `label()` or the model
-  until the next `run()`. Call `run()` after each gesture.
+Both harnesses, `BeuiTest` and `DocumentTest`, are a `Gui` (beui-platform-headless's
+`testing::Gui`, in `be_sdk_test::prelude` with `Snapshots`): gestures, reading by test id
+(`shown`, `label`, `rect_of`, `point_of`, `reveal`, ...) and settling are written once there,
+and a harness supplies its document, the tree of its last frame, how a gesture reaches the
+program, one frame (`run`) and its clock. A fixture of a test's own that derefs to a harness
+says `impl Wraps for Fixture {}` to be one too.
+
+- A gesture paints the frames that take it before it returns, so what it caused is in
+  `shown()`, `label()` and the model at once. `run()` paints one more frame. `BeuiTest`'s input
+  that is no drive gesture (`pen`, `eraser`, `predict`, `host_key`, `host_tap`,
+  `hold_modifiers`) paints its own frame too; to give several in one frame, as a device that
+  coalesces its pen samples does, give them inside `in_one_frame(|test| ...)`.
 - Typing goes to what has focus, so click a text field first.
 - `click()` first scrolls a target that a scroll hides or cuts into view, as a person would,
   so a test need not know how much fits on screen. It panics when no node has that id: usually
   one never given an id, or a row a virtualized list has not built.
-- Gestures are drive's (`Gestures` in crates/beui-layer-drive). After a `tap`, keep touching:
-  a mouse arriving after a finger can change what a phone layout shows.
+- Gestures are drive's commands (`plan` and `Gestures` in crates/beui-layer-drive), and a
+  failure prints the steps as `drive` commands. The pointer stays where the last gesture left
+  it, as in drive, so a painting after a click shows the clicked control hovered. After a
+  `tap`, keep touching: a mouse arriving after a finger can change what a phone layout shows.
 
 ### Waiting and time
 
@@ -95,7 +104,8 @@ window, and with `stress`.
   of something that animates in.
 - The editor's clock (`timer::now()`) is the harness's: each frame is one frame interval
   later, so an animation lands on the same frame everywhere. `advance(by)` moves it on and
-  paints; `wait(by)` moves it on and delivers queued host calls without painting.
+  delivers queued host calls without painting; the next `run()` or gesture paints the frame
+  that takes them.
 - The date and time of day are pinned too, to `beui_core::timer::TEST_WALL_CLOCK`: editors
   read `be_sdk_beui::wall_clock()` and beui `beui::reactive::wall_clock()`, never
   `SystemTime::now()`, which would paint differently every run.
@@ -168,10 +178,13 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 
 `be_sdk_test::DocumentTest` paints any beui document (crates/beui-demo paints every demo page
 this way). It is beui's `testing::Stepped` (guides/beui/core.md, Test and verify changes), running the real `Runner`
-with drive's gestures and a frame clock. `click` and `scroll` reveal their target first and
-then move the pointer out of the window, so a painting shows hover only where the test hovers.
-`settle()` never finishes on a page that animates forever, such as a spinner. `record()` keeps
-the current frame for a recording, as an editor's does.
+with drive's gestures and a frame clock, and the same `Gui` as `BeuiTest`. Its gestures go
+through the drive layer, which reveals their targets; a target may also be a line of the
+tree (`Target::text("Tab \"Layers\"")`), as in drive. With the clock stopped, `settle()` is
+`drive settle`: it waits for input to be handled, not for animations, which move only with
+`advance` or `pause`. `pause(by)` is `drive pause`: it lets `by` pass over painted frames
+(a long one in bigger steps, ending a frame interval apart), as a person waiting would see it;
+`advance(by)` jumps the clock without painting, and the next frame lands `by` later.
 
 ### Browser pages
 

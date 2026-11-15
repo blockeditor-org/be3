@@ -8,6 +8,7 @@ fn a_message_the_server_refuses_shows_as_not_sent() {
     chat.click("chat.send");
     let refused = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
 
     chat.editor.store().refuse_kept();
     chat.run();
@@ -19,6 +20,7 @@ fn a_message_the_server_refuses_shows_as_not_sent() {
 
     chat.click(&format!("chat.message.{refused}.retry"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     assert_eq!(
         chat.bodies(),
         ["Can you still see this chat?", "I think so"],

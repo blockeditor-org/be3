@@ -34,8 +34,7 @@ fn the_intrinsic_size_follows_the_first_frame() {
 
     assert_eq!(editor.intrinsic_size(), Some(Vec2::new(960.0, 540.0)));
 
-    editor.resize(Vec2::new(480.0, 270.0));
-    editor.run();
+    editor.resize_embed(Vec2::new(480.0, 270.0));
 
     assert_eq!(editor.intrinsic_size(), Some(Vec2::new(480.0, 270.0)));
     let sizes: Vec<_> = entities(&editor)

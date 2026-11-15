@@ -8,6 +8,7 @@ fn an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once() {
     chat.write("Running late");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(chat.editor.take_announced().len(), 1);
 
@@ -19,6 +20,7 @@ fn an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once() {
     chat.type_text(" again");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_secs(5));
+    chat.editor.run();
     chat.run();
     assert!(
         chat.editor.take_announced().is_empty(),
@@ -31,6 +33,7 @@ fn an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once() {
     chat.click("chat.send");
     let refused = chat.id(2);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().refuse_kept();
     chat.run();
     assert!(chat.row(refused).contains("Not sent"));
@@ -38,6 +41,7 @@ fn an_edited_message_tells_nobody_again_and_a_sent_again_one_tells_once() {
     chat.editor.store().set_online(true);
     chat.click(&format!("chat.message.{refused}.retry"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(
         chat.editor.take_announced(),

@@ -13,6 +13,5 @@ fn a_view_moved_before_the_editor_opened_stays_where_it_was() {
     );
 
     test.click("pan_zoom.fit");
-    test.run();
     assert_eq!(shown(&mut test, "pan_zoom.zoom"), "\"Zoom 66%\"");
 }

@@ -32,9 +32,7 @@ fn a_canvas_copy_names_its_blocks_only_in_refs() {
     });
     let mut source = editor(std::slice::from_ref(&copied));
     source.click(source.rect_of("infinite-canvas.canvas").center());
-    source.run();
     source.key(Key::C, Modifiers::CTRL);
-    source.run();
     let [item] = &source.take_copied(formats::CANVAS_ITEMS)[..] else {
         panic!("Copy puts the card on the clipboard as canvas items");
     };
@@ -57,7 +55,6 @@ fn a_canvas_copy_names_its_blocks_only_in_refs() {
 
     let mut pasted = editor(&[]);
     pasted.click(pasted.rect_of("infinite-canvas.canvas").center());
-    pasted.run();
     let mut translated = item.clone();
     let swap =
         [shown, schema, value, related, linked].map(|id| (id, Uuid::from_u128(id.as_u128() + 1)));

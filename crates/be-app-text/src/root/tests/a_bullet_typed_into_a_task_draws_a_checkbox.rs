@@ -6,11 +6,8 @@ use super::*;
 fn a_bullet_typed_into_a_task_draws_a_checkbox() {
     let mut editor = editor("# T\n\n- ");
     editor.click("text.surface");
-    editor.run();
     editor.key(Key::End, Modifiers::CTRL);
-    editor.run();
     editor.type_text("[ ] milk");
-    editor.run();
 
     assert_eq!(text(&editor), "# T\n\n- [ ] milk");
     assert!(editor.shown("text.checkbox.2"));

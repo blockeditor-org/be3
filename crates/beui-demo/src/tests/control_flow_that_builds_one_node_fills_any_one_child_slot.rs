@@ -49,14 +49,14 @@ fn control_flow_that_builds_one_node_fills_any_one_child_slot() {
     });
     let shown = held.get().expect("the view was built");
     let mut test = DocumentTest::new(document, Vec2::new(200.0, 400.0));
-    assert!(!test.shows("in_frame") && test.shows("item_fallback"));
+    assert!(!test.shown("in_frame") && test.shown("item_fallback"));
     assert_eq!(test.rect_of("frame").height(), 0.0);
 
     shown.set(true);
     test.frame(Vec::new());
     for id in ["in_frame", "in_item", "row1", "row2", "in_dynamic"] {
-        assert!(test.shows(id), "{id} shows");
+        assert!(test.shown(id), "{id} shows");
     }
-    assert!(!test.shows("item_fallback"));
+    assert!(!test.shown("item_fallback"));
     assert_eq!(test.rect_of("frame"), test.rect_of("in_frame"));
 }

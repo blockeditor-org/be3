@@ -5,7 +5,6 @@ fn the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column() {
     let rectangle = card();
     let mut editor = editor(std::slice::from_ref(&rectangle));
     editor.click("infinite-canvas.dock.grip");
-    editor.run();
     editor.click("grip.dock.bar.over.left");
     editor.settle();
 
@@ -23,7 +22,6 @@ fn the_tool_bar_moved_to_the_left_stands_its_tools_in_a_column() {
     assert!(top.bottom() <= below.top(), "its tools run down the side");
 
     editor.click(format!("infinite-canvas.entity.{}", rectangle.id));
-    editor.run();
     let selection = editor.rect_of("infinite-canvas.selection-bar");
     assert!(
         selection.left() >= dock.right(),

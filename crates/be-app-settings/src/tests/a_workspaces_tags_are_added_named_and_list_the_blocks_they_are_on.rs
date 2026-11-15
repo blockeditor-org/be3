@@ -50,11 +50,8 @@ fn a_workspaces_tags_are_added_named_and_list_the_blocks_they_are_on() {
     editor.run();
 
     editor.click("tags.new-name");
-    editor.run();
     editor.type_text("Later");
-    editor.run();
     editor.click("tags.add");
-    editor.run();
 
     let held = editor.content::<TagsContent>(None).root().tags();
     assert_eq!(held.len(), 2, "adding a tag lists it beside the other");

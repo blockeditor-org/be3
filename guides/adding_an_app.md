@@ -152,7 +152,7 @@ framework.
 `be_sdk_test::BeuiTest` runs the editor through the same app session the
 shipped app runs (`be_sdk::headless`), against a stand-in host that holds each
 block in an in-process type module as the host does. It drives the app with
-the same gestures as beui's `testing::Harness` (click, drag, type_text, key,
+the same `testing::Gui` as beui's own tests (click, drag, type_text, key,
 ...), prints the drive steps on failure, and reads back what the app asked of
 the host. Its snapshot is what beui's renderer would hand the GPU, so no
 driver changes it; GPU drawing behind `draw_gpu` (guides/beui/components.md,

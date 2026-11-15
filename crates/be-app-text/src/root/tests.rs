@@ -3,6 +3,7 @@ use be_sdk_beui::be_block_content::block_url::block_url;
 use be_sdk_beui::be_block_content::presence::{PresenceColor, PresenceKind};
 use be_sdk_beui::beui::Modifiers;
 use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use beui::Key;
 use uuid::Uuid;
@@ -108,12 +109,9 @@ const ORGANIZATION_ID: Uuid = Uuid::from_u128(0x7a20_a314_e4aa_4ca7_b7ae_d68c_32
 
 fn caret_at(editor: &mut BeuiTest<TextRoot>, index: usize) {
     editor.click("text.surface");
-    editor.run();
     editor.key(Key::Home, Modifiers::NONE);
-    editor.run();
     for _ in 0..index {
         editor.key(Key::ArrowRight, Modifiers::NONE);
-        editor.run();
     }
 }
 
@@ -147,7 +145,6 @@ fn shown_cursor(editor: &mut BeuiTest<TextRoot>) -> Option<Option<serde_json::Va
 /// Presses `key` and returns where the caret then is, as shown to peers.
 fn caret_after(editor: &mut BeuiTest<TextRoot>, key: Key) -> u64 {
     editor.key(key, Modifiers::NONE);
-    editor.run();
     let cursor = shown_cursor(editor)
         .flatten()
         .expect("the editor shows its caret to its peers");
@@ -166,7 +163,6 @@ fn step_through_wrapped_line(
 ) {
     editor.presence_visible(true);
     editor.click("text.surface");
-    editor.run();
     for _ in 0..wrapped.end {
         if caret_after(editor, Key::ArrowUp) == 0 {
             break;
@@ -174,7 +170,6 @@ fn step_through_wrapped_line(
     }
     for _ in 0..start {
         editor.key(Key::ArrowRight, Modifiers::NONE);
-        editor.run();
     }
     editor.record();
     let mut downs = Vec::new();

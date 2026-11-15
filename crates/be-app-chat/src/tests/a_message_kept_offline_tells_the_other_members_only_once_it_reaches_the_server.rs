@@ -7,6 +7,7 @@ fn a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_serve
     chat.write("Running late");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.run();
     assert!(
         chat.editor.take_announced().is_empty(),
@@ -16,6 +17,7 @@ fn a_message_kept_offline_tells_the_other_members_only_once_it_reaches_the_serve
     chat.editor.store().set_online(true);
     chat.run();
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     assert_eq!(
         chat.editor.take_announced(),

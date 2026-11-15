@@ -12,6 +12,7 @@ fn a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed() {
         .collect();
     let mut chat = Harness::new(&initial);
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
     chat.run();
     let segments = chat.content().segments();
     let newest = segments.last().expect("a segment").last;
@@ -20,6 +21,7 @@ fn a_message_in_a_closed_segment_shows_an_edit_made_since_it_closed() {
     chat.editor
         .scroll(format!("chat.message.{recent}"), vec2(0.0, -1_000_000.0));
     chat.editor.advance(Duration::from_millis(100));
+    chat.editor.run();
     chat.run();
     assert!(chat.row(newest).contains(": a line of chat"));
 

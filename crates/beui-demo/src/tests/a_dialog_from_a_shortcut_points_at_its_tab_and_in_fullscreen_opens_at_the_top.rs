@@ -19,7 +19,7 @@ fn a_dialog_from_a_shortcut_points_at_its_tab_and_in_fullscreen_opens_at_the_top
     );
     test.snapshot("a_dialog_from_a_shortcut_points_at_its_tab");
     press_key(&mut test, beui::Key::Escape);
-    assert!(!test.shows("demo.tab-settings.body"), "Escape closes it");
+    assert!(!test.shown("demo.tab-settings.body"), "Escape closes it");
 
     let page = pos2(WIDE.x * 0.75, WIDE.y / 2.0);
     for _ in 0..REVEAL_TICKS {

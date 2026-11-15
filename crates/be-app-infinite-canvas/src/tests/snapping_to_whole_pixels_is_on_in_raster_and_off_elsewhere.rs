@@ -22,7 +22,6 @@ fn snapping_to_whole_pixels_is_on_in_raster_and_off_elsewhere() {
     let step = Vec2::new(10.3, 5.2);
 
     editor.drag(center, center + step);
-    editor.run();
     assert!(
         !snaps(&editor),
         "the vector profile starts without snapping"
@@ -37,7 +36,6 @@ fn snapping_to_whole_pixels_is_on_in_raster_and_off_elsewhere() {
     editor.run();
     assert!(snaps(&editor));
     editor.drag(center + step, center + step * 2.0);
-    editor.run();
     let snapped = corner(&editor);
     assert_eq!(
         snapped,
@@ -47,17 +45,13 @@ fn snapping_to_whole_pixels_is_on_in_raster_and_off_elsewhere() {
     assert!((snapped.x - moved.x - 10.3).abs() <= 0.5);
 
     editor.click("infinite-canvas.mode.prototyping");
-    editor.run();
     assert!(!snaps(&editor), "each profile keeps its own choice");
     editor.click("infinite-canvas.mode.raster");
-    editor.run();
     assert!(snaps(&editor), "the raster profile starts snapping");
     assert!(pressed(&editor, "infinite-canvas.raster.snap"));
     editor.click("infinite-canvas.raster.snap");
-    editor.run();
     assert!(!snaps(&editor));
     editor.click("infinite-canvas.mode.vector");
-    editor.run();
     assert!(
         snaps(&editor),
         "the vector profile kept the choice made in it"

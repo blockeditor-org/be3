@@ -8,7 +8,7 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
 
     test.click("demo.overlay.trigger");
     assert!(
-        test.shows("demo.overlay.panel"),
+        test.shown("demo.overlay.panel"),
         "the trigger opens the overlay"
     );
 
@@ -26,19 +26,19 @@ fn the_overlay_sample_closes_on_escape_and_a_click_outside() {
     );
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.overlay.panel"),
+        !test.shown("demo.overlay.panel"),
         "Escape closes the overlay"
     );
 
     test.click("demo.overlay.trigger");
     assert!(
-        test.shows("demo.overlay.panel"),
+        test.shown("demo.overlay.panel"),
         "the trigger opens it again"
     );
     test.click(over_the_page(WIDE));
     test.frame(Vec::new());
     assert!(
-        !test.shows("demo.overlay.panel"),
+        !test.shown("demo.overlay.panel"),
         "a click outside closes the overlay"
     );
 }

@@ -1,5 +1,6 @@
 use be_sdk_beui::beui::Vec2;
 use be_sdk_beui::network::ResponseHead;
+use be_sdk_test::prelude::*;
 use be_sdk_test::{BeuiTest, Fetch};
 use be_type_map::MapRegion;
 use be_type_map::{Map, MapContent};

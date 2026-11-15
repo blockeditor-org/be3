@@ -19,6 +19,7 @@ fn a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover() {
     fixture.test.hover("desktop.apps.item.files.desktop");
     fixture.settle();
     fixture.test.advance(std::time::Duration::from_secs(2));
+    fixture.test.run();
     fixture.test.settle();
     assert!(
         !fixture.test.shown("tooltip"),
@@ -28,6 +29,7 @@ fn a_program_tile_whose_name_is_cut_short_shows_it_whole_on_hover() {
     fixture.test.hover(calc);
     fixture.settle();
     fixture.test.advance(std::time::Duration::from_secs(2));
+    fixture.test.run();
     fixture.test.settle();
     assert!(
         fixture.test.shown("tooltip"),

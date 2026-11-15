@@ -1,5 +1,6 @@
 use super::*;
 use crate::native::rich::RichLayout;
+use crate::native::testing::{Gui, Wraps};
 use crate::native::*;
 use crate::native::{Embed, EmbedPlacement, EmbedSlot};
 use crate::reactive::Painter;
@@ -1265,6 +1266,8 @@ impl std::ops::DerefMut for Harness {
     }
 }
 
+impl Wraps for Harness {}
+
 impl Harness {
     pub(crate) fn new(document: Document) -> Self {
         Self::sized(document, VIEWPORT)
@@ -1296,18 +1299,6 @@ impl Harness {
 
     pub(crate) fn frame(&mut self, inputs: Vec<Input>) -> crate::native::FrameOutput {
         self.0.frame(inputs)
-    }
-
-    pub(crate) fn click(&mut self, target: impl Into<crate::native::testing::Target>) {
-        self.0.click(target);
-    }
-
-    pub(crate) fn drag(
-        &mut self,
-        from: impl Into<crate::native::testing::Target>,
-        to: impl Into<crate::native::testing::Target>,
-    ) {
-        self.0.drag(from, to);
     }
 
     pub(crate) fn resize(&mut self, size: Vec2) {

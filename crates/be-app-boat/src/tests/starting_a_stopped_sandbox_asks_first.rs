@@ -5,12 +5,10 @@ fn starting_a_stopped_sandbox_asks_first() {
     let mut boat = Boat::listing(SANDBOXES);
 
     boat.test.click("boat.sandbox.bx_r4t8w3ne.start");
-    boat.test.run();
     assert!(!boat.test.has_fetches(), "starting bills, so it asks first");
     boat.test.snapshot("starting_a_stopped_sandbox_asks_first");
 
     boat.test.click("boat.sandbox.bx_r4t8w3ne.confirm");
-    boat.test.run();
     let resume = boat.fetch();
     assert_eq!(resume.request.method, "POST");
     assert_eq!(

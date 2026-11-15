@@ -11,6 +11,7 @@ use be_sdk_beui::{
     BlockParent, ChildContent, ChildId, EditorHost, HostWindowId, OwnedEditor, Picture,
     WindowsWatch,
 };
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use std::collections::HashMap;
 use uuid::Uuid;

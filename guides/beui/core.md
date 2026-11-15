@@ -337,18 +337,24 @@ Every test that runs a document runs it through
 `Screen`, the clock stopped and one frame interval per frame.
 `testing::Showing(document)` is a `Document` as a program.
 
-- Its gestures (`click`, `drag`, `scroll`, `type_text`, `key`, `settle`, ...)
-  are `drive`'s commands, and each settles as `drive` does. A failure prints the
-  steps as `drive` commands, which replay against a `:dev` program.
+- It is a `testing::Gui`, the one test surface it shares with an editor's
+  `BeuiTest`: gestures (`click`, `drag`, `scroll`, `type_text`, `key`, ...),
+  reading by test id (`shown`, `rect_of`, `label`, `reveal`) and `settle` are
+  written once on the trait, and `testing::Snapshots` has `record` and
+  `snapshot`. Gestures are `drive`'s commands, sent through the drive layer, and
+  each paints its frames and settles as `drive` does before it returns; a
+  failure prints the steps as `drive` commands, which replay against a `:dev`
+  program. `drive(words)` sends any other command (`wait`, `pause`, `tree`).
 - `frame(inputs)` pushes raw `Input`s in points through the runner's intake
   and paints one frame, so send what a platform would (`Input::Modifiers`
   before a chord); a `Context` takes no `Event` directly.
-- `snapshot(name)`, `snapshot_layers(name)` and `snapshot_window(name, id)`
-  compare paintings ([testing_a_gui.md](../testing_a_gui.md)); any other
+- `snapshot(name)` (the frames `record` kept, or the current one),
+  `snapshot_layers(name)` and `snapshot_window(name, id)` compare paintings ([testing_a_gui.md](../testing_a_gui.md)); any other
   painting goes through `beui_paint_snapshot::assert_painting`.
 
 beui's own tests use `Harness` (`crates/beui-host/src/tests.rs`), a `Stepped`
-with settling off; a block editor uses `be_sdk_test::BeuiTest`.
+with settling off that is a `Gui` through `testing::Wraps`; a block editor uses
+`be_sdk_test::BeuiTest`.
 
 **Both cores.** Behaviour that must match goes in a shared screen and script in
 crates/beui-tests, run natively, natively with late measurement, and in

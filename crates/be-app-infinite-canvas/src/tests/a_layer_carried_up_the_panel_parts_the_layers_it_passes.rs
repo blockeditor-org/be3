@@ -26,14 +26,12 @@ fn a_layer_carried_up_the_panel_parts_the_layers_it_passes() {
     let grab = row(&editor, back).center();
     let past = row(&editor, middle).center() - Vec2::new(0.0, 6.0);
     editor.down(grab, PointerButton::Primary);
-    editor.next_frame();
     editor.hover(grab - Vec2::new(0.0, 6.0));
-    editor.next_frame();
     editor.hover(past);
-    editor.run();
     editor.record();
     for _ in 0..3 {
         editor.advance(Duration::from_millis(50));
+        editor.run();
         editor.record();
     }
     assert_eq!(
@@ -43,7 +41,6 @@ fn a_layer_carried_up_the_panel_parts_the_layers_it_passes() {
     );
 
     editor.up(past, PointerButton::Primary);
-    editor.run();
     editor.record();
     editor.settle();
     assert_eq!(

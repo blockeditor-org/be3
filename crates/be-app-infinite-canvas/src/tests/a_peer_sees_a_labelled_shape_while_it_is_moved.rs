@@ -13,9 +13,7 @@ fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
     let from = mover.rect_of(&item).center();
     let by = Vec2::new(120.0, 60.0);
     mover.pen(PenPhase::Down(PointerButton::Primary), from, 0.5);
-    mover.next_frame();
     mover.pen(PenPhase::Move, from + by / 2.0, 0.5);
-    mover.run();
     sync(&mut mover, &mut watcher);
     assert_eq!(
         watcher.rect_of(&item).center(),
@@ -23,9 +21,7 @@ fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
         "the peer draws the shape where it is so far"
     );
 
-    mover.next_frame();
     mover.pen(PenPhase::Move, from + by, 0.5);
-    mover.run();
     sync(&mut mover, &mut watcher);
     assert_eq!(
         watcher.rect_of(&item).center(),
@@ -40,7 +36,6 @@ fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
     watcher.snapshot("a_peer_sees_a_labelled_shape_while_it_is_moved");
 
     mover.pen(PenPhase::Up(PointerButton::Primary), from + by, 0.0);
-    mover.run();
     sync(&mut mover, &mut watcher);
     assert_eq!(
         entities(&mover)[0].transform.center,

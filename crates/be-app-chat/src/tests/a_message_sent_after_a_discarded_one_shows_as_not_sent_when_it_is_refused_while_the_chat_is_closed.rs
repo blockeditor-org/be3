@@ -9,15 +9,18 @@ fn a_message_sent_after_a_discarded_one_shows_as_not_sent_when_it_is_refused_whi
     chat.click("chat.send");
     let refused = chat.id(1);
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().refuse_kept();
     chat.run();
     chat.click(&format!("chat.message.{refused}.discard"));
     chat.editor.advance(Duration::from_millis(500));
+    chat.editor.run();
 
     chat.editor.store().set_online(false);
     chat.write("Back again");
     chat.click("chat.send");
     chat.editor.advance(Duration::from_secs(40));
+    chat.editor.run();
     chat.editor.store().close_replica(None);
     chat.editor.store().refuse_kept();
 

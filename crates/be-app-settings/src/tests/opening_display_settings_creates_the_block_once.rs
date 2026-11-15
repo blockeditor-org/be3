@@ -5,14 +5,12 @@ fn opening_display_settings_creates_the_block_once() {
     let mut editor = editor();
 
     editor.click("settings.display");
-    editor.run();
     assert_eq!(
         entries(&editor, DisplaySettingsContent::CONTENT_TYPE).len(),
         1
     );
 
     editor.click("settings.display");
-    editor.run();
     assert_eq!(
         entries(&editor, DisplaySettingsContent::CONTENT_TYPE).len(),
         1

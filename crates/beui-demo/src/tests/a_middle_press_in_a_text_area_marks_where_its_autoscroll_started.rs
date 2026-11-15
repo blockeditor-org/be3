@@ -6,7 +6,7 @@ const MARKER: &str = "scroll.autoscroll-marker";
 fn a_middle_press_in_a_text_area_marks_where_its_autoscroll_started() {
     let mut test = alone(WIDE, Page::Editor);
     reveal(&mut test, "demo.markdown-editor");
-    assert!(!test.shows(MARKER), "no marker shows before autoscroll");
+    assert!(!test.shown(MARKER), "no marker shows before autoscroll");
     let at = test.rect_of("demo.markdown-editor").center();
     test.frame(vec![
         Input::PointerMoved(at),
@@ -18,7 +18,7 @@ fn a_middle_press_in_a_text_area_marks_where_its_autoscroll_started() {
     ]);
     test.frame(Vec::new());
     assert!(
-        test.shows(MARKER),
+        test.shown(MARKER),
         "a middle press in the text area starts autoscroll and marks where"
     );
     assert!(

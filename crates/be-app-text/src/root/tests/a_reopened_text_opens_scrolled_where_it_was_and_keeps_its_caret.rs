@@ -1,5 +1,6 @@
 use be_sdk_beui::be_block_content::{EditorView, EditorViewContent};
 use be_sdk_beui::{EditorHost, OwnedEditor};
+use be_sdk_test::prelude::*;
 use be_sdk_test::BeuiTest;
 use be_type_text::{TextBlock, TextContent};
 use beui::Vec2;
@@ -83,11 +84,8 @@ fn a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret() {
         EditorView::document(Some(block)),
     );
     first.scroll("text.surface", Vec2::new(0.0, 900.0));
-    first.run();
     first.click("text.surface");
-    first.run();
     first.type_text("Y");
-    first.run();
     let left = top_line(&first);
     assert_ne!(left.0, "Line 1", "the view was scrolled down");
     let (_, position) = saved(&first, view);
@@ -100,8 +98,8 @@ fn a_reopened_text_opens_scrolled_where_it_was_and_keeps_its_caret() {
     // still where the person left it.
     let size = first.size();
     first.presence_visible(false);
-    first.resize(Vec2::new(size.x / 4.0, 40.0));
-    first.resize(Vec2::new(size.x, 1.0));
+    first.resize_embed(Vec2::new(size.x / 4.0, 40.0));
+    first.resize_embed(Vec2::new(size.x, 1.0));
     let (kept, squeezed) = saved(&first, view);
     assert_eq!(
         squeezed.as_ref().map(|kept| &kept.line_start),

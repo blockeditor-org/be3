@@ -15,7 +15,6 @@ fn every_pointer_reads_as_mixed_until_it_is_set() {
     };
 
     editor.click(NATURAL);
-    editor.run();
     let root = content(&editor).root();
     assert_eq!(
         root.every_pointer.natural_scroll,
@@ -25,7 +24,6 @@ fn every_pointer_reads_as_mixed_until_it_is_set() {
 
     choose_pointer(&mut editor, 1);
     editor.click(NATURAL);
-    editor.run();
     let root = content(&editor).root();
     assert_eq!(root.pointer(&mouse).natural_scroll, Some(false));
     assert_eq!(

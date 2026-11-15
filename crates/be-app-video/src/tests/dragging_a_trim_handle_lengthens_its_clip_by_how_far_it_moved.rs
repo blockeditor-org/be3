@@ -12,7 +12,6 @@ fn dragging_a_trim_handle_lengthens_its_clip_by_how_far_it_moved() {
         handle.center(),
         Pos2::new(handle.center().x + moved, handle.center().y),
     );
-    fixture.editor.run();
 
     let length = fixture.video().clips()[0].length;
     assert!(

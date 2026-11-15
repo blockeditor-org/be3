@@ -5,9 +5,9 @@ use beui_host::native::testing::Target;
 fn a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_it() {
     let mut test = alone(WIDE, Page::WindowManager);
     test.settle();
-    assert!(test.shows("wm.desk"), "the empty desk shows its empty view");
+    assert!(test.shown("wm.desk"), "the empty desk shows its empty view");
     assert!(
-        !test.shows("dock.grip.desk"),
+        !test.shown("dock.grip.desk"),
         "the empty desk draws no bar, so no grip"
     );
 
@@ -17,7 +17,7 @@ fn a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_i
     test.frame(Vec::new());
     test.settle();
     assert!(
-        !test.shows("dock.refused"),
+        !test.shown("dock.refused"),
         "the middle of the desk takes the tab rather than refusing it"
     );
     let sketch = test.rect_of("wm.window.3");
@@ -26,7 +26,7 @@ fn a_tab_dropped_in_the_middle_of_the_desk_fills_it_and_one_at_its_edge_splits_i
         "the tab dropped in the middle fills the desk: {sketch:?} in {desk:?}"
     );
     assert!(
-        test.shows("dock.grip.desk") && !test.shows("wm.desk"),
+        test.shown("dock.grip.desk") && !test.shown("wm.desk"),
         "holding a tab, the desk shows its bar and no longer its empty view"
     );
 

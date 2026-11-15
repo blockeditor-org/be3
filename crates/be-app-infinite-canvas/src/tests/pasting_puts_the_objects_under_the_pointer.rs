@@ -18,7 +18,6 @@ fn pasting_puts_the_objects_under_the_pointer() {
     };
 
     editor.click(pointer);
-    editor.run();
     let applied = editor.applied(None);
     editor.step(vec![Input::Paste(items.encode())]);
     editor.run();

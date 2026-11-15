@@ -13,7 +13,6 @@ fn zooming_asks_the_host_instead_of_moving_the_view() {
     );
 
     test.click("pan_zoom.zoom_in");
-    test.run();
 
     let changes = test.take_view_changes();
     assert!(matches!(
