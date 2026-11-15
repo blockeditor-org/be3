@@ -153,9 +153,7 @@ impl Reveal {
     }
 
     fn fade_to(&self, visibility: f32) {
-        if self.visibility.get_untracked() != visibility {
-            self.visibility.set(visibility);
-        }
+        self.visibility.set(visibility);
     }
 
     fn poke(&self) {
@@ -811,9 +809,7 @@ fn Scrolling(
         scroll_to: Callback::new(move |offset: f32| motion.value().scroll_to(offset)),
         visibility: reveal.with(|reveal| reveal.visibility.read_only()),
         on_engage: Callback::new(move |now: bool| {
-            if engaged.get_untracked() != now {
-                engaged.set(now);
-            }
+            engaged.set(now);
         }),
     };
 
@@ -843,9 +839,7 @@ fn Scrolling(
     );
     let autoscroll = gestures::autoscroll(move |gesture: AutoscrollGesture| {
         let marking = (!gesture.ended).then_some(gesture.origin);
-        if origin.get_untracked() != marking {
-            origin.set(marking);
-        }
+        origin.set(marking);
         motion.value().autoscroll(gesture);
     });
     edge_scroll(
@@ -915,9 +909,7 @@ fn Scrolling(
                         let at_edge = bar_width > 0.0
                             && position.get_untracked().max_offset() > 0.0
                             && near_edge(direction.get_untracked(), press, bar_width);
-                        if near.get_untracked() != at_edge {
-                            near.set(at_edge);
-                        }
+                        near.set(at_edge);
                     }}
                     on_hover_change={move |inside: bool| {
                         if !inside && near.get_untracked() {

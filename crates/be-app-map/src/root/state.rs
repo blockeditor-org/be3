@@ -308,9 +308,7 @@ impl MapState {
         let centre = host.to_canvas(self.screen_rect().center());
         let zoom = super::tiles::tile_zoom(world, host.scale);
         let anchor = world.tile_anchor(zoom, centre);
-        if self.anchor.get_untracked() != anchor {
-            self.anchor.set(anchor);
-        }
+        self.anchor.set(anchor);
     }
 
     pub(crate) fn label_of(&self, block: Uuid) -> Ready<BlockLabel> {
@@ -428,9 +426,7 @@ impl MapState {
         let view = self.view();
         let visible = untrack(|| self.visible());
         let region = view.region(visible);
-        if self.visible_region.get_untracked() != region {
-            self.visible_region.set(region);
-        }
+        self.visible_region.set(region);
         inner.view_center.set(view.coordinate(visible.center()));
         if self.sized()
             && self.host_camera().is_some()

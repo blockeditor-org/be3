@@ -66,9 +66,7 @@ pub fn watch_block_label(
             automatic: label.automatic,
             resolved,
         };
-        if shown.get_untracked() != display {
-            shown.set(display);
-        }
+        shown.set(display);
     });
     shown.read_only()
 }

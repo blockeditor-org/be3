@@ -845,9 +845,7 @@ fn drag(state: State, autoscroll: Signal<bool>, press: PointerPress) {
     let pos = match state.0.value().region.try_get() {
         Some(region) => {
             let beyond = scroll_toward(region, press.pos, AUTOSCROLL_RATE);
-            if autoscroll.get_untracked() != beyond.scrolled {
-                autoscroll.set(beyond.scrolled);
-            }
+            autoscroll.set(beyond.scrolled);
             beyond.inside
         }
         None => press.pos,

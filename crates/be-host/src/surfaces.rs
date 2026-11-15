@@ -90,9 +90,7 @@ pub(crate) fn apply() {
     for id in HOSTING {
         let hosted = hosted(id);
         let region = declared.regions.get(&id).cloned();
-        if hosted.region.with_untracked(|held| *held != region) {
-            hosted.region.set(region);
-        }
+        hosted.region.set(region);
     }
 }
 

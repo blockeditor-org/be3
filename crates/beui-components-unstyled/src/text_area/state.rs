@@ -349,9 +349,7 @@ impl TextAreaState {
     fn sync_selected(&self) {
         let inner = self.0.value();
         let selected = inner.core.borrow().selected();
-        if inner.selected.get_untracked() != selected {
-            inner.selected.set(selected);
-        }
+        inner.selected.set(selected);
     }
 
     pub fn set_show_runs(&self, shown: bool) {

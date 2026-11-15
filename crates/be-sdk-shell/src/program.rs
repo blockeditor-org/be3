@@ -379,9 +379,7 @@ impl Workspace {
             if stale || !gone.is_empty() || !rebound.is_empty() {
                 self.heard.update(|heard| heard.retain(|tab, _| kept(tab)));
             }
-            if programs != self.programs.get_untracked() {
-                self.programs.set(programs);
-            }
+            self.programs.set(programs);
         });
     }
 
@@ -633,9 +631,7 @@ impl Workspace {
     /// Set from the host's `PowerAvailability::ending`. The programs are asked to close only after
     /// that is published, so every window that closes during the ending is kept as a placeholder.
     pub fn keep_through_ending(&self, ending: bool) {
-        if self.ending.get_untracked() != ending {
-            self.ending.set(ending);
-        }
+        self.ending.set(ending);
     }
 
     pub fn placeholder_openable(&self, tab: TabId) -> Memo<bool> {

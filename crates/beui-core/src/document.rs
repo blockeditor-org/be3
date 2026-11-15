@@ -778,30 +778,22 @@ impl Document {
     }
 
     pub fn set_modifiers(&self, modifiers: Modifiers) {
-        if self.modifiers.get_untracked() != modifiers {
-            self.modifiers.set(modifiers);
-        }
+        self.modifiers.set(modifiers);
     }
 
     fn run_timers(&self) {
         let scale = self.pixels_per_point();
-        if self.scale.get_untracked() != scale {
-            self.scale.set(scale);
-        }
+        self.scale.set(scale);
         let fullscreen = self
             .viewport
             .as_ref()
             .is_some_and(|(ctx, _, _)| ctx.fullscreen());
-        if self.fullscreen.get_untracked() != fullscreen {
-            self.fullscreen.set(fullscreen);
-        }
+        self.fullscreen.set(fullscreen);
         let size = self
             .viewport
             .as_ref()
             .map_or(Vec2::ZERO, |(_, rect, _)| rect.size());
-        if self.viewport_size.get_untracked() != size {
-            self.viewport_size.set(size);
-        }
+        self.viewport_size.set(size);
         let reattached = self.reattached.replace(false);
         if reattached {
             self.attached.update(|attached| *attached += 1);
@@ -1074,9 +1066,7 @@ impl Document {
                 }
                 document.theme.set(preferences.theme);
             }
-            if document.canvas_touch.get_untracked() != preferences.canvas_touch {
-                document.canvas_touch.set(preferences.canvas_touch);
-            }
+            document.canvas_touch.set(preferences.canvas_touch);
         });
     }
 

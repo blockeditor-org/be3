@@ -297,9 +297,7 @@ pub(crate) fn WindowChips(
     let measured = measure(row.get());
     create_effect(move || {
         let width = measured.with(|measured| measured.map(|measured| measured.size.x));
-        if width != room.get_untracked() {
-            room.set(width);
-        }
+        room.set(width);
     });
     view! {
         <List direction align=Align::Center spacing=CHIP_SPACING @test_id={"desktop.windows"}>

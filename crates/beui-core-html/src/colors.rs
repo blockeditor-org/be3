@@ -13,9 +13,7 @@ fn defined() -> Signal<ColorDefinitions> {
 
 pub fn set_definitions(definitions: ColorDefinitions) {
     let defined = defined();
-    if defined.get_untracked() != definitions {
-        defined.set(definitions);
-    }
+    defined.set(definitions);
 }
 
 pub fn definitions() -> ReadSignal<ColorDefinitions> {

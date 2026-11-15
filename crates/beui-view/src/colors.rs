@@ -48,7 +48,7 @@ fn registry() -> Registry {
     let changed = CURRENT.with(|current| {
         current
             .replace(Some(registry))
-            .is_none_or(|held| !held.defined.ptr_eq(&registry.defined))
+            .is_none_or(|held| held.defined != registry.defined)
     });
     if changed {
         CHOSEN.with(|chosen| chosen.update(|chosen| *chosen += 1));

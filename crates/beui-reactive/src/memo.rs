@@ -65,6 +65,12 @@ impl<T> PartialEq for Memo<T> {
 
 impl<T> Eq for Memo<T> {}
 
+impl<T> std::fmt::Debug for Memo<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Memo").field(&self.key).finish()
+    }
+}
+
 impl<T: 'static> Get<T> for Memo<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();

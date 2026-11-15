@@ -1251,9 +1251,7 @@ impl CanvasState {
     }
 
     pub(crate) fn focus_editor(&self, entity: Option<Uuid>) {
-        if self.focused_editor.get_untracked() != entity {
-            self.focused_editor.set(entity);
-        }
+        self.focused_editor.set(entity);
         if entity.is_none() {
             self.cells.value().confirmed_editor.set(None);
         }
@@ -1382,9 +1380,7 @@ impl CanvasState {
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
-        if self.pointer.get_untracked() != at {
-            self.pointer.set(at);
-        }
+        self.pointer.set(at);
     }
 
     pub(crate) fn hold_pointer(&self, down: bool) {
@@ -1561,9 +1557,7 @@ impl CanvasState {
             .entities
             .get_untracked(member)
             .and_then(|entity| entity.group_id);
-        if self.entered_group.get_untracked() != group {
-            self.entered_group.set(group);
-        }
+        self.entered_group.set(group);
         self.selection.set(HashSet::from([member]));
     }
 
@@ -3164,9 +3158,7 @@ impl CanvasState {
                 });
             }
         }
-        if self.presence.get_untracked() != presence {
-            self.presence.set(presence);
-        }
+        self.presence.set(presence);
     }
 
     fn resize_first_frame(&self, size: Vec2) {

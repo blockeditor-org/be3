@@ -128,9 +128,7 @@ impl super::State {
             seen.push(child);
             current = Some(child);
         }
-        if current != self.dialog_focus.get_untracked() {
-            self.dialog_focus.set(current);
-        }
+        self.dialog_focus.set(current);
     }
 
     pub(super) fn release_dialog_focus(&self) {

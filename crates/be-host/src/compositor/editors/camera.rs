@@ -325,9 +325,7 @@ pub(super) fn Camera(
             content_size.get_untracked(),
             max_zoom,
         );
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     };
     let owner = use_context::<CameraOwner>();
     let command = move |command: Command| {
@@ -339,9 +337,7 @@ pub(super) fn Camera(
         }
         let mut state = viewport.get_untracked();
         settle(&mut state, command, viewport_rect.get_untracked(), max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     };
     if zoomable {
         provide_context(CameraOwner(Callback::new(command)));
@@ -355,9 +351,7 @@ pub(super) fn Camera(
         let area = fitted.get().filter(|_| fits.get());
         let mut state = viewport.get_untracked();
         follow(&mut state, area, rect, content, max_zoom);
-        if state != viewport.get_untracked() {
-            viewport.set(state);
-        }
+        viewport.set(state);
     });
     let pan_drags = create_signal(0u64);
     let changed = view_changed(&app_id.value(), instance);

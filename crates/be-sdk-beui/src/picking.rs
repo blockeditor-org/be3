@@ -158,9 +158,7 @@ fn PickerPopover(editor: Editor, picking: Picking) -> NodeId {
             sized.set(true);
         }
         let carded = state.card && !sheet;
-        if card.get_untracked() != carded {
-            card.set(carded);
-        }
+        card.set(carded);
         if let Some(error) = state.error.clone() {
             return editor.finish_pick(serial, Err(Failure::Failed(error)));
         }

@@ -302,9 +302,7 @@ impl DesktopHost for Win32 {
             if signals.snapshot.get_untracked().revision != snapshot.revision {
                 signals.snapshot.set(snapshot);
             }
-            if signals.notes.get_untracked() != NOTED.get() {
-                signals.notes.set(NOTED.get());
-            }
+            signals.notes.set(NOTED.get());
             for (signal, drawing) in frames {
                 signal.set(drawing);
             }

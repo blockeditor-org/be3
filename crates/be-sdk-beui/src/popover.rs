@@ -147,9 +147,7 @@ fn AnchoredPopover(
     });
     create_effect(move || {
         let room = room.get();
-        if room_out.get_untracked() != Some(room) {
-            room_out.set(Some(room));
-        }
+        room_out.set(Some(room));
     });
     let shown = create_memo(move || size.get().min(room.get()).max(Vec2::ZERO));
     let width = create_memo(move || Size::Custom(shown.get().x));

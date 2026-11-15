@@ -2,6 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
+use crate::arena::{self, Key};
 use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
 };
@@ -371,10 +372,61 @@ impl Computation {
     }
 }
 
-/// A handle to an effect. Dropping it does not stop the effect; its scope owns it.
-#[derive(Clone)]
+/// A handle to an effect or binding: a `Copy` key, like every reactive handle. The scope
+/// that made the effect owns it; the handle only stops it early.
 pub struct Effect {
-    computation: Rc<Computation>,
+    key: Option<Key>,
+}
+
+impl Clone for Effect {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl Copy for Effect {}
+
+impl PartialEq for Effect {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl Eq for Effect {}
+
+impl std::fmt::Debug for Effect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Effect").field(&self.key).finish()
+    }
+}
+
+impl Effect {
+    fn of(computation: &Rc<Computation>) -> Self {
+        Self {
+            key: Some(arena::insert_owned(Rc::new(Rc::downgrade(computation)))),
+        }
+    }
+
+    /// A handle to nothing: a binding that read nothing made no computation.
+    fn none() -> Self {
+        Self { key: None }
+    }
+
+    fn computation(&self) -> Option<Rc<Computation>> {
+        arena::get::<Weak<Computation>>(self.key?)?.upgrade()
+    }
+
+    /// Stops it now, as disposing its scope would. Does nothing once it has stopped.
+    pub fn dispose(&self) {
+        if let Some(computation) = self.computation() {
+            defer(|| computation.dispose());
+        }
+    }
+
+    pub fn is_disposed(&self) -> bool {
+        self.computation()
+            .is_none_or(|computation| computation.is_disposed())
+    }
 }
 
 /// Queues a first run, then reruns after any tracked input changes, with writes coalesced
@@ -392,22 +444,23 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    Effect { computation }
+    Effect::of(&computation)
 }
 
 /// An effect whose first run happens now, as a memo's does, instead of being queued. A
-/// first run that reads nothing costs only the closure: no computation is made.
+/// first run that reads nothing costs only the closure: no computation is made, and the
+/// handle it returns is already disposed.
 ///
 /// Each binding still costs a probe, so props applied together share one binding. Unlike
 /// an effect, a binding runs while its scope's effects are paused by
 /// `Scope::pausable_effects`, so a hidden `Loading` content still builds its tree.
-pub fn create_binding(mut binding: impl FnMut() + 'static) {
+pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
     let probed = probe(false, &mut binding);
     if probed.constant() {
         if let Some(owner) = probed.owner {
             owner.dispose();
         }
-        return;
+        return Effect::none();
     }
     let computation = Computation::new(None, move || {
         binding();
@@ -415,14 +468,5 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
     });
     computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
-}
-
-impl Effect {
-    pub fn dispose(&self) {
-        defer(|| self.computation.dispose());
-    }
-
-    pub fn is_disposed(&self) -> bool {
-        self.computation.is_disposed()
-    }
+    Effect::of(&computation)
 }

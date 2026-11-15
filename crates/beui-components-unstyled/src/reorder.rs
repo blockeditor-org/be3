@@ -447,9 +447,7 @@ where
     P: Clone + PartialEq + 'static,
 {
     let frames = stored.with(|state| {
-        if state.visited.get_untracked() != visited {
-            state.visited.set(visited);
-        }
+        state.visited.set(visited);
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {

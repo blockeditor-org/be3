@@ -416,9 +416,7 @@ pub fn pan_zoom(
                 let pinch = pinch.borrow();
                 pinch.middle.is_some() || pinch.pinching
             };
-            if panning.get_untracked() != now {
-                panning.set(now);
-            }
+            panning.set(now);
         }
     };
     let flush = {

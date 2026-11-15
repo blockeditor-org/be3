@@ -287,9 +287,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
                 pos2(reach.max.x + margin, reach.max.y + margin),
             )
         });
-        if bounds.get_untracked() != reach {
-            bounds.set(reach);
-        }
+        bounds.set(reach);
         overlay.camera =
             CanvasView::from_corner(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
         if shown.borrow().as_ref() == Some(&overlay) {

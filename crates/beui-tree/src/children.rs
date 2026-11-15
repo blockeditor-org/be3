@@ -673,9 +673,7 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
                         .find_map(|row| row.take_if(|(built, ..)| Rc::ptr_eq(built, &item)));
                     match kept {
                         Some(row) => {
-                            if row.3.get_untracked() != index {
-                                row.3.set(index);
-                            }
+                            row.3.set(index);
                             next.push(row);
                         }
                         None => {

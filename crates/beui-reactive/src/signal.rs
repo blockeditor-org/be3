@@ -187,15 +187,18 @@ pub trait Set<T> {
     /// notifies only the fields that differ, and nothing if the closure panics.
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
 
-    /// Notifies only when the value differs. Does nothing on a freed signal, since nothing
-    /// can read the value.
+    /// Notifies only when the value differs, so a caller never compares first: an equal
+    /// value wakes nothing. Does nothing on a freed signal, since nothing can read the
+    /// value.
     fn set(&self, value: T)
     where
         T: PartialEq;
 }
 
 /// A readable and writable source, owned by the scope it was created in. `Copy` whatever
-/// `T` is. Reading it after that scope is disposed panics; writing it does nothing.
+/// `T` is, and equal to another handle when both name the same signal. Reading it after
+/// that scope is disposed panics; writing it does nothing. `set` skips a value equal to the
+/// one it holds; `set_unconditionally` and `update` always notify.
 pub struct Signal<T> {
     key: Key,
     ty: PhantomData<*const T>,
@@ -289,6 +292,35 @@ impl<T> Clone for ReadSignal<T> {
 
 impl<T> Copy for ReadSignal<T> {}
 
+/// Two handles are equal when they name the same signal.
+impl<T> PartialEq for Signal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for Signal<T> {}
+
+impl<T> PartialEq for ReadSignal<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+}
+
+impl<T> Eq for ReadSignal<T> {}
+
+impl<T> std::fmt::Debug for Signal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Signal").field(&self.key).finish()
+    }
+}
+
+impl<T> std::fmt::Debug for ReadSignal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ReadSignal").field(&self.key).finish()
+    }
+}
+
 impl<T: 'static> Get<T> for Signal<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();
@@ -367,10 +399,6 @@ impl<T: 'static> Signal<T> {
         is_alive::<T>(self.key)
     }
 
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-
     #[cfg(test)]
     pub(crate) fn subscribers(&self) -> usize {
         stored::<T>(self.key).source.subscribers.borrow().len()
@@ -380,10 +408,6 @@ impl<T: 'static> Signal<T> {
 impl<T: 'static> ReadSignal<T> {
     pub fn is_alive(&self) -> bool {
         is_alive::<T>(self.key)
-    }
-
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
     }
 }
 

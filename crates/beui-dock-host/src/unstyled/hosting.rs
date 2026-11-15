@@ -235,9 +235,7 @@ impl DockHostLayout {
     /// Says something outside covers the dock, so its floating dock bars drop from `LayerLevel::Raised`
     /// to `Normal` under it, as they do under a fullscreen tab.
     pub fn set_covered(&self, covered: bool) {
-        if self.covered.get_untracked() != covered {
-            self.covered.set(covered);
-        }
+        self.covered.set(covered);
     }
 
     /// Lets the band of the dock's own bars along each edge hide until revealed (`reveal`): the
@@ -415,9 +413,7 @@ impl DockHostLayout {
         next.adopt_bar_placements(&current, &bar_key);
         let hosts: Vec<TabId> = structure.hosts.iter().map(|(host, _, _)| *host).collect();
         let held = self.inner().hosts;
-        if held.with_untracked(|held| *held != hosts) {
-            held.set(hosts);
-        }
+        held.set(hosts);
         if next != current {
             self.state.set(next);
         }
