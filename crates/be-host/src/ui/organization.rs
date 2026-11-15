@@ -31,12 +31,11 @@ fn OrganizationBody(view: HostUiStore) -> NodeId {
     let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
     let presenting = view.presenting;
-    let normal = create_memo(move || !presenting.get());
     let status = create_memo(move || view.status.get());
     provide_context(HostStatus(status));
     view! {
         <List spacing=Space::None>
-            <Show condition={normal}>
+            <Show condition={move || !presenting.get()}>
                 <ListItem grow=1.0>
                     <MainSurface />
                 </ListItem>
@@ -124,7 +123,7 @@ fn HostMenu(
     let company = create_memo(move || status.get().company);
     let administrator = create_memo(move || status.get().administrator);
     let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
-    let warned = create_memo(move || !escrow_warning.get().is_empty());
+    let warned = create_memo(move || !escrow_warning.with(String::is_empty));
     let items = view! {
         <MenuItem
             row_test_id={"host.menu.status".to_owned()}

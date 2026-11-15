@@ -23,7 +23,6 @@ pub(crate) fn DeletedBar(
                 .and_then(|info| info.deleted.clone())
         })
     });
-    let shown = create_memo(move || deleted.with(Option::is_some));
     let caption = create_memo(move || {
         deleted.with(
             |deleted| match deleted.as_ref().and_then(|deleted| deleted.inside.as_ref()) {
@@ -42,7 +41,7 @@ pub(crate) fn DeletedBar(
         })
     });
     view! {
-        <Show condition={shown}>
+        <Show condition={move || deleted.with(Option::is_some)}>
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}

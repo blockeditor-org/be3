@@ -219,9 +219,7 @@ pub(crate) fn BlockPanel(
         item.block_type
             == <be_sdk_beui::be_block_content::EditorViewContent as be_sdk_beui::be_block_content::BlockContent>::CONTENT_TYPE
     });
-    let preview = create_memo(move || preview.get());
-    let previewing = create_memo(move || preview.get().is_some());
-    let live = create_memo(move || !previewing.get());
+    let previewing = create_memo(move || preview.with(Option::is_some));
     let child_menu = create_signal(Vec::<MenuNode>::new());
     dock_menu(create_memo(move || {
         let nodes = child_menu.get();
@@ -247,47 +245,39 @@ pub(crate) fn BlockPanel(
     view! {
         <Frame>
             <List spacing=Space::None>
-                <Show condition={!session}>
+                {(!session).then(|| view! {
                     <ArtifactBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
                     <DeletedBar workspace={workspace} info={info.read_only()} />
-                </Show>
-                <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info.read_only()} />
-                </Show>
+                })}
                 <TabBar bar={move || bar.call(())} own=true />
-                <Show keep_alive=true condition={live}>
-                    <ListItem grow=1.0>
-                        <List spacing=Space::None>
-                            <Dynamic value={content}>|content: Content| {
-                                match content {
-                                    Content::Denied => view! {
-                                        <ListItem grow=1.0>
-                                            <AccessDenied info={info.read_only()} />
-                                        </ListItem>
-                                    },
-                                    Content::OutOfReach => view! {
-                                        <ListItem grow=1.0>
-                                            <OutOfReach />
-                                        </ListItem>
-                                    },
-                                    Content::Block => view! {
-                                        <ListItem grow=1.0>
-                                            <BlockChild
-                                                editor={editor}
-                                                info={info.read_only()}
-                                                menu={child_menu}
-                                                docked_tab
-                                                top_bar={top_bar}
-                                                on_details={on_details}
-                                            />
-                                        </ListItem>
-                                    },
-                                }
-                            }</Dynamic>
-                        </List>
-                    </ListItem>
+                <Show keep_alive=true condition={move || !previewing.get()}>
+                    <Dynamic value={content}>|content: Content| {
+                        match content {
+                            Content::Denied => view! {
+                                <ListItem grow=1.0>
+                                    <AccessDenied info={info.read_only()} />
+                                </ListItem>
+                            },
+                            Content::OutOfReach => view! {
+                                <ListItem grow=1.0>
+                                    <OutOfReach />
+                                </ListItem>
+                            },
+                            Content::Block => view! {
+                                <ListItem grow=1.0>
+                                    <BlockChild
+                                        editor={editor}
+                                        info={info.read_only()}
+                                        menu={child_menu}
+                                        docked_tab
+                                        top_bar={top_bar}
+                                        on_details={on_details}
+                                    />
+                                </ListItem>
+                            },
+                        }
+                    }</Dynamic>
                 </Show>
                 <Show condition={previewing}>
                     <ListItem grow=1.0>
@@ -384,15 +374,11 @@ fn DockedBlockTab(
     }));
     view! {
         <List spacing=Space::None>
-            <Show condition={!session}>
+            {(!session).then(|| view! {
                 <ArtifactBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
                 <DeletedBar workspace={workspace} info={info} />
-            </Show>
-            <Show condition={!session}>
                 <LinkedBar workspace={workspace} info={info} />
-            </Show>
+            })}
             <TabBar bar={move || bar.call(())} own />
             <ListItem grow=1.0>
                 <Layers @test_id={"workspace.block"}>{body}</Layers>

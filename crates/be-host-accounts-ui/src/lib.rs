@@ -19,11 +19,10 @@ pub struct AccountRow {
 
 #[component]
 pub fn ErrorText(text: Memo<Option<String>>) -> NodeId {
-    let shown = create_memo(move || text.get().is_some());
     let content = create_memo(move || text.get().unwrap_or_default());
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show condition={move || text.get().is_some()}>
                 <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{content}</Text>
             </Show>
         </List>
@@ -62,7 +61,6 @@ pub fn AccountsScreen(
             .map(|account| account.key)
             .collect::<Vec<_>>()
     });
-    let empty = create_memo(move || accounts.get().is_empty());
     view! {
         <Column>
             <Text style=TextStyle::TITLE>"be-host"</Text>
@@ -79,7 +77,7 @@ pub fn AccountsScreen(
                     <AccountCard account on_open on_choose_organization on_log_out />
                 }
             }</ForEach>
-            <Show condition={empty}>
+            <Show condition={move || accounts.get().is_empty()}>
                 <Card>
                     <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
                 </Card>
@@ -104,10 +102,6 @@ fn AccountCard(
 ) -> NodeId {
     let name = create_memo(move || account.get().name);
     let key = create_memo(move || account.get().key);
-    let open_hint = create_memo(move || match account.get().has_last_organization {
-        true => "Open the last organization used".to_owned(),
-        false => "Choose an organization".to_owned(),
-    });
     view! {
         <Card>
             <List spacing=Space::Sm>
@@ -123,7 +117,7 @@ fn AccountCard(
                         @test_id={format!("account.options.{}", name.get_untracked())}
                         items={view! {
                             <MenuItem
-                                label={create_memo(move || leave_label(account.get().local).to_owned())}
+                                label={move || leave_label(account.get().local).to_owned()}
                                 on_click={move || on_log_out.call(key.get_untracked())}
                             />
                         }}
@@ -136,7 +130,12 @@ fn AccountCard(
                     justify=Justify::End
                     spacing=Space::Xs
                 >
-                    <Tooltip label={open_hint}>
+                    <Tooltip
+                        label={move || match account.get().has_last_organization {
+                            true => "Open the last organization used".to_owned(),
+                            false => "Choose an organization".to_owned(),
+                        }}
+                    >
                         <Button
                             label="Open"
                             variant=ButtonVariant::Primary
@@ -166,10 +165,9 @@ pub fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
         false => ICON_CLOUD,
     });
     let seen_by = create_memo(move || administrators_note(&account.get().companies));
-    let seen = create_memo(move || !seen_by.get().is_empty());
     view! {
         <List spacing=Space::Xs2>
-            <Show condition={create_memo(move || !email.get().is_empty())}>
+            <Show condition={move || !email.get().is_empty()}>
                 <Text style=TextStyle::CAPTION>{email}</Text>
             </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
@@ -178,7 +176,7 @@ pub fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
                 </Text>
                 <Text style=TextStyle::CAPTION>{server}</Text>
             </List>
-            <Show condition={seen}>
+            <Show condition={move || !seen_by.get().is_empty()}>
                 <Text style=TextStyle::CAPTION>{seen_by}</Text>
             </Show>
         </List>

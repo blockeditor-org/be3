@@ -45,7 +45,7 @@ pub fn FailedPane(error: String) -> NodeId {
 #[component]
 pub fn Loaded(
     #[prop(default = "Loading".to_owned())] label: Prop<String>,
-    #[prop(children)] content: Render<()>,
+    #[prop(children)] content: Render<(), Child>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let fallback = move |pending: Pending| match pending {
@@ -57,8 +57,6 @@ pub fn Loaded(
         },
     };
     view! {
-        <Layers>
-            <Loading fallback>|| { content.call(()) }</Loading>
-        </Layers>
+        <Loading fallback>|| { content.call(()) }</Loading>
     }
 }

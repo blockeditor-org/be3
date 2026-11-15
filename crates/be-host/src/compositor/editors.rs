@@ -850,7 +850,6 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
             .and_then(|comparison| comparison.error)
             .unwrap_or_default()
     });
-    let failed = create_memo(move || !error.get().is_empty());
     view! {
         <Dialog
             open={open}
@@ -880,7 +879,7 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show condition={failed}>
+                <Show condition={move || !error.with(String::is_empty)}>
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -911,11 +910,6 @@ fn ConflictSide(
         Some((comparison.block, preview))
     });
     let block = create_memo(move || shown.get().map(|(block, _)| block));
-    let ready = create_memo(move || {
-        shown
-            .get()
-            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
-    });
     view! {
         <List @test_id={side_id} spacing=Space::Md>
             <Text style=TextStyle::HEADING>{title}</Text>
@@ -925,32 +919,34 @@ fn ConflictSide(
                 border={Border::DEFAULT}
                 radius=Radius::Md
             >
-                <Layers>
-                    <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
-                        match shown.and_then(|(_, preview)| preview) {
-                            None => view! {
-                                <Frame align=beui::Align::Center>
-                                    <Progress width=INLINE_PROGRESS_WIDTH />
-                                </Frame>
-                            },
-                            Some(Err(error)) => view! {
-                                <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
-                                    <Text color=TextColor::Muted>{error}</Text>
-                                </Frame>
-                            },
-                            Some(Ok(preview)) => view! {
-                                <ConflictPreview preview />
-                            },
-                        }
-                    }</Dynamic>
-                </Layers>
+                <Dynamic value={shown}>|shown: Option<(Uuid, Option<Result<Uuid, String>>)>| {
+                    match shown.and_then(|(_, preview)| preview) {
+                        None => view! {
+                            <Frame align=beui::Align::Center>
+                                <Progress width=INLINE_PROGRESS_WIDTH />
+                            </Frame>
+                        },
+                        Some(Err(error)) => view! {
+                            <Frame align=beui::Align::Center padding={Padding::all(Space::Lg)}>
+                                <Text color=TextColor::Muted>{error}</Text>
+                            </Frame>
+                        },
+                        Some(Ok(preview)) => view! {
+                            <ConflictPreview preview />
+                        },
+                    }
+                }</Dynamic>
             </Frame>
             <List direction=Direction::Horizontal spacing=Space::Md>
                 <Button
                     @test_id={format!("{side_id}.keep")}
                     label="Use this version"
                     variant=ButtonVariant::Secondary
-                    disabled={create_memo(move || !ready.get())}
+                    disabled={move || {
+                        !shown
+                            .get()
+                            .is_some_and(|(_, preview)| matches!(preview, Some(Ok(_))))
+                    }}
                     on_click={move || {
                         if let Some(block) = block.get_untracked() {
                             be_host_stack::conflicts::keep(block, side);
@@ -1055,7 +1051,7 @@ fn TabFrame(
 ) -> NodeId {
     view! {
         <FrameStack block top_bar holds=Prop::Static(true)>|stack: Memo<Vec<Uuid>>| {
-            let chrome = create_memo(move || match stack.get().is_empty() {
+            let chrome = create_memo(move || match stack.with(Vec::is_empty) {
                 true => Chrome::Drawn,
                 false => Chrome::None,
             });
@@ -1291,39 +1287,39 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
         be_host_desktop::programs::shown(block)
     });
     view! {
-        <Layers>
-            <Dynamic value={shown}>|shown: Option<be_host_desktop::programs::Shown>| {
-                match shown {
-                    Some(be_host_desktop::programs::Shown::Window(window)) => view! {
-                        <PlacedWindow window={window} focus />
-                    },
-                    Some(be_host_desktop::programs::Shown::Closed(name)) => view! {
-                        <ProgramClosed name block />
-                    },
-                    Some(be_host_desktop::programs::Shown::Failed(problem)) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: problem,
-                                busy: false,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                    Some(be_host_desktop::programs::Shown::Opening(name)) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: format!("Opening in {name}…"),
-                                busy: true,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                    None => view! {
-                        <Frame />
-                    },
-                }
-            }</Dynamic>
-        </Layers>
+        <Dynamic
+            value={shown}
+            fallback={|| view! {
+                <Frame />
+            }}
+        >|shown: be_host_desktop::programs::Shown| {
+            match shown {
+                be_host_desktop::programs::Shown::Window(window) => view! {
+                    <PlacedWindow window={window} focus />
+                },
+                be_host_desktop::programs::Shown::Closed(name) => view! {
+                    <ProgramClosed name block />
+                },
+                be_host_desktop::programs::Shown::Failed(problem) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: problem,
+                            busy: false,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+                be_host_desktop::programs::Shown::Opening(name) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: format!("Opening in {name}…"),
+                            busy: true,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+            }
+        }</Dynamic>
     }
 }
 
@@ -1513,7 +1509,7 @@ fn BlockFrameView(
     provide_context(nesting.within(editors().block(block), access));
     let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
-    let framed = create_memo(move || content.get().is_some());
+    let framed = create_memo(move || content.with(Option::is_some));
     create_effect(move || {
         let _ = framed.get();
         be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
@@ -1551,7 +1547,7 @@ fn BlockFrameView(
         <Camera spec content fits={fits}>|camera: CameraView| {
             let CameraView { view: editor_view, pan_drag, rect } = camera;
             let placed_zoom = create_memo(move || {
-                if zoomable || !embedded || content.get().is_some() {
+                if zoomable || !embedded || content.with(Option::is_some) {
                     return 1.0;
                 }
                 revision.get();
@@ -2068,7 +2064,7 @@ fn follow_window(
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
     let held = StoredCell::new(false);
     create_effect(move || {
-        let given = given.get() && window.get().is_some();
+        let given = given.get() && window.with(Option::is_some);
         if !held.replace(given) && given {
             untrack(|| asks.update(|asks| *asks += 1));
         }
@@ -2083,7 +2079,7 @@ fn follow_window(
             .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
-        if !asked.get() || window.get().is_none() {
+        if !asked.get() || window.with(Option::is_none) {
             return;
         }
         untrack(|| {
@@ -2166,7 +2162,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
             let view_editor = view_editor.clone();
             let frame = create_memo(move || {
                 holds.get().then(|| FrameSpec {
-                    chrome: match stack.get().is_empty() {
+                    chrome: match stack.with(Vec::is_empty) {
                         true => FrameChrome::Drawn,
                         false => FrameChrome::None,
                     },
@@ -2202,12 +2198,12 @@ fn CreationSurface(hosted: HostedView, dialog: Memo<Option<DialogFrame>>) -> Nod
         <AppView
             editor={hosted.editor}
             region={hosted.region}
-            frame={Prop::dynamic(move || {
+            frame={move || {
                 frame.map(|frame| FrameSpec {
                     dialog: dialog.get(),
                     ..frame
                 })
-            })}
+            }}
             child_view
         />
     }

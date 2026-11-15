@@ -337,15 +337,14 @@ fn PreviewPicture(
         ChildPreview::Image(image) => Some(crate::preview::picture(image, turn.get(), fade.get())),
         ChildPreview::Hosted | ChildPreview::Waiting | ChildPreview::Label => None,
     });
-    let labelled = create_memo(move || preview.get() == ChildPreview::Label);
     let target = create_memo(move || match placed.get() {
         Some(SubregionContent::Block(target)) => Some(target),
         _ => None,
     });
     view! {
         <Layers>
-            <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
-            <Show condition={labelled}>
+            <Drawing draw={move || draw_gpu(drawing.get())} />
+            <Show condition={move || preview.get() == ChildPreview::Label}>
                 <PreviewLabel editor={editor} target={target} />
             </Show>
         </Layers>
@@ -358,7 +357,6 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
     let name = create_memo(move || shown.with(|shown| shown.name.clone()));
     let italic = create_memo(move || shown.with(|shown| shown.automatic));
     let glyph = create_memo(move || shown.with(|shown| shown.glyph));
-    let has_glyph = create_memo(move || glyph.get().is_some());
     view! {
         <Frame
             fill=ColorRole::Surface
@@ -368,7 +366,7 @@ fn PreviewLabel(editor: Editor, target: Memo<Option<ChildTarget>>) -> NodeId {
             align=Align2::CENTER
         >
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={has_glyph}>
+                <Show condition={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=beui::TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>

@@ -15,10 +15,9 @@ impl BeuiRoot for ShortcutRoot {
         })
         .shortcut(Chord::ctrl(Key::Slash))
         .register();
-        let text = create_memo(move || pressed.get());
         view! {
             <Root>
-                <Text @test_id={"shortcut.pressed"}>{text}</Text>
+                <Text @test_id={"shortcut.pressed"}>{pressed}</Text>
             </Root>
         }
     }

@@ -149,11 +149,11 @@ pub fn WindowView(
                 inhibits_shortcuts={inhibits}
                 pointer_locked
                 ime={typing}
-                keyboard={create_memo(move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks }))}
+                keyboard={move || asks.get().map_or(beui::SoftKeyboard::OnFocus, |asks| beui::SoftKeyboard::Shown { asks })}
                 hit_area={takes}
             >
                 <Layers>
-                    <Drawing draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))} />
+                    <Drawing draw={move || draw_gpu(signals.drawing.get())} />
                     <Frame fill={dim} />
                 </Layers>
             </Interactive>
@@ -191,11 +191,11 @@ pub fn WindowView(
                                 hit_area={on_popup}
                             >
                                 <Drawing
-                                    draw={Prop::dynamic(move || {
+                                    draw={move || {
                                         draw_gpu(popups.with(|popups| {
                                             popups.as_ref().map(|popups| popups.drawing.clone())
                                         }))
-                                    })}
+                                    }}
                                 />
                             </Interactive>
                         }

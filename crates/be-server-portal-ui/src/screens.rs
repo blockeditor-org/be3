@@ -112,9 +112,9 @@ fn Brand(page: Shown) -> NodeId {
                     <Span color=TextColor::Muted>" account"</Span>
                 </Text>
             </ListItem>
-            <Show condition={elsewhere}>
+            {elsewhere.then(|| view! {
                 <PageLink label="Your account" href="/auth" />
-            </Show>
+            })}
         </List>
     }
 }
@@ -131,14 +131,14 @@ fn Footer(page: Shown) -> NodeId {
     let shows_sign_out = signed_in && page.read(|page| page.screen != Screen::Approve);
     view! {
         <List spacing=Space::Md align=Align::Center>
-            <Show condition={signed_in}>
+            {signed_in.then(|| view! {
                 <Text style=TextStyle::CAPTION align=TextAlign::Center>{who}</Text>
-            </Show>
-            <Show condition={shows_sign_out}>
+            })}
+            {shows_sign_out.then(|| view! {
                 <PortalForm action="/auth/logout" csrf={page.csrf()} code={page.code()}>
                     <Submit label="Sign out" variant=ButtonVariant::Ghost wide=false />
                 </PortalForm>
-            </Show>
+            })}
         </List>
     }
 }
@@ -151,46 +151,45 @@ fn Heading(
     #[prop(default = TextColor::Accent)] tone: TextColor,
 ) -> NodeId {
     let has_lead = !lead.is_empty();
-    let has_glyph = glyph.is_some();
     let title = fixed(title);
     let lead = fixed(lead);
     view! {
         <List spacing=Space::Sm>
-            <Show condition={has_glyph}>
+            {glyph.map(|glyph| view! {
                 <Text size=TextSize::Xl3 color={tone}>
-                    <Icon glyph={glyph} />
+                    <Icon glyph />
                 </Text>
-            </Show>
+            })}
             <Text style=TextStyle::TITLE weight=Weight::Bold>{title}</Text>
-            <Show condition={has_lead}>
+            {has_lead.then(|| view! {
                 <Text style=TextStyle::PARAGRAPH>{lead}</Text>
-            </Show>
+            })}
         </List>
     }
 }
 
 #[component]
-fn Notice(text: String, #[prop(default = false)] good: bool) -> DynamicSegment<ListItem> {
-    let shown = !text.is_empty();
+fn Notice(text: String, #[prop(default = false)] good: bool) -> Option<NodeId> {
+    if text.is_empty() {
+        return None;
+    }
     let text = fixed(text);
     let (fill, color, glyph) = match good {
         true => (ColorRole::AccentSoft, TextColor::Success, ICON_CIRCLE_CHECK),
         false => (ColorRole::DangerSoft, TextColor::Danger, ICON_CIRCLE_ALERT),
     };
-    view! {
-        <Show condition={shown}>
-            <Frame fill radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
-                <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
-                    <Text color>
-                        <Icon glyph />
-                    </Text>
-                    <ListItem grow=1.0>
-                        <Text>{text}</Text>
-                    </ListItem>
-                </List>
-            </Frame>
-        </Show>
-    }
+    Some(view! {
+        <Frame fill radius=Radius::Md padding={Padding::symmetric(Space::Md, Space::Sm)}>
+            <List direction=Direction::Horizontal align=Align::Start spacing=Space::Sm>
+                <Text color>
+                    <Icon glyph />
+                </Text>
+                <ListItem grow=1.0>
+                    <Text>{text}</Text>
+                </ListItem>
+            </List>
+        </Frame>
+    })
 }
 
 #[component]
@@ -446,22 +445,22 @@ fn SignIn(page: Shown) -> NodeId {
                         spacing=Space::Md
                     >
                         <PageLink label="Forgot your password?" href={page.here("/auth/forgot")} />
-                        <Show condition={registration}>
+                        {registration.then(|| view! {
                             <PageLink
                                 label="Create an account"
                                 href={page.here("/auth/register")}
                             />
-                        </Show>
+                        })}
                     </List>
                 </List>
             </Card>
-            <Show condition={entering}>
+            {entering.then(|| view! {
                 <CodeEntry
                     csrf={page.csrf()}
                     code
                     lead="Signing in on another device? Enter the code be-host shows you."
                 />
-            </Show>
+            })}
         </List>
     }
 }
@@ -558,7 +557,6 @@ fn Register(page: Shown) -> NodeId {
 
 #[component]
 fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
-    let shown = create_memo(move || !problem.get().is_empty());
     view! {
         <List spacing=Space::Xs>
             <Field
@@ -568,7 +566,7 @@ fn ConfirmField(value: Signal<String>, problem: Memo<String>) -> NodeId {
                 autocomplete="new-password"
                 value
             />
-            <Show condition={shown}>
+            <Show condition={move || !problem.with(String::is_empty)}>
                 <Text size=TextSize::Sm color=TextColor::Danger>{problem}</Text>
             </Show>
         </List>
@@ -859,11 +857,11 @@ fn Sessions(page: Shown) -> NodeId {
                     </ForEach>
                 </List>
             </Card>
-            <Show condition={others}>
+            {others.then(|| view! {
                 <PortalForm action="/auth/sessions/others" csrf={page.csrf()}>
                     <Submit label="Sign out all other sessions" variant=ButtonVariant::Danger />
                 </PortalForm>
-            </Show>
+            })}
         </List>
     }
 }
