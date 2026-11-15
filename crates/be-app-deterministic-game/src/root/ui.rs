@@ -203,7 +203,7 @@ pub(crate) fn Game(
         <List spacing=Space::None>
             <Keyed
                 value={snapshot}
-                key={|snapshot: GameSnapshot| snapshot.shape()}
+                key={|snapshot: &GameSnapshot| snapshot.shape()}
             >|snapshot: ReadSignal<GameSnapshot>|
                 <ListItem grow=1.0>
                     <GameShape editor game snapshot />

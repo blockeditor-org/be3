@@ -26,7 +26,7 @@ fn dynamic_and_keyed_show_their_fallback_while_the_value_is_none() {
                         fallback={|| view! {
                             <Element tag="i" text="none" />
                         }}
-                        key={|(id, _): (u32, String)| id}
+                        key={|(id, _): &(u32, String)| *id}
                     >|row: ReadSignal<(u32, String)>|
                         <Element tag="p" text={create_memo(move || row.get().1)} />
                     </Keyed>
