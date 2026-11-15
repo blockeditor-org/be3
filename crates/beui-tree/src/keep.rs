@@ -100,3 +100,19 @@ impl<K: Hash + Eq + Clone + 'static> KeepSet for Memo<Vec<K>> {
         }))
     }
 }
+
+/// Whether the kept subtree around the caller (a `Kept`, in `beui-view`) is shown, and every
+/// kept subtree around that: `None` outside any. What a kept subtree holds outside itself while
+/// hidden (a dock it joined) lets go by it, and takes back when it shows again.
+pub fn kept_shown() -> Option<Memo<bool>> {
+    beui_reactive::use_context::<KeptShown>().map(|KeptShown(shown)| shown)
+}
+
+/// What a `Kept` provides its subtree for `kept_shown()`.
+#[doc(hidden)]
+pub fn provide_kept_shown(shown: Memo<bool>) {
+    beui_reactive::provide_context(KeptShown(shown));
+}
+
+#[derive(Clone, Copy)]
+struct KeptShown(Memo<bool>);

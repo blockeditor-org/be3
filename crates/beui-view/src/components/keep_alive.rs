@@ -8,21 +8,10 @@ use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{
-    AnyKey, Get, Unwrapped, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set,
-    Signal, create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack,
-    use_context,
+    AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set, Signal,
+    Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup,
+    provide_kept_shown, untrack, use_context,
 };
-
-/// Whether a kept subtree, and every kept subtree around it, is shown: false while it is
-/// kept but shown nowhere. Outside any `Kept` it is always true.
-pub fn kept_shown() -> Memo<bool> {
-    use_context::<KeptShown>()
-        .map(|shown| shown.0)
-        .unwrap_or_else(|| create_memo(|| true))
-}
-
-#[derive(Clone, Copy)]
-struct KeptShown(Memo<bool>);
 
 struct Entry {
     node: NodeId,
@@ -115,7 +104,8 @@ where
 /// A subtree its `KeepAlive` keeps by `key` (without one, the one unkeyed subtree of that
 /// `KeepAlive`): built the first time, shown here through a portal, and kept, paused, after
 /// this `Kept` goes, until another `Kept` with that key shows it again. Inside it,
-/// `kept_shown()` says whether it is shown.
+/// `kept_shown()` says whether it is shown, so what it holds outside itself (a dock it
+/// joined) lets go while it is hidden.
 #[component]
 pub fn Kept<K>(key: K, #[prop(children)] content: Render<(), NodeId>) -> NodeId
 where
@@ -133,7 +123,7 @@ where
     let (node, borrower) = match found {
         Some((node, scope, borrower, held_around)) => {
             borrower.set(Some(me));
-            held_around.set(Some(around));
+            held_around.set(around);
             scope.resume();
             (node, borrower)
         }
@@ -147,13 +137,13 @@ where
                     .pausable(),
             );
             let borrower = create_signal_in(&scope, Some(me));
-            let held_around = create_signal_in(&scope, Some(around));
+            let held_around = create_signal_in(&scope, around);
             let node = scope.context().run(|| {
                 let shown = create_memo(move || {
                     borrower.get().is_some()
                         && held_around.get().is_none_or(|around| around.get())
                 });
-                provide_context(KeptShown(shown));
+                provide_kept_shown(shown);
                 content.call(())
             });
             cache.entries.borrow_mut().insert(

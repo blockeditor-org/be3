@@ -42,7 +42,7 @@ fn a_show_with_a_fallback_fills_a_single_child_slot_and_swaps_it() {
     assert_eq!(
         page.html(),
         "<div id=2><host id=0><p id=4>reading</p></host></div>",
-        "without `keep_alive` a branch is built again each time it shows"
+        "a branch is built again each time it shows"
     );
     drop(scope);
     assert_eq!(disposed.get(), 2);
