@@ -920,6 +920,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         forget_what_is_not_kept(&peer);
         resolve_through_graph(&peer, &shared);
         let tasks = Tasks::new();
+        let served = Served::default();
         let mut session = Session {
             config: &config,
             peer: &peer,
@@ -930,8 +931,8 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             wanted: Wanted::default(),
             replicas: &mut replicas,
             uploads: Uploads::new(&shared),
-            served: Served::default(),
-            versions: Versions::default(),
+            versions: Versions::sharing(served.objects()),
+            served,
             calls: {
                 let (calls, called) = tokio::sync::mpsc::unbounded_channel();
                 (
