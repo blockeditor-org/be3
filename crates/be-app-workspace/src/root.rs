@@ -2,7 +2,7 @@ use be_sdk_beui::be_block_content::EditorViewContent;
 use std::cell::Cell;
 
 use be_sdk_beui::be_block::{FILES_EDITOR, SettingsContent};
-use be_sdk_beui::be_block_content::{BlockContent, ViewState};
+use be_sdk_beui::be_block_content::{BlockContent, ViewRef, ViewStateKind};
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::dock::{
     DockEntry, DockMode, DockPane, DockSplit, DockTab, Docking, SplitSize, TabId,
@@ -23,6 +23,7 @@ use be_sdk_shell::{
     WindowDialog, Workspace, WorkspaceDialogs,
 };
 use beui::{Align, Key};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::phone::{DetailsSheet, PhoneSheet};
@@ -31,7 +32,13 @@ use crate::revisions::{RevisionHistory, RevisionHistoryPanel, RevisionPreviewBar
 pub(crate) const FILES: TabId = TabId::new(1);
 pub(crate) const SETTINGS: TabId = TabId::new(1 << 39);
 pub(crate) const REVISIONS: TabId = TabId::new((1 << 39) + 1);
-const FILES_VIEW: &str = "files";
+/// The view block of the files pane, kept so the pane reopens as it was left.
+#[derive(Deserialize, PartialEq, Serialize)]
+pub(crate) struct FilesView(ViewRef);
+
+impl ViewStateKind for FilesView {
+    const ID: Uuid = Uuid::from_u128(0x776f_726b_7370_6163_652d_6669_6c65_0001);
+}
 pub(crate) const FILES_WIDTH: f32 = 260.0;
 const PANEL_PADDING: Space = Space::Lg;
 const PANEL_SPACING: Space = Space::Sm;
@@ -70,7 +77,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
     });
     view! {
         <Loaded label="Loading the workspace">|| {
-            let _layout = editor.view_content();
+            workspace.wait_for_layout();
             view! {
                 <Container>|_|
                     <WorkspaceBody shell />
@@ -115,18 +122,20 @@ impl Shell {
         if !self.workspace.ready().get() {
             return;
         }
+        let editor = self.workspace.editor();
+        let kept = editor.view_state::<FilesView>();
+        let saved = match kept.get() {
+            Ok(saved) => saved.and_then(|saved| saved.0.block()),
+            Err(Pending::Loading) => return,
+            Err(Pending::Failed(_)) => None,
+        };
         untrack(|| {
             if self.files.get().is_some() {
                 return;
             }
-            let editor = self.workspace.editor();
-            let saved = editor
-                .view_state(FILES_VIEW)
-                .and_then(|state| state.refs.first().copied())
-                .filter(|id| !id.is_nil());
             let files = saved.or_else(|| {
                 let made = self.workspace.create_view(FILES_EDITOR, None)?;
-                editor.set_view_state(FILES_VIEW, Some(&ViewState::new(&(), vec![made])));
+                kept.set(Some(FilesView(ViewRef::new(made))));
                 Some(made)
             });
             self.files.set(files);

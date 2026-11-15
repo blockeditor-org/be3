@@ -152,6 +152,32 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
         for change in next.0 {
+            // A later stamped put to a key wins over an earlier one whatever else is merged, so
+            // the earlier is dropped: a burst of writes to one view state is one put.
+            if let Change::Stamp {
+                object,
+                field,
+                key,
+                stamped,
+            } = &change
+            {
+                operation.0.retain(|held| match held {
+                    Change::Stamp {
+                        object: held_object,
+                        field: held_field,
+                        key: held_key,
+                        stamped: held_stamped,
+                    } if held_object == object && held_field == field && held_key == key => {
+                        // Dropping the earlier is right only because the later wins over it.
+                        debug_assert!(
+                            stamped.stamp >= held_stamped.stamp,
+                            "a later put to a key carries a later stamp"
+                        );
+                        false
+                    }
+                    _ => true,
+                });
+            }
             let leftover = match (operation.0.last_mut(), change) {
                 (
                     Some(Change::Text { object, field, op }),

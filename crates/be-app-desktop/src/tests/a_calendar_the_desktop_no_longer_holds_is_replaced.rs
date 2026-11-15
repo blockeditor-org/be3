@@ -1,4 +1,6 @@
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewRef;
+
+use crate::root::calendar::KeptCalendar;
 
 use super::*;
 
@@ -7,12 +9,11 @@ fn a_calendar_the_desktop_no_longer_holds_is_replaced() {
     let mut fixture = Fixture::new();
     let gone = Uuid::new_v4();
     let mut desktop = EditorView::document(None);
-    let remember = desktop.root().set_state(
-        "desktop.calendar",
-        Some(&ViewState::new(&(), vec![gone])),
-        1,
-        fixture.client,
-    );
+    let remember = desktop
+        .root()
+        .set_view_state(Some(&KeptCalendar(ViewRef::new(gone))), 1, fixture.client)
+        .expect("encodes")
+        .expect("a change");
     desktop.apply(&remember);
     fixture.test.hold(None, desktop);
     fixture.settle();

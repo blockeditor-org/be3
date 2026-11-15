@@ -2,8 +2,8 @@ use beui::dock::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_block_content::EditorViewContent;
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
 use be_sdk_api::{
     BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
@@ -415,8 +415,27 @@ impl Editor {
             return self.block_content();
         }
         let projection = self.projection_of(Some(block));
+        self.wait_while_viewable(projection, block);
+        projection
+    }
+
+    /// Makes the nearest boundary wait until `projection` of `block` is read, while `block` is
+    /// one this viewer can see: a projection of a block deleted elsewhere, or no longer shared,
+    /// stays loading rather than failing, and must not hold the boundary for ever.
+    fn wait_while_viewable<C>(&self, projection: ContentProjection<C>, block: Uuid)
+    where
+        C: be_block_content::LiveEdit + Clone + Default,
+    {
         if Boundary::current().is_none() {
-            return projection;
+            return;
+        }
+        // The editor's own block is one its viewer sees: it waits as `block_content` does.
+        if block == self.block_id() {
+            wait_for(move || match projection.is_alive() {
+                true => projection.ready(),
+                false => Ok(()),
+            });
+            return;
         }
         let found = self.blocks().watch(BlockQuery::Block(block));
         wait_for(move || {
@@ -433,27 +452,27 @@ impl Editor {
                 Ok(())
             }
         });
-        projection
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
         self.state().core.host().view_block()
     }
 
-    pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
-        self.view_block()
-            .map(|block| self.content_of::<EditorViewContent>(block))
+    /// Makes the nearest boundary wait until the view block is read, so what the editor puts
+    /// back from its view state is there before it first shows.
+    fn wait_for_view_state(&self) {
+        let Some(block) = self.view_block() else {
+            return;
+        };
+        let projection = self.projection_of::<EditorViewContent>(Some(block));
+        self.wait_while_viewable(projection, block);
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
-    }
-
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
-        self.state().core.set_view_state(key, state);
+    /// The `K` kept in the editor's view block, which outlives the editor: where it was
+    /// scrolled, what was open. Read it with `get` and write it on every change with `set`.
+    pub fn view_state<K: be_block_content::ViewStateKind>(&self) -> ViewStateHandle<K> {
+        self.wait_for_view_state();
+        ViewStateHandle::new(*self)
     }
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> crate::RelatedContent<C>
@@ -528,7 +547,7 @@ impl Editor {
         projection
     }
 
-    fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
+    pub(crate) fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
@@ -1461,8 +1480,10 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 
 mod settings;
 mod tags;
+mod view_state;
 
 pub use settings::{KindsAbove, OrganizationLayers, SetKind};
+pub use view_state::ViewStateHandle;
 
 #[cfg(test)]
 mod tests;
