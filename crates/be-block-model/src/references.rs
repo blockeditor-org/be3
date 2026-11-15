@@ -253,6 +253,14 @@ fn walk_value(value: &Value, found: &mut Vec<Uuid>) {
                 }
             }
         }
+        Value::Ranked(entries) => {
+            for (key, ranked) in entries {
+                walk_bytes(key, found);
+                if let Some(value) = &ranked.value {
+                    walk_bytes(value, found);
+                }
+            }
+        }
         Value::Series(items) => {
             for item in items.iter() {
                 walk_bytes(item, found);

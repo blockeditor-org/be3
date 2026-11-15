@@ -169,17 +169,6 @@ impl<K: Ord, V> LatestMap<K, V> {
     pub fn written_entries(&self) -> impl Iterator<Item = (&K, Option<&V>)> {
         self.stamps.keys().map(|key| (key, self.entries.get(key)))
     }
-
-    /// The keys in `range` ever written, in order, each with its value or none for one
-    /// removed since.
-    pub fn written_range<R: std::ops::RangeBounds<K>>(
-        &self,
-        range: R,
-    ) -> impl Iterator<Item = (&K, Option<&V>)> {
-        self.stamps
-            .range(range)
-            .map(|(key, _)| (key, self.entries.get(key)))
-    }
 }
 
 impl<K, V> Deref for LatestMap<K, V> {
