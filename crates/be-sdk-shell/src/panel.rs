@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use be_sdk_beui::be_sdk_ui::{BlockCatalog, BlockTypes};
 use be_sdk_beui::beui::NodeId;
-use be_sdk_beui::beui::dock::{TabId, dock_menu};
+use be_sdk_beui::beui::dock::{DockJoin, TabId, dock_menu};
 use be_sdk_beui::beui::icons::{ICON_CLOUD_OFF, ICON_LOCK};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -257,7 +257,9 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <TabBar bar={move || bar.call(())} own=true />
-                <Show keep_alive=true condition={live}>
+                // Not kept alive while a revision is previewed: a live editor whose dock joined
+                // the tab would keep its panes over the preview and the revision bar.
+                <Show condition={live}>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
                             <Dynamic value={content}>|content: Content| {
@@ -291,20 +293,30 @@ pub(crate) fn BlockPanel(
                 </Show>
                 <Show condition={previewing}>
                     <ListItem grow=1.0>
-                        <ChildBlock
-                            editor
-                            block={preview}
-                            mode=ChildMode::Live
-                            own_frame=true
-                            top_bar=TopBar::Hidden
-                            @test_id={"workspace.revision.preview"}
-                        >|handle: ChildBlockHandle|
-                            <PanelStatus state={handle.state} loading="Loading revision…" />
-                        </ChildBlock>
+                        <RevisionPreview editor preview />
                     </ListItem>
                 </Show>
             </List>
         </Frame>
+    }
+}
+
+/// A revision's preview, inside the tab's body under the revision bar: its editor's dock does not
+/// join the tab, which would take the whole tab and hide that bar.
+#[component]
+fn RevisionPreview(editor: Editor, preview: Memo<Option<ChildTarget>>) -> NodeId {
+    provide_context(DockJoin::none());
+    view! {
+        <ChildBlock
+            editor
+            block={preview}
+            mode=ChildMode::Live
+            own_frame=true
+            top_bar=TopBar::Hidden
+            @test_id={"workspace.revision.preview"}
+        >|handle: ChildBlockHandle|
+            <PanelStatus state={handle.state} loading="Loading revision…" />
+        </ChildBlock>
     }
 }
 
