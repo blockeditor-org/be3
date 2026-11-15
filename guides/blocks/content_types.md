@@ -90,19 +90,19 @@ must not load whole wraps one and forwards them to it (`ChatContent` in
 A field is a **register** (any serde value, set whole; setting it on both
 sides offline conflicts), `Count`, `Grid<T>` (dense cells for pixels; bounds
 are part of the value), `List<T>` of `Model` objects, `Map<K, V>` (each key a
-register), `Latest<T>`/`LatestMap<K, V>` (last-write-wins by `Stamp`: never
+register), `Latest<T>`/`LatestMap<K, V>` (the highest `Stamp` wins: never
 conflict, never undo; `next(time, origin)` stamps past what it replaces, so a
-slow clock still overwrites what it read; view state uses them),
-`RankedMap<K, V>` (each key keeps the value of its highest rank, then latest
-stamp: a rank never goes down, live or in a merge, so a lower-ranked write is
-a no-op; `RankedMap<K, ()>` is a number that only rises; chat ranks signed
-records by their count), `Text`,
+slow clock still overwrites what it read; view state uses them), `Text`,
 `RichText` (text plus marks, `be_lib_sequence::marks`) or `Series<T>` (an
 append-friendly list of registers stored like a `Vec<T>`, so a register can
-become a series without losing data). For a number, `Count` adds what each
-side adds and `RankedMap` keeps the highest; for a value whose last write
-should win, `LatestMap`, and `RankedMap` when an older write must never
-replace a newer one whatever its clock says.
+become a series without losing data). A `Stamp` orders by rank, then time,
+then origin. A plain write keeps the rank it was stamped after, so the last
+write wins; one stamped `ranked(n)` is replaced only by one ranked as high or
+higher, live or in a merge, so a lower-ranked write is a no-op whatever its
+clock says (chat ranks signed records by their count; a key holding `()` at
+a rank is a number that only rises). For a number, `Count` adds what each
+side adds; for a value, `LatestMap`, ranked when an older write must never
+replace a newer one.
 
 How the model works:
 

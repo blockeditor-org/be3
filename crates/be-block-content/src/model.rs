@@ -177,8 +177,10 @@ impl<R: Root> LiveEdit for Document<R> {
 
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {
         for change in next.0 {
-            // A later stamped put to a key wins over an earlier one whatever else is merged, so
-            // the earlier is dropped: a burst of writes to one view state is one put.
+            // Of two stamped puts to a key the higher stamp wins whatever else is merged, so the
+            // other is dropped: a burst of writes to one view state is one put. A later put is
+            // the higher unless an earlier was ranked above it (`Stamp::ranked`), when it is a
+            // no-op.
             if let Change::Stamp {
                 object,
                 field,
@@ -186,22 +188,25 @@ impl<R: Root> LiveEdit for Document<R> {
                 stamped,
             } = &change
             {
-                operation.0.retain(|held| match held {
+                let same = |held: &Change| match held {
                     Change::Stamp {
                         object: held_object,
                         field: held_field,
                         key: held_key,
                         stamped: held_stamped,
                     } if held_object == object && held_field == field && held_key == key => {
-                        // Dropping the earlier is right only because the later wins over it.
-                        debug_assert!(
-                            stamped.stamp >= held_stamped.stamp,
-                            "a later put to a key carries a later stamp"
-                        );
-                        false
+                        Some(held_stamped.stamp)
                     }
-                    _ => true,
-                });
+                    _ => None,
+                };
+                if operation
+                    .0
+                    .iter()
+                    .any(|held| same(held).is_some_and(|held| held > stamped.stamp))
+                {
+                    continue;
+                }
+                operation.0.retain(|held| same(held).is_none());
             }
             let leftover = match (operation.0.last_mut(), change) {
                 (
