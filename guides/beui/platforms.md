@@ -178,9 +178,11 @@ made from their format id (`org.be3.clip.blocks`); Android lists them among
 the clip's description's MIME types and keeps them, base64, in its extras, with
 a nonce of the copy that tells its clip from another's. A clip crosses Binder,
 whose transactions stop near 1 MB, so text and extras share a budget of UTF-16
-units: text beyond its part goes there cut short with a notice
-(`clip::cut_short`), and formats that would overrun what is left are left out
-(`clip::fitting`); both stay whole in the held clip
+units: the text has first claim, beyond which it goes there cut short with a
+notice (`clip::cut_short`), and formats that would overrun what it leaves are
+left out (`clip::fitting`); both stay whole in the held clip, which answers
+pastes in the program until the clipboard changes even when nothing could be
+put there
 (`beui-platform-android/src/clipboard.rs`, written without an emulator: only
 its compiling is checked). All of them hold an item's
 `ClipItem::stored` bytes, refs and all. Elsewhere the plain text on the
