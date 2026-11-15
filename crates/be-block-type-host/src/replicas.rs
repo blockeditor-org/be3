@@ -38,12 +38,29 @@ const JOINING_OWNER: ClientId = ClientId::MAX;
 
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
 
-fn offline_session(head: Option<CommitId>) -> SessionState {
+fn session_of(client: ClientId, head: Option<CommitId>) -> SessionState {
     SessionState {
         generation: 0,
-        owner: Some(OFFLINE_CLIENT),
-        participants: vec![OFFLINE_CLIENT],
+        owner: Some(client),
+        participants: vec![client],
         clean_at: head,
+    }
+}
+
+/// The client a replica with no session edits as: `OFFLINE_CLIENT` until it joins one, or for
+/// a local account's peer, which never joins (`Peer::local`), a fresh client of its own each time
+/// it opens, as a server hands each session one. `OFFLINE_CLIENT` is the sequence library's
+/// `LOADED`, whose edits `Sequence::replace` refuses, so a local account's texts would take no
+/// replaced child, file or carried-over edit.
+fn unjoined_client<S: be_block_store::ObjectStore>(peer: &Peer<S>) -> ClientId {
+    match peer.is_local() {
+        true => loop {
+            let client = Uuid::new_v4().as_u64_pair().0 | 1 << 63;
+            if client != JOINING_OWNER {
+                break client;
+            }
+        },
+        false => OFFLINE_CLIENT,
     }
 }
 
@@ -1094,7 +1111,8 @@ impl<H: Host> Replicas<H> {
                 // without access to it the server refuses its session: it opens as offline does
                 // and joins once that changes (`created`).
                 if !peer.is_attached() || uncreated {
-                    return Ok((OFFLINE_CLIENT, offline_session(None), None, true, None));
+                    let client = unjoined_client(peer);
+                    return Ok((client, session_of(client, None), None, true, None));
                 }
                 if owned && H::reshaped(shared, block, &kind.schema) {
                     reset::<H>(peer, block, &kind).await?;
@@ -1109,7 +1127,8 @@ impl<H: Host> Replicas<H> {
         };
         let joined = match joined {
             Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
-                Ok((OFFLINE_CLIENT, offline_session(None), None, true, None))
+                let client = unjoined_client(peer);
+                Ok((client, session_of(client, None), None, true, None))
             }
             joined => joined,
         };
@@ -1124,7 +1143,7 @@ impl<H: Host> Replicas<H> {
                     // takes no edits it could never journal or publish.
                     return;
                 }
-                (client, offline_session(head), head, true, None)
+                (client, session_of(client, head), head, true, None)
             }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) if peer.arrivals() == arrivals => {

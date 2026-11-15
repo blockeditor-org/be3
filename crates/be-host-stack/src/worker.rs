@@ -925,7 +925,12 @@ impl Shared {
             true => self.seen.graph.take_nodes_moved(),
             false => imbl::HashSet::new(),
         };
-        let Some(peer) = self.peer.clone().filter(|_| !self.seen.connected) else {
+        // A local account holds everything it has: nothing of it is out of reach.
+        let Some(peer) = self
+            .peer
+            .clone()
+            .filter(|_| !self.seen.connected && !self.seen.local)
+        else {
             if self.reach_offline {
                 self.reach_offline = false;
                 self.seen.out_of_reach = imbl::HashSet::new();
