@@ -1,6 +1,8 @@
 use beui_reactive::Set;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
 mod arguments;
+#[cfg(target_os = "android")]
+mod android_push;
 mod compositor;
 mod contacts;
 mod debug;
@@ -14,6 +16,8 @@ mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
 mod members;
+#[cfg(any(target_arch = "wasm32", target_os = "android"))]
+mod pressed_notifications;
 #[cfg(target_os = "linux")]
 mod memory;
 mod reveals;
@@ -302,6 +306,7 @@ fn android_main(android: beui_host_window::AndroidApp) {
         Ok(bytes)
     });
     panic_guard::install();
+    android_push::install();
     let storage_root = android.internal_data_path();
     let options = run_options();
     let exit_code = match HostCore::new(storage_root)
@@ -607,10 +612,10 @@ struct HostCore {
     /// What a pressed notification's block last waited on (the open organization, how many
     /// there are, the changes unsaved), so it is tried again only when that or the graph
     /// changes.
-    #[cfg(target_arch = "wasm32")]
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     pressed_waiting_on: Option<(Option<Uuid>, usize, usize)>,
-    /// The organization this browser's push subscription was last registered for.
-    #[cfg(target_arch = "wasm32")]
+    /// The organization this device's push endpoint was last registered for.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     push_synced: Option<Uuid>,
     members: members::Members,
     scheduled_organization_list: bool,
@@ -924,9 +929,9 @@ impl HostCore {
             contacts: contacts::Contacts::default(),
             stack_changes: be_host_stack::ChangeWatch::new(),
             push_device_published: None,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(any(target_arch = "wasm32", target_os = "android"))]
             pressed_waiting_on: None,
-            #[cfg(target_arch = "wasm32")]
+            #[cfg(any(target_arch = "wasm32", target_os = "android"))]
             push_synced: None,
             members: members::Members::default(),
             scheduled_organization_list: false,
@@ -1502,7 +1507,9 @@ impl HostCore {
         let token = account.token.clone();
         #[cfg(target_arch = "wasm32")]
         web_push::sign_out(url, token, self.accounts.len() <= 1);
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(target_os = "android")]
+        android_push::sign_out(&self.host_state, url, token, self.accounts.len() <= 1);
+        #[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
         platform::spawn_request(async move {
             let _ = accounts::logout(url, token, None).await;
         });
@@ -2572,8 +2579,8 @@ impl HostCore {
     /// Opens the blocks notifications named that were pressed, switching to their
     /// organization first. One that cannot open yet (the organization or the block is not
     /// loaded, or changes are unsaved) is held until the organizations, the graph or the
-    /// unsaved changes change, and dropped after `web_push::OPENING_PATIENCE`.
-    #[cfg(target_arch = "wasm32")]
+    /// unsaved changes change, and dropped after `pressed_notifications::OPENING_PATIENCE`.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     fn open_pressed_notifications(&mut self, changes: &be_host_stack::Changes) {
         let waiting = |host: &Self| {
             (
@@ -2584,14 +2591,14 @@ impl HostCore {
                 be_host_stack::status().unsaved,
             )
         };
-        if !web_push::has_openings()
+        if !pressed_notifications::has_openings()
             || (!changes.graph && self.pressed_waiting_on == Some(waiting(self)))
         {
             return;
         }
         self.pressed_waiting_on = None;
-        for opening in web_push::take_openings() {
-            if opening.pressed.elapsed() > web_push::OPENING_PATIENCE {
+        for opening in pressed_notifications::take_openings() {
+            if opening.pressed.elapsed() > pressed_notifications::OPENING_PATIENCE {
                 continue;
             }
             let now = waiting(self);
@@ -2607,20 +2614,20 @@ impl HostCore {
                 match other {
                     Some(other) if now.2 == 0 => {
                         self.open_organization(other);
-                        web_push::hold(opening);
+                        pressed_notifications::hold(opening);
                     }
                     // The organizations are listed and it is not among them: the person
                     // is not a member, so there is nothing to open.
                     None if !self.organizations.is_empty() => {}
                     _ => {
-                        web_push::hold(opening);
+                        pressed_notifications::hold(opening);
                         self.pressed_waiting_on = Some(now);
                     }
                 }
                 continue;
             }
             let Some(node) = be_host_stack::node(opening.block) else {
-                web_push::hold(opening);
+                pressed_notifications::hold(opening);
                 self.pressed_waiting_on = Some(now);
                 continue;
             };
@@ -2637,11 +2644,16 @@ impl HostCore {
         }
     }
 
-    /// Registers this browser's push subscription for each organization as it is opened, once
-    /// it connects (`bePush.sync`): the person turned pushes on in one, and a subscription the
-    /// push service replaced is found here.
-    #[cfg(target_arch = "wasm32")]
+    /// Registers this device's push endpoint for each organization as it is opened, once it
+    /// connects (`bePush.sync` in a browser): the person turned pushes on in one, and an
+    /// endpoint the push service replaced is found here. On Android, a new endpoint from the
+    /// distributor registers again.
+    #[cfg(any(target_arch = "wasm32", target_os = "android"))]
     fn sync_push_subscription(&mut self) {
+        #[cfg(target_os = "android")]
+        if android_push::changed() {
+            self.push_synced = None;
+        }
         let Some(organization) = self
             .organization
             .as_ref()
@@ -2656,7 +2668,10 @@ impl HostCore {
             return;
         }
         self.push_synced = Some(organization);
+        #[cfg(target_arch = "wasm32")]
         web_push::sync();
+        #[cfg(target_os = "android")]
+        android_push::sync(&self.host_state);
     }
 
     fn show_block(&mut self, from: Option<Uuid>, open: BlockOpen) {
@@ -3357,7 +3372,7 @@ impl HostCore {
         if changes.contacts {
             self.contacts.publish();
         }
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(any(target_arch = "wasm32", target_os = "android"))]
         {
             self.open_pressed_notifications(&changes);
             self.sync_push_subscription();
