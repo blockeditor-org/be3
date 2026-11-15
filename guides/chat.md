@@ -14,9 +14,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   parts, and forwards `LiveEdit`, `Merge` and `Undo` to the header. It is not a
   derived `Document`, since a `Document` loads whole.
 - **The header** holds the recent messages (a `merge_appends` list), `edits`,
-  `deletions` and `reactions` (`LatestMap`s keyed by message id, on recent and
+  `deletions` and `reactions` (`LatestMap`s keyed by message, on recent and
   older messages alike, kept apart from the messages so closing a segment never
-  drops one), and the `segments` index of the closed segments.
+  drops one; edits and reactions are chains, below), and the `segments` index of the closed segments.
 - **A message** is an object of registers, not `Text`: author, claimed time,
   body, the message it replies to, attachments (child blocks), its author's
   signature and when the server took it (`arrival`, below). Its id is its
@@ -26,13 +26,23 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   `Message::signed_bytes`, `MessageEdit::signed_bytes`,
   `Deletion::signed_bytes` and `ReactionKey::signed_bytes` (`src/signed.rs`)
   define what a signature covers.
-- **Records chain**: each `MessageEdit` and `Reaction` signs the key of the
+- **Records chain**: edits and reactions are kept at `Counted { slot, seq }`:
+  an edit slot is a message and an author (`EditSlot`; only the message's
+  author's counts), a reaction slot its `ReactionKey`. Each record signs its
+  count (`seq`, one past the highest written for the slot) and the key of the
   record it replaces (`previous`; `MessageEdit::key`, `Reaction::key`, hashes
-  of the record's fields that need no chat id), and writing it records that
-  key in `superseded`. A record whose key was ever written there was put back
-  after it was replaced and shows as forged, whatever the entry holds now. A
-  reaction taken back stays a signed record (`Reaction::kept` false), not a
-  removed key; `Deletion::after` is signed too.
+  of the record's fields that need no chat id), and writing it removes the
+  slot's earlier live records (`put_counted`). A slot's `Head` is its live
+  record with the highest count, which takes that key's count, so a record
+  moved to another count fails its signature; a removed key counted past the
+  head means the latest was cut (`Head::cut`), which shows as forged. So a
+  record put back is not the latest unless the later ones are removed, which
+  shows. Two devices writing one count share its key and the later stamp keeps
+  one, either genuine; a device's next record counts past a cut, which heals
+  it. A reaction taken back stays a signed record (`Reaction::kept` false),
+  not a removed key; `Deletion::after` is signed too. Removed keys stay in the
+  `LatestMap` for good, so the header grows by a key and stamp per record
+  replaced (plans/authorship.md).
 - Sending and deleting are not undoable; an edit by anyone but the message's
   author is ignored. Deleting removes the message with its edit and reactions
   and records the `Deletion`; the message stays in version history.
@@ -202,10 +212,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   a message whose records `verify` does not answer verified: "not verified",
   "key changed" or "forged" (guides/blocks/keys.md, "Signing what a person
   writes"). A message is forged when any of its records is: an edit or
-  reaction record put back after it was replaced, an edit, deletion or
-  reaction record removed outright (written, now empty), an edit by someone
-  else in place of its author's, or a record signed by anyone but who it
-  names. A deletion is asked about once when it appears (`forged_deletions`);
+  reaction chain whose latest was cut, a deletion removed outright (written,
+  now empty), or a record signed by anyone but who it names (an edit is checked
+  against the message's author, whoever it names). A deletion is asked about once when it appears (`forged_deletions`);
   a forged one keeps a muted, italic "Message deleted" row in the message's
   place (after `Deletion::after` among the recent messages, where it was in a
   closed segment read back), while a signed one leaves none. A recent message
