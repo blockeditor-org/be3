@@ -38,10 +38,11 @@ async function glue() {
 
 let started = null;
 
-async function start({ module, memory, files }) {
+async function start({ module, memory, files, letters }) {
     wasi.bindMemory(memory);
     environment.bindMemory(memory);
     threads.bindThreads(module, memory);
+    threads.bindLetters(letters);
     wasi.bindFiles(files);
     const loaded = await glue();
     loaded.initSync({ module, memory, thread_stack_size: STACK_SIZE });
