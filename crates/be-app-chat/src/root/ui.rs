@@ -841,7 +841,8 @@ impl Older {
 /// What reading a closed segment's part found.
 enum SegmentRead {
     Held(Vec<(ObjectId, Message)>),
-    /// Bytes came back that are not the part the index names (their length or hash differs).
+    /// The part is not what the index names: the bytes that came back differ in length or
+    /// hash, or the header gives the segment no range.
     Broken,
     /// The segment left the header, or its part could not be read.
     Failed,
@@ -859,12 +860,21 @@ fn read_segment(
     done: impl FnOnce(SegmentRead) + 'static,
 ) {
     let live = chat.live();
-    let Ok(Some((index, range))) = chat.read(|content| {
+    let found = chat.read(|content| {
         let index = content.segments().iter().position(|held| held == segment)?;
-        Some((index, content.segment_ranges().get(index).cloned()?))
-    }) else {
-        done(SegmentRead::Failed);
-        return;
+        Some((index, content.segment_ranges().get(index).cloned()))
+    });
+    let (index, range) = match found {
+        Ok(Some((index, Some(range)))) => (index, range),
+        // Listed with no range to read it by: the header is not what the index says.
+        Ok(Some((_, None))) => {
+            done(SegmentRead::Broken);
+            return;
+        }
+        _ => {
+            done(SegmentRead::Failed);
+            return;
+        }
     };
     let segment = segment.clone();
     let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
