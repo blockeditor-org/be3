@@ -36,6 +36,7 @@ mod a_browser_preflight_to_the_s3_endpoint_is_answered;
 mod a_browser_sign_in_waits_on_polls_and_holds_no_connection;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_change_to_a_block_listed_only_by_id_comes_whole;
+mod a_changed_provider_email_held_by_another_account_is_not_taken;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
@@ -77,6 +78,9 @@ mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
 mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
+mod a_provider_email_matching_an_account_links_only_after_the_emailed_code;
+mod a_provider_sign_in_with_no_account_waits_for_an_invite_code;
+mod a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_refused;
 mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
 mod a_push_hosts_cap_is_keyed_by_its_allowlist_entry_and_statuses_are_judged;
@@ -108,6 +112,7 @@ mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
 mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
+mod accounts_stranded_by_a_removed_provider_are_counted;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
 mod an_administrator_creates_lists_and_revokes_an_invitation;
@@ -125,11 +130,13 @@ mod an_http_answer_leaves_what_would_overflow_it_for_the_next_post;
 mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_object_asked_for_without_its_length_is_answered_only_to_one_who_holds_it;
 mod an_object_uploads_and_downloads_with_presigned_s3_urls;
+mod an_old_nonce_a_reused_state_or_another_browser_is_refused;
 mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
 mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
+mod an_unverified_provider_email_links_nothing;
 mod an_upload_is_used_once_and_its_object_goes_once_collected;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
 mod another_build_is_greeted_and_turned_away;
@@ -152,6 +159,7 @@ mod every_member_connection_hears_how_the_graph_changes;
 mod fcm_sends_a_data_message_with_the_service_accounts_token;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
+mod linking_or_proving_with_a_provider_needs_the_signed_in_account;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod losing_every_block_inside_rotates_a_kind_open_inside;
 mod members_manage_only_the_agents_they_created;
@@ -193,6 +201,7 @@ mod the_access_list_leaves_administrators_to_the_organization_line;
 mod the_browser_authorization_requires_the_private_secret_and_works_once;
 mod the_hub_keeps_the_same_for_a_folder_however_many_entries_it_holds;
 mod the_portal_serves_its_assets_immutably_beside_a_hydrating_page;
+mod the_providers_file_is_checked_and_keeps_its_secrets;
 mod the_session_registry_forgets_the_longest_empty_sessions_first;
 mod the_trees_owner_pays_for_what_anyone_makes_in_it;
 mod told_keys_past_the_newest_kept_or_of_a_deleted_block_or_removed_member_are_news;
@@ -1579,6 +1588,32 @@ impl Browser {
         )
         .await
     }
+    /// Begins signing in with the fake provider `id` (`query` adds `?intent=` or `?code=`) and
+    /// answers where the server sends the browser: the provider's authorization URL.
+    async fn start_provider(&mut self, harness: &Harness, id: &str, query: &str) -> String {
+        let (status, response) = self
+            .request(harness, "GET", &format!("/auth/oidc/{id}/start{query}"), "")
+            .await;
+        assert_eq!(status, 303, "{response}");
+        location(&response)
+    }
+    /// Comes back from the provider to the server, as the provider sends the browser.
+    async fn provider_callback(&mut self, harness: &Harness, back: &str) -> (u16, String) {
+        self.request(harness, "GET", back, "").await
+    }
+    /// Signs in with the fake provider `id` as `grant` says, and answers the callback's answer.
+    async fn provider_sign_in(
+        &mut self,
+        harness: &Harness,
+        provider: &crate::fake_provider::FakeProvider,
+        id: &str,
+        query: &str,
+        grant: crate::fake_provider::Grant,
+    ) -> (u16, String) {
+        let url = self.start_provider(harness, id, query).await;
+        let back = provider.authorize(&url, grant);
+        self.provider_callback(harness, &back).await
+    }
     /// Signs in with a code mailed to `email`.
     async fn sign_in_by_code(&mut self, harness: &Harness, email: &str) {
         assert_eq!(self.ask_code(harness, email).await.0, 303);
@@ -1597,6 +1632,31 @@ impl Browser {
         let (status, page) = self.enter_code(harness, &code).await;
         assert_eq!(status, 303, "{page}");
     }
+}
+/// Where a response sends the browser.
+fn location(response: &str) -> String {
+    response
+        .split("Location: ")
+        .nth(1)
+        .and_then(|rest| rest.split("\r\n").next())
+        .unwrap_or_else(|| panic!("no Location in {response}"))
+        .to_owned()
+}
+/// A harness whose server has the fake provider as `test`, authoritative for email or not.
+async fn with_provider(authoritative_email: bool) -> (Harness, crate::fake_provider::FakeProvider) {
+    let provider = crate::fake_provider::FakeProvider::start().await;
+    let harness = Harness::configured(ServerConfig {
+        providers: vec![provider.provider("test", authoritative_email)].into(),
+        ..ServerConfig::OPEN
+    })
+    .await;
+    (harness, provider)
+}
+/// How many accounts the server has.
+fn accounts(harness: &Harness) -> i64 {
+    metadata_database(&harness.directory)
+        .query_row("SELECT count(*) FROM accounts", [], |row| row.get(0))
+        .unwrap()
 }
 fn page_of(response: &str) -> be_server_portal::Page {
     be_server_portal::Page::from_json(response.split("\r\n\r\n").nth(1).unwrap()).unwrap()

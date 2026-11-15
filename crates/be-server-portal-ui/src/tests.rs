@@ -1,4 +1,6 @@
-use be_server_portal::{Account, IdentityRow, Page, Problem, Screen, Session, SessionKind};
+use be_server_portal::{
+    Account, IdentityRow, Page, Problem, ProviderLink, Screen, Session, SessionKind,
+};
 use beui_paint_snapshot::BrowserSnapshot;
 
 use crate::render;
@@ -11,6 +13,7 @@ mod the_portal_captures_account_management_and_approval;
 mod the_portal_captures_errors_and_server_policy;
 mod the_portal_captures_mail_and_completion_pages;
 mod the_portal_captures_signing_in_by_code;
+mod the_portal_captures_signing_in_with_providers;
 mod the_portal_forms_are_captured_on_desktop_and_phone;
 
 fn page(screen: Screen) -> Page {

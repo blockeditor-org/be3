@@ -151,6 +151,28 @@ as usual, which needs `--allow-login`. A deployed server needs
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.
 
+People can also sign in with an OpenID Connect provider the operator configures, such as Google
+or one Microsoft tenant: `--oidc-providers FILE`, a JSON list kept beside the data directory,
+readable only by `be-server`, since it holds the client secrets:
+
+```
+[
+  {"id": "google", "preset": "google", "client_id": "…", "client_secret": "…"},
+  {"id": "corp", "name": "Example Corp", "issuer": "https://login.microsoftonline.com/TENANT-ID/v2.0",
+   "client_id": "…", "client_secret": "…", "authoritative_email": false}
+]
+```
+
+For each, register a web application with the provider, with the redirect URI
+`AUTH-ORIGIN/auth/oidc/ID/callback` (for Google, an OAuth client in the Google Cloud console with
+the `openid`, `email` and `profile` scopes), and put its client id and secret in the file. The
+server checks the file at start: ids are unique lowercase names, no two providers share an issuer,
+an issuer is https and one tenant's own (no `common` or `{tenantid}`), and only Google's preset or
+an entry marked `authoritative_email` has its verified emails trusted. Secrets never go in flags or
+the log. Changing `--auth-origin` changes every redirect URI. Removing a provider leaves the
+accounts that sign in only with it with no way in but a login link; the server logs how many at
+start. Registering through a provider still needs an invite code.
+
 Adding a device: be-host begins a ten-minute authorization request with a one-shot post to
 `/api/be/call` and shows `/auth?code=...`; the user signs in and explicitly approves the code
 (verifying email alone approves nothing). be-host holds a private secret apart from the shown

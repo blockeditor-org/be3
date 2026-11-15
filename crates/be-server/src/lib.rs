@@ -45,6 +45,8 @@ pub mod limits;
 mod notifications;
 pub mod objects;
 pub mod oidc;
+#[cfg(test)]
+mod fake_provider;
 mod organization;
 pub mod push;
 pub mod retention;
