@@ -15,7 +15,6 @@ fn an_isolated_span_marks_its_bytes_for_the_bidi_step() {
         style,
         hang: 0,
         anywhere: false,
-        least: false,
     };
     let isolated = |text| Piece::Text {
         text,

@@ -19,7 +19,6 @@ fn a_break_in_rich_text_ends_the_line_but_holds_no_bytes() {
         style,
         hang: 0,
         anywhere: false,
-        least: false,
     };
     let pieces = [
         Piece::text("abc", style),

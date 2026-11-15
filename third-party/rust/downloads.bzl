@@ -4280,6 +4280,12 @@ downloads = {
         "size_bytes": 49298,
         "version": "1.0.24",
     },
+    "unicode-linebreak-0.1.5": {
+        "name": "unicode-linebreak",
+        "sha256": "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f",
+        "size_bytes": 15324,
+        "version": "0.1.5",
+    },
     "unicode-normalization-0.1.25": {
         "name": "unicode-normalization",
         "sha256": "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8",

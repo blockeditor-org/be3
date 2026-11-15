@@ -802,7 +802,6 @@ impl Fonts {
             style,
             hang: 0,
             anywhere: false,
-            least: false,
         };
         let mut shaper = LineShaper {
             fonts: self,

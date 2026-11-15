@@ -166,11 +166,9 @@ impl Shaped {
     fn reusable(&self, key: &ShapeKey, entries: &[Entry]) -> bool {
         let wrap = key.options.wrap_width;
         let laid = self.key.options.wrap_width;
-        let serves = self.key.options.least || !key.options.least;
         let rewrapped = ShapeKey {
             options: RichOptions {
                 wrap_width: wrap,
-                least: key.options.least == serves,
                 ..self.key.options
             },
             ..self.key
@@ -493,7 +491,6 @@ impl TextNode {
                         ..
                     }
                 ),
-                least: self.overflow.wraps() && !wrap_width.is_finite(),
             },
             line_height: self.line_height,
             scale: ctx.pixels_per_point(),
@@ -865,24 +862,15 @@ impl Element for TextNode {
         }
     }
 
-    fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
-        match self.overflow {
-            Overflow::Wrap { .. } => self.rich_layout(doc, painter, f32::INFINITY).least_width(),
-            Overflow::Ellipsis | Overflow::Visible => 0.0,
-        }
-    }
-
     fn least_length(
         &self,
-        doc: &mut Document,
-        painter: &Painter,
+        _doc: &mut Document,
+        _painter: &Painter,
         direction: Direction,
         _cross: f32,
     ) -> Option<f32> {
         match (direction, self.overflow) {
-            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => {
-                Some(self.min_width(doc, painter))
-            }
+            (Direction::Horizontal, Overflow::Wrap { .. } | Overflow::Ellipsis) => Some(0.0),
             _ => None,
         }
     }
