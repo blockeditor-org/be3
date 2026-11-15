@@ -5,7 +5,8 @@ only.
 
 "Anyone with the link": a link that grants any level up to Edit on a block to
 whoever opens it, with no grant naming them first. It is passed outside the host, so it
-is the out-of-band start that every sharing relationship needs. The server must
+is the out-of-band start that every sharing relationship needs
+(decisions/share_links_are_an_out_of_band_start.md). The server must
 not be able to use a link it relays or stores
 (decisions/the_server_never_vouches_for_an_identity.md).
 

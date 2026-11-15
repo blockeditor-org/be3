@@ -80,7 +80,9 @@ a role inside the app, since the share dialog grants no roles. A game:
   guides/blocks/server.md); this adds a `host` kind, the first the
   server checks against the lease: one from anyone but the lease holder, or to
   a member of another kind, is refused. Each Join member is rate limited by
-  the server.
+  the server. A Join member admitted by a link may message the host though
+  the two are not contacts: the link was the out-of-band start
+  (decisions/share_links_are_an_out_of_band_start.md).
 - The same handshake works over a direct connection a game sets up later; the
   relay is only the first transport.
 
