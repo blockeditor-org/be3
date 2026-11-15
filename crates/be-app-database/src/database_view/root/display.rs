@@ -461,8 +461,6 @@ pub fn FieldPicker(
     picker_id: String,
     on_change: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let keys =
-        create_memo(move || options.with(|options| (0..=options.len()).collect::<Vec<usize>>()));
     let selected = create_memo(move || match chosen.get() {
         None => Some(0),
         Some(chosen) => options
@@ -481,13 +479,9 @@ pub fn FieldPicker(
     view! {
         <Select
             options={view! {
-                <ForEach value={keys}>|index: usize| {
-                    let name = create_memo(move || match index {
-                        0 => none.to_owned(),
-                        index => options.with(|options| {
-                            options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
-                        }),
-                    });
+                <ChoiceOption label={none} />
+                <ForEach value={options} key={|field: &DatabaseField| field.id}>|field: ReadSignal<DatabaseField>| {
+                    let name = create_memo(move || field.with(|field| field.name.clone()));
                     view! {
                         <ChoiceOption label={name} />
                     }
