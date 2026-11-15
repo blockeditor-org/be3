@@ -31,7 +31,7 @@ pub(super) fn Dialogs(view: HostUiStore) -> NodeId {
 #[component]
 fn InviteDialog(view: HostUiStore) -> NodeId {
     let invite = view.invite;
-    let open = create_memo(move || invite.get().is_some());
+    let open = create_memo(move || invite.with(Option::is_some));
     let busy = create_memo(move || invite.get().is_some_and(|invite| invite.busy));
     let sent = create_memo(move || invite.get().map(|invite| invite.sent));
     let email = create_signal(String::new());
@@ -69,7 +69,7 @@ fn InviteDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn AgentsDialog(view: HostUiStore) -> NodeId {
     let agents = view.agents;
-    let open = create_memo(move || agents.get().is_some());
+    let open = create_memo(move || agents.with(Option::is_some));
     let title = create_memo(
         move || match agents.get().and_then(|agents| agents.created) {
             Some(_) => "Agent credentials".to_owned(),
@@ -111,7 +111,7 @@ fn AgentsDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn ContactsDialog(view: HostUiStore) -> NodeId {
     let contacts = view.contacts;
-    let open = create_memo(move || contacts.get().is_some());
+    let open = create_memo(move || contacts.with(Option::is_some));
     let busy = create_memo(move || contacts.get().is_some_and(|contacts| contacts.busy));
     view! {
         <Dialog
@@ -135,7 +135,7 @@ fn ContactsDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn MembersDialog(view: HostUiStore) -> NodeId {
     let members = view.members;
-    let open = create_memo(move || members.get().is_some());
+    let open = create_memo(move || members.with(Option::is_some));
     view! {
         <Dialog
             open={open}
@@ -230,7 +230,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                 </Show>
                 <ErrorText text={error} />
                 <Dialog
-                    open={move || !removing.get().is_empty()}
+                    open={move || !removing.with(String::is_empty)}
                     kind=DialogKind::Alert
                     title="Remove member?"
                     id="host.members.remove"
@@ -263,7 +263,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
     });
     let link = create_memo(move || shown.get().link.unwrap_or_default());
     let offer = create_memo(move || shown.get().offer.unwrap_or_default());
-    let offered = create_memo(move || !offer.get().is_empty());
+    let offered = create_memo(move || !offer.with(String::is_empty));
     let connected = create_memo(move || shown.get().connected.unwrap_or_default());
     let removing = create_memo(move || shown.get().removing.unwrap_or_default());
     let pasted = create_signal(String::new());
@@ -319,7 +319,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                     }
                 }</ForEach>
                 <Dialog
-                    open={move || !removing.get().is_empty()}
+                    open={move || !removing.with(String::is_empty)}
                     kind=DialogKind::Alert
                     title="Remove contact?"
                     id="host.contacts.remove"
@@ -331,7 +331,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH>{removing}</Text>
                 </Dialog>
-                <Show condition={move || !link.get().is_empty()}>
+                <Show condition={move || !link.with(String::is_empty)}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.link-help"}>
                             "Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
@@ -375,7 +375,7 @@ fn ContactsPanel(view: HostUiStore) -> NodeId {
                 >
                     <Text style=TextStyle::PARAGRAPH @test_id={"host.contacts.offer"}>{offer}</Text>
                 </Dialog>
-                <Show condition={move || !connected.get().is_empty()}>
+                <Show condition={move || !connected.with(String::is_empty)}>
                     <Text style=TextStyle::PARAGRAPH>{connected}</Text>
                 </Show>
                 <ErrorText text={error} />
@@ -403,7 +403,7 @@ fn AgentsPanel(view: HostUiStore, name: Signal<String>) -> NodeId {
         <Frame>
             <List spacing=Space::Md>
                 <Show
-                    condition={move || created.get().is_some()}
+                    condition={move || created.with(Option::is_some)}
                     fallback={move || view! {
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{organization}</Text>
@@ -514,7 +514,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
 #[component]
 fn UnsentDialog(view: HostUiStore) -> NodeId {
     let unsent = view.unsent;
-    let open = create_memo(move || unsent.get().is_some());
+    let open = create_memo(move || unsent.with(Option::is_some));
     view! {
         <Dialog
             open={open}
@@ -689,7 +689,7 @@ fn InvitePanel(
                 />
                 <Text style=TextStyle::CAPTION>{description}</Text>
                 <ErrorText text={error} />
-                <Show condition={move || !link.get().is_empty()}>
+                <Show condition={move || !link.with(String::is_empty)}>
                     <List spacing=Space::Sm>
                         <Text style=TextStyle::PARAGRAPH @test_id={"host.invite.help"}>
                             "Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
@@ -770,7 +770,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
             on_dismiss={|| send(UiCommand::CancelLeave)}
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
-            <Show condition={move || !refused.get().is_empty()}>
+            <Show condition={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.leave.refused">{refused}</Text>
             </Show>
         </Dialog>
@@ -780,7 +780,7 @@ fn LeaveDialog(view: HostUiStore) -> NodeId {
 #[component]
 fn DiscardDialog(view: HostUiStore) -> NodeId {
     let discard = view.discard;
-    let open = create_memo(move || discard.get().is_some());
+    let open = create_memo(move || discard.with(Option::is_some));
     let title = create_memo(move || {
         discard
             .get()

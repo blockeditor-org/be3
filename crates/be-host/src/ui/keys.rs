@@ -205,7 +205,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
 #[component]
 pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
     let pairing = view.pairing;
-    let open = create_memo(move || !pairing.get().is_empty());
+    let open = create_memo(move || !pairing.with(Vec::is_empty));
     let request = create_memo(move || pairing.get().first().cloned());
     let message = create_memo(move || {
         let device = request
@@ -259,7 +259,7 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
-            <Show condition={move || !refused.get().is_empty()}>
+            <Show condition={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.pairing.refused">{refused}</Text>
             </Show>
         </Dialog>

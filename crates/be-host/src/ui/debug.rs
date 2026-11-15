@@ -283,7 +283,7 @@ pub(crate) fn PerformancePanel(
 ) -> NodeId {
     let rows = create_memo(move || performance.get().unwrap_or_default());
     let keys = create_memo(move || (0..rows.get().len()).collect::<Vec<_>>());
-    let measured = create_memo(move || memory.get().is_some());
+    let measured = create_memo(move || memory.with(Option::is_some));
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
@@ -511,7 +511,7 @@ fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
                     }
                 }</ForEach>
                 <Text style=TextStyle::HEADING>{running}</Text>
-                <Show condition={move || runtime_keys.get().is_empty()}>
+                <Show condition={move || runtime_keys.with(Vec::is_empty)}>
                     <Text style=TextStyle::CAPTION>"no apps are running"</Text>
                 </Show>
                 <ForEach keys={runtime_keys}>|id: String| {

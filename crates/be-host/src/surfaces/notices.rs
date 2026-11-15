@@ -26,7 +26,7 @@ pub(crate) fn CrashNotice(
                     <Icon glyph=ICON_CIRCLE_ALERT />
                 </Text>
                 <Text style=TextStyle::HEADING align=TextAlign::Center>{title}</Text>
-                <Show condition={move || !detail.get().is_empty()}>
+                <Show condition={move || !detail.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
                         {detail}
                     </Text>

@@ -564,7 +564,7 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
                     condition={move || {
                         screen.get() == Screen::Organization
                             && !presenting.get()
-                            && shell.get().is_some()
+                            && shell.with(Option::is_some)
                     }}
                 >
                     <Dynamic value={index}>|index: usize| {
@@ -700,7 +700,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                 }}
             />
             <keep_changes::KeepChanges
-                open={move || keep_display.get().is_some()}
+                open={move || keep_display.with(Option::is_some)}
                 title="Keep these display settings?"
                 timeout=crate::display::ANSWER_WITHIN
                 round={round}

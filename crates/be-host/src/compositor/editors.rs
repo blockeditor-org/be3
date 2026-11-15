@@ -879,7 +879,7 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show condition={move || !error.get().is_empty()}>
+                <Show condition={move || !error.with(String::is_empty)}>
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -1051,7 +1051,7 @@ fn TabFrame(
 ) -> NodeId {
     view! {
         <FrameStack block top_bar holds=Prop::Static(true)>|stack: Memo<Vec<Uuid>>| {
-            let chrome = create_memo(move || match stack.get().is_empty() {
+            let chrome = create_memo(move || match stack.with(Vec::is_empty) {
                 true => Chrome::Drawn,
                 false => Chrome::None,
             });
@@ -1287,41 +1287,39 @@ fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
         be_host_desktop::programs::shown(block)
     });
     view! {
-        <Layers>
-            <Dynamic
-                value={shown}
-                fallback={|| view! {
-                    <Frame />
-                }}
-            >|shown: be_host_desktop::programs::Shown| {
-                match shown {
-                    be_host_desktop::programs::Shown::Window(window) => view! {
-                        <PlacedWindow window={window} focus />
-                    },
-                    be_host_desktop::programs::Shown::Closed(name) => view! {
-                        <ProgramClosed name block />
-                    },
-                    be_host_desktop::programs::Shown::Failed(problem) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: problem,
-                                busy: false,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                    be_host_desktop::programs::Shown::Opening(name) => view! {
-                        <Notice
-                            item={HostItem::Notice {
-                                text: format!("Opening in {name}…"),
-                                busy: true,
-                                icon: Some(beui::icons::ICON_APP_WINDOW),
-                            }}
-                        />
-                    },
-                }
-            }</Dynamic>
-        </Layers>
+        <Dynamic
+            value={shown}
+            fallback={|| view! {
+                <Frame />
+            }}
+        >|shown: be_host_desktop::programs::Shown| {
+            match shown {
+                be_host_desktop::programs::Shown::Window(window) => view! {
+                    <PlacedWindow window={window} focus />
+                },
+                be_host_desktop::programs::Shown::Closed(name) => view! {
+                    <ProgramClosed name block />
+                },
+                be_host_desktop::programs::Shown::Failed(problem) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: problem,
+                            busy: false,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+                be_host_desktop::programs::Shown::Opening(name) => view! {
+                    <Notice
+                        item={HostItem::Notice {
+                            text: format!("Opening in {name}…"),
+                            busy: true,
+                            icon: Some(beui::icons::ICON_APP_WINDOW),
+                        }}
+                    />
+                },
+            }
+        }</Dynamic>
     }
 }
 
@@ -1511,7 +1509,7 @@ fn BlockFrameView(
     provide_context(nesting.within(editors().block(block), access));
     let app_id = store(view_editor.app_id().to_owned());
     let instance = view_editor.instance;
-    let framed = create_memo(move || content.get().is_some());
+    let framed = create_memo(move || content.with(Option::is_some));
     create_effect(move || {
         let _ = framed.get();
         be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
@@ -1549,7 +1547,7 @@ fn BlockFrameView(
         <Camera spec content fits={fits}>|camera: CameraView| {
             let CameraView { view: editor_view, pan_drag, rect } = camera;
             let placed_zoom = create_memo(move || {
-                if zoomable || !embedded || content.get().is_some() {
+                if zoomable || !embedded || content.with(Option::is_some) {
                     return 1.0;
                 }
                 revision.get();
@@ -2066,7 +2064,7 @@ fn follow_window(
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
     let held = StoredCell::new(false);
     create_effect(move || {
-        let given = given.get() && window.get().is_some();
+        let given = given.get() && window.with(Option::is_some);
         if !held.replace(given) && given {
             untrack(|| asks.update(|asks| *asks += 1));
         }
@@ -2081,7 +2079,7 @@ fn follow_window(
             .is_some_and(|(app_id, instance)| super::app_view::gifts::gives(&app_id, instance, key))
     });
     create_effect(move || {
-        if !asked.get() || window.get().is_none() {
+        if !asked.get() || window.with(Option::is_none) {
             return;
         }
         untrack(|| {
@@ -2164,7 +2162,7 @@ fn DockTabSurface(block: Uuid, tab: u64, reporter: ChildReporter) -> NodeId {
             let view_editor = view_editor.clone();
             let frame = create_memo(move || {
                 holds.get().then(|| FrameSpec {
-                    chrome: match stack.get().is_empty() {
+                    chrome: match stack.with(Vec::is_empty) {
                         true => FrameChrome::Drawn,
                         false => FrameChrome::None,
                     },

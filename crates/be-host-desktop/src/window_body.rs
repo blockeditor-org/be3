@@ -146,7 +146,7 @@ pub fn WindowBody(
             waited.set(false);
         }
     });
-    let cramped_text = create_memo(move || match name.get().is_empty() {
+    let cramped_text = create_memo(move || match name.with(String::is_empty) {
         true => "Too small for this window".to_owned(),
         false => format!("Too small for {}", name.get()),
     });

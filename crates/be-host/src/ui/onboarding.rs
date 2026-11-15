@@ -67,7 +67,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={|| send(UiCommand::AskErrorAction(ErrorAction::DeleteClientDatabase))}
                 />
-                <Show condition={platform::HAS_EMBEDDED_SERVER}>
+                {platform::HAS_EMBEDDED_SERVER.then(|| view! {
                     <Button
                         label="Delete local server database..."
                         variant=ButtonVariant::Secondary
@@ -76,7 +76,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                             send(UiCommand::AskErrorAction(ErrorAction::DeleteServerDatabase));
                         }}
                     />
-                </Show>
+                })}
                 <Button
                     label="Exit"
                     variant=ButtonVariant::Ghost
@@ -84,7 +84,7 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
                 />
             </List>
             <Dialog
-                open={move || pending.get().is_some()}
+                open={move || pending.with(Option::is_some)}
                 kind=DialogKind::Alert
                 title={title}
                 actions={vec![
@@ -130,7 +130,7 @@ pub(super) fn AddAccountDialog(
     let pending = create_memo(move || view.add_account.get().pending);
     let error = create_memo(move || view.add_account.get().error);
     let browser = create_memo(move || view.add_account.get().browser);
-    let waiting = create_memo(move || browser.get().is_some());
+    let waiting = create_memo(move || browser.with(Option::is_some));
     let browser_url = create_memo(move || browser.get().map(|login| login.url).unwrap_or_default());
     let browser_code =
         create_memo(move || browser.get().map(|login| login.code).unwrap_or_default());
@@ -151,9 +151,9 @@ pub(super) fn AddAccountDialog(
             display_name.set(String::new());
         });
     });
-    let editing = create_memo(move || selection.get().is_some() && !pending.get());
+    let editing = create_memo(move || selection.with(Option::is_some) && !pending.get());
     let local = create_memo(move || selection.get() == Some(1));
-    let remote = create_memo(move || selection.get().is_some() && !local.get());
+    let remote = create_memo(move || selection.with(Option::is_some) && !local.get());
     let gateway_required = create_memo(move || {
         selection.get() == Some(0) && default.get().is_some_and(|server| server.gateway_required)
     });
@@ -260,12 +260,12 @@ pub(super) fn AddAccountDialog(
                 })
                 .disabled(primary_disabled)
                 .busy(connecting)
-                .shown(create_memo(move || !footer_primary.get().is_empty())),
+                .shown(create_memo(move || !footer_primary.with(String::is_empty))),
             ]}
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
             <List spacing=Space::Xl2>
-                <Show condition={move || selection.get().is_none() && !pending.get()}>
+                <Show condition={move || selection.with(Option::is_none) && !pending.get()}>
                     <List spacing=Space::Lg>
                         <Text style=TextStyle::PARAGRAPH>"Choose where to keep your account."</Text>
                         <Frame
@@ -275,7 +275,7 @@ pub(super) fn AddAccountDialog(
                             padding=Space::Sm
                         >
                             <List spacing=Space::Xs>
-                                <Show condition={has_default}>
+                                {has_default.then(|| view! {
                                     <ActionRow
                                         label={default_name}
                                         detail={move || {
@@ -288,8 +288,8 @@ pub(super) fn AddAccountDialog(
                                         @test_id="account.default"
                                         on_click={move || selection.set(Some(0))}
                                     />
-                                </Show>
-                                <Show condition={platform::HAS_EMBEDDED_SERVER}>
+                                })}
+                                {platform::HAS_EMBEDDED_SERVER.then(|| view! {
                                     <ActionRow
                                         label="On this device"
                                         detail="A local account, stored on this device"
@@ -297,7 +297,7 @@ pub(super) fn AddAccountDialog(
                                         @test_id="account.local"
                                         on_click={move || selection.set(Some(1))}
                                     />
-                                </Show>
+                                })}
                                 <ActionRow
                                     label="Another server"
                                     detail="Connect using a server address"
@@ -437,7 +437,7 @@ pub(super) fn AddAccountDialog(
                 <Show condition={connecting}>
                     <Text style=TextStyle::PARAGRAPH>"Connecting to the server…"</Text>
                 </Show>
-                <Show condition={move || error.get().is_some()}>
+                <Show condition={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -533,7 +533,7 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Show condition={move || keys.get().is_empty()}>
+            <Show condition={move || keys.with(Vec::is_empty)}>
                 <Card>
                     <OrganizationsPlaceholder state />
                 </Card>
@@ -577,7 +577,7 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     view! {
         <List spacing=Space::Md @test_id={"host.join"}>
             <Show
-                condition={move || joining.get().is_some()}
+                condition={move || joining.with(Option::is_some)}
                 fallback={move || view! {
                     <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
@@ -834,7 +834,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 #[component]
 pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
     let reauth = view.reauth;
-    let open = create_memo(move || reauth.get().is_some() && !view.add_account.get().open);
+    let open = create_memo(move || reauth.with(Option::is_some) && !view.add_account.get().open);
     let busy = create_memo(move || reauth.get().is_some_and(|reauth| reauth.busy));
     let error = create_memo(move || reauth.get().and_then(|reauth| reauth.error));
     let message = create_memo(move || {
@@ -859,7 +859,7 @@ pub(super) fn ReauthDialog(view: HostUiStore) -> NodeId {
         >
             <List spacing=Space::Xl2>
                 <Text style=TextStyle::PARAGRAPH>{message}</Text>
-                <Show condition={move || error.get().is_some()}>
+                <Show condition={move || error.with(Option::is_some)}>
                     <ErrorText text={error} />
                 </Show>
             </List>
@@ -873,7 +873,7 @@ mod tests;
 #[component]
 pub(super) fn RemoveAccountDialog(view: HostUiStore) -> NodeId {
     let removing = view.removing_account;
-    let open = create_memo(move || removing.get().is_some());
+    let open = create_memo(move || removing.with(Option::is_some));
     let title = create_memo(move || format!("Remove {}?", removing.get().unwrap_or_default()));
     view! {
         <Dialog

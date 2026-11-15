@@ -222,10 +222,10 @@ fn LockCard(
                         on_submit={on_submit}
                     />
                 </Frame>
-                <Show condition={move || busy.get() && error.get().is_none()}>
+                <Show condition={move || busy.get() && error.with(Option::is_none)}>
                     <Text style=TextStyle::CAPTION>"Checking…"</Text>
                 </Show>
-                <Show condition={move || error.get().is_some()}>
+                <Show condition={move || error.with(Option::is_some)}>
                     <Text
                         style=TextStyle::CAPTION
                         color=TextColor::Danger

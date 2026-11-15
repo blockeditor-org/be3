@@ -35,20 +35,20 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     view! {
         <Frame padding=Space::Lg>
             <List spacing=Space::Md align=Align::Center>
-                <Show condition={unsupported}>
+                {unsupported.then(|| view! {
                     <Text style=TextStyle::HEADING align=TextAlign::Center>
                         "Unsupported block type"
                     </Text>
-                </Show>
-                <Show condition={move || glyph.get().is_some()}>
+                })}
+                <Show condition={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
                 <Text align=TextAlign::Center color=TextColor::Muted>{text}</Text>
-                <Show condition={unsupported}>
+                {unsupported.then(|| view! {
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
-                </Show>
+                })}
                 <Show
                     condition={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}
                 >

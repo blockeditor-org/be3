@@ -1892,7 +1892,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     view! {
         <Frame align=Align::Center>
             <Show
-                condition={move || failure.get().is_some()}
+                condition={move || failure.with(Option::is_some)}
                 fallback={move || view! {
                     <Show condition={loading}>
                         <HostItemFace content={loading_item} />
@@ -1902,7 +1902,7 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
                 <CrashNotice
                     title={title}
                     detail={detail}
-                    reloadable={move || restart.get().is_some()}
+                    reloadable={move || restart.with(Option::is_some)}
                     on_reload={reload}
                     id={id.clone()}
                 />
