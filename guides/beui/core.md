@@ -25,7 +25,9 @@ nothing to show:
   body is handed a `ReadSignal` of what is in it: `<Show value={picked}>|item:
   ReadSignal<Item>| ..</Show>`.
 - `Match` shows the first `Case` that holds for `value`: `<Case is={Shape::Circle}>`,
-  `<Case when={|shape: &Shape| shape.round()}>`, or both.
+  `<Case when={|shape: &Shape| shape.round()}>`, or both. A case is built when it
+  becomes the one that holds and kept while it stays so, however the value
+  changes.
 - `Dynamic` builds its body from `value`, again when it changes to one that
   differs (`PartialEq`).
 - `Keyed` builds once per `key={|value: &V| ..}` and hands its body a signal.
@@ -38,8 +40,8 @@ nothing to show:
 - `Loading` shows its `fallback` until what its body made has arrived.
 
 What a body is handed follows one rule: a body built again on every change gets
-the value (`Dynamic`, a `Case`, a `ForEach` row without a `key`); a body kept
-while the value changes gets a signal of it (`Show` over an `Option`, `Keyed`, a
+the value (`Dynamic`, a `ForEach` row without a `key`); a body kept while the
+value changes gets a signal of it (`Show` over an `Option`, a `Case`, `Keyed`, a
 `ForEach` row with a `key`). A `||` body ignores what it is handed. A value
 whose type comes only from what is passed (`Show`'s, `Dynamic`'s, `Keyed`'s)
 takes a signal, memo or closure, never a plain value: a condition fixed when

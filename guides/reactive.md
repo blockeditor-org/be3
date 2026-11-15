@@ -233,7 +233,8 @@ it like a closure argument, `<Container>|size| <Card size /></Container>`; a
 `RenderFn` slot may run more than once, so its body clones what it moves.
 
 `Show` (with a `fallback` for when its value is `false` or `None`), `Match`
-(the first `Case` that holds), `Dynamic` (rebuild when its value changes to one
+(the first `Case` that holds, built again only when another case comes to hold),
+`Dynamic` (rebuild when its value changes to one
 that differs), `Keyed` (rebuild when its `key` changes, update the rest through a
 `ReadSignal`) and `ForEach` build no node of their own (except a host where one
 node must go, or where `@test_id` or `@node_ref` names them): each fills its

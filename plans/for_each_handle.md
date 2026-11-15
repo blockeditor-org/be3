@@ -9,9 +9,7 @@ about animation or dragging goes into `ForEach`.
 
 `ForEach` already hands a row its item (by value, or as a signal with a `key`) and its
 `index: ReadSignal<usize>`, builds a row of several children as a run moved whole on a
-reorder, and takes a `fallback` for an empty list. `KeepAlive`/`Kept`, which replaces the
-keep-alive maps kept by hand (the dock's `panels`), is its own plan. This plan adds only
-the handle.
+reorder, and takes a `fallback` for an empty list. This plan adds only the handle.
 
 ## Shape
 

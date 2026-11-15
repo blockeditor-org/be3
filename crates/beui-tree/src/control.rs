@@ -1,5 +1,4 @@
 use std::cell::{Cell, RefCell};
-use std::collections::VecDeque;
 use std::hash::Hash;
 
 use be_lib_stable_hash::HashMap;
@@ -39,6 +38,10 @@ type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 
 /// What a `Show` shows on: a `bool`, or an `Option`, whose value it hands its children as a
 /// signal while it is `Some`, so a new value updates them in place.
+#[diagnostic::on_unimplemented(
+    message = "a `Show` shows on a `bool` or an `Option`, and its value is a `{Self}`",
+    label = "give a `bool` or an `Option`: a `Match` picks among other values"
+)]
 pub trait ShowValue: Clone + 'static {
     /// What the children are handed: nothing, or a signal of what is in the `Option`.
     type Handed: 'static;
@@ -67,7 +70,7 @@ impl ShowValue for bool {
     fn refresh(_signal: Signal<()>, _inner: ()) {}
 }
 
-impl<T: Clone + PartialEq + 'static> ShowValue for Option<T> {
+impl<T: Clone + 'static> ShowValue for Option<T> {
     type Handed = ReadSignal<T>;
     type Inner = T;
 
@@ -81,7 +84,7 @@ impl<T: Clone + PartialEq + 'static> ShowValue for Option<T> {
     }
 
     fn refresh(signal: Signal<T>, inner: T) {
-        signal.set(inner);
+        signal.set_unconditionally(inner);
     }
 }
 
@@ -418,13 +421,13 @@ struct Rows<C: SlotChild> {
     runs: RefCell<HashMap<SlotId, Vec<C::Stored>>>,
     order: RefCell<Vec<Row<C>>>,
     building: Cell<bool>,
+    /// Bumped when a row's run changes on its own, so the rows fill their place again once
+    /// per flush however many rows changed.
+    changed: Signal<u64>,
 }
 
 impl<C: SlotChild> Rows<C> {
     fn publish(&self) {
-        if self.building.get() {
-            return;
-        }
         let runs = self.runs.borrow();
         let mut items = Vec::new();
         for row in self.order.borrow().iter() {
@@ -442,7 +445,7 @@ impl<C: SlotChild> Rows<C> {
             Err(children) => {
                 let host: Rc<dyn SlotHost<C>> = self.clone();
                 let slot = ChildSlot::in_host(host);
-                let id = SlotId::nth(self.next.get() - 1);
+                let id = slot.host_slot().expect("a slot opened in a host knows its id");
                 Row::Run(id, children.mount_in(slot))
             }
         }
@@ -469,7 +472,9 @@ impl<C: SlotChild> SlotHost<C> for Rows<C> {
         if let Some(run) = self.runs.borrow_mut().get_mut(&slot) {
             *run = items;
         }
-        self.publish();
+        if !self.building.get() {
+            self.changed.update(|changed| *changed += 1);
+        }
     }
 }
 
@@ -518,18 +523,23 @@ where
             runs: RefCell::default(),
             order: RefCell::default(),
             building: Cell::new(false),
+            changed: create_signal(0),
         });
-        let pending = Rc::new(RefCell::new(
-            HashMap::<KF::Key, VecDeque<(T, usize)>>::default(),
-        ));
+        {
+            let rows = rows.clone();
+            create_binding(move || {
+                rows.changed.get();
+                untrack(|| rows.publish());
+            });
+        }
+        let pending = Rc::new(RefCell::new(HashMap::<(KF::Key, usize), (T, usize)>::default()));
         let built = {
             let rows = rows.clone();
             let pending = pending.clone();
-            store(KeyedItems::new(move |at: KF::Key| {
+            store(KeyedItems::numbered(move |at: KF::Key, repeat: usize| {
                 let (item, index) = pending
                     .borrow_mut()
-                    .get_mut(&at)
-                    .and_then(VecDeque::pop_front)
+                    .remove(&(at, repeat))
                     .expect("a row is built for an item of this pass");
                 let (handed, item) = KF::hand(item);
                 let index = create_signal(index);
@@ -563,14 +573,17 @@ where
             {
                 let mut pending = pending.borrow_mut();
                 pending.clear();
+                let mut repeats = HashMap::<KF::Key, usize>::default();
                 for (index, item) in items.into_iter().enumerate() {
                     let at = key.key(&item);
+                    let repeat = repeats.entry(at.clone()).or_default();
                     if KF::KEEPS {
                         changed.push(Some(item.clone()));
                     } else {
                         changed.push(None);
                     }
-                    pending.entry(at.clone()).or_default().push_back((item, index));
+                    pending.insert((at.clone(), *repeat), (item, index));
+                    *repeat += 1;
                     keys.push(at);
                 }
             }
@@ -648,18 +661,19 @@ impl<V: PartialEq + 'static> CaseIs<V> for V {
 /// One case of a `Match`, made by `Case`.
 pub struct CaseOf<V: 'static, C: SlotChild> {
     test: Box<dyn Fn(&V) -> bool>,
-    view: RenderFn<V, Children<C>>,
+    view: RenderFn<ReadSignal<V>, Children<C>>,
 }
 
 crate::value_child_type!(<V, C: SlotChild> CaseOf<V, C>);
 
 /// A case of a `Match`: it holds when the value equals `is` and `when` holds of it (either
-/// may be left out), and its children are built from the value.
+/// may be left out). Its children are built when it becomes the case that holds, and are
+/// handed a signal of the value, which changes in place while it stays that case.
 #[component]
 pub fn Case<V, C, B, I, W>(
     is: I,
     when: W,
-    #[prop(children)] view: RenderFn<V, B>,
+    #[prop(children)] view: RenderFn<ReadSignal<V>, B>,
 ) -> CaseOf<V, C>
 where
     V: 'static,
@@ -674,10 +688,10 @@ where
     }
 }
 
-/// Shows the first `Case` that holds for `value`, built from the value, and `fallback`, if
-/// given, while none does. It builds again when the value changes to one that differs from
-/// the last (`PartialEq`), as a `Dynamic` does:
-/// `<Match value={shape}><Case is={Shape::Circle}>..</Case><Case when={|s: &Shape| s.is_round()}>..</Case></Match>`.
+/// Shows the first `Case` that holds for `value`, and `fallback`, if given, while none does.
+/// A case is built when it becomes the one that holds and kept while it stays so, handed a
+/// signal of the value that changes in place:
+/// `<Match value={shape}><Case is={Shape::Circle}>..</Case><Case when={|s: &Shape| s.is_round()}>|shape: ReadSignal<Shape>| ..</Case></Match>`.
 #[component]
 pub fn Match<V, C, F>(
     value: Prop<V>,
@@ -692,30 +706,45 @@ where
     let fallback = fallback.into_render();
     let cases = cases.into_run();
     DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let held = store(RefCell::new(None::<(V, Option<Scope>)>));
+        let held = store(RefCell::new(None::<(Option<usize>, Option<Signal<V>>, Option<Scope>)>));
         let cases = cases.clone();
         create_binding(move || {
             let next = value.get();
-            let held = held.value();
-            let mut held = held.borrow_mut();
-            if held.as_ref().is_some_and(|(last, _)| *last == next) {
-                return;
-            }
-            let case = cases
+            let found = cases
                 .items()
                 .into_iter()
-                .find(|case| (case.test)(&next));
-            let built = match case {
-                Some(case) => {
-                    let value = next.clone();
-                    Some(mount(&slot, move || case.view.call(value)))
+                .enumerate()
+                .find(|(_, case)| (case.test)(&next));
+            let index = found.as_ref().map(|(index, _)| *index);
+            let held = held.value();
+            let mut held = held.borrow_mut();
+            if let Some((shown, signal, _)) = held.as_ref()
+                && *shown == index
+            {
+                if let Some(signal) = signal {
+                    signal.set(next);
                 }
-                None => fallback.map(|fallback| mount(&slot, || fallback.call(()))),
+                return;
+            }
+            let (signal, built) = match found {
+                Some((_, case)) => {
+                    let signal = StoredCell::new(None::<Signal<V>>);
+                    let built = mount(&slot, move || {
+                        let made = create_signal(next);
+                        signal.set(Some(made));
+                        case.view.call(made.read_only())
+                    });
+                    (signal.get(), Some(built))
+                }
+                None => (
+                    None,
+                    fallback.map(|fallback| mount(&slot, || fallback.call(()))),
+                ),
             };
             if built.is_none() {
                 slot.fill(Vec::new());
             }
-            drop(held.replace((next, built)));
+            drop(held.replace((index, signal, built)));
         });
     })
 }

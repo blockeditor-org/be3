@@ -224,13 +224,19 @@ pub fn numbered<K: Clone + Hash + Eq>(keys: Vec<K>) -> Vec<(K, usize)> {
 /// Per-key values each built in a detached scope of its own, kept across updates of the
 /// list and disposed when `retain` drops the key.
 pub struct KeyedItems<K, V> {
-    build: Box<dyn Fn(K) -> V>,
+    build: Box<dyn Fn(K, usize) -> V>,
     entries: RefCell<HashMap<(K, usize), (V, Scope)>>,
     mapped: RefCell<(Vec<K>, Vec<V>)>,
 }
 
 impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
     pub fn new(build: impl Fn(K) -> V + 'static) -> Self {
+        Self::numbered(move |key, _| build(key))
+    }
+
+    /// Like `new`, with `build` also handed which repeat of its key it builds: 0 for the first
+    /// time a key appears in the keys mapped, 1 for the second, and so on.
+    pub fn numbered(build: impl Fn(K, usize) -> V + 'static) -> Self {
         Self {
             build: Box::new(build),
             entries: RefCell::new(HashMap::default()),
@@ -249,7 +255,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         if let Some(value) = self.get(&key) {
             return value;
         }
-        let built = self.build_scoped(key.clone());
+        let built = self.build_scoped(key.clone(), 0);
         let value = built.0.clone();
         self.entries.borrow_mut().insert((key, 0), built);
         self.forget_mapped();
@@ -262,7 +268,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         if let Some(value) = self.get(&key) {
             return value;
         }
-        let built = self.build_scoped(key.clone());
+        let built = self.build_scoped(key.clone(), 0);
         let value = built.0.clone();
         let scope = built.1.context();
         self.entries.borrow_mut().insert((key, 0), built);
@@ -271,9 +277,9 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         value
     }
 
-    fn build_scoped(&self, key: K) -> (V, Scope) {
+    fn build_scoped(&self, key: K, repeat: usize) -> (V, Scope) {
         let scope = Scope::detached();
-        let built = scope.context().run(|| (self.build)(key));
+        let built = scope.context().run(|| (self.build)(key, repeat));
         (built, scope)
     }
 
@@ -317,7 +323,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
         for numbered in numbered(keys.clone()) {
             let entry = match entries.remove(&numbered) {
                 Some(entry) => entry,
-                None => self.build_scoped(numbered.0.clone()),
+                None => self.build_scoped(numbered.0.clone(), numbered.1),
             };
             mapped.push(entry.0.clone());
             next.insert(numbered, entry);
@@ -343,7 +349,7 @@ impl<K: Clone + Hash + Eq + 'static, V: Clone + 'static> KeyedItems<K, V> {
             return None;
         }
         for key in added {
-            let entry = self.build_scoped(key.clone());
+            let entry = self.build_scoped(key.clone(), 0);
             values.push(entry.0.clone());
             entries.insert((key.clone(), 0), entry);
         }
