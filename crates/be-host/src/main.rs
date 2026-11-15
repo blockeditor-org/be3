@@ -953,7 +953,7 @@ impl HostCore {
     #[cfg(target_arch = "wasm32")]
     fn host_files_failed(&mut self, unkept: host_files::Unkept) {
         notices::report(format!(
-            "This device could not save {}: it will be gone after the page reloads ({}).",
+            "This device could not save {}: the page will undo it when it reloads ({}).",
             unkept.what, unkept.error
         ));
     }
@@ -4198,7 +4198,7 @@ impl HostCore {
                     organization.kind == be_block_protocol::OrganizationKind::Company
                         && organization.role == OrganizationRole::Administrator
                 }),
-                escrow_warning: be_host_stack::escrow_warning().map(str::to_owned),
+                escrow_warning: be_host_stack::escrow_warning(),
             },
             agents: self.agents_open.then(|| ui::AgentsView {
                 organization: organization_name.clone(),
