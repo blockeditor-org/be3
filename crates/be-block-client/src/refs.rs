@@ -1096,15 +1096,19 @@ impl Refs {
         state.let_go.iter().map(|(block, listed)| (*block, *listed)).collect()
     }
 
-    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it.
+    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it: a
+    /// listing kept before stays when this one has none.
     pub fn let_go(&self, block: Uuid, listed: Option<ListedBlock>) -> Result<(), StoreError> {
-        {
+        let listed = {
             let mut state = self.state.lock().unwrap();
-            if state.let_go.get(&block) == Some(&listed) {
+            let kept = state.let_go.get(&block).copied();
+            let listed = listed.or(kept.flatten());
+            if kept == Some(listed) {
                 return Ok(());
             }
             state.let_go.insert(block, listed);
-        }
+            listed
+        };
         self.write(vec![row(Table::LetGo, block.as_bytes().to_vec(), &listed)])
     }
 

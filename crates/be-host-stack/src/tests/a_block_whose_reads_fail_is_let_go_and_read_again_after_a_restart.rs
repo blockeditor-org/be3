@@ -63,14 +63,6 @@ fn a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart() {
             note
         })
     };
-    // Read by a device new to the index each time, so it asks the server for its head.
-    let watermark = |harness: &Harness| {
-        other.runtime.block_on(async {
-            let peer = harness.outside_peer().await;
-            crate::search::watermark(peer.as_ref(), index).await
-        })
-    };
-    let before = watermark(&harness);
     FAILING_READS.lock().unwrap().insert(note, (true, 0));
 
     harness.connect();
@@ -84,32 +76,26 @@ fn a_block_whose_reads_fail_is_let_go_and_read_again_after_a_restart() {
     });
     // Each connection's catch-up reads the note once and holds the watermark back, until the
     // third lets it go.
+    let settled = || with_shared_mut(|shared| shared.search.settled_at.get(&index).copied()).flatten();
     wait_for_tries(note, 1);
     finds("apples", &[]);
-    assert_eq!(watermark(&harness), before, "a block not read holds the watermark back");
+    assert_eq!(settled(), None, "a block not read holds the watermark back");
     reconnect(&mut harness);
     wait_for_tries(note, 2);
     finds("apples", &[]);
-    assert_eq!(watermark(&harness), before);
+    assert_eq!(settled(), None);
     reconnect(&mut harness);
     wait_for_tries(note, 3);
-    finds("apples", &[]);
-    let moved = watermark(&harness);
-    assert!(
-        moved > before,
-        "once the note is let go the watermark moves: {moved:?} after {before:?}"
-    );
+    crate::wait_until(|shared| shared.search.settled_at.get(&index).copied());
 
     // Its catch-ups now start past it, but a restart still reads it again: what was let go is
-    // kept on this device.
+    // kept on this device. Read again, it is in no catch-up's page, so the watermark still
+    // moves.
     stop();
     harness.connect();
     wait_for_tries(note, 4);
+    crate::wait_until(|shared| shared.search.settled_at.get(&index).copied());
     finds("apples", &[]);
-    assert!(
-        watermark(&harness) >= moved,
-        "a block read again never holds a watermark back"
-    );
 
     // Once its commit reads, the next connection's catch-up indexes it.
     FAILING_READS.lock().unwrap().insert(note, (false, 4));

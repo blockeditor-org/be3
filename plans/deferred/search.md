@@ -46,6 +46,9 @@ aside until the user picks it up. The limits below are accepted for now.
   commit cannot be read is held back, not retried at once: it is read again
   when it next changes or a catch-up lists it. Only a block a catch-up let go
   (`MAX_READ_FAILURES`) is kept and read again by every later catch-up.
+- **Edit access lost forgets what was let go.** A root this device can no
+  longer edit drops its let-go blocks (`Peer::forget_let_go`): if access comes
+  back, they stay stale until they next change.
 - **A trashed index is not restored.** From Detached it can only return to
   where it was, which the server refuses for an index; a new one is made.
 - **A forged index.** Any editor of a root is enough to write forged entries

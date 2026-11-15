@@ -232,6 +232,9 @@ pub struct Searching {
     /// Writes a test makes fail before they start (`Unwritten::Failed`).
     #[cfg(test)]
     pub(crate) fail_writes: u32,
+    /// The watermark each index was last settled at here, for a test to see it move.
+    #[cfg(test)]
+    pub(crate) settled_at: HashMap<Uuid, u64>,
     /// Indexes this device named, by root.
     named: HashMap<Uuid, Uuid>,
     /// The graph revision `unindexed_roots` last looked at.
@@ -825,6 +828,13 @@ enum Place {
     Root(Uuid),
 }
 
+/// Forgets `block` as one a catch-up let go (`Peer::forget_let_go`), logging a write that fails.
+fn forget_let_go(peer: &Peer<Store>, block: Uuid) {
+    if let Err(error) = peer.forget_let_go(block) {
+        eprintln!("be-host: could not forget {block} as let go by search: {error}");
+    }
+}
+
 /// The root whose index holds `block`'s text, within `PLACE_DEPTH` steps.
 fn place(graph: &Graph, block: Uuid) -> Place {
     let mut current = block;
@@ -974,7 +984,7 @@ async fn index(
                 }
                 Place::Skip => {
                     held.search.forget(block);
-                    let _ = peer.forget_let_go(block);
+                    forget_let_go(peer, block);
                     continue;
                 }
                 Place::Root(root) => root,
@@ -985,7 +995,7 @@ async fn index(
                 .is_some_and(|root| root.access.can_edit())
             {
                 held.search.forget(block);
-                let _ = peer.forget_let_go(block);
+                forget_let_go(peer, block);
                 continue;
             }
             match index_of(&held.graph, &held.search.named, root) {
@@ -1056,7 +1066,7 @@ async fn index(
                         .unwrap_or_else(PoisonError::into_inner)
                         .search
                         .read(*block);
-                    let _ = peer.forget_let_go(*block);
+                    forget_let_go(peer, *block);
                     put_blocks.push(*block);
                     if whole {
                         read_whole.push(*block);
@@ -1070,7 +1080,9 @@ async fn index(
                     }
                     if held.search.read_failed(*block) {
                         let listed = held.search.caught.get(block).copied();
-                        let _ = peer.let_go(*block, listed);
+                        if let Err(error) = peer.let_go(*block, listed) {
+                            eprintln!("be-host: could not keep {block} to index again: {error}");
+                        }
                         put_blocks.push(*block);
                     }
                 }
@@ -1842,6 +1854,8 @@ fn settle_indexes(
             held.search.writing.remove(&index);
             match written {
                 Ok(Some(needs_text)) => {
+                    #[cfg(test)]
+                    held.search.settled_at.insert(index, settle.sequence);
                     held.search.wrote(index);
                     held.search.answers.clear();
                     held.search.reread(
@@ -1998,13 +2012,6 @@ fn failed_read(block: Uuid) -> bool {
         }
         None => false,
     }
-}
-
-/// The watermark of `index` at its newest head.
-#[cfg(test)]
-pub(crate) async fn watermark<S: ObjectStore>(peer: &Peer<S>, index: Uuid) -> Option<u64> {
-    let head = head_of(peer, index).await?;
-    Some(load(peer, head).await.ok()?.index().watermark())
 }
 
 /// What `index` holds for `block` at its newest head.

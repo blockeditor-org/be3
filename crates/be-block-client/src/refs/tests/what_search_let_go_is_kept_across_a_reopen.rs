@@ -22,6 +22,8 @@ fn what_search_let_go_is_kept_across_a_reopen() {
         let refs = RefsDb::open(&path).unwrap().scope(scope.clone()).unwrap();
         refs.let_go(listed, Some(caught)).unwrap();
         refs.let_go(unlisted, None).unwrap();
+        // Let go again with no listing, it keeps the one it had.
+        refs.let_go(listed, None).unwrap();
         refs.let_go(read, None).unwrap();
         refs.forget_let_go(read).unwrap();
     }
