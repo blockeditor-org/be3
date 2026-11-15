@@ -1,6 +1,9 @@
 use super::*;
 use beui::Align;
 use beui::Rect;
+use beui::drag;
+use beui::primitives::Interactive;
+use beui::{PointerPress, Pos2, Vec2};
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,
     DisclosureHandle, DragHandle, DragPoint, DropHandle, MenuRowHandle, PopupTriggerHandle,
@@ -819,6 +822,21 @@ pub(crate) fn DraggingPage() -> NodeId {
             >
                 <FruitBins />
             </Sample>
+            <Sample
+                title="A list whose rows are dragged to places"
+                code={vec![PlacesList::SOURCE, FruitChip::SOURCE]}
+            >
+                <PlacesList />
+            </Sample>
+            <Sample
+                title="Free placing that snaps to slots"
+                code={vec![SnapArea::SOURCE, SnapSlot::SOURCE]}
+            >
+                <SnapArea />
+            </Sample>
+            <Sample title="A switch dragged between its states" code={vec![DragSwitch::SOURCE]}>
+                <DragSwitch />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -880,6 +898,204 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             }
         }</unstyled::DropTarget>
     }
+}
+
+/// A list as a drop site: its places are read from where its rows are laid out
+/// (`slots_in`), the rows draw the order with the carried row moved to the place chosen, and
+/// only the release writes it. Rows lift by dragging, or from the keyboard: focus one and
+/// press Space, then the arrows and Enter.
+#[sample]
+#[component]
+fn PlacesList() -> NodeId {
+    let fruits = create_signal((0..PRODUCE.len()).collect::<Vec<usize>>());
+    let rows = ForEachRef::<usize, NodeId>::new();
+    let list = NodeRef::new();
+    let site = unstyled::use_drop_site(
+        Func::new(|_: usize| true),
+        Func::new(move |fruit: usize| {
+            drag::closest(unstyled::slots_in(list, rows, &fruit, Direction::Vertical))
+                .when_far(drag::floating())
+        }),
+        Callback::new(move |(fruit, drag::After(after)): (usize, drag::After<usize>)| {
+            fruits.update(|fruits| drag::move_after(fruits, fruit, after))
+        }),
+    );
+    let order = create_memo(move || {
+        let mut order = fruits.get();
+        if let (Some(fruit), Some(drag::After(after))) =
+            (unstyled::carrying::<usize>(), site.over.get())
+        {
+            drag::move_after(&mut order, fruit, after);
+        }
+        order
+    });
+    view! {
+        <List @node_ref=&list spacing=Space::Sm>
+            <ForEach value={order} handle={rows}>|fruit: usize| {
+                let carried = unstyled::is_carried(fruit);
+                view! {
+                    <Interactive
+                        @test_id={format!("demo.places.{fruit}")}
+                        focusable=true
+                        drag={Func::new(move |_: PointerPress| Some(drag::Carry::new(fruit)))}
+                    >
+                        <FruitChip fruit lifted={carried} />
+                    </Interactive>
+                }
+            }</ForEach>
+        </List>
+    }
+}
+
+/// Where a chip lands in the area: in a slot, or anywhere else, where it was let go.
+#[derive(Clone, Copy, PartialEq)]
+enum Placed {
+    Slot(usize),
+    Free(Rect),
+}
+
+const SNAP_SLOTS: [Pos2; 3] = [
+    Pos2::new(16.0, 16.0),
+    Pos2::new(136.0, 16.0),
+    Pos2::new(256.0, 16.0),
+];
+const SNAP_CHIP: Vec2 = Vec2::new(96.0, 40.0);
+
+/// A chip placed anywhere in an area, snapping into a slot within reach of one:
+/// `closest(slots).when_far(free(area))`.
+#[sample]
+#[component]
+fn SnapArea() -> NodeId {
+    let at = create_signal(Pos2::new(136.0, 100.0));
+    let area = NodeRef::new();
+    let placed = measure_ref(area);
+    let site = unstyled::use_drop_site(
+        Func::new(|_: ()| true),
+        Func::new(move |_: ()| {
+            let slots = SNAP_SLOTS.iter().enumerate().map(|(slot, min)| {
+                drag::Candidate::new(Placed::Slot(slot), Rect::from_min_size(*min, SNAP_CHIP), area)
+            });
+            drag::closest(slots).when_far(drag::free(area, Placed::Free))
+        }),
+        Callback::new(move |((), placed_at): ((), Placed)| {
+            let origin = placed.get_untracked().map_or(Pos2::ZERO, |rect| rect.min);
+            at.set(match placed_at {
+                Placed::Slot(slot) => SNAP_SLOTS[slot],
+                Placed::Free(rect) => Pos2::ZERO + (rect.min - origin),
+            });
+        }),
+    );
+    let snapped = create_memo(move || matches!(site.over.get(), Some(Placed::Slot(_))));
+    view! {
+        <Frame
+            @node_ref=&area
+            height=Size::Custom(180.0)
+            fill=ColorRole::Surface
+            border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+            radius=Radius::Lg
+        >
+            <Layers>
+                <SnapSlot at={SNAP_SLOTS[0]} />
+                <SnapSlot at={SNAP_SLOTS[1]} />
+                <SnapSlot at={SNAP_SLOTS[2]} />
+                <List spacing=Space::None align=Align::Start>
+                <Frame translate={move || at.get().to_vec2()}>
+                    <Interactive
+                        @test_id="demo.snap.chip"
+                        focusable=true
+                        drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}
+                    >
+                        <Frame
+                            width=Size::Custom(SNAP_CHIP.x)
+                            height=Size::Custom(SNAP_CHIP.y)
+                            fill={move || match snapped.get() {
+                                true => ColorRole::AccentSoft,
+                                false => ColorRole::Control,
+                            }}
+                            radius=Radius::Md
+                        />
+                    </Interactive>
+                </Frame>
+                </List>
+            </Layers>
+        </Frame>
+    }
+}
+
+/// The outline of a slot in `SnapArea`, at `at` in the area.
+#[sample]
+#[component]
+fn SnapSlot(at: Pos2) -> NodeId {
+    view! {
+        <List spacing=Space::None align=Align::Start>
+            <Frame
+                translate={at.to_vec2()}
+                width=Size::Custom(SNAP_CHIP.x)
+                height=Size::Custom(SNAP_CHIP.y)
+                border={Border::new(ColorRole::Border).width(Stroke::Hairline)}
+                radius=Radius::Md
+            />
+        </List>
+    }
+}
+
+/// A switch whose knob is dragged to either end: two places, the nearer chosen, and a fast
+/// flick lands at the end it heads for (`thrown`).
+#[sample]
+#[component]
+fn DragSwitch() -> NodeId {
+    let on = create_signal(false);
+    let track = NodeRef::new();
+    let knob = |at: f32| Rect::from_min_size(Pos2::new(at, 2.0), Vec2::new(28.0, 28.0));
+    unstyled::use_drop_site(
+        Func::new(|_: ()| true),
+        Func::new(move |_: ()| {
+            drag::closest([
+                drag::Candidate::new(false, knob(2.0), track),
+                drag::Candidate::new(true, knob(30.0), track),
+            ])
+            .thrown()
+        }),
+        Callback::new(move |((), state): ((), bool)| on.set(state)),
+    );
+    view! {
+        <Frame
+            @node_ref=&track
+            width=Size::Custom(60.0)
+            height=Size::Custom(32.0)
+            radius=Radius::Full
+            fill={move || match on.get() {
+                true => ColorRole::Accent,
+                false => ColorRole::Control,
+            }}
+        >
+            <List spacing=Space::None align=Align::Start>
+                <Frame translate={move || Vec2::new(if on.get() { 30.0 } else { 2.0 }, 2.0)}>
+                    <Interactive drag={Func::new(|_: PointerPress| Some(drag::Carry::new(())))}>
+                        <Frame
+                            width=Size::Custom(28.0)
+                            height=Size::Custom(28.0)
+                            radius=Radius::Full
+                            fill=ColorRole::Surface
+                        />
+                    </Interactive>
+                </Frame>
+            </List>
+        </Frame>
+    }
+}
+
+/// The rect `node` is laid out at, once it is.
+fn measure_ref(node: NodeRef) -> Memo<Option<Rect>> {
+    let measured = create_signal(None::<ReadSignal<Option<beui::reactive::Measured>>>);
+    create_effect(move || {
+        if measured.get_untracked().is_none()
+            && let Some(node) = node.try_get()
+        {
+            measured.set(Some(measure(node)));
+        }
+    });
+    create_memo(move || measured.get().and_then(|measured| measured.get()).map(|m| m.rect))
 }
 
 #[sample]
