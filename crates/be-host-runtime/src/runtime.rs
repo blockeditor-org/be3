@@ -380,7 +380,7 @@ struct Kept {
     back: Option<Back>,
 }
 
-/// How many hidden views keep their last frame at once: past it, the one hidden longest lets its
+/// How many hidden views of one app keep their last frame at once: past it, the one hidden longest lets its
 /// frame go, and if it is shown again it may show empty for a frame while its app draws it.
 const MOST_KEPT: usize = 8;
 
@@ -1357,11 +1357,11 @@ impl Runtime {
                 });
         }
         // Only the views hidden last keep their frame; the textures of the others go with the
-        // next `release_kept`.
+        // next `release_kept`. One this layout shows again is coming back, so it keeps its frame.
         let mut hidden: Vec<(u64, ScreenId)> = self
             .kept
             .iter()
-            .filter(|(_, kept)| kept.back.is_none())
+            .filter(|(screen, kept)| kept.back.is_none() && layout.placement(**screen).is_none())
             .map(|(screen, kept)| (kept.hidden, *screen))
             .collect();
         if hidden.len() > MOST_KEPT {
@@ -1388,6 +1388,8 @@ impl Runtime {
         self.kept.retain(|screen, kept| {
             let drawn = match kept.back {
                 None | Some(Back::Laid(_)) => false,
+                // A present that painted nothing lets the kept frame go though the new surface has
+                // no pixels yet, as a closing anchored view does (`Closing`).
                 Some(Back::Presented(painted)) => painted.is_none_or(|sequence| shown >= sequence),
             };
             instances.view_request_of(*screen).is_some() && !drawn
@@ -3013,6 +3015,9 @@ pub fn unmount_view(app_id: &str, instance: EditorInstanceId, region: ViewId, mo
         }
         withdraw(runtime, instance, region, mount);
         runtime.report_docked();
+        if !runtime.kept.is_empty() {
+            runtime.release_kept();
+        }
     });
     mark(app_id);
     host::request_repaint();
