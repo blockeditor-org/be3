@@ -1,7 +1,6 @@
 # Running every wasm guest on V8 and deleting precompilation
 
-Depends on: none. Within it, step 4 waits for PR #686 to land and step 5 for Android's prebuilt V8
-(step 2).
+Depends on: none. Within it, step 4 waits for PR #686 to land.
 
 Every app module, type module and library is precompiled to a `.cwasm` for each target
 (`:precompiled` in `crates/be-host/BUCK`), one of the slowest actions in a full build and most of
@@ -47,8 +46,8 @@ section where the module declares a larger one), trap backtraces and `BE3_PERF_M
    that platform, from OUT_DIR (`overlays/v8/src/binding.rs`), since cargo's script keeps both
    outside OUT_DIR. rusty_v8 publishes nothing for Android: `scripts/internal/build-rusty-v8-android.sh`
    builds both files on a person's machine, and once they are hosted, `android_arm64` and
-   `android_arm64_binding` in third-party/v8/BUCK name them, and be-wasm-host's Cargo.toml drops
-   its `cfg(not(target_os = "android"))` on `v8`. Until then Android stays on wasmtime.
+   `android_arm64_binding` in third-party/v8/BUCK name them. Until then Android builds are
+   broken: the user chose to regress Android rather than keep wasmtime beside V8.
 3. **be-wasm-host on V8.** Its public API stays (`Host`, `App`, `Runnable`, `Interrupter`,
    `Stored`). One isolate per guest thread. Libraries compiled once and shared between isolates
    as `CompiledWasmModule`. The gpu and transport imports as fast-API functions generated from
@@ -65,6 +64,6 @@ section where the module declares a larger one), trap backtraces and `BE3_PERF_M
 5. **Delete precompilation.** `precompile.rs`, `precompiled_apps`, the precompiler targets, the
    `.cwasm` staging including the APK's assets, and `--quick` tests' precompiles; update
    guides/app_libraries.md, guides/apps/runtime.md, guides/performance.md and
-   decisions/host_startup_overlaps_app_loading.md. Only once Android runs on V8.
+   decisions/host_startup_overlaps_app_loading.md. wasmtime goes with it, Android or not.
 6. **Measure and decide.** Host start to the files pane, the host tests' CPU, bundle size and
    `example-gpu-calls` before and after, recorded in a decision file.
