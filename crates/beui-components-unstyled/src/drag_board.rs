@@ -10,6 +10,7 @@ use beui_view::drag::{
 use beui_view::reactive::{NodeId, OwnedSignal, tree_local};
 
 mod sites;
+use beui_view::types::input::PointerId;
 use beui_view::types::{Rect, WindowId};
 pub(crate) use sites::{Erased, Site};
 
@@ -560,16 +561,20 @@ impl Driver for Board {
 
     fn track(&self, point: DragPoint, order: Order) {
         if self.placing() {
-            self.place(point, false);
+            if self.carried_by(point.pointer) {
+                self.place(point, false);
+            }
             return;
         }
         self.order(order);
         Board::track(self, point);
     }
 
-    fn release(&self, cancelled: bool, order: Order) {
+    fn release(&self, pointer: PointerId, cancelled: bool, order: Order) {
         if self.placing() {
-            self.put_down(!cancelled);
+            if self.carried_by(pointer) {
+                self.put_down(!cancelled);
+            }
             return;
         }
         self.order(order);
