@@ -511,10 +511,12 @@ fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
                     }
                 }</ForEach>
                 <Text style=TextStyle::HEADING>{running}</Text>
-                <Show value={move || runtime_keys.with(Vec::is_empty)}>
-                    <Text style=TextStyle::CAPTION>"no apps are running"</Text>
-                </Show>
-                <ForEach value={runtime_keys}>|id: String| {
+                <ForEach
+                    value={runtime_keys}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>"no apps are running"</Text>
+                    }}
+                >|id: String| {
                     let key = id.clone();
                     let runtime = create_memo(move || {
                         runtimes.get().into_iter().find(|runtime| runtime.id == key)

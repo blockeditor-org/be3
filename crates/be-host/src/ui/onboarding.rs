@@ -8,7 +8,7 @@ use beui::styled::*;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
-use super::{AccountForm, ErrorAction, HostUiStore, OrganizationsState, UiCommand, send};
+use super::{AccountForm, ErrorAction, HostUiStore, JoiningRow, OrganizationsState, UiCommand, send};
 use crate::root_settings::{SESSION_TYPES, session_type_name};
 use be_host_base::platform;
 use beui::{Align, Direction};
@@ -311,7 +311,8 @@ pub(super) fn AddAccountDialog(
                 </Show>
                 <Show value={editing}>
                     <List spacing=Space::Xl>
-                        <Show value={local}>
+                        <Match value={selection}>
+                            <Case is={Some(1)}>
                             <List spacing=Space::Xl>
                                 <Text style=TextStyle::PARAGRAPH>
                                     "Your data stays on this device. You only need a display name."
@@ -327,14 +328,14 @@ pub(super) fn AddAccountDialog(
                                     />
                                 </List>
                             </List>
-                        </Show>
-                        <Show value={move || selection.get() == Some(0)}>
+                            </Case>
+                            <Case is={Some(0)}>
                             <List spacing=Space::Xs>
                                 <Text size=TextSize::Lg>{default_name}</Text>
                                 <Text style=TextStyle::CAPTION>{server_name}</Text>
                             </List>
-                        </Show>
-                        <Show value={move || selection.get() == Some(2)}>
+                            </Case>
+                            <Case is={Some(2)}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>"Server address"</Text>
                                 <TextInput
@@ -345,7 +346,8 @@ pub(super) fn AddAccountDialog(
                                     on_submit={move |_| submit()}
                                 />
                             </List>
-                        </Show>
+                            </Case>
+                        </Match>
                         <Show value={move || remote.get() && platform::SENDS_HEADERS}>
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::CAPTION>{gateway_label}</Text>
@@ -505,7 +507,14 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                 </List>
             </Card>
             <Text style=TextStyle::HEADING>"Open an organization"</Text>
-            <ForEach value={keys}>|id: Uuid| {
+            <ForEach
+                value={keys}
+                fallback={move || view! {
+                    <Card>
+                        <OrganizationsPlaceholder state />
+                    </Card>
+                }}
+            >|id: Uuid| {
                 let label = create_memo(move || {
                     organizations.get()
                         .organizations
@@ -533,11 +542,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Show value={move || keys.with(Vec::is_empty)}>
-                <Card>
-                    <OrganizationsPlaceholder state />
-                </Card>
-            </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                 <Text align=TextAlign::Center>
                     <Icon glyph=ICON_USER_PLUS />
@@ -555,18 +559,6 @@ pub(super) fn OrganizationsScreen(view: HostUiStore) -> NodeId {
 #[component]
 fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     let joining = create_memo(move || view.organizations.get().joining);
-    let title = create_memo(move || {
-        joining
-            .get()
-            .map(|row| format!("Join {} as {}?", row.organization, row.role))
-            .unwrap_or_default()
-    });
-    let invited = create_memo(move || {
-        joining
-            .get()
-            .map(|row| format!("Invited as {}", row.email))
-            .unwrap_or_default()
-    });
     let link = create_signal(String::new());
     let cannot = create_memo(move || busy.get() || link.get().trim().is_empty());
     let open = move || {
@@ -577,7 +569,7 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
     view! {
         <List spacing=Space::Md @test_id={"host.join"}>
             <Show
-                value={move || joining.with(Option::is_some)}
+                value={joining}
                 fallback={move || view! {
                     <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>
@@ -603,13 +595,17 @@ fn JoinOrganization(view: HostUiStore, busy: Memo<bool>) -> NodeId {
                         </List>
                     </List>
                 }}
-            >
+            >|row: ReadSignal<JoiningRow>|
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <ListItem grow=1.0>
                             <List spacing=Space::Xs2>
-                                <Text size=TextSize::Lg>{title}</Text>
-                                <Text style=TextStyle::CAPTION>{invited}</Text>
+                                <Text size=TextSize::Lg>
+                                    {move || row.with(|row| format!("Join {} as {}?", row.organization, row.role))}
+                                </Text>
+                                <Text style=TextStyle::CAPTION>
+                                    {move || row.with(|row| format!("Invited as {}", row.email))}
+                                </Text>
                             </List>
                         </ListItem>
                         <Button
@@ -743,10 +739,10 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
                 menu_label="New session of another type"
                 disabled={loading}
                 items={view! {
-                    <ForEach value={(0..SESSION_TYPES.len()).collect::<Vec<_>>()}>|index: usize|
+                    <ForEach value={SESSION_TYPES.to_vec()}>|(kind, name): (Uuid, &'static str)|
                         <MenuItem
-                            label={format!("New {} session", SESSION_TYPES[index].1)}
-                            on_click={move || send(UiCommand::OpenNewSession(SESSION_TYPES[index].0))}
+                            label={format!("New {name} session")}
+                            on_click={move || send(UiCommand::OpenNewSession(kind))}
                         />
                     </ForEach>
                 }}
@@ -773,12 +769,13 @@ pub(super) fn SessionsScreen(view: HostUiStore) -> NodeId {
 fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
     view! {
         <List spacing=Space::None>
-            <Show value={move || state.get() == OrganizationsState::Loaded}>
+            <Match value={state}>
+            <Case is={OrganizationsState::Loaded}>
                 <Text style=TextStyle::CAPTION>
                     "You do not have any organizations yet. Create one below."
                 </Text>
-            </Show>
-            <Show value={move || state.get() == OrganizationsState::Failed}>
+            </Case>
+            <Case is={OrganizationsState::Failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Could not load organizations."</Text>
                     <Button
@@ -787,13 +784,14 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
                         on_click={|| send(UiCommand::ReloadOrganizations)}
                     />
                 </List>
-            </Show>
-            <Show value={move || state.get() == OrganizationsState::Loading}>
+            </Case>
+            <Case is={OrganizationsState::Loading}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                     <Text style=TextStyle::CAPTION>"Loading organizations…"</Text>
                 </List>
-            </Show>
+            </Case>
+            </Match>
         </List>
     }
 }

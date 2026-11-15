@@ -1866,24 +1866,6 @@ fn take_keyboard(
 
 #[component]
 fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
-    let title = create_memo(move || {
-        failure
-            .get()
-            .map(|failure| failure.title)
-            .unwrap_or_default()
-    });
-    let detail = create_memo(move || {
-        failure
-            .get()
-            .map(|failure| failure.detail)
-            .unwrap_or_default()
-    });
-    let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
-    let reload = move || {
-        if let Some(app) = restart.get_untracked() {
-            be_host_runtime::restart_app(&app);
-        }
-    };
     let loading_item = create_memo(|| HostItem::Notice {
         text: "Loading app…".to_owned(),
         busy: true,
@@ -1892,21 +1874,28 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     view! {
         <Frame align=Align::Center>
             <Show
-                value={move || failure.with(Option::is_some)}
+                value={failure}
                 fallback={move || view! {
                     <Show value={loading}>
                         <HostItemFace content={loading_item} />
                     </Show>
                 }}
-            >
-                <CrashNotice
-                    title={title}
-                    detail={detail}
-                    reloadable={move || restart.with(Option::is_some)}
-                    on_reload={reload}
-                    id={id.clone()}
-                />
-            </Show>
+            >|failure: ReadSignal<Failure>| {
+                let restart = create_memo(move || failure.with(|failure| failure.restart.clone()));
+                view! {
+                    <CrashNotice
+                        title={move || failure.with(|failure| failure.title.clone())}
+                        detail={move || failure.with(|failure| failure.detail.clone())}
+                        reloadable={move || restart.with(Option::is_some)}
+                        on_reload={move || {
+                            if let Some(app) = restart.get_untracked() {
+                                be_host_runtime::restart_app(&app);
+                            }
+                        }}
+                        id={id.clone()}
+                    />
+                }
+            }</Show>
         </Frame>
     }
 }

@@ -739,30 +739,28 @@ pub(crate) struct ChildReports {
 
 #[component]
 pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach value={keys}>|block: Uuid| {
+            <Dynamic value={shell} fallback=()>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <TabFrame block top_bar=TopBar::Hidden />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
 
 #[component]
 pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
-    let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach value={keys}>|block: Uuid| {
+            <Dynamic value={shell} fallback=()>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <BlockView block region={View::display(display)} />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -779,7 +777,6 @@ pub(crate) fn PresentingSurface() -> NodeId {
                 .map(|(key, _)| *key)
         })
     });
-    let keys = create_memo(move || presenting.get().into_iter().collect::<Vec<_>>());
     let open = create_memo(move || presenting.with(Option::is_some));
     let overlay = NodeRef::new();
     stop_on_escape(overlay);
@@ -801,7 +798,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
             }}
         >
             <Layers>
-                <ForEach value={keys}>|block: Uuid| {
+                <Dynamic value={presenting} fallback=()>|block: Uuid| {
                     provide_context(Nesting::root());
                     be_host_base::host::set_fullscreen(true);
                     on_cleanup(move || {
@@ -823,7 +820,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
                             presented=true
                         />
                     }
-                }</ForEach>
+                }</Dynamic>
             </Layers>
         </Overlay>
     }
@@ -844,12 +841,6 @@ pub(crate) fn ConflictSurface() -> NodeId {
 #[component]
 fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>) -> NodeId {
     let open = create_memo(move || comparison.with(Option::is_some));
-    let error = create_memo(move || {
-        comparison
-            .get()
-            .and_then(|comparison| comparison.error)
-            .unwrap_or_default()
-    });
     view! {
         <Dialog
             open={open}
@@ -879,7 +870,7 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show value={move || !error.with(String::is_empty)}>
+                <Show value={move || comparison.get().and_then(|comparison| comparison.error)}>|error: ReadSignal<String>|
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -1015,16 +1006,16 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
     let nesting = use_context::<Nesting>().unwrap_or_else(Nesting::root);
     provide_context(nesting.within(block, nesting.access));
     let any = super::any();
-    let keys = create_memo(move || {
-        any.get();
-        view_key(&editors, block, false)
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach value={keys}>|_key: ViewKey| {
+            <Dynamic
+                value={move || {
+                    any.get();
+                    view_key(&editors, block, false)
+                }}
+                fallback=()
+            >|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
@@ -1038,7 +1029,7 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
                         child_view
                     />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }
@@ -1233,10 +1224,9 @@ fn BlockFrame(
                 .with(|open| open.get(&block).map(|editor| !editor.presenting_now()))
                 .unwrap_or(true)
     });
-    let keys = create_memo(move || shown.get().then_some(block).into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach value={keys}>|block: Uuid|
+            <Show value={shown}>
                 <BlockFrameBody
                     block
                     chrome={chrome}
@@ -1246,7 +1236,7 @@ fn BlockFrame(
                     passive={passive}
                     reporter={reporter}
                 />
-            </ForEach>
+            </Show>
         </Layers>
     }
 }
@@ -1282,13 +1272,12 @@ enum Resolution {
 #[component]
 fn ProgramSurface(block: Uuid, focus: Memo<u64>) -> NodeId {
     let any = super::any();
-    let shown = create_memo(move || {
-        any.get();
-        be_host_desktop::programs::shown(block)
-    });
     view! {
         <Dynamic
-            value={shown}
+            value={move || {
+                any.get();
+                be_host_desktop::programs::shown(block)
+            }}
             fallback={|| view! {
                 <Frame />
             }}
@@ -1393,16 +1382,6 @@ fn BlockFrameBody(
             None => Resolution::Unsupported(handle.block_type),
         }
     });
-    let conflicted = create_memo(move || {
-        any.get();
-        match resolution.get() {
-            Resolution::Ready { .. } => be_host_stack::conflicts::conflicted(block)
-                .map(|conflicted| conflicted.count)
-                .into_iter()
-                .collect::<Vec<_>>(),
-            _ => Vec::new(),
-        }
-    });
     view! {
         <Layers>
             <Dynamic value={resolution}>|resolution: Resolution| {
@@ -1480,9 +1459,20 @@ fn BlockFrameBody(
                     }
                 }
             }</Dynamic>
-            <ForEach value={conflicted}>|count: usize|
+            <Dynamic
+                value={move || {
+                    any.get();
+                    match resolution.get() {
+                        Resolution::Ready { .. } => {
+                            be_host_stack::conflicts::conflicted(block).map(|conflicted| conflicted.count)
+                        }
+                        _ => None,
+                    }
+                }}
+                fallback=()
+            >|count: usize|
                 <ConflictNotice block count />
-            </ForEach>
+            </Dynamic>
         </Layers>
     }
 }
@@ -1891,26 +1881,24 @@ fn HostedChild(
     let y = create_memo(move || local.get().min.y);
     let width = create_memo(move || local.get().width());
     let height = create_memo(move || local.get().height());
-    let keys = create_memo(move || {
-        content
-            .get()
-            .map(|content| {
-                (
-                    frame.get().or(content.block_id()).unwrap_or_default(),
-                    kind.get(),
-                    content.editor(),
-                )
-            })
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let _ = rect;
     let within = use_context::<FocusedWithin>().map_or_else(Callback::default, |within| within.0);
     view! {
         <Canvas>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
-                    <ForEach value={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                    <Dynamic
+                        value={move || {
+                            content.get().map(|content| {
+                                (
+                                    frame.get().or(content.block_id()).unwrap_or_default(),
+                                    kind.get(),
+                                    content.editor(),
+                                )
+                            })
+                        }}
+                        fallback=()
+                    >|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                         provide_context(PlacedAnchor(create_memo(move || {
                             child.get().and_then(|child| {
                                 let anchor = child.anchor?;
@@ -2030,7 +2018,7 @@ fn HostedChild(
                                 }
                             }
                         }
-                    }</ForEach>
+                    }</Dynamic>
                 </Layers>
             </CanvasItem>
         </Canvas>
@@ -2337,16 +2325,16 @@ fn reporter_for(parent: Uuid, key: ChildId, within: Callback<()>) -> ChildReport
 fn BlockPreview(block: Uuid) -> NodeId {
     let editors = editors();
     let any = super::any();
-    let keys = create_memo(move || {
-        any.get();
-        view_key(&editors, block, true)
-            .into_iter()
-            .collect::<Vec<_>>()
-    });
     let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
-            <ForEach value={keys}>|_key: ViewKey| {
+            <Dynamic
+                value={move || {
+                    any.get();
+                    view_key(&editors, block, true)
+                }}
+                fallback=()
+            >|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
@@ -2355,7 +2343,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
                 view! {
                     <AppView editor={view_editor} region=View::PREVIEW offscreen=true child_view />
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     }
 }

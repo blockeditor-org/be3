@@ -19,11 +19,10 @@ pub struct AccountRow {
 
 #[component]
 pub fn ErrorText(text: Memo<Option<String>>) -> NodeId {
-    let content = create_memo(move || text.get().unwrap_or_default());
     view! {
         <List spacing=Space::None>
-            <Show value={move || text.get().is_some()}>
-                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{content}</Text>
+            <Show value={text}>|text: ReadSignal<String>|
+                <Text style=TextStyle::PARAGRAPH color=TextColor::Danger>{text}</Text>
             </Show>
         </List>
     }
@@ -65,7 +64,14 @@ pub fn AccountsScreen(
         <Column>
             <Text style=TextStyle::TITLE>"be-host"</Text>
             <Text style=TextStyle::CAPTION>"Choose an account to continue."</Text>
-            <ForEach value={keys}>|key: String| {
+            <ForEach
+                value={keys}
+                fallback={|| view! {
+                    <Card>
+                        <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
+                    </Card>
+                }}
+            >|key: String| {
                 let account = create_memo(move || {
                     accounts
                         .get()
@@ -77,11 +83,6 @@ pub fn AccountsScreen(
                     <AccountCard account on_open on_choose_organization on_log_out />
                 }
             }</ForEach>
-            <Show value={move || accounts.get().is_empty()}>
-                <Card>
-                    <Text style=TextStyle::CAPTION>"No accounts yet. Add one to get started."</Text>
-                </Card>
-            </Show>
             <Button
                 label="Add account"
                 glyph=ICON_PLUS
