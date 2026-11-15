@@ -3,11 +3,11 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use be_lib_stable_hash::HashMap;
-use beui_view::drag::DragFrame;
+use beui_view::drag::{CarryId, DragFrame};
 use beui_view::drag::{
     DragPoint, DragSource, Driver, EdgeScroller, Order, Over, Pending, Space, Take, Target,
 };
-use beui_view::reactive::{NodeId, OwnedSignal, tree_local};
+use beui_view::reactive::{Get, NodeId, OwnedSignal, tree_local};
 
 mod sites;
 use beui_view::types::input::PointerId;
@@ -57,6 +57,8 @@ pub struct Board {
     placing: RefCell<Option<sites::Placing>>,
     lifted: OwnedSignal<Option<Erased>>,
     shown: OwnedSignal<Option<DragFrame>>,
+    /// The carry held now, by the id its lift returned.
+    current: OwnedSignal<Option<CarryId>>,
 }
 
 impl Board {
@@ -75,6 +77,7 @@ impl Board {
             placing: RefCell::default(),
             lifted: OwnedSignal::new(None),
             shown: OwnedSignal::new(None),
+            current: OwnedSignal::new(None),
         }
     }
 
@@ -597,8 +600,22 @@ impl Driver for Board {
         Board::stop_edge(self);
     }
 
-    fn lift(&self, carry: beui_view::drag::Carry, point: DragPoint) {
-        Board::lift(self, carry, point);
+    fn lift(&self, carry: beui_view::drag::Carry, point: DragPoint) -> Option<CarryId> {
+        Board::lift(self, carry, point)
+    }
+
+    fn put_down(&self, carry: CarryId) {
+        if self.current.get_untracked() == Some(carry) {
+            Board::put_down(self, false);
+        }
+    }
+
+    fn carry(&self) -> Option<CarryId> {
+        self.current.get()
+    }
+
+    fn frame(&self) -> Option<DragFrame> {
+        Board::frame(self)
     }
 }
 
