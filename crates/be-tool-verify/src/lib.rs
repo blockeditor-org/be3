@@ -574,11 +574,9 @@ impl Run {
         let mut earlier = Vec::new();
         for (package, directory) in &directories {
             if !this_builds(ran.as_ref(), package, directory) {
-                earlier.extend(
-                    paint_files(&directory.join("changed"))
-                        .iter()
-                        .filter_map(|painting| Some(package.join("snapshots").join(painting.file_name()?))),
-                );
+                earlier.extend(paint_files(&directory.join("changed")).iter().filter_map(
+                    |painting| Some(package.join("snapshots").join(painting.file_name()?)),
+                ));
                 continue;
             }
             for painting in paint_files(&directory.join("changed")) {
@@ -755,7 +753,11 @@ impl Run {
 /// Whether `directory`, an output of a test in `package`, is this build's: every
 /// one is when `ran` is none (everything built), else only one of a test in
 /// `ran`, as "crates/foo:name".
-pub(crate) fn this_builds(ran: Option<&BTreeSet<String>>, package: &Path, directory: &Path) -> bool {
+pub(crate) fn this_builds(
+    ran: Option<&BTreeSet<String>>,
+    package: &Path,
+    directory: &Path,
+) -> bool {
     ran.is_none_or(|ran| owner(package, directory).is_some_and(|test| ran.contains(&test)))
 }
 
