@@ -32,6 +32,12 @@ interface replicas {
         /// them, but neither numbers nor submits them, since the server may
         /// hold them already. Once joined, the server's order says which.
         doubtful-through: u64,
+        /// For local edits the host kept across a stop: the last restart the
+        /// replica that made them applied (`status.last-restart`), and the
+        /// number of the last of them. Opened on an order restarted since,
+        /// those edits are dropped, each told to its editor as not sent.
+        kept-restart: u64,
+        kept-through: u64,
         /// The head the host just read; the replica reads it itself.
         head: option<commit-id>,
         session: session-state,

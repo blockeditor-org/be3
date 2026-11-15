@@ -24,6 +24,8 @@ pub struct BaseState {
     pub content: Vec<u8>,
     /// Origin, its highest `through`, and the sequence that holds it.
     pub origins: Vec<(u64, u64, u64)>,
+    /// The sequence of the order's last restart, or 0.
+    pub last_restart: u64,
 }
 
 impl BaseState {

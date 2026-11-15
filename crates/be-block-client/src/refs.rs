@@ -374,6 +374,9 @@ pub struct OpenEdits {
     pub given_up: u64,
     /// The last of them submitted to the server, which may hold it.
     pub submitted_through: u64,
+    /// The order's last restart the replica that made them had applied
+    /// (`status.last-restart`).
+    pub last_restart: u64,
     /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
     pub edits: Vec<Vec<u8>>,
 }

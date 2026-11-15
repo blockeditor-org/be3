@@ -453,6 +453,8 @@ impl Module {
                 origin: opening.origin,
                 taken_before: opening.taken_before,
                 doubtful_through: opening.doubtful_through,
+                kept_restart: opening.kept_restart,
+                kept_through: opening.kept_through,
                 head: opening.head,
                 session: opening.session.clone(),
                 journal: opening.journal.clone(),

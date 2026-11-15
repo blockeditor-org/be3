@@ -71,6 +71,8 @@ pub(crate) const LARGEST_RELAYED_OPERATION: usize = 1024 * 1024;
 const LOG_LIMIT: usize = 65_536;
 const DIVERGED: &str = "the session runs a different version of this block's type";
 const CLAIMED_ARRIVAL: &str = "an edit may not say when the server took it";
+pub(crate) const STALE_EDIT: &str = "an edit kept while this device was away was not sent: the session \
+     started over from its saved content meanwhile, so what the edit changed is gone";
 
 /// Whether `operation` already holds an arrival stamp (`LiveEdit::arrival`).
 fn claims_arrival<C: LiveEdit>(operation: &mut C::Op) -> bool {
@@ -86,6 +88,8 @@ pub(crate) struct Opened {
     pub(crate) origin: u64,
     pub(crate) taken_before: u64,
     pub(crate) doubtful_through: u64,
+    pub(crate) kept_restart: u64,
+    pub(crate) kept_through: u64,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
@@ -596,6 +600,13 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     first_doubtful: Option<u64>,
     /// Whether the local edit being taken is doubtful: `edit` keeps what it makes in `doubtful`.
     doubtful_now: bool,
+    /// The order's number of the last restart applied here, or 0 (`status.last-restart`).
+    last_restart: u64,
+    /// What the host kept across a stop (`opening.kept-restart`, `opening.kept-through`): once
+    /// loaded on an order restarted since, the local edits through `stale_through` are dropped.
+    kept_restart: u64,
+    kept_through: u64,
+    stale_through: u64,
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
@@ -842,6 +853,10 @@ where
             doubtful: Vec::new(),
             first_doubtful: None,
             doubtful_now: false,
+            last_restart: 0,
+            kept_restart: opened.kept_restart,
+            kept_through: opened.kept_through,
+            stale_through: 0,
             replacing_from: None,
             epoch: opened.epoch,
             beaten: None,
@@ -1177,13 +1192,19 @@ where
             .collect();
         origins.sort_by_key(|(_, _, at)| std::cmp::Reverse(*at));
         origins.truncate(crate::wire::BaseState::KEPT_ORIGINS);
-        crate::wire::BaseState { content, origins }.encode()
+        crate::wire::BaseState {
+            content,
+            origins,
+            last_restart: self.last_restart,
+        }
+        .encode()
     }
 
     /// Takes the origins a base or reload carries, this replica's own included, and answers the
     /// type's session state in it; none when it does not decode.
     fn adopt_base_state(&mut self, bytes: &[u8]) -> Option<Vec<u8>> {
         let state = crate::wire::BaseState::decode(bytes)?;
+        self.last_restart = self.last_restart.max(state.last_restart);
         for (origin, through, at) in state.origins {
             self.note_origin(origin, through, at);
             if origin == self.origin {
@@ -1257,6 +1278,9 @@ where
         if local && self.edit_number() <= self.own_through {
             return self.job_already_ordered(job);
         }
+        if local && self.edit_number() <= self.stale_through {
+            return self.job_stale(job);
+        }
         // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
         // the edit it was made on, and given again with it once the replica joins.
         self.doubtful_now = local
@@ -1272,6 +1296,29 @@ where
             Job::Release => self.release(),
         }
         self.doubtful_now = false;
+    }
+
+    /// A local edit kept across a stop and made before a restart of the order since: what it
+    /// was made on is gone, so it is dropped, its editor told it was not sent, and a change
+    /// answered as not made.
+    fn job_stale(&mut self, job: Job<C>) {
+        match job {
+            Job::Input(Input::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            }) => match FromEditor::decode(&bytes) {
+                Some(FromEditor::Operate(operation)) => {
+                    *self.acknowledged.entry(editor).or_default() += 1;
+                    self.lacking.add_dropped(operation);
+                    self.error(STALE_EDIT);
+                }
+                Some(FromEditor::Gesture(_) | FromEditor::Replace(_)) | None => {}
+                Some(message) => self.handle_editor(editor, message),
+            },
+            Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
+            _ => {}
+        }
     }
 
     /// A local edit the order already holds, given again: its editor counts it, a change is
@@ -2223,6 +2270,11 @@ where
                 }
             }
         }
+        // Local edits kept across a stop were made before a restart the order had since: what
+        // they were made on is gone.
+        if self.last_restart > self.kept_restart {
+            self.stale_through = self.kept_through;
+        }
         self.visible = self.confirmed.clone();
         self.projected = Settling::new(self.visible.clone(), Vec::new());
         self.loaded = true;
@@ -2268,6 +2320,9 @@ where
                         }
                     }
                     Entry::Operation(_) => {}
+                    Entry::Reload { restart: true, .. } => {
+                        self.last_restart = self.last_restart.max(sequence);
+                    }
                     Entry::Keep { commit } | Entry::Reload { commit, head: false, .. } => {
                         if !self.keep.contains(&commit) {
                             self.keep.push(commit);
@@ -2503,6 +2558,9 @@ where
     ) {
         let mut content = content;
         let mine = op.id.origin == self.origin;
+        if restart {
+            self.last_restart = self.last_restart.max(op.sequence);
+        }
         match self.adopt_base_state(&state) {
             Some(state) if !state.is_empty() => {
                 if content.adopt_session_state(&state).is_err() {
@@ -3423,6 +3481,7 @@ where
         let status = Status {
             head: self.base,
             holder: self.is_holder(),
+            last_restart: self.last_restart,
             clean: self.is_clean(),
             journaled: !unconfirmed,
             owes_seal: self.loaded && self.seal_would_settle(),

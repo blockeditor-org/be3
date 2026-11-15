@@ -541,6 +541,10 @@ struct Open {
     /// The last local edit submitted to the server online, which it may hold though the
     /// replica never heard so (`refs::OpenEdits::submitted_through`).
     submitted_through: u64,
+    /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
+    /// `opening.kept-through`), told every opening.
+    kept_restart: u64,
+    kept_through: u64,
     /// The last number of the order this device heard for the block, from the journal it
     /// opened on and each entry since: an entry past the next means one was lost, and the
     /// replica rejoins to read them again. None until it is known.
@@ -1206,6 +1210,9 @@ impl<H: Host> Replicas<H> {
         let submitted_through = recovered
             .as_ref()
             .map_or(0, |recovered| recovered.submitted_through);
+        let kept_restart = recovered
+            .as_ref()
+            .map_or(0, |recovered| recovered.last_restart);
         let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
         let opening_journal = journal.clone().filter(|_| !before_join);
         let replay: Vec<Replayed> = recovered_edits
@@ -1247,6 +1254,8 @@ impl<H: Host> Replicas<H> {
                 true => submitted_through,
                 false => 0,
             },
+            kept_restart,
+            kept_through: given_up + replay.len() as u64,
             head,
             session: session.clone(),
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -1260,6 +1269,7 @@ impl<H: Host> Replicas<H> {
         };
         let mut replay = replay;
         let sent = replay.len() as u64;
+        let replay_count = sent;
         let (replies, pending) = (&mut self.replies, &mut self.asked);
         let handle = self.modules.call(module, |connection| {
             let handle = Replica::new(connection, opening);
@@ -1314,6 +1324,8 @@ impl<H: Host> Replicas<H> {
                 origin,
                 given_up,
                 submitted_through,
+                kept_restart,
+                kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
                 edits_changed: false,
                 reporting: None,
@@ -1476,6 +1488,8 @@ impl<H: Host> Replicas<H> {
             origin: open.origin,
             taken_before: open.given_up,
             doubtful_through: 0,
+            kept_restart: open.kept_restart,
+            kept_through: open.kept_through,
             head,
             session,
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -3068,6 +3082,8 @@ impl<H: Host> Replicas<H> {
                     true => 0,
                     false => open.submitted_through,
                 },
+                kept_restart: open.kept_restart,
+                kept_through: open.kept_through,
                 head,
                 session: open.session.clone(),
                 lost_edits: false,
@@ -4168,6 +4184,7 @@ fn kept_edits(open: &Open) -> (be_block_client::OpenEdits, Vec<be_block_client::
         origin: open.origin,
         given_up: open.given_up,
         submitted_through: open.submitted_through,
+        last_restart: open.status.last_restart,
         edits: Vec::new(),
     };
     (kept, edits)

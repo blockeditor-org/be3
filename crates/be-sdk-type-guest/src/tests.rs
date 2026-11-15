@@ -84,6 +84,7 @@ mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod an_abandoned_lease_is_claimed;
 mod an_edit_is_lacking_until_the_server_holds_it;
+mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
 mod an_editor_keeps_its_landed_edits_through_a_replica_reopened_under_it;
 mod an_external_publish_merges_into_a_live_replica;
@@ -384,6 +385,8 @@ fn opening(
         origin: client,
         taken_before: 0,
         doubtful_through: 0,
+        kept_restart: 0,
+        kept_through: 0,
         head,
         session,
         journal: None,
@@ -444,6 +447,10 @@ struct Sim<C: LiveEdit + Clone + Default> {
     resumed: Vec<usize>,
     /// Submissions wait until `unstall`.
     stalled_submits: bool,
+    /// What the next `open` is told the host kept across a stop: the last restart its replica
+    /// had applied and the number of the last kept edit (`opening.kept-restart`,
+    /// `opening.kept-through`).
+    kept_opening: Option<(u64, u64)>,
     /// Submissions are numbered as a device offline numbers them: in its own order, which the
     /// server lacks, answered as kept and heard by the device alone.
     offline_submits: bool,
@@ -522,6 +529,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             read_stalled: false,
             resumed: vec![0; devices],
             stalled_submits: false,
+            kept_opening: None,
             offline_submits: false,
             order: Sequencer::starting(0),
             offline_order: None,
@@ -666,6 +674,8 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             journal: journal.filter(|_| !foreign),
             lost_edits,
             sealed_head,
+            kept_restart: self.kept_opening.map_or(0, |(restart, _)| restart),
+            kept_through: self.kept_opening.take().map_or(0, |(_, through)| through),
             ..opening(client, local, self.lease.state().clone())
         };
         let replica = self.to(device, |host| Replica::new(host, opening));

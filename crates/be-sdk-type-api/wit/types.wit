@@ -162,6 +162,10 @@ interface types {
         head: option<commit-id>,
         /// Holds the lease, so seals.
         holder: bool,
+        /// The order's number of the last restart this replica applied (none,
+        /// 0): local edits made before a later one cannot be applied, since the
+        /// restart moved what they were made on.
+        last-restart: u64,
         clean: bool,
         /// Every local edit is in the order: none waits to be submitted or
         /// numbered.

@@ -210,6 +210,15 @@ impl Lacking {
         });
     }
 
+    /// An edit made here that can never land (made before a restart this replica opened after):
+    /// shown as failed until it is dismissed.
+    pub(crate) fn add_dropped(&mut self, mut operation: Vec<u8>) {
+        if operation.len() > LARGEST_KEPT {
+            operation = Vec::new();
+        }
+        self.push(operation, Until::Dropped, true, None, Vec::new());
+    }
+
     /// The order passed over the submission `counter`: its edits fail.
     pub(crate) fn dropped(&mut self, counter: u64) {
         for entry in &mut self.entries {
