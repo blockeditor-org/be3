@@ -58,6 +58,7 @@ fn LayerList(state: CanvasState) -> NodeId {
                 <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
                     <ForEach
                         value={reorder.order}
+                        handle={reorder.rows}
                         fallback={|| view! {
                             <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
                         }}

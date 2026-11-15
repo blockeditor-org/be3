@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use accesskit::{Node, Role, Toggled};
@@ -169,6 +170,9 @@ impl<T> Copy for State<T> {}
 /// `selected` holds the chosen option's value. A value no option holds shows
 /// nothing selected, so a list that changes between a frame and a click never
 /// selects whatever moved into a position.
+///
+/// Given a `handle`, it tells it the options' values and the node each option's `item`
+/// built (`ForEachRef`), as a `ForEach` does for its rows.
 #[component]
 pub fn Choice<T>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi<T>>,
@@ -182,6 +186,7 @@ pub fn Choice<T>(
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = None)] item: Option<RenderFn<ChoiceItem<T>>>,
+    #[prop(default = None)] handle: Option<ForEachRef<T, NodeId>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>>>,
 ) -> NodeId
 where
@@ -220,6 +225,23 @@ where
         direction,
     };
     api.fill(ChoiceApi(state));
+    // Each option's value, place and the node its `item` built, for `handle`.
+    let built_rows = Rc::new(RefCell::new(Vec::<(T, ReadSignal<usize>, NodeId)>::new()));
+    let rows_changed = create_trigger();
+    if let Some(handle) = handle {
+        let built_rows = Rc::clone(&built_rows);
+        let among = options.clone();
+        create_effect(move || {
+            rows_changed.track();
+            let values = among.items().iter().map(|option| option.value.clone()).collect();
+            let rows = built_rows
+                .borrow()
+                .iter()
+                .map(|(value, index, node)| (value.clone(), *index, vec![*node]))
+                .collect();
+            handle.show(values, rows);
+        });
+    }
     let buttons = options.build_keyed(
         move |built: Rc<ChoiceOption<T>>, index: ReadSignal<usize>| {
             let label = built.label;
@@ -272,6 +294,17 @@ where
                 }),
                 None => button,
             };
+            if handle.is_some() {
+                built_rows
+                    .borrow_mut()
+                    .push((built.value.clone(), index, node));
+                rows_changed.notify();
+                let built_rows = Rc::clone(&built_rows);
+                on_cleanup(move || {
+                    built_rows.borrow_mut().retain(|(.., shown)| *shown != node);
+                    rows_changed.notify();
+                });
+            }
             view! {
                 <ListItem
                     shrink={move || match shrink.get() {

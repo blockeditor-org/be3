@@ -26,6 +26,7 @@ fn a_virtual_list_reorders_its_rows_by_key() {
                         >|reorder: ReorderHandle<u32, u32>|
                             <VirtualList
                                 value={reorder.order}
+                                handle={reorder.rows}
                                 item_size=REORDER_ROW
                             >|key: ReadSignal<u32>|
                                 <ReorderItem reorder item={key}>|_: ReorderItemHandle|

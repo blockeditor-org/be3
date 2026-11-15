@@ -252,6 +252,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                             <Scroll>
                                 <VirtualList
                                     value={reorder.order}
+                                    handle={reorder.rows}
                                     item_size=CARD_HEIGHT
                                     overscan=CARD_HEIGHT
                                 >|row: ReadSignal<ObjectId>|

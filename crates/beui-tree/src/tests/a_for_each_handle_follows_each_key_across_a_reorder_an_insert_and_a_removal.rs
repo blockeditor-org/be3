@@ -22,7 +22,7 @@ fn a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal()
         }
     });
     let html = |key: u32| {
-        rows.children_of(&key)
+        rows.nodes_of(&key)
             .iter()
             .map(DomNode::html)
             .collect::<Vec<_>>()
@@ -47,12 +47,12 @@ fn a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal()
     marked.set(true);
     flush();
     assert_eq!(html(1).len(), 2, "a row whose run grows holds its whole run");
-    let shown = rows.children_of(&4)[0].clone();
+    let shown = rows.nodes_of(&4)[0].clone();
     assert_eq!(rows.key_of(&shown), Some(4));
 
     keys.set(vec![3, 1, 2]);
     flush();
-    assert!(rows.children_of(&4).is_empty(), "a key removed holds nothing");
+    assert!(rows.nodes_of(&4).is_empty(), "a key removed holds nothing");
     assert_eq!(rows.index_of(&4), None);
     assert_eq!(rows.key_of(&shown), None);
 }

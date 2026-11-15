@@ -2,6 +2,8 @@ use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
 
+use be_lib_stable_hash::HashMap;
+
 use crate::drag_board::{Board, drag_board};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
@@ -82,14 +84,16 @@ struct State<K: 'static, P: 'static> {
     speed: Cell<f32>,
     frames: Cell<Option<Animation>>,
     visited: Signal<bool>,
-    arm: Trigger,
     raised: Signal<Option<K>>,
     floating_at: Signal<Option<DragPoint>>,
     announcement: Signal<String>,
     point: RefCell<Option<DragPoint>>,
     pressed: RefCell<Option<Press<K>>>,
     arrival: RefCell<Option<Arrival<K>>>,
-    glides: RefCell<Vec<(K, NodeId, NodeId, GlideApi)>>,
+    /// Each shown row's glide, by the glide's node: its inner glide's node and its api.
+    glides: RefCell<HashMap<NodeId, (NodeId, GlideApi)>>,
+    /// The rows shown, as the `ForEach` or `VirtualList` that shows them reports them.
+    rows: ForEachRef<K, NodeId>,
     board: Rc<Board>,
     gone: Cell<bool>,
     returning: Cell<bool>,
@@ -100,6 +104,9 @@ struct State<K: 'static, P: 'static> {
 pub struct ReorderHandle<K: 'static, P: 'static> {
     state: Stored<State<K, P>>,
     pub order: Memo<Vec<K>>,
+    /// Hand this to the `ForEach` or `VirtualList` that shows `order`, as its `handle`: it is
+    /// how the list finds its rows.
+    pub rows: ForEachRef<K, NodeId>,
     pub dragging: Memo<Option<K>>,
     pub gap: Memo<Option<ReorderGap<K>>>,
     pub visited: Memo<bool>,
@@ -148,9 +155,8 @@ where
 
     pub fn resting(&self, key: &K) -> Option<Rect> {
         self.state.with(|state| {
-            let glides = state.glides.borrow();
-            let (_, _, inner, glide) = glides.iter().find(|(shown, ..)| shown == key)?;
-            resting(*glide, *inner)
+            let (_, _, inner, glide) = glide_of(state, key)?;
+            resting(glide, inner)
         })
     }
 }
@@ -163,17 +169,34 @@ fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
     !state.disabled.get_untracked() && state.payload.call(key.clone()).is_some()
 }
 
-fn bump<K, P>(state: &State<K, P>) {
-    state.arm.notify();
+/// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
+fn shown_glides<K: Clone + PartialEq, P>(state: &State<K, P>) -> Vec<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    untrack(|| state.rows.keys())
+        .into_iter()
+        .flat_map(|key| {
+            state
+                .rows
+                .nodes_of(&key)
+                .into_iter()
+                .filter_map(|node| {
+                    let (inner, glide) = glides.get(&node)?;
+                    Some((key.clone(), node, *inner, *glide))
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
 }
 
-fn glide_of<K: PartialEq, P>(state: &State<K, P>, key: &K) -> Option<(NodeId, GlideApi)> {
-    state
-        .glides
-        .borrow()
-        .iter()
-        .find(|(shown, ..)| shown == key)
-        .map(|(_, node, _, glide)| (*node, *glide))
+fn glide_of<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+    key: &K,
+) -> Option<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    state.rows.nodes_of(key).into_iter().find_map(|node| {
+        let (inner, glide) = glides.get(&node)?;
+        Some((key.clone(), node, *inner, *glide))
+    })
 }
 
 fn resting(glide: GlideApi, inner: NodeId) -> Option<Rect> {
@@ -185,7 +208,7 @@ fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
     let Some(lifted) = state.lifted.get_untracked() else {
         return;
     };
-    let Some((_, glide)) = glide_of(state, &lifted.key) else {
+    let Some((.., glide)) = glide_of(state, &lifted.key) else {
         return;
     };
     let point = *state.point.borrow();
@@ -201,12 +224,10 @@ fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
 
 fn spans<K, P>(state: &State<K, P>, except: Option<&K>) -> Vec<(f32, f32)>
 where
-    K: PartialEq,
+    K: Clone + PartialEq,
 {
     let direction = state.direction.get_untracked();
-    let mut spans: Vec<(f32, f32)> = state
-        .glides
-        .borrow()
+    let mut spans: Vec<(f32, f32)> = shown_glides(state)
         .iter()
         .filter(|(key, ..)| except != Some(key))
         .filter_map(|(_, outer, ..)| {
@@ -238,7 +259,7 @@ fn clamped<K, P>(state: &State<K, P>, at: Pos2, item: Rect) -> Pos2 {
     }
 }
 
-fn spacing<K: PartialEq, P>(state: &State<K, P>) -> f32 {
+fn spacing<K: Clone + PartialEq, P>(state: &State<K, P>) -> f32 {
     spans(state, None)
         .windows(2)
         .map(|pair| pair[1].0 - pair[0].1)
@@ -247,15 +268,11 @@ fn spacing<K: PartialEq, P>(state: &State<K, P>) -> f32 {
         .unwrap_or(0.0)
 }
 
-fn slot_size<K: PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
+fn slot_size<K: Clone + PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
     let direction = state.direction.get_untracked();
-    let Some((start, end)) = state
-        .glides
-        .borrow()
-        .iter()
-        .find(|(shown, ..)| shown == key)
+    let Some((start, end)) = glide_of(state, key)
         .and_then(|(_, outer, ..)| {
-            measure(*outer)
+            measure(outer)
                 .get_untracked()
                 .map(|measured| measured.rect)
         })
@@ -277,7 +294,7 @@ fn slot_size<K: PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
     }
 }
 
-fn carried_size<K: PartialEq, P>(state: &State<K, P>, point: DragPoint) -> f32 {
+fn carried_size<K: Clone + PartialEq, P>(state: &State<K, P>, point: DragPoint) -> f32 {
     state.direction.get_untracked().main(point.item.size()) + spacing(state)
 }
 
@@ -294,7 +311,7 @@ fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2>
     let point = (*state.point.borrow())?;
     let at = point.pos + lifted.item.min.to_vec2();
     let resting = glide_of(state, &lifted.key)
-        .and_then(|(glide, _)| measure(glide).get_untracked().map(|measured| measured.rect));
+        .and_then(|(_, glide, ..)| measure(glide).get_untracked().map(|measured| measured.rect));
     Some(match (lifted.home, resting) {
         (true, Some(resting)) => match state.direction.get_untracked() {
             Direction::Horizontal => Pos2::new(at.x, resting.min.y),
@@ -313,7 +330,7 @@ fn slot_at<K: Clone + PartialEq, P>(
     full: f32,
 ) -> usize {
     let direction = state.direction.get_untracked();
-    let glides = state.glides.borrow();
+    let glides = shown_glides(state);
     let mut mounted: Vec<(f32, usize)> = Vec::new();
     let mut split = f32::INFINITY;
     let mut opened = 0.0;
@@ -339,7 +356,6 @@ fn slot_at<K: Clone + PartialEq, P>(
         }
         mounted.push((along(direction, rect.center()), index));
     }
-    drop(glides);
     mounted.sort_by(|left, right| left.0.total_cmp(&right.0));
     let (low, high) = span;
     let passed = |(middle, _): &(f32, usize)| match *middle < split {
@@ -392,7 +408,6 @@ where
             let slot = slot_at(state, &rest, Some(&lifted.key), span, lifted.slot, 0.0);
             if lifted.slot != slot {
                 lifted.slot = slot;
-                bump(state);
                 state.lifted.set(Some(lifted));
             }
         }
@@ -452,7 +467,6 @@ where
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {
-                bump(state);
                 state.gap.set(Some(ReorderGap {
                     before: gap.before,
                     size: shown.size,
@@ -612,7 +626,6 @@ where
         {
             *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
         }
-        bump(state);
         if state.pressed.borrow_mut().take().is_some() {
             state.board.release();
         }
@@ -690,7 +703,6 @@ where
             shut(state);
         }
         state.visited.set(false);
-        bump(state);
         if let Some(own) = &own {
             announce(state, own, index, keys.len());
         }
@@ -731,7 +743,6 @@ where
             return None;
         }
         let rest = rest_of(&keys, &key);
-        bump(state);
         state.raised.set(Some(key.clone()));
         announce(state, &key, to, keys.len());
         Some(ReorderMove {
@@ -942,14 +953,14 @@ where
         speed: Cell::new(0.0),
         frames: Cell::new(None),
         visited,
-        arm: create_trigger(),
         raised: create_signal(None),
         floating_at,
         announcement,
         point: RefCell::new(None),
         pressed: RefCell::new(None),
         arrival: RefCell::new(None),
-        glides: RefCell::new(Vec::new()),
+        glides: RefCell::new(HashMap::default()),
+        rows: ForEachRef::new(),
         board: drag_board(),
         gone: Cell::new(false),
         returning: Cell::new(false),
@@ -993,6 +1004,7 @@ where
     let handle = ReorderHandle {
         state,
         order,
+        rows: state.with(|state| state.rows),
         dragging,
         gap: create_memo(move || gap.get()),
         visited: create_memo(move || visited.get()),
@@ -1125,8 +1137,8 @@ where
     let state = reorder.state;
     let direction = reorder.direction;
     let key = create_memo(move || item.get());
-    let (lifted_key, raised_key, gap, arm) =
-        state.with(|state| (state.lifted, state.raised, state.gap, state.arm));
+    let (lifted_key, raised_key, gap) =
+        state.with(|state| (state.lifted, state.raised, state.gap));
     let lifted = create_memo(move || {
         lifted_key.with(|lifted| {
             lifted
@@ -1149,6 +1161,22 @@ where
         })
     });
     let order = reorder.order;
+    // A row's glides arm when it moves in the order, and when the gap the list holds open
+    // moves past it: rows a gap passes shift with no change of place.
+    let place = create_memo(move || order.with(|order| key.with(|key| order.iter().position(|shown| shown == key))));
+    let below_gap = create_memo(move || {
+        gap.with(|gap| match gap {
+            Some(ReorderGap { before: Some(before), .. }) => order.with(|order| {
+                let at = order.iter().position(|shown| shown == before);
+                at.zip(place.get()).is_some_and(|(at, place)| at <= place)
+            }),
+            _ => false,
+        })
+    });
+    let arm = Trackable::new(move || {
+        place.track();
+        below_gap.track();
+    });
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
             Some(ReorderGap { before: None, size })
@@ -1268,24 +1296,15 @@ where
     for node in [glide, inner, face] {
         measure(node);
     }
+    state.with(|state| state.glides.borrow_mut().insert(glide, (inner, api.get())));
     create_effect(move || {
-        let key = key.get();
-        state.with(|state| {
-            let mut glides = state.glides.borrow_mut();
-            glides.retain(|(_, node, ..)| *node != glide);
-            glides.push((key, glide, inner, api.get()));
-        });
+        key.track();
         if untrack(|| lifted.get()) {
             state.with(|state| hold(state, true));
         }
     });
     on_cleanup(move || {
-        state.try_with(|state| {
-            state
-                .glides
-                .borrow_mut()
-                .retain(|(_, node, ..)| *node != glide)
-        });
+        state.try_with(|state| state.glides.borrow_mut().remove(&glide));
     });
     on_key(
         KeyAt::Node(row),

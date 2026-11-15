@@ -25,7 +25,7 @@ fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
                 holding.set(Some(reorder));
                 view! {
                     <List spacing=0.0>
-                        <ForEach value={reorder.order}>|key: u32|
+                        <ForEach value={reorder.order} handle={reorder.rows}>|key: u32|
                             <ReorderItem reorder item=key>|_: ReorderItemHandle|
                                 <Frame @test_id={format!("row.{key}")} height=REORDER_ROW />
                             </ReorderItem>

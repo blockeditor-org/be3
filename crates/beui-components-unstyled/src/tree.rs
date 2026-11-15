@@ -291,7 +291,7 @@ where
     let rows = move |parted: Option<ReorderHandle<K, ()>>| {
         view! {
             <List spacing @node_ref=&list>
-                <ForEach value={keys}>|key: K| {
+                <ForEach value={keys} handle={parted.map(|parted| parted.rows)}>|key: K| {
                     let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                     let selected = selection.memo(Some(key.clone()));
                     let marked = burial.memo(Some(key.clone()));

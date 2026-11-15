@@ -4,6 +4,7 @@ use crate::core::selection::SelectableRows;
 use crate::core::selection::register_rows;
 use crate::core::selection::unregister_rows;
 use crate::reactive::Callback;
+use crate::reactive::ForEachRef;
 use crate::reactive::Get;
 use crate::reactive::OwnedSignal;
 use crate::reactive::Prop;
@@ -28,6 +29,7 @@ use std::rc::Weak;
 struct Slot<K: 'static> {
     node: NodeId,
     key: OwnedSignal<K>,
+    index: OwnedSignal<usize>,
     scope: Scope,
 }
 
@@ -46,7 +48,8 @@ pub(crate) fn virtual_list<K>(
     direction: Prop<Direction>,
     overscan: Prop<f32>,
     text: Callback<K, String>,
-    item: RenderFn<ReadSignal<K>>,
+    handle: Option<ForEachRef<K, NodeId>>,
+    item: RenderFn<(ReadSignal<K>, ReadSignal<usize>)>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
@@ -65,15 +68,18 @@ where
         pool: Rc::clone(&pool),
         text,
         watchers: RefCell::new(Vec::new()),
+        handle,
     });
     let owner = owner_scope();
     let building = Rc::clone(&pool);
     let announcing = Rc::clone(&rows);
     let list = with_document(|document| {
         document.create_virtual_list(move |key: K| {
+            let index = announcing.position(&key).unwrap_or(0);
             let slot = match reusable(&building, &key) {
                 Some(slot) => {
                     slot.key.set(key);
+                    slot.index.set(index);
                     slot.scope.resume();
                     slot.scope.flush_owned();
                     slot
@@ -85,12 +91,14 @@ where
                         .unwrap_or_else(Scope::detached)
                         .pausable();
                     let signal = OwnedSignal::new(key);
-                    let read = signal.read_only();
-                    let node = scope.run(|| item.call(read));
+                    let place = OwnedSignal::new(index);
+                    let handed = (signal.read_only(), place.read_only());
+                    let node = scope.run(|| item.call(handed));
                     scope.flush_owned();
                     Slot {
                         node,
                         key: signal,
+                        index: place,
                         scope,
                     }
                 }
@@ -105,19 +113,24 @@ where
                 held.shown.push(Rc::clone(&shown));
             }
             let releasing = Rc::clone(&building);
+            let leaving = Rc::clone(&announcing);
             on_cleanup(move || {
-                let mut held = releasing.borrow_mut();
-                held.shown.retain(|other| !Rc::ptr_eq(other, &shown));
-                let Some(slot) = shown.borrow_mut().take() else {
-                    return;
-                };
-                held.live -= 1;
-                if held.free.len() < held.peak {
-                    slot.scope.pause();
-                    held.free.push(slot);
+                {
+                    let mut held = releasing.borrow_mut();
+                    held.shown.retain(|other| !Rc::ptr_eq(other, &shown));
+                    let Some(slot) = shown.borrow_mut().take() else {
+                        return;
+                    };
+                    held.live -= 1;
+                    if held.free.len() < held.peak {
+                        slot.scope.pause();
+                        held.free.push(slot);
+                    }
                 }
+                leaving.report();
             });
             announcing.announce(node, shown_key);
+            announcing.report();
             node
         })
     });
@@ -147,7 +160,11 @@ where
         let changed = rows.set_keys(keys.clone());
         with_document(|document| document.set_virtual_list_keys(list, keys));
         if let Some(previous) = changed {
-            untrack(|| rows.keys_changed(previous));
+            untrack(|| {
+                rows.place_shown();
+                rows.report();
+                rows.keys_changed(previous);
+            });
         }
     });
     create_effect(move || {
@@ -188,6 +205,7 @@ struct Rows<K: 'static> {
     pool: Rc<RefCell<Pool<K>>>,
     text: Callback<K, String>,
     watchers: RefCell<Vec<Weak<dyn RowWatcher>>>,
+    handle: Option<ForEachRef<K, NodeId>>,
 }
 
 impl<K: Clone + Hash + Eq + 'static> Rows<K> {
@@ -218,6 +236,46 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
             watcher.keys_changed(list);
         }
         *self.previous.borrow_mut() = None;
+    }
+
+    /// Hands each built row its place in the new order.
+    fn place_shown(&self) {
+        let shown: Vec<Held<K>> = self.pool.borrow().shown.clone();
+        for held in shown {
+            let held = held.borrow();
+            let Some(slot) = held.as_ref() else {
+                continue;
+            };
+            let key = slot.key.with_untracked(Clone::clone);
+            if let Some(index) = self.position(&key)
+                && slot.index.get_untracked() != index
+            {
+                slot.index.set(index);
+            }
+        }
+    }
+
+    /// Tells the handle, if any, the keys and the rows built.
+    fn report(&self) {
+        let Some(handle) = self.handle else {
+            return;
+        };
+        let rows = self
+            .pool
+            .borrow()
+            .shown
+            .iter()
+            .filter_map(|held| {
+                let held = held.borrow();
+                let slot = held.as_ref()?;
+                Some((
+                    slot.key.with_untracked(Clone::clone),
+                    slot.index.read_only(),
+                    vec![slot.node],
+                ))
+            })
+            .collect();
+        handle.show(self.keys.borrow().clone(), rows);
     }
 
     fn announce(&self, node: NodeId, key: K) {

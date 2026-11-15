@@ -326,8 +326,12 @@ impl ChildValue for Node {}
 beui_tree::child_type!(Node);
 impl SlotChild for Node {
     type Stored = Node;
+    type Node = Node;
     fn store(self) -> Node {
         self
+    }
+    fn node(stored: &Node) -> Node {
+        stored.clone()
     }
 }
 impl IntoChild<Node> for String {

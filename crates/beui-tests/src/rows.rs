@@ -224,7 +224,7 @@ pub fn ReorderFixture() -> NodeId {
                     }}
                 >|reorder: ReorderHandle<&'static str, &'static str>|
                     <List spacing=Space::Xs>
-                        <ForEach value={reorder.order}>|fruit: &'static str|
+                        <ForEach value={reorder.order} handle={reorder.rows}>|fruit: &'static str|
                             <ReorderItem reorder item=fruit>|_: ReorderItemHandle|
                                 <Card @test_id={format!("reorder.{fruit}")}>
                                     <Text>{fruit}</Text>
@@ -284,7 +284,7 @@ fn LongList() -> NodeId {
                         }}
                     >|reorder: ReorderHandle<u32, u32>|
                         <List spacing=SHELF_GAP>
-                            <ForEach value={reorder.order}>|row: u32|
+                            <ForEach value={reorder.order} handle={reorder.rows}>|row: u32|
                                 <ReorderItem reorder item=row>|_: ReorderItemHandle|
                                     <Frame
                                         height=Size::Custom(SHELF_ROW)
@@ -354,7 +354,7 @@ fn Shelf(shelf: usize, shelves: Signal<Vec<Vec<&'static str>>>) -> NodeId {
                 })}
             >|reorder: ReorderHandle<Vegetable, Vegetable>|
                 <List spacing=SHELF_GAP>
-                    <ForEach value={reorder.order}>|vegetable: Vegetable|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|vegetable: Vegetable|
                         <ReorderItem reorder item=vegetable>|_: ReorderItemHandle|
                             <Frame
                                 height=Size::Custom(SHELF_ROW)

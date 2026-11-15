@@ -105,6 +105,11 @@ pub(crate) fn text(
 
 impl SlotChild for TextChild {
     type Stored = TextPart;
+    type Node = TextPart;
+
+    fn node(stored: &TextPart) -> TextPart {
+        stored.clone()
+    }
 
     fn store(self) -> TextPart {
         match self {

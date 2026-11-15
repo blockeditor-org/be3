@@ -292,7 +292,14 @@ nothing. Key a `ForEach` by identity, never by content: a key that changes with
 an edit destroys the row's nodes and scope and loses its focus, caret and
 measured text. With `key={|item: &T| item.id}` a row is kept while its item
 changes and reads it through a signal; for items held in a `KeyedStore`, list
-the keys and let each row read its own item from the store.
+the keys and let each row read its own item from the store. A row may take its
+`index: ReadSignal<usize>` after its item, in a `ForEach` or a `VirtualList` alike.
+Code around a list that needs where a key sits or which nodes its row built makes a
+`ForEachRef<K, NodeId>` (as it makes a `NodeRef`) and hands it to the list as `handle`
+(`keys`, `index`/`index_of`, `nodes_of`, `key_of`); a `VirtualList` places every key
+but holds nodes only for the rows it has built, and a `Choice` takes one for its
+options too. Children are known to the handle by `SlotChild::Node`: the node, for
+node children whatever parent places them.
 
 ### Context
 

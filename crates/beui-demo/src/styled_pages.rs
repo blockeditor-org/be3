@@ -4805,7 +4805,7 @@ fn ReorderTabs() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTab, ReorderTab>|
                 <List direction=Direction::Horizontal spacing=Space::Xs>
-                    <ForEach value={reorder.order}>|tab: ReorderTab|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|tab: ReorderTab|
                         <ReorderItem reorder item=tab>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.tab.{}", tab.0)}
@@ -4843,7 +4843,7 @@ fn ReorderTasks() -> NodeId {
                 }}
             >|reorder: ReorderHandle<ReorderTask, ReorderTask>|
                 <List spacing=Space::Xs>
-                    <ForEach value={reorder.order}>|task: ReorderTask|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|task: ReorderTask|
                         <ReorderItem reorder item=task>|_: ReorderItemHandle|
                             <Interactive
                                 @test_id={format!("demo.reorder.task.{}", task.0)}
@@ -4902,7 +4902,7 @@ fn ReorderColumn(column: usize, columns: Signal<Vec<Vec<ReorderCard>>>) -> NodeI
                 })}
             >|reorder: ReorderHandle<ReorderCard, ReorderCard>|
                 <List spacing=Space::Xs>
-                    <ForEach value={reorder.order}>|card: ReorderCard|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|card: ReorderCard|
                         <ReorderItem reorder item=card>|_: ReorderItemHandle|
                             <Frame @test_id={format!("demo.reorder.card.{}", card.0)}>
                                 <ReorderChip label={REORDER_TASKS[card.0].to_owned()} />

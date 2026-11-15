@@ -118,6 +118,7 @@ pub fn ListView(data: Data) -> NodeId {
                                 </Show>
                                 <VirtualList
                                     value={reorder.order}
+                                    handle={reorder.rows}
                                     item_size=LINE_HEIGHT
                                 >|line: ReadSignal<Line>|
                                     <ReorderItem

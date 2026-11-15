@@ -3170,6 +3170,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                             }</ReorderItem>
                         }
                     }}
+                    handle={reorder.rows}
                     kind=ChoiceKind::Tabs
                     cursor=CursorIcon::Default
                     direction
