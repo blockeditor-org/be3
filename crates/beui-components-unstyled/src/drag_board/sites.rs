@@ -7,7 +7,8 @@ use std::any::Any;
 use std::rc::Rc;
 
 use beui_view::drag::{
-    Carry, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
+    CandidateId, Carry, DragFrame, DragPoint, DragSpec, Evaluation, STICKY,
+    evaluate,
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
 use beui_view::types::Velocity;
@@ -28,16 +29,28 @@ pub(crate) struct Site {
     pub(crate) commit: Rc<dyn Fn(Erased, Erased)>,
 }
 
-/// The carry a lift starts: its payload, the places every accepting site gave at the lift,
+/// The carry a lift starts: its payload, the places each accepting site gave at the lift,
 /// the last frame and how fast the pointer moves.
 pub(crate) struct Placing {
     pub(crate) carry: Carry,
+    /// Each accepting site's places, kept apart so a site that goes takes its own with it.
+    specs: Vec<(u64, DragSpec<Placed>)>,
+    /// The closest of them all, evaluated at each point.
     spec: DragSpec<Placed>,
     frame: DragFrame,
     chosen: Option<Placed>,
-    over: Option<u64>,
+    /// The site over and the place chosen in it, last told: a site hears again only when
+    /// that changes.
+    told: Option<(u64, Option<CandidateId>)>,
     velocity: Velocity,
     last: Option<DragPoint>,
+}
+
+fn closest_of(specs: &[(u64, DragSpec<Placed>)]) -> DragSpec<Placed> {
+    DragSpec::Closest {
+        of: specs.iter().map(|(_, spec)| spec.clone()).collect(),
+        sticky: STICKY,
+    }
 }
 
 impl Board {
@@ -50,14 +63,32 @@ impl Board {
         id
     }
 
+    /// Unregisters a site. Mid-carry its places leave the carry, which lets go of what it
+    /// chose and chooses again where the pointer last was, so a release never commits to a
+    /// site that is gone.
     pub(crate) fn remove_site(&self, id: u64) {
         self.sites.borrow_mut().retain(|site| site.id != id);
-        let mut placing = self.placing.borrow_mut();
-        if let Some(placing) = placing.as_mut()
-            && placing.over == Some(id)
-        {
-            placing.over = None;
-            placing.chosen = None;
+        let again = {
+            let mut placing = self.placing.borrow_mut();
+            match placing.as_mut() {
+                Some(placing) if placing.specs.iter().any(|(site, _)| *site == id) => {
+                    placing.specs.retain(|(site, _)| *site != id);
+                    placing.spec = closest_of(&placing.specs);
+                    placing.frame = DragFrame {
+                        chosen: None,
+                        ..placing.frame
+                    };
+                    placing.chosen = None;
+                    if placing.told.is_some_and(|(site, _)| site == id) {
+                        placing.told = None;
+                    }
+                    placing.last
+                }
+                _ => None,
+            }
+        };
+        if let Some(last) = again {
+            self.place(last, false);
         }
     }
 
@@ -68,26 +99,25 @@ impl Board {
             return;
         }
         let payload = Rc::clone(&carry.payload);
-        let specs: Vec<DragSpec<Placed>> = self
+        let specs: Vec<(u64, DragSpec<Placed>)> = self
             .sites
             .borrow()
             .iter()
             .filter(|site| (site.accepts)(payload.as_ref()))
             .map(|site| {
                 let id = site.id;
-                (site.spec)(payload.as_ref())
-                    .map(Rc::new(move |drop: Erased| (id, drop)))
+                let spec = (site.spec)(payload.as_ref())
+                    .map(Rc::new(move |drop: Erased| (id, drop)));
+                (id, spec)
             })
             .collect();
         *self.placing.borrow_mut() = Some(Placing {
             carry,
-            spec: DragSpec::Closest {
-                of: specs,
-                sticky: STICKY,
-            },
+            spec: closest_of(&specs),
+            specs,
             frame: DragFrame::default(),
             chosen: None,
-            over: None,
+            told: None,
             velocity: Velocity::new(now(), point.pos),
             last: None,
         });
@@ -109,17 +139,18 @@ impl Board {
         self.shown.get()
     }
 
-    /// Chooses a place for `point`, telling the site it is over and the one it left.
+    /// Chooses a place for `point`. Only a change is told: the site it left hears it is over
+    /// nothing, and the site it is over hears the place chosen in it when that changes.
     pub(crate) fn place(&self, point: DragPoint, released: bool) {
         let space = Rc::clone(&self.space);
         let placed = move |node: NodeId| space.placed(node);
-        let (left, entered) = {
+        let (left, entered, frame) = {
             let mut placing = self.placing.borrow_mut();
             let Some(placing) = placing.as_mut() else {
                 return;
             };
             let point = DragPoint {
-                item: placing.carry.item,
+                item: placing.carry.item.unwrap_or(point.item),
                 ..point
             };
             placing.velocity.sample(now(), point.pos);
@@ -136,13 +167,20 @@ impl Board {
             );
             placing.frame = evaluated.frame;
             placing.chosen = evaluated.drop;
-            let site = placing.chosen.as_ref().map(|(site, _)| *site);
-            let left = (placing.over != site).then_some(placing.over).flatten();
-            placing.over = site;
-            (left, placing.chosen.clone())
+            let now = placing
+                .chosen
+                .as_ref()
+                .map(|(site, _)| (*site, placing.frame.chosen));
+            let was = std::mem::replace(&mut placing.told, now);
+            let left = was
+                .map(|(site, _)| site)
+                .filter(|site| now.map(|(now, _)| now) != Some(*site));
+            let entered = (now != was).then(|| placing.chosen.clone()).flatten();
+            (left, entered, placing.frame)
         };
-        let frame = self.placing.borrow().as_ref().map(|placing| placing.frame);
-        self.shown.set(frame);
+        if self.shown.get_untracked() != Some(frame) {
+            self.shown.set(Some(frame));
+        }
         if let Some(left) = left.and_then(|id| self.site_over(id)) {
             left(None);
         }
@@ -179,8 +217,9 @@ impl Board {
             .iter()
             .map(|site| (site.id, Rc::clone(&site.over), Rc::clone(&site.commit)))
             .collect();
+        let over_site = placing.told.map(|(site, _)| site);
         for (id, over, commit_to) in sites {
-            if Some(id) == placing.over {
+            if Some(id) == over_site {
                 over(None);
                 if commit && let Some((_, drop)) = &placing.chosen {
                     commit_to(Rc::clone(&placing.carry.payload), Rc::clone(drop));
