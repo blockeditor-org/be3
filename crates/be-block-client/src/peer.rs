@@ -4,7 +4,7 @@ use std::{
 };
 
 use be_block::OrganizationPolicies;
-use be_block_commit::{Commit, CommitId, CommitStore, now_milliseconds};
+use be_block_commit::{Commit, CommitId, CommitStore, MergeBase, MergeBaseWalk, now_milliseconds};
 use be_block_content::{
     BlockContent, BlockMetadata, Entries, Root, Streamed, derived_metadata, payload_start,
 };
@@ -1045,6 +1045,25 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<bool, ClientError> {
         self.fetch_history(descendant).await?;
         Ok(self.commits.is_ancestor(ancestor, descendant)?)
+    }
+
+    /// Where `ours` and `theirs` meet within `depth` levels of parents on each side, fetching
+    /// only the commits the walk reaches (`MergeBaseWalk`).
+    pub async fn merge_base(
+        &self,
+        ours: CommitId,
+        theirs: CommitId,
+        depth: usize,
+    ) -> Result<MergeBase, ClientError> {
+        let mut walk = MergeBaseWalk::new(ours, theirs, depth);
+        loop {
+            for id in walk.frontier().collect::<Vec<_>>() {
+                self.try_fetch(id.hash()).await?;
+            }
+            if let Some(found) = walk.step(&self.commits)? {
+                return Ok(found);
+            }
+        }
     }
 
     pub fn local_head(&self, block: Uuid) -> Option<CommitId> {

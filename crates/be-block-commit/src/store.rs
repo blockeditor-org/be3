@@ -155,3 +155,104 @@ impl<S: ObjectStore> CommitStore<S> {
         Ok(best.map(|(id, _)| id))
     }
 }
+
+/// Where two heads' histories meet, as far as a `MergeBaseWalk` looked.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum MergeBase {
+    /// `theirs` is in `ours`'s history: everything it holds, `ours` holds too.
+    Behind,
+    /// The common ancestor nearest the two heads.
+    Base(CommitId),
+    /// The two histories share no commit: each was walked to its root, or as far as it is held.
+    Unrelated,
+    /// They did not meet within the walk's depth.
+    TooDeep,
+}
+
+/// A walk from two heads back to their common ancestor, a level of parents on each side at a
+/// time, that gives up past a depth: a merge wants the nearest base, and history deeper than
+/// that is not worth reading for it. The caller fetches `frontier` before each `step`, so a
+/// peer reads from the server only the commits the walk reaches. A commit the store lacks ends
+/// its chain (`CommitStore::parents_of`).
+pub struct MergeBaseWalk {
+    theirs: CommitId,
+    sides: [Side; 2],
+    level: usize,
+    depth: usize,
+}
+
+struct Side {
+    /// Each commit reached, by its distance from the head.
+    seen: HashMap<CommitId, usize>,
+    /// The commits reached at the last level, whose parents the next step reads.
+    frontier: Vec<CommitId>,
+}
+
+impl MergeBaseWalk {
+    /// A walk that reads at most `depth` levels of parents on each side.
+    pub fn new(ours: CommitId, theirs: CommitId, depth: usize) -> Self {
+        let side = |head| Side {
+            seen: HashMap::from([(head, 0)]),
+            frontier: vec![head],
+        };
+        Self {
+            theirs,
+            sides: [side(ours), side(theirs)],
+            level: 0,
+            depth,
+        }
+    }
+
+    /// The commits whose parents the next `step` reads, to fetch first.
+    pub fn frontier(&self) -> impl Iterator<Item = CommitId> + '_ {
+        self.sides
+            .iter()
+            .flat_map(|side| side.frontier.iter().copied())
+    }
+
+    /// Takes one level of parents on each side; answers once the walk is over, before it
+    /// reaches commits it would have to fetch.
+    pub fn step<S: ObjectStore>(
+        &mut self,
+        store: &CommitStore<S>,
+    ) -> Result<Option<MergeBase>, StoreError> {
+        if let Some(over) = self.over() {
+            return Ok(Some(over));
+        }
+        self.level += 1;
+        for side in &mut self.sides {
+            let mut next = Vec::new();
+            for id in std::mem::take(&mut side.frontier) {
+                for parent in store.parents_of(id)? {
+                    if !side.seen.contains_key(&parent) {
+                        side.seen.insert(parent, self.level);
+                        next.push(parent);
+                    }
+                }
+            }
+            side.frontier = next;
+        }
+        Ok(self.over())
+    }
+
+    fn over(&self) -> Option<MergeBase> {
+        let [ours, theirs] = &self.sides;
+        if ours.seen.contains_key(&self.theirs) {
+            return Some(MergeBase::Behind);
+        }
+        // Only the commits the last level reached can be new meetings.
+        let nearest = ours
+            .frontier
+            .iter()
+            .chain(&theirs.frontier)
+            .filter_map(|id| Some((ours.seen.get(id)? + theirs.seen.get(id)?, *id)))
+            .min_by_key(|(distance, _)| *distance);
+        if let Some((_, base)) = nearest {
+            return Some(MergeBase::Base(base));
+        }
+        if ours.frontier.is_empty() && theirs.frontier.is_empty() {
+            return Some(MergeBase::Unrelated);
+        }
+        (self.level == self.depth).then_some(MergeBase::TooDeep)
+    }
+}
