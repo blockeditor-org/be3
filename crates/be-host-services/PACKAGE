@@ -26,7 +26,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-host-base:be-host-base",
-                "//crates/be-host-wayland:be-host-wayland",
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-sdk-api:be-sdk-api",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:async-executor-1.14.0",
@@ -51,7 +51,7 @@ write_package_value("be3.cargo", {
             "binaries": {},
             "deps": [
                 "//crates/be-host-base:be-host-base",
-                "//crates/be-host-wayland:be-host-wayland",
+                "//crates/be-host-programs:be-host-programs",
                 "//crates/be-sdk-api:be-sdk-api",
                 "//crates/beui-types:beui-types",
                 "//third-party/rust:async-executor-1.14.0",

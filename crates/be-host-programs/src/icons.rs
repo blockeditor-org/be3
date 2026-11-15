@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
-use beui::Image;
+use beui_types::Image;
 use resvg::usvg::fontdb;
 
 use super::Environment;

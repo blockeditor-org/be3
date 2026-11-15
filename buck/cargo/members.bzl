@@ -56,6 +56,7 @@ members = [
     "crates/be-host-base",
     "crates/be-host-bench",
     "crates/be-host-desktop",
+    "crates/be-host-programs",
     "crates/be-host-remap-host",
     "crates/be-host-runtime",
     "crates/be-host-server",
