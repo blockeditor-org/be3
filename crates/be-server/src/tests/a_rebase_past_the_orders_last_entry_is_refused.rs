@@ -17,7 +17,10 @@ async fn a_rebase_past_the_orders_last_entry_is_refused() {
         .publish(&author, block, first.0, first.1, None, 1_000)
         .await;
     let (_, state) = phone.join_session(block).await;
-    phone.submit(block, 7, 1, 0, b"an edit".to_vec()).await.unwrap();
+    phone
+        .submit(block, 7, 1, 0, b"an edit".to_vec())
+        .await
+        .unwrap();
 
     let past = JournalBase {
         commit: Some(first.0),
@@ -27,8 +30,14 @@ async fn a_rebase_past_the_orders_last_entry_is_refused() {
     let answered = phone.rebase_journal(block, state.generation, past).await;
     assert!(answered.is_err(), "a base past the last entry is refused");
 
-    phone.submit(block, 7, 2, 1, b"another".to_vec()).await.unwrap();
-    let journal = phone.journal_of(block).await.expect("the block has a journal");
+    phone
+        .submit(block, 7, 2, 1, b"another".to_vec())
+        .await
+        .unwrap();
+    let journal = phone
+        .journal_of(block)
+        .await
+        .expect("the block has a journal");
     assert_eq!(
         journal
             .entries

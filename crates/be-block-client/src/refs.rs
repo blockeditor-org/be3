@@ -1367,7 +1367,11 @@ impl Refs {
         entry.kept = None;
         let aside = aside.clone();
         drop(state);
-        self.write(vec![row(Table::SetAside, block.as_bytes().to_vec(), &aside)])
+        self.write(vec![row(
+            Table::SetAside,
+            block.as_bytes().to_vec(),
+            &aside,
+        )])
     }
 
     /// The blocks the search indexer let go (`let_go`).
@@ -1645,7 +1649,11 @@ impl Refs {
                 ));
                 held.entries.insert(entry.sequence, entry);
             }
-            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &held.head));
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &held.head,
+            ));
         }
         self.write(rows)
     }

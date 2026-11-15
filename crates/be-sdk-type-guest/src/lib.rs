@@ -11,8 +11,9 @@ use be_block_content::{
 };
 use be_sdk_type_api::{
     Change, ChildChange, ClientId, CommitId, Delivery, Description, EditorId, Endpoint, FileChange,
-    Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile, PublishOutcome,
-    ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo, Written,
+    Journal, JournalEntry, Loaded, Merged, MergedParts, Opening, PartRef, Plain, PlainFile,
+    PublishOutcome, ReorderChild, ReplaceChild, ReplicaId, SearchDocument, SessionState, TypeInfo,
+    Written,
     guest::{exports::replicas, host},
     ops::guest::{self as ops, Executor, LocalFuture, Pending, Sender},
     types::Failure,
@@ -33,9 +34,7 @@ pub use be_sdk_type_api as api;
 pub use be_wasm_guest_abi as abi;
 pub use file::{BlobFile, DocumentFile, FileForm};
 pub use record::{NoHistory, Recorder};
-pub use replica::{
-    COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL,
-};
+pub use replica::{COMMIT_INTERVAL, HEARTBEAT_INTERVAL, JOURNAL_BYTES, QUIET_INTERVAL};
 
 use effect::{Answer, Effect, HeadEvent, RequestId};
 use replica::{AnyReplica, Input, Opened, Replica};
@@ -780,8 +779,7 @@ impl Module {
                     payload: submission.payload,
                 };
                 let announcements = announcements.into_iter().map(announcement).collect();
-                let pending =
-                    ops::with_parent(replica, || host::submit(submission, announcements));
+                let pending = ops::with_parent(replica, || host::submit(submission, announcements));
                 self.answer_later(replica, pending, move |submitted| Input::Submitted {
                     counter,
                     outcome: match submitted {
@@ -1111,10 +1109,7 @@ impl replicas::GuestReplica for OpenReplica {
     }
 
     fn lease(&self, session: SessionState) -> LocalFuture<()> {
-        self.module.input(
-            self.id,
-            Input::Lease { session },
-        );
+        self.module.input(self.id, Input::Lease { session });
         Box::pin(ready(()))
     }
 

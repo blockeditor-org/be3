@@ -1562,10 +1562,9 @@ impl Session<'_> {
                             | Command::Revision {
                                 request: super::revisions::Asked::Restore(_),
                                 ..
-                            })
-                                if !after_order.is_empty()
-                                    || ran.replicas.ordering()
-                                    || !ran.replicas.modules.settled() =>
+                            }) if !after_order.is_empty()
+                                || ran.replicas.ordering()
+                                || !ran.replicas.modules.settled() =>
                             {
                                 after_order.push(command);
                             }

@@ -26,7 +26,10 @@ async fn a_rebase_by_another_build_marks_the_journal_lost_until_the_next_commit(
     };
 
     phone.try_join_as(block, old_build).await.unwrap();
-    phone.submit(block, 7, 1, 0, b"an edit".to_vec()).await.unwrap();
+    phone
+        .submit(block, 7, 1, 0, b"an edit".to_vec())
+        .await
+        .unwrap();
     let journal = journal_of(&mut phone, block).await;
     assert!(journal.is_some_and(|journal| !journal.lost && journal.entries.len() == 1));
     let token = phone.token.clone();

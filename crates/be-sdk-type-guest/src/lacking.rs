@@ -88,7 +88,13 @@ impl Lacking {
         // An edit carried from the replica before, made again here (the host replays what it
         // kept), is followed as this one.
         self.journaled(&operation, None);
-        self.push(operation, Until::Unsettled(None), false, None, announcements);
+        self.push(
+            operation,
+            Until::Unsettled(None),
+            false,
+            None,
+            announcements,
+        );
     }
 
     fn push(
@@ -202,7 +208,8 @@ impl Lacking {
     /// The server holds the submission `counter`.
     pub(crate) fn held(&mut self, counter: u64) {
         self.update(|until| match until {
-            Until::Unsettled(Some(held)) | Until::Numbered {
+            Until::Unsettled(Some(held))
+            | Until::Numbered {
                 counter: Some(held),
                 ..
             } if held == counter => None,

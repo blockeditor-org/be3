@@ -45,11 +45,11 @@ fn an_edit_numbered_offline_after_a_seal_survives_joining() {
             .await
             .expect("the text is open");
         let text = TextBlock::text(&TextContent::decode(&bytes).expect("the text decodes"));
-        assert_eq!(text, "boots socks", "the edit only this device numbered is kept");
-        while replicas
-            .status(block)
-            .is_none_or(|status| !status.clean)
-        {
+        assert_eq!(
+            text, "boots socks",
+            "the edit only this device numbered is kept"
+        );
+        while replicas.status(block).is_none_or(|status| !status.clean) {
             step(&peer, &shared, &mut replicas).await;
         }
     });
