@@ -133,8 +133,8 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   pair, `target/tools/re-relay-*/re-relay serve` under that checkout. When the error survives the
   steps above, `pgrep -a re-relay` lists them; kill this checkout's two by PID, and the next
   `./scripts/buck` starts them again. Where that alone does not clear it, do all three
-  together: kill the checkout's relays, `./scripts/buck kill`, then
-  `rm -rf ~/.buck/buckd buck-out`.
+  together, in this order: `./scripts/buck kill` (which starts the checkout's relays again
+  itself), then kill the checkout's relays, then `rm -rf ~/.buck/buckd buck-out`.
 - **`the proxy answered 401 Unauthorized`**: the session has no key for that server
   (`credentials missing`) or a refused one (`invalid token`).
 - **A test's output**: `./scripts/test` prints it from the `--event-log` buck2 test wrote to
