@@ -219,7 +219,7 @@ pub fn DateTimeField(
         });
     });
     let focus = state.focus;
-    let within = create_memo(move || focus.get().is_some());
+    let within = create_memo(move || focus.with(Option::is_some));
     create_effect(move || on_focus_change.call(within.get()));
     create_effect(move || {
         if focused.get() {
@@ -265,7 +265,6 @@ fn SegmentView(
     let hovered = create_signal(false);
     let is_focused = create_signal(false);
     let focused = create_memo(move || state.focus.get() == Some(segment));
-    let tab_stop = create_memo(move || !state.disabled.get());
     let value = create_memo(move || state.values.get()[segment.index()]);
     let typed = create_memo(move || match state.typing.get() {
         Some((typing, buffer)) if typing == segment => Some(buffer),
@@ -278,7 +277,8 @@ fn SegmentView(
             |value| format_segment(segment, value),
         ),
     });
-    let placeholder = create_memo(move || typed.get().is_none() && value.get().is_none());
+    let placeholder =
+        create_memo(move || typed.with(Option::is_none) && value.with(Option::is_none));
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -306,11 +306,11 @@ fn SegmentView(
         focused: is_focused.read_only(),
         disabled: state.disabled,
     });
-    let shown = !prefix.is_empty();
+    let prefix = (!prefix.is_empty()).then(|| literal.call(prefix));
     view! {
         <Interactive
             focusable=true
-            tab_stop
+            tab_stop={move || !state.disabled.get()}
             focused
             ime={is_focused}
             on_focus_change={move |has_focus: bool| {
@@ -323,10 +323,7 @@ fn SegmentView(
             cursor=CursorIcon::Text
             on_hover_change={hovered}
         >
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>
-                {content}
-            </List>
+            <List direction=Direction::Horizontal spacing=0.0>{prefix}{content}</List>
         </Interactive>
     }
 }

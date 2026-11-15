@@ -107,7 +107,6 @@ pub fn Toasts(
     });
     let label = create_memo(move || label.get());
     let padding = create_memo(move || Sides::all(margin.get()));
-    let outer = create_memo(move || Extent::at_most(width.get() + 2.0 * margin.get()));
     view! {
         <Overlay
             anchor
@@ -117,7 +116,7 @@ pub fn Toasts(
             traps_focus=false
             open={open}
         >
-            <Frame width={outer}>
+            <Frame width={move || Extent::at_most(width.get() + 2.0 * margin.get())}>
                 <Scroll fit=true follow_end={bottom} style={scroll}>
                     <Frame padding={padding}>
                         <ToastStack
@@ -152,7 +151,6 @@ fn ToastStack(
     more: RenderFn<Memo<usize>>,
     card: RenderFn<ToastHandle>,
 ) -> NodeId {
-    let hiding = create_memo(move || hidden.get() > 0);
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::Log);
         node.set_label(label.get());
@@ -161,7 +159,7 @@ fn ToastStack(
     }));
     view! {
         <List spacing>
-            <Show condition={hiding}>|| { more.call(hidden) }</Show>
+            <Show condition={move || hidden.get() > 0}>|| { more.call(hidden) }</Show>
             <ForEach keys={toasts}>|toast: Toast| {
                 let lasts = match toast.expires() {
                     true => duration.get_untracked(),

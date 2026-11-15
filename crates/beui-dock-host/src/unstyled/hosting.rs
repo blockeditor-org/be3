@@ -747,17 +747,9 @@ fn HostedDock(layout: DockHostLayout, style: HostStyle) -> NodeId {
         }
         let ready = create_memo(known);
         view! {
-            <Layers>
-                <Dynamic value={ready}>|ready: bool| {
-                    match ready {
-                        true => place(tab),
-                        false => view! {
-                            <Frame />
-                        },
-                    }
-                }</Dynamic>
-            </Layers>
+            <Show condition={ready}>|| { place(tab) }</Show>
         }
+        .into_output()
     });
     let empty = RenderFn::new(move |leaf: LeafId| {
         let key = layout

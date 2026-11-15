@@ -119,7 +119,7 @@ pub fn Popover(
                 bounds
                 policy=LayerPolicy::Pass
                 trigger={trigger_ref}
-                open={create_memo(move || open.get())}
+                open={move || open.get()}
                 keep_alive=true
                 on_dismiss={move || {
                     open.set(false);

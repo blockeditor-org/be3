@@ -32,7 +32,7 @@ pub fn Tooltip(
     let shown = create_signal(false);
     let wanted = create_memo({
         let label = label.clone();
-        move || !disabled.get() && !label.get().is_empty()
+        move || !disabled.get() && !label.with(String::is_empty)
     });
     let open = create_memo(move || shown.get() && wanted.get());
 

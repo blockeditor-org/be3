@@ -25,11 +25,11 @@ pub fn first_of<T: Copy + 'static>(
     }
 }
 
-pub fn scroll_wheel(
-    axis: impl IntoProp<Option<Direction>>,
+pub fn scroll_wheel<M1>(
+    axis: impl IntoPropWith<Option<Direction>, M1>,
     on_scroll: impl IntoCallback<ScrollGesture, ()>,
 ) -> Callback<WheelInput, bool> {
-    let axis = axis.into_prop();
+    let axis = axis.into_prop_with();
     let on_scroll = on_scroll.into_callback();
     Callback::new(move |input: WheelInput| {
         let WheelInput::Scroll(gesture) = input else {
@@ -95,19 +95,19 @@ fn along(axis: Direction, movement: Vec2) -> Vec2 {
     }
 }
 
-pub fn scroll_drag(
-    axis: impl IntoProp<Option<Direction>>,
+pub fn scroll_drag<M1>(
+    axis: impl IntoPropWith<Option<Direction>, M1>,
     on_drag: impl IntoCallback<DragGesture, ()>,
 ) -> Callback<PointerInput, bool> {
     chaining_scroll_drag(axis, |_: Vec2| false, on_drag)
 }
 
-pub fn chaining_scroll_drag(
-    axis: impl IntoProp<Option<Direction>>,
+pub fn chaining_scroll_drag<M1>(
+    axis: impl IntoPropWith<Option<Direction>, M1>,
     chains: impl Fn(Vec2) -> bool + 'static,
     on_drag: impl IntoCallback<DragGesture, ()>,
 ) -> Callback<PointerInput, bool> {
-    let axis = axis.into_prop();
+    let axis = axis.into_prop_with();
     let on_drag = on_drag.into_callback();
     let mut tracks: Vec<Track> = Vec::new();
     Callback::new(move |input: PointerInput| {

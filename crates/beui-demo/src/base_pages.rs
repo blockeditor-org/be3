@@ -64,14 +64,14 @@ fn FrameSwatches() -> NodeId {
             <Frame
                 width=SWATCH
                 height=SWATCH
-                outline={create_memo(move || Some(Outline::new(theme.text.get(), 2.0)))}
+                outline={move || Some(Outline::new(theme.text.get(), 2.0))}
                 radius=8.0
             />
             <Frame
                 width=SWATCH
                 height=SWATCH
                 fill={theme.control}
-                outline={create_memo(move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0)))}
+                outline={move || Some(Outline::new(theme.accent.get(), 2.0).offset(4.0))}
                 radius=8.0
             />
             <Frame
@@ -510,6 +510,9 @@ pub(crate) fn ControlFlowPage() -> NodeId {
             <Sample title="Show" code={vec![ShowToggle::SOURCE, Tile::SOURCE]}>
                 <ShowToggle />
             </Sample>
+            <Sample title="Show with a fallback" code={vec![ShowFallback::SOURCE, Tile::SOURCE]}>
+                <ShowFallback />
+            </Sample>
             <Sample title="ForEach" code={vec![PlanetList::SOURCE, Tile::SOURCE]}>
                 <PlanetList />
             </Sample>
@@ -530,6 +533,46 @@ fn ShowToggle() -> NodeId {
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ShowFallback() -> NodeId {
+    let editing = create_signal(false);
+    view! {
+        <List spacing={SECTION_SPACING.px()}>
+            <LabelledSwitch label="Editing" on={editing} />
+            <Frame padding={Sides::all(8.0)}>
+                <Show
+                    condition={editing}
+                    fallback={|| view! {
+                        <Tile label="Reading" />
+                    }}
+                >||
+                    <Tile label="Editing: one child either way, so a frame can hold it" />
+                </Show>
+            </Frame>
+            <List spacing=8.0>
+                <Show
+                    condition={editing}
+                    fallback={|| view! {
+                        <Tile label="A run of three" />
+                        <Tile label="while reading" />
+                        <Tile label="in a list" />
+                    }}
+                >||
+                    <Tile label="A run of two" />
+                    <Tile label="while editing" />
+                </Show>
+            </List>
+            <Tile
+                label={move || match editing.get() {
+                    true => "A closure is a prop: editing".to_owned(),
+                    false => "A closure is a prop: reading".to_owned(),
+                }}
+            />
         </List>
     }
 }
@@ -563,18 +606,37 @@ fn PlanetList() -> NodeId {
 #[sample]
 #[component]
 fn DynamicShape() -> NodeId {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Shape {
+        Caption,
+        Square,
+        Circle,
+    }
     let theme = use_theme();
-    let round = create_signal(false);
+    let shape = create_signal(Shape::Caption);
     view! {
         <List spacing={SECTION_SPACING.px()}>
-            <LabelledSwitch label="Round" on={round} />
-            <Dynamic value={round}>|round: bool| {
-                match round {
-                    true => view! {
-                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
-                    },
-                    false => view! {
+            <Button
+                label="Next shape"
+                variant=ButtonVariant::Secondary
+                on_click={move || shape.update(|shape| {
+                    *shape = match shape {
+                        Shape::Caption => Shape::Square,
+                        Shape::Square => Shape::Circle,
+                        Shape::Circle => Shape::Caption,
+                    }
+                })}
+            />
+            <Dynamic value={shape}>|shape: Shape| {
+                match shape {
+                    Shape::Caption => view! {
                         <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
+                    },
+                    Shape::Square => view! {
+                        <Frame width=SWATCH height=SWATCH fill={theme.accent} />
+                    },
+                    Shape::Circle => view! {
+                        <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                 }
             }</Dynamic>
@@ -969,7 +1031,7 @@ fn AnchoredOverlay() -> NodeId {
                         @test_id="demo.overlay.panel"
                         width=PANEL_WIDTH
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -1018,7 +1080,7 @@ fn FloatingWindow() -> NodeId {
                 <Frame
                     @test_id="demo.window.panel"
                     fill={theme.surface}
-                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
@@ -1083,7 +1145,7 @@ fn PopupWindow() -> NodeId {
                     <Frame
                         @test_id="demo.popup.panel"
                         fill={theme.surface}
-                        outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                        outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
@@ -1110,7 +1172,7 @@ fn PopupWindow() -> NodeId {
                                 <Frame
                                     @test_id="demo.popup.inner"
                                     fill={theme.control}
-                                    outline={create_memo(move || Some(Outline::new(theme.border.get(), 1.0)))}
+                                    outline={move || Some(Outline::new(theme.border.get(), 1.0))}
                                     radius={Radius::Md.px()}
                                     padding=12.0
                                 >
@@ -1192,13 +1254,13 @@ fn AnimationSample() -> NodeId {
             />
             <Text color={theme.text}>"Tween"</Text>
             <Frame
-                width={create_memo(move || position.get() + 20.0)}
+                width={move || Extent::px(position.get() + 20.0)}
                 height=12.0
                 fill={theme.accent}
             />
             <Text color={theme.text}>"Spring"</Text>
             <Frame
-                width={create_memo(move || spring_position.get() + 20.0)}
+                width={move || Extent::px(spring_position.get() + 20.0)}
                 height=12.0
                 fill={theme.success}
             />

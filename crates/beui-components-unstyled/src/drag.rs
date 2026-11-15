@@ -188,16 +188,14 @@ where
                     shown_in={shown_in}
                     open={floating}
                 >
-                    <List spacing=0.0>
-                        <Dynamic value={carried}>|carried: Option<P>| {
-                            match carried {
-                                Some(carried) => preview.call(carried),
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
-                        }</Dynamic>
-                    </List>
+                    <Dynamic
+                        value={carried}
+                        fallback={|| view! {
+                            <Frame />
+                        }}
+                    >|carried: P| {
+                        preview.call(carried)
+                    }</Dynamic>
                 </Overlay>
             </List>
         </Interactive>

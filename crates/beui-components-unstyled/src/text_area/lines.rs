@@ -66,7 +66,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let lines = view! {
         <Frame
             @node_ref=&canvas
-            height={create_memo(move || Extent { min: fill.get(), ..Extent::INTRINSIC })}
+            height={move || Extent { min: fill.get(), ..Extent::INTRINSIC }}
             align={align}
         >
             <List spacing=0.0>
@@ -158,15 +158,10 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
         Vec2::new(laid.x, laid.y.max(body))
     });
     create_effect(move || cx.text_extent.set(text.get()));
-    let canvas_width = create_memo(move || {
-        let padding = cx.padding.get();
-        text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
-    });
     let canvas_height = create_memo(move || {
         let padding = cx.padding.get();
         text.get().y + padding.top + padding.bottom
     });
-    let x = create_memo(move || cx.padding.get().left - cx.shift.get());
     let y = create_memo(move || {
         let padding = cx.padding.get();
         let line = text.get().y;
@@ -176,11 +171,23 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             false => padding.top,
         }
     });
-    let text_width = create_memo(move || text.get().x + cx.geometry.get().caret_width);
     let text_height = create_memo(move || text.get().y);
     let built = view! {
-        <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
-            <CanvasItem x={x} y={y} width={text_width} height={text_height}>
+        <Canvas
+            @node_ref=&canvas
+            width={move || {
+                let padding = cx.padding.get();
+                text.get().x + padding.left + padding.right + cx.geometry.get().caret_width
+            }}
+            height={canvas_height}
+            scrolls_across=true
+        >
+            <CanvasItem
+                x={move || cx.padding.get().left - cx.shift.get()}
+                y={y}
+                width={move || text.get().x + cx.geometry.get().caret_width}
+                height={text_height}
+            >
                 <AreaText cx={cx} model={model} geometry bounds />
             </CanvasItem>
         </Canvas>
@@ -193,7 +200,6 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
 fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let model = row_model(cx, move || line.get());
     let gutter = create_memo(move || Some(cx.gutter.get()));
-    let numbered = create_memo(move || cx.gutter.get() > 0.0);
     let look = create_memo(move || model.get().look.clone());
     let padding = create_memo(move || cx.padding.get());
     let block = create_memo(move || model.get().block);
@@ -224,17 +230,14 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let lines = view! {
         <List spacing=0.0>
             <RowText cx model text wrap=true on_bounds=bounds />
-            <Dynamic value={shown_block}>|index: Option<usize>| {
-                match (index, cx.block) {
-                    (Some(index), Some(render)) => {
-                        let size = block.get_untracked().unwrap_or_default().1;
-                        view! {
-                            <BlockSlot @node_ref=&block_ref render index size />
-                        }
-                    }
-                    _ => view! {
-                        <Frame />
-                    },
+            <Dynamic
+                value={shown_block}
+                fallback=()
+            >|index: usize| {
+                let render = cx.block.expect("a block is only shown when the area renders them");
+                let size = block.get_untracked().unwrap_or_default().1;
+                view! {
+                    <BlockSlot @node_ref=&block_ref render index size />
                 }
             }</Dynamic>
         </List>
@@ -248,7 +251,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                 TextLanguage::Markdown | TextLanguage::RichText
             )
         });
-        if !document || cx.prose.get().is_some() || cx.single_line {
+        if !document || cx.prose.with(Option::is_some) || cx.single_line {
             return Margin::default();
         }
         let size = cx.font_size.get();
@@ -278,7 +281,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let built = view! {
         <Frame @node_ref=&row>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Show condition={numbered}>
+                <Show condition={move || cx.gutter.get() > 0.0}>
                     <Frame width=gutter>
                         <Gutter cx={cx} model={model} />
                     </Frame>
@@ -672,15 +675,13 @@ fn RowText(
         cx.focused.get();
         cursors.get().anchor.map(|byte| row.to_display(byte))
     });
-    let anchored = create_memo(move || anchor_at.get().is_some());
+    let anchored = create_memo(move || anchor_at.with(Option::is_some));
     let color = create_memo(move || cx.colors.get().syntax.markdown_plain_text);
     let font = create_memo(move || {
         FontId::proportional(cx.font_size.get())
             .bold(cx.prose.get().is_some_and(|prose| prose.bold))
     });
     let anchor = cx.anchor;
-    let anchor_position = create_memo(move || anchor_at.get());
-    let anchor_node = create_memo(move || anchored.get().then_some(anchor));
     let shown = view! {
         <Text
             @node_ref=&node
@@ -699,8 +700,8 @@ fn RowText(
                 <RowPiece cx model={model} key />
             </ForEach>
             <Show condition={anchored}>
-                <TextItem at={anchor_position}>
-                    <Portal node={anchor_node} />
+                <TextItem at={anchor_at}>
+                    <Portal node={move || anchored.get().then_some(anchor)} />
                 </TextItem>
             </Show>
         </Text>
@@ -969,7 +970,6 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
         }
     });
     let icon = create_memo(move || widget.get().and_then(|widget| widget.icon));
-    let has_icon = create_memo(move || icon.get().is_some());
     let label = create_memo(move || item.get().map(|item| item.label).unwrap_or_default());
     let color = create_memo(move || {
         item.get()
@@ -984,8 +984,6 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     let shape = create_memo(move || cx.geometry.get().widget);
     let height = create_memo(move || Extent::px(shape.get().height));
     let radius = create_memo(move || shape.get().radius);
-    let icon_width = create_memo(move || Extent::px(shape.get().icon_width));
-    let icon_font = create_memo(move || FontId::proportional(shape.get().icon_size));
     let selected = create_memo(move || {
         cx.state.cursors().get();
         let Some(index) = index.get() else {
@@ -1004,9 +1002,13 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame @node_ref=&pill height fill=fill radius>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Show condition={has_icon}>||
-                    <Frame width=icon_width>
-                        <Text font=icon_font color={color} align=TextAlign::Center>
+                <Show condition={move || icon.with(Option::is_some)}>||
+                    <Frame width={move || Extent::px(shape.get().icon_width)}>
+                        <Text
+                            font={move || FontId::proportional(shape.get().icon_size)}
+                            color={color}
+                            align=TextAlign::Center
+                        >
                             <Icon glyph={icon} />
                         </Text>
                     </Frame>
@@ -1060,9 +1062,6 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
         Sides::new(left, model.get().space.0, right, 0.0)
     });
     let arrow_size = create_memo(move || geometry.get().gutter_arrow);
-    let arrow_width = create_memo(move || Extent::px(arrow_size.get()));
-    let arrow_font = create_memo(move || FontId::proportional(arrow_size.get()));
-    let number_font = create_memo(move || FontId::monospace(cx.font_size.get()));
     let arrow = create_memo(move || {
         cx.state.content().get();
         let start = model.get().start;
@@ -1075,19 +1074,25 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                 false => ICON_CHEVRON_DOWN,
             })
     });
-    let arrow_color = create_memo(move || cx.colors.get().gutter_arrow);
-    let number_color = create_memo(move || cx.colors.get().gutter_text);
     view! {
         <Frame padding=above>
             <List direction=beui_view::types::Direction::Horizontal spacing=0.0>
-                <Frame width=arrow_width height=height>
-                    <Text font=arrow_font color={arrow_color} align=TextAlign::Center>
+                <Frame width={move || Extent::px(arrow_size.get())} height=height>
+                    <Text
+                        font={move || FontId::proportional(arrow_size.get())}
+                        color={move || cx.colors.get().gutter_arrow}
+                        align=TextAlign::Center
+                    >
                         <Icon glyph={arrow} />
                     </Text>
                 </Frame>
                 <ListItem grow=1.0>
                     <Frame height=height>
-                        <Text font=number_font color={number_color} align=TextAlign::End>
+                        <Text
+                            font={move || FontId::monospace(cx.font_size.get())}
+                            color={move || cx.colors.get().gutter_text}
+                            align=TextAlign::End
+                        >
                             {number}
                         </Text>
                     </Frame>

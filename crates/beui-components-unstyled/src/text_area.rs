@@ -1285,7 +1285,7 @@ fn gutter_width(font_size: f32, geometry: &TextAreaGeometry) -> f32 {
 struct Field {
     cx: Context,
     described: Memo<Node>,
-    frame: Stored<RefCell<Option<Render<Child>>>>,
+    frame: Stored<RefCell<Option<Render<NodeId>>>>,
     inner: NodeRef,
     field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
@@ -1346,7 +1346,7 @@ pub fn TextArea(
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color)>>,
     #[prop(default = ScrollStyle::default())] scroll: ScrollStyle,
     accessibility: Option<Prop<Node>>,
-    frame: Option<Render<Child>>,
+    frame: Option<Render<NodeId>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     on_content_size: Callback<Vec2>,
@@ -1508,7 +1508,7 @@ pub fn TextArea(
         let Some(query) = completion.get() else {
             return false;
         };
-        dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
+        dismissed.get() != Some(query.range.start) && !completions.with(Vec::is_empty)
     });
     let highlighted = create_signal(0_usize);
     create_effect(move || match completion.get() {
@@ -1698,18 +1698,11 @@ pub fn TextArea(
         on_hover_change,
         on_image_paste,
     };
-    let multi_line = !single_line;
     let width = create_memo(move || size.get().x);
     let height = create_memo(move || size.get().y);
-    let border_color = create_memo(move || colors.get().gutter_border);
-    let border_x = create_memo(move || gutter.get() - 1.0);
-    let border_width = create_memo(move || match gutter.get() > 0.0 {
-        true => 1.0,
-        false => 0.0,
-    });
     let has_menu = completion_menu.is_some();
     let menu = create_memo(move || has_menu && completing.get());
-    if multi_line {
+    if !single_line {
         action_scope(&outer);
         actions::register(state, locked, find);
     }
@@ -1717,23 +1710,33 @@ pub fn TextArea(
     let built = view! {
         <Frame @node_ref=&outer>
             <List spacing=0.0>
-                <Show condition={single_line}>
+                <Show
+                    condition={single_line}
+                    fallback={move || view! {
+                        <ListItem grow=1.0>
+                            <Canvas width={width} height={height}>
+                                <CanvasItem
+                                    x={move || gutter.get() - 1.0}
+                                    y=0.0
+                                    width={move || match gutter.get() > 0.0 {
+                                        true => 1.0,
+                                        false => 0.0,
+                                    }}
+                                    height={height}
+                                >
+                                    <Frame fill={move || colors.get().gutter_border} />
+                                </CanvasItem>
+                                <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                    <Scroll offset={offset} style={scroll} on_change={scrolled}>
+                                        <Editing field={field} />
+                                    </Scroll>
+                                </CanvasItem>
+                            </Canvas>
+                        </ListItem>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Editing field={field} />
-                    </ListItem>
-                </Show>
-                <Show condition={multi_line}>||
-                    <ListItem grow=1.0>
-                        <Canvas width={width} height={height}>
-                            <CanvasItem x={border_x} y=0.0 width={border_width} height={height}>
-                                <Frame fill=border_color />
-                            </CanvasItem>
-                            <CanvasItem x=0.0 y=0.0 width={width} height={height}>
-                                <Scroll offset={offset} style={scroll} on_change={scrolled}>
-                                    <Editing field={field} />
-                                </Scroll>
-                            </CanvasItem>
-                        </Canvas>
                     </ListItem>
                 </Show>
                 <Show condition={menu}>|| {
@@ -1795,7 +1798,7 @@ fn Editing(field: Field) -> NodeId {
             focusable=true
             focused
             tab_stop
-            ime={create_memo(move || !locked.get())}
+            ime={move || !locked.get()}
             keyboard={match keyboard_on_focus {
                 true => SoftKeyboard::OnFocus,
                 false => SoftKeyboard::OnPress,
@@ -1821,11 +1824,11 @@ fn Editing(field: Field) -> NodeId {
             }}
             cursor
             repeat_drag={autoscroll}
-            capture_presses={create_memo(move || !disabled.get())}
-            claims={create_memo(move || match cx.disabled.get() {
+            capture_presses={move || Area::when(!disabled.get())}
+            claims={move || match cx.disabled.get() {
                 true => Vec::new(),
                 false => vec![Claim::always(Area::CaretHandles)],
-            })}
+            }}
             on_press={move |event: PointerPress| press(&cx, event)}
             on_click_at={move |event: PointerPress| tap(&cx, event)}
             on_secondary_press={move |event: PointerPress| hold(&cx, event)}

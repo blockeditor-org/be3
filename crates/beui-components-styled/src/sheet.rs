@@ -30,7 +30,7 @@ pub fn Sheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     on_close: Callback<()>,
-    children: Child,
+    children: NodeId,
 ) -> NodeId {
     view! {
         <unstyled::Sheet
@@ -43,7 +43,7 @@ pub fn Sheet(
             grip={|_: SheetGripHandle| view! {
                 <SheetGrip />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
@@ -75,7 +75,7 @@ pub fn ModalSheet(
             grip={|_: SheetGripHandle| view! {
                 <SheetGrip />
             }}
-            panel={|content: Child| view! {
+            panel={|content: NodeId| view! {
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}

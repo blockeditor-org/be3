@@ -165,7 +165,6 @@ where
     });
     let columns = create_memo(move || columns.get().max(1));
     let gridded = create_memo(move || columns.get() > 1);
-    let listed = create_memo(move || !gridded.get());
     let state = State {
         search: NodeRef::new(),
         shown,
@@ -203,7 +202,6 @@ where
     });
 
     let highlight = create_selector(move || highlighted.get());
-    let tracks = create_memo(move || vec![Track::Fraction(1.0); columns.get()]);
     on_key(
         KeyAt::Node(state.search),
         KeyPhase::Capture,
@@ -243,18 +241,24 @@ where
                 on_submit={move |_: String| state.submit()}
             />
             <ListItem
-                length={create_memo(move || fill_height.get().then(|| list_height.get()))}
+                length={move || fill_height.get().then(|| list_height.get())}
                 max=list_height
                 shrink=1.0
             >
                 <Scroll fit=true style={scroll}>
-                    <Show condition={listed}>
-                        <ForEach keys={shown}>|key: K|
-                            <SearchRow state key accessibility row highlight />
-                        </ForEach>
-                    </Show>
-                    <Show condition={gridded}>
-                        <Grid columns={tracks} column_spacing=spacing row_spacing=spacing>
+                    <Show
+                        condition={gridded}
+                        fallback={move || view! {
+                            <ForEach keys={shown}>|key: K|
+                                <SearchRow state key accessibility row highlight />
+                            </ForEach>
+                        }}
+                    >
+                        <Grid
+                            columns={move || vec![Track::Fraction(1.0); columns.get()]}
+                            column_spacing=spacing
+                            row_spacing=spacing
+                        >
                             <ForEach keys={shown}>|key: K|
                                 <SearchRow state key accessibility row highlight />
                             </ForEach>

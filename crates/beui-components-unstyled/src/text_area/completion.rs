@@ -51,13 +51,13 @@ pub struct CompletionRowHandle {
 #[derive(Clone, Copy)]
 pub struct CompletionMenu {
     row: RenderFn<CompletionRowHandle>,
-    panel: RenderFn<Child>,
+    panel: RenderFn<NodeId>,
 }
 
 impl CompletionMenu {
     pub fn new(
         row: impl Fn(CompletionRowHandle) -> NodeId + 'static,
-        panel: impl Fn(Child) -> NodeId + 'static,
+        panel: impl Fn(NodeId) -> NodeId + 'static,
     ) -> Self {
         Self {
             row: RenderFn::new(row),

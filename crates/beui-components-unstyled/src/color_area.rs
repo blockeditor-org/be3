@@ -126,11 +126,10 @@ pub fn ColorArea(
         focused: has_focus.read_only(),
         disabled,
     });
-    let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true
-            tab_stop
+            tab_stop={move || !disabled.get()}
             focused
             on_focus_change={has_focus}
             on_step={move |delta: f32| {

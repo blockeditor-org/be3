@@ -273,7 +273,7 @@ where
     api.fill(TreeApi(state));
 
     create_effect(move || {
-        if state.focus.get().is_none() {
+        if state.focus.with(Option::is_none) {
             state.typeahead.value().borrow_mut().clear();
         }
     });
@@ -509,34 +509,30 @@ pub fn TreeToggle(
     #[prop(default = String::new())] button_test_id: String,
     #[prop(children)] content: RenderFn<TreeToggleHandle>,
 ) -> DynamicSegment<ListItem> {
-    let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {
-        <Show condition={expandable}>|| {
-            let button_test_id = button_test_id.clone(); {
-                let label = create_memo(move || match expanded.get() {
-                    true => "Collapse".to_owned(),
-                    false => "Expand".to_owned(),
-                });
-                let accessibility = create_memo(move || {
-                    let mut node = Node::new(Role::Button);
-                    node.set_expanded(expanded.get());
-                    node
-                });
-                view! {
-                    <Button
-                        @test_id={button_test_id}
-                        label
-                        tab_stop=false
-                        press_focus=false
-                        accessibility
-                        on_click={toggle}
-                        content={move |button: ButtonHandle| content.call(TreeToggleHandle {
-                            button,
-                            expanded,
-                        })}
-                    />
-                }
+        <Show condition={move || item.get().expandable}>|| {
+            let button_test_id = button_test_id.clone();
+            view! {
+                <Button
+                    @test_id={button_test_id}
+                    label={move || match expanded.get() {
+                        true => "Collapse".to_owned(),
+                        false => "Expand".to_owned(),
+                    }}
+                    tab_stop=false
+                    press_focus=false
+                    accessibility={move || {
+                        let mut node = Node::new(Role::Button);
+                        node.set_expanded(expanded.get());
+                        node
+                    }}
+                    on_click={toggle}
+                    content={move |button: ButtonHandle| content.call(TreeToggleHandle {
+                        button,
+                        expanded,
+                    })}
+                />
             }
         }</Show>
     }
@@ -685,7 +681,7 @@ pub fn TreeRowEditor(
         />
     };
     let measured = measure(field.get());
-    let placed = create_memo(move || measured.get().is_some());
+    let placed = create_memo(move || measured.with(Option::is_some));
     create_effect(move || {
         if placed.get() {
             field.get().reveal();
@@ -720,7 +716,7 @@ where
         stray_edge(
             measure(row).get()?.rect,
             measure(scroll).get()?.rect,
-            buried.get().is_some(),
+            buried.with(Option::is_some),
         )
     });
     let pending = create_signal(None::<K>);
@@ -739,13 +735,13 @@ where
         else {
             return;
         };
-        if measure(row).get().is_none() {
+        if measure(row).with(Option::is_none) {
             return;
         }
         row.reveal();
         pending.set(None);
     });
-    let open = create_memo(move || astray.get().is_some());
+    let open = create_memo(move || astray.with(Option::is_some));
     let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
     let item = state.item;
     let label = create_memo(move || {

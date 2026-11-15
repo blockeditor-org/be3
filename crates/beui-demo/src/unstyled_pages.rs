@@ -159,24 +159,24 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
         focused,
         ..
     } = handle;
-    let border = create_memo(move || match hovered.get() {
-        true => ColorRole::Accent,
-        false => ColorRole::TextMuted,
-    });
     view! {
         <Frame focus={focused} focus_offset=Stroke::Focus radius=Radius::Md>
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Frame
                     width=BOX_SIZE
                     height=BOX_SIZE
-                    border={create_memo(move || Some(Border::new(border.get()).width(Stroke::Focus)))}
+                    border={move || {
+                        let color = match hovered.get() {
+                            true => ColorRole::Accent,
+                            false => ColorRole::TextMuted,
+                        };
+                        Some(Border::new(color).width(Stroke::Focus))
+                    }}
                     align=Align::Center
                 >
-                    <Layers>
-                        <Show condition={checked}>
-                            <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
-                        </Show>
-                    </Layers>
+                    <Show condition={checked}>
+                        <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
+                    </Show>
                 </Frame>
                 <Text>{label.to_owned()}</Text>
             </List>
@@ -500,16 +500,14 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     border={Border::new(ColorRole::TextMuted).width(Stroke::Focus)}
                     align=Align::Center
                 >
-                    <Layers>
-                        <Show condition={selected}>
-                            <Frame
-                                width=MARK_SIZE
-                                height=MARK_SIZE
-                                radius=Radius::Sm
-                                fill=ColorRole::Accent
-                            />
-                        </Show>
-                    </Layers>
+                    <Show condition={selected}>
+                        <Frame
+                            width=MARK_SIZE
+                            height=MARK_SIZE
+                            radius=Radius::Sm
+                            fill=ColorRole::Accent
+                        />
+                    </Show>
                 </Frame>
                 <Text>{label}</Text>
             </List>
@@ -601,7 +599,7 @@ pub(crate) fn PopupsPage() -> NodeId {
 
 fn popup_surface() -> AnchoredStyle {
     AnchoredStyle::new(
-        |content: Child| {
+        |content: NodeId| {
             view! {
                 <PopupPanel>{content}</PopupPanel>
             }
@@ -718,7 +716,7 @@ fn ExportMenu() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -754,7 +752,7 @@ fn RunSplit() -> NodeId {
                                         |handle: MenuRowHandle| view! {
                                             <MenuRow handle />
                                         },
-                                        |menu: Child| view! {
+                                        |menu: NodeId| view! {
                                             <PopupPanel>{menu}</PopupPanel>
                                         },
                                     )}
@@ -842,7 +840,7 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
             view! {
                 <Frame
                     height=BIN_HEIGHT
-                    border={create_memo(move || Some(Border::new(edge.get()).width(Stroke::Focus)))}
+                    border={move || Some(Border::new(edge.get()).width(Stroke::Focus))}
                     radius=Radius::Lg
                     padding=Space::Lg
                 >
@@ -1195,7 +1193,7 @@ fn SwatchDot(handle: SwatchHandle) -> NodeId {
             height=DOT_SIZE
             fill={ColorRole::custom(color)}
             radius=PILL_RADIUS
-            border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus)))}
+            border={move || ring.get().then_some(Border::new(ColorRole::Text).width(Stroke::Focus).offset(Stroke::Focus))}
         />
     }
 }
@@ -1386,7 +1384,7 @@ fn PlainNote() -> NodeId {
                                 |handle: MenuRowHandle| view! {
                                     <MenuRow handle />
                                 },
-                                |menu: Child| view! {
+                                |menu: NodeId| view! {
                                     <PopupPanel>{menu}</PopupPanel>
                                 },
                             )
@@ -1394,7 +1392,7 @@ fn PlainNote() -> NodeId {
                                 |handle: ButtonHandle| view! {
                                     <ToolbarKey handle />
                                 },
-                                |keys: Child| view! {
+                                |keys: NodeId| view! {
                                     <ToolbarStrip>{keys}</ToolbarStrip>
                                 },
                             ))}
@@ -1402,7 +1400,7 @@ fn PlainNote() -> NodeId {
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea
                     state
-                    colors={create_memo(move || beui::styled::text_area_colors(&theme.get()))}
+                    colors={move || beui::styled::text_area_colors(&theme.get())}
                     look={beui::styled::text_area_look()}
                     font_size=14.0
                     padding={beui::Sides::symmetric(12.0, 8.0)}
@@ -1411,7 +1409,7 @@ fn PlainNote() -> NodeId {
                         |handle: CompletionRowHandle| view! {
                             <CompletionRow handle />
                         },
-                        |rows: Child| view! {
+                        |rows: NodeId| view! {
                             <PopupPanel>{rows}</PopupPanel>
                         },
                     )}
@@ -1466,7 +1464,7 @@ fn PullUpSheet() -> NodeId {
                 grip={move |_: SheetGripHandle| view! {
                     <SheetGrip />
                 }}
-                panel={move |content: Child| view! {
+                panel={move |content: NodeId| view! {
                     <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
                 on_close={move || open.set(false)}
@@ -1570,7 +1568,7 @@ fn DeadlinePicker() -> NodeId {
                     literal={move |text: String| view! {
                         <Text color=TextColor::Muted>{text}</Text>
                     }}
-                    segments={move |segments: Child| view! {
+                    segments={move |segments: NodeId| view! {
                         <Frame padding={Padding::symmetric(Space::Md, Space::Sm)}>{segments}</Frame>
                     }}
                     field={move |handle: DateTimeBoxHandle| view! {
@@ -1628,7 +1626,7 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
     });
     view! {
         <Frame
-            border={create_memo(move || Some(Border::new(line.get()).width(Stroke::Hairline)))}
+            border={move || Some(Border::new(line.get()).width(Stroke::Hairline))}
             radius=Radius::Md
             padding={Padding::vertical(Space::Xs).right(Space::Xs)}
         >

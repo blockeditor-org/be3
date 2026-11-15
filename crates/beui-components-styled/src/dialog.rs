@@ -192,7 +192,7 @@ pub fn DialogBody(
 }
 
 fn named(id: Memo<String>, name: &'static str) -> Memo<String> {
-    create_memo(move || match id.get().is_empty() {
+    create_memo(move || match id.with(String::is_empty) {
         true => String::new(),
         false => format!("{}.{name}", id.get()),
     })
@@ -210,7 +210,7 @@ fn DialogBodyFace(
     let closable = handle.kind == DialogKind::Dialog;
     let titled = create_memo(move || !title.with(Phrase::is_empty));
     let footer = handle.footer;
-    let footed = create_memo(move || !footer.get().is_empty());
+    let footed = create_memo(move || !footer.with(unstyled::FooterOrder::is_empty));
     let bleed = create_memo(move || Bleed::dialog(titled.get(), footed.get()));
     let dismiss = handle.dismiss;
     let content = match scrolls {
@@ -237,7 +237,7 @@ fn DialogBodyFace(
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::TITLE>{title}</Text>
                             </ListItem>
-                            <Show condition={create_memo(move || closable)}>
+                            {closable.then(|| view! {
                                 <Button
                                     icon_only=true
                                     glyph=ICON_X
@@ -247,7 +247,7 @@ fn DialogBodyFace(
                                     @test_id={named(id, "close")}
                                     on_click={dismiss}
                                 />
-                            </Show>
+                            })}
                         </List>
                     </Show>
                     {content}
@@ -264,32 +264,32 @@ fn DialogBodyFace(
 fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
     let footer = handle.footer;
     let narrow = handle.narrow;
-    let wide = create_memo(move || !narrow.get());
     let start = create_memo(move || footer.get().start);
     let end = create_memo(move || footer.get().end);
-    let leading = create_memo(move || !start.with(Vec::is_empty));
     view! {
         <List spacing=Space::None @test_id={named(id, "actions")}>
-            <Show condition={wide}>
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::End
-                    wrap=true
-                    spacing=ACTION_SPACING
-                >
-                    <ForEach keys={start}>|index: usize|
-                        <ActionButton handle index id />
-                    </ForEach>
-                    <Show condition={leading}>
-                        <Spacer />
-                    </Show>
-                    <ForEach keys={end}>|index: usize|
-                        <ActionButton handle index id />
-                    </ForEach>
-                </List>
-            </Show>
-            <Show condition={narrow}>
+            <Show
+                condition={narrow}
+                fallback={move || view! {
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        justify=Justify::End
+                        wrap=true
+                        spacing=ACTION_SPACING
+                    >
+                        <ForEach keys={start}>|index: usize|
+                            <ActionButton handle index id />
+                        </ForEach>
+                        <Show condition={move || !start.with(Vec::is_empty)}>
+                            <Spacer />
+                        </Show>
+                        <ForEach keys={end}>|index: usize|
+                            <ActionButton handle index id />
+                        </ForEach>
+                    </List>
+                }}
+            >
                 <List spacing=ACTION_SPACING>
                     <ForEach keys={end}>|index: usize|
                         <ActionButton handle index id />

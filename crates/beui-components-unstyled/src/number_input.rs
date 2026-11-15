@@ -91,11 +91,6 @@ pub fn NumberInput(
         }
     });
     let off = create_memo(move || disabled.get());
-    let idle = create_memo(move || !editing.get());
-    let cursor = create_memo(move || match drag != NumberDrag::Off && !off.get() {
-        true => CursorIcon::ResizeHorizontal,
-        false => CursorIcon::Default,
-    });
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         let label = label.get();
@@ -232,25 +227,33 @@ pub fn NumberInput(
     }));
     view! {
         <List spacing=0.0>
-            <Show keep_alive=true condition={idle}>
-                <Interactive
-                    focusable=true
-                    tab_stop
-                    focused={refocus}
-                    on_focus_change={button_focus}
-                    on_activate={open}
-                    cursor={cursor}
-                    capture_presses=true
-                    on_press={pressed}
-                    on_drag={dragged}
-                    on_click={clicked}
-                    on_cancel={cancelled}
-                    on_hover_change={hovered}
-                    on_active_change={active}
-                    children={Some(face)}
-                />
+            <Show
+                keep_alive=true
+                condition={editing}
+                fallback={move || view! {
+                    <Interactive
+                        focusable=true
+                        tab_stop
+                        focused={refocus}
+                        on_focus_change={button_focus}
+                        on_activate={open}
+                        cursor={move || match drag != NumberDrag::Off && !off.get() {
+                            true => CursorIcon::ResizeHorizontal,
+                            false => CursorIcon::Default,
+                        }}
+                        capture_presses=true
+                        on_press={pressed}
+                        on_drag={dragged}
+                        on_click={clicked}
+                        on_cancel={cancelled}
+                        on_hover_change={hovered}
+                        on_active_change={active}
+                        children={Some(face)}
+                    />
+                }}
+            >
+                {field}
             </Show>
-            <Show keep_alive=true condition={editing}>{field}</Show>
         </List>
     }
 }

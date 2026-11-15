@@ -86,14 +86,13 @@ fn TableHeader(
 fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListItem {
     let title = create_memo(move || column.with(|column| column.title.clone()));
     let caption = create_memo(move || column.with(|column| column.caption.clone()));
-    let captioned = create_memo(move || !caption.with(String::is_empty));
     let label = create_memo(move || spoken(&title.get(), &caption.get()));
     view! {
         <ListItem grow=weight>
             <unstyled::TableColumnHeader label={label}>
                 <List spacing=Space::None>
                     <Text style=COLUMN_TITLE>{title}</Text>
-                    <Show condition={captioned}>
+                    <Show condition={move || !caption.with(String::is_empty)}>
                         <Text style=TextStyle::CAPTION>{caption}</Text>
                     </Show>
                 </List>
@@ -141,14 +140,13 @@ pub fn TableCell(
 ) -> ListItem {
     let text = create_memo(move || text.get());
     let caption = create_memo(move || caption.get());
-    let captioned = create_memo(move || !caption.get().is_empty());
     let label = create_memo(move || spoken(&text.get(), &caption.get()));
     view! {
         <ListItem grow=CELL_WEIGHT>
             <unstyled::TableCell label={label}>
                 <List spacing=CAPTION_SPACING>
                     <Text color={color}>{text}</Text>
-                    <Show condition={captioned}>
+                    <Show condition={move || !caption.with(String::is_empty)}>
                         <Text style=TextStyle::CAPTION>{caption}</Text>
                     </Show>
                 </List>

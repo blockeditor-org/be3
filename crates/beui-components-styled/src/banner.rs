@@ -21,12 +21,11 @@ pub fn Banner(
     on_dismiss: Callback<()>,
 ) -> NodeId {
     let message = create_memo(move || message.get());
-    let shown = create_memo(move || message.with(Option::is_some));
     let text = create_memo(move || message.get().unwrap_or_default());
     let id = id.get_untracked();
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show condition={move || message.with(Option::is_some)}>
                 <BannerBar
                     text
                     id={id.clone()}
@@ -54,15 +53,15 @@ fn BannerBar(
                     <ListItem grow=1.0>
                         <Text color=TextColor::Danger>{text}</Text>
                     </ListItem>
-                    <Show condition=dismissable>
+                    {dismissable.then(|| view! {
                         <Button
-                            label={dismiss_label.clone()}
+                            label={dismiss_label}
                             size=ButtonSize::Compact
                             variant=ButtonVariant::Secondary
-                            @test_id={dismiss_id.clone()}
-                            on_click={on_dismiss.clone()}
+                            @test_id={dismiss_id}
+                            on_click={on_dismiss}
                         />
-                    </Show>
+                    })}
                 </List>
             </Frame>
         </unstyled::Banner>

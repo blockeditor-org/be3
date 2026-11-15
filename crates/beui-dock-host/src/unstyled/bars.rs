@@ -1988,13 +1988,19 @@ fn SharedBar(
         }
     });
     let shown = create_memo(move || followed.get() == Some(bar));
-    let hidden = create_memo(move || !shown.get());
     let room = create_memo(move || match shown.get() {
         true => WINDOW_ROOM,
         false => 0.0,
     });
     view! {
-        <CanvasItem x=0.0 y=0.0 width={room} height={room} clip={hidden} pointer={shown}>
+        <CanvasItem
+            x=0.0
+            y=0.0
+            width={room}
+            height={room}
+            clip={move || !shown.get()}
+            pointer={shown}
+        >
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=WINDOW_ROOM height=WINDOW_ROOM clip=false>
                     <Frame align=Align2::START>
@@ -2093,7 +2099,7 @@ pub(super) fn DockBarLifted(dock: State) -> NodeId {
         let Some(size) = measured.get().map(|measured| measured.rect.size()) else {
             return;
         };
-        if size.x > 0.0 && size.y > 0.0 && lifted.get().is_some() {
+        if size.x > 0.0 && size.y > 0.0 && lifted.with(Option::is_some) {
             untrack(|| {
                 if lifting.size.get() != size {
                     lifting.size.set(size);
@@ -2102,7 +2108,7 @@ pub(super) fn DockBarLifted(dock: State) -> NodeId {
         }
     });
     let anchor = create_memo(move || OverlayAnchor::Point(lifting.at.get()));
-    let open = create_memo(move || lifted.get().is_some());
+    let open = create_memo(move || lifted.with(Option::is_some));
 
     let layer = NodeRef::new();
     let view = view! {

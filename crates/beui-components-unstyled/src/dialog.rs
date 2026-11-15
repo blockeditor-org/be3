@@ -46,12 +46,12 @@ pub struct DialogAction {
 }
 
 impl DialogAction {
-    pub fn new(
+    pub fn new<M1>(
         role: ActionRole,
-        label: impl IntoProp<String>,
+        label: impl IntoPropWith<String, M1>,
         on_click: impl IntoUnitCallback,
     ) -> Self {
-        let label = label.into_prop();
+        let label = label.into_prop_with();
         Self {
             label: create_memo(move || label.get()),
             role,
@@ -67,36 +67,45 @@ impl DialogAction {
         }
     }
 
-    pub fn primary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn primary<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn destructive<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn secondary<M1>(
+        label: impl IntoPropWith<String, M1>,
+        on_click: impl IntoUnitCallback,
+    ) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 
-    pub fn cancel(label: impl IntoProp<String>) -> Self {
+    pub fn cancel<M1>(label: impl IntoPropWith<String, M1>) -> Self {
         Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 
-    pub fn disabled(mut self, disabled: impl IntoProp<bool>) -> Self {
-        let disabled = disabled.into_prop();
+    pub fn disabled<M>(mut self, disabled: impl IntoPropWith<bool, M>) -> Self {
+        let disabled = disabled.into_prop_with();
         self.disabled = create_memo(move || disabled.get());
         self
     }
 
-    pub fn busy(mut self, busy: impl IntoProp<bool>) -> Self {
-        let busy = busy.into_prop();
+    pub fn busy<M>(mut self, busy: impl IntoPropWith<bool, M>) -> Self {
+        let busy = busy.into_prop_with();
         self.busy = create_memo(move || busy.get());
         self
     }
 
-    pub fn shown(mut self, shown: impl IntoProp<bool>) -> Self {
-        let shown = shown.into_prop();
+    pub fn shown<M>(mut self, shown: impl IntoPropWith<bool, M>) -> Self {
+        let shown = shown.into_prop_with();
         self.shown = create_memo(move || shown.get());
         self
     }
@@ -354,12 +363,12 @@ pub struct DialogSheetHandle {
     pub open: Memo<bool>,
     pub close: Callback<()>,
     pub tall: bool,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 pub struct DialogCardHandle {
     pub pointer: NodeRef,
-    pub body: Child,
+    pub body: NodeId,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]

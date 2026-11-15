@@ -76,18 +76,16 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Show>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
-                            <Dynamic value={titled}>|titled: bool| {
-                                match titled {
-                                    true => view! {
-                                        <DockTitleButton action title icon noticed />
-                                    },
-                                    false => view! {
-                                        <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                            <DockTitle title icon noticed opens=false />
-                                        </Frame>
-                                    },
-                                }
-                            }</Dynamic>
+                            <Show
+                                condition={titled}
+                                fallback={move || view! {
+                                    <Frame padding={Padding::horizontal(TITLE_PADDING)}>
+                                        <DockTitle title icon noticed opens=false />
+                                    </Frame>
+                                }}
+                            >
+                                <DockTitleButton action title icon noticed />
+                            </Show>
                         </List>
                     </ListItem>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />
@@ -133,7 +131,6 @@ fn DockTitleButton(
                 true => ColorRole::Hover,
                 false => ColorRole::None,
             });
-            let opens = create_memo(move || !disabled.get());
             view! {
                 <Frame
                     fill={fill}
@@ -143,7 +140,7 @@ fn DockTitleButton(
                     padding={Padding::horizontal(TITLE_PADDING)}
                     align={Align2::new(Align::Stretch, Align::Center)}
                 >
-                    <DockTitle title icon noticed opens />
+                    <DockTitle title icon noticed opens={move || !disabled.get()} />
                 </Frame>
             }
         }</unstyled::Button>
@@ -157,14 +154,13 @@ fn DockTitle(
     noticed: Memo<bool>,
     opens: Prop<bool>,
 ) -> NodeId {
-    let pictured = create_memo(move || icon.get().is_some());
     let label = create_memo(move || match noticed.get() {
         true => TextColor::Accent,
         false => TextColor::Default,
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TITLE_SPACING>
-            <Show condition={pictured}>
+            <Show condition={move || icon.with(Option::is_some)}>
                 <Text color=TextColor::Accent align=TextAlign::Center>
                     <Icon glyph={icon} />
                 </Text>
