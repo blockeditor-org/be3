@@ -6,7 +6,7 @@ use be_block_content::{MY_FILES, NAME, ROW_PREFIX};
 use be_block_keys::{InviteCode, RecoveryPhrase};
 use be_block_protocol::{KeyKind, OrganizationKind, OrganizationRole, client};
 use be_server::backup::{self, BackupKey, Directory};
-use be_server::store::codes::CodePurpose;
+use be_server::store::codes::{CodePurpose, CodeRequest};
 use be_tool_cli::{cli, session};
 use be_type_database::{
     database::DatabaseContent,
@@ -60,17 +60,10 @@ async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
         .await
         .expect("browser sign-in starts");
     let store = be_server::ServerStore::open(&server.directory).unwrap();
-    let entered = crate::codes::enter(
-        &store,
-        config(),
-        CodePurpose::SignIn,
-        email,
-        "",
-        "",
-        "192.0.2.7",
-    )
-    .await
-    .unwrap_or_else(|error| panic!("{email} no longer signs in by code: {error}"));
+    let entered = store
+        .ask_and_enter_code(request(CodePurpose::SignIn, email, "", ""), config())
+        .await
+        .unwrap_or_else(|error| panic!("{email} no longer signs in by code: {error}"));
     let cookie = entered.session.unwrap();
     let cookie = cookie.as_str();
     let page = portal_http(server, "GET", &format!("/auth?code={code}"), cookie, "").await;
@@ -103,6 +96,25 @@ async fn sign_in(server: &Running, email: &str) -> (Arc<Connection>, String) {
     .await
     .expect("the token signs in");
     (connection, token)
+}
+
+/// A code request from the test's browser.
+fn request<'a>(
+    purpose: CodePurpose,
+    email: &'a str,
+    name: &'a str,
+    invite: &'a str,
+) -> CodeRequest<'a> {
+    CodeRequest {
+        purpose,
+        email,
+        account: None,
+        display_name: name,
+        invite,
+        device_code: "",
+        attempt: "",
+        address: "192.0.2.7",
+    }
 }
 
 async fn peer(
@@ -689,7 +701,9 @@ async fn check_storage(
     );
 
     let enter = |purpose, email: &'static str, invite: &'static str| async move {
-        crate::codes::enter(store, config(), purpose, email, email, invite, "192.0.2.7").await
+        store
+            .ask_and_enter_code(request(purpose, email, email, invite), config())
+            .await
     };
     let register = |email, invite| enter(CodePurpose::Register, email, invite);
     assert!(

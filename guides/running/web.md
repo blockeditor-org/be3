@@ -7,8 +7,8 @@ shows in the browser, serve the web build, open it in headless Chromium and driv
     source ~/.cache/be3/web-dev/env
 
 This builds the web bundle with every app, starts be-server and Caddy in front of it on
-http://127.0.0.1:8090, opens the page in headless Chromium signed in as `dev@localhost`
-(`dev-password`) with the personal organization on My files, and returns once the host is up.
+http://127.0.0.1:8090, opens the page in headless Chromium signed in as `dev@localhost` (by
+the code the server logs) with the personal organization on My files, and returns once the host is up.
 Data and the browser profile live in `~/.cache/be3/web-dev` and survive restarts; running it
 again reopens the same organization, which is how to pick up a rebuild.
 
