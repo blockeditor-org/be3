@@ -243,6 +243,8 @@ struct Stack {
     handover: Arc<seen::Handover>,
     /// The worker's `Seen` as of the last update taken from `handover`.
     base: Seen,
+    /// What each reply the page is waiting on calls back, by its number (`replies::expect`).
+    waiting: std::collections::HashMap<u64, replies::Waiting>,
     /// What the page reads: `base`, with the page's edits the worker had not applied by then
     /// laid over it again.
     view: Arc<Seen>,
@@ -267,19 +269,29 @@ struct Stack {
 }
 
 impl Stack {
-    /// Applies the updates the worker handed over since the last take.
-    fn catch_up(&mut self) {
+    /// Applies the updates the worker handed over since the last take, and answers what to tell
+    /// of them once the stack is let go of: watchers' changes, and the replies' callbacks with
+    /// their answers.
+    fn catch_up(&mut self) -> Taken {
+        let mut taken = Taken::default();
         let handed = self.handover.take();
         if handed.is_empty() {
-            return;
+            return taken;
         }
         for bytes in handed {
             // The worker encoded it from a `Handed`: bytes that do not decode are a bug.
             let handed: seen::Handed =
                 postcard::from_bytes(&bytes).expect("the worker's update decodes");
             match handed.update {
-                seen::Update::Whole(seen) => self.base = seen,
-                seen::Update::Changed(delta) => diff::Diff::apply(&mut self.base, delta),
+                Some(seen::Update::Whole(seen)) => self.base = seen,
+                Some(seen::Update::Changed(delta)) => diff::Diff::apply(&mut self.base, delta),
+                None => {}
+            }
+            taken.changes.merge(handed.changes);
+            for (id, answer) in handed.answers {
+                if let Some(waiting) = self.waiting.remove(&id) {
+                    taken.answers.push((waiting, answer));
+                }
             }
             #[cfg(debug_assertions)]
             if let Some(mut check) = handed.check {
@@ -307,10 +319,10 @@ impl Stack {
             }
         });
         self.view = Arc::new(view);
+        taken
     }
 
     fn view(&mut self) -> Arc<Seen> {
-        self.catch_up();
         Arc::clone(&self.view)
     }
 
@@ -327,6 +339,56 @@ impl Drop for Stack {
         self.commands = None;
         self.nudges = None;
         self.running.stop();
+    }
+}
+
+/// What taking the worker's updates has to tell, once the stack is let go of (`Stack::catch_up`).
+#[derive(Default)]
+struct Taken {
+    changes: Changes,
+    answers: Vec<(replies::Waiting, Option<Vec<u8>>)>,
+}
+
+impl Taken {
+    fn tell(self) {
+        changes::deliver(self.changes);
+        for (waiting, answer) in self.answers {
+            waiting(answer.as_deref());
+        }
+    }
+}
+
+/// Applies what the worker handed over since the last take: what the page reads changes only
+/// here, so every read between two takes reads one snapshot. be-host takes as each frame starts;
+/// then the watchers hear what changed and the replies' callbacks run with their answers, which
+/// is when what they read has what the worker did before answering.
+pub fn take_updates() {
+    if let Some(taken) = with_stack(Stack::catch_up) {
+        taken.tell();
+    }
+}
+
+/// Natively, waits until `answer` has what a reply's callback sends it or `patience` passes,
+/// taking the worker's updates as they come, since the callback runs only as they are taken
+/// (`take_updates`). Only what must block on the worker, such as closing, waits like this: the
+/// web's page never does.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn wait_for_answer<T>(
+    answer: &std::sync::mpsc::Receiver<T>,
+    patience: std::time::Duration,
+) -> Option<T> {
+    let until = std::time::Instant::now() + patience;
+    let handover = with_stack(|stack| Arc::clone(&stack.handover));
+    loop {
+        let puts = handover.as_ref().map(|handover| handover.puts());
+        take_updates();
+        if let Ok(answered) = answer.try_recv() {
+            return Some(answered);
+        }
+        match (&handover, puts) {
+            (Some(handover), Some(puts)) if handover.wait_past(puts, Some(until)) => {}
+            _ => return answer.try_recv().ok(),
+        }
     }
 }
 
@@ -352,6 +414,18 @@ pub fn start(config: Config) {
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
+    // A test has no frames to take the worker's updates in, so a thread takes each as it lands.
+    #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
+    {
+        let pumped = Arc::clone(&handover);
+        std::thread::spawn(move || {
+            let mut puts = 0;
+            while pumped.wait_past(puts, None) {
+                puts = pumped.puts();
+                take_updates();
+            }
+        });
+    }
     let running = platform::spawn(
         config,
         worker::Inbox {
@@ -375,6 +449,7 @@ pub fn start(config: Config) {
         tried: std::collections::HashSet::new(),
         handover,
         base: Seen::default(),
+        waiting: std::collections::HashMap::new(),
         view: seen,
         edits: Vec::new(),
         edited: 0,
@@ -417,7 +492,9 @@ pub fn stop() {
         .take();
     let stopped = stack.is_some();
     if let Some(mut stack) = stack {
-        stack.catch_up();
+        let taken = stack.catch_up();
+        #[cfg(not(target_arch = "wasm32"))]
+        stack.handover.close();
         let mut kept = OWN_INVITATIONS
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -426,6 +503,10 @@ pub fn stop() {
                 kept.push(own.clone());
             }
         }
+        drop(kept);
+        // What still waits on a reply hears none, as it would if the worker dropped it.
+        drop(stack);
+        taken.tell();
     }
     if stopped {
         changes::everything();
@@ -1184,7 +1265,6 @@ fn edit(edits: Vec<Edit>) {
     }
     // Numbered and sent under the one lock, so edits reach the worker in the order numbered.
     let Some(touched) = with_stack(|stack| {
-        stack.catch_up();
         stack.edited += 1;
         let view = Arc::make_mut(&mut stack.view);
         let touched: Vec<Uuid> = edits.iter().flat_map(|edit| edit.apply(view)).collect();
@@ -1299,7 +1379,9 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
         if let Some(value) = read(&held) {
             // What the page reads has what was waited for, though the worker has not handed
             // it over yet.
-            seen::publish(&mut held, &handover);
+            seen::publish(&mut held, &handover, seen::Told::default());
+            drop(held);
+            take_updates();
             return value;
         }
         // A driven clock (`Clock::driven`) never reaches the moment the stack waits on to try the
@@ -1422,7 +1504,10 @@ fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
     let stack = held.as_ref()?;
     let mut shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = change(&mut shared);
-    seen::publish(&mut shared, &stack.handover);
+    seen::publish(&mut shared, &stack.handover, seen::Told::default());
+    drop(shared);
+    drop(held);
+    take_updates();
     Some(changed)
 }
 
