@@ -332,6 +332,9 @@ impl<S: ObjectStore> Peer<S> {
                 Op::Publish(pending) => match self.publish_locally(&pending)? {
                     PublishOutcome::Published(head) => {
                         self.settle(sequence, &pending, head)?;
+                        let mut objects = pending.chunks.clone();
+                        objects.push(pending.commit.hash());
+                        self.grow_locally(block, &objects)?;
                         // Its summary says the head too, as a server's listing would.
                         if let Some(mut summary) = self.refs.summary(block)
                             && summary.head != Some(head)
@@ -356,6 +359,7 @@ impl<S: ObjectStore> Peer<S> {
                 }
                 Op::Move(moving) => {
                     self.refs.remove(&[sequence])?;
+                    self.refs.carry_tree(block, moving.from, moving.parent)?;
                     Drained::Moved {
                         block,
                         from: moving.from,
@@ -365,8 +369,9 @@ impl<S: ObjectStore> Peer<S> {
                     self.refs.remove(&[sequence])?;
                     Drained::Defined { block }
                 }
-                Op::Hold(_) => {
+                Op::Hold(holding) => {
                     self.refs.remove(&[sequence])?;
+                    self.grow_locally(block, &holding.objects)?;
                     Drained::Held { block }
                 }
             };
@@ -376,6 +381,19 @@ impl<S: ObjectStore> Peer<S> {
             outcomes.push(outcome);
         }
         Ok(outcomes)
+    }
+
+    /// A local account's `block` holds `objects` too: its size counts the bytes of those it did
+    /// not hold yet, as a server counts the distinct objects a block holds (`Refs::grow`).
+    fn grow_locally(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {
+        let unheld = self.refs.unheld_objects(block, objects);
+        let store = self.commits.vault().store();
+        let mut bytes = 0u64;
+        for object in &unheld {
+            bytes += store.len(*object)?.unwrap_or_default() as u64;
+        }
+        self.refs.grow(block, &unheld, bytes)?;
+        Ok(())
     }
 
     /// What a server answers a publish, for a local account: taken when it goes on the block's

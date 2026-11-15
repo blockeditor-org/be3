@@ -50,10 +50,12 @@ pub(crate) enum Table {
     Held,
     LetGo,
     ContactNames,
+    /// The objects a local account's block holds, one row each (`Refs::grow`).
+    Objects,
 }
 
 impl Table {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -72,6 +74,7 @@ impl Table {
         Self::Held,
         Self::LetGo,
         Self::ContactNames,
+        Self::Objects,
     ];
 
     pub fn code(self) -> u8 {
@@ -94,6 +97,7 @@ impl Table {
             Self::Held => 16,
             Self::LetGo => 17,
             Self::ContactNames => 18,
+            Self::Objects => 19,
         }
     }
 
@@ -366,6 +370,9 @@ struct State {
     /// Blocks the search indexer let go after their commit could not be read, with what a
     /// catch-up listed of them: read again when the next catch-up starts, across restarts.
     let_go: HashMap<Uuid, Option<ListedBlock>>,
+    /// The distinct objects each of a local account's blocks holds, which its `size` counts
+    /// (`grow`).
+    objects: HashMap<Uuid, HashSet<Hash>>,
     next: u64,
 }
 
@@ -458,6 +465,14 @@ impl State {
             }
             Table::Held => {
                 self.held.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::Objects => {
+                let (block, object) = row.key.split_at_checked(16).ok_or(StoreError::Corrupt)?;
+                let object: [u8; 32] = object.try_into().map_err(|_| StoreError::Corrupt)?;
+                self.objects
+                    .entry(uuid_key(block)?)
+                    .or_default()
+                    .insert(Hash::from_bytes(object));
             }
             Table::Listing => {
                 let listing = decode_raw(&row.key)?;
@@ -1050,6 +1065,89 @@ impl Refs {
         found.sort_by_key(|summary| summary.id);
         found.dedup_by_key(|summary| summary.id);
         found
+    }
+
+    /// Of `objects`, those a local account's `block` does not hold yet (`grow`).
+    pub fn unheld_objects(&self, block: Uuid, objects: &[Hash]) -> Vec<Hash> {
+        let state = self.state.lock().unwrap();
+        let held = state.objects.get(&block);
+        let mut unheld: Vec<Hash> = objects
+            .iter()
+            .filter(|object| held.is_none_or(|held| !held.contains(object)))
+            .copied()
+            .collect();
+        unheld.sort_unstable();
+        unheld.dedup();
+        unheld
+    }
+
+    /// A local account's `block` holds `objects` too, `bytes` of them in all: its `size` and
+    /// the `tree_size` of it and of each block above it grow by that, as a server counts them
+    /// (`size` the distinct objects the block holds, `tree_size` its own and its children's).
+    pub fn grow(&self, block: Uuid, objects: &[Hash], bytes: u64) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let held = state.objects.entry(block).or_default();
+            for object in objects {
+                if held.insert(*object) {
+                    let mut key = block.as_bytes().to_vec();
+                    key.extend_from_slice(object.as_bytes());
+                    rows.push(Row {
+                        table: Table::Objects,
+                        key,
+                        value: Some(Vec::new()),
+                    });
+                }
+            }
+            if bytes > 0 {
+                if let Some(mut summary) = state.summaries.get(&block).cloned() {
+                    summary.size += bytes;
+                    state.keep(summary.clone());
+                    rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
+                }
+                Self::add_to_tree(&mut state, Some(BlockParent::Block(block)), bytes as i128, &mut rows);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// A local account's `block` moved from `from` to `to`: its `tree_size` leaves the blocks
+    /// above where it was and joins those above where it is.
+    pub fn carry_tree(
+        &self,
+        block: Uuid,
+        from: Option<BlockParent>,
+        to: BlockParent,
+    ) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let size = state
+                .summaries
+                .get(&block)
+                .map_or(0, |summary| summary.tree_size) as i128;
+            if size > 0 && from != Some(to) {
+                Self::add_to_tree(&mut state, from, -size, &mut rows);
+                Self::add_to_tree(&mut state, Some(to), size, &mut rows);
+            }
+        }
+        self.write(rows)
+    }
+
+    /// Adds `bytes` to the `tree_size` of `at`'s block and of every block above it.
+    fn add_to_tree(state: &mut State, at: Option<BlockParent>, bytes: i128, rows: &mut Vec<Row>) {
+        let mut at = at.and_then(BlockParent::block);
+        let mut seen = HashSet::new();
+        while let Some(block) = at.filter(|block| seen.insert(*block)) {
+            let Some(mut summary) = state.summaries.get(&block).cloned() else {
+                break;
+            };
+            summary.tree_size = (summary.tree_size as i128 + bytes).max(0) as u64;
+            at = summary.parent.and_then(BlockParent::block);
+            state.keep(summary.clone());
+            rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
+        }
     }
 
     pub fn newest_revision(&self) -> u64 {
