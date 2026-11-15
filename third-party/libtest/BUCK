@@ -1,5 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("@root//buck/platforms:profile.bzl", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL")
+load("@root//buck/platforms:profile.bzl", "RUST_LOCAL", "SYMBOL_FLAGS")
 load("@root//buck/tools:rust.bzl", "RUST_VERSION")
 
 package_fix()
@@ -37,7 +37,7 @@ rust_library(
     crate = "getopts",
     crate_root = "getopts.crate/src/lib.rs",
     edition = "2021",
-    rustc_flags = RELEASE_SYMBOL_FLAGS + ["--cap-lints=allow"],
+    rustc_flags = SYMBOL_FLAGS + ["--cap-lints=allow"],
     srcs = [":getopts.crate"],
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     **RUST_LOCAL,
@@ -49,7 +49,7 @@ rust_library(
     crate_root = "rust-src/src/lib.rs",
     deps = [":getopts"],
     edition = "2024",
-    rustc_flags = RELEASE_SYMBOL_FLAGS + ["--cap-lints=allow"],
+    rustc_flags = SYMBOL_FLAGS + ["--cap-lints=allow"],
     srcs = [":rust-src"],
     target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     **RUST_LOCAL,

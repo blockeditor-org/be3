@@ -137,16 +137,19 @@ released = rule(
     impl = _released_impl,
 )
 
-# Every crate's own flags in a release build (they cannot be the toolchain's,
-# whose rustc_cfg runs rustc without nightly options). Legacy mangling names a
-# generic instance by its path and a hash rather than by every type argument, so
-# a symbol is a third the length: 16 MB less in be-host, whose backtraces
-# still name each function, and a seventh off the apps, whose name sections
-# and exports are made of these symbols.
-RELEASE_SYMBOL_FLAGS = select({
-    "DEFAULT": [],
-    "root//buck/constraints:release": ["-Zunstable-options", "-Csymbol-mangling-version=legacy"],
-})
+# Every crate's own flags in every build, given by every rule that runs rustc:
+# first-party crates, their tests, fuzz targets and apps' modules, third-party
+# crates and their build scripts (they cannot be the toolchain's, whose
+# rustc_cfg runs rustc without nightly options). Legacy mangling names a generic
+# instance by its path and a hash rather than by every type argument, so a
+# symbol is a third the length. In a release build that is 16 MB less in
+# be-host, whose backtraces still name each function, and a seventh off the
+# apps, whose name sections and exports are made of these symbols. In a dev
+# build the symbol names were the largest part of a native test binary, ahead of
+# its code: legacy takes be-host's from 454 MB to 370 MB (its names from 169 MB
+# to 86 MB) and be-host-stack's from 260 MB to 209 MB (96 MB to 46 MB), and the
+# build server stores every test binary a change relinks.
+SYMBOL_FLAGS = ["-Zunstable-options", "-Csymbol-mangling-version=legacy"]
 
 # Whether every action runs on this machine: a local build names
 # :execution_platforms_local when no build server is reachable

@@ -10,7 +10,7 @@ load(
 )
 load("@root//buck/dev:test.bzl", "be_test")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RELEASE_SYMBOL_FLAGS", "RUST_LOCAL", "keep_profile", "opt_flags")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RUST_LOCAL", "SYMBOL_FLAGS", "keep_profile", "opt_flags")
 load("@root//buck/program:defs.bzl", "PrecompiledInfo", "app_data", "app_types", "program")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
@@ -259,7 +259,7 @@ def _needs(libraries):
 def wasm_library(module, libraries = [], rustc_flags = []):
     facts = cargo_wasm_facts()
     linker_flags = _needs(libraries) + ["--be3-library=" + module]
-    rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + RELEASE_SYMBOL_FLAGS
+    rustc_flags = _guest_exports + rustc_flags + ([] if libraries else _reactor) + SYMBOL_FLAGS
     if native.glob(["library.rs"]):
         cargo_library(rustc_flags = rustc_flags)
         native.rust_library(
@@ -315,7 +315,7 @@ def linked_app(module, libraries, rustc_flags = []):
         linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = _guest_exports + rustc_flags + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + SYMBOL_FLAGS,
         srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
@@ -352,7 +352,7 @@ def app_module(name, module, libraries = None, extra_deps = [], visibility = Non
         linker_flags = linker_flags,
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + RELEASE_SYMBOL_FLAGS,
+        rustc_flags = _guest_exports + rustc_flags + opt_flags("app") + SYMBOL_FLAGS,
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **(kwargs | RUST_LOCAL),
@@ -429,7 +429,7 @@ def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
         features = facts.test_features,
         linker_flags = _needs(libraries),
         mapped_srcs = cargo_manifest_sources(),
-        rustc_flags = exports + ["--test"] + opt_flags("app_test"),
+        rustc_flags = exports + ["--test"] + opt_flags("app_test") + SYMBOL_FLAGS,
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"] + facts.compatible,
         **RUST_LOCAL,
