@@ -4,7 +4,7 @@ use std::rc::Rc;
 use crate::arena::{self, Key};
 use crate::loading::{Pending, Ready, note_read};
 use crate::runtime::check_tracked_read;
-use crate::signal::{Get, Set, Tracked, Value, assert_writable, track};
+use crate::signal::{Get, Node, Set, Tracked, Value, assert_writable, track};
 
 /// Data that arrives later, settled from outside the graph: `Err(Pending::Loading)` until
 /// whoever holds it sets the value (a host callback, an answer to a request). Like an async
@@ -119,6 +119,10 @@ impl<T: 'static> Source<T> {
 
     pub fn is_alive(&self) -> bool {
         arena::get::<Value<Ready<T>>>(self.key).is_some()
+    }
+
+    pub(crate) fn with_node<R>(&self, f: impl FnOnce(&Node) -> R) -> R {
+        f(&self.stored().source)
     }
 
     fn read<R>(&self, tracked: bool, f: impl FnOnce(&Ready<T>) -> R) -> R {
