@@ -38,18 +38,6 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let size = create_memo(move || payload.get().map_or(0, |data| data.len()));
     let bytes = create_memo(move || format!("{} bytes", size.get()));
 
-    let name = create_memo(move || match loaded.get() {
-        Loaded::Named(name) => name,
-        _ => String::new(),
-    });
-    let named = create_memo(move || matches!(loaded.get(), Loaded::Named(_)));
-    let reason = create_memo(move || match loaded.get() {
-        Loaded::Failed(error) => error,
-        _ => String::new(),
-    });
-    let failed = create_memo(move || matches!(loaded.get(), Loaded::Failed(_)));
-    let waiting = create_memo(move || loaded.get() == Loaded::Loading);
-
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -61,30 +49,34 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <DockTab id=STAGE title="Module">
                         <Frame @node_ref={&content} padding=PADDING>
                             <List spacing=SPACING>
-                                <Show value={named}>
-                                    <Text
-                                        style=TextStyle::HEADING
-                                        align=TextAlign::Center
-                                        @test_id={"game-module.name"}
-                                    >
-                                        {name}
-                                    </Text>
-                                </Show>
-                                <Show value={failed}>
-                                    <Text
-                                        style=TextStyle::PARAGRAPH
-                                        align=TextAlign::Center
-                                        color=TextColor::Danger
-                                        @test_id={"game-module.error"}
-                                    >
-                                        {reason}
-                                    </Text>
-                                </Show>
-                                <Show value={waiting}>
-                                    <Text style=TextStyle::CAPTION align=TextAlign::Center>
-                                        "Loading…"
-                                    </Text>
-                                </Show>
+                                <Dynamic value={loaded}>|loaded: Loaded| {
+                                    match loaded {
+                                    Loaded::Named(name) => view! {
+                                        <Text
+                                            style=TextStyle::HEADING
+                                            align=TextAlign::Center
+                                            @test_id={"game-module.name"}
+                                        >
+                                            {name}
+                                        </Text>
+                                    },
+                                    Loaded::Failed(reason) => view! {
+                                        <Text
+                                            style=TextStyle::PARAGRAPH
+                                            align=TextAlign::Center
+                                            color=TextColor::Danger
+                                            @test_id={"game-module.error"}
+                                        >
+                                            {reason}
+                                        </Text>
+                                    },
+                                    Loaded::Loading => view! {
+                                        <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                            "Loading…"
+                                        </Text>
+                                    },
+                                    }
+                                }</Dynamic>
                                 <Text align=TextAlign::Center>{source}</Text>
                                 <Text style=TextStyle::CAPTION align=TextAlign::Center>
                                     {bytes}

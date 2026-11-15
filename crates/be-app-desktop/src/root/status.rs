@@ -146,13 +146,14 @@ fn QuickSettings(
     } = status;
     view! {
         <List spacing=SPACING @test_id={"desktop.quick"}>
-            <Show value={move || page.get() == Page::Main}>
-                <QuickMain status={status} power={power} page={page} close={close} />
-            </Show>
-            <Show value={move || page.get() == Page::Wifi}>
-                <WifiPanel editor={editor} status={wifi} on_back={back} />
-            </Show>
-            <Show value={move || page.get() == Page::Rotate}>
+            <Match value={page}>
+                <Case is={Page::Main}>
+                    <QuickMain status={status} power={power} page={page} close={close} />
+                </Case>
+                <Case is={Page::Wifi}>
+                    <WifiPanel editor={editor} status={wifi} on_back={back} />
+                </Case>
+                <Case is={Page::Rotate}>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <BackButton on_click={back} />
@@ -165,7 +166,8 @@ fn QuickSettings(
                         on_picked={close}
                     />
                 </List>
-            </Show>
+                </Case>
+            </Match>
         </List>
     }
 }

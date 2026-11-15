@@ -29,7 +29,6 @@ pub const KINDS: [(DatabaseViewKind, &str, Glyph); 5] = [
 
 #[component]
 pub fn DisplayOptions(data: Data) -> NodeId {
-    let listed = create_memo(move || data.kind.get() == DatabaseViewKind::List);
     let grouped = create_memo(move || {
         matches!(
             data.kind.get(),
@@ -42,8 +41,6 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             DatabaseViewKind::Scatter | DatabaseViewKind::Calendar
         )
     });
-    let scatter = create_memo(move || data.kind.get() == DatabaseViewKind::Scatter);
-    let calendar = create_memo(move || data.kind.get() == DatabaseViewKind::Calendar);
     let prefix = data.prefix;
     let prefix_off = data.read_only;
     let reprefix = move |text: String| data.set_prefix(text);
@@ -66,17 +63,19 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <Show value={ordered}>
                 <OrderPicker data={data} />
             </Show>
-            <Show value={scatter}>
-                <AxisPickers data={data} />
-            </Show>
-            <Show value={calendar}>
-                <DatePickers data={data} />
-            </Show>
-            <Show value={listed}>
-                <EmptyGroups data={data} />
-                <Separator />
-                <ShownFields data={data} />
-            </Show>
+            <Match value={data.kind}>
+                <Case is={DatabaseViewKind::Scatter}>
+                    <AxisPickers data={data} />
+                </Case>
+                <Case is={DatabaseViewKind::Calendar}>
+                    <DatePickers data={data} />
+                </Case>
+                <Case is={DatabaseViewKind::List}>
+                    <EmptyGroups data={data} />
+                    <Separator />
+                    <ShownFields data={data} />
+                </Case>
+            </Match>
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <ListItem length=LABEL_WIDTH>
