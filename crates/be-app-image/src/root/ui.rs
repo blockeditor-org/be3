@@ -30,7 +30,6 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
     let busy = chooser.busy();
     let failure = chooser.error();
-    let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = move || chooser.open();
 
     let fallback = move |pending: Pending| {
@@ -90,7 +89,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                                                 @test_id={"image.replace"}
                                                 on_click={choose}
                                             />
-                                            <Show value={move || failure.with(Option::is_some)}>
+                                            <Show value={failure}>|refusal: ReadSignal<String>|
                                                 <Text
                                                     style=TextStyle::CAPTION
                                                     color=TextColor::Danger
@@ -117,13 +116,12 @@ fn ImageArea(
     thumbhash: Memo<Option<Thumbhash>>,
     error: Memo<Option<String>>,
 ) -> NodeId {
-    let reason = create_memo(move || error.get().unwrap_or_default());
     view! {
         <List align=Align::Stretch spacing=Space::None>
             <ListItem grow=1.0>
                 <Artwork editor={editor} image={image} thumbhash={thumbhash} />
             </ListItem>
-            <Show value={move || error.with(Option::is_some)}>
+            <Show value={error}>|reason: ReadSignal<String>|
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
