@@ -4,7 +4,7 @@ use std::{
     collections::HashMap,
     marker::PhantomData,
     rc::Rc,
-    sync::{Condvar, Mutex, OnceLock, PoisonError},
+    sync::{Mutex, OnceLock, PoisonError},
     thread::{self, ThreadId},
     time::{Duration, Instant},
 };
@@ -19,11 +19,19 @@ static UNSENT_SAVES: Mutex<Vec<(SavedFile, SaveSlot)>> = Mutex::new(Vec::new());
 type Letter = (u64, Box<dyn Any + Send>);
 type Receive = Rc<dyn Fn(&mut dyn Any, Box<dyn Any + Send>)>;
 
-static POSTED: Mutex<Vec<(ThreadId, Letter)>> = Mutex::new(Vec::new());
-/// Told whenever a letter is posted (`wait_for_letter`).
-static POSTED_SIGNAL: Condvar = Condvar::new();
-/// How many letters were ever posted, which `wait_for_letter` waits to see grow.
-static POSTED_COUNT: Mutex<u64> = Mutex::new(0);
+// How a letter reaches the thread that made its mailbox: one API, two transports. Natively
+// every thread shares one locked list. On the web the page takes no lock another thread takes,
+// so a worker's letter comes to the page by `postMessage` and waits in the page's own list.
+#[cfg(not(target_arch = "wasm32"))]
+mod letters_native;
+#[cfg(not(target_arch = "wasm32"))]
+use letters_native as letters;
+#[cfg(not(target_arch = "wasm32"))]
+pub use letters_native::{letters_posted, wait_for_letter};
+#[cfg(target_arch = "wasm32")]
+mod letters_web;
+#[cfg(target_arch = "wasm32")]
+use letters_web as letters;
 
 thread_local! {
     static HOST: RefCell<Host> = RefCell::new(Host::default());
@@ -86,30 +94,8 @@ impl<T: Send + 'static> Post<T> {
     }
 
     pub fn send(&self, value: T) {
-        POSTED
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push((self.thread, (self.mailbox, Box::new(value))));
-        *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner) += 1;
-        POSTED_SIGNAL.notify_all();
-        wake();
+        letters::post(self.thread, (self.mailbox, Box::new(value)));
     }
-}
-
-/// How many letters were ever posted: what a caller hands `wait_for_letter` to wait past.
-pub fn letters_posted() -> u64 {
-    *POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-/// Waits until a letter is posted after `seen` (`letters_posted`), up to `limit`, and answers
-/// whether one was: for a test that waits on work another thread answers through a mailbox.
-/// It takes no letter; a desk's `deliver` does.
-pub fn wait_for_letter(seen: u64, limit: Duration) -> bool {
-    let count = POSTED_COUNT.lock().unwrap_or_else(PoisonError::into_inner);
-    let (_count, waited) = POSTED_SIGNAL
-        .wait_timeout_while(count, limit, |count| *count == seen)
-        .unwrap_or_else(PoisonError::into_inner);
-    !waited.timed_out()
 }
 
 fn next_mailbox() -> u64 {
@@ -168,24 +154,7 @@ impl<C: 'static> Desk<C> {
             MAILBOXES
                 .with_borrow(|mailboxes| mailboxes.get(&mailbox).map(|(desk, _)| *desk == self.id))
         };
-        let letters: Vec<Letter> = {
-            let mut posted = POSTED.lock().unwrap_or_else(PoisonError::into_inner);
-            let mut letters = Vec::new();
-            posted.retain_mut(|(thread, letter)| {
-                if *thread != here {
-                    return true;
-                }
-                match at_this_desk(letter.0) {
-                    Some(true) => {
-                        letters.push(std::mem::replace(letter, (0, Box::new(()))));
-                        false
-                    }
-                    Some(false) => true,
-                    None => false,
-                }
-            });
-            letters
-        };
+        let letters = letters::take(here, at_this_desk);
         for (mailbox, letter) in letters {
             let receive = MAILBOXES.with_borrow(|mailboxes| {
                 mailboxes

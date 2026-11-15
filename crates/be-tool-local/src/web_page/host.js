@@ -1,7 +1,8 @@
 import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
             import { bindMemory as bindEnvironmentMemory } from "./env.js";
-            import { bindThreads } from "./threads.js";
+            import { bindThreads, receiveLetters } from "./threads.js";
             import init, {
+                be_letter_arrived,
                 run_web,
                 push_open,
                 push_open_block,
@@ -120,6 +121,7 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 bindMemory(wasm.memory);
                 bindEnvironmentMemory(wasm.memory);
                 bindThreads(module, wasm.memory);
+                receiveLetters(be_letter_arrived);
                 files.worker.postMessage({ memory: wasm.memory });
                 bindFiles(files.channel);
                 bindPush({

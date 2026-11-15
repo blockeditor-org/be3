@@ -9,8 +9,9 @@
 // against libraries is linked again here, by its own thread's plan, and its
 // thread-local blocks are given back when the thread ends.
 //
-// The one call out of the module a thread may make is the wake, which says a
-// job it was started for has landed and the module should be stepped again.
+// The calls out of the module a thread may make are the wake, which says a
+// job it was started for has landed and the module should be stepped again,
+// and a letter to the page (threads.js).
 // The JavaScript that answers the rest belongs to the thread that made it, so
 // the wake is passed to the spawning thread as a message instead.
 
@@ -55,11 +56,12 @@ function imports(module, memory) {
 }
 
 self.onmessage = (event) => {
-    const { module, memory, id, startArgument, modules, plan, blocks, rootBlock, files } = event.data;
+    const { module, memory, id, startArgument, modules, plan, blocks, rootBlock, files, letters } = event.data;
     wasi.bindMemory(memory);
     wasi.bindFiles(files);
     environment.bindMemory(memory);
     threads.bindThreads(module, memory);
+    threads.bindLetters(letters);
     try {
         const instance = new WebAssembly.Instance(module, imports(module, memory));
         if (modules) {

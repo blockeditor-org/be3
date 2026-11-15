@@ -22,8 +22,6 @@ remain on the page (guides/running/web.md, "Files and offline"):
 Other locks the page shares are std's own and would trap rather than spin if the page ever
 found one held past std's short spin:
 
-- be-host-base `host.rs`'s `POSTED` and `POSTED_COUNT`, which the stack's worker takes to post a
-  letter to a page mailbox.
 - The `Peer`'s locks, which the page takes through `be_host_stack::offline_peer`
   (`app_graph::answer`, `out_of_reach`).
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
@@ -60,8 +58,10 @@ a thread that runs beside it.
 2. Answer `app_graph::answer`'s `out_of_reach` in the worker, as part of `Seen`, so the page
    never holds the worker's `Peer`; open the refs database only in the worker, and move the
    page's other file reads behind commands.
-3. Send letters between the page and the worker with `postMessage` rather than `POSTED`.
-4. Give the stack's worker its own memory, serialize `Seen` and commands (the protocol crates'
-   own encodings), and stop binding the page's files channel.
-5. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
+3. Give the stack's worker its own memory, serialize `Seen` and commands (the protocol crates'
+   own encodings), and stop binding the page's files channel. A worker's letter to a page
+   mailbox already travels by `postMessage` (`be_host_base::host`'s `letters_web.rs`), but as
+   the address of a value in the shared heap, which the page takes and frees: with a memory of
+   its own, the worker sends the letter's bytes instead.
+4. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.
