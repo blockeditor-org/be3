@@ -25,7 +25,7 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
 
     // Deleting a draft as a child unlists it.
     let deleting = chat
-        .child_operations(ChildChange::Delete(photo))
+        .child_operations(ChildChange::Delete(photo), 0)
         .expect("a draft can be deleted");
     for operation in &deleting {
         chat.apply(operation);
@@ -61,7 +61,8 @@ fn a_chat_lists_the_blocks_made_for_a_draft_and_those_its_messages_carry() {
     );
     assert!(chat.references().contains(&sketch));
     assert!(
-        chat.child_operations(ChildChange::Delete(sketch)).is_none(),
+        chat.child_operations(ChildChange::Delete(sketch), 0)
+            .is_none(),
         "a block a message carries is not taken out from under it"
     );
 

@@ -346,10 +346,6 @@ impl EditorSession {
             .render_clip(serial, format, Box::new(move |data| rendered.send(data)));
     }
 
-    pub(crate) fn replace_child(&mut self, old: Uuid, new: Uuid) -> bool {
-        self.editor.replace_child(old, new)
-    }
-
     pub(crate) fn set_presenting(&self, presenting: bool) {
         self.host.set_presenting(presenting);
     }

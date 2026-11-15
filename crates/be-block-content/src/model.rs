@@ -32,6 +32,18 @@ pub trait Root: Model + Send + Sync + 'static {
         None
     }
 
+    /// `child_edit` for a document, made as `client`: what a type overrides when following a
+    /// child needs more than the root's values, such as editing a sequence (a block URL inside
+    /// text). A type whose references live in its content takes `Replace` here or in
+    /// `child_edit`, so unlinking a reference works whether an editor has the block open or not.
+    fn child_edit_in(document: &Document<Self>, change: ChildChange, client: u64) -> Option<Edit>
+    where
+        Self: Sized,
+    {
+        let _ = client;
+        document.root().child_edit(change)
+    }
+
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
         let _ = metadata;
     }
@@ -146,8 +158,8 @@ impl<R: Root> LiveEdit for Document<R> {
         Document::rebase(self, confirmed, operation, local, touched);
     }
 
-    fn child_operations(&self, change: ChildChange) -> Option<Vec<Self::Op>> {
-        self.root().child_edit(change).map(|edit| vec![edit])
+    fn child_operations(&self, change: ChildChange, client: u64) -> Option<Vec<Self::Op>> {
+        R::child_edit_in(self, change, client).map(|edit| vec![edit])
     }
 
     fn absorb_operation(operation: &mut Self::Op, next: Self::Op) -> Option<Self::Op> {

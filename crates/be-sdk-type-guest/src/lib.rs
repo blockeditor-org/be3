@@ -60,7 +60,7 @@ type SearchTextFn = fn(
     Box<dyn Future<Output = Result<Vec<be_block_content::SearchDocument>, String>>>,
 >;
 
-type ChildFn = fn(Option<&[u8]>, ChildChange) -> Result<Option<Vec<u8>>, String>;
+type ChildFn = fn(Option<&[u8]>, ChildChange, u64) -> Result<Option<Vec<u8>>, String>;
 
 type ToFileFn = fn(&[u8]) -> Result<Option<PlainFile>, String>;
 
@@ -289,12 +289,13 @@ pub fn request_parts() -> PartReader {
 fn child<C: LiveEdit + Default>(
     bytes: Option<&[u8]>,
     change: ChildChange,
+    client: u64,
 ) -> Result<Option<Vec<u8>>, String> {
     let mut content = match bytes {
         Some(bytes) => C::decode(bytes).map_err(|error| error.to_string())?,
         None => C::default(),
     };
-    let Some(operations) = content.child_operations(be_child(change)) else {
+    let Some(operations) = content.child_operations(be_child(change), client) else {
         return Ok(None);
     };
     for operation in &operations {
@@ -1159,7 +1160,7 @@ fn apply(
     change: Change,
 ) -> Result<Option<Vec<u8>>, Failure> {
     let applied = match change {
-        Change::Child(change) => (kind.child)(bytes, change),
+        Change::Child(change) => (kind.child)(bytes, change, client),
         Change::FromFile(FileChange { name, bytes: file }) => match kind.from_file {
             Some(from_file) => Ok(from_file(bytes, &name, file, client)),
             None => Ok(None),

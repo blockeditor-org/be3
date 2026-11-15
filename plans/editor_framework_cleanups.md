@@ -6,63 +6,8 @@ Reading `crates/be-app-text/src/root.rs` (`TextEditor`) turned up five places wh
 around something the framework should do. Each part below stands alone and can land as its own
 pull request, except that part 3's sweep and part 4's sweep touch the same lines and are best done
 together (part 3, step 4). None of them changes `editor.content(&node_ref)`: that is deliberately
-left as it is.
-
-## 1. Replacing a child is the type's job, not the editor's
-
-**Today.** The block menu's "Unlink" (`BlockAction::Unlink` in `crates/be-sdk-shell/src/menu.rs`,
-`BlockCommand::Unlink` in be-sdk-api) is offered on a *reference*: a block shown inside a container
-whose parent is elsewhere. It gives the container its own copy: the host duplicates the block
-(`HostCore::queue_copy` and the `CopyStage` loop in `crates/be-host/src/main.rs`), then repoints the
-container's content from the original's id to the copy's (`AppEditor::replace_child`,
-`crates/be-host/src/editors/app.rs:450`). That repointing first asks the open editor over the app
-protocol (`replace-child` in `crates/be-sdk-api/wit/app.wit:94`, answered by
-`editor.on_replace_child`), and only if the editor says no falls back to the type module
-(`ChildChange::Replace`, `crates/be-sdk-type-api/wit/types.wit:206`, reaching
-`Root::child_edit`).
-
-The text editor answers it (`root.rs`, `State::replace_child` in `root/state.rs:248`, rewriting
-the UUID inside block URLs found by `reference_ranges` in `crates/be-app-text/src/document.rs`).
-The infinite canvas answers it too (`replace_referenced_block` in
-`crates/be-app-infinite-canvas/src/root/state.rs`), duplicating what its type already does in
-`Canvas::child_edit` (`crates/be-type-infinite-canvas/src/canvas.rs:1378`). `TextBlock`
-(`crates/be-type-text/src/text.rs`) has no `child_edit`, so text only works while its editor is
-open. An editor should not need to know about this at all: the edit reaches an open editor through
-its replica like any other change.
-
-**Steps.**
-
-1. Give `Root::child_edit` (`crates/be-block-content/src/model.rs`) the client id it runs as, since
-   a text sequence edit needs one (`TextBlock::replace(content, client, range, bytes)`). The type
-   guest already has it: `apply(kind, bytes, client, change)` in
-   `crates/be-sdk-type-guest/src/lib.rs` drops it before calling `child`. Thread it through
-   `LiveEdit::child_operations` and `child`, and update every `child_edit` implementation
-   (workspace folders, chat, canvas, `EditorView`).
-2. Implement `child_edit` for `TextBlock`: `Replace { old, new }` rewrites the UUID in every block
-   URL naming `old` (move or share the range finding from `be-app-text/src/document.rs` into
-   be-type-text or `be_block_content::block_url`, beside `parse_block_urls`). `Delete` can stay
-   `None` unless deleting should blank the URL; keep whatever text does now.
-3. Delete the editor path: `replace-child` in `app.wit`, `EditorCall::ReplaceChild` and its wire and
-   runtime handling (`crates/be-host-runtime/src/{calls,wire,runtime,instances,lib}.rs`),
-   `App::replace_child` and its plumbing in be-sdk (`app.rs`, `wire.rs`, `editor_session.rs`,
-   `editor_state.rs`), `Editor::on_replace_child`/`replace_child` in
-   `crates/be-sdk-beui/src/editor.rs` and `instance.rs`, `replace_child` in
-   `crates/be-sdk-test/src/beui.rs`, and both apps' handlers. `AppEditor::replace_child` in
-   be-host becomes `change_child(Replace)` gated on the manifest's `children.replace`, as
-   `reorder_child` is.
-4. Tests: move `be-app-text/src/root/tests/replacing_a_referenced_block_rewrites_its_url.rs` and
-   the canvas's `replacing_a_referenced_block_rewrites_the_entity.rs` to the types' crates (be-type-text
-   already has tests; the canvas type has `canvas_children_are_removed_repointed_or_merged.rs`,
-   which may already cover it). `a_rewrite_refused_while_read_only_leaves_the_text_as_it_was.rs`
-   uses `replace_child` only as a way to cause a rewrite; drive the rewrite another way, or delete
-   it if nothing else rewrites the text while read-only.
-5. Remove the `on_replace_child` paragraph from `guides/apps/editor.md` (Presence), which also
-   describes it wrongly, and say in guides/type_modules.md or guides/blocks/content_types.md that
-   a type whose references live in its content implements `child_edit` `Replace`.
-   Keep the name "Unlink" for the menu item and the action.
-
-**Done when** unlinking a reference inside a text block works with the text editor closed and open,
-no app registers anything for it, and `replace-child` is gone from the app protocol.
+left as it is. Part 1 (replacing a child is the type's job, not the editor's) has landed; the
+parts keep their numbers.
 
 ## 2. Typed, reactive view state, saved on every change
 
