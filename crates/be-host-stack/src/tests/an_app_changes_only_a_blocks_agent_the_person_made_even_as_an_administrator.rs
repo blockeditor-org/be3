@@ -14,10 +14,7 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     );
     harness.connect();
     let link = runtime()
-        .block_on(crate::invite(
-            "member@example.com".to_owned(),
-            be_block_protocol::OrganizationRole::Editor,
-        ))
+        .block_on(crate::invite())
         .expect("the administrator invites the member");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
     runtime()

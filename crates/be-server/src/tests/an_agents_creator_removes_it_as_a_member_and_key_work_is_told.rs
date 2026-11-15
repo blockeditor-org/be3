@@ -9,7 +9,7 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
     let mut creator = harness.client().await;
     let creator_id = creator.register("creator@example.com").await;
     let invitation = admin
-        .invite(organization, "creator@example.com")
+        .invite(organization)
         .await
         .expect("an administrator invites");
     let joined = creator.accept(invitation, &[]).await;

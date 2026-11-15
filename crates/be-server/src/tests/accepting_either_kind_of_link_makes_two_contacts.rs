@@ -27,7 +27,7 @@ async fn accepting_either_kind_of_link_makes_two_contacts() {
     let mut colleague = harness.client().await;
     let colleague_id = colleague.register("colleague@example.com").await;
     let invitation = admin
-        .invite(organization, "colleague@example.com")
+        .invite(organization)
         .await
         .expect("an administrator invites");
     let accepted = colleague.accept(invitation, &[]).await;

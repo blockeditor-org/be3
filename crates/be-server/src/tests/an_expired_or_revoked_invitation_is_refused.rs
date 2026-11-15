@@ -1,0 +1,62 @@
+use super::*;
+use be_block_protocol::InvitationState;
+
+#[tokio::test]
+async fn an_expired_or_revoked_invitation_is_refused() {
+    let harness = Harness::start().await;
+    let mut admin = harness.client().await;
+    admin.register("admin@example.com").await;
+    let organization = admin.organization("team").await;
+    let expiring = admin.invite(organization).await.unwrap();
+    let revoked = admin.invite(organization).await.unwrap();
+    // Seven days pass for the first.
+    metadata_database(&harness.directory)
+        .execute(
+            "UPDATE links SET invite_expires = unixepoch() - 1 WHERE id = ?1",
+            [expiring.to_string()],
+        )
+        .unwrap();
+    let revoking = admin
+        .call(|peer| client::contacts::delete_link(peer, revoked))
+        .await;
+    assert!(matches!(revoking, Ok(())), "{revoking:?}");
+    let mut invited = harness.member("invited@example.com").await;
+    for (link, why) in [(expiring, "expired"), (revoked, "revoked")] {
+        let found = invited
+            .call(|peer| client::contacts::get_link(peer, link))
+            .await;
+        assert!(
+            matches!(&found, Err(error) if error.message.contains(why)),
+            "{why}: {found:?}"
+        );
+        let accepted = invited
+            .call(|peer| client::contacts::accept_link(peer, link, Vec::new(), Vec::new(), Vec::new()))
+            .await;
+        assert!(refused_as(&accepted, ErrorCode::LinkNotFound), "{why}: {accepted:?}");
+    }
+    // Both stay in the list, saying so, and no longer count as outstanding links.
+    let listed = admin
+        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .await
+        .unwrap();
+    let state = |link: Uuid| listed.iter().find(|row| row.id == link).map(|row| row.state);
+    assert_eq!(state(expiring), Some(InvitationState::Expired));
+    assert_eq!(state(revoked), Some(InvitationState::Revoked));
+    assert!(admin.links().await.is_empty());
+    // Once their retention passes, they go.
+    metadata_database(&harness.directory)
+        .execute(
+            "UPDATE links SET invite_ended = 1 WHERE invite_revoked = 1;",
+            [],
+        )
+        .unwrap();
+    metadata_database(&harness.directory)
+        .execute("UPDATE links SET invite_expires = 1 WHERE invite_revoked = 0", [])
+        .unwrap();
+    let listed = admin
+        .call(|peer| client::contacts::list_invitations(peer, organization))
+        .await
+        .unwrap();
+    assert!(listed.is_empty(), "{listed:?}");
+    harness.stop().await;
+}

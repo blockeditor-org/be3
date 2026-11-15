@@ -14,10 +14,7 @@ fn an_invitation_code_opened_as_a_contact_link_is_refused() {
     );
     harness.connect();
     let link = runtime()
-        .block_on(crate::invite(
-            "guest@example.com".to_owned(),
-            be_block_protocol::OrganizationRole::Administrator,
-        ))
+        .block_on(crate::invite())
         .expect("the owner invites the guest");
     let parsed = crate::invite_link::InviteLink::parse(&link).expect("the link parses");
 

@@ -75,14 +75,15 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 .unwrap();
             transaction
                 .execute(
-                    "INSERT INTO links (id, owner_id, card, code, invite_organization, invite_email,
-                                        invite_role)
-                     VALUES (?1, ?2, x'', x'', ?3, ?4, 'editor')",
+                    "INSERT INTO links (id, owner_id, card, code, invite_organization,
+                                        invite_created, invite_expires)
+                     VALUES (?1, ?2, x'', x'', ?3, ?4, ?5)",
                     params![
                         Uuid::new_v4().to_string(),
                         account.to_string(),
                         organization.to_string(),
-                        format!("{index}@example.com")
+                        index,
+                        i64::MAX
                     ],
                 )
                 .unwrap();
@@ -155,7 +156,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             .await,
         ErrorCode::InvalidRequest,
     );
-    let invite = |email: &'static str| {
+    let invite = || {
         store.create_link(
             account,
             Uuid::new_v4(),
@@ -163,16 +164,11 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             Vec::new(),
             be_block_protocol::LinkKind::Invitation(be_block_protocol::Invitation {
                 organization,
-                email: email.into(),
-                role: OrganizationRole::Editor,
                 escrow: Vec::new(),
             }),
         )
     };
-    refused(invite("new@example.com").await, ErrorCode::OverQuota);
-    invite("0@example.com")
-        .await
-        .expect("inviting someone again replaces their invitation");
+    refused(invite().await, ErrorCode::OverQuota);
     refused(
         store
             .create_escrow(
