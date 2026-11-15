@@ -3,45 +3,11 @@
 //! to be opened and named, and pressing a notification asks the host to open its block.
 //! plans/notifications.md has the design.
 
-use std::cell::RefCell;
-use std::time::{Duration, Instant};
-
 use be_block_protocol::{PushEndpoint, PushMessage, PushService};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 use wasm_bindgen::{JsCast, JsValue, prelude::wasm_bindgen};
 use web_sys::js_sys;
-
-/// A block a pressed notification named, waiting until the host can open it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Opening {
-    pub(crate) organization: Uuid,
-    pub(crate) block: Uuid,
-    /// When the notification was pressed.
-    pub(crate) pressed: Instant,
-}
-
-/// How long an opening waits before it is dropped, so a press made while changes were unsaved
-/// does not switch organization much later, unprompted.
-pub(crate) const OPENING_PATIENCE: Duration = Duration::from_secs(30);
-
-thread_local! {
-    static OPENINGS: RefCell<Vec<Opening>> = const { RefCell::new(Vec::new()) };
-}
-
-pub(crate) fn has_openings() -> bool {
-    OPENINGS.with(|openings| !openings.borrow().is_empty())
-}
-
-pub(crate) fn take_openings() -> Vec<Opening> {
-    OPENINGS.with(|openings| std::mem::take(&mut *openings.borrow_mut()))
-}
-
-/// Holds an opening that could not happen yet: the host tries again when its organization or
-/// graph changes.
-pub(crate) fn hold(opening: Opening) {
-    OPENINGS.with(|openings| openings.borrow_mut().push(opening));
-}
 
 async fn answered<T>(
     ask: impl FnOnce(Box<dyn FnOnce(Result<T, String>) + Send>),
@@ -102,26 +68,23 @@ pub async fn push_open(bytes: Vec<u8>) -> Result<JsValue, JsValue> {
     let Ok(opened) = answered(|reply| be_host_stack::open_push(message, now, reply)).await else {
         return Ok(JsValue::NULL);
     };
-    // The sender and the block are named from this device's own contacts and graph,
-    // never from what the sender wrote.
     let sender = be_host_stack::contacts()
         .into_iter()
         .find(|contact| contact.account == opened.sender)
         .map(|contact| contact.display_name);
     let block = be_host_stack::node(opened.block).and_then(|node| node.metadata.name());
-    let title = block.unwrap_or_else(|| "New message".to_owned());
-    let body = match sender {
-        Some(sender) => format!("{sender}: {}", opened.text),
-        None => opened.text,
+    let shown = be_host_stack::device_push::Shown::opened(opened, sender, block);
+    let Some((organization, block)) = shown.opens else {
+        return Ok(JsValue::NULL);
     };
     let answer = js_sys::Object::new();
-    js_sys::Reflect::set(&answer, &"title".into(), &title.into())?;
-    js_sys::Reflect::set(&answer, &"body".into(), &body.into())?;
-    js_sys::Reflect::set(&answer, &"block".into(), &opened.block.to_string().into())?;
+    js_sys::Reflect::set(&answer, &"title".into(), &shown.title.into())?;
+    js_sys::Reflect::set(&answer, &"body".into(), &shown.body.into())?;
+    js_sys::Reflect::set(&answer, &"block".into(), &block.to_string().into())?;
     js_sys::Reflect::set(
         &answer,
         &"organization".into(),
-        &opened.organization.to_string().into(),
+        &organization.to_string().into(),
     )?;
     Ok(answer.into())
 }
@@ -132,12 +95,7 @@ pub fn push_open_block(organization: String, block: String) {
     // A page entry the host can call before run_web: the page never waits.
     be_wasm_threads::initialize_page();
     if let (Ok(organization), Ok(block)) = (organization.parse::<Uuid>(), block.parse::<Uuid>()) {
-        hold(Opening {
-            organization,
-            block,
-            pressed: Instant::now(),
-        });
-        be_host_base::host::wake();
+        crate::pressed_notifications::pressed(organization, block);
     }
 }
 
