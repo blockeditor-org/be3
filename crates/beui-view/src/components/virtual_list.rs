@@ -21,7 +21,8 @@ use std::hash::Hash;
 ///   moves to already exists.
 /// - `anchor` names the row kept in place while rows around it are measured anew (a text's
 ///   line at the top of its view); with none, or while it is not built, the first row built
-///   is. The web leaves this to the browser's own scroll anchoring.
+///   is. The web leaves this to the browser's scroll anchoring (`overflow-anchor`), which
+///   Safari lacks: there the rows above the view still move it.
 /// - Rows are recycled: `item` runs once per row built and gets a `ReadSignal` of its
 ///   key, which is set to a new key when a row that left is reused. Derive everything
 ///   shown from that signal; wrap content in `<Dynamic value={key}>` for fresh state per

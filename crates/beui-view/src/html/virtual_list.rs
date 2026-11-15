@@ -212,7 +212,8 @@ pub(crate) fn virtual_list<K>(
 where
     K: Clone + Hash + Eq + 'static,
 {
-    // The browser anchors the scroll on what is shown (`overflow-anchor`).
+    // The browser anchors the scroll on what is shown (`overflow-anchor`), where it can:
+    // Safari cannot, and there rows measured anew above the view move it.
     let _ = (text, anchor);
     let list = create("VirtualList", "div");
     set_style(list, "display", Some("flex".to_owned()));

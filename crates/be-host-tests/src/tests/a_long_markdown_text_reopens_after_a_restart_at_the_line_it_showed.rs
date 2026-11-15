@@ -69,7 +69,8 @@ fn a_long_markdown_text_reopens_after_a_restart_at_the_line_it_showed() {
     let reopened = top_row(&mut host);
     assert!(
         reopened.0 == left.0 && (reopened.1 - left.1).abs() <= 1.5,
-        "after a restart the text opens with the same row at the top, to the pixel it is snapped          to: {reopened:?} against {left:?}"
+        "after a restart the text opens with the same row at the top, to the pixel it is \
+         snapped to: {reopened:?} against {left:?}"
     );
     host.close();
 }

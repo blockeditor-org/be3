@@ -68,6 +68,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
     let reveals = cx.state.reveals();
     let anchor = create_memo(move || {
         reveals.track();
+        cx.starts.track();
         let anchor = cx.state.scrolled().get();
         untrack(|| {
             let line_start = cx.state.pending_scroll().or(anchor)?.line_start;

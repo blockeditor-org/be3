@@ -15,6 +15,12 @@ Fixed items are removed as they land.
   them by its estimate before measuring them or a row measures short at first.
   Done: the first layout places them where they settle, shown by a beui test.
 
+- **Anchored rows on the web without `overflow-anchor`.** On the HTML core a
+  `VirtualList` leaves its `anchor` to the browser's scroll anchoring, which
+  Safari (and so every iOS browser) lacks, so rows measured anew above the view
+  move what is shown there. Done: the HTML list keeps its anchor row in place
+  itself where `overflow-anchor` is missing, shown by a test on the HTML core.
+
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
