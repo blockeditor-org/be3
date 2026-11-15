@@ -30,6 +30,8 @@ found one held past std's short spin:
 - be-host-base `host.rs`'s `UNSENT_SAVES`, which `save_file` pushes to and the host's frame
   takes from. Only be-host-runtime's instances call `save_file` today, answering an app's
   `save-file` on the page, so no worker takes it yet; a worker that saves a file would.
+- be-host-stack `lib.rs`'s `OWN_INVITATIONS`, which the worker writes as invitations are made
+  or listed and the page reads; it belongs in `Seen`.
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
 - wasi-libc's `malloc`, which locks the one heap the page and the worker share.
 
