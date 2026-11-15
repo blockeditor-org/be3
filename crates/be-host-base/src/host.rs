@@ -131,6 +131,13 @@ impl<C: 'static> Desk<C> {
         self,
         receive: impl Fn(&mut C, T) + 'static,
     ) -> (Mailbox, Post<T>) {
+        // A worker's letter reaches only the page on the web (`letters_web.rs`), so only the
+        // page may make a mailbox there.
+        #[cfg(target_arch = "wasm32")]
+        assert!(
+            !be_wasm_threads::may_wait(),
+            "a worker made a mailbox: on the web only the page makes mailboxes"
+        );
         let mailbox = next_mailbox();
         let receive: Receive = Rc::new(move |context, letter| {
             if let (Some(context), Ok(value)) =

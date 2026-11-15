@@ -31,8 +31,9 @@ pub(super) fn post(to: ThreadId, letter: Letter) {
         return;
     }
     // The page frees it (`be_letter_arrived`): until plans/web_page_never_waits.md gives the
-    // stack's worker a memory of its own, the page and the worker run in one.
-    let letter = Box::into_raw(Box::new(letter)) as usize;
+    // stack's worker a memory of its own, the page and the worker run in one. It carries the
+    // thread it is for, which the page checks: the channel reaches only the page.
+    let letter = Box::into_raw(Box::new((to, letter))) as usize;
     // unsafe(ffi)
     unsafe { be_letter_post(letter) };
 }
@@ -46,8 +47,15 @@ fn arrived(letter: Letter) {
 #[wasm_bindgen]
 pub fn be_letter_arrived(letter: usize) {
     // unsafe(memory)
-    let letter = unsafe { Box::from_raw(letter as *mut Letter) };
-    arrived(*letter);
+    let letter = unsafe { Box::from_raw(letter as *mut (ThreadId, Letter)) };
+    let (to, letter) = *letter;
+    // Only the page makes mailboxes (`Desk::mailbox`), so this is a bug elsewhere: the page
+    // says so and drops it rather than trap.
+    if to != thread::current().id() {
+        eprintln!("be-host: a letter for a mailbox another thread made reached the page");
+        return;
+    }
+    arrived(letter);
 }
 
 /// Takes, in the order they arrived, the letters whose mailbox `at_this_desk` answers true for,

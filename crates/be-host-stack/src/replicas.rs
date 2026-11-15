@@ -127,7 +127,11 @@ impl be_block_type_host::Host for Shared {
                     }
                 }
             }
-            held.graph.report_head(block, status.head);
+            // Read first: a write through `Part` copies what a `Seen` handed over shares, and
+            // a replica reports its status on every edit, mostly with the head unchanged.
+            if !held.graph.reports(block, status.head) {
+                held.graph.report_head(block, status.head);
+            }
             if let Some(undo) = &status.undo {
                 let history = super::History {
                     can_undo: undo.can_undo,
@@ -154,9 +158,13 @@ impl be_block_type_host::Host for Shared {
         description: Description,
     ) {
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-        held.graph.refer(block, references);
-        held.described.insert(block, description);
-        held.touch(block);
+        if !held.graph.refers(block, &references) {
+            held.graph.refer(block, references);
+        }
+        if held.described.get(&block) != Some(&description) {
+            held.described.insert(block, description);
+            held.touch(block);
+        }
     }
 
     fn conflict(shared: &Arc<Mutex<Self>>, block: Uuid, conflict: Conflict) {

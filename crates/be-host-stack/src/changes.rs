@@ -105,7 +105,7 @@ impl Default for ChangeWatch {
 /// Tells every watcher of `changes`: from the worker thread, once the `Seen` that has them is
 /// handed over (`seen::hold_changes`).
 pub(crate) fn post(changes: Changes) {
-    if changes.is_empty() {
+    if changes.is_empty() || QUIET.get() {
         return;
     }
     if let Some(changes) = crate::seen::hold_changes(changes) {
@@ -115,9 +115,27 @@ pub(crate) fn post(changes: Changes) {
 
 /// Wakes the host: from the worker thread, once the `Seen` with what it did is handed over.
 pub(crate) fn wake() {
-    if !crate::seen::hold_wake() {
+    if !QUIET.get() && !crate::seen::hold_wake() {
         be_host_base::host::wake();
     }
+}
+
+thread_local! {
+    static QUIET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `change` posting no change notice and no wake: for what this thread was told of
+/// already, done again (the page laying its edits over a newer `Seen`).
+pub(crate) fn quietly<T>(change: impl FnOnce() -> T) -> T {
+    // Put back by a guard, so a panic in `change` does not leave this thread quiet.
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            QUIET.set(self.0);
+        }
+    }
+    let _restore = Restore(QUIET.replace(true));
+    change()
 }
 
 /// Tells every watcher of `changes` now.
