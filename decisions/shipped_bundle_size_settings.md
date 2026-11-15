@@ -30,3 +30,10 @@ edit, measured in buck/platforms/profile.bzl.
 - Shipping without `.cwasm`: it is 595 MB of the 896 MB bundle (October 2026), but shipping
   without it moves 95 seconds of compiling (four cores) to the first start, 42 of them the
   beui library's.
+
+## Since
+
+November 2026: every guest now runs on V8 and precompilation was removed (plans/wasm_on_v8.md),
+so the bundle ships no `.cwasm` and V8 compiles each module as it loads. Shipping precompiled code
+is superseded, with the rejection of shipping without it; the LTO, mangling, opt-level and
+symbol settings still stand.

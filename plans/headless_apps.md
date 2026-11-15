@@ -11,7 +11,7 @@ graphics. One runtime, not a second one for `be`.
 
 ## Shape
 
-- `be` runs apps through be-host-runtime's `Runtime` and the wasmtime backend
+- `be` runs apps through be-host-runtime's `Runtime` and the V8 backend (`wasm.rs`)
   (guides/apps/runtime.md, Backends), with a host that has no compositor, no
   windows and no gpu: an app instance there gets no frames and no input, and
   answers host services from be-host-stack as be-host does, with the calls
