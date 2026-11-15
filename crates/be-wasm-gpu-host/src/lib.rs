@@ -113,6 +113,17 @@ impl Surface {
     }
 }
 
+/// Whether a gpu import only records into a render pass, compute pass or render bundle (set the
+/// pipeline, a viewport, a buffer, draw, dispatch): a few nanoseconds of work, made thousands of
+/// times a frame. A host times every other gpu import for its "GPU calls" total and leaves these
+/// untimed, since reading the clock around each cost far more than the call (about 60 ns of 105
+/// a call in be-wasm-host's example-gpu-calls); their time counts in the step's.
+pub fn only_records(function: &str) -> bool {
+    ["[method]render-pass.", "[method]compute-pass.", "[method]render-bundle-encoder."]
+        .iter()
+        .any(|pass| function.starts_with(pass))
+}
+
 impl Gpu {
     pub fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
         let limits = convert::limits(&device.limits());
