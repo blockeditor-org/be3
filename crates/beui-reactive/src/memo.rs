@@ -4,7 +4,8 @@ use std::rc::Rc;
 use crate::arena::{self, Key};
 use crate::computation::Computation;
 use crate::runtime::{check_tracked_read, probe};
-use crate::signal::{Get, Tracked, Value, track};
+use crate::loading::note_read;
+use crate::signal::{Get, Tracked, Value, readiness_of, track};
 
 pub struct Memo<T> {
     key: Key,
@@ -33,6 +34,9 @@ pub fn create_memo<T: PartialEq + 'static, M>(
             owner.dispose();
         }
     } else {
+        output.source.set_readiness(readiness_of(
+            probed.read.iter().map(|(dependency, _)| dependency.source()),
+        ));
         let written = output.clone();
         let tracked: Rc<dyn Tracked> = output.clone();
         let computation = Computation::new(Some(tracked), move || {
@@ -110,6 +114,9 @@ impl<T: 'static> Get<T> for Memo<T> {
         let producer = output.source.producer.borrow().upgrade();
         if let Some(producer) = producer {
             producer.refresh();
+        }
+        if !output.source.is_settled() {
+            note_read(output.clone());
         }
         track(output.clone());
         f(output.value.borrow().as_ref().expect("memo has no value"))

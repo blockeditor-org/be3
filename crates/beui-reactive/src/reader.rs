@@ -1,6 +1,7 @@
 use crate::async_memo::AsyncMemo;
 use crate::loading::Ready;
 use crate::memo::Memo;
+use crate::source::Source;
 use crate::runtime::check_tracked_read;
 use crate::signal::{Get, ReadSignal, Signal};
 use crate::stored::{Stored, store};
@@ -9,21 +10,24 @@ use crate::stored::{Stored, store};
 /// API that only reads takes a `Reader<T>` (or `impl Into<Reader<T>>`), so its caller passes
 /// whichever it has. `Copy`, like every handle; reading borrows a signal's or memo's value
 /// rather than cloning it.
-pub struct Reader<T>(Source<T>);
+pub struct Reader<T>(Held<T>);
 
-enum Source<T> {
+enum Held<T> {
     Signal(ReadSignal<T>),
+    /// A `Source` or async memo, read in place through `Get`: `with` gives it a closure to
+    /// call once with the value.
+    Lent(Stored<Box<dyn Fn(&mut dyn FnMut(&T))>>),
     Memo(Memo<T>),
     Function(Stored<Box<dyn Fn() -> T>>),
 }
 
-impl<T> Clone for Source<T> {
+impl<T> Clone for Held<T> {
     fn clone(&self) -> Self {
         *self
     }
 }
 
-impl<T> Copy for Source<T> {}
+impl<T> Copy for Held<T> {}
 
 impl<T> Clone for Reader<T> {
     fn clone(&self) -> Self {
@@ -37,14 +41,15 @@ impl<T: 'static> Reader<T> {
     /// A reader computing its value on every read, as a closure prop does. Make a memo
     /// instead when the result changes less often than what it reads.
     pub fn new(read: impl Fn() -> T + 'static) -> Self {
-        Self(Source::Function(store(Box::new(read))))
+        Self(Held::Function(store(Box::new(read))))
     }
 
     pub fn is_alive(&self) -> bool {
         match &self.0 {
-            Source::Signal(signal) => signal.is_alive(),
-            Source::Memo(memo) => memo.is_alive(),
-            Source::Function(read) => read.is_alive(),
+            Held::Signal(signal) => signal.is_alive(),
+            Held::Memo(memo) => memo.is_alive(),
+            Held::Function(read) => read.is_alive(),
+            Held::Lent(read) => read.is_alive(),
         }
     }
 }
@@ -54,9 +59,21 @@ impl<T: 'static> Get<T> for Reader<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         check_tracked_read::<Self>();
         match &self.0 {
-            Source::Signal(signal) => signal.with(f),
-            Source::Memo(memo) => memo.with(f),
-            Source::Function(read) => read.with(|read| f(&read())),
+            Held::Signal(signal) => signal.with(f),
+            Held::Memo(memo) => memo.with(f),
+            Held::Function(read) => read.with(|read| f(&read())),
+            Held::Lent(read) => {
+                let mut f = Some(f);
+                let mut result = None;
+                read.with(|read| {
+                    read(&mut |value| {
+                        if let Some(f) = f.take() {
+                            result = Some(f(value));
+                        }
+                    })
+                });
+                result.expect("a lent reader calls back once")
+            }
         }
     }
 
@@ -67,7 +84,7 @@ impl<T: 'static> Get<T> for Reader<T> {
         T: Clone,
     {
         match &self.0 {
-            Source::Function(read) => {
+            Held::Function(read) => {
                 check_tracked_read::<Self>();
                 read.with(|read| read())
             }
@@ -78,24 +95,32 @@ impl<T: 'static> Get<T> for Reader<T> {
 
 impl<T: 'static> From<ReadSignal<T>> for Reader<T> {
     fn from(signal: ReadSignal<T>) -> Self {
-        Self(Source::Signal(signal))
+        Self(Held::Signal(signal))
     }
 }
 
 impl<T: 'static> From<Signal<T>> for Reader<T> {
     fn from(signal: Signal<T>) -> Self {
-        Self(Source::Signal(signal.read_only()))
+        Self(Held::Signal(signal.read_only()))
     }
 }
 
 impl<T: 'static> From<Memo<T>> for Reader<T> {
     fn from(memo: Memo<T>) -> Self {
-        Self(Source::Memo(memo))
+        Self(Held::Memo(memo))
+    }
+}
+
+impl<T: 'static> From<Source<T>> for Reader<Ready<T>> {
+    fn from(source: Source<T>) -> Self {
+        Self(Held::Lent(store(Box::new(move |f: &mut dyn FnMut(&Ready<T>)| {
+            source.with(|value| f(value))
+        }))))
     }
 }
 
 impl<T: 'static> From<AsyncMemo<T>> for Reader<Ready<T>> {
     fn from(memo: AsyncMemo<T>) -> Self {
-        Self(Source::Signal(memo.value()))
+        memo.source().into()
     }
 }

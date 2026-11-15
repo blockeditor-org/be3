@@ -16,7 +16,9 @@ struct Choices {
 
 #[component]
 pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettings>) -> NodeId {
+    let known = editor.block_types_known();
     let types = create_memo(move || {
+        known.track();
         let catalog = editor.block_types();
         let mut types: Vec<(String, Uuid)> = catalog
             .iter()

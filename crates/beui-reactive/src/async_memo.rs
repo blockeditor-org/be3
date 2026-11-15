@@ -4,12 +4,14 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{Context, Poll, Waker};
 
-use crate::loading::{Pending, Ready};
+use crate::computation::{Effect, create_binding};
+use crate::stored::StoredCell;
+use crate::loading::{ErrorBoundary, Pending, Ready};
 use crate::runtime::check_tracked_read;
 use crate::scope::on_cleanup;
-use crate::signal::{Get, ReadSignal, Set, Signal, create_signal};
+use crate::signal::{Get, Set, Signal, create_signal};
+use crate::source::{Source, create_source};
 use crate::trigger::{Trigger, create_trigger};
-use crate::computation::create_binding;
 
 /// A future the host's executor runs for an async memo.
 pub type LocalFuture = Pin<Box<dyn Future<Output = ()>>>;
@@ -73,7 +75,7 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
 /// good answer while a newer one is on its way (`pending()` says so), or `Err(Pending::Failed)`
 /// if the latest failed. `Copy`, like every handle.
 pub struct AsyncMemo<T: 'static> {
-    value: Signal<Ready<T>>,
+    value: Source<T>,
     pending: Signal<bool>,
     rerun: Trigger,
 }
@@ -106,31 +108,42 @@ impl<T> std::fmt::Debug for AsyncMemo<T> {
 /// inside a hidden `Loading` too.
 ///
 /// The future runs on the spawner the host installed (`spawn_with`); it ends with a `Ready<T>`,
-/// so `?` on another `Ready` inside it fails or waits the memo with it.
+/// so `?` on another `Ready` inside it fails or waits the memo with it. Its readiness is part
+/// of the graph, as a `Source`'s is. An `Errored` boundary around where it is made runs it
+/// again on reset.
 pub fn create_async_memo<T, F>(mut source: impl FnMut() -> F + 'static) -> AsyncMemo<T>
 where
     T: PartialEq + 'static,
     F: Future<Output = Ready<T>> + 'static,
 {
-    let value = create_signal(Err(Pending::Loading));
+    let value = create_source();
     let pending = create_signal(true);
     let rerun = create_trigger();
-    create_binding(move || {
+    // An answer that lands after what the source read changed, but before it runs again and
+    // drops the future, is for what it read before: it is dropped too.
+    let binding = StoredCell::new(None::<Effect>);
+    let made = create_binding(move || {
         rerun.track();
         let future = source();
         pending.set(true);
         let running = spawn(async move {
             let answer = future.await;
+            if binding.get().is_some_and(|binding| binding.is_due()) {
+                return;
+            }
             value.set(answer);
             pending.set(false);
         });
         on_cleanup(move || running.cancel());
     });
-    AsyncMemo {
+    binding.set(Some(made));
+    let memo = AsyncMemo {
         value,
         pending,
         rerun,
-    }
+    };
+    ErrorBoundary::hold_refresh(std::rc::Rc::new(move || memo.refresh()));
+    memo
 }
 
 impl<T: 'static> AsyncMemo<T> {
@@ -142,8 +155,17 @@ impl<T: 'static> AsyncMemo<T> {
     }
 
     /// Runs `source` again, dropping the future in flight: what an `Errored` boundary's reset
-    /// does to the async memos under it.
-    pub fn refresh(&self) {
+    /// does to the async memos under it. A failure it showed reads as loading again.
+    pub fn refresh(&self)
+    where
+        T: PartialEq,
+    {
+        if self
+            .value
+            .with_untracked(|value| matches!(value, Err(Pending::Failed(_))))
+        {
+            self.value.set(Err(Pending::Loading));
+        }
         self.rerun.notify();
     }
 
@@ -151,8 +173,8 @@ impl<T: 'static> AsyncMemo<T> {
         self.value.is_alive()
     }
 
-    pub(crate) fn value(&self) -> ReadSignal<Ready<T>> {
-        self.value.read_only()
+    pub(crate) fn source(&self) -> Source<T> {
+        self.value
     }
 }
 

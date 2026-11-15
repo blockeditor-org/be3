@@ -172,7 +172,9 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
 fn ShareDialog(workspace: Workspace) -> NodeId {
     let tab = use_frame_anchor();
     let state = workspace.share;
+    let listing = workspace.share_members;
     let me = workspace.host().account_id();
+
     let open = create_memo(move || state.with(Option::is_some));
     // The block the dialog opened for, kept while it stays open: its title and every action
     // name it.
@@ -197,19 +199,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             })
             .unwrap_or_default()
     });
-    let loading = create_memo(move || {
-        state.with(|share| {
-            share
-                .as_ref()
-                .is_some_and(|share| share.members == Err(Pending::Loading))
-        })
-    });
+    let loading = create_memo(move || listing.with(|listing| *listing == Err(Pending::Loading)));
     let error = create_memo(move || {
-        state.with(|share| {
-            share.as_ref().and_then(|share| match &share.members {
-                Err(Pending::Failed(error)) => Some(error.clone()),
-                _ => share.error.clone(),
-            })
+        listing.with(|listing| match listing {
+            Err(Pending::Failed(error)) => Some(error.clone()),
+            _ => state.with(|share| share.as_ref().and_then(|share| share.error.clone())),
         })
     });
     let query = create_memo(move || {
@@ -221,7 +215,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         })
     });
     let suggestions = create_memo(move || {
-        state.with(|share| share.as_ref().and_then(|share| share.suggestions(me)))
+        listing.with(|listing| {
+            let Ok(listing) = listing else {
+                return None;
+            };
+            state.with(|share| share.as_ref()?.suggestions(listing, me))
+        })
     });
     let pending = create_memo(move || {
         state.with(|share| {
@@ -257,22 +256,26 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             )
     };
     let members = create_memo(move || {
-        state.with(|share| {
-            share
-                .as_ref()
-                .map(|share| share.members(me, name_of))
-                .unwrap_or_default()
+        listing.with(|listing| {
+            let Ok(listing) = listing else {
+                return Vec::new();
+            };
+            state.with(|share| {
+                share
+                    .as_ref()
+                    .map(|share| share.members(listing, me, name_of))
+                    .unwrap_or_default()
+            })
         })
     });
-    let company = create_memo(move || {
-        state.with(|share| {
-            share
-                .as_ref()
-                .is_some_and(|share| share.company && share.members.is_ok())
+    let company =
+        create_memo(move || listing.with(|listing| matches!(listing, Ok(listing) if listing.company)));
+    let inside = create_memo(move || {
+        listing.with(|listing| match listing {
+            Ok(listing) => Share::inside_note(listing),
+            _ => None,
         })
     });
-    let inside =
-        create_memo(move || state.with(|share| share.as_ref().and_then(Share::inside_note)));
     let member_keys = create_memo(move || {
         members
             .get()
@@ -281,8 +284,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .collect::<Vec<_>>()
     });
     let nobody = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.members.is_ok()))
-            && members.with(Vec::is_empty)
+        listing.with(Result::is_ok) && members.with(Vec::is_empty)
     });
     let inviting = create_memo(move || {
         state.with(|share| share.as_ref().is_some_and(|share| share.inviting.is_some()))

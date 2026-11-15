@@ -9,7 +9,7 @@ use crate::runtime::{
     untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
-use crate::signal::{Get, Set, Signal, Tracked, create_signal};
+use crate::signal::{Get, Set, Signal, Tracked, create_signal, readiness_of};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum State {
@@ -274,9 +274,17 @@ impl Computation {
         };
         match result {
             Ok(changed) => {
-                if changed && let Some(source) = &self.source {
+                if let Some(source) = &self.source {
+                    let readiness = readiness_of(
+                        self.dependencies
+                            .borrow()
+                            .iter()
+                            .map(|(dependency, _, _)| dependency.source()),
+                    );
                     let source = source.source();
-                    source.version.set(source.version.get().wrapping_add(1));
+                    if source.set_readiness(readiness) || changed {
+                        source.version.set(source.version.get().wrapping_add(1));
+                    }
                 }
             }
             Err(error) => std::panic::resume_unwind(error),
@@ -442,6 +450,12 @@ impl Effect {
     pub fn is_disposed(&self) -> bool {
         self.computation()
             .is_none_or(|computation| computation.is_disposed())
+    }
+
+    /// Whether something it read was written since its last run, so it will run again.
+    pub(crate) fn is_due(&self) -> bool {
+        self.computation()
+            .is_some_and(|computation| computation.state.get() == State::Dirty)
     }
 }
 

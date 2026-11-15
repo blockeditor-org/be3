@@ -1,5 +1,4 @@
-use be_sdk_beui::beui::reactive::{Pending, Ready};
-use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing, Failure};
+use be_sdk_beui::{AccessGrant, AccessLevel, AccessListing};
 use uuid::Uuid;
 
 /// What the share dialog offers. `KnowExists` is not among them: a reference
@@ -66,14 +65,11 @@ pub(crate) enum ShareAction {
     InviteNew,
 }
 
+/// What the share dialog holds besides the listing of who has access, which the workspace
+/// asks the host for (`Workspace::share_listing`) and hands to what needs it.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Share {
     pub(crate) block: Uuid,
-    pub(crate) request: Option<u64>,
-    pub(crate) grants: Vec<AccessGrant>,
-    pub(crate) company: bool,
-    pub(crate) set_inside: u32,
-    pub(crate) members: Ready<()>,
     pub(crate) error: Option<String>,
     pub(crate) query: String,
     /// Enter was pressed before the members were listed: the listing carries it out.
@@ -85,14 +81,9 @@ pub(crate) struct Share {
 }
 
 impl Share {
-    pub(crate) fn new(block: Uuid, request: u64) -> Self {
+    pub(crate) fn new(block: Uuid) -> Self {
         Self {
             block,
-            request: Some(request),
-            grants: Vec::new(),
-            company: false,
-            set_inside: 0,
-            members: Err(Pending::Loading),
             error: None,
             query: String::new(),
             submit_waiting: false,
@@ -103,43 +94,26 @@ impl Share {
         }
     }
 
-    pub(crate) fn listed(&mut self, listing: Result<AccessListing, Failure>, me: Uuid) {
-        self.request = None;
-        let submit = std::mem::take(&mut self.submit_waiting);
-        match listing {
-            Ok(AccessListing {
-                grants,
-                company,
-                set_inside,
-            }) => {
-                self.grants = grants;
-                self.company = company;
-                self.set_inside = set_inside;
-                self.members = Ok(());
-                if submit {
-                    self.submit(me);
-                }
-            }
-            Err(error) => self.members = Err(Pending::Failed(error.to_string())),
+    /// Carries out an Enter pressed while the members were still being listed.
+    pub(crate) fn listed(&mut self, listing: &AccessListing, me: Uuid) {
+        if std::mem::take(&mut self.submit_waiting) {
+            self.submit(listing, me);
         }
     }
 
-    fn submit(&mut self, me: Uuid) {
-        if let Some(person) = self.candidates(me).first().cloned() {
+    fn submit(&mut self, listing: &AccessListing, me: Uuid) {
+        if let Some(person) = self.candidates(listing, me).first().cloned() {
             self.pending.push(person);
             self.query.clear();
         }
     }
 
-    pub(crate) fn relisting(&mut self) {
-        if self.members.is_err() {
-            self.members = Err(Pending::Loading);
-        }
-    }
-
+    /// What `action` does, given the listing if it has arrived: the grants to make, and
+    /// whether to list again.
     pub(crate) fn act(
         &mut self,
         action: ShareAction,
+        listing: Option<&AccessListing>,
         me: Uuid,
     ) -> (Vec<(Uuid, AccessLevel)>, bool) {
         let mut grants = Vec::new();
@@ -151,13 +125,14 @@ impl Share {
                 }
                 self.query = query;
             }
-            ShareAction::Submit if self.members.is_err() => {
-                self.submit_waiting = !self.query.trim().is_empty();
-            }
-            ShareAction::Submit => self.submit(me),
+            ShareAction::Submit => match listing {
+                Some(listing) => self.submit(listing, me),
+                None => self.submit_waiting = !self.query.trim().is_empty(),
+            },
             ShareAction::Pick(id) => {
-                if let Some(person) = self
-                    .candidates(me)
+                if let Some(person) = listing
+                    .map(|listing| self.candidates(listing, me))
+                    .unwrap_or_default()
                     .into_iter()
                     .find(|person| person.id == id)
                 {
@@ -173,11 +148,12 @@ impl Share {
                 self.query.clear();
             }
             ShareAction::SetAccess(account, access) => {
-                if self
-                    .grants
-                    .iter()
-                    .any(|grant| grant.account == account.into_bytes())
-                {
+                if listing.is_some_and(|listing| {
+                    listing
+                        .grants
+                        .iter()
+                        .any(|grant| grant.account == account.into_bytes())
+                }) {
                     grants.push((account, access));
                 }
             }
@@ -187,34 +163,41 @@ impl Share {
         (grants, reload)
     }
 
-    pub(crate) fn suggestions(&self, me: Uuid) -> Option<Vec<Person>> {
+    pub(crate) fn suggestions(&self, listing: &AccessListing, me: Uuid) -> Option<Vec<Person>> {
         (!self.query.is_empty()).then(|| {
-            self.candidates(me)
+            self.candidates(listing, me)
                 .into_iter()
                 .take(MAX_SUGGESTIONS)
                 .collect()
         })
     }
 
-    pub(crate) fn members(&self, me: Uuid, name_of: impl Fn(Uuid) -> String) -> Vec<Member> {
-        self.grants
+    pub(crate) fn members(
+        &self,
+        listing: &AccessListing,
+        me: Uuid,
+        name_of: impl Fn(Uuid) -> String,
+    ) -> Vec<Member> {
+        listing
+            .grants
             .iter()
             .filter(|grant| has_access(grant, me))
             .map(|grant| member(grant, me, self.block, &name_of))
             .collect()
     }
 
-    pub(crate) fn inside_note(&self) -> Option<String> {
-        match self.set_inside {
+    pub(crate) fn inside_note(listing: &AccessListing) -> Option<String> {
+        match listing.set_inside {
             0 => None,
             1 => Some("1 item inside has different access".to_owned()),
             count => Some(format!("{count} items inside have different access")),
         }
     }
 
-    fn candidates(&self, me: Uuid) -> Vec<Person> {
+    fn candidates(&self, listing: &AccessListing, me: Uuid) -> Vec<Person> {
         let query = self.query.trim().to_lowercase();
-        self.grants
+        listing
+            .grants
             .iter()
             .filter(|grant| !has_access(grant, me))
             .filter(|grant| {
