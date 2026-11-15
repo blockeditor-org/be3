@@ -251,6 +251,8 @@ pub(crate) fn BlockPanel(
                     <LinkedBar workspace={workspace} info={info.read_only()} />
                 })}
                 <TabBar bar={move || bar.call(())} own=true />
+                // A pair, not one `Show` with a fallback: `keep_alive` would also keep the preview's
+                // live editor of the last revision built and paused after the preview closes.
                 <Show keep_alive=true condition={move || !previewing.get()}>
                     <Dynamic value={content}>|content: Content| {
                         match content {
