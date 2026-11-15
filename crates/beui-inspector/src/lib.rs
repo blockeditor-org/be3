@@ -37,7 +37,7 @@ use beui_view::reactive::*;
 use panel::Summary;
 use tree::{Entry, Key};
 
-const DEFAULT_WIDTH: f32 = 400.0;
+const DEFAULT_WIDTH: f32 = 340.0;
 const HANDLE_REACH: f32 = beui_core::screen_simulation::MARGIN;
 const HANDLE_THICKNESS: f32 = 4.0;
 const HANDLE_LENGTH: f32 = 40.0;
@@ -892,7 +892,7 @@ impl Inspector {
         InspectorTab::TREES.map(|tab| self.tab_shown(tab))
     }
 
-    fn tab_shown(&self, tab: InspectorTab) -> bool {
+    pub fn tab_shown(&self, tab: InspectorTab) -> bool {
         let tools = self.tools;
         let mode = tools.mode().get_untracked();
         tools
@@ -960,9 +960,11 @@ impl Inspector {
         self.summary.set(summary);
         self.performance.set(performance);
         self.renderer.set(renderer);
-        let drags = drag_rows(target);
-        if self.drags.with_untracked(|shown| *shown != drags) {
-            self.drags.set(drags);
+        if self.tab_shown(InspectorTab::Drags) {
+            let drags = drag_rows(target);
+            if self.drags.with_untracked(|shown| *shown != drags) {
+                self.drags.set(drags);
+            }
         }
         self.entries = current_entries;
     }

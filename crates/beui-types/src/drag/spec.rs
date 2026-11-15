@@ -73,7 +73,8 @@ pub enum DragSpec<D> {
     Fixed(Candidate<D>),
     /// The nearest of several, holding on to the one chosen until another is `sticky` nearer.
     Closest { of: Vec<DragSpec<D>>, sticky: f32 },
-    /// Anywhere in `area`: the pointer minus the grab, clamped to it; `drop` names the rect.
+    /// Anywhere in `area`: the pointer minus the grab, clamped to it; `drop` names the rect, in
+    /// `area`'s own coordinates as a `Candidate`'s are.
     Free {
         area: NodeRef,
         drop: Rc<dyn Fn(Rect) -> D>,
@@ -505,12 +506,16 @@ fn walk<'s, D: Clone>(
             }
         }
         DragSpec::Free { area, drop } => {
-            let (area, _) = (evaluation.placed)(area.try_get()?)?;
+            let (area, scale) = (evaluation.placed)(area.try_get()?)?;
             let item = clamp_into(carried, area);
+            let local = Rect::from_min_size(
+                Pos2::ZERO + (item.min - area.min) / scale,
+                item.size() / scale,
+            );
             Some(Found {
                 item,
                 chosen: Some(id),
-                drop: Some(Dropped::Made(drop(item))),
+                drop: Some(Dropped::Made(drop(local))),
                 floating: false,
                 chain: false,
                 distance: distance(carried, item),
