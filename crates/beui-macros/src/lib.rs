@@ -33,7 +33,7 @@ struct Prop {
     default: Option<Expr>,
     is_children_slot: bool,
     /// A `Prop<V>` whose `V` is one of the component's own type parameters: its type comes from
-    /// the other props, so a value is not lifted into an `Option` to fit it.
+    /// what is passed, so it takes a signal, memo or closure (`IntoReadProp`).
     exact: bool,
 }
 
@@ -337,6 +337,34 @@ fn render_children_closure(
     }
 }
 
+/// A `|| { ... }` closure child: built again each time the slot builds, ignoring what it is
+/// handed.
+fn render_children_unit(
+    render: &Render,
+    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+) -> Setter {
+    let unit = Render {
+        once: render.once,
+        handle: None,
+        child: render.child.clone(),
+        raw: render.raw,
+    };
+    let mut setter = render_children_closure(&unit, |build| build);
+    setter.method = format_ident!("children_render_unit");
+    if render.handle.is_some() {
+        let handle = render.handle.clone();
+        let new = render_new(render);
+        let inner = setter.value;
+        setter.value = wrap(quote! {{
+            let unit = #inner;
+            #new(move |_handle: #handle| unit.call(()))
+        }});
+    } else {
+        setter.value = wrap(setter.value);
+    }
+    setter
+}
+
 fn render_children_block(
     render: &Render,
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
@@ -428,6 +456,13 @@ fn no_children_render() -> Setter {
     }
 }
 
+fn no_children_render_unit() -> Setter {
+    Setter {
+        method: format_ident!("children_render_unit"),
+        ..no_children_render()
+    }
+}
+
 fn children_setters(prop: &Prop) -> Vec<Setter> {
     let block = format_ident!("children_block");
     if prop.is_children {
@@ -443,6 +478,7 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
             },
             no_children_with(),
             no_children_render(),
+            no_children_render_unit(),
         ];
     }
     if prop.is_optional_child {
@@ -460,6 +496,7 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
             },
             no_children_with(),
             no_children_render(),
+            no_children_render_unit(),
         ];
     }
     if prop.is_child {
@@ -474,11 +511,13 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
             },
             no_children_with(),
             no_children_render(),
+            no_children_render_unit(),
         ];
     }
     match &prop.optional_render {
         Some(render) => vec![
             render_children_closure(render, |build| quote! { Some(#build) }),
+            render_children_unit(render, |build| quote! { Some(#build) }),
             render_children_block(render, |build| quote! { Some(#build) }),
             render_children_with(render, |build| quote! { Some(#build) }),
         ],
@@ -486,6 +525,7 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
             let render = prop.render.as_ref().expect("checked by the caller");
             vec![
                 render_children_closure(render, |build| build),
+                render_children_unit(render, |build| build),
                 render_children_block(render, |build| build),
                 render_children_with(render, |build| build),
             ]
@@ -586,15 +626,20 @@ fn reactive_setter(
     exact: bool,
     wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
 ) -> Setter {
+    if exact {
+        return Setter {
+            method: method.clone(),
+            generics: quote! { <__Passed> },
+            args: quote! { value: impl ::__beui_tree::reactive::IntoReadProp<#inner_ty, __Passed> },
+            where_clause: quote! {},
+            value: wrap(quote! { ::__beui_tree::reactive::IntoReadProp::into_read_prop(value) }),
+        };
+    }
     Setter {
         method: method.clone(),
         generics: quote! { <__Passed> },
         args: quote! { value: impl ::__beui_tree::reactive::IntoPropWith<#inner_ty, __Passed> },
-        where_clause: if exact {
-            quote! { where __Passed: ::__beui_tree::reactive::Exact }
-        } else {
-            quote! {}
-        },
+        where_clause: quote! {},
         value: wrap(quote! { ::__beui_tree::reactive::IntoPropWith::into_prop_with(value) }),
     }
 }
@@ -736,6 +781,33 @@ fn is_unit_callback(ty: &Type) -> bool {
             generic_args(ty, "Callback").as_deref(),
             Some([Type::Tuple(tuple)]) if tuple.elems.is_empty()
         )
+}
+
+fn own_param_ident(ty: &Type) -> Option<Ident> {
+    match ty {
+        Type::Path(path) if path.qself.is_none() => path.path.get_ident().cloned(),
+        _ => None,
+    }
+}
+
+/// Whether `ty` names `param` as a type of its own, not only through a projection such as
+/// `V::Handed`.
+fn mentions_bare(ty: &Type, param: &Ident) -> bool {
+    let tokens: Vec<proc_macro2::TokenTree> = quote! { #ty }.into_iter().collect();
+    fn walk(tokens: &[proc_macro2::TokenTree], param: &Ident) -> bool {
+        tokens.iter().enumerate().any(|(index, token)| match token {
+            proc_macro2::TokenTree::Ident(ident) if ident == param => !matches!(
+                tokens.get(index + 1),
+                Some(proc_macro2::TokenTree::Punct(punct)) if punct.as_char() == ':'
+            ),
+            proc_macro2::TokenTree::Group(group) => {
+                let inner: Vec<_> = group.stream().into_iter().collect();
+                walk(&inner, param)
+            }
+            _ => false,
+        })
+    }
+    walk(&tokens, param)
 }
 
 fn is_own_param(ty: &Type, params: &[Ident]) -> bool {
@@ -889,7 +961,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .type_params()
         .map(|param| param.ident.clone())
         .collect();
-    let props: Vec<Prop> = sig
+    let mut props: Vec<Prop> = sig
         .inputs
         .iter_mut()
         .map(|arg| {
@@ -964,6 +1036,26 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             })
         })
         .collect::<syn::Result<_>>()?;
+    // A `Prop<V>` whose `V` no other prop names takes its type only from what is passed.
+    let mentioned: Vec<bool> = props
+        .iter()
+        .enumerate()
+        .map(|(index, prop)| {
+            let Some(inner) = prop.reactive_inner_ty.as_ref().filter(|_| prop.exact) else {
+                return false;
+            };
+            let Some(param) = own_param_ident(inner) else {
+                return false;
+            };
+            props
+                .iter()
+                .enumerate()
+                .any(|(other, prop)| other != index && mentions_bare(&prop.ty, &param))
+        })
+        .collect();
+    for (prop, mentioned) in props.iter_mut().zip(mentioned) {
+        prop.exact &= !mentioned;
+    }
 
     let designated: Vec<usize> = props
         .iter()
@@ -1639,19 +1731,19 @@ fn parse_view_head(input: ParseStream) -> syn::Result<Option<ViewHead>> {
         (input.parse::<Token![||]>()?.spans[0], None)
     } else if input.peek(Token![|]) {
         let open = input.parse::<Token![|]>()?;
-        let pattern = Pat::parse_single(input)?;
-        let pattern = if input.peek(Token![:]) {
-            let colon_token = input.parse::<Token![:]>()?;
-            Pat::Type(PatType {
-                attrs: Vec::new(),
-                pat: Box::new(pattern),
-                colon_token,
-                ty: Box::new(input.parse()?),
-            })
-        } else {
-            pattern
-        };
+        let mut params = vec![parse_head_param(input)?];
+        while input.peek(Token![,]) {
+            input.parse::<Token![,]>()?;
+            if input.peek(Token![|]) {
+                break;
+            }
+            params.push(parse_head_param(input)?);
+        }
         input.parse::<Token![|]>()?;
+        let pattern = match params.len() {
+            1 => params.pop().expect("one parameter").0,
+            _ => head_tuple(params, open.span)?,
+        };
         (open.span, Some(pattern))
     } else {
         return Ok(None);
@@ -1671,6 +1763,66 @@ fn parse_view_head(input: ParseStream) -> syn::Result<Option<ViewHead>> {
         span,
         pattern,
         block,
+    }))
+}
+
+/// One parameter of a closure child, with its type when it is written.
+fn parse_head_param(input: ParseStream) -> syn::Result<(Pat, Option<Type>)> {
+    let pattern = Pat::parse_single(input)?;
+    if !input.peek(Token![:]) {
+        return Ok((pattern, None));
+    }
+    let colon_token = input.parse::<Token![:]>()?;
+    let ty: Type = input.parse()?;
+    Ok((
+        Pat::Type(PatType {
+            attrs: Vec::new(),
+            pat: Box::new(pattern),
+            colon_token,
+            ty: Box::new(ty.clone()),
+        }),
+        Some(ty),
+    ))
+}
+
+/// A closure child of several parameters (`|item: T, index: ReadSignal<usize>|`) takes what
+/// it is handed as one tuple: `|(item, index): (T, ReadSignal<usize>)|`.
+fn head_tuple(params: Vec<(Pat, Option<Type>)>, span: proc_macro2::Span) -> syn::Result<Pat> {
+    let typed = params.iter().all(|(_, ty)| ty.is_some());
+    if !typed && params.iter().any(|(_, ty)| ty.is_some()) {
+        return Err(syn::Error::new(
+            span,
+            "give every parameter of this closure child its type, or none of them",
+        ));
+    }
+    let mut pats = syn::punctuated::Punctuated::<Pat, Token![,]>::new();
+    let mut types = syn::punctuated::Punctuated::<Type, Token![,]>::new();
+    for (pat, ty) in params {
+        let pat = match pat {
+            Pat::Type(typed) => *typed.pat,
+            pat => pat,
+        };
+        pats.push(pat);
+        if let Some(ty) = ty {
+            types.push(ty);
+        }
+    }
+    let tuple = Pat::Tuple(syn::PatTuple {
+        attrs: Vec::new(),
+        paren_token: Default::default(),
+        elems: pats,
+    });
+    if !typed {
+        return Ok(tuple);
+    }
+    Ok(Pat::Type(PatType {
+        attrs: Vec::new(),
+        pat: Box::new(tuple),
+        colon_token: Default::default(),
+        ty: Box::new(Type::Tuple(syn::TypeTuple {
+            paren_token: Default::default(),
+            elems: types,
+        })),
     }))
 }
 
@@ -1848,7 +2000,11 @@ fn expand_view_body(
                     None => quote! { || },
                 };
                 if let Some(block) = &head.block {
-                    let children_render = format_ident!("children_render", span = span);
+                    let method = match head.pattern {
+                        Some(_) => "children_render",
+                        None => "children_render_unit",
+                    };
+                    let children_render = format_ident!("{}", method, span = span);
                     return quote_spanned! { span =>
                         #builder .#children_render(move #params #block) .#build()
                     };

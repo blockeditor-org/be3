@@ -1,18 +1,22 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
 use std::hash::Hash;
+
+use be_lib_stable_hash::HashMap;
 use std::rc::Rc;
 
 use beui_macros::component;
 use beui_reactive::{
     Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Signal, StoredCell, create_binding,
-    create_signal, store,
+    create_signal, store, untrack,
 };
 
 use crate::children::{
-    Branch, ChildSlot, Children, Count, Counted, DynamicSegment, Fallback, FormOf, IntoChild,
-    NestedHost, Or, SlotChild, ValueFallback,
+    Branch, ChildSlot, Children, Count, Counted, DynamicSegment, Fallback, FormOf, NestedHost, Or,
+    SlotChild, SlotHost, ValueFallback,
 };
-use crate::component::{Render, RenderFn};
+use crate::child_list::SlotId;
+use crate::component::{MissingProp, Render, RenderFn};
 use crate::prop::{Func, Prop};
 
 type Built<C> = RenderFn<(), Children<C>>;
@@ -33,8 +37,58 @@ fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>
 
 type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 
-/// Shows `then` while `value` holds, and `fallback`, if given, while it does not. By
-/// default a branch is built each time it is shown and dropped when it is not. With
+/// What a `Show` shows on: a `bool`, or an `Option`, whose value it hands its children as a
+/// signal while it is `Some`, so a new value updates them in place.
+pub trait ShowValue: Clone + 'static {
+    /// What the children are handed: nothing, or a signal of what is in the `Option`.
+    type Handed: 'static;
+    type Inner: 'static;
+
+    /// What is shown, or `None` while nothing is.
+    fn split(self) -> Option<Self::Inner>;
+
+    fn hand(inner: Self::Inner) -> (Self::Handed, Option<Signal<Self::Inner>>);
+
+    fn refresh(signal: Signal<Self::Inner>, inner: Self::Inner);
+}
+
+impl ShowValue for bool {
+    type Handed = ();
+    type Inner = ();
+
+    fn split(self) -> Option<()> {
+        self.then_some(())
+    }
+
+    fn hand(_inner: ()) -> ((), Option<Signal<()>>) {
+        ((), None)
+    }
+
+    fn refresh(_signal: Signal<()>, _inner: ()) {}
+}
+
+impl<T: Clone + PartialEq + 'static> ShowValue for Option<T> {
+    type Handed = ReadSignal<T>;
+    type Inner = T;
+
+    fn split(self) -> Option<T> {
+        self
+    }
+
+    fn hand(inner: T) -> (ReadSignal<T>, Option<Signal<T>>) {
+        let signal = create_signal(inner);
+        (signal.read_only(), Some(signal))
+    }
+
+    fn refresh(signal: Signal<T>, inner: T) {
+        signal.set(inner);
+    }
+}
+
+/// Shows its children while `value` is `true` or `Some`, and `fallback`, if given, while it
+/// is not. Given an `Option`, the children are handed a signal of what is in it, which
+/// changes in place while it stays `Some`: `<Show value={picked}>|item: ReadSignal<Item>|`.
+/// By default a branch is built each time it is shown and dropped when it is not. With
 /// `keep_alive` each is built once, the first time it shows, and kept while hidden, paused,
 /// so nothing in it runs until it shows again.
 ///
@@ -42,13 +96,14 @@ type Kept<C> = Option<(Rc<NestedHost<C>>, Scope)>;
 /// branches build exactly one child, it also fills a slot that takes one `Child`; without a
 /// `fallback`, one that takes an optional child (`Option<Child>`).
 #[component]
-pub fn Show<C, B, F>(
-    value: Prop<bool>,
+pub fn Show<V, C, B, F>(
+    value: Prop<V>,
     #[prop(default = false)] keep_alive: bool,
     fallback: F,
-    #[prop(children)] then: RenderFn<(), B>,
+    #[prop(children)] then: RenderFn<V::Handed, B>,
 ) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
+    V: ShowValue,
     C: SlotChild,
     B: Branch<C>,
     F: Fallback<C>,
@@ -56,21 +111,46 @@ where
 {
     let then = built(then);
     let fallback = fallback.into_render();
+    let value = store(value);
+    let handed = StoredCell::new(None::<Signal<V::Inner>>);
+    let shown = RenderFn::new(move |()| {
+        let inner = V::split(value.with(Prop::get_untracked))
+            .expect("a `Show` builds its children while it has a value");
+        let (handed_now, signal) = V::hand(inner);
+        handed.set(signal);
+        then.call(handed_now)
+    });
+    let visible = Prop::dynamic(move || V::split(value.with(Prop::get)).is_some());
+    let refresh = move || {
+        if let (Some(signal), Some(inner)) = (handed.get(), V::split(value.with(Prop::get_untracked)))
+        {
+            V::refresh(signal, inner);
+        }
+    };
     <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(
         move |slot: ChildSlot<C>| match keep_alive {
-            false => show(value, [fallback, Some(then)], slot),
-            true => keep(value, [fallback, Some(then)], slot),
+            false => show(visible, [fallback, Some(shown)], refresh, slot),
+            true => keep(visible, [fallback, Some(shown)], refresh, slot),
         },
     ))
 }
 
-fn show<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], slot: ChildSlot<C>) {
+/// `refresh` gives what is shown its value again when the value changes and it stays shown.
+fn show<C: SlotChild>(
+    condition: Prop<bool>,
+    branches: [Option<Built<C>>; 2],
+    refresh: impl Fn() + 'static,
+    slot: ChildSlot<C>,
+) {
     let held = store(RefCell::new(None::<(bool, Option<Scope>)>));
     create_binding(move || {
         let visible = condition.get();
         let held = held.value();
         let mut held = held.borrow_mut();
         if held.as_ref().is_some_and(|(shown, _)| *shown == visible) {
+            if visible {
+                untrack(&refresh);
+            }
             return;
         }
         let built = branches[usize::from(visible)].map(|branch| mount(&slot, || branch.call(())));
@@ -81,12 +161,20 @@ fn show<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], sl
     });
 }
 
-fn keep<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], slot: ChildSlot<C>) {
+fn keep<C: SlotChild>(
+    condition: Prop<bool>,
+    branches: [Option<Built<C>>; 2],
+    refresh: impl Fn() + 'static,
+    slot: ChildSlot<C>,
+) {
     let held = store(RefCell::new([None, None] as [Kept<C>; 2]));
     let shown = StoredCell::new(None::<bool>);
     create_binding(move || {
         let visible = condition.get();
         if shown.get() == Some(visible) {
+            if visible {
+                untrack(&refresh);
+            }
             return;
         }
         shown.set(Some(visible));
@@ -97,7 +185,8 @@ fn keep<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], sl
             host.set_visible(false);
             scope.pause();
         }
-        if held[visible].is_none()
+        let built = held[visible].is_some();
+        if !built
             && let Some(branch) = branches[visible]
         {
             let scope = Scope::detached().pausable();
@@ -108,6 +197,9 @@ fn keep<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], sl
         }
         match held[visible].as_ref() {
             Some((host, scope)) => {
+                if built && visible == 1 {
+                    untrack(&refresh);
+                }
                 host.set_visible(true);
                 scope.resume();
             }
@@ -177,7 +269,8 @@ where
     )
 }
 
-/// Builds `view` from `value`, again each time it changes. Given a `fallback`, `value` is
+/// Builds `view` from `value`, again each time it changes to a value that differs from the
+/// last (`PartialEq`), so a value set again unchanged keeps what was built. Given a `fallback`, `value` is
 /// an `Option`: `view` takes what is in it, and the fallback shows while it is `None`. It
 /// fills a slot that takes one `Child` when what it builds is exactly one child.
 #[component]
@@ -187,7 +280,7 @@ pub fn Dynamic<V, C, B, F>(
     #[prop(children)] view: RenderFn<F::Handed, B>,
 ) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
-    V: Clone + 'static,
+    V: Clone + PartialEq + 'static,
     C: SlotChild,
     B: Branch<C>,
     F: ValueFallback<V, C>,
@@ -197,15 +290,16 @@ where
     let fallback = fallback.into_render();
     <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(
         move |slot: ChildSlot<C>| {
-            let held = store(RefCell::new(None::<(bool, Option<Scope>)>));
+            let held = store(RefCell::new(None::<(V, Option<Scope>)>));
             create_binding(move || {
-                let value = F::split(value.get());
+                let next = value.get();
                 let held = held.value();
                 let mut held = held.borrow_mut();
-                if value.is_none() && held.as_ref().is_some_and(|(some, _)| !some) {
+                if held.as_ref().is_some_and(|(last, _)| *last == next) {
                     return;
                 }
-                let some = value.is_some();
+                let shown = next.clone();
+                let value = F::split(next);
                 let built = match value {
                     Some(value) => Some(mount(&slot, || view.call(value))),
                     None => fallback.map(|fallback| mount(&slot, || fallback.call(()))),
@@ -213,30 +307,387 @@ where
                 if built.is_none() {
                     slot.fill(Vec::new());
                 }
-                drop(held.replace((some, built)));
+                drop(held.replace((shown, built)));
             });
         },
     ))
 }
 
+/// How a `ForEach` tells its items apart, and so what a row is handed. Without a `key`, an
+/// item is its own key: a changed item is a new row, built again and handed the item. With a
+/// `key`, a row stays while its item changes and is handed a signal of it.
+pub trait RowKey<T>: 'static {
+    type Key: Clone + Hash + Eq + 'static;
+    /// What a row is handed: the item, or a signal of it.
+    type Item: 'static;
+    /// Whether a row is kept while its item changes, and so handed a signal of it.
+    const KEEPS: bool;
+
+    fn key(&self, item: &T) -> Self::Key;
+
+    /// What a new row is handed for `item`, and the signal to keep it current, if it has one.
+    fn hand(item: T) -> (Self::Item, Option<Signal<T>>);
+
+    /// Gives a kept row its item again, which it sees if the item changed.
+    fn refresh(signal: Signal<T>, item: T);
+}
+
+impl<T: Clone + Hash + Eq + 'static> RowKey<T> for MissingProp {
+    type Key = T;
+    type Item = T;
+    const KEEPS: bool = false;
+
+    fn key(&self, item: &T) -> T {
+        item.clone()
+    }
+
+    fn hand(item: T) -> (T, Option<Signal<T>>) {
+        (item, None)
+    }
+
+    fn refresh(_signal: Signal<T>, _item: T) {}
+}
+
+impl<T, K, F> RowKey<T> for F
+where
+    T: Clone + PartialEq + 'static,
+    K: Clone + Hash + Eq + 'static,
+    F: Fn(&T) -> K + 'static,
+{
+    type Key = K;
+    type Item = ReadSignal<T>;
+    const KEEPS: bool = true;
+
+    fn key(&self, item: &T) -> K {
+        self(item)
+    }
+
+    fn hand(item: T) -> (ReadSignal<T>, Option<Signal<T>>) {
+        let signal = create_signal(item);
+        (signal.read_only(), Some(signal))
+    }
+
+    fn refresh(signal: Signal<T>, item: T) {
+        signal.set(item);
+    }
+}
+
+/// What a row closure takes: what its `ForEach` hands it, alone, or with the row's place in
+/// the list, which changes as rows move: `|item: T|` or `|item: T, index: ReadSignal<usize>|`.
+#[diagnostic::on_unimplemented(
+    message = "a `ForEach` row takes what the list hands it, `{I}`, and may take its index after it",
+    label = "write `|item: {I}|` or `|item: {I}, index: ReadSignal<usize>|`"
+)]
+pub trait RowArgs<I>: 'static {
+    fn row(item: I, index: ReadSignal<usize>) -> Self;
+}
+
+impl<I: 'static> RowArgs<I> for I {
+    fn row(item: I, _index: ReadSignal<usize>) -> I {
+        item
+    }
+}
+
+impl<I: 'static> RowArgs<I> for (I, ReadSignal<usize>) {
+    fn row(item: I, index: ReadSignal<usize>) -> Self {
+        (item, index)
+    }
+}
+
+/// A built row: one child stored as it is, or a run that fills a slot of the `Rows`.
+enum Row<C: SlotChild> {
+    One(C::Stored),
+    Run(SlotId, Rc<NestedHost<C>>),
+}
+
+impl<C: SlotChild> Clone for Row<C> {
+    fn clone(&self) -> Self {
+        match self {
+            Row::One(stored) => Row::One(stored.clone()),
+            Row::Run(slot, host) => Row::Run(*slot, host.clone()),
+        }
+    }
+}
+
+/// Where a `ForEach`'s rows go: each row that is a run fills a slot of its own, and the rows
+/// fill the `ForEach`'s place one after another, in the order of the items, so moving a row
+/// moves its whole run.
+struct Rows<C: SlotChild> {
+    slot: ChildSlot<C>,
+    next: Cell<u32>,
+    runs: RefCell<HashMap<SlotId, Vec<C::Stored>>>,
+    order: RefCell<Vec<Row<C>>>,
+    building: Cell<bool>,
+}
+
+impl<C: SlotChild> Rows<C> {
+    fn publish(&self) {
+        if self.building.get() {
+            return;
+        }
+        let runs = self.runs.borrow();
+        let mut items = Vec::new();
+        for row in self.order.borrow().iter() {
+            match row {
+                Row::One(stored) => items.push(stored.clone()),
+                Row::Run(slot, _) => items.extend(runs.get(slot).into_iter().flatten().cloned()),
+            }
+        }
+        self.slot.fill(items);
+    }
+
+    fn build(self: &Rc<Self>, children: Children<C>) -> Row<C> {
+        match children.into_only() {
+            Ok(child) => Row::One(self.slot.store(child)),
+            Err(children) => {
+                let host: Rc<dyn SlotHost<C>> = self.clone();
+                let slot = ChildSlot::in_host(host);
+                let id = SlotId::nth(self.next.get() - 1);
+                Row::Run(id, children.mount_in(slot))
+            }
+        }
+    }
+}
+
+impl<C: SlotChild> SlotHost<C> for Rows<C> {
+    fn store(&self, child: C) -> C::Stored {
+        self.slot.store(child)
+    }
+
+    fn append(&self, _stored: C::Stored) {
+        unreachable!("a row of a `ForEach` fills a slot of its own");
+    }
+
+    fn open(&self) -> SlotId {
+        let id = SlotId::nth(self.next.get());
+        self.next.set(self.next.get() + 1);
+        self.runs.borrow_mut().insert(id, Vec::new());
+        id
+    }
+
+    fn fill(&self, slot: SlotId, items: Vec<C::Stored>) {
+        if let Some(run) = self.runs.borrow_mut().get_mut(&slot) {
+            *run = items;
+        }
+        self.publish();
+    }
+}
+
+struct BuiltRow<C: SlotChild, T> {
+    row: Row<C>,
+    item: Option<Signal<T>>,
+    index: Signal<usize>,
+}
+
+impl<C: SlotChild, T> Clone for BuiltRow<C, T> {
+    fn clone(&self) -> Self {
+        Self {
+            row: self.row.clone(),
+            item: self.item,
+            index: self.index,
+        }
+    }
+}
+
+/// Builds `view` once for each item of `value` and keeps it while the item stays, in the
+/// order of `value`. Without a `key` an item is its own key, and a row is handed the item;
+/// with one a row is handed a signal of its item, which changes in place. A row may take
+/// its `index` too. A row builds any number of children. Given a `fallback`, it shows while
+/// `value` is empty.
 #[component]
-pub fn ForEach<K, C, R>(
-    value: Prop<Vec<K>>,
-    #[prop(children)] view: RenderFn<K, R>,
+pub fn ForEach<T, KF, H, C, R, F>(
+    value: Prop<Vec<T>>,
+    key: KF,
+    fallback: F,
+    #[prop(children)] view: RenderFn<H, R>,
 ) -> DynamicSegment<C>
 where
-    K: Clone + Hash + Eq + 'static,
+    T: Clone + 'static,
+    KF: RowKey<T>,
+    H: RowArgs<KF::Item>,
     C: SlotChild,
-    R: IntoChild<C> + 'static,
+    R: Branch<C>,
+    F: Fallback<C>,
 {
+    let fallback = fallback.into_render();
+    let key = Rc::new(key);
     DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let built = slot.clone();
-        let rows = store(KeyedItems::new(move |key: K| {
-            built.store(view.call(key).into_child())
-        }));
+        let rows = Rc::new(Rows {
+            slot: slot.clone(),
+            next: Cell::new(0),
+            runs: RefCell::default(),
+            order: RefCell::default(),
+            building: Cell::new(false),
+        });
+        let pending = Rc::new(RefCell::new(
+            HashMap::<KF::Key, VecDeque<(T, usize)>>::default(),
+        ));
+        let built = {
+            let rows = rows.clone();
+            let pending = pending.clone();
+            store(KeyedItems::new(move |at: KF::Key| {
+                let (item, index) = pending
+                    .borrow_mut()
+                    .get_mut(&at)
+                    .and_then(VecDeque::pop_front)
+                    .expect("a row is built for an item of this pass");
+                let (handed, item) = KF::hand(item);
+                let index = create_signal(index);
+                let children = view.call(H::row(handed, index.read_only())).into_children();
+                BuiltRow {
+                    row: rows.build(children),
+                    item,
+                    index,
+                }
+            }))
+        };
+        let empty = store(RefCell::new(None::<Scope>));
         create_binding(move || {
-            let keys = value.get();
-            rows.value().map(keys).commit(|items, _| slot.fill(items));
+            let items = value.get();
+            if items.is_empty()
+                && let Some(fallback) = fallback
+            {
+                let empty = empty.value();
+                let mut empty = empty.borrow_mut();
+                if empty.is_none() {
+                    *empty = Some(mount(&slot, || fallback.call(())));
+                }
+                drop(built.value().map(Vec::new()));
+                rows.order.borrow_mut().clear();
+                rows.runs.borrow_mut().clear();
+                return;
+            }
+            drop(empty.value().borrow_mut().take());
+            let mut keys = Vec::with_capacity(items.len());
+            let mut changed = Vec::new();
+            {
+                let mut pending = pending.borrow_mut();
+                pending.clear();
+                for (index, item) in items.into_iter().enumerate() {
+                    let at = key.key(&item);
+                    if KF::KEEPS {
+                        changed.push(Some(item.clone()));
+                    } else {
+                        changed.push(None);
+                    }
+                    pending.entry(at.clone()).or_default().push_back((item, index));
+                    keys.push(at);
+                }
+            }
+            rows.building.set(true);
+            built.value().map(keys).commit(|kept, gone| {
+                let mut runs = rows.runs.borrow_mut();
+                for gone in gone {
+                    if let Row::Run(slot, _) = gone.row {
+                        runs.remove(&slot);
+                    }
+                }
+                drop(runs);
+                for (index, (built, item)) in kept.iter().zip(changed).enumerate() {
+                    if built.index.get_untracked() != index {
+                        built.index.set(index);
+                    }
+                    if let (Some(signal), Some(item)) = (built.item, item) {
+                        KF::refresh(signal, item);
+                    }
+                }
+                *rows.order.borrow_mut() = kept.into_iter().map(|built| built.row).collect();
+            });
+            pending.borrow_mut().clear();
+            rows.building.set(false);
+            rows.publish();
+        });
+    })
+}
+
+/// What a `Case` tests the value of its `Match` with, beside `is`: a closure over the value,
+/// or nothing.
+pub trait CaseWhen<V>: 'static {
+    fn holds(&self, value: &V) -> bool;
+}
+
+impl<V> CaseWhen<V> for MissingProp {
+    fn holds(&self, _value: &V) -> bool {
+        true
+    }
+}
+
+impl<V, W: Fn(&V) -> bool + 'static> CaseWhen<V> for W {
+    fn holds(&self, value: &V) -> bool {
+        self(value)
+    }
+}
+
+/// One case of a `Match`, made by `Case`.
+pub struct CaseOf<V: 'static, C: SlotChild> {
+    test: Box<dyn Fn(&V) -> bool>,
+    view: RenderFn<V, Children<C>>,
+}
+
+crate::value_child_type!(<V, C: SlotChild> CaseOf<V, C>);
+
+/// A case of a `Match`: it holds when the value equals `is` and `when` holds of it (either
+/// may be left out), and its children are built from the value.
+#[component]
+pub fn Case<V, C, B, W>(
+    #[prop(default = None)] is: Option<V>,
+    when: W,
+    #[prop(children)] view: RenderFn<V, B>,
+) -> CaseOf<V, C>
+where
+    V: PartialEq + 'static,
+    C: SlotChild,
+    B: Branch<C>,
+    W: CaseWhen<V>,
+{
+    CaseOf {
+        test: Box::new(move |value| is.as_ref().is_none_or(|is| is == value) && when.holds(value)),
+        view: built(view),
+    }
+}
+
+/// Shows the first `Case` that holds for `value`, built from the value, and `fallback`, if
+/// given, while none does. It builds again when the value changes to one that differs from
+/// the last (`PartialEq`), as a `Dynamic` does:
+/// `<Match value={shape}><Case is={Shape::Circle}>..</Case><Case when={|s: &Shape| s.is_round()}>..</Case></Match>`.
+#[component]
+pub fn Match<V, C, F>(
+    value: Prop<V>,
+    fallback: F,
+    #[prop(children)] cases: Children<CaseOf<V, C>>,
+) -> DynamicSegment<C>
+where
+    V: Clone + PartialEq + 'static,
+    C: SlotChild,
+    F: Fallback<C>,
+{
+    let fallback = fallback.into_render();
+    let cases = cases.into_run();
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let held = store(RefCell::new(None::<(V, Option<Scope>)>));
+        let cases = cases.clone();
+        create_binding(move || {
+            let next = value.get();
+            let held = held.value();
+            let mut held = held.borrow_mut();
+            if held.as_ref().is_some_and(|(last, _)| *last == next) {
+                return;
+            }
+            let case = cases
+                .items()
+                .into_iter()
+                .find(|case| (case.test)(&next));
+            let built = match case {
+                Some(case) => {
+                    let value = next.clone();
+                    Some(mount(&slot, move || case.view.call(value)))
+                }
+                None => fallback.map(|fallback| mount(&slot, || fallback.call(()))),
+            };
+            if built.is_none() {
+                slot.fill(Vec::new());
+            }
+            drop(held.replace((next, built)));
         });
     })
 }

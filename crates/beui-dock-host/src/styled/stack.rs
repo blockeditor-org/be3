@@ -331,7 +331,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </ListRow>
                 </ListItem>
                 <List spacing=Space::None>
-                    <Show value={closable}>
+                    {closable.then(|| view! {
                         <Button
                             icon_only=true
                             @test_id={close_id.clone()}
@@ -340,7 +340,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                             variant=ButtonVariant::Ghost
                             on_click={close}
                         />
-                    </Show>
+                    })}
                     <Show value={offered}>
                         <MenuButton
                             icon_only=true
