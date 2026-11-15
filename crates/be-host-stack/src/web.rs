@@ -94,6 +94,27 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }
 
+thread_local! {
+    static FIRST: std::cell::RefCell<Vec<Box<dyn FnMut()>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// On the host's worker, has `work` run at the start of each pass of a stack's loop, ahead of
+/// the pass's own work: the host's files are kept first (be-host's `host_files`), so a change
+/// to them waits for no pass to end.
+pub fn run_first(work: impl FnMut() + 'static) {
+    FIRST.with_borrow_mut(|first| first.push(Box::new(work)));
+}
+
+/// Runs what `run_first` asked for.
+pub(super) fn first() {
+    FIRST.with(|first| {
+        for work in first.borrow_mut().iter_mut() {
+            work();
+        }
+    });
+}
+
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
     let _ = sealed;
     None
