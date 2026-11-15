@@ -383,10 +383,13 @@ fn carry_keys(
         };
     }
     if let Some(toward) = toward.filter(|_| modifiers.ctrl && modifiers.shift) {
-        if lift_by_keys(drag, at, lifted) {
-            driver.step(toward);
-            driver.release(PointerId::Keyboard, false, &flat);
+        // A press that lifts nothing is the source's own; one with no place that way puts the
+        // carry down, dropping nothing.
+        if !lift_by_keys(drag, at, lifted) {
+            return false;
         }
+        let stepped = driver.step(toward);
+        driver.release(PointerId::Keyboard, !stepped, &flat);
         return true;
     }
     if press.key != Key::Space || activates || modifiers.ctrl || modifiers.shift {
