@@ -1,7 +1,9 @@
 # The dock keeps its panels with KeepAlive
 
-Depends on: the format-bar work on keyboard gifts into joined editors (`content_moved`,
-`key_placers` in beui-dock-host) landing first; this builds on its hand-off.
+Depends on: none. (The format-bar work on keyboard gifts into joined editors, `content_moved` and
+`key_placers` in be-host, does not touch the dock's hand-off; where a dock tab view takes the focus
+it clears the instance's main-view rebuild, `forget_main_rebuild` in be-host's `app_view.rs`, which
+matters only if kept panels rebuild app view catchers.)
 
 **Today.** beui-dock-host keeps every panel it built in hand-written caches: `panels` and
 `panel()`/`keep_panels`/`forget_panel` in `unstyled.rs`, and `BarPanels`/`bar_panel()`/
@@ -38,8 +40,14 @@ app's popup in another tab no longer shows that tab.
   loop; with `awake` counting as shown, only the holder tabs need it.
 
 **Prerequisites.**
-1. The keyboard hand-off: the tab shown takes the keyboard (from an app child too) before an app's
-   late refocus can reach it, whether or not its panel is built yet.
+1. The keyboard hand-off, in the dock's keyboard bookkeeping (`unstyled/keyboard.rs`,
+   `remember_focus` and the `content_keyboard` path `content_focused` feeds): a `content_focused`
+   for a tab the dock hid since (no longer its pane's active entry) is recorded as the focus to
+   give back when that tab is shown again, not taken as a request to show it. An app refocusing
+   its trigger as a popup closes is normal and must not move the dock; the host cannot tell a
+   stale report from a real click, so the fix is not there. Check it against what
+   `content_focused` showing a hidden tab is for (a stacked dock handing on the keyboard a tab's
+   content had: `a_stacked_dock_hands_on_the_keyboard_a_tabs_content_had_until_something_else_takes_it`).
 2. App children (`be-sdk-beui` `child.rs`, `SubregionView`) follow `kept_shown()` and report
    hidden as it turns false, before their scope pauses, rather than through `measure`.
 
