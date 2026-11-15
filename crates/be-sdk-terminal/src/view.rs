@@ -234,9 +234,6 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
                 .as_ref()
                 .map(|shown| shown.pieces(colors))
                 .unwrap_or_default()
-                .into_iter()
-                .enumerate()
-                .collect::<Vec<_>>()
         })
     });
     let overflow = create_memo(move || {
@@ -255,7 +252,7 @@ fn TerminalRow(key: ReadSignal<ObjectId>, table: Table) -> NodeId {
     });
     view! {
         <Text style=TEXT color={move || TextColor::Custom(foreground.get().into())} overflow carets>
-            <ForEach value={pieces}>|(_, piece): (usize, Piece)|
+            <ForEach value={pieces}>|piece: Piece|
                 <TerminalPiece piece />
             </ForEach>
         </Text>

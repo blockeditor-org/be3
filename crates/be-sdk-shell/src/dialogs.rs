@@ -212,7 +212,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             })
         })
     });
-    let error_text = create_memo(move || error.get().unwrap_or_default());
     let query = create_memo(move || {
         state.with(|share| {
             share
@@ -223,14 +222,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     let suggestions = create_memo(move || {
         state.with(|share| share.as_ref().and_then(|share| share.suggestions(me)))
-    });
-    let suggestion_keys = create_memo(move || {
-        suggestions
-            .get()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|person| person.id)
-            .collect::<Vec<_>>()
     });
     let pending = create_memo(move || {
         state.with(|share| {
@@ -282,7 +273,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     });
     let inside =
         create_memo(move || state.with(|share| share.as_ref().and_then(Share::inside_note)));
-    let inside_text = create_memo(move || inside.get().unwrap_or_default());
     let member_keys = create_memo(move || {
         members
             .get()
@@ -321,8 +311,8 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             on_dismiss={move || workspace.close_dialog()}
         >
             <List spacing=Space::Md>
-                <Show value={move || error.with(Option::is_some)}>
-                    <Text style=TextStyle::CAPTION>{error_text}</Text>
+                <Show value={error}>|error: ReadSignal<String>|
+                    <Text style=TextStyle::CAPTION>{error}</Text>
                 </Show>
                 <Show value={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -337,21 +327,17 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     @test_id={"share.query"}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
-                <Show value={move || suggestions.with(Option::is_some)}>
+                <Show value={suggestions}>|suggestions: ReadSignal<Vec<Person>>|
                     <Card>
                         <List spacing=Space::Xs>
-                            <Show
-                                value={move || suggestions.with(|suggestions| suggestions.as_ref().is_some_and(Vec::is_empty))}
-                            >
-                                <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
-                            </Show>
-                            <ForEach value={suggestion_keys}>|id: Uuid| {
+                            <ForEach
+                                value={move || suggestions.with(|suggestions| suggestions.iter().map(|person| person.id).collect::<Vec<_>>())}
+                                fallback={|| view! {
+                                    <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
+                                }}
+                            >|id: Uuid| {
                                 let person = create_memo(move || {
-                                    suggestions
-                                        .get()
-                                        .unwrap_or_default()
-                                        .into_iter()
-                                        .find(|person| person.id == id)
+                                    suggestions.with(|suggestions| suggestions.iter().find(|person| person.id == id).cloned())
                                 });
                                 view! {
                                     <SuggestionButton person act={act} />
@@ -438,13 +424,13 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         />
                     </List>
                 </Show>
-                <Show value={move || inside.with(Option::is_some)}>
+                <Show value={inside}>|inside: ReadSignal<String>|
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text size=TextSize::Sm align=TextAlign::Center>
                             <Icon glyph=ICON_TRIANGLE_ALERT />
                         </Text>
                         <Text style=TextStyle::CAPTION @test_id={"share.inside"}>
-                            {inside_text}
+                            {inside}
                         </Text>
                     </List>
                 </Show>
@@ -515,9 +501,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
     let email = create_memo(move || member.get().map(|member| member.email).unwrap_or_default());
     let fixed = create_memo(move || member.get().and_then(|member| member.fixed));
     let is_fixed = create_memo(move || fixed.with(Option::is_some));
-    let fixed_text = create_memo(move || fixed.get().unwrap_or_default());
     let note = create_memo(move || member.get().and_then(|member| member.note));
-    let note_text = create_memo(move || note.get().unwrap_or_default());
     let access_label = move || {
         member
             .get()
@@ -551,7 +535,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 <Text size=TextSize::Lg>{name}</Text>
                             </List>
                             <Text style=TextStyle::CAPTION>{email}</Text>
-                            <Show value={is_fixed}>
+                            <Show value={fixed}>|fixed: ReadSignal<String>|
                                 <List
                                     direction=Direction::Horizontal
                                     align=Align::Center
@@ -560,11 +544,11 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                     <Text size=TextSize::Sm align=TextAlign::Center>
                                         <Icon glyph=ICON_LOCK />
                                     </Text>
-                                    <Text style=TextStyle::CAPTION>{fixed_text}</Text>
+                                    <Text style=TextStyle::CAPTION>{fixed}</Text>
                                 </List>
                             </Show>
-                            <Show value={move || note.with(Option::is_some)}>
-                                <Text style=TextStyle::CAPTION>{note_text}</Text>
+                            <Show value={note}>|note: ReadSignal<String>|
+                                <Text style=TextStyle::CAPTION>{note}</Text>
                             </Show>
                         </List>
                     </ListItem>

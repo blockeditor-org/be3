@@ -156,17 +156,16 @@ fn DatabaseValueControl(
     on_pick: Callback<DatabaseBlockPickRequest>,
     on_submit: Callback<Uuid>,
 ) -> DynamicSegment<ListItem> {
-    let kind = create_memo(move || {
-        field.with(|field| {
-            field.as_ref().map(|field| match field.field_type {
-                DatabaseFieldType::Relation if field.relation_options.multiple => None,
-                other => Some(other),
-            })
-        })
-    });
     view! {
         <Dynamic
-            value={kind}
+            value={move || {
+                field.with(|field| {
+                    field.as_ref().map(|field| match field.field_type {
+                        DatabaseFieldType::Relation if field.relation_options.multiple => None,
+                        other => Some(other),
+                    })
+                })
+            }}
             fallback={|| view! {
                 <Frame />
             }}
