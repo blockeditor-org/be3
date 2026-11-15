@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::hash::Hash;
 use std::rc::Rc;
+use std::time::Duration;
 
 use be_lib_stable_hash::HashMap;
 
@@ -94,6 +95,11 @@ struct State<K: 'static, P: 'static> {
     glides: RefCell<HashMap<NodeId, (NodeId, GlideApi)>>,
     /// The rows shown, as the `ForEach` or `VirtualList` that shows them reports them.
     rows: ForEachRef<K, NodeId>,
+    /// Set while a move the `Reorder` makes (a drag, a drop, a step) is laid out: rows glide
+    /// only then, so an order changed for any other reason snaps, as any list does.
+    moving: Cell<bool>,
+    /// Clears `moving` once the frame that made the move is laid out.
+    moved: Cell<Option<Timer>>,
     board: Rc<Board>,
     gone: Cell<bool>,
     returning: Cell<bool>,
@@ -167,6 +173,14 @@ fn along(direction: Direction, pos: Pos2) -> f32 {
 
 fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
     !state.disabled.get_untracked() && state.payload.call(key.clone()).is_some()
+}
+
+/// Marks a move the `Reorder` makes, so the rows it moves glide.
+fn mark_move<K, P>(state: &State<K, P>) {
+    state.moving.set(true);
+    if let Some(moved) = state.moved.get() {
+        moved.restart(Duration::ZERO);
+    }
 }
 
 /// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
@@ -408,6 +422,7 @@ where
             let slot = slot_at(state, &rest, Some(&lifted.key), span, lifted.slot, 0.0);
             if lifted.slot != slot {
                 lifted.slot = slot;
+                mark_move(state);
                 state.lifted.set(Some(lifted));
             }
         }
@@ -467,6 +482,7 @@ where
         let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
         match (gap, state.gap.get_untracked()) {
             (Some(gap), Some(shown)) if gap.before != shown.before => {
+                mark_move(state);
                 state.gap.set(Some(ReorderGap {
                     before: gap.before,
                     size: shown.size,
@@ -626,6 +642,7 @@ where
         {
             *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
         }
+        mark_move(state);
         if state.pressed.borrow_mut().take().is_some() {
             state.board.release();
         }
@@ -703,6 +720,7 @@ where
             shut(state);
         }
         state.visited.set(false);
+        mark_move(state);
         if let Some(own) = &own {
             announce(state, own, index, keys.len());
         }
@@ -743,6 +761,7 @@ where
             return None;
         }
         let rest = rest_of(&keys, &key);
+        mark_move(state);
         state.raised.set(Some(key.clone()));
         announce(state, &key, to, keys.len());
         Some(ReorderMove {
@@ -961,6 +980,8 @@ where
         arrival: RefCell::new(None),
         glides: RefCell::new(HashMap::default()),
         rows: ForEachRef::new(),
+        moving: Cell::new(false),
+        moved: Cell::new(None),
         board: drag_board(),
         gone: Cell::new(false),
         returning: Cell::new(false),
@@ -993,6 +1014,11 @@ where
         move || settle_gap(state),
     );
     state.with(|state| state.frames.set(Some(frames)));
+    let moved = create_timer(move || {
+        state.with(|state| state.moving.set(false));
+        None
+    });
+    state.with(|state| state.moved.set(Some(moved)));
     create_effect(move || {
         keys.track();
         state.with(|state| {
@@ -1161,8 +1187,8 @@ where
         })
     });
     let order = reorder.order;
-    // A row's glides arm when its key moves in the order, and when the gap the list holds
-    // open moves past it: rows a gap passes shift with no change of place. A row a
+    // A row's glides arm when a move the `Reorder` makes moves its key in the order, or moves
+    // the gap it holds open past it: rows a gap passes shift with no change of place. A row a
     // `VirtualList` hands another key has not moved: it shows another row now.
     let place = create_memo(move || order.with(|order| key.with(|key| order.iter().position(|shown| shown == key))));
     let below_gap = create_memo(move || {
@@ -1178,7 +1204,8 @@ where
     create_effect_on_change(
         move || (key.get(), place.get(), below_gap.get()),
         move |(key, place, gap), (was_key, was_place, was_gap)| {
-            if key == was_key && (place != was_place || gap != was_gap) {
+            let moving = state.with(|state| state.moving.get());
+            if moving && key == was_key && (place != was_place || gap != was_gap) {
                 shifted.notify();
             }
         },
