@@ -149,6 +149,34 @@ pub struct ByClosure;
 pub struct ByLift;
 pub struct ByClosureLifted;
 
+/// How an optional prop of type `Option<Prop<T>>` takes what a tag passes it: anything a
+/// `Prop<T>` prop takes, as `Some`, or another component's `Option<Prop<T>>` passed on as
+/// it is.
+#[diagnostic::on_unimplemented(
+    message = "a `{Self}` cannot be passed as an optional `{T}` prop",
+    label = "pass a `{T}`, a signal or memo of one, a closure returning one, or an `Option<Prop<{T}>>` to pass on"
+)]
+pub trait IntoOptionalProp<T, M> {
+    fn into_optional_prop(self) -> Option<Prop<T>>;
+}
+
+/// Marks an optional prop given a value: see `IntoOptionalProp`.
+pub struct Given<M>(std::marker::PhantomData<M>);
+/// Marks an optional prop passed on from another component's.
+pub struct PassedOn;
+
+impl<T, M, V: IntoPropWith<T, M>> IntoOptionalProp<T, Given<M>> for V {
+    fn into_optional_prop(self) -> Option<Prop<T>> {
+        Some(self.into_prop_with())
+    }
+}
+
+impl<T> IntoOptionalProp<T, PassedOn> for Option<Prop<T>> {
+    fn into_optional_prop(self) -> Option<Prop<T>> {
+        self
+    }
+}
+
 /// How a prop typed by a type parameter of its own component (`Show`'s, `Dynamic`'s and
 /// `Keyed`'s `value`) takes what a tag passes it: a signal, memo or `Prop` of the value, or a
 /// closure computing it. The value's type comes from what is passed, so a plain value, which
