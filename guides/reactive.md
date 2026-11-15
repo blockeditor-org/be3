@@ -216,6 +216,9 @@ Traps:
   its content) does not hold it back.
 - A value that will never arrive (a block the viewer cannot see) must settle
   its root, or it holds the boundary for ever.
+- A boundary waits only for what is read under it, never for what was made or
+  called there: a body that must hold its `<Loaded>` until a value arrives
+  reads it, even if only as a snapshot (`let _ = layout.get_untracked();`).
 
 ## Blocks
 
