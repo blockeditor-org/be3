@@ -25,6 +25,7 @@ members = [
     "crates/be-server-portal-ui",
     "crates/be-server",
     "crates/be-server-bin",
+    "crates/be-block-search-index",
     "crates/be-block-session",
     "crates/be-block-sync",
     "crates/be-block-type-host",

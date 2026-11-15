@@ -10,7 +10,6 @@ pub mod input_settings;
 pub mod organization;
 pub mod profile;
 pub mod resolution;
-pub mod search_index;
 pub mod settings;
 pub mod version_control;
 pub mod workspace_settings;

@@ -41,6 +41,7 @@ members = [
     "crates/be-block-model",
     "crates/be-block-model-derive",
     "crates/be-block-protocol",
+    "crates/be-block-search-index",
     "crates/be-block-session",
     "crates/be-block-sqlite-schema",
     "crates/be-block-store",

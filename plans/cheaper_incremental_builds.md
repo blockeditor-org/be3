@@ -116,7 +116,7 @@ beui-draw, beui-runner and accesskit directly.
 
 ## Note: apps that use no built-in
 
-plans/shared_crates_per_platform.md, step 2, makes be-sdk depend on be-block-content only. For
+plans/shared_crates_per_platform.md, step 1, makes be-sdk depend on be-block-content only. For
 caching it matters only if be-sdk-beui's dependency on be-block goes too: cutting be-sdk's edge
 alone frees 1 of 28 apps from rebuilding on a be-block edit (27 of 300 commits), since
 be-sdk-beui also depends on be-block; cutting both frees 20 of 28, the eight apps that use a

@@ -344,7 +344,7 @@ index and search it locally.
   every viewer of that root can read, and only `show` hides it by access. Treat
   a moved or trashed block's old text as still readable by that root's viewers
   (plans/deferred/search.md, "Limits accepted").
-- **The content** is `be_block::search_index::SearchIndexContent`, a
+- **The content** is `be_block_search_index::SearchIndexContent`, a
   `be_lib_search::Index` kept as the block's parts: the header first (all a
   replica loads, `Loads::FirstPart`), then every part the header names, read by
   range. Two sides merge by parts (`MergeParts`, the union `Index::merge`

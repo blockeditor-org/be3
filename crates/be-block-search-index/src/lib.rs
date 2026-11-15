@@ -431,3 +431,6 @@ impl MergeParts for SearchIndexContent {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;
