@@ -1,13 +1,19 @@
+//! Carrying out a dynamically linked app's Plan (be-wasm-dylink) on an isolate, as
+//! crates/be-host/web/dylink.js does in the browser: the root library is instantiated first, the
+//! memory grown to hold the rest, and each library and then the app instantiated against
+//! `WebAssembly.Global`s for their addresses and thread-locals, the root's function table, and
+//! the functions earlier modules export.
+
 use std::sync::{Arc, Mutex};
 
 use be_wasm_dylink::{
     APPLY_DATA_RELOCS, CONSTRUCTORS, Described, INIT_TLS, Import, PAGE_SIZE, Plan, STACK_POINTER,
     TABLE, TLS_BASE,
 };
-use wasmtime::{
-    Error, Extern, ExternType, Func, Global, GlobalType, Instance, Linker, Module, Mutability, Ref,
-    SharedMemory, Store, Table, Val, ValType,
-};
+
+use crate::engine::{self, Kind, Module};
+use crate::instance::{self, Answers};
+use crate::state::View;
 
 #[derive(Clone)]
 pub(crate) enum Program {
@@ -31,8 +37,8 @@ impl Program {
     }
 }
 
-pub(crate) fn libraries(module: &Module) -> Result<Vec<String>, String> {
-    be_wasm_dylink::libraries(module.exports().map(|export| export.name()))
+pub(crate) fn libraries(module: &engine::Shape) -> Result<Vec<String>, String> {
+    be_wasm_dylink::libraries(module.exports.iter().map(|export| export.name.as_str()))
 }
 
 pub(crate) struct Linked {
@@ -41,7 +47,13 @@ pub(crate) struct Linked {
 }
 
 impl Linked {
-    pub(crate) fn take(&self, memory: &SharedMemory) -> Result<u32, String> {
+    /// A thread-local block for a new thread, growing the memory by `grow` for more when none is
+    /// free.
+    pub(crate) fn take(
+        &self,
+        store: &v8::SharedRef<v8::BackingStore>,
+        grow: &mut dyn FnMut(u32) -> Result<u32, String>,
+    ) -> Result<u32, String> {
         let blocks = self.plan.blocks;
         if blocks.size == 0 {
             return Ok(0);
@@ -52,17 +64,20 @@ impl Linked {
             .map_err(|_| "the thread-local blocks were poisoned".to_owned())?;
         if free.is_empty() {
             let pages = blocks.pages;
-            let start = memory.grow(u64::from(pages)).map_err(|error| {
+            let start = grow(pages).map_err(|error| {
                 format!("the memory could not grow for thread-local storage: {error}")
             })?;
-            let start = u32::try_from(start * u64::from(PAGE_SIZE))
-                .map_err(|_| "thread-local storage lies past a 32-bit address space".to_owned())?;
+            let start = start
+                .checked_mul(PAGE_SIZE)
+                .ok_or("thread-local storage lies past a 32-bit address space")?;
             free.extend(blocks.carve(start, pages).into_iter().rev());
         }
         let block = free
             .pop()
             .ok_or("no thread-local block fits in the pages grown for them")?;
-        write(memory, block, &vec![0; blocks.size as usize])?;
+        View::of(store)
+            .write(block, &vec![0; blocks.size as usize])
+            .map_err(|_| "thread-local storage ran past the end of the shared memory")?;
         Ok(block)
     }
 
@@ -80,58 +95,44 @@ fn describe(module: &Module, name: String) -> Described {
     let mut described = Described {
         name,
         imports: module
-            .imports()
-            .map(|import| (import.module().to_owned(), import.name().to_owned()))
+            .shape
+            .imports
+            .iter()
+            .map(|import| (import.module.clone(), import.name.clone()))
             .collect(),
         ..Described::default()
     };
-    for export in module.exports() {
-        let name = export.name().to_owned();
-        match export.ty() {
-            ExternType::Func(_) | ExternType::Tag(_) => {
-                described.functions.insert(name.clone());
+    for export in &module.shape.exports {
+        match export.kind {
+            Kind::Function | Kind::Tag => {
+                described.functions.insert(export.name.clone());
             }
-            ExternType::Global(_) => {
-                described.globals.insert(name.clone());
+            Kind::Global => {
+                described.globals.insert(export.name.clone());
             }
-            _ => {}
+            Kind::Table | Kind::Memory(_) => {}
         }
-        described.exports.push(name);
+        described.exports.push(export.name.clone());
     }
     described
 }
 
-fn exported_i32<T>(instance: &Instance, store: &mut Store<T>, name: &str) -> Option<i32> {
-    instance
-        .get_global(&mut *store, name)
-        .and_then(|global| global.get(&mut *store).i32())
+fn exported_i32(
+    scope: &mut v8::PinScope<'_, '_>,
+    exports: v8::Local<v8::Object>,
+    name: &str,
+) -> Option<i32> {
+    let global = engine::get(scope, exports, name)?;
+    engine::global_value(scope, global)
 }
 
-fn global<T>(store: &mut Store<T>, value: i32, mutability: Mutability) -> Result<Global, String> {
-    Global::new(
-        &mut *store,
-        GlobalType::new(ValType::I32, mutability),
-        Val::I32(value),
-    )
-    .map_err(|error| format!("an app global could not be made: {error}"))
-}
-
-fn table<T>(root: &Instance, store: &mut Store<T>) -> Result<Table, String> {
-    root.get_table(&mut *store, TABLE)
+fn table<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    root: v8::Local<v8::Object>,
+) -> Result<v8::Local<'s, v8::Object>, String> {
+    engine::get(scope, root, TABLE)
+        .and_then(|table| table.to_object(scope))
         .ok_or_else(|| format!("the root library does not export {TABLE}"))
-}
-
-fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
-    let data = memory.data();
-    let end = (at as usize)
-        .checked_add(bytes.len())
-        .filter(|end| *end <= data.len())
-        .ok_or("thread-local storage ran past the end of the shared memory")?;
-    for (cell, byte) in data[at as usize..end].iter().zip(bytes) {
-        // unsafe(ffi)
-        unsafe { *cell.get() = *byte };
-    }
-    Ok(())
 }
 
 fn name(modules: &[Module], index: usize, identities: &[String]) -> String {
@@ -142,12 +143,12 @@ fn name(modules: &[Module], index: usize, identities: &[String]) -> String {
     }
 }
 
-pub(crate) fn plan<T>(
-    store: &mut Store<T>,
+pub(crate) fn plan(
+    scope: &mut v8::PinScope<'_, '_>,
     modules: &[Module],
     identities: &[String],
-    root: &Instance,
-    memory: &SharedMemory,
+    root: v8::Local<v8::Object>,
+    memory: v8::Local<v8::Object>,
 ) -> Result<Arc<Linked>, String> {
     let described: Vec<Described> = modules
         .iter()
@@ -155,14 +156,17 @@ pub(crate) fn plan<T>(
         .map(|(index, module)| describe(module, name(modules, index, identities)))
         .collect();
     let pages = be_wasm_dylink::pages(&described)?;
-    let placed = memory
-        .grow(u64::from(pages))
+    let placed = crate::threads::grow(scope, memory, pages)
         .map_err(|error| format!("the memory could not grow to hold the app: {error}"))?;
-    let placed = u32::try_from(placed * u64::from(PAGE_SIZE))
-        .map_err(|_| "the app lies past a 32-bit address space".to_owned())?;
-    let size = table(root, store)?.size(&mut *store);
+    let placed = placed
+        .checked_mul(PAGE_SIZE)
+        .ok_or("the app lies past a 32-bit address space")?;
+    let table = table(scope, root)?;
+    let size = engine::get(scope, table, "length")
+        .and_then(|length| length.uint32_value(scope))
+        .ok_or("the function table has no length")?;
     Ok(Arc::new(Linked {
-        plan: be_wasm_dylink::plan(&described, placed, size)?,
+        plan: be_wasm_dylink::plan(&described, placed, u64::from(size))?,
         free: Mutex::new(Vec::new()),
     }))
 }
@@ -173,28 +177,24 @@ pub(crate) struct Thread {
     pub(crate) main: bool,
 }
 
-fn fill_slots<T>(
-    store: &mut Store<T>,
-    table: &Table,
+fn fill_slots(
+    scope: &mut v8::PinScope<'_, '_>,
+    table: v8::Local<v8::Object>,
     plan: &Plan,
-    instance: &Instance,
+    exports: v8::Local<v8::Object>,
     module: usize,
 ) -> Result<(), String> {
     for slot in plan.slots.iter().filter(|slot| slot.module == module) {
-        let function = instance.get_func(&mut *store, &slot.name).ok_or_else(|| {
+        let function = instance::function(scope, exports, &slot.name).ok_or_else(|| {
             format!(
                 "the address of {} is taken, and nothing exports it",
                 slot.name
             )
         })?;
-        table
-            .set(&mut *store, slot.slot, Ref::Func(Some(function)))
-            .map_err(|error| {
-                format!(
-                    "{} could not be put in the function table: {error}",
-                    slot.name
-                )
-            })?;
+        let index = engine::number(scope, slot.slot as f64);
+        engine::call(scope, table, "set", &[index, function.into()]).ok_or_else(|| {
+            format!("{} could not be put in the function table", slot.name)
+        })?;
     }
     Ok(())
 }
@@ -203,42 +203,30 @@ fn unexported(name: &str) -> String {
     format!("{name} is imported, and the module the plan names does not export it")
 }
 
-fn answered<T>(
-    store: &mut Store<T>,
-    linker: &Linker<T>,
-    import: &wasmtime::ImportType<'_>,
-) -> Result<Extern, String> {
-    if let Some(answered) = linker.get_by_import(&mut *store, import) {
-        return Ok(answered);
+fn called(result: Option<Result<v8::Local<v8::Value>, ()>>, failure: &str) -> Result<(), String> {
+    match result {
+        None | Some(Ok(_)) => Ok(()),
+        Some(Err(())) => Err(failure.to_owned()),
     }
-    let (from, name) = (import.module(), import.name());
-    let signature =
-        import.ty().func().cloned().ok_or_else(|| {
-            format!("the app imports {from}.{name}, which its host does not answer")
-        })?;
-    let refusal = format!("the app called {from}.{name}, which its host does not answer");
-    Ok(Func::new(&mut *store, signature, move |_, _, _| {
-        Err(Error::msg(refusal.clone()))
-    })
-    .into())
 }
 
-pub(crate) fn link<T>(
-    store: &mut Store<T>,
-    linker: &Linker<T>,
+/// Instantiates every module after the root against it, as the plan says, and answers the app's
+/// exports.
+pub(crate) fn link<'s>(
+    scope: &mut v8::PinScope<'s, '_>,
+    answers: &Answers<'s>,
     modules: &[Module],
     linked: &Linked,
-    root: Instance,
+    root: v8::Local<'s, v8::Object>,
     thread: &Thread,
-) -> Result<Instance, String> {
+) -> Result<v8::Local<'s, v8::Object>, String> {
     let plan = &linked.plan;
-    let table = table(&root, store)?;
-    table
-        .grow(&mut *store, plan.table_grow, Ref::Func(None))
-        .map_err(|error| format!("the function table could not grow for the app: {error}"))?;
-    fill_slots(store, &table, plan, &root, 0)?;
-    let stack_pointer = root
-        .get_global(&mut *store, STACK_POINTER)
+    let table = table(scope, root)?;
+    let grown = engine::number(scope, f64::from(plan.table_grow as u32));
+    engine::call(scope, table, "grow", &[grown])
+        .ok_or("the function table could not grow for the app")?;
+    fill_slots(scope, table, plan, root, 0)?;
+    let stack_pointer = engine::get(scope, root, STACK_POINTER)
         .ok_or_else(|| format!("the root library does not export {STACK_POINTER}"))?;
     let mut instances = vec![root];
     for (index, module) in modules.iter().enumerate().skip(1) {
@@ -246,96 +234,93 @@ pub(crate) fn link<T>(
         let mut imports = Vec::new();
         let mut own = Vec::new();
         let mut thread_locals = Vec::new();
-        for (import, resolution) in module.imports().zip(&placed.imports) {
-            let name = import.name();
-            let resolved: Extern = match *resolution {
+        for (import, resolution) in module.shape.imports.iter().zip(&placed.imports) {
+            let name = import.name.as_str();
+            let resolved: v8::Local<v8::Value> = match *resolution {
                 Import::Table => table.into(),
-                Import::StackPointer => stack_pointer.into(),
-                Import::Constant(value) => global(store, value, Mutability::Const)?.into(),
-                Import::FunctionSlot(value) => global(store, value, Mutability::Var)?.into(),
-                Import::Function(definer) => instances[definer]
-                    .get_export(&mut *store, name)
-                    .filter(|export| matches!(export, Extern::Func(_) | Extern::Tag(_)))
+                Import::StackPointer => stack_pointer,
+                Import::Constant(value) => engine::global(scope, value, false)?,
+                Import::FunctionSlot(value) => engine::global(scope, value, true)?,
+                Import::Function(definer) => engine::get(scope, instances[definer], name)
+                    .filter(|export| export.is_function() || export.is_object())
                     .ok_or_else(|| unexported(name))?,
                 Import::Address(definer) if definer < index => {
-                    let value = exported_i32(&instances[definer], store, name)
+                    let value = exported_i32(scope, instances[definer], name)
                         .ok_or_else(|| unexported(name))?;
-                    global(store, plan.address(definer, value)? as i32, Mutability::Var)?.into()
+                    engine::global(scope, plan.address(definer, value)? as i32, true)?
                 }
                 Import::Address(_) => {
-                    let entry = global(store, 0, Mutability::Var)?;
+                    let entry = engine::global(scope, 0, true)?;
                     own.push((name.to_owned(), entry));
-                    entry.into()
+                    entry
                 }
                 Import::ThreadLocal(definer) => {
-                    let entry = global(store, 0, Mutability::Var)?;
+                    let entry = engine::global(scope, 0, true)?;
                     thread_locals.push((name.to_owned(), definer, entry));
-                    entry.into()
+                    entry
                 }
-                Import::Elsewhere => answered(store, linker, &import)?,
+                Import::Elsewhere => answers.answer(scope, import)?,
             };
-            imports.push(resolved);
+            imports.push((import, resolved));
         }
-        let instance = Instance::new(&mut *store, module, &imports)
-            .map_err(|error| format!("the app could not be instantiated: {error}"))?;
+        let exports = instance::instantiate(scope, module, imports)?;
         for (name, entry) in own {
-            let value = exported_i32(&instance, store, &name).ok_or_else(|| unexported(&name))?;
-            entry
-                .set(&mut *store, Val::I32(plan.address(index, value)? as i32))
-                .map_err(|error| format!("{name} could not be relocated: {error}"))?;
+            let value = exported_i32(scope, exports, &name).ok_or_else(|| unexported(&name))?;
+            engine::set_global_value(scope, entry, plan.address(index, value)? as i32)
+                .ok_or_else(|| format!("{name} could not be relocated"))?;
         }
-        fill_slots(store, &table, plan, &instance, index)?;
-        if thread.main
-            && let Ok(relocate) = instance.get_typed_func::<(), ()>(&mut *store, APPLY_DATA_RELOCS)
-        {
-            relocate
-                .call(&mut *store, ())
-                .map_err(|error| format!("the app's data could not be relocated: {error}"))?;
+        fill_slots(scope, table, plan, exports, index)?;
+        if thread.main {
+            called(
+                instance::call_export(scope, exports, APPLY_DATA_RELOCS, &[]),
+                "the app's data could not be relocated",
+            )?;
         }
-        if let Ok(initialize) = instance.get_typed_func::<u32, ()>(&mut *store, INIT_TLS) {
-            initialize
-                .call(&mut *store, plan.block(thread.blocks, index))
-                .map_err(|error| format!("thread-local storage could not be set up: {error}"))?;
-        }
-        let own_base = exported_i32(&instance, store, TLS_BASE).unwrap_or(0) as u32;
+        let block = v8::Integer::new_from_unsigned(scope, plan.block(thread.blocks, index)).into();
+        called(
+            instance::call_export(scope, exports, INIT_TLS, &[block]),
+            "thread-local storage could not be set up",
+        )?;
+        let own_base = exported_i32(scope, exports, TLS_BASE).unwrap_or(0) as u32;
         for (name, definer, entry) in thread_locals {
             let base = match definer {
                 0 => thread.root_block,
-                _ => exported_i32(&instances[definer], store, TLS_BASE).unwrap_or(0) as u32,
+                _ => exported_i32(scope, instances[definer], TLS_BASE).unwrap_or(0) as u32,
             };
-            let offset =
-                exported_i32(&instances[definer], store, &name).ok_or_else(|| unexported(&name))?;
+            let offset = exported_i32(scope, instances[definer], &name)
+                .ok_or_else(|| unexported(&name))?;
             let slot =
                 be_wasm_dylink::thread_local_slot(base.wrapping_add_signed(offset), own_base);
-            entry
-                .set(&mut *store, Val::I32(slot))
-                .map_err(|error| format!("the thread-local {name} could not be placed: {error}"))?;
+            engine::set_global_value(scope, entry, slot)
+                .ok_or_else(|| format!("the thread-local {name} could not be placed"))?;
         }
-        if thread.main
-            && let Ok(constructors) = instance.get_typed_func::<(), ()>(&mut *store, CONSTRUCTORS)
-        {
-            constructors
-                .call(&mut *store, ())
-                .map_err(|error| format!("the app could not run its constructors: {error}"))?;
+        if thread.main {
+            called(
+                instance::call_export(scope, exports, CONSTRUCTORS, &[]),
+                "the app could not run its constructors",
+            )?;
         }
-        instances.push(instance);
+        instances.push(exports);
     }
     instances
         .pop()
         .ok_or_else(|| "there is no module to link".to_owned())
 }
 
-pub(crate) fn main_thread_locals<T>(store: &mut Store<T>, root: &Instance) -> Result<u32, String> {
-    exported_i32(root, store, TLS_BASE)
+pub(crate) fn main_thread_locals(
+    scope: &mut v8::PinScope<'_, '_>,
+    root: v8::Local<v8::Object>,
+) -> Result<u32, String> {
+    exported_i32(scope, root, TLS_BASE)
         .map(|base| base as u32)
         .ok_or_else(|| format!("the root library does not export {TLS_BASE}"))
 }
 
 pub(crate) fn spawned_thread_locals(
-    memory: &SharedMemory,
+    store: &v8::SharedRef<v8::BackingStore>,
     start_argument: i32,
 ) -> Result<u32, String> {
     let at = be_wasm_dylink::spawned_thread_locals(start_argument)?;
-    let bytes = crate::state::read(memory, at, 4)?;
+    let bytes = View::of(store).read(at, 4)?;
     Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }

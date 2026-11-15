@@ -4,7 +4,7 @@ use be_wasm_gpu_abi::device as abi;
 
 fn host() -> Host {
     let (device, queue) = wgpu::Device::noop(&wgpu::DeviceDescriptor::default());
-    Host::new(device, queue, None).unwrap()
+    Host::new(device, queue).unwrap()
 }
 
 fn escaped(bytes: &[u8]) -> String {
@@ -227,7 +227,6 @@ mod a_guest_that_never_reaches_the_gpu_opens_no_device;
 mod a_guest_that_reaches_the_gpu_without_a_device_is_told_why;
 mod a_library_that_is_not_what_it_is_named_is_refused;
 mod a_pure_guest_echoes_and_wakes_on_a_thread_of_its_own;
-mod a_pure_guest_is_loaded_from_its_precompiled_module;
 mod a_pure_guest_may_not_import_wasi;
 mod a_pure_guest_may_not_outgrow_its_memory_limit;
 mod a_pure_guest_that_hangs_is_interrupted;
@@ -246,4 +245,3 @@ mod an_app_that_panics_reports_its_panic_message;
 mod an_interrupted_app_stops_on_every_thread;
 mod an_interrupted_host_loads_no_app;
 mod the_thread_local_diamond_runs_on_every_thread;
-mod v8_runs_a_wasm_module;
