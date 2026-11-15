@@ -1511,7 +1511,7 @@ fn BlockFrameView(
     let instance = view_editor.instance;
     let framed = create_memo(move || content.with(Option::is_some));
     create_effect(move || {
-        let _ = framed.get();
+        framed.track();
         be_host_runtime::hold(&app_id.value(), instance, ViewId::MAIN);
     });
     let revision = super::listen(&app_id.value());
@@ -2062,13 +2062,14 @@ fn follow_window(
     let asks = create_signal(0u64);
     let given =
         create_memo(move || child.with(|child| child.as_ref().is_some_and(|child| child.keyboard)));
-    let held = StoredCell::new(false);
-    create_effect(move || {
-        let given = given.get() && window.with(Option::is_some);
-        if !held.replace(given) && given {
-            untrack(|| asks.update(|asks| *asks += 1));
-        }
-    });
+    create_effect_on(
+        move || given.get() && window.with(Option::is_some),
+        move |&given, held| {
+            if given && held != Some(&true) {
+                asks.update(|asks| *asks += 1);
+            }
+        },
+    );
     let placer = move || {
         editors
             .handle(parent)

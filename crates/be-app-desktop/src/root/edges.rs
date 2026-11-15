@@ -282,10 +282,7 @@ fn HiddenBandEdge(
             untrack(|| open.set(true));
         }
     });
-    create_effect(move || {
-        open.get();
-        untrack(nudge);
-    });
+    create_effect_on(move || open.track(), move |_, _| nudge());
 
     let near = create_memo(move || heard.get().is_some_and(|state| state.near));
     let going = create_timer(move || {

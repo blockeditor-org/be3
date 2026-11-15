@@ -289,20 +289,19 @@ pub fn BackSlide(
         }
     });
     if let Some(open) = open {
-        let was_open = Cell::new(true);
-        create_effect(move || {
-            let open = open.get();
-            if open == was_open.replace(open) {
-                return;
-            }
-            untrack(|| {
+        create_effect_on(
+            move || open.get(),
+            move |&open, was| {
+                if open == was.copied().unwrap_or(true) {
+                    return;
+                }
                 let slide = slide.value();
                 match open {
                     true => slide.reset(),
                     false => slide.leave(),
                 }
-            });
-        });
+            },
+        );
     }
     let page = view! {
         <Frame translate={shift}>{children}</Frame>

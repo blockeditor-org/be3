@@ -10,7 +10,7 @@ fn disposal_releases_captured_resources() {
     let effect = scope.run(|| {
         create_effect(move || {
             let _ = &resource;
-            value.get();
+            value.track();
         })
     });
     value.set(2);

@@ -359,7 +359,7 @@ fn live_text(
             true => {
                 let _ = content.revision();
             }
-            false => stored.with(|_| ()),
+            false => stored.track(),
         }
         untrack(|| {
             if !adopted.is_alive() {

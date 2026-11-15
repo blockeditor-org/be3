@@ -41,7 +41,7 @@ fn a_frame_of_moves_dragging_a_window_changes_the_dock_once() {
     let changes = Rc::new(std::cell::Cell::new(0));
     let counted = Rc::clone(&changes);
     create_effect(move || {
-        layout.state().with(|_| ());
+        layout.state().track();
         counted.set(counted.get() + 1);
     });
 

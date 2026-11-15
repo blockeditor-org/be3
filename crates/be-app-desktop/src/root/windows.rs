@@ -406,8 +406,8 @@ fn WindowChip(
     });
     let face = NodeRef::new();
     create_effect(move || {
-        count.get();
-        icons.get();
+        count.track();
+        icons.track();
         if focused.get() {
             untrack(|| face.get().reveal());
         }

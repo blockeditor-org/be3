@@ -146,18 +146,22 @@ impl DockedTabs {
         let menus = link.menus.handle();
         let sizes = link.bar_sizes.read_only();
         let menued = Rc::downgrade(&link);
-        create_effect(move || {
-            frame.with(|frame| crate::beui_frame::menu_entries(frame));
-            sizes.with(|_| ());
-            menus.with(|menus| {
-                for (_, items) in menus.values() {
-                    items.with(|items| crate::beui_frame::menu_entries(items));
+        create_effect_on(
+            move || {
+                frame.with(|frame| crate::beui_frame::menu_entries(frame));
+                sizes.track();
+                menus.with(|menus| {
+                    for (_, items) in menus.values() {
+                        items.with(|items| crate::beui_frame::menu_entries(items));
+                    }
+                });
+            },
+            move |_, _| {
+                if let Some(link) = menued.upgrade() {
+                    link.send();
                 }
-            });
-            if let Some(link) = menued.upgrade() {
-                untrack(|| link.send());
-            }
-        });
+            },
+        );
         let picking = Rc::downgrade(&link);
         let pushed = link.pushed;
         let picks = link.host.clone();
@@ -611,7 +615,7 @@ impl DockHostLink for ProtocolLink {
         let hosts = self.bodies.borrow().as_ref().map(|bodies| bodies.hosts);
         create_effect(move || {
             if let Some(hosts) = hosts {
-                hosts.get();
+                hosts.track();
             }
             let held = hosted.with(|hosted| {
                 hosted

@@ -10,7 +10,7 @@ fn a_held_value_keeps_what_it_showed_while_its_source_reloads() {
     create_effect({
         let runs = runs.clone();
         move || {
-            held.get();
+            held.track();
             runs.set(runs.get() + 1);
         }
     });

@@ -1092,7 +1092,7 @@ fn EditingFixture() -> NodeId {
     });
     let round_trip = create_memo(move || {
         let at = caret.get();
-        content.with(|_| ());
+        content.track();
         let Some(geometry) = geometry.get() else {
             return "Round trip unmeasured".to_owned();
         };

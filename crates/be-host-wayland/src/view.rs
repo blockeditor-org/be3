@@ -172,7 +172,7 @@ pub fn WindowView(
                         on_report={|_: WindowReport| {}}
                     >|_: WindowHandle| {
                         create_effect(move || {
-                            rect.get();
+                            rect.track();
                             if let Some(node) = popup_catcher.try_get() {
                                 windows.popups_caught_by(id, node);
                             }
@@ -204,16 +204,17 @@ pub fn WindowView(
         </Layers>
     };
     let grabs = signals.grabs;
-    let carried = StoredCell::new(grabs.get_untracked().0);
-    create_effect(move || {
-        let (asked, grab) = grabs.get();
-        if carried.replace(asked) == asked {
-            return;
-        }
-        if let (Some(begin), Some(grab)) = (&begin, grab) {
-            begin(grab);
-        }
-    });
+    create_effect_on_change(
+        move || grabs.get(),
+        move |&(asked, grab), &(carried, _)| {
+            if asked == carried {
+                return;
+            }
+            if let (Some(begin), Some(grab)) = (&begin, grab) {
+                begin(grab);
+            }
+        },
+    );
     let asks = signals.asks;
     let answered = signals.answered.clone();
     create_effect(move || {
@@ -227,16 +228,14 @@ pub fn WindowView(
         answered.set(asked);
         untrack(|| node.focus());
     });
-    let focused_asks = StoredCell::new(untrack(|| focus.get()));
-    create_effect(move || {
-        let asked = focus.get();
-        if focused_asks.replace(asked) == asked {
-            return;
-        }
-        if let Some(node) = catcher.try_get() {
-            untrack(|| node.focus());
-        }
-    });
+    create_effect_on_change(
+        move || focus.get(),
+        move |_, _| {
+            if let Some(node) = catcher.try_get() {
+                node.focus();
+            }
+        },
+    );
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {

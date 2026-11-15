@@ -173,7 +173,7 @@ pub(crate) fn install() {
     let spring = beui::native::try_with_document(|_| ()).map(|()| Spring::new());
     SPRING.set(spring);
     create_effect(move || {
-        areas.with(|_| ());
+        areas.track();
         let moving = gesture.with(|gesture| gesture.as_ref().map(|gesture| gesture.key.clone()));
         let moving = moving.or_else(|| spring.and_then(|spring| spring.settling.get()));
         let displays = desktop_displays();
@@ -867,13 +867,12 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
             overshoot.set(Vec2::ZERO);
         },
     );
-    let was_moving = Cell::new(false);
-    create_effect(move || {
-        let now_moving = moving.get();
-        if now_moving == was_moving.replace(now_moving) {
-            return;
-        }
-        untrack(|| {
+    create_effect_on(
+        move || moving.get(),
+        move |&now_moving, was_moving| {
+            if now_moving == was_moving.copied().unwrap_or(false) {
+                return;
+            }
             let viewport = viewport.get_untracked();
             match now_moving {
                 true => {
@@ -894,8 +893,8 @@ pub(crate) fn carried(key: FloatedKey, viewport: Memo<Vec2>) -> Memo<Rect> {
                     bounce.start();
                 }
             }
-        });
-    });
+        },
+    );
     create_effect(move || {
         if !moving.get() {
             return;

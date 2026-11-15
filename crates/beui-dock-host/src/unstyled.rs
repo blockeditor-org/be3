@@ -907,17 +907,18 @@ impl State {
             },
             move || shown.set(target.get_untracked()),
         );
-        let was = Cell::new(icons_only.get_untracked());
-        create_effect(move || {
-            let width = target.get();
-            if icons_only.get() != was.replace(icons_only.get()) {
-                from.set(shown.get_untracked());
-                animation.stop();
-                animation.start();
-            } else if !animation.running() {
-                shown.set(width);
-            }
-        });
+        create_effect_on(
+            move || (target.get(), icons_only.get()),
+            move |&(width, icons_only), previous| {
+                if previous.is_some_and(|&(_, was)| was != icons_only) {
+                    from.set(shown.get_untracked());
+                    animation.stop();
+                    animation.start();
+                } else if !animation.running() {
+                    shown.set(width);
+                }
+            },
+        );
         create_memo(move || shown.get())
     }
 
@@ -2183,18 +2184,21 @@ fn DockStack(dock: State) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let panel = create_signal(None);
-    let previous = Cell::new(None);
-    create_effect(move || {
-        let tab = shown
-            .get()
-            .filter(|tab| away.get() != Some(*tab) && staged.with(Option::is_none));
-        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
-        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
-        panel.set(tab.map(|tab| dock.panel(tab)));
-        if let Some(tab) = tab.filter(|_| held) {
-            untrack(|| dock.give_keyboard(tab));
-        }
-    });
+    create_effect_on(
+        move || {
+            shown
+                .get()
+                .filter(|tab| away.get() != Some(*tab) && staged.with(Option::is_none))
+        },
+        move |&tab, previous| {
+            let left = previous.copied().flatten().filter(|left| Some(*left) != tab);
+            let held = left.is_some_and(|left| dock.remember_focus(left));
+            panel.set(tab.map(|tab| dock.panel(tab)));
+            if let Some(tab) = tab.filter(|_| held) {
+                dock.give_keyboard(tab);
+            }
+        },
+    );
     let vacant = create_memo(move || shown.with(Option::is_none));
     let occupied = create_memo(move || shown.with(Option::is_some));
     let backward = create_memo(move || state.with(|state| state.back().is_some()));
@@ -3001,16 +3005,17 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let panel = create_signal(None);
-    let previous = Cell::new(None);
-    create_effect(move || {
-        let tab = shown.get().filter(|tab| away.get() != Some(*tab));
-        let left = previous.replace(tab).filter(|left| Some(*left) != tab);
-        let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
-        panel.set(tab.map(|tab| dock.panel(tab)));
-        if let Some(tab) = tab.filter(|_| held) {
-            untrack(|| dock.give_keyboard(tab));
-        }
-    });
+    create_effect_on(
+        move || shown.get().filter(|tab| away.get() != Some(*tab)),
+        move |&tab, previous| {
+            let left = previous.copied().flatten().filter(|left| Some(*left) != tab);
+            let held = left.is_some_and(|left| dock.remember_focus(left));
+            panel.set(tab.map(|tab| dock.panel(tab)));
+            if let Some(tab) = tab.filter(|_| held) {
+                dock.give_keyboard(tab);
+            }
+        },
+    );
     let gone = dock.away_from(shown);
     let left = create_memo(move || gone.with(Option::is_some));
     let occupied = create_memo(move || shown.with(Option::is_some) && gone.with(Option::is_none));
@@ -3793,26 +3798,27 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     let parent = dock.watch_home();
     let placement = create_memo(move || dock.placement(surface, parent.get()));
     let shown_at = StoredCell::new(None::<Pos2>);
-    let area_was = StoredCell::new(None::<Pos2>);
-    create_effect(move || {
-        let corner = area.get().min;
-        let Some(was) = area_was.replace(Some(corner)) else {
-            return;
-        };
-        let Some(shown) = shown_at.get() else {
-            return;
-        };
-        if was == corner || !hosted.get_untracked() {
-            return;
-        }
-        let kept = was - corner;
-        shown_at.set(Some(shown + kept));
-        dock.edit(|state| {
-            if let Some(rect) = state.window_rect(surface) {
-                state.set_window_rect(surface, rect.translate(kept));
+    create_effect_on(
+        move || area.get().min,
+        move |&corner, was| {
+            let Some(&was) = was else {
+                return;
+            };
+            let Some(shown) = shown_at.get() else {
+                return;
+            };
+            if was == corner || !hosted.get() {
+                return;
             }
-        });
-    });
+            let kept = was - corner;
+            shown_at.set(Some(shown + kept));
+            dock.edit(|state| {
+                if let Some(rect) = state.window_rect(surface) {
+                    state.set_window_rect(surface, rect.translate(kept));
+                }
+            });
+        },
+    );
     let contents = create_memo(move || {
         state.with(|state| {
             state
@@ -3843,9 +3849,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         dock.stacked
             .try_with(|stacked| stacked.borrow_mut().remove(&surface));
     });
-    let shows = dock.state;
     create_effect(move || {
-        shows.with(DockState::shows);
+        dock.state.track();
         if focused.get() {
             untrack(|| dock.restack(surface));
         }

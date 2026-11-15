@@ -1154,8 +1154,8 @@ fn BrowserScroll(
     let shown = measure(node);
     let laid = measure(content);
     create_effect(move || {
-        shown.get();
-        laid.get();
+        shown.track();
+        laid.track();
         if shown.get_untracked().is_none() {
             return;
         }

@@ -452,13 +452,13 @@ pub(crate) fn AppView(
         placer.call(Some(placement));
     }
     create_effect(move || {
-        let _ = frame.get();
-        let _ = view.get();
-        let _ = zoom.get();
-        let _ = floated_rect.map(|rect| rect.get());
-        let _ = floated_placement.map(|placement| placement.get());
-        let _ = origin.get();
-        let _ = anchor_bounds.get();
+        frame.track();
+        view.track();
+        zoom.track();
+        floated_rect.map(|rect| rect.track());
+        floated_placement.map(|placement| placement.track());
+        origin.track();
+        anchor_bounds.track();
         placer.call(placed.get());
     });
     if shows_desktop {
@@ -870,7 +870,7 @@ pub(crate) fn AppView(
     let settled_view = store(shown_view.clone());
     create_effect(move || {
         revision.get();
-        typing.get();
+        typing.track();
         gifts::track(&app_id.value(), instance);
         if let Some((app, instance)) = gift_placer {
             gifts::track(app, instance);
@@ -902,7 +902,7 @@ pub(crate) fn AppView(
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
             revision.get();
-            rect.get();
+            rect.track();
             let parent = enclosing
                 .and_then(|Enclosing(parent)| parent.get())
                 .and_then(|parent| parent.try_get());
@@ -920,7 +920,7 @@ pub(crate) fn AppView(
             }
         });
         create_effect(move || {
-            used.get();
+            used.track();
             if let Some(node) = catcher.try_get() {
                 untrack(|| handoff::laid_out(node, now()));
             }
@@ -943,7 +943,6 @@ pub(crate) fn AppView(
                 .collect::<Vec<_>>()
         })
     });
-    let was_promoted = store(RefCell::new(Vec::<Uuid>::new()));
     let hand_to = move |to: NodeId, (within, lands_in): (Rect, Option<Rect>)| {
         let mut handed = handing.get();
         let cancel = handed.hand_to(to, within, lands_in, now());
@@ -959,18 +958,18 @@ pub(crate) fn AppView(
             );
         }
     };
-    create_effect(move || {
-        let promoted = promoted.get();
-        untrack(|| {
-            let blocks: Vec<Uuid> = promoted.iter().map(|(block, _)| *block).collect();
-            let before = was_promoted.value().replace(blocks.clone());
-            for gone in before.iter().filter(|block| !blocks.contains(block)) {
+    create_effect_on(
+        move || promoted.get(),
+        move |promoted, before| {
+            let before = before.map_or(&[][..], Vec::as_slice);
+            let holds = |list: &[(Uuid, _)], block: &Uuid| list.iter().any(|(held, _)| held == block);
+            for (gone, _) in before.iter().filter(|(block, _)| !holds(promoted, block)) {
                 handoff::stop_awaiting(*gone);
             }
             let Some(own) = catcher.try_get() else {
                 return;
             };
-            for (block, within) in promoted.iter().filter(|(block, _)| !before.contains(block)) {
+            for (block, within) in promoted.iter().filter(|(block, _)| !holds(before, block)) {
                 let within = *within;
                 match handoff::receiver_of(own, *block) {
                     Some(to) => hand_to(to, within),
@@ -980,8 +979,8 @@ pub(crate) fn AppView(
                     ),
                 }
             }
-        });
-    });
+        },
+    );
     if let Some(pan_drag) = pan_drag {
         create_effect(move || {
             if pan_drag.asked.get() == 0 {
@@ -1547,20 +1546,17 @@ fn follow_panel_asks(panel: Memo<Option<(Vec2, super::desktop::Panel)>>, handle:
                 })
         })
     });
-    let seen = StoredCell::new(asked.get_untracked());
-    create_effect(move || {
-        let (moves, resizes, edge) = asked.get();
-        let (moved, resized, _) = seen.get();
-        seen.set((moves, resizes, edge));
-        untrack(|| {
+    create_effect_on_change(
+        move || asked.get(),
+        move |&(moves, resizes, edge), &(moved, resized, _)| {
             if moves != moved {
                 handle.begin_move();
             }
             if resizes != resized {
                 handle.begin_resize(edge);
             }
-        });
-    });
+        },
+    );
 }
 
 fn gesture_of(carry: Carry) -> be_sdk_window_stack::Gesture {

@@ -25,7 +25,7 @@ fn CountingCanvas(editor: be_sdk_beui::Editor, ids: Vec<Uuid>) -> NodeId {
         let signals = state.entities.watch(id);
         let stored = signals.stored();
         create_effect(move || {
-            stored.with(|_| ());
+            stored.track();
             WOKEN.with_borrow_mut(|woken| *woken.entry(id).or_default() += 1);
         });
     }
