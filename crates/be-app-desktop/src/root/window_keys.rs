@@ -1,4 +1,5 @@
 use be_sdk_beui::beui::dock_host::styled::DockHostLayout;
+use be_sdk_beui::beui::dock_host::styled::DockTabKeys;
 use be_sdk_beui::beui::dock_host::styled::DockWindowActions;
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
@@ -49,6 +50,19 @@ impl WindowKeys {
             },
         }
     }
+}
+
+/// The dock's Next tab and Previous tab on the desktop: Super+Tab, so a program keeps Ctrl+Tab;
+/// where the system keeps Super (and Windows takes Ctrl+Alt+Tab too), Ctrl+Alt+PageDown/PageUp.
+pub(super) fn tab_keys(editor: Editor) -> Memo<DockTabKeys> {
+    let super_kept = editor.watch::<SuperKeptWatch>();
+    create_memo(move || match super_kept.get() {
+        false => DockTabKeys::SUPER,
+        true => DockTabKeys {
+            next: Chord::ctrl(Key::PageDown).alt(),
+            previous: Chord::ctrl(Key::PageUp).alt(),
+        },
+    })
 }
 
 #[component]
