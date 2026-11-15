@@ -57,7 +57,10 @@ fn offline_a_read_or_a_discard_works_out_its_blocks_reach_again_and_no_others() 
     read_head(block, head, move |read| {
         let _ = sender.send(read.is_ok());
     });
-    assert!(receiver.recv().expect("the read answers"), "the held head reads");
+    assert!(
+        receiver.recv().expect("the read answers"),
+        "the held head reads"
+    );
     let after_read = worked_out();
     assert!(
         after_read > before && after_read - before < 100,
@@ -74,5 +77,8 @@ fn offline_a_read_or_a_discard_works_out_its_blocks_reach_again_and_no_others() 
         "the discard had {} blocks' reach worked out",
         worked_out() - after_read
     );
-    assert!(!out_of_reach(block), "the counter is held whole, so in reach");
+    assert!(
+        !out_of_reach(block),
+        "the counter is held whole, so in reach"
+    );
 }

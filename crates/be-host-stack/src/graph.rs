@@ -712,7 +712,9 @@ impl Graph {
                         !self.nodes.contains_key(reference) || listed.members.contains(reference)
                     })
                 })
-            && !references.iter().any(|reference| self.placing.contains(reference))
+            && !references
+                .iter()
+                .any(|reference| self.placing.contains(reference))
     }
 
     pub fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
@@ -720,7 +722,11 @@ impl Graph {
             .nodes
             .get(&block)
             .map(|node| with_described(references.clone(), &node.metadata))
-            .filter(|all| self.nodes.get(&block).is_some_and(|node| node.references != *all));
+            .filter(|all| {
+                self.nodes
+                    .get(&block)
+                    .is_some_and(|node| node.references != *all)
+            });
         if let Some(all) = all
             && let Some(node) = self.node_mut(block)
         {
@@ -912,7 +918,10 @@ impl Graph {
     /// replica's is now: the overlay follows it, or the next listing would put the old one back.
     pub fn set_head(&mut self, block: Uuid, head: Option<CommitId>) {
         if let Some(head) = head
-            && self.reported.get(&block).is_some_and(|reported| *reported != head)
+            && self
+                .reported
+                .get(&block)
+                .is_some_and(|reported| *reported != head)
         {
             self.reported.insert(block, head);
         }
@@ -986,7 +995,9 @@ impl Graph {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
                     node.contents()
                         .iter()
-                        .filter_map(|reference| self.nodes.get(reference).map(|node| Node::clone(node)))
+                        .filter_map(|reference| {
+                            self.nodes.get(reference).map(|node| Node::clone(node))
+                        })
                         .collect()
                 });
             }
@@ -997,7 +1008,14 @@ impl Graph {
                 .map(|node| Node::clone(node))
                 .collect(),
             Query::Parents(block) => return self.ancestors(block),
-            Query::Block(block) => return self.nodes.get(&block).map(|node| Node::clone(node)).into_iter().collect(),
+            Query::Block(block) => {
+                return self
+                    .nodes
+                    .get(&block)
+                    .map(|node| Node::clone(node))
+                    .into_iter()
+                    .collect();
+            }
             Query::OpenSettings(block) => self
                 .listings
                 .get(&Listing::OpenSettings(block))

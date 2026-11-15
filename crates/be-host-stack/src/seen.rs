@@ -794,7 +794,6 @@ pub(crate) fn publish_now() {
     }
 }
 
-
 /// Whether this thread is a stack's worker.
 pub(crate) fn on_worker() -> bool {
     HERE.with(|here| here.borrow().is_some())

@@ -1702,12 +1702,10 @@ impl HostCore {
                                 (url, account),
                             ))
                         }
-                        Err(error) if !error.invalid_token => {
-                            match cached.is_empty() {
-                                true => Err(error),
-                                false => Ok(OrganizationResult::Cached(cached)),
-                            }
-                        }
+                        Err(error) if !error.invalid_token => match cached.is_empty() {
+                            true => Err(error),
+                            false => Ok(OrganizationResult::Cached(cached)),
+                        },
                         Err(error) => Err(error),
                     }
                 }

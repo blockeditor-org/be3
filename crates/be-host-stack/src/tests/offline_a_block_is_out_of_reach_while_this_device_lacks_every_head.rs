@@ -28,7 +28,10 @@ fn offline_a_block_is_out_of_reach_while_this_device_lacks_every_head() {
     flush_and_send();
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
-    assert!(!out_of_reach(block), "offline, a block held whole is in reach");
+    assert!(
+        !out_of_reach(block),
+        "offline, a block held whole is in reach"
+    );
 
     let (parent, elsewhere) = (Uuid::new_v4(), Uuid::new_v4());
     let lacked = be_block_commit::CommitId::from_hash(be_block_store::Hash::of(b"elsewhere"));

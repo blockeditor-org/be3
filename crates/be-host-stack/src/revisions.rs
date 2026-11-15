@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use super::{
     Content, Shared,
-    seen::Edit,
     replicas::Replicas,
+    seen::Edit,
     worker::{Command, Store},
 };
 
@@ -57,12 +57,9 @@ pub fn released(block: Uuid) -> bool {
 
 pub fn load(alias: Uuid, source: Uuid, content_type: Uuid) {
     let wanted = super::with_seen(|shared| {
-        shared
-            .revision_previews
-            .get(&alias)
-            .is_some_and(|preview| {
-                !preview.released && preview.content.is_none() && !preview.requested
-            })
+        shared.revision_previews.get(&alias).is_some_and(|preview| {
+            !preview.released && preview.content.is_none() && !preview.requested
+        })
     })
     .unwrap_or_default();
     if wanted {

@@ -82,7 +82,9 @@ impl Write {
             Write::SetSetting(key, _) if ACTIVE.contains(&key.as_str()) => {
                 "switching accounts".to_owned()
             }
-            Write::RemoveSettings(keys) if keys.iter().any(|key| ACTIVE.contains(&key.as_str())) => {
+            Write::RemoveSettings(keys)
+                if keys.iter().any(|key| ACTIVE.contains(&key.as_str())) =>
+            {
                 "switching accounts".to_owned()
             }
             Write::SetSetting(key, _) if key.starts_with("organization ") => {
@@ -261,7 +263,9 @@ impl Keeper {
     fn content(&self, table: &str) -> Result<Option<Vec<u8>>, HostStateError> {
         Ok(self
             .connection
-            .query_row(&format!("SELECT content FROM {table}"), [], |row| row.get(0))
+            .query_row(&format!("SELECT content FROM {table}"), [], |row| {
+                row.get(0)
+            })
             .optional()?)
     }
 

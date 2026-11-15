@@ -174,9 +174,9 @@ mod web {
         let (jobs, taken) = mpsc::unbounded_channel();
         let _ = jobs.send(Job::ReportTo(report));
         be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken)));
-        let (held, listed) = answered
-            .await
-            .map_err(|_| "the host's worker stopped before it read the host's files".to_owned())??;
+        let (held, listed) = answered.await.map_err(|_| {
+            "the host's worker stopped before it read the host's files".to_owned()
+        })??;
         let host_state = store(jobs.clone(), held);
         Ok((
             host_state,

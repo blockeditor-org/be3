@@ -45,9 +45,11 @@ fn a_keystroke_copies_no_more_of_a_large_graph_than_of_a_small_one() {
         shared
             .graph
             .want(Owner::Editor(u64::MAX - 1), vec![Query::Children(parent)]);
-        shared
-            .graph
-            .listed(crate::graph::Listing::Children(be_block_graph::BlockParent::Block(parent)), nodes, u64::MAX);
+        shared.graph.listed(
+            crate::graph::Listing::Children(be_block_graph::BlockParent::Block(parent)),
+            nodes,
+            u64::MAX,
+        );
     });
     assert!(with_graph(|graph| graph.nodes().count()).unwrap_or_default() > 20_000);
 

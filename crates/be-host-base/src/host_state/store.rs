@@ -5,11 +5,7 @@
 //! call (decisions/web_host_state_in_a_worker.md). Either way there is one copy the host reads
 //! and one file it is kept in.
 
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    path::Path,
-};
+use std::{cell::RefCell, collections::BTreeMap, path::Path};
 
 use be_block_protocol::Organization;
 use uuid::Uuid;
@@ -57,7 +53,12 @@ impl Held {
                     self.settings.get(ACTIVE[0]).map(String::as_str),
                     self.settings.get(ACTIVE[1]).map(String::as_str),
                 );
-                if active == (Some(saved.server.key()), Some(saved.id.to_string().as_str())) {
+                if active
+                    == (
+                        Some(saved.server.key()),
+                        Some(saved.id.to_string().as_str()),
+                    )
+                {
                     for key in ACTIVE {
                         self.settings.remove(key);
                     }

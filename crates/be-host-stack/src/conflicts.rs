@@ -45,7 +45,6 @@ pub fn is_side(shared: &super::Shared, block: Uuid, commit: CommitId) -> bool {
     })
 }
 
-
 pub fn dismiss(block: Uuid) {
     super::edit(vec![Edit::Dismiss(block)]);
     crate::changes::wake();

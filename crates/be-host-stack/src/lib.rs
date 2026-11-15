@@ -684,7 +684,9 @@ pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Arc<Vec<u8>>)> {
                         .map(|frame| (frame.block, Arc::clone(&frame.bytes))),
                 )
                 .collect::<Vec<_>>(),
-            queued.and_then(|queued| queued.last()).map(|frame| frame.number),
+            queued
+                .and_then(|queued| queued.last())
+                .map(|frame| frame.number),
         )
     };
     if let Some(upto) = upto {
@@ -1076,8 +1078,7 @@ pub fn busy(hurried: bool) -> Vec<String> {
 /// waiting to be sent, and everything it missed since it connected asked for. The block store
 /// not running is a reason too.
 pub fn unsynced() -> Vec<String> {
-    with_seen(Seen::unsynced)
-        .unwrap_or_else(|| vec!["the block store is not running".to_owned()])
+    with_seen(Seen::unsynced).unwrap_or_else(|| vec!["the block store is not running".to_owned()])
 }
 
 /// While a held clock keeps the type modules' timers from firing, when the soonest comes due
@@ -1612,9 +1613,9 @@ pub fn set_notify_mode(
 
 /// The server's VAPID public key, which a browser subscribes with.
 pub fn push_key(reply: impl FnOnce(Result<Vec<u8>, String>) + Send + 'static) {
-    send(Command::Push(worker::PushCommand::Key(seen::after_publish(
-        reply,
-    ))));
+    send(Command::Push(worker::PushCommand::Key(
+        seen::after_publish(reply),
+    )));
 }
 
 /// Registers this device's push endpoint for the signed-in account.
