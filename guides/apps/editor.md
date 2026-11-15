@@ -148,6 +148,17 @@ host stores the settings only on Apply. Regeneration reads its source as a
 projection, so `on_poll` answers `None` until the source arrives. Compiled
 logic is the example.
 
+## View state
+
+What the viewer would want back on reopening (where the text was scrolled and
+the caret, which folders were open) is a `ViewStateKind` value in the editor's
+view block, read and written with `editor.view_state::<K>()`
+(guides/blocks/workspaces.md, View state). Write it on every change, from an
+effect over what it describes: never debounce it, delay it on a timer, skip
+writes to save edits, or save only as the editor hides; a burst of writes is
+folded where it is stored. Put it back once, when `get()` first returns `Ok`
+(`keep` does both; the text editor's `keep_position` waits for its text too).
+
 ## Presence
 
 `presence_visible()` says whether anyone is looking at the block, which is

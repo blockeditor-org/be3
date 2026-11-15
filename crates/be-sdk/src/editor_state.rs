@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
+use be_block_content::{EditorViewContent, ViewStateKind};
 use be_lib_geometry::{CanvasView, Pos2, Rect, Vec2};
 use be_sdk_api::{ChildContent, FitArea, HostPanel, HostWindowId, WebViewId};
 use uuid::Uuid;
@@ -359,23 +359,14 @@ impl EditorCore {
             .map(|block| self.content_of::<EditorViewContent>(block))
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
-    }
-
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
+    /// Keeps `value` as the `K` in the view block (none removes it), unless it is kept already.
+    pub fn set_view_state<K: ViewStateKind>(&self, value: Option<&K>) {
         let Some(view) = self.view_content() else {
             return;
         };
         let client = self.0.host.client_id();
         let now = now_milliseconds();
-        let edit = view.read(|held| {
-            let root = held.root();
-            (root.state(key) != state).then(|| root.set_state(key, state, now, client))
-        });
+        let edit = view.read(|held| held.root().set_view_state(value, now, client));
         if let Some(edit) = edit.ok().flatten() {
             view.operate_anyway(edit);
         }

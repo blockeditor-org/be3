@@ -37,7 +37,8 @@ pub use chrome::{NARROW_WIDTH, SIDE_PANEL_WIDTH, Toolbar, narrow_chrome};
 pub use content::{ContentProjection, Lacking, OwnedContentProjection, Payload};
 pub use docked::SavedDockLayout;
 pub use editor::{
-    Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind, node_anchor,
+    Artifacts, Creation, Editor, KindsAbove, OrganizationLayers, OwnedEditor, SetKind,
+    ViewStateHandle, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use fitting::Fitting;

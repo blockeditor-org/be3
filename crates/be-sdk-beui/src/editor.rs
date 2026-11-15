@@ -2,8 +2,8 @@ use beui::dock::DockTabControl;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use be_block_content::EditorViewContent;
 use be_block_content::presence::{ChannelKind, PresenceKind};
-use be_block_content::{EditorViewContent, ViewState};
 use be_sdk_api::{
     BlockPick, ChildId, ChildLayer, ChildMode, DialogFrame, HostPanel, TopBar, Watched,
 };
@@ -440,20 +440,18 @@ impl Editor {
         self.state().core.host().view_block()
     }
 
-    pub fn view_content(&self) -> Option<ContentProjection<EditorViewContent>> {
-        self.view_block()
-            .map(|block| self.content_of::<EditorViewContent>(block))
+    /// Makes the nearest boundary wait until the view block is read, so what the editor puts
+    /// back from its view state is there before it first shows.
+    pub fn wait_for_view_state(&self) {
+        if let Some(block) = self.view_block() {
+            self.content_of::<EditorViewContent>(block);
+        }
     }
 
-    pub fn view_state(&self, key: &str) -> Option<ViewState> {
-        self.view_content()?
-            .read(|view| view.root().state(key).cloned())
-            .ok()
-            .flatten()
-    }
-
-    pub fn set_view_state(&self, key: &str, state: Option<&ViewState>) {
-        self.state().core.set_view_state(key, state);
+    /// The `K` kept in the editor's view block, which outlives the editor: where it was
+    /// scrolled, what was open. Read it with `get` and write it on every change with `set`.
+    pub fn view_state<K: be_block_content::ViewStateKind>(&self) -> ViewStateHandle<K> {
+        ViewStateHandle::new(*self)
     }
 
     pub fn related_content<C>(&self, block: Memo<Option<Uuid>>) -> crate::RelatedContent<C>
@@ -528,7 +526,7 @@ impl Editor {
         projection
     }
 
-    fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
+    pub(crate) fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
@@ -1461,8 +1459,10 @@ pub fn node_anchor(node: &NodeRef) -> Option<Rect> {
 
 mod settings;
 mod tags;
+mod view_state;
 
 pub use settings::{KindsAbove, OrganizationLayers, SetKind};
+pub use view_state::ViewStateHandle;
 
 #[cfg(test)]
 mod tests;

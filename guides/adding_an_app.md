@@ -86,7 +86,9 @@ another block.
 
 - Per-view state is a signal the component makes.
 - State worth keeping for this viewer (scroll position, open folders) goes in
-  the editor's view block: `editor.view_state(key)` and `set_view_state`.
+  the editor's view block: a `ViewStateKind` type read and written with
+  `editor.view_state::<K>()`, on every change (guides/blocks/workspaces.md,
+  View state).
 - Work derived from signals is an effect over them. Something that moves with
   time is a beui timer that stops when idle. Work finishing on another thread
   wakes the editor through `editor.woken()`'s `Waker`.

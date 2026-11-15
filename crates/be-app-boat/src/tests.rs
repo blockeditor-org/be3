@@ -14,7 +14,7 @@ use be_sdk_test::{BeuiTest, Fetch, HostCall};
 use be_type_boat::{BoatContent, BoatSettings, BoatSettingsContent};
 use uuid::Uuid;
 
-use crate::root::{BoatRoot, CACHE, Listed};
+use crate::root::{BoatRoot, Listed};
 
 mod a_block_without_a_key_shows_how_to_make_one;
 mod a_development_build_already_in_the_sandbox_is_not_uploaded_again;
@@ -232,8 +232,8 @@ impl Boat {
         self.test
             .content::<EditorViewContent>(Some(self.view))
             .root()
-            .state(CACHE)
-            .and_then(|state| state.value())
+            .view_state::<Listed>()
+            .and_then(Result::ok)
     }
 
     fn settings_blocks(&self) -> Vec<Uuid> {

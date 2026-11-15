@@ -1,4 +1,4 @@
-use be_sdk_beui::be_block_content::ViewState;
+use be_sdk_beui::be_block_content::ViewStateKind;
 use be_sdk_beui::be_sdk_ui::bytes_label;
 use be_sdk_beui::beui::icons::Glyph;
 use std::cell::{Cell, RefCell};
@@ -145,9 +145,8 @@ impl Row {
     }
 }
 
-const OPENED: &str = "opened";
-
-#[derive(Default, Deserialize, Serialize)]
+/// Which folders and sections are open, kept in the view so the tree reopens as it was.
+#[derive(Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 struct Opened {
     expanded: Vec<Uuid>,
@@ -156,6 +155,10 @@ struct Opened {
     shared_closed: bool,
     system: bool,
     unfiled: bool,
+}
+
+impl ViewStateKind for Opened {
+    const ID: Uuid = Uuid::from_u128(0x6669_6c65_2d74_7265_652d_6f70_656e_0001);
 }
 
 #[derive(Clone, Copy, Default, PartialEq)]
@@ -251,24 +254,8 @@ impl Tree {
             None
         });
 
-        let restored = Rc::new(Cell::new(false));
-        let adopted = Rc::clone(&restored);
-        let view = editor.view_content();
-        create_binding(move || {
-            if adopted.get() {
-                return;
-            }
-            let Some(view) = view else {
-                return;
-            };
-            let Ok(opened) = view.read(|held| {
-                held.root()
-                    .state(OPENED)
-                    .and_then(ViewState::value::<Opened>)
-            }) else {
-                return;
-            };
-            untrack(|| {
+        editor.view_state::<Opened>().keep(
+            move |opened| {
                 if let Some(opened) = opened {
                     expanded.set(opened.expanded.into_iter().collect());
                     collapsed.set(opened.collapsed.into_iter().collect());
@@ -279,9 +266,28 @@ impl Tree {
                         unfiled_open: opened.unfiled,
                     });
                 }
-            });
-            adopted.set(true);
-        });
+            },
+            move || {
+                let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
+                let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
+                let Folded {
+                    orphans_open,
+                    shared_closed,
+                    system_open,
+                    unfiled_open,
+                } = folded.get();
+                expanded.sort_unstable();
+                collapsed.sort_unstable();
+                Opened {
+                    expanded,
+                    orphans: orphans_open,
+                    collapsed,
+                    shared_closed,
+                    system: system_open,
+                    unfiled: unfiled_open,
+                }
+            },
+        );
 
         let build = Rc::clone(&watched);
         let host = editor.host();
@@ -418,33 +424,6 @@ impl Tree {
                 timer.start(due.saturating_duration_since(clock.now));
             }
             rows.set(built);
-        });
-        create_effect(move || {
-            let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
-            let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
-            let Folded {
-                orphans_open,
-                shared_closed,
-                system_open,
-                unfiled_open,
-            } = folded.get();
-            if !restored.get() {
-                return;
-            }
-            expanded.sort_unstable();
-            collapsed.sort_unstable();
-            let opened = ViewState::new(
-                &Opened {
-                    expanded,
-                    orphans: orphans_open,
-                    collapsed,
-                    shared_closed,
-                    system: system_open,
-                    unfiled: unfiled_open,
-                },
-                Vec::new(),
-            );
-            untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
         Self {
