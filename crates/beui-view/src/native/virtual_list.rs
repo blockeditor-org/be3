@@ -53,6 +53,7 @@ pub(crate) fn virtual_list<K>(
     item_size: Prop<f32>,
     direction: Prop<Direction>,
     overscan: Prop<f32>,
+    anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     handle: Option<ForEachRef<K, NodeId>>,
     item: RenderFn<(ReadSignal<K>, ReadSignal<usize>)>,
@@ -191,6 +192,10 @@ where
     create_effect(move || {
         let overscan = overscan.get();
         with_document(|document| document.set_virtual_list_overscan::<K>(list, overscan))
+    });
+    create_effect(move || {
+        let anchor = anchor.get();
+        with_document(|document| document.set_virtual_list_anchor::<K>(list, anchor))
     });
     create_effect(move || {
         let item_size = item_size.get();

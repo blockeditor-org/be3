@@ -47,6 +47,7 @@ APPS = {
     "a_joined_blocks_tabs_carry_its_menu": ["example-beui-gallery"],
     "a_joined_demos_tab_bodies_are_in_the_accessibility_tree": ["example-beui-gallery"],
     "a_local_account_needs_only_a_display_name": [],
+    "a_long_markdown_text_reopens_after_a_restart_at_the_line_it_showed": ["text"],
     "a_menu_from_a_zoomed_out_checklist_on_a_canvas_escapes_its_card_at_full_size": ["checklist", "infinite-canvas"],
     "a_new_folder_opens_its_editor": ["workspace-index"],
     "a_new_image_asks_for_its_file_in_the_image_editors_own_dialog": ["image"],

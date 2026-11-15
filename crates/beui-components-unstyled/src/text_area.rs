@@ -527,7 +527,14 @@ impl Surface {
         }
         if (exact.is_some() && there) || target >= most {
             self.state.take_scroll_to();
-            if let Some(reached) = self.top_anchor(offset) {
+            // At its line the view is where it was asked to be, so the anchor is reported as
+            // asked: read back in the layout it settles in, it can name a row the list is about
+            // to move. Only one cut short at the end of the text is read back.
+            let reached = match target >= most {
+                true => self.top_anchor(offset),
+                false => Some(anchor),
+            };
+            if let Some(reached) = reached {
                 self.state.set_scrolled(reached);
             }
         }

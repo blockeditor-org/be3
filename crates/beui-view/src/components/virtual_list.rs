@@ -21,6 +21,10 @@ use std::hash::Hash;
 ///   `item_size` forgets measured sizes. Outside a scroll it builds what fits its box.
 /// - `overscan` builds that many points of rows beyond each edge, so the row a key press
 ///   moves to already exists.
+/// - `anchor` names the row kept in place while rows around it are measured anew (a text's
+///   line at the top of its view); with none, or while it is not built, the first row built
+///   is. The web leaves this to the browser's scroll anchoring (`overflow-anchor`), which
+///   Safari lacks: there the rows above the view still move it.
 /// - Rows are recycled: `item` runs once per row built and gets a `ReadSignal` of its
 ///   key, which is set to a new key when a row that left is reused, and may take its
 ///   `index` after it, as a `ForEach` row does (`|key: ReadSignal<K>, index:
@@ -40,6 +44,7 @@ pub fn VirtualList<K, H>(
     item_size: Prop<f32>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = 0.0)] overscan: Prop<f32>,
+    #[prop(default = None)] anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     #[prop(default = None)] handle: Option<ForEachRef<K, NodeId>>,
     #[prop(children)] item: RenderFn<H>,
@@ -51,5 +56,5 @@ where
     let item = RenderFn::new(move |(key, index): (ReadSignal<K>, ReadSignal<usize>)| {
         item.call(H::row(key, index))
     });
-    crate::core::virtual_list(value, item_size, direction, overscan, text, handle, item)
+    crate::core::virtual_list(value, item_size, direction, overscan, anchor, text, handle, item)
 }

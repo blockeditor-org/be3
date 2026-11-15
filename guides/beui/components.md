@@ -63,6 +63,8 @@ Layout culls nodes more than `CULLING_MARGIN` outside the view (never the focuse
 
 It can sit anywhere a tall child could. Its trap is recycling: the row builder runs once per built row with a `ReadSignal` of its key, which the list later points at another key. Derive everything shown from that signal; state a row keeps carries over to the next key, unless its content is in `<Dynamic value={key}>`.
 
+Rows measured anew (an estimate replaced, content that grew) move what is beyond the row the list keeps in place: the first row it builds, which with `overscan` is above the view. A list that knows which row the reader is at names it with `anchor` (a text names the line at the top of its view), and the rows around that one move instead. The scroll reports its position only from a layout whose offset and rows agree: one that shifted the offset to keep the anchor reports from the layout after it.
+
 ## Inputs and forms
 
 On the HTML core a plain single-line `TextInput` is a real `<input>`, so the browser gives it IME, autofill and password managers; every other text field is beui's own on both cores ([decision](../../decisions/beui_html_text_input_is_a_native_input.md)). A new kind of single-line field is an `InputKind` variant. `Form` is a `<form method="post">` on HTML, so a server-rendered page posts before wasm loads; natively it is no node. Fields beui draws itself (`Checkbox`, `Switch`, `Select`, a beui-drawn `TextInput`) post under their `name` through a hidden input: a checked box `on`, an unchecked one nothing, a `Select` its option's `value` (its label without one), and a disabled field nothing, as in HTML.

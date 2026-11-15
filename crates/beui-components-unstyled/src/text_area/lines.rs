@@ -63,6 +63,18 @@ pub(super) fn Lines(cx: Context) -> NodeId {
         None => Align2::STRETCH,
     });
     let estimate = cx.row_estimate();
+    // The line at the top of the view, or the one a `scroll_to` is on its way to, is the row
+    // the list keeps in place while rows around it are measured anew, so it stays at the top.
+    let reveals = cx.state.reveals();
+    let anchor = create_memo(move || {
+        reveals.track();
+        cx.starts.track();
+        let anchor = cx.state.scrolled().get();
+        untrack(|| {
+            let line_start = cx.state.pending_scroll().or(anchor)?.line_start;
+            Some(cx.line_of(line_start))
+        })
+    });
     let lines = view! {
         <Frame
             @node_ref=&canvas
@@ -75,6 +87,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
                     @node_ref=&list
                     value={keys}
                     item_size=estimate
+                    anchor={anchor}
                 >|line: ReadSignal<usize>|
                     <AreaRow cx={cx} line />
                 </VirtualList>

@@ -254,6 +254,7 @@ pub(crate) fn virtual_list<K>(
     item_size: Prop<f32>,
     direction: Prop<Direction>,
     overscan: Prop<f32>,
+    anchor: Prop<Option<K>>,
     text: Callback<K, String>,
     handle: Option<ForEachRef<K, NodeId>>,
     item: RenderFn<(ReadSignal<K>, ReadSignal<usize>)>,
@@ -263,7 +264,9 @@ where
 {
     let places = Rc::new(RefCell::new(HashMap::<(K, usize), Signal<usize>>::default()));
     let placing = Rc::clone(&places);
-    let _ = text;
+    // The browser anchors the scroll on what is shown (`overflow-anchor`), where it can:
+    // Safari cannot, and there rows measured anew above the view move it.
+    let _ = (text, anchor);
     let list = create("VirtualList", "div");
     set_style(list, "display", Some("flex".to_owned()));
     let lead = create("VirtualListSpacer", "div");
