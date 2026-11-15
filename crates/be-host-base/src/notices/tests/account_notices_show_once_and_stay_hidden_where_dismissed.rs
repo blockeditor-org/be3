@@ -5,12 +5,22 @@ fn account_notices_show_once_and_stay_hidden_where_dismissed() {
     let ours = |notices: &[Notice]| -> Vec<(u64, String)> {
         notices
             .iter()
-            .filter_map(|notice| notice.account.map(|account| (account, notice.message.clone())))
+            .filter_map(|notice| {
+                notice
+                    .account
+                    .map(|account| (account, notice.message.clone()))
+            })
             .filter(|(account, _)| *account >= 9001)
             .collect()
     };
-    let added = (9001, "A passkey can now sign in to your account.".to_owned());
-    let removed = (9002, "Google can no longer sign in to your account.".to_owned());
+    let added = (
+        9001,
+        "A passkey can now sign in to your account.".to_owned(),
+    );
+    let removed = (
+        9002,
+        "Google can no longer sign in to your account.".to_owned(),
+    );
     account_notices(vec![added.clone(), removed.clone()]);
     // Read again, the same notices show once each.
     account_notices(vec![added.clone(), removed.clone()]);

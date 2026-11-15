@@ -143,7 +143,11 @@ pub(crate) fn utc_minute(seconds: i64) -> String {
     let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let shifted = (5 * day_of_year + 2) / 153;
     let day = day_of_year - (153 * shifted + 2) / 5 + 1;
-    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let month = if shifted < 10 {
+        shifted + 3
+    } else {
+        shifted - 9
+    };
     let year = year_of_era + era * 400 + i64::from(month <= 2);
     let (hour, minute) = (of_day / 3600, of_day % 3600 / 60);
     format!("{year}-{month:02}-{day:02} {hour:02}:{minute:02} UTC")

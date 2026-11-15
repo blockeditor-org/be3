@@ -78,7 +78,10 @@ async fn an_account_adds_ways_to_sign_in_only_so_often_a_day_and_always_removes_
         .unwrap();
     assert_eq!(held, MAX_ACCOUNT_NOTICES + 1, "none in its first week went");
     let changes = page_of(&ada.get(&harness, "/auth/settings").await).identity_changes;
-    assert!(changes[0].text.starts_with("Removed Passkey added "), "{changes:?}");
+    assert!(
+        changes[0].text.starts_with("Removed Passkey added "),
+        "{changes:?}"
+    );
     // A day on, it adds again.
     database
         .execute("UPDATE identity_changes SET created = created - 86400", [])

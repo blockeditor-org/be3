@@ -164,13 +164,16 @@ impl ServerStore {
                  WHERE account_id = ?1 AND created > ?2 ORDER BY id DESC",
             )?;
             let found = query
-                .query_map(params![account.to_string(), now() - IDENTITY_HISTORY], |row| {
-                    Ok(IdentityChange {
-                        kind: ChangeKind::read(&row.get::<_, String>(0)?),
-                        label: row.get(1)?,
-                        created: row.get(2)?,
-                    })
-                })?
+                .query_map(
+                    params![account.to_string(), now() - IDENTITY_HISTORY],
+                    |row| {
+                        Ok(IdentityChange {
+                            kind: ChangeKind::read(&row.get::<_, String>(0)?),
+                            label: row.get(1)?,
+                            created: row.get(2)?,
+                        })
+                    },
+                )?
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(found)
         })
@@ -200,7 +203,11 @@ impl ServerStore {
 
     /// Dismisses one of the account's notices for every device, once it is past its hold;
     /// answers whether it did. Within the hold, or for another account's, nothing changes.
-    pub async fn dismiss_account_notice(&self, account: Uuid, id: u64) -> Result<bool, ServerError> {
+    pub async fn dismiss_account_notice(
+        &self,
+        account: Uuid,
+        id: u64,
+    ) -> Result<bool, ServerError> {
         self.with_database(move |_, database| {
             let changed = database.execute(
                 "UPDATE account_notices SET dismissed = 1

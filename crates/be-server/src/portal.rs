@@ -11,8 +11,8 @@ use crate::{
 };
 use base64::Engine;
 use be_server_portal::{
-    Account, Asset, IdentityChange, IdentityRow, Page, PasskeyStep, Portal, Problem, ProviderLink, Screen, Session,
-    SessionKind,
+    Account, Asset, IdentityChange, IdentityRow, Page, PasskeyStep, Portal, Problem, ProviderLink,
+    Screen, Session, SessionKind,
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -74,15 +74,21 @@ async fn tell_identity(
     let (subject, text) = match kind {
         ChangeKind::Added => (
             "A way to sign in to your be3 account was added",
-            format!("{label} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
+            format!(
+                "{label} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."
+            ),
         ),
         ChangeKind::Removed => (
             "A way to sign in to your be3 account was removed",
-            format!("{label} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
+            format!(
+                "{label} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."
+            ),
         ),
         ChangeKind::Email => (
             "Your be3 email address changed",
-            format!("Your account's email changed to {label}. If this was not you, sign in and check your account, or contact your server operator."),
+            format!(
+                "Your account's email changed to {label}. If this was not you, sign in and check your account, or contact your server operator."
+            ),
         ),
     };
     if !email.is_empty() {

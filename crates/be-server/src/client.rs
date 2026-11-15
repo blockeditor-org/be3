@@ -1119,7 +1119,10 @@ impl Client {
                 let connection = &self.connection;
                 let listed = async {
                     prelude?;
-                    connection.store.account_notices(connection.account()?).await
+                    connection
+                        .store
+                        .account_notices(connection.account()?)
+                        .await
                 }
                 .await;
                 self.reply(reply, listed);

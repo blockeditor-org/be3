@@ -20,7 +20,12 @@ async fn an_email_change_is_told_on_the_accounts_devices_and_listed() {
     assert_eq!(status, 303, "{response}");
     let token = harness.mail_token("ada@new.example");
     let (status, response) = ada
-        .submit(&harness, "/auth/settings", "/auth/verify", &[("token", &token)])
+        .submit(
+            &harness,
+            "/auth/settings",
+            "/auth/verify",
+            &[("token", &token)],
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     // The old address is mailed, and the account's devices and history hear of it too.
@@ -30,7 +35,10 @@ async fn an_email_change_is_told_on_the_accounts_devices_and_listed() {
     );
     let listed = store.account_notices(account).await.unwrap();
     assert_eq!(listed.len(), 1, "{listed:?}");
-    assert!(listed[0].text.contains("changed to ada@new.example"), "{listed:?}");
+    assert!(
+        listed[0].text.contains("changed to ada@new.example"),
+        "{listed:?}"
+    );
     let changes = page_of(&ada.get(&harness, "/auth/settings").await).identity_changes;
     assert_eq!(changes.len(), 1, "{changes:?}");
     assert_eq!(changes[0].text, "Email changed to ada@new.example");

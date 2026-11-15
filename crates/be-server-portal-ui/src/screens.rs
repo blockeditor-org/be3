@@ -1,6 +1,6 @@
 use be_server_portal::{
-    Field as Named, IdentityChange, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink, Screen, Session,
-    SessionKind, with_code,
+    Field as Named, IdentityChange, IdentityRow, Page, PasskeyOffer, PasskeyStep, ProviderLink,
+    Screen, Session, SessionKind, with_code,
 };
 use beui::icons::{
     Glyph, ICON_BLOCKS, ICON_CIRCLE_ALERT, ICON_CIRCLE_CHECK, ICON_CIRCLE_X, ICON_GLOBE,

@@ -48,7 +48,10 @@ async fn a_change_to_the_ways_to_sign_in_is_told_on_every_device_for_a_week() {
     // The settings page lists it too, which no device can hide.
     let changes = page_of(&ada.get(&harness, "/auth/settings").await).identity_changes;
     assert_eq!(changes.len(), 1, "{changes:?}");
-    assert!(changes[0].text.starts_with("Added Passkey added "), "{changes:?}");
+    assert!(
+        changes[0].text.starts_with("Added Passkey added "),
+        "{changes:?}"
+    );
     // A week on, a dismissal ends it everywhere; another account's dismissal does nothing.
     metadata_database(&harness.directory)
         .execute(

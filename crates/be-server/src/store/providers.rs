@@ -375,8 +375,10 @@ impl ServerStore {
                     .account
                     .ok_or_else(|| refused("Sign in to continue."))?;
                 // As the account's notice and mail name it (`portal::tell_identity`).
-                let label =
-                    crate::portal::provider_identity_label(config, &format!("{} ", provider.issuer));
+                let label = crate::portal::provider_identity_label(
+                    config,
+                    &format!("{} ", provider.issuer),
+                );
                 let browser = hash_token(browser);
                 self.with_database(move |store, database| {
                     let transaction = be_block_sqlite_schema::write_transaction(database)?;
