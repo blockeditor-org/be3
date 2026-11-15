@@ -1,7 +1,7 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::Scroll;
+use crate::unstyled::{Scroll, ScrollbarStyle};
 use crate::{HostPlacement, Window, WindowHandle, WindowId, WindowPlacement};
 
 const MARKER: Color32 = Color32::from_rgb(200, 10, 30);
@@ -25,7 +25,7 @@ fn autoscroll_marks_where_it_started_in_a_placed_window() {
             >|_: WindowHandle|
                 <List spacing=0.0>
                     <ListItem grow=1.0>
-                        <Scroll marker={marker}>
+                        <Scroll scrollbar={ScrollbarStyle::default().marker(RenderFn::new(marker))}>
                             <ForEach keys={indices(100)}>|index: usize|
                                 <LabelledButton label={format!("Row {index}")} />
                             </ForEach>

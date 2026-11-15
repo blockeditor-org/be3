@@ -216,5 +216,22 @@ pub fn fitting<T>(
         .collect()
 }
 
+/// Plain text read from a system clipboard, with its line breaks as beui keeps
+/// them: `\n`. Windows programs write `\r\n`, and a `\r` alone ends a line
+/// too (old Mac programs), so each becomes one `\n`. Every platform passes the
+/// text it reads through this, so a paste never brings a `\r`.
+pub fn text_from_system(text: String) -> String {
+    if !text.contains('\r') {
+        return text;
+    }
+    text.replace("\r\n", "\n").replace('\r', "\n")
+}
+
+/// Plain text with `\r\n` line breaks, as Windows programs expect on the
+/// clipboard: what a copy writes there.
+pub fn text_with_crlf(text: &str) -> String {
+    text_from_system(text.to_owned()).replace('\n', "\r\n")
+}
+
 #[cfg(test)]
 mod tests;

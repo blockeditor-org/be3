@@ -261,10 +261,6 @@ pub struct RichLayout {
 
 pub trait Shaper {
     fn galley(&mut self, text: &str, font: FontId) -> Galley;
-
-    fn slice(&mut self, galley: &Galley, range: Range<usize>, font: FontId) -> Galley {
-        self.galley(galley.text().get(range).unwrap_or_default(), font)
-    }
 }
 
 impl<F: FnMut(&str, FontId) -> Galley> Shaper for F {
@@ -393,12 +389,16 @@ impl Builder<'_> {
                         shaped
                     }
                 };
+                // The part of a span on one wrapped line is shaped on its own
+                // rather than cut from the paragraph's shaping: its glyphs'
+                // subpixel phases then start afresh at the line's start, so an
+                // edit earlier in the paragraph leaves a line whose text did
+                // not change drawn exactly as it was.
                 let galley = match whole == range {
                     true => shaped,
-                    false => {
-                        let within = range.start - whole.start..range.end - whole.start;
-                        self.shaper.slice(&shaped, within, style.font)
-                    }
+                    false => self
+                        .shaper
+                        .galley(self.text.get(range.clone()).unwrap_or(""), style.font),
                 };
                 RichRun {
                     piece,

@@ -120,9 +120,6 @@ pub fn Scroll(
             bleed={bleed.map(|bleed| bleed.reach)}
             focus_ring={create_memo(move || Some(Outline::new(theme.accent.get(), FOCUS_RING_WIDTH.px()).offset(FOCUS_RING_OFFSET.px())))}
             scrollbar={scrollbar_style()}
-            marker={|axis: Memo<Direction>| view! {
-                <AutoscrollMarker axis />
-            }}
             on_change={on_change}
         >
             {children}
@@ -160,6 +157,11 @@ pub fn scrollbar_style() -> ScrollbarStyle {
         }
     })
     .fading(SCROLL_FADE)
+    .marker(RenderFn::new(|axis: Memo<Direction>| {
+        view! {
+            <AutoscrollMarker axis />
+        }
+    }))
     .browser_colors(
         Prop::dynamic(move || theme.scroll_thumb.get()),
         Color::TRANSPARENT,
@@ -174,6 +176,7 @@ fn AutoscrollMarker(axis: Prop<Direction>) -> NodeId {
     });
     view! {
         <Frame
+            @test_id="scroll.autoscroll-marker"
             width=MARKER_SIZE
             height=MARKER_SIZE
             radius=Radius::Full
