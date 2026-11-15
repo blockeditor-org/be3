@@ -1,5 +1,5 @@
 load("@root//buck/dev:verify.bzl", "package_fix")
-load("@root//buck/platforms:profile.bzl", "SYMBOL_FLAGS", "RUST_LOCAL")
+load("@root//buck/platforms:profile.bzl", "RUST_LOCAL", "SYMBOL_FLAGS")
 load("@root//buck/tools:rust.bzl", "RUST_VERSION")
 
 package_fix()
