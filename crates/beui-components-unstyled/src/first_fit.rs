@@ -100,9 +100,7 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
         }
         let next = naturals
             .with_untracked(|naturals| current.next(count, (room, stretched), width, naturals));
-        if next != current {
-            stage.set(next);
-        }
+        stage.set(next);
     });
     view! {
         <Layers>

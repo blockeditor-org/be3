@@ -1762,18 +1762,20 @@ fn focus_when_presenting(
 }
 
 fn toggle_keyboard_when_asked(state: Memo<PlacedView>, primary: Memo<bool>) {
-    let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
-    let seen = StoredCell::new(None::<u32>);
-    create_effect(move || {
-        let Some(toggles) = toggles.get() else {
-            return;
-        };
-        let before = seen.get();
-        seen.set(Some(toggles));
-        if before.is_some_and(|before| before != toggles) && primary.get_untracked() {
-            untrack(toggle_keyboard);
-        }
+    // The last count of toggles asked, kept while the view reports none.
+    let toggles = create_memo(move |previous: Option<&Option<u32>>| {
+        state
+            .with(|view| view.keyboard_toggles)
+            .or(previous.copied().flatten())
     });
+    create_effect_on_change(
+        move || toggles.get(),
+        move |now, before| {
+            if now.is_some() && before.is_some() && now != before && primary.get_untracked() {
+                toggle_keyboard();
+            }
+        },
+    );
 }
 
 thread_local! {
