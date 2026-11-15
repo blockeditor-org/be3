@@ -921,9 +921,9 @@ fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
 #[derive(Clone)]
 enum CopyStage {
     Duplicate,
-    /// The container's type was asked to put `copy_id` in the original's place, before the
-    /// copy is made: the copy is made, and placed in the container, only once the type did, so a
-    /// refusal leaves no copy behind.
+    /// The container's type was asked to put a copy, `copy_id`, in the original's place: the
+    /// stack makes the copy as the type takes it (`be_host_stack::replace_with_copy`), so a
+    /// refusal leaves no copy behind, and the host places it in the container once it answers.
     Replacing {
         copy_id: Uuid,
         answer: be_host_stack::ChildChanged,
@@ -2689,21 +2689,11 @@ impl HostCore {
                     }
                     Some(true) => {}
                 }
-                // What `duplicate` needs, known before the container is asked: once it takes
-                // the copy, the copy is made at once.
-                let duplicable = be_host_stack::node(copy.source)
-                    .is_some_and(|source| be_host_stack::is_known(source.content_type));
-                if !duplicable {
-                    self.pending_copies.push(copy);
-                    continue;
-                }
-                let copy_id = Uuid::now_v7();
+                // The stack makes the copy as the container takes it, before it answers.
                 let replacing = self
-                    .with_editor(copy.container, |editor| {
-                        editor.replace_child(copy.source, copy_id)
-                    })
+                    .with_editor(copy.container, |editor| editor.copy_in_place(copy.source))
                     .flatten();
-                let Some(answer) = replacing else {
+                let Some((copy_id, answer)) = replacing else {
                     self.pending_copies.push(copy);
                     continue;
                 };
@@ -2725,13 +2715,11 @@ impl HostCore {
                 }
                 Some(true) => {}
             }
-            let Some(block_type) = be_host_stack::duplicate(copy.source, copy_id) else {
-                // The source left the graph while the container answered: the container names
-                // a copy that was never made.
-                notices::report(format!(
-                    "The copy couldn't be made, so {} names a block that isn't there.",
-                    name_of(copy.container, "that block")
-                ));
+            // Made: the copy exists, detached, and goes in the container now. A host stopped
+            // before this leaves it detached, and the container still names it.
+            let made = be_host_stack::node(copy_id).map(|node| node.content_type);
+            let Some(block_type) = made.or_else(|| self.block_type_of(copy.source)) else {
+                self.pending_copies.push(copy);
                 continue;
             };
             self.set_block_parent(copy_id, BlockParent::Block(copy.container));

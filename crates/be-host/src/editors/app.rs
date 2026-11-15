@@ -441,7 +441,7 @@ impl AppEditor {
 
     /// Adds `child` to the block's content through its type: none while the type is not known
     /// yet, otherwise what the type answers (`be_host_stack::ChildChanged`). So do
-    /// `delete_child`, `replace_child` and `reorder_child`.
+    /// `delete_child`, `copy_in_place` and `reorder_child`.
     pub(crate) fn add_child(&self, child: Uuid) -> Option<be_host_stack::ChildChanged> {
         self.change_child(be_block_content::ChildChange::Add(child))
     }
@@ -460,17 +460,17 @@ impl AppEditor {
         )
     }
 
-    /// Puts `new` in place of the child `old`, refused at once by a type whose manifest does not
-    /// take it.
-    pub(crate) fn replace_child(
+    /// Puts a new copy of the child `source` in its place (Unlink), answering the copy's id and
+    /// what the type did (`be_host_stack::replace_with_copy`): refused at once by a type whose
+    /// manifest does not take it, none while the type or the source is not known yet.
+    pub(crate) fn copy_in_place(
         &self,
-        old: Uuid,
-        new: Uuid,
-    ) -> Option<be_host_stack::ChildChanged> {
+        source: Uuid,
+    ) -> Option<(Uuid, be_host_stack::ChildChanged)> {
         if !self.takes_replace()? {
-            return Some(be_host_stack::ChildChanged::refused());
+            return Some((Uuid::nil(), be_host_stack::ChildChanged::refused()));
         }
-        self.change_child(be_block_content::ChildChange::Replace { old, new })
+        be_host_stack::replace_with_copy(self.id, self.block_type, source)
     }
 
     /// Moves `child` after `after`, refused at once by a type whose manifest keeps no order.

@@ -125,6 +125,9 @@ pub(super) enum Command {
         block: Uuid,
         content_type: Uuid,
         change: be_sdk_type_api::ChildChange,
+        /// A `Replace` that puts a copy in place (`crate::replace_with_copy`): the source to copy
+        /// into the new id once the type made the change.
+        copying: Option<Uuid>,
         reply: crate::ChildReply,
     },
     FromFile {
@@ -3445,6 +3448,7 @@ async fn apply(
             block,
             content_type,
             change,
+            copying,
             reply,
         } => {
             if !replicas.is_open(block) {
@@ -3453,8 +3457,19 @@ async fn apply(
                 open_wanted(peer, shared, wanted, replicas, block, content_type).await;
             }
             // The type's answer is awaited beside the loop, which goes on with other commands.
+            let copy = match (&change, copying) {
+                (be_sdk_type_api::ChildChange::Replace(replace), Some(source)) => {
+                    Some((source, replace.new))
+                }
+                _ => None,
+            };
             match replicas.change_answered(block, Change::Child(change)) {
-                Some(made) => tasks.spawn(async move { reply.answer(made.await) }),
+                Some(made) => tasks.spawn(async move {
+                    let made = made.await;
+                    reply.answer(made && copy.is_none_or(|(source, to)| {
+                        crate::copied_in_place(block, content_type, source, to)
+                    }));
+                }),
                 None => reply.answer(false),
             }
             false
