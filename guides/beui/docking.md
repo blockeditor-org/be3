@@ -104,7 +104,8 @@ group has no tab, so `DockState::focused_or_host` stands the group's host tab in
 what `DockingLayout::focused` and `DockHosted::focused` report.
 
 The dock's tab commands are actions (`tab_actions` in `beui-dock-host/src/unstyled.rs`), so a
-command palette lists them: Next tab and Previous tab walk the focused pane's tabs, and Split
+command palette lists them: Next tab and Previous tab walk the focused pane's tabs (for a joined
+editor's stage, the tabs of the pane its group stands in, `DockState::standing_leaf`), and Split
 right, Split down and Close tab act on the tab the focused pane shows. Next and Previous are bound
 to `DockHost`'s `tab_keys` (`DockTabKeys::CTRL`, Ctrl+Tab and Ctrl+Shift+Tab, by default; the
 desktop passes Super+Tab so a program keeps Ctrl+Tab) at `KeyAt::Window` with `.capture()`: they
