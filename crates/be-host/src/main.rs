@@ -4493,7 +4493,8 @@ impl HostCore {
 }
 
 fn sync_state(status: &be_host_stack::Status) -> ui::SyncState {
-    match (&status.error, status.connected) {
+    // A local account has no server: saved on this device is saved.
+    match (&status.error, status.connected || status.local) {
         (_, false) if status.connecting => ui::SyncState::Connecting,
         (_, false) => ui::SyncState::Offline {
             waiting: status.waiting,

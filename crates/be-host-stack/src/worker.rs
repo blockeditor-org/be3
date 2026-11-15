@@ -962,9 +962,10 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     replicas.modules.hold_clock(held_clock);
     replicas.modules.ready().await;
     crate::changes::wake();
-    let started = match cached(&config, &make_store) {
-        Some(peer) => Some((peer, None)),
-        None => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
+    let started = match (config.is_local(), cached(&config, &make_store)) {
+        (true, _) => local(&config, &make_store, &shared).map(|peer| (peer, None)),
+        (false, Some(peer)) => Some((peer, None)),
+        (false, None) => first_connect(&config, &make_store, &mut nudged, &shared, &changed).await,
     };
     if let Some((peer, open)) = started {
         shared.lock().unwrap_or_else(PoisonError::into_inner).peer = Some(Arc::clone(&peer));
@@ -1039,6 +1040,26 @@ fn peer_config(config: &Config, refs: be_block_client::RefsDb) -> PeerConfig {
     )
     .organization(Some(config.organization))
     .refs(refs)
+}
+
+/// A local account's peer, with no server (`Peer::local`).
+fn local<S: Fn() -> Result<Store, String>>(
+    config: &Config,
+    make_store: &S,
+    shared: &Arc<Mutex<Shared>>,
+) -> Option<Arc<Peer<Store>>> {
+    let made = make_store().and_then(|store| {
+        let refs = super::refs(config)?;
+        Peer::local(peer_config(config, refs), config.account, config.organization, store)
+            .map_err(|error| error.to_string())
+    });
+    match made {
+        Ok(peer) => Some(Arc::new(peer)),
+        Err(error) => {
+            fail(shared, error);
+            None
+        }
+    }
 }
 
 fn cached<S: Fn() -> Result<Store, String>>(
@@ -1139,6 +1160,8 @@ enum Line {
         gone: tokio::sync::watch::Receiver<bool>,
         _open: Opened,
     },
+    /// A local account's, which has no server to reach.
+    Local,
     Down {
         failures: u32,
         /// When it tries again, on the config's clock.
@@ -1162,6 +1185,9 @@ impl Line {
     /// when the future first runs: a clock moved on between the two (a test's wait moving it to
     /// the moment `Shared::reconnect` says) would put the sleep's end past the moment it moved to.
     fn down(config: &Config, failures: u32, delay: Duration) -> Self {
+        if config.is_local() {
+            return Self::Local;
+        }
         let clock = config.clock.clone();
         let url = config.server_url.clone();
         let token = config.token.clone();
@@ -1183,7 +1209,7 @@ impl Line {
     fn quiet(&self) -> bool {
         match self {
             Self::Up { events, .. } => events.is_empty(),
-            Self::Down { .. } => true,
+            Self::Down { .. } | Self::Local => true,
         }
     }
 
@@ -1201,6 +1227,7 @@ impl Line {
                 }
             }
             Self::Down { reaching, .. } => Woken::Reached(reaching.as_mut().await),
+            Self::Local => std::future::pending().await,
         }
     }
 }
@@ -1248,6 +1275,7 @@ impl Session<'_> {
         }
         match open {
             Some(open) => self.arrive(open).await,
+            None if self.config.is_local() => self.arrive_locally().await,
             None => {
                 self.depart(0);
                 want_open(shared, &self.wanted.blocks());
@@ -1723,7 +1751,7 @@ impl Session<'_> {
     fn failures(&self) -> u32 {
         match self.line {
             Line::Down { failures, .. } => failures,
-            Line::Up { .. } => 0,
+            Line::Up { .. } | Line::Local => 0,
         }
     }
 
@@ -1767,6 +1795,37 @@ impl Session<'_> {
                 .await;
             }
         }
+    }
+
+    /// A local account's stack starts as one that arrived, with nothing to catch up on: what
+    /// it holds is all there is (`Peer::local`).
+    async fn arrive_locally(&mut self) {
+        let (peer, shared) = (self.peer, self.shared);
+        {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.reached = true;
+            held.local = true;
+            held.error = None;
+        }
+        self.tasks.0.sync(peer, shared);
+        want_open(shared, &self.wanted.blocks());
+        relist(shared);
+        spawn_listings(peer, shared, &self.tasks.0);
+        for (block, content_type) in self.wanted.blocks() {
+            open_wanted(
+                peer,
+                shared,
+                &self.wanted,
+                self.replicas,
+                block,
+                content_type,
+            )
+            .await;
+        }
+        self.refresh_versions().await;
+        report(peer, shared);
+        self.changed.notify_all();
+        crate::changes::wake();
     }
 
     async fn arrive(&mut self, open: Opened) {
@@ -4112,7 +4171,8 @@ impl Tasks {
     }
 
     pub(super) fn sync(&self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-        if !peer.is_attached() {
+        // A local account's drain settles the outbox on the device (`Peer::local`).
+        if !peer.is_attached() && !peer.is_local() {
             return;
         }
         #[cfg(test)]

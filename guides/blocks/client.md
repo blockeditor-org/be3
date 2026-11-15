@@ -288,6 +288,20 @@ sends it. `Peer::write` does both.
   the server has since pruned, where online it lists only what the server keeps.
   Sharing, access, members, invites, agents, contacts and pairing need the
   server.
+- **A local account** (`Peer::local`, plans/local_accounts.md) has no server:
+  its refs scope has an empty server, and the session row is made on the device
+  the first time (role editor, kind personal, no escrows). It runs every change
+  through the offline paths above, then settles the outbox on the device as a
+  server would answer it (`settle_locally`, which is its `drain`): creations,
+  moves, definitions and holds are final as they are kept, and a publish is the
+  block's head when it goes on the head the block has (`publish_locally`, the
+  server's compare-and-swap), else `Saved::Rejected`, or `Drained::Diverged` to
+  merge. Listings answer from every summary it holds (`Refs::local_listing`),
+  history from its store (`history_held`), and what needs a server is refused as
+  offline. be-host-stack runs it when the `Config`'s `server_url` is empty
+  (`Config::is_local`): the line never goes up (`Line::Local`), the stack starts
+  as arrived (`arrive_locally`), and its status says `local`, which the host
+  shows as saved rather than offline.
 - **Links** (`contacts.rs`): `make_link` and `invite` make a contact link or an
   invitation, and `open_link` and `accept_link` read and accept the kind the
   caller asks consent for (`Expected`), refusing the other, and answer the
