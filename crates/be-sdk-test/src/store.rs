@@ -90,6 +90,10 @@ struct Inner {
     host: Connection,
     clock: Outlets<()>,
     sleeping: Vec<Reply<()>>,
+    /// Submissions on their way to the server, which takes them as the clock next moves: a
+    /// round trip takes time, so an edit shows as sent before the server holds it.
+    submitting: Vec<(Option<Uuid>, Call)>,
+    taking_submissions: bool,
     now: u64,
     replicas: BTreeMap<OpId, Uuid>,
     /// Each type's blank content, as the module's start listed it.
@@ -151,6 +155,8 @@ impl Default for Inner {
             host: Connection::new(Side::Host),
             clock: Outlets::default(),
             sleeping: Vec::new(),
+            submitting: Vec::new(),
+            taking_submissions: false,
             now: 0,
             replicas: BTreeMap::new(),
             blanks: BTreeMap::new(),
@@ -298,6 +304,16 @@ impl Inner {
             }
             Incoming::Yielded { .. } => {}
         }
+    }
+
+    /// The server takes the submissions on their way (`submitting`).
+    fn take_submissions(&mut self) {
+        self.taking_submissions = true;
+        for (block, call) in std::mem::take(&mut self.submitting) {
+            self.act(block, call);
+        }
+        self.taking_submissions = false;
+        self.run();
     }
 
     fn act(&mut self, block: Option<Uuid>, call: Call) {
@@ -459,6 +475,9 @@ impl Inner {
                 }
             }
             Call::SleepUntil { reply, .. } => self.sleeping.push(reply),
+            call @ Call::Submit { .. } if !self.offline && !self.taking_submissions => {
+                self.submitting.push((block, call));
+            }
             Call::Submit {
                 reply,
                 submission,
@@ -990,6 +1009,7 @@ impl ContentStore {
         if now > inner.now {
             inner.now = now;
             let inner = &mut *inner;
+            inner.take_submissions();
             let _ = inner.clock.send(&mut inner.host, &now, |_| true);
             inner.run();
         }

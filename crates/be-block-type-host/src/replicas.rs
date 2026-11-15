@@ -3947,9 +3947,9 @@ impl<H: Host> Replicas<H> {
     }
 
     /// How many open replicas have edits not yet committed, how many owe a seal, and how many
-    /// hold edits that are not yet durable: not in the journal on this device (still with the
-    /// module, or not yet appended). A journaled edit survives a restart, so it is only waiting
-    /// for its commit.
+    /// hold edits that are not yet durable: not yet kept on this device, in a journal or in its
+    /// kept edits (`refs::OpenEdits`). A kept edit survives a restart, so it is only waiting for
+    /// the server and its commit.
     pub fn counts(&self) -> (usize, Vec<Owing>, Vec<Owing>) {
         let unsealed = self
             .open
@@ -3965,7 +3965,12 @@ impl<H: Host> Replicas<H> {
         let undurable = self
             .open
             .values()
-            .filter(|open| open.unreported() || (!open.status.clean && !open.status.journaled))
+            // Not yet kept on this device: neither a journal holds them nor are they written in
+            // its kept edits (`keep_edits`, or ahead of a submission), which a crash survives.
+            .filter(|open| {
+                open.edits_changed
+                    && (open.unreported() || (!open.status.clean && !open.status.journaled))
+            })
             .map(Owing::of)
             .collect();
         (unsealed, owing, undurable)
