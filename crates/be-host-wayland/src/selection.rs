@@ -126,7 +126,9 @@ impl Selection {
             match reading.progress(waiter) {
                 Progress::Waiting => self.reading.push(reading),
                 Progress::Done(Some(data)) => self.read.push(match reading.format {
-                    formats::TEXT => ClipItem::text(String::from_utf8_lossy(&data).into_owned()),
+                    formats::TEXT => ClipItem::text(beui::clip::text_from_system(
+                        String::from_utf8_lossy(&data).into_owned(),
+                    )),
                     format => ClipItem::new(format, data),
                 }),
                 Progress::Done(None) => {}

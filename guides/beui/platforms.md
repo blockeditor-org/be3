@@ -193,6 +193,13 @@ where `Xvfb` is installed and skip with a message where it is not, as on the
 build workers. The macOS code has no Mac to run on: only its compiling is
 checked, and the rule it shares with Windows (`beside`) is tested.
 
+Text inside beui has `\n` line breaks. Every read of plain text from a system
+clipboard (each platform, the HTML core's `paste` event, be-host-wayland's
+reads of a program's selection) goes through `clip::text_from_system`, which
+turns `\r\n` and a lone `\r` into `\n`; on Windows a copy writes `\r\n`
+(`clip::text_with_crlf`). `HeldClip::wrote` compares line breaks as `\n` on
+both sides.
+
 The focus reads the clipboard only by pasting: an `Interactive`'s `pastes`
 lists the format ids it takes, preferred first, and its `on_paste` gets a
 `ClipItem`. `request_paste` (a Paste menu) or Ctrl+V asks
