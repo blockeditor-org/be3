@@ -22,7 +22,9 @@ Fixed items are removed as they land.
 
 ## 9. Version control's caches
 
-- **Walks that read thinning as a root.** `CommitStore::common_ancestor` and
+- **Walks that read thinning as a root.** Depends on #686, which rewrites
+  be-block-session's Resume (or its builder confirming `resume.rs` is untouched).
+  Needs a third, unreached outcome carried through Resume. `CommitStore::common_ancestor` and
   `is_ancestor` treat a commit the store lacks as having no parents, so where
   the server thinned history away (one commit a minute in a block's first
   hour) they can answer "no shared history" or "not an ancestor" for heads
