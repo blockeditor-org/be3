@@ -55,17 +55,51 @@ fn refs(config: &Config) -> Result<be_block_client::RefsDb, String> {
     refs_in(&config.data_dir)
 }
 
+/// The refs database in `root`, which one process holds at a time: the hosts of this process
+/// share it, and another process using `root` is refused (guides/blocks/host.md).
 pub fn refs_in(root: &std::path::Path) -> Result<be_block_client::RefsDb, String> {
-    static OPEN: Mutex<Vec<(std::path::PathBuf, be_block_client::RefsDb)>> = Mutex::new(Vec::new());
+    static OPEN: Mutex<Vec<(std::path::PathBuf, be_block_client::RefsDb, Option<std::fs::File>)>> =
+        Mutex::new(Vec::new());
     let path = root.join("be-refs.sqlite3");
     let mut open = OPEN.lock().unwrap_or_else(PoisonError::into_inner);
-    if let Some((_, refs)) = open.iter().find(|(held, _)| *held == path) {
+    if let Some((_, refs, _)) = open.iter().find(|(held, ..)| *held == path) {
         return Ok(refs.clone());
     }
+    let lock = lock_data_dir(root)?;
     let refs = be_block_client::RefsDb::open(&path)
         .map_err(|error| format!("this device's record of what it holds cannot open: {error}"))?;
-    open.push((path, refs.clone()));
+    open.push((path, refs.clone(), lock));
     Ok(refs)
+}
+
+/// Holds `root` for this process until it exits: two processes on one data directory would
+/// each number edits under the block's one origin this device keeps (`refs::OpenEdits`).
+#[cfg(not(target_arch = "wasm32"))]
+fn lock_data_dir(root: &std::path::Path) -> Result<Option<std::fs::File>, String> {
+    let path = root.join("be-refs.lock");
+    std::fs::create_dir_all(root)
+        .map_err(|error| format!("could not make {}: {error}", root.display()))?;
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .map_err(|error| format!("could not open {}: {error}", path.display()))?;
+    match file.try_lock() {
+        Ok(()) => Ok(Some(file)),
+        Err(std::fs::TryLockError::WouldBlock) => Err(format!(
+            "Another be-host is using this data directory ({})",
+            root.display()
+        )),
+        Err(std::fs::TryLockError::Error(error)) => {
+            Err(format!("could not lock {}: {error}", path.display()))
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn lock_data_dir(_: &std::path::Path) -> Result<Option<std::fs::File>, String> {
+    Ok(None)
 }
 
 pub struct Config {
@@ -114,6 +148,10 @@ pub struct Status {
     pub connecting: bool,
     pub blocks: usize,
     pub wakes: u64,
+    /// Open blocks with edits no journal holds yet (in a live session, until the server holds
+    /// them in its journal; offline, this device's journal), plus commands sent and not yet
+    /// carried out and unfinished imports. An edit a journal holds but no commit yet is durable
+    /// and not counted (guides/blocks/host.md).
     pub unsaved: usize,
     pub kept: usize,
     pub saves: u64,

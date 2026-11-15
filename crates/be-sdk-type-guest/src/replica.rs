@@ -617,6 +617,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     uncertain_through: u64,
     /// Whether a base this replica took was full and did not name its origin: aged out of it.
     aged_out: bool,
+    /// Whether the journal opened on holds an entry of this origin: how far the order holds its
+    /// edits is known exactly then, whatever the base names.
+    own_in_journal: bool,
     /// The first local edit that replaces the content and has not landed yet: none taken since
     /// counts as in the order until it lands or fails.
     replacing_from: Option<u64>,
@@ -870,6 +873,7 @@ where
             kept_submitted: opened.kept_submitted,
             uncertain_through: 0,
             aged_out: false,
+            own_in_journal: false,
             replacing_from: None,
             epoch: opened.epoch,
             beaten: None,
@@ -2319,7 +2323,7 @@ where
         }
         // The order's base names only its most recent origins: one aged out of it may hold what
         // this origin submitted though no entry says so. Sent again, it could land twice.
-        if self.aged_out && self.kept_submitted > self.own_through {
+        if self.aged_out && !self.own_in_journal && self.kept_submitted > self.own_through {
             self.uncertain_through = self.kept_submitted;
         }
         self.visible = self.confirmed.clone();
@@ -2348,6 +2352,7 @@ where
                 if mine {
                     self.own_through = self.own_through.max(through);
                     self.own_numbered.push_back((sequence, through));
+                    self.own_in_journal = true;
                 }
                 match entry {
                     Entry::Operation(payload) if op.base >= op.floor => {

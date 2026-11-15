@@ -541,6 +541,9 @@ struct Open {
     /// The last local edit submitted to the server online, which it may hold though the
     /// replica never heard so (`refs::OpenEdits::submitted_through`).
     submitted_through: u64,
+    /// How far `submitted_through` reached when this device last kept the replica's edits: a
+    /// submission past it waits until they are kept again (`Call::Submit`).
+    kept_submitted_through: u64,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
     /// `opening.kept-through`), told every opening.
     kept_restart: u64,
@@ -1037,6 +1040,23 @@ impl<H: Host> Replicas<H> {
             return;
         };
         let arrivals = peer.arrivals();
+        // Edits this device kept of the block that do not open yet stay kept, and the block
+        // waits for their key as one whose content is locked does: opened without them, the
+        // replica's next kept edits would write over them.
+        match peer.open_edits(block) {
+            Some((_, Err(ClientError::Locked(_)))) if peer.arrivals() == arrivals => {
+                self.lock(shared, block);
+                return;
+            }
+            Some((_, Err(ClientError::Locked(_)))) => {
+                return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
+            }
+            Some((_, Err(error))) => {
+                H::record(shared, error);
+                return;
+            }
+            _ => {}
+        }
         let owned = !kind.frozen && H::owned(shared, block);
         let known = peer
             .known_summary(block)
@@ -1202,7 +1222,12 @@ impl<H: Host> Replicas<H> {
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
         // may hold only show (`opening.doubtful-through`).
-        let (recovered, recovered_edits) = peer.open_edits(block).unzip();
+        let (recovered, recovered_edits) = match peer.open_edits(block) {
+            Some((recovered, Ok(edits))) => (Some(recovered), Some(edits)),
+            // They stopped opening since `open` looked: it opens again once they do.
+            Some((_, Err(_))) => return None,
+            None => (None, None),
+        };
         let recovered_any = recovered.is_some();
         let origin = recovered
             .as_ref()
@@ -1326,6 +1351,7 @@ impl<H: Host> Replicas<H> {
                 origin,
                 given_up,
                 submitted_through,
+                kept_submitted_through: submitted_through,
                 kept_restart,
                 kept_through: given_up + replay_count,
                 heard_through: journal_through(opening_journal.as_ref()),
@@ -1942,9 +1968,11 @@ impl<H: Host> Replicas<H> {
                 continue;
             }
             let (kept, edits) = kept_edits(open);
+            let through = kept.submitted_through;
             // Kept at the next pass: this one could not seal them (no key yet) or write.
-            if peer.keep_open_edits(open.block, kept, edits).await.is_err() {
-                open.edits_changed = true;
+            match peer.keep_open_edits(open.block, kept, edits).await {
+                Ok(()) => open.kept_submitted_through = through,
+                Err(_) => open.edits_changed = true,
             }
         }
     }
@@ -3474,6 +3502,22 @@ impl<H: Host> Replicas<H> {
                 {
                     open.submitted_through = submitted.through;
                     open.edits_changed = true;
+                }
+                // Written ahead: once the server may hold an edit, a crash must not lose that
+                // it was submitted, or the edits given again would be numbered anew.
+                if let Some(open) = self.open.get_mut(&replica)
+                    && open.submitted_through > open.kept_submitted_through
+                {
+                    let (kept, edits) = kept_edits(open);
+                    let through = kept.submitted_through;
+                    if let Err(error) = peer.keep_open_edits(block, kept, edits).await {
+                        let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
+                        self.modules
+                            .call(module, |connection| reply.send(connection, &failed));
+                        return false;
+                    }
+                    open.kept_submitted_through = through;
+                    open.edits_changed = false;
                 }
                 let submitted = peer
                     .submit(block, tag, submission, online, announcements)

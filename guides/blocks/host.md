@@ -163,8 +163,12 @@ the connection a stopping stack closed.
   was lost is never made twice. The same holds across a stop or crash: the host
   keeps each open block's origin, `given_up`, the last edit it submitted online
   (`Open::submitted_through`) and the editors' frames in `replay`
-  (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`),
-  and a replica opened later is given them under that origin. Opened before it
+  (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`,
+  and before any submission past the `submitted_through` last written, which fails
+  if it cannot be written), and a replica opened later is given them under that
+  origin. Kept edits that do not open (their key is not on the device yet) stay
+  as they are, and the block waits locked until keys arrive (`Replicas::lock`),
+  so no replica writes over them. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after
@@ -227,7 +231,7 @@ the connection a stopping stack closed.
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
 `unsaved` (edits no journal holds yet, `Replicas::counts`' third number: in a
-live session, until the server ordered them; plus every command sent and not
+live session, until the server holds them in its journal; plus every command sent and not
 yet carried out, `Shared::pending`, and imports; an edit a journal holds but no
 commit yet is durable and not counted). The "Saving changes" toast follows `unsaved`.
 
@@ -241,6 +245,13 @@ close still closes. On a timeout, and on the web, which cannot wait, it returns
 
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`).
+
+**One process per data directory.** The refs database keeps one origin per block for this
+device (`refs::OpenEdits`), so two processes on one data directory would number edits under
+the same origin. `be_host_stack::refs_in` locks `be-refs.lock` in the directory for the
+process: the hosts of one process share the database, and another process is refused with
+"Another be-host is using this data directory". The be-host binary hands a second launch over
+to the first before that (`instance.lock`).
 
 **Create, define, move and duplicate** are kept on the device and wait in the
 outbox, online as offline (`Peer::keep_creation`, `keep_definition`,

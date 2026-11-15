@@ -23,7 +23,7 @@ fn an_undo_made_while_the_server_is_silent_survives_a_crash() {
             .peer
             .as_ref()
             .and_then(|peer| peer.open_edits(block))
-            .is_some_and(|(_, edits)| edits.len() >= 2)
+            .is_some_and(|(_, edits)| edits.is_ok_and(|edits| edits.len() >= 2))
     });
 
     crash();

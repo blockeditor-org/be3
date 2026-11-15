@@ -125,18 +125,39 @@ impl<S: ObjectStore> Peer<S> {
         )?)
     }
 
-    /// What the host kept of `block`'s local edits before it last stopped, opened.
-    pub fn open_edits(&self, block: Uuid) -> Option<(crate::OpenEdits, Vec<crate::KeptEdit>)> {
+    /// What the host kept of `block`'s replica before it last stopped: its origin and counts,
+    /// and its local edits, opened. The edits fail to open while their key is not on this
+    /// device (`ClientError::Locked`), and stay kept as they are.
+    #[allow(clippy::type_complexity)]
+    pub fn open_edits(
+        &self,
+        block: Uuid,
+    ) -> Option<(
+        crate::OpenEdits,
+        Result<Vec<crate::KeptEdit>, ClientError>,
+    )> {
         let kept = self.refs.open_edits(block)?;
         let edits = kept
             .edits
             .iter()
             .map(|sealed| {
-                let plain = self.commits.vault().open(sealed).ok()?;
-                be_block_store::decode_value(&plain).ok()
+                let plain = self.commits.vault().open(sealed).map_err(locked)?;
+                Ok(be_block_store::decode_value(&plain)?)
             })
-            .collect::<Option<Vec<_>>>()?;
+            .collect();
         Some((kept, edits))
+    }
+
+    /// Keeps `kept` as `block`'s, its edits sealed already, as another device kept them.
+    #[cfg(test)]
+    pub(crate) fn keep_sealed_open_edits(&self, block: Uuid, kept: crate::OpenEdits) {
+        self.refs.keep_open_edits(block, kept).unwrap();
+    }
+
+    /// What this device keeps of `block`'s replica, its edits sealed.
+    #[cfg(test)]
+    pub(crate) fn sealed_open_edits(&self, block: Uuid) -> Option<crate::OpenEdits> {
+        self.refs.open_edits(block)
     }
 
     /// This device's journal of `block`, sealed as it keeps it.
