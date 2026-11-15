@@ -1861,12 +1861,29 @@ pub fn settle_keys(
     own.or(owed)
 }
 
-/// The view `view` is gone: what it held and was owed goes with it.
+/// The view `view` is gone: what it held and was owed goes with it, unless its instance's content
+/// now shows in another of its views (`content_moved`), which takes the keyboard it was given.
 pub fn forget_keys(view: &GiftView, placer: Option<(&str, EditorInstanceId)>) {
-    with(&view.0, |runtime| runtime.instances.forget_keys(view));
+    let moved = content_moved(&view.0, view.1, view.2).map(|to| (view.0.clone(), view.1, to));
+    let pass = host::pass();
+    with(&view.0, |runtime| {
+        runtime.instances.forget_keys(view, moved.as_ref(), pass)
+    });
     if let Some((placer, _)) = placer {
-        with(placer, |runtime| runtime.instances.forget_keys(view));
+        with(placer, |runtime| {
+            runtime.instances.forget_keys(view, moved.as_ref(), pass)
+        });
     }
+}
+
+/// The view other than `from` that holds the instance's content: where it moved when `from` goes,
+/// as a joined editor's content moves from its main view into its dock tab view once its dock is
+/// hosted.
+pub fn content_moved(app_id: &str, instance: EditorInstanceId, from: ViewId) -> Option<ViewId> {
+    with(app_id, |runtime| {
+        runtime.instances.content_view_besides(instance, Some(from))
+    })
+    .flatten()
 }
 
 /// Whether the instance's block content, if it edits one, has reached it.

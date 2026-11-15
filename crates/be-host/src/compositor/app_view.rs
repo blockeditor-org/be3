@@ -702,7 +702,6 @@ pub(crate) fn AppView(
         &catcher,
         primary,
     );
-    keyboard_follows_content(app_id, instance, region.id, revision, &catcher);
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();
@@ -743,21 +742,43 @@ pub(crate) fn AppView(
             });
         }
     });
+    if region.placement == ViewPlacement::Dock {
+        keyboard_follows_content(shown_view.clone(), gift_placer, revision, &catcher);
+    }
     let gone = shown_view.clone();
     on_cleanup(move || {
         if let Some(node) = catcher.try_get() {
             let placed = be_host_runtime::view_placed(&gone.0, gone.1, gone.2).is_some();
-            if !placed {
+            // A view that goes while its instance's content shows in another of its views (a
+            // joined editor's content moving into its dock tab view, its main view staying placed
+            // but shown nowhere) hands that view the keyboard, as the runtime hands it the keys
+            // held for it (`forget_keys`).
+            let moved = be_host_runtime::content_moved(&gone.0, gone.1, gone.2)
+                .map(|to| (gone.0.clone(), gone.1, to));
+            if !placed || moved.is_some() {
                 be_host_runtime::forget_keys(&gone, gift_placer);
                 REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&gone));
             }
             super::desktop::forget_catcher(node);
             try_with_document(|document| {
-                if document.focused_node() == Some(node) {
-                    if placed {
-                        keep_focus_for_rebuild(&gone);
+                if document.focused_node() != Some(node) {
+                    return;
+                }
+                let taker = moved.as_ref().and_then(|(app, instance, view)| {
+                    super::desktop::catcher_of_view(app, *instance, *view)
+                });
+                match (&moved, taker) {
+                    (Some(_), Some(taker)) => document.focus_focusable(taker),
+                    (Some(moved), None) => {
+                        keep_focus_for_rebuild(moved);
+                        document.blur();
                     }
-                    document.blur();
+                    (None, _) => {
+                        if placed {
+                            keep_focus_for_rebuild(&gone);
+                        }
+                        document.blur();
+                    }
                 }
             });
         }
@@ -1655,7 +1676,8 @@ fn focus_when_given(
     let failed = create_memo(move || state.with(|view| view.error.is_some()));
     // Of the child's views, the one holding its content takes the gift and counts as the child
     // being up: the main view, or, for a child whose dock joined its placer's, the dock tab view
-    // its content moved to (`keyboard_follows_content` carries a keyboard over when it moves).
+    // its content moved to (a view that goes hands the keyboard and its keys to the one its content
+    // moved to: `content_moved`).
     let takes = move || be_host_runtime::content_view(&app.value(), own) == region;
     create_effect(move || {
         revision.get();
@@ -1732,11 +1754,6 @@ fn focus_when_given(
                 } else if be_host_runtime::take_gift(editor, child, own_view, false) {
                     document.focus_focusable(node);
                     passing.set(true);
-                    if region == ViewId::MAIN {
-                        GIFTED_MAIN.with_borrow_mut(|gifted| {
-                            gifted.insert((app.value().to_string(), own))
-                        });
-                    }
                 }
             });
         });
@@ -1756,50 +1773,6 @@ fn docked_focus(instance: EditorInstanceId, region: &View) -> Option<AskedFocus>
         placer,
         child,
     })
-}
-
-thread_local! {
-    /// Instances whose main view took a keyboard gift: if their content then moves into a dock tab
-    /// view while nothing has the focus, the keyboard follows it there.
-    static GIFTED_MAIN: RefCell<HashSet<(String, EditorInstanceId)>> =
-        RefCell::new(HashSet::new());
-}
-
-/// A child whose dock joins its placer's shows its content in its main view until the dock is
-/// hosted, then in one of its dock's tab views, and the main view goes. A keyboard gift the main
-/// view took before then (a block just made to type into) goes on to the view the content moved
-/// to.
-fn keyboard_follows_content(
-    app: Stored<String>,
-    instance: EditorInstanceId,
-    region: ViewId,
-    revision: beui::reactive::ReadSignal<u64>,
-    catcher: &NodeRef,
-) {
-    let catcher = *catcher;
-    let key = move || (app.value().to_string(), instance);
-    if region == ViewId::MAIN {
-        return;
-    }
-    create_effect(move || {
-        revision.get();
-        untrack(|| {
-            if !GIFTED_MAIN.with_borrow(|gifted| gifted.contains(&key()))
-                || be_host_runtime::content_view(&app.value(), instance) != region
-            {
-                return;
-            }
-            let Some(node) = catcher.try_get() else {
-                return;
-            };
-            GIFTED_MAIN.with_borrow_mut(|gifted| gifted.remove(&key()));
-            try_with_document(|document| {
-                if document.focused_node().is_none() {
-                    document.focus_focusable(node);
-                }
-            });
-        });
-    });
 }
 
 fn key_progress(app: &str, instance: EditorInstanceId, view: Memo<PlacedView>) -> KeyProgress {
@@ -1862,6 +1835,43 @@ thread_local! {
     /// the catcher built for the view in its place takes the keyboard back, so moving a view (a
     /// child placed in a new pane) does not drop it.
     static REBUILT: RefCell<HashSet<GiftView>> = RefCell::new(HashSet::new());
+}
+
+/// A joined editor's content shows in its main view until its dock is hosted, then in one of its
+/// dock's tab views, built after the main view goes (the main view stays placed, shown nowhere).
+/// A main view that went with the keyboard left it to be taken back (`keep_focus_for_rebuild`):
+/// the dock tab view its content moved to takes it instead, and the keys held for the main view
+/// with it (`forget_keys` finds where the content moved).
+fn keyboard_follows_content(
+    view: GiftView,
+    placer: Option<(&'static str, EditorInstanceId)>,
+    revision: beui::reactive::ReadSignal<u64>,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    let view = store(view);
+    create_effect(move || {
+        revision.get();
+        let Some(node) = catcher.try_get() else {
+            return;
+        };
+        untrack(|| {
+            let (app, instance, region) = (*view.value()).clone();
+            if be_host_runtime::content_view(&app, instance) != region {
+                return;
+            }
+            let main = (app, instance, ViewId::MAIN);
+            if !REBUILT.with_borrow_mut(|rebuilt| rebuilt.remove(&main)) {
+                return;
+            }
+            be_host_runtime::forget_keys(&main, placer);
+            try_with_document(|document| {
+                if document.focused_node().is_none() {
+                    document.focus_focusable(node);
+                }
+            });
+        });
+    });
 }
 
 fn keep_focus_for_rebuild(view: &GiftView) {
