@@ -4,31 +4,7 @@ use beui_tree::reactive::{Get, IntoProp, Memo, Prop, ReadSignal, Signal};
 
 use crate::color::Color;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Direction {
-    Horizontal,
-    Vertical,
-}
-
-impl Direction {
-    pub fn axes(self, main: f32, cross: f32) -> Vec2 {
-        match self {
-            Direction::Horizontal => vec2(main, cross),
-            Direction::Vertical => vec2(cross, main),
-        }
-    }
-
-    pub fn main(self, size: Vec2) -> f32 {
-        self.main_and_cross(size).0
-    }
-
-    pub fn main_and_cross(self, size: Vec2) -> (f32, f32) {
-        match self {
-            Direction::Horizontal => (size.x, size.y),
-            Direction::Vertical => (size.y, size.x),
-        }
-    }
-}
+pub use be_lib_geometry::Direction;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Align {

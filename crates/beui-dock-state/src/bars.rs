@@ -1,4 +1,4 @@
-use beui_types::{Direction, Pos2};
+use be_lib_geometry::{Direction, Pos2};
 
 use super::joined::joined_host;
 

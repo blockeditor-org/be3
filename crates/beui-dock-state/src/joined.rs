@@ -1,6 +1,6 @@
 use be_lib_stable_hash::{HashMap, HashSet};
 
-use beui_types::Rect;
+use be_lib_geometry::Rect;
 
 use super::{
     Bar, DockCompact, DockHome, DockSpecNode, DockState, DockVisit, Entry, Group, GroupId, Home,
