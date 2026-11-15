@@ -264,7 +264,7 @@ mod android {
             let text = env.cast_local::<JString>(text)?;
             let (be3, nonce) = extras_of(env, &clip)?;
             Ok(Some(super::Held {
-                text: Some(text.to_string()),
+                text: Some(beui_types::clip::text_from_system(text.to_string())),
                 be3,
                 nonce,
             }))

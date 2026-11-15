@@ -113,7 +113,7 @@ fn paste_from(data: &web_sys::DataTransfer) {
     }
     let get = |kind: &str| data.get_data(kind).ok().filter(|text| !text.is_empty());
     let transferred = Transferred {
-        text: get("text"),
+        text: get("text").map(beui_types::clip::text_from_system),
         html: get("text/html"),
         files: data
             .files()
@@ -390,7 +390,8 @@ impl PlatformServices for WebPlatform {
                 .await
                 .ok()
                 .and_then(|text| text.as_string())
-                .filter(|text| !text.is_empty());
+                .filter(|text| !text.is_empty())
+                .map(beui_types::clip::text_from_system);
             let held = HELD.with(|held| {
                 let mut held = held.borrow_mut();
                 let ours = held.wrote(text.as_deref());

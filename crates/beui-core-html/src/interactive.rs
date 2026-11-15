@@ -549,6 +549,10 @@ mod web {
                     return Some(Pasted::File(format.clone(), file));
                 }
                 let text = data.get_data(format).ok().filter(|text| !text.is_empty())?;
+                let text = match format.as_str() {
+                    formats::TEXT => beui_types::clip::text_from_system(text),
+                    _ => text,
+                };
                 Some(Pasted::Now(ClipItem::new(
                     format.clone(),
                     text.into_bytes(),
@@ -1020,7 +1024,10 @@ mod web {
                     (true, false) => vec![formats::TEXT.to_owned()],
                     (true, true) => return,
                 };
-                let text = data.get_data("text").ok();
+                let text = data
+                    .get_data("text")
+                    .ok()
+                    .map(beui_types::clip::text_from_system);
                 let ours = crate::page::held(text.as_deref()).filter(|clip| {
                     clip.formats()
                         .any(|format| taken.iter().any(|t| t == format))
