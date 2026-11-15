@@ -6,6 +6,10 @@ wasm32-unknown-unknown (the type modules) at `opt-level=s` (buck/platforms/profi
 hashed export names (guides/app_libraries.md), and the bundle ships a `.cwasm` of every
 module with be-host's symbols and the modules' name sections kept.
 
+Dev builds use legacy mangling too, for a reason of their own: symbol names were the largest
+part of a native test binary, and the build server stores every test binary a change relinks
+(the sizes are in buck/platforms/profile.bzl, `SYMBOL_FLAGS`).
+
 ## Why
 
 Fat LTO is limited to the deploy because of its ten-minute link. The symbols and name sections are read by the panic guard's reports and a guest's
