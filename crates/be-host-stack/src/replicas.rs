@@ -26,7 +26,7 @@ impl be_block_type_host::Host for Shared {
     }
 
     fn wake() {
-        be_host_base::host::wake();
+        crate::changes::wake();
     }
 
     fn record(shared: &Arc<Mutex<Self>>, error: ClientError) {
@@ -246,12 +246,18 @@ fn to_editor(shared: &Arc<Mutex<Shared>>, block: Uuid, editor: EditorId, bytes: 
         }
         return;
     }
+    let number = held.frames_queued;
+    held.frames_queued += 1;
     held.editor_frames
         .entry(editor)
         .or_default()
-        .push((block, frame(bytes)));
+        .push(crate::seen::Frame {
+            number,
+            block,
+            bytes: Arc::new(frame(bytes)),
+        });
     drop(held);
-    be_host_base::host::wake();
+    crate::changes::wake();
 }
 
 fn frame(mut bytes: Vec<u8>) -> Vec<u8> {

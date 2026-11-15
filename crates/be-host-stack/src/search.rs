@@ -259,6 +259,8 @@ pub struct Searching {
     scanned: Option<u64>,
     wanted: HashMap<Owner, Vec<SearchAsk>>,
     answers: HashMap<SearchAsk, Answer>,
+    /// Counts the changes to what `shown` answers, for the worker to make it again only then.
+    shown_revision: u64,
     running: HashSet<SearchAsk>,
     /// Documents' text for snippets, by block, key and head.
     texts: HashMap<(Uuid, String, Option<CommitId>), Option<String>>,
@@ -438,13 +440,35 @@ impl Searching {
         };
         let wanted: HashSet<SearchAsk> = self.wanted().cloned().collect();
         self.answers.retain(|asked, _| wanted.contains(asked));
+        self.shown_revision += 1;
         true
     }
 
+    /// Each search's answer as shown so far, `complete` left for the reader to fill in from
+    /// `indexed` (`Seen::searched`).
+    pub(crate) fn shown(&self) -> HashMap<SearchAsk, Searched> {
+        self.answers
+            .iter()
+            .filter_map(|(asked, answer)| Some((asked.clone(), answer.shown.clone()?)))
+            .collect()
+    }
+
+    /// A search's answer as the page reads it (`crate::searched`).
+    #[cfg(test)]
     pub(crate) fn answer(&self, asked: &SearchAsk) -> Option<Searched> {
         let mut shown = self.answers.get(asked)?.shown.clone()?;
         shown.complete = self.indexed();
         Some(shown)
+    }
+
+    pub(crate) fn shown_revision(&self) -> u64 {
+        self.shown_revision
+    }
+
+    /// Forgets every answer: an index they read changed.
+    fn forget_answers(&mut self) {
+        self.answers.clear();
+        self.shown_revision += 1;
     }
 
     /// Nothing this device could index is queued, parked, being made or being written. Offline,
@@ -996,7 +1020,7 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
     }
     let idle = !held.search.off
         && held.waiting == 0
-        && held.pending == 0
+        && held.pending() == 0
         && !held.typing
         && !held.arriving
         && !held.draining
@@ -1059,7 +1083,7 @@ fn compact_idle_indexes(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, ta
         }
         held.progressed += 1;
         drop(held);
-        be_host_base::host::wake();
+        crate::changes::wake();
     });
 }
 
@@ -1077,7 +1101,7 @@ async fn index(
         }
         let roots = unindexed_roots(&mut held);
         let state = &mut *held;
-        let (graph, named) = (&state.graph, &state.search.named);
+        let (graph, named) = (&state.seen.graph, &state.search.named);
         let roots_naming: HashSet<Uuid> = graph
             .nodes()
             .filter(|node| node.parent == Some(BlockParent::Root))
@@ -1101,7 +1125,7 @@ async fn index(
         held.search.set_attached(peer.is_attached());
         {
             let state = &mut *held;
-            let graph = &state.graph;
+            let graph = &state.seen.graph;
             state.search.release_unplaced(
                 |missing| graph.get(missing).is_some(),
                 |missing| graph.ready(GraphQuery::Block(missing)),
@@ -1271,7 +1295,7 @@ async fn index(
                             held.search.caught.remove(block);
                         }
                         held.search.mark_put(put_blocks);
-                        held.search.answers.clear();
+                        held.search.forget_answers();
                         held.search.reread(
                             needs_text
                                 .iter()
@@ -1300,7 +1324,7 @@ async fn index(
                     }
                 }
             }
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
     moved
@@ -1333,7 +1357,7 @@ fn unindexed_roots(held: &mut Shared) -> Vec<(Uuid, Uuid)> {
     }
     held.search.scanned = Some(revision);
     let state = &mut *held;
-    let graph = &state.graph;
+    let graph = &state.seen.graph;
     state
         .search
         .prune_given_up(|root| graph.get(root).map(|node| node.access));
@@ -1420,7 +1444,7 @@ fn make_indexes(
                     }
                 }
             }
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1869,7 +1893,7 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
                 }
             }
             tasks_held.sync(&peer, &shared);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -1971,7 +1995,7 @@ async fn catch_up(
                 held.search.dirty.insert(block);
             }
         }
-        be_host_base::host::wake();
+        crate::changes::wake();
         match page.next {
             Some(next) => after = next,
             None => return Ok(true),
@@ -2024,7 +2048,7 @@ fn settle_indexes(
                     #[cfg(test)]
                     held.search.settled_at.insert(index, settle.sequence);
                     held.search.wrote(index, peer.local_head(index));
-                    held.search.answers.clear();
+                    held.search.forget_answers();
                     held.search.reread(
                         needs_text
                             .iter()
@@ -2048,7 +2072,7 @@ fn settle_indexes(
                 }
             }
             drop(held);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -2093,7 +2117,7 @@ fn confirm_names(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &T
                 .unwrap_or_else(PoisonError::into_inner)
                 .search
                 .confirmed(root);
-            be_host_base::host::wake();
+            crate::changes::wake();
         });
     }
 }
@@ -2594,12 +2618,15 @@ fn heads(peer: &Peer<Store>, graph: &Graph, indexes: &[Uuid]) -> u64 {
 fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -> bool {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let graph = held.graph.revision;
+    let mut unshown = false;
     for answer in held.search.answers.values_mut() {
         if answer.missing.is_some_and(|at| at != graph) {
             answer.shown = None;
             answer.missing = None;
+            unshown = true;
         }
     }
+    held.search.shown_revision += u64::from(unshown);
     let wanted: Vec<SearchAsk> = held.search.wanted().cloned().collect();
     let mut followed = Vec::new();
     let mut started = false;
@@ -2626,6 +2653,7 @@ fn search(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: &Tasks) -
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.search.running.remove(&asked);
             if held.search.wanted().any(|wanted| *wanted == asked) {
+                held.search.shown_revision += 1;
                 held.search.answers.insert(
                     asked,
                     Answer {
@@ -2774,12 +2802,14 @@ async fn show(
             });
         }
         let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let held = &mut *held;
         let graph = held.graph.revision;
         if let Some(answer) = held.search.answers.get_mut(&asked) {
             answer.shown = Some(Searched {
                 hits,
                 complete: false,
             });
+            held.search.shown_revision += 1;
             // Shown again whenever the mirror moves: a hit may have left the tree, or been moved
             // out of what the search is within, or the mirror may now hold one it lacked.
             answer.missing = Some(graph);
@@ -2790,7 +2820,7 @@ async fn show(
             held.progressed += 1;
         }
     }
-    be_host_base::host::wake();
+    crate::changes::wake();
     true
 }
 

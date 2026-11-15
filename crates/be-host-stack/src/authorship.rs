@@ -76,7 +76,7 @@ pub(crate) fn run(peer: &Arc<Peer<Store>>, tasks: &Tasks, command: AuthorshipCom
                     .verify_authored(account, block, &bytes, &signature)
                     .await;
                 reply(verified.map_err(|error| error.to_string()));
-                be_host_base::host::wake();
+                crate::changes::wake();
             });
         }
     }
