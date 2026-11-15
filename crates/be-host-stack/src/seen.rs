@@ -125,7 +125,7 @@ pub struct Seen {
     pub connected: bool,
     /// Offline, the blocks this device holds no version of whole, so it can neither open nor
     /// change them (`BlockInfo::out_of_reach`); empty while connected.
-    pub out_of_reach: Part<HashSet<Uuid>>,
+    pub out_of_reach: imbl::HashSet<Uuid>,
     pub reached: bool,
     /// Between connecting and having asked for everything the device must catch up on: set as
     /// `Session::arrive` starts, cleared once `arrive` has opened the wanted blocks and the
