@@ -13,17 +13,47 @@ types are all `Placed<P>`: a node plus the data its parent `P` keeps beside it
 the wrong kind is a compile error. A plain node converts into whatever a slot
 asks for. A new parent implements `ParentKind` (and `BareChild` if a bare
 `NodeId` should fit). A slot holds runs, not a flat list, which is how a
-fragment, `Show` or `ForEach` fills places among siblings it does not own. So
-control flow has no spacing, takes no `@test_id` or `@node_ref`, and does not
-compile in a single-child slot until a `List` goes around it. A `Vec` of nodes
-does not fill a slot; write a `ForEach` over the keys inside the same `view!`.
-A component whose whole view is a `Show` returns `DynamicSegment<ListItem>`.
+fragment, `Show` or `ForEach` fills places among siblings it does not own. A
+`Vec` of nodes does not fill a slot; write a `ForEach` over the keys inside the
+same `view!`.
+
+**Control flow and its forms.** `Show`, `Dynamic`, `Keyed` and `Loading`
+return a lazy form whose type says how many children it builds, read from what
+the branches build: `OneOf<C>` (exactly one: a `Show` with a `fallback` whose
+branches each build one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>`
+(a `Show` without a `fallback`, or a `Dynamic` or `Keyed` over an `Option`
+given `fallback=()`, which builds nothing on `None` and hands its render the
+value inside), or a run, `DynamicSegment<C>` (several
+children, `ForEach`). Among a parent's run every form fills its place with no
+node of its own, so a hidden `Show` takes no room and no spacing. In a slot
+that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
+`Option<Child>`) becomes a host node holding the child it swaps: natively a
+bare `Frame` that sizes to its child, on HTML a `display: contents` element
+that passes its placed styles on to its child. `@test_id` and `@node_ref` on
+`OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run;
+focusing a host focuses the child it holds. A plain `Option` of a child (or of
+`Children`) also fills a run, but it is built once and is not reactive: write
+`cond.then(|| view! {..})` only for a condition fixed when the view is built,
+and a `Show` for one that changes. With a `fallback`, a `Dynamic` or `Keyed`
+`value` must already be an `Option`: it is not lifted from a plain value, which
+would never show the fallback.
+A run where one node goes, and a `Show` without a `fallback` where a node must
+always be, are compile errors saying what to add. A `ForEach` row that is a
+one-child `Show` costs a host per row, and a `ZeroOrOne` row there is a host that
+stays empty while it builds nothing. An either/or is one `Show` with a
+`fallback`, never two `Show`s on a condition and its negation
+([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)). A component
+whose whole view is control flow returns `DynamicSegment<ListItem>` (for a run)
+or `NodeId` (a host), which `#[component]` turns it into
+(`ComponentOutput`). That conversion hides the body's type from inference, so a
+body ending in `x.into()` or `Default::default()` names its type
+(`NodeId::from(x)`).
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
 only where the tree shows the node) and `@node_ref`. Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
-change the output type. A modifier works on the node itself; how a parent places
+change the output type. A modifier works on the node itself (`NamesNode`); how a parent places
 a child is a tag around it that builds the child that parent takes:
 `<ListItem grow=1.0>` (a list or stack child's length: `grow`, `length`, `min`,
 `max`, `shrink`, `align`, `gap`) and `<GridCell span=2>`. So
@@ -49,8 +79,16 @@ them, as they do outside any component.
 `#[component]` as well as each method; props go on the trait's declaration.
 Use them as `<A::View editor />`. A component method takes no `self`.
 
-**Props.** Pass a memo to a prop as it is, not as `move || memo.get()`, which
-boxes a closure. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
+**Props.** A `Prop<T>` prop takes a `T`, a signal or memo of one, or a closure
+returning one, which it reads as a getter: `condition={move || !hex.get()}`.
+Pass a derived value as a closure. Make a memo instead when its output changes
+less often than its inputs (a boolean from a scroll offset or a long list), so
+what reads it is not woken for nothing, or when it is costly and read in
+several places. Pass a signal or memo as it is, not as `move || memo.get()`. A closure
+returns the prop's own type: the conversions a prop type adds with
+`into_prop_via!` (a `Space` for a `Padding`) apply to values, signals and memos,
+not to closures. Every builder method and function that takes a prop takes
+`impl IntoPropWith<T, M>`, never `impl IntoProp<T>`, so it takes a closure too. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
 clone a non-`Copy` prop in a block head:
 `<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.
