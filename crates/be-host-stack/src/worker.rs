@@ -2763,7 +2763,7 @@ async fn list_invitations(
         .map(|row| crate::Invite {
             link: be_block_client::contacts::invitation_link_code(identity, &row.code)
                 .map(|code| {
-                    crate::own_invitation(&code);
+                    crate::own_invitation(&config.server_url, peer.account(), &code);
                     crate::invite_link::link(&base, &code)
                 }),
             id: row.id,
@@ -2794,7 +2794,7 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
         peer.keys().escrow().as_ref(),
     )
     .await?;
-    crate::own_invitation(&code);
+    crate::own_invitation(&config.server_url, peer.account(), &code);
     Ok(crate::invite_link::link(
         &crate::accounts::link_base(&config.server_url),
         &code,

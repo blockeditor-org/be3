@@ -167,8 +167,8 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   can't take it (already a member) is told whose invitation it is and offered
   another account. Reading an invitation marks it opened, so "opened" means a
   holder of the link other than the inviter's own devices read it: be-host
-  reads nothing for a code it made or listed as the person's own
-  (`be_host_stack::is_own_invitation`).
+  reads nothing for a code the account signed in made or listed as its own
+  (`be_host_stack::is_own_invitation`, keyed by server and account).
 - **The invite list** (Invitations, in the organization's menu, for
   administrators; `list-invitations`): every invitation of the organization,
   outstanding and ended (accepted, expired, revoked), with who made it, who

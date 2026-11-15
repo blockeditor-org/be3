@@ -1365,7 +1365,9 @@ impl HostCore {
         };
         self.organization_error = None;
         // The person's own link reads nothing: opening it would mark it opened for them.
-        if be_host_stack::is_own_invitation(&link.code) {
+        if self.signed_in
+            && be_host_stack::is_own_invitation(&self.server_url, self.account.id, &link.code)
+        {
             self.organization_error = Some(
                 "This is your own invite link: send it to the person you want to invite."
                     .to_owned(),
