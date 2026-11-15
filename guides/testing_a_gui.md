@@ -154,7 +154,11 @@ in a padded surface `bleed` so a ring at its edge has room. beui-demo's
 
 - `./scripts/verify` accepts new and changed paintings, fails on one a test names but never
   wrote, and deletes paintings no test compared (`--check` fails instead). CI on a pull request
-  does the same and pushes what it wrote.
+  does the same and pushes what it wrote. A test's paintings are at a fixed path in buck-out,
+  so one that did not run leaves an earlier build's there: when the build fails, verify accepts
+  only the paintings of tests whose compare ran in it, by the event log, and names the rest it
+  left as they are (crates/be-tool-verify's failures.rs). A test that did not run fails the
+  build, so verify fails too.
 - Under verify and `./scripts/test --update` a test never reads its accepted painting: it writes
   what it painted (`MADE_PAINTINGS`), and an action after it compares that with `snapshots/`
   (guides/buck2.md, Tests). So the test's result is cached on its code alone, and a test that

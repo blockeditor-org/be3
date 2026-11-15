@@ -552,12 +552,35 @@ impl Run {
         }
     }
 
+    /// The tests, as "crates/foo:name", whose outputs this build stands behind
+    /// (failures.rs): every one when everything built, else those whose
+    /// paintings it compared.
+    fn ran(&self) -> Option<BTreeSet<String>> {
+        if !self.options.build_failed {
+            return None;
+        }
+        let events = self.options.event_log.as_ref().map(fs::read_to_string);
+        Some(failures::compared(
+            &events.and_then(Result::ok).unwrap_or_default(),
+        ))
+    }
+
     fn paintings(&mut self) {
         let expected = self.expected("paintings");
         let directories = self.built_in("paintings");
+        let ran = self.ran();
         let mut changed = Vec::new();
         let mut stale = Vec::new();
+        let mut earlier = Vec::new();
         for (package, directory) in &directories {
+            if !this_builds(ran.as_ref(), package, directory) {
+                earlier.extend(
+                    paint_files(&directory.join("changed"))
+                        .iter()
+                        .filter_map(|painting| Some(package.join("snapshots").join(painting.file_name()?))),
+                );
+                continue;
+            }
             for painting in paint_files(&directory.join("changed")) {
                 let name = painting.file_name().unwrap_or_default();
                 let compared =
@@ -569,6 +592,14 @@ impl Run {
                 } else {
                     stale.push(to);
                 }
+            }
+        }
+        if !earlier.is_empty() {
+            println!(
+                "These paintings were left as they are: the build failed and their tests did not compare them in it, so what is at their tests' outputs is an earlier build's:"
+            );
+            for painting in &earlier {
+                println!("  {}", slashed(painting));
             }
         }
         if !stale.is_empty() {
@@ -663,8 +694,12 @@ impl Run {
     /// (failures.rs).
     fn flakes(&mut self) {
         let unchecked = self.unchecked();
+        let ran = self.ran();
         let mut found = Vec::new();
         for (package, directory) in self.built_in("flaky") {
+            if !this_builds(ran.as_ref(), &package, &directory) {
+                continue;
+            }
             if match &unchecked {
                 failures::Unchecked::All => true,
                 failures::Unchecked::Packages(packages) => packages.contains(&slashed(&package)),
@@ -715,6 +750,21 @@ impl Run {
         }
         self.failed = true;
     }
+}
+
+/// Whether `directory`, an output of a test in `package`, is this build's: every
+/// one is when `ran` is none (everything built), else only one of a test in
+/// `ran`, as "crates/foo:name".
+pub(crate) fn this_builds(ran: Option<&BTreeSet<String>>, package: &Path, directory: &Path) -> bool {
+    ran.is_none_or(|ran| owner(package, directory).is_some_and(|test| ran.contains(&test)))
+}
+
+/// The test that wrote `directory`, one of its outputs, as "crates/foo:name":
+/// buck2 puts a target's outputs at .../PACKAGE/__NAME__/OUTPUT.
+fn owner(package: &Path, directory: &Path) -> Option<String> {
+    let name = directory.parent()?.file_name()?.to_str()?;
+    let name = name.strip_prefix("__")?.strip_suffix("__")?;
+    Some(format!("{}:{name}", slashed(package)))
 }
 
 fn git(arguments: &[&str]) -> Option<String> {
