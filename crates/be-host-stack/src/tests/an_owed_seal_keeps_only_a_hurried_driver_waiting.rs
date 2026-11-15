@@ -8,6 +8,7 @@ use super::*;
 fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
     let block = Uuid::new_v4();
     let shared = Shared {
+        seen: crate::Seen {
         owing: 1,
         owing_blocks: vec![be_block_type_host::Owing {
             block,
@@ -19,6 +20,8 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
             joining: false,
             closing: false,
         }],
+        ..crate::Seen::default()
+        },
         ..Shared::default()
     };
     assert!(
