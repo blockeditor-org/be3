@@ -2162,7 +2162,6 @@ fn DockFullscreenView(dock: State) -> NodeId {
                 placement={window_placement}
                 open={windowed}
                 fullscreen=true
-                keep_alive=true
                 on_report={move |report: WindowReport| {
                     if let WindowReport::Focused { focused: true, .. } = report
                         && let Some(tab) = dock.fullscreen_tab()

@@ -8,7 +8,7 @@ use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{
-    AnyKey, Branch, Count, Counted, Get, SlotChild, as_form, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set,
+    AnyKey, Get, Unwrapped, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set,
     Signal, create_effect, create_memo, create_signal, on_cleanup, provide_context, untrack,
     use_context,
 };
@@ -87,13 +87,9 @@ struct KeepAliveCache(Rc<Cache>);
 /// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
 /// does.
 #[component]
-pub fn KeepAlive<C, B, KS>(
-    keep: KS,
-    #[prop(children)] content: Render<(), B>,
-) -> <<B as Counted>::Count as Count>::Form<C>
+pub fn KeepAlive<B, KS>(keep: KS, #[prop(children)] content: Render<(), B>) -> B::Output
 where
-    C: SlotChild,
-    B: Branch<C>,
+    B: Unwrapped + 'static,
     KS: KeepSet,
 {
     let cache = Rc::new(Cache {
@@ -113,7 +109,7 @@ where
         });
     }
     provide_context(KeepAliveCache(cache));
-    as_form(content.call(()))
+    content.call(()).unwrapped()
 }
 
 /// A subtree its `KeepAlive` keeps by `key` (without one, the one unkeyed subtree of that

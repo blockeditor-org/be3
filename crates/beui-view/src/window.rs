@@ -104,7 +104,6 @@ pub fn Window(
     #[prop(default = true)] open: Prop<bool>,
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = false)] fullscreen: Prop<bool>,
-    #[prop(default = false)] keep_alive: bool,
     on_report: Callback<WindowReport>,
     #[prop(children)] content: RenderFn<WindowHandle>,
 ) -> NodeId {
@@ -177,7 +176,6 @@ pub fn Window(
             window={spec}
             traps_focus=false
             open={open}
-            keep_alive={keep_alive}
         >
             <Frame width=width height=height>{provided(handle, content)}</Frame>
         </Overlay>
