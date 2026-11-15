@@ -3566,10 +3566,6 @@ where
             restarted_at: self.restarted_at.filter(|_| self.history.stopped()),
             lost_edits: self.lost_edits,
         });
-        let journaled = match self.role {
-            Role::Owner(_) => self.unappended.is_empty() && self.held.is_empty(),
-            Role::Follower(_) => self.is_clean(),
-        };
         let status = Status {
             head: self.base,
             holder: self.is_holder(),

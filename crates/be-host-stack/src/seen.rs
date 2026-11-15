@@ -131,6 +131,8 @@ pub struct Unsent {
     pub since: i64,
     pub offerable: bool,
     pub refused: Option<be_block_protocol::ErrorCode>,
+    /// Its replica's local edits this device keeps that never became a commit.
+    pub kept_edits: usize,
 }
 
 impl From<&be_block_client::UnsentBlock> for Unsent {
@@ -141,6 +143,7 @@ impl From<&be_block_client::UnsentBlock> for Unsent {
             since: unsent.since,
             offerable: unsent.offerable,
             refused: unsent.refused,
+            kept_edits: unsent.kept_edits,
         }
     }
 }

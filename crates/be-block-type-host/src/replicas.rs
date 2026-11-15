@@ -4578,10 +4578,6 @@ fn replayable(
             sequence: journal.base.sequence,
             state: journal.base.state,
         },
-        entries: journal
-            .entries
-            .into_iter()
-            .map(api_entry)
-            .collect(),
+        entries: journal.entries.into_iter().map(api_entry).collect(),
     })
 }
