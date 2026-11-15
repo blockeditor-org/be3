@@ -300,7 +300,7 @@ sends it. `Peer::write` does both.
   organization's lost-access policy never deletes it, and cached listings leave
   it out. What is made in it is set aside with its refusal, and restoring it
   restores them. A publish refused as a change the server will never take
-  (`InvalidRequest`, `ObjectTooLarge`) is set aside the same way rather than
+  (`InvalidRequest`, `ObjectTooLarge`, `CommitAhead`) is set aside the same way rather than
   sent again every round. A refused move or define puts back the summary the server has
   (`unchanged`, `Drained::Refused` with `restored`).
 - `Peer::pending` counts outbox operations, local commits, their blocks and
