@@ -682,7 +682,8 @@ pub(crate) fn AppView(
     provide_context(Enclosing(encloses));
     let given = use_context::<GivenKeyboard>().map(|GivenKeyboard(given)| given);
     provide_context(GivenKeyboard(create_memo(|| false)));
-    let asked = use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked);
+    let asked = docked_focus(instance, &region)
+        .or_else(|| use_context::<ChildFocus>().and_then(|ChildFocus(asked)| asked));
     provide_context(ChildFocus(None));
     super::intercept::intercept_keys(app_id, instance, region.id, intercepted, move || {
         primary.get_untracked()
@@ -701,6 +702,7 @@ pub(crate) fn AppView(
         &catcher,
         primary,
     );
+    keyboard_follows_content(app_id, instance, region.id, revision, &catcher);
     let catcher_zoom = zoom;
     create_effect(move || {
         revision.get();
@@ -1651,9 +1653,14 @@ fn focus_when_given(
     // start takes.
     let up = create_memo(move || state.with(|view| !view.loading && view.error.is_none()));
     let failed = create_memo(move || state.with(|view| view.error.is_some()));
+    // Of the child's views, the one holding its content takes the gift and counts as the child
+    // being up: the main view, or, for a child whose dock joined its placer's, the dock tab view
+    // its content moved to (`keyboard_follows_content` carries a keyboard over when it moves).
+    let takes = move || be_host_runtime::content_view(&app.value(), own) == region;
     create_effect(move || {
+        revision.get();
         let (up, failed) = (up.get(), failed.get());
-        if !asked.asked.get() || !(up || failed) {
+        if !asked.asked.get() || !(up || failed) || !untrack(takes) {
             return;
         }
         let editor = (asked.placer.app, asked.placer.instance);
@@ -1685,6 +1692,9 @@ fn focus_when_given(
             let Some(node) = catcher.try_get() else {
                 return;
             };
+            if !takes() {
+                return;
+            }
             let AskedFocus { placer, child, .. } = asked;
             let placing = placer.app;
             let editor = (placing, placer.instance);
@@ -1722,6 +1732,70 @@ fn focus_when_given(
                 } else if be_host_runtime::take_gift(editor, child, own_view, false) {
                     document.focus_focusable(node);
                     passing.set(true);
+                    if region == ViewId::MAIN {
+                        GIFTED_MAIN.with_borrow_mut(|gifted| {
+                            gifted.insert((app.value().to_string(), own))
+                        });
+                    }
+                }
+            });
+        });
+    });
+}
+
+/// A docked child's dock tab view is built where its placer's tab shows, not among the placer's
+/// children, so it learns the gift from the placement the host keeps.
+fn docked_focus(instance: EditorInstanceId, region: &View) -> Option<AskedFocus> {
+    if region.placement != ViewPlacement::Dock {
+        return None;
+    }
+    let (app, placer, child) = be_host_runtime::docked_placer(instance)?;
+    let placer = Placer::new(&app, placer, ViewId::MAIN);
+    Some(AskedFocus {
+        asked: create_memo(move || gifts::gives(placer.app, placer.instance, child)),
+        placer,
+        child,
+    })
+}
+
+thread_local! {
+    /// Instances whose main view took a keyboard gift: if their content then moves into a dock tab
+    /// view while nothing has the focus, the keyboard follows it there.
+    static GIFTED_MAIN: RefCell<HashSet<(String, EditorInstanceId)>> =
+        RefCell::new(HashSet::new());
+}
+
+/// A child whose dock joins its placer's shows its content in its main view until the dock is
+/// hosted, then in one of its dock's tab views, and the main view goes. A keyboard gift the main
+/// view took before then (a block just made to type into) goes on to the view the content moved
+/// to.
+fn keyboard_follows_content(
+    app: Stored<String>,
+    instance: EditorInstanceId,
+    region: ViewId,
+    revision: beui::reactive::ReadSignal<u64>,
+    catcher: &NodeRef,
+) {
+    let catcher = *catcher;
+    let key = move || (app.value().to_string(), instance);
+    if region == ViewId::MAIN {
+        return;
+    }
+    create_effect(move || {
+        revision.get();
+        untrack(|| {
+            if !GIFTED_MAIN.with_borrow(|gifted| gifted.contains(&key()))
+                || be_host_runtime::content_view(&app.value(), instance) != region
+            {
+                return;
+            }
+            let Some(node) = catcher.try_get() else {
+                return;
+            };
+            GIFTED_MAIN.with_borrow_mut(|gifted| gifted.remove(&key()));
+            try_with_document(|document| {
+                if document.focused_node().is_none() {
+                    document.focus_focusable(node);
                 }
             });
         });
