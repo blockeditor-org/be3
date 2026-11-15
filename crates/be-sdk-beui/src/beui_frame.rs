@@ -322,20 +322,20 @@ impl Watched {
     }
 
     fn history(&self) -> (bool, bool) {
-        self.editor.histories().get();
+        self.editor.histories().track();
         let history = self.editor.host().history(self.editor.block_id());
         (history.can_undo, history.can_redo)
     }
 
     /// The commit of the session restart undo stopped at, once nothing after it is left.
     fn stopped_at(&self) -> Option<[u8; 32]> {
-        self.editor.histories().get();
+        self.editor.histories().track();
         let history = self.editor.host().history(self.editor.block_id());
         history.restarted_at.filter(|_| !history.can_undo)
     }
 
     fn lost_edits(&self) -> bool {
-        self.editor.histories().get();
+        self.editor.histories().track();
         self.editor
             .host()
             .history(self.editor.block_id())

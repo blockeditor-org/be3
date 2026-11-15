@@ -245,8 +245,8 @@ the host's, is rooted in a transparent `Root`; an app dialog in `Surface`, like 
 - What the host sends unasked (drags, file drops, audio, history, focus,
   placement, peers) arrives at the top of the next frame as signals on
   `Editor`.
-- Work on another thread takes its `Waker` from `editor.woken()`, whose signal
-  ticks once the work has woken the editor.
+- Work on another thread takes its `Waker` from `editor.woken()`, whose `Trigger`
+  notifies once the work has woken the editor.
 
 A template the manifest marks `"dialog": true` shows `BeuiRoot::Creation` in
 the picker's creation dialog, and `BeuiRoot::create_block` makes the block.

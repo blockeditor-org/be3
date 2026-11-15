@@ -383,7 +383,7 @@ impl MapState {
         let (waker, woken) = self.editor.woken();
         *inner.waker.borrow_mut() = waker;
         create_effect(move || {
-            woken.with(|_| ());
+            woken.track();
             untrack(|| self.collect_tiles());
         });
         let drag = self.editor.drag();

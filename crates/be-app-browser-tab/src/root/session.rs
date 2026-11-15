@@ -44,7 +44,7 @@ impl Session {
         };
         let events = editor.web_view_events();
         create_effect(move || {
-            events.get();
+            events.track();
             untrack(|| session.process_events());
         });
         create_effect(move || session.open());

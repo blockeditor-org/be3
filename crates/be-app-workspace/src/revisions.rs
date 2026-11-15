@@ -69,7 +69,7 @@ impl RevisionHistory {
         let changed = editor.pushed(Pushed::Histories);
         create_effect_on(
             move || {
-                changed.get();
+                changed.track();
                 history.target.get().map(|item| {
                     editor.host().watch_history([item.id]);
                     (item.id, editor.host().history(item.id).head)

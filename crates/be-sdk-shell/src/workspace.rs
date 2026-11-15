@@ -189,7 +189,7 @@ impl Workspace {
         });
         let shows = workspace.editor.pushed(Pushed::Shows);
         create_effect(move || {
-            shows.get();
+            shows.track();
             untrack(|| workspace.show_requested());
         });
         create_binding(move || {
