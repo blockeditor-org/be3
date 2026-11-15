@@ -280,10 +280,6 @@ fn Clip(
             .find(|clip| clip.id == id)
             .is_some_and(|clip| clip.attachment.is_some())
     });
-    let fill = create_memo(move || match attached.get() {
-        true => ColorRole::Hover,
-        false => ColorRole::Pressed,
-    });
     let editor = state.editor();
     let element_test_id = format!("video.clip.{}", id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
@@ -317,9 +313,12 @@ fn Clip(
             >|_: DragHandle|
                 <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
                     <Frame
-                        fill={fill}
+                        fill={move || match attached.get() {
+                            true => ColorRole::Hover,
+                            false => ColorRole::Pressed,
+                        }}
                         radius=CLIP_RADIUS
-                        border={create_memo(move || selected.get().then_some(Border::FOCUS))}
+                        border={move || selected.get().then_some(Border::FOCUS)}
                         padding=THUMBNAIL_MARGIN
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>

@@ -18,22 +18,21 @@ pub(super) const SPACING: Space = Space::Sm;
 pub fn Boat(editor: Editor) -> NodeId {
     let state = State::new(editor);
     let web = state.web;
-    let signing_in = create_memo(move || {
-        !web.get() && (state.key.with(Option::is_none) || state.reconnecting.get())
-    });
-    let listing = create_memo(move || !web.get() && !signing_in.get());
+    let not_on_the_web = move || {
+        view! {
+            <Show
+                condition={move || state.key.with(Option::is_none) || state.reconnecting.get()}
+                fallback={move || view! { <Sandboxes state /> }}>
+                <SignIn state />
+            </Show>
+        }
+    };
     view! {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
-                    <Show condition={web}>
+                    <Show condition={web} fallback={not_on_the_web}>
                         <OnTheWeb />
-                    </Show>
-                    <Show condition={signing_in}>
-                        <SignIn state />
-                    </Show>
-                    <Show condition={listing}>
-                        <Sandboxes state />
                     </Show>
                 </List>
             </Frame>

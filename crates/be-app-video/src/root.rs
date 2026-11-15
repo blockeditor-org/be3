@@ -198,11 +198,6 @@ fn FrameRateBar(state: VideoState) -> NodeId {
 #[component]
 fn PlaybackBar(state: VideoState) -> NodeId {
     let playing = state.playing;
-    let empty = create_memo(move || state.duration.get() == 0);
-    let glyph = create_memo(move || match playing.get() {
-        true => ICON_PAUSE,
-        false => ICON_PLAY,
-    });
     let playhead = state.playhead;
     let duration = state.duration;
     let rate = state.frame_rate;
@@ -226,9 +221,12 @@ fn PlaybackBar(state: VideoState) -> NodeId {
             />
             <Button
                 icon_only=true
-                glyph={glyph}
+                glyph={move || match playing.get() {
+                    true => ICON_PAUSE,
+                    false => ICON_PLAY,
+                }}
                 label="Play"
-                disabled={empty}
+                disabled={move || state.duration.get() == 0}
                 @test_id={"video.play"}
                 on_click={move || state.toggle_playback()}
             />
@@ -247,10 +245,10 @@ fn PlaybackBar(state: VideoState) -> NodeId {
 fn TimelineTools(state: VideoState) -> NodeId {
     let none = create_memo(move || state.selected.get().is_none());
     let bar = use_dock_bar();
-    let across = create_memo(move || match bar.map(|bar| bar.direction()) {
+    let across = move || match bar.map(|bar| bar.direction()) {
         Some(Direction::Vertical) => Direction::Horizontal,
         _ => Direction::Vertical,
-    });
+    };
     view! {
         <DockBarSurface spacing=Space::Sm @test_id={"video.timeline-tools"}>
             <Frame @test_id={"video.timeline-tools.grip"}>

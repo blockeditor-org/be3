@@ -53,7 +53,7 @@ pub fn ChoicePicker(
                 variant=ButtonVariant::Ghost
                 size=ButtonSize::Compact
                 arrow=false
-                placeholder={create_memo(move || option.with(Option::is_none))}
+                placeholder={move || option.with(Option::is_none)}
                 leading={view! {
                     <ChoiceMark option={option} size=MARK />
                 }}
