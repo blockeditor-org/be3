@@ -199,9 +199,9 @@ fn carrying(
     on_drag: Callback<PointerPress>,
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
-    use std::cell::RefCell;
     use crate::types::Rect;
     use std::cell::Cell;
+    use std::cell::RefCell;
     use std::rc::Rc;
 
     let asked = Rc::new(Cell::new(false));
@@ -263,12 +263,15 @@ fn carrying(
     let frame = create_memo(move || {
         let id = mine.get()?;
         let driver = crate::drag::driver()?;
-        (driver.carry() == Some(id)).then(|| driver.frame()).flatten()
+        (driver.carry() == Some(id))
+            .then(|| driver.frame())
+            .flatten()
     });
     let floating = create_memo(move || frame.get().is_some_and(|frame| frame.floating));
     let raised = create_memo(move || floating.get() && !previewed.get());
     // Where the children are laid out, measured once the wrapper below is built.
-    let measured = create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
+    let measured =
+        create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
     let placed = create_memo(move || {
         measured
             .get()
@@ -280,7 +283,9 @@ fn carrying(
         _ => Vec2::ZERO,
     });
     let anchor = create_memo(move || {
-        crate::reactive::OverlayAnchor::Point(frame.get().map_or(Pos2::ZERO, |frame| frame.item.min))
+        crate::reactive::OverlayAnchor::Point(
+            frame.get().map_or(Pos2::ZERO, |frame| frame.item.min),
+        )
     });
     let open = create_memo(move || floating.get() && previewed.get());
     // What this node's carry last said, for a screen reader.
@@ -321,8 +326,14 @@ fn carrying(
                     .register();
                 });
                 Callback::new(move |press: KeyPress| {
-                    carry_keys(press, activates, drag, mine, (wrapped, laid_out), &keyboard_lift)
-                        || on_key.call(press)
+                    carry_keys(
+                        press,
+                        activates,
+                        drag,
+                        mine,
+                        (wrapped, laid_out),
+                        &keyboard_lift,
+                    ) || on_key.call(press)
                 })
             }
             false => on_key,
@@ -335,7 +346,6 @@ fn carrying(
         finish,
     }
 }
-
 
 /// Keys on a source given `drag`, while it has focus. Space lifts its carry with the
 /// keyboard, unless the source also activates, when Space and Enter stay its own; any source
@@ -363,7 +373,9 @@ fn carry_keys(
     let Some(driver) = crate::drag::driver() else {
         return false;
     };
-    let held = mine.get_untracked().is_some_and(|id| driver.carry() == Some(id));
+    let held = mine
+        .get_untracked()
+        .is_some_and(|id| driver.carry() == Some(id));
     let flat = |_| (Vec::new(), WindowId::MAIN);
     let toward = match press.key {
         Key::ArrowUp => Some(Vec2::new(0.0, -1.0)),
@@ -444,7 +456,10 @@ fn lift_by_keys(
         return false;
     };
     if carry.item.is_none() {
-        carry.item = Some(Rect::from_min_size(Pos2::ZERO - rect.size() / 2.0, rect.size()));
+        carry.item = Some(Rect::from_min_size(
+            Pos2::ZERO - rect.size() / 2.0,
+            rect.size(),
+        ));
     }
     let floats = carry.preview.clone();
     match driver.lift(carry, crate::drag::DragPoint::of(at)) {
@@ -484,15 +499,15 @@ fn CarriedFace(
                     level=LayerLevel::Top
                     traps_focus=false
                     open={open}
-                >
-                    || {
-                        let shown = preview.borrow().clone();
-                        match shown {
-                            Some(preview) => preview(),
-                            None => view! { <Frame /> },
-                        }
+                >|| {
+                    let shown = preview.borrow().clone();
+                    match shown {
+                        Some(preview) => preview(),
+                        None => view! {
+                            <Frame />
+                        },
                     }
-                </Overlay>
+                }</Overlay>
             </List>
         </Frame>
     }
@@ -511,5 +526,7 @@ fn CarryStatus(said: crate::reactive::Memo<Option<String>>) -> NodeId {
         node
     }));
     use crate::primitives::Frame;
-    view! { <Frame /> }
+    view! {
+        <Frame />
+    }
 }
