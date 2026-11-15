@@ -1,4 +1,4 @@
-use beui_reactive::{Get, Memo, ReadSignal, Signal, create_memo};
+use beui_reactive::{Get, Memo, ReadSignal, Signal, Trigger, create_memo};
 use beui_types::Vec2;
 use beui_types::{
     Motion, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
@@ -11,7 +11,7 @@ struct PageSignals {
     motion: Signal<Option<Motion>>,
     viewport: Signal<Vec2>,
     pixels_per_point: Signal<f32>,
-    font_revision: Signal<u64>,
+    fonts_loaded: Trigger,
 }
 
 thread_local! {
@@ -22,7 +22,7 @@ thread_local! {
         motion: crate::global_signal(None),
         viewport: crate::global_signal(Vec2::ZERO),
         pixels_per_point: crate::global_signal(1.0),
-        font_revision: crate::global_signal(0),
+        fonts_loaded: crate::global_trigger(),
     };
 }
 
@@ -129,8 +129,8 @@ pub fn pixels_per_point() -> ReadSignal<f32> {
     signals().pixels_per_point.read_only()
 }
 
-pub fn use_font_revision() -> ReadSignal<u64> {
-    signals().font_revision.read_only()
+pub fn use_font_changes() -> Trigger {
+    signals().fonts_loaded
 }
 
 /// Writes the clip's plain text to the system clipboard (empty when it has
@@ -237,7 +237,7 @@ pub(crate) fn watch(window: &web_sys::Window) -> Vec<crate::dom::Listener> {
             "loadingdone",
             false,
             move |_: web_sys::Event| {
-                signals.font_revision.update(|revision| *revision += 1);
+                signals.fonts_loaded.notify();
                 crate::frame::request_frame();
             },
         ));

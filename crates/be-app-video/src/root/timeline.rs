@@ -25,24 +25,20 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let placed = create_signal(Rect::ZERO);
     create_effect(move || state.fit_timeline(placed.get().width().max(1.0)));
 
-    let clips = state.clips;
+    let edit = state.edit;
     let rows = create_memo(move || {
-        let _ = clips.get();
-        state
-            .video()
-            .map(|video| {
-                timeline::lane_rows(&video)
-                    .into_iter()
-                    .map(|row| Lane {
-                        id: row.timing.id,
-                        lane: row.lane,
-                        start: row.timing.start,
-                        length: row.timing.length,
-                        depth: row.timing.depth,
-                    })
-                    .collect::<Vec<Lane>>()
-            })
-            .unwrap_or_default()
+        edit.with(|video| {
+            timeline::lane_rows(video)
+                .into_iter()
+                .map(|row| Lane {
+                    id: row.timing.id,
+                    lane: row.lane,
+                    start: row.timing.start,
+                    length: row.timing.length,
+                    depth: row.timing.depth,
+                })
+                .collect::<Vec<Lane>>()
+        })
     });
     let lanes =
         create_memo(move || rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1);

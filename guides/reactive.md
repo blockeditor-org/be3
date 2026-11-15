@@ -25,8 +25,8 @@ rather than a clone per closure.
 
 A handle belongs to the scope that was current when it was made and is freed
 when that scope is disposed. Creating one with no current scope panics. Outside
-a scope, state is owned one of three ways: `OwnedSignal`, `OwnedStored` and
-`OwnedKeyedStore` free their value when they drop; `RootScope::new()` makes a
+a scope, state is owned one of three ways: `OwnedSignal`, `OwnedTrigger`,
+`OwnedStored` and `OwnedKeyedStore` free their value when they drop; `RootScope::new()` makes a
 detached scope current for the rest of the block (tests start with
 `let _root = RootScope::new();`); or `Scope::run` enters an existing one.
 

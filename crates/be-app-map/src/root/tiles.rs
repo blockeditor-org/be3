@@ -68,9 +68,9 @@ fn magnified(id: TileId, ancestor: TileId) -> Rect {
 }
 
 fn drawn(state: MapState, tile: TileId) -> Memo<Option<(Image, Option<Rect>)>> {
-    let revision = state.revision;
+    let tiles_changed = state.tiles_changed;
     create_memo(move || {
-        let _ = revision.get();
+        tiles_changed.track();
         state.with_tiles(|tiles| {
             if let Some(image) = tiles.get(&tile).and_then(TileState::image) {
                 return Some((image.clone(), None));
@@ -103,7 +103,7 @@ pub(crate) fn Tile(
 ) -> CanvasItem {
     if !underlay {
         create_effect(move || {
-            state.reloads.with(|_| ());
+            state.reloads.track();
             untrack(|| state.want_tile(tile));
         });
         on_cleanup(move || state.unwant_tile(tile));

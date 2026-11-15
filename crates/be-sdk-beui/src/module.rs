@@ -38,7 +38,7 @@ pub(crate) trait Shown {
 struct Registry {
     shown: RefCell<HashMap<EditorInstanceId, Rc<dyn Shown>>>,
     windows: RefCell<HashMap<ViewRef, WindowId>>,
-    revision: OwnedSignal<u64>,
+    revision: OwnedTrigger,
     /// The views the host gave the keyboard (`Views::keyboard`).
     keyboard: OwnedSignal<Vec<ViewRef>>,
 }
@@ -61,7 +61,7 @@ impl Default for Module {
             registry: Rc::new(Registry {
                 shown: RefCell::default(),
                 windows: RefCell::default(),
-                revision: OwnedSignal::new(0),
+                revision: OwnedTrigger::new(),
                 keyboard: OwnedSignal::new(Vec::new()),
             }),
             document: RefCell::new(None),
@@ -106,10 +106,7 @@ impl Module {
     }
 
     fn touch(&self) {
-        self.registry
-            .revision
-            .handle()
-            .update(|revision| *revision += 1);
+        self.registry.revision.notify();
     }
 
     fn shown(&self, instance: EditorInstanceId) -> Option<Rc<dyn Shown>> {
@@ -231,10 +228,10 @@ fn ModuleWindows(
     requested: ReadSignal<Vec<View>>,
     views: Views,
 ) -> beui::NodeId {
-    let revision = registry.revision.read_only();
+    let revision = registry.revision.handle();
     let generations = Rc::clone(&registry);
     let keys = create_memo(move || {
-        revision.get();
+        revision.track();
         requested.with(|requested| {
             requested
                 .iter()

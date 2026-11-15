@@ -38,7 +38,7 @@ pub struct LayeredSettings<R: 'static> {
     ready: Memo<bool>,
     blocks: Stored<SettingsLayers<R>>,
     changes: Stored<ChangeLog<R>>,
-    changed: Signal<u64>,
+    changed: Trigger,
 }
 
 impl<R: 'static> Clone for LayeredSettings<R> {
@@ -122,7 +122,7 @@ where
             false => Err(Pending::Loading),
         });
         let log = SettingsChangeLog::default();
-        let changed = create_signal(0_u64);
+        let changed = create_trigger();
         Self {
             editor,
             target,
@@ -135,7 +135,7 @@ where
             ready,
             blocks,
             changes: store(ChangeLog {
-                _changed: log.on_change(move || changed.update(|count| *count += 1)),
+                _changed: log.on_change(move || changed.notify()),
                 log,
             }),
             changed,
@@ -315,7 +315,7 @@ where
     pub fn changes(&self) -> SettingsChanges {
         let (this, changes, changed) = (*self, self.changes, self.changed);
         let toasts = create_memo(move || {
-            changed.get();
+            changed.track();
             let (message, round) =
                 changes.with(|changes| (changes.log.message(), changes.log.round()));
             match message {

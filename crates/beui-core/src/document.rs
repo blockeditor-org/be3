@@ -128,7 +128,7 @@ pub struct Document {
     /// meanwhile is fired late in the frame or asked for then, so it asks for nothing itself.
     timers_open: Cell<bool>,
     scale: ::beui_reactive::OwnedSignal<f32>,
-    attached: ::beui_reactive::OwnedSignal<u64>,
+    attached: ::beui_reactive::OwnedTrigger,
     focus_visible: ::beui_reactive::OwnedSignal<bool>,
     focus_watched: ::beui_reactive::OwnedSignal<Option<NodeId>>,
     fullscreen: ::beui_reactive::OwnedSignal<bool>,
@@ -385,7 +385,7 @@ impl Document {
             timer_frame: Cell::new(0),
             timers_open: Cell::new(false),
             scale: ::beui_reactive::OwnedSignal::new(1.0),
-            attached: ::beui_reactive::OwnedSignal::new(0),
+            attached: ::beui_reactive::OwnedTrigger::new(),
             focus_visible: ::beui_reactive::OwnedSignal::new(false),
             focus_watched: ::beui_reactive::OwnedSignal::new(None),
             fullscreen: ::beui_reactive::OwnedSignal::new(false),
@@ -600,8 +600,9 @@ impl Document {
         Rc::clone(&self.timers)
     }
 
-    pub fn watch_context(&self) -> ::beui_reactive::ReadSignal<u64> {
-        self.attached.read_only()
+    /// Notified when the document is attached to a context again, as when its fonts change.
+    pub fn watch_context(&self) -> ::beui_reactive::Trigger {
+        self.attached.handle()
     }
 
     pub fn watch_pixels_per_point(&self) -> ::beui_reactive::ReadSignal<f32> {
@@ -796,7 +797,7 @@ impl Document {
         self.viewport_size.set(size);
         let reattached = self.reattached.replace(false);
         if reattached {
-            self.attached.update(|attached| *attached += 1);
+            self.attached.notify();
         }
         self.publish_pointer_lock(reattached);
         self.timer_frame.set(self.timer_frame.get() + 1);

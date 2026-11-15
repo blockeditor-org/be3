@@ -55,7 +55,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         untrack(|| take_drag(state, drag));
     });
     create_effect(move || {
-        state.text.content().get();
+        state.text.content().track();
         state.refresh_embeds();
     });
     let visible = state.editor.presence_visible();
@@ -107,7 +107,7 @@ fn caret_when_given_the_keyboard(state: State) {
     let had = StoredCell::new(false);
     create_effect(move || {
         let given = keyboard.get();
-        state.text.content().get();
+        state.text.content().track();
         if !given {
             had.set(false);
             armed.set(false);
@@ -239,7 +239,7 @@ fn select_where_opened(state: State) {
     let restored = state.position_restored;
     let content = state.text.content();
     create_effect(move || {
-        content.get();
+        content.track();
         let Some(at) = wanted.get() else {
             return;
         };

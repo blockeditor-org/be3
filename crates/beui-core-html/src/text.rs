@@ -4,7 +4,7 @@ use std::ops::Range;
 use std::rc::Rc;
 
 use beui_html::Node;
-use beui_reactive::{Get, Set, Signal, create_signal, on_cleanup};
+use beui_reactive::{Get, Trigger, create_trigger, on_cleanup};
 use beui_tree::reactive::Prop;
 use beui_tree::reactive::{ChildList, IntoSlotHost, SlotHost, SlotId};
 use beui_types::Color;
@@ -266,7 +266,7 @@ pub struct TextModel {
     slots: RefCell<Vec<(SlotId, SlotId)>>,
     pieces: RefCell<HashMap<NodeId, Piece>>,
     single: RefCell<Option<Rc<Run>>>,
-    structure: Signal<u64>,
+    structure: Trigger,
     revision: Cell<u64>,
     pub(crate) decor: RefCell<Decor>,
     pub(crate) overlay: RefCell<Option<(Rc<dyn SlotHost<Node>>, SlotId)>>,
@@ -302,7 +302,7 @@ impl TextModel {
             slots: RefCell::default(),
             pieces: RefCell::default(),
             single: RefCell::default(),
-            structure: create_signal(0),
+            structure: create_trigger(),
             revision: Cell::new(0),
             decor: RefCell::default(),
             overlay: RefCell::default(),
@@ -351,8 +351,7 @@ impl TextModel {
     }
 
     fn changed(&self) {
-        self.structure
-            .set(self.structure.get_untracked().wrapping_add(1));
+        self.structure.notify();
     }
 
     pub fn append(&self, node: NodeId) {
@@ -400,7 +399,7 @@ impl TextModel {
     }
 
     pub fn render(&self, glyphs: &[TextGlyph]) {
-        self.structure.get();
+        self.structure.track();
         let mut at = 0;
         for (_, piece) in self.ordered() {
             match piece {

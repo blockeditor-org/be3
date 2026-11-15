@@ -26,7 +26,7 @@ const ATTRIBUTION_HEIGHT: Size = Size::Xs;
 
 #[component]
 pub(crate) fn MapCanvas(state: MapState) -> NodeId {
-    let revision = state.revision;
+    let tiles_changed = state.tiles_changed;
     let sized = state.editor().world();
     let laid_out = state.editor().placed();
     let world = create_memo(move || {
@@ -56,7 +56,7 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
 
     let measures = Rc::new(labels::Measures::default());
     let candidates = create_memo(move || {
-        let _ = revision.get();
+        tiles_changed.track();
         let covering = covering.get();
         let world = world.get();
         state.with_tiles(|held| {

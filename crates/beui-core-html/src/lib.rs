@@ -38,3 +38,10 @@ fn global_signal<T: 'static>(value: T) -> beui_reactive::Signal<T> {
     std::mem::forget(owned);
     handle
 }
+
+fn global_trigger() -> beui_reactive::Trigger {
+    let owned = beui_reactive::OwnedTrigger::new();
+    let handle = owned.handle();
+    std::mem::forget(owned);
+    handle
+}

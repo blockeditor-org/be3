@@ -145,7 +145,7 @@ pub trait DesktopHost {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let _ = (window, focus);
         view! {
             <Frame />
@@ -154,7 +154,7 @@ pub trait DesktopHost {
 }
 
 #[component]
-pub fn PlacedWindow(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+pub fn PlacedWindow(window: HostWindowId, focus: Trigger) -> NodeId {
     let status = create_memo(move || Host::window_status(window));
     let on_force_close = Callback::new(move |()| Host::close(window));
     view! {

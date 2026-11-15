@@ -68,8 +68,9 @@ pub(crate) struct MapState {
     pub(crate) visible_region: Signal<MapRegion>,
     pub(crate) last_error: Signal<Option<String>>,
     pub(crate) labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
-    pub(crate) revision: Signal<u64>,
-    pub(crate) reloads: Signal<u64>,
+    /// Notified when the held tiles change (`with_tiles`).
+    pub(crate) tiles_changed: Trigger,
+    pub(crate) reloads: Trigger,
     pub(crate) anchor: Signal<[f64; 2]>,
     inner: Stored<MapInner>,
 }
@@ -92,8 +93,8 @@ impl MapState {
                 .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
                 .collect())
         });
-        let revision = create_signal(0);
-        let reloads = create_signal(0);
+        let tiles_changed = create_trigger();
+        let reloads = create_trigger();
         let fit_requested = create_signal(true);
         let anchor = create_signal([0.0, 0.0]);
         Self {
@@ -107,7 +108,7 @@ impl MapState {
             visible_region,
             last_error,
             labels,
-            revision,
+            tiles_changed,
             reloads,
             anchor,
             inner: store(MapInner {
@@ -153,11 +154,11 @@ impl MapState {
         inner.used.borrow_mut().clear();
         self.last_error.set(None);
         self.bump();
-        self.reloads.update(|reloads| *reloads += 1);
+        self.reloads.notify();
     }
 
     fn bump(&self) {
-        self.revision.update(|revision| *revision += 1);
+        self.tiles_changed.notify();
     }
 
     pub(crate) fn record(&self, edit: Edit) {

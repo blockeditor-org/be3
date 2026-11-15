@@ -13,14 +13,10 @@ const STAGE: Color32 = Color32::from_gray(18);
 #[component]
 pub(crate) fn Player(state: VideoState) -> NodeId {
     let playhead = state.playhead;
-    let clips = state.clips;
+    let edit = state.edit;
     let visible = create_memo(move || {
-        let _ = clips.get();
-        let _ = playhead.get();
-        state
-            .video()
-            .map(|video| video.visible_at(playhead.get()))
-            .unwrap_or_default()
+        let playhead = playhead.get();
+        edit.with(|video| video.visible_at(playhead))
     });
     let empty = create_memo(move || visible.get().is_empty());
 

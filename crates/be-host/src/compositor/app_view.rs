@@ -143,7 +143,7 @@ pub(crate) struct Rounded(pub(crate) Memo<f32>);
 
 #[derive(Clone, Copy)]
 pub(crate) struct PanDrag {
-    pub(crate) asked: ReadSignal<u64>,
+    pub(crate) asked: Trigger,
     pub(crate) pan: Callback<Vec2>,
 }
 
@@ -312,7 +312,7 @@ pub(crate) fn AppView(
     });
     let any = super::any();
     let presenting = create_memo(move || {
-        any.get();
+        any.track();
         block.is_some() && {
             let app_id = app_id.value();
             super::editors::editors().with(|open| {
@@ -470,7 +470,7 @@ pub(crate) fn AppView(
     }
     let behind = use_context::<Behind>();
     let state = create_memo(move || {
-        revision.get();
+        revision.track();
         let mut state = be_host_runtime::placed_view(
             &editor.app,
             instance,
@@ -518,10 +518,9 @@ pub(crate) fn AppView(
             placer: Placer::new(&app_id.value(), instance, region.id),
         },
     );
-    let (reports, tick) = super::editors::reports();
+    let reports = super::editors::reports();
     super::editors::provide_reports(reports);
     create_effect(move || {
-        tick.get();
         let statuses = super::desktop::merged_statuses(
             (app_id.value().to_string(), instance, region.id),
             mount,
@@ -546,11 +545,11 @@ pub(crate) fn AppView(
         };
     }
     let frames = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::frames(&app_id.value())
     });
     let placed = create_memo(move || {
-        revision.get();
+        revision.track();
         be_host_runtime::view_placed(&app_id.value(), instance, region.id)
     });
     let drawing = |part: Part| {
@@ -703,7 +702,7 @@ pub(crate) fn AppView(
     );
     let catcher_zoom = zoom;
     create_effect(move || {
-        revision.get();
+        revision.track();
         let zoom = catcher_zoom.get();
         let rect = state.with(|view| view.rect);
         if let Some(node) = catcher.try_get() {
@@ -869,7 +868,7 @@ pub(crate) fn AppView(
     let typing = create_memo(move || state.with(|view| view.ime.is_some()));
     let settled_view = store(shown_view.clone());
     create_effect(move || {
-        revision.get();
+        revision.track();
         typing.track();
         gifts::track(&app_id.value(), instance);
         if let Some((app, instance)) = gift_placer {
@@ -901,7 +900,7 @@ pub(crate) fn AppView(
     if let Some(block) = block.filter(|_| region.is_main()) {
         let used = create_memo(move || state.with(|view| view.used));
         create_effect(move || {
-            revision.get();
+            revision.track();
             rect.track();
             let parent = enclosing
                 .and_then(|Enclosing(parent)| parent.get())
@@ -982,11 +981,9 @@ pub(crate) fn AppView(
         },
     );
     if let Some(pan_drag) = pan_drag {
-        create_effect(move || {
-            if pan_drag.asked.get() == 0 {
-                return;
-            }
-            untrack(|| {
+        create_effect_on_change(
+            move || pan_drag.asked.track(),
+            move |_, _| {
                 let mut steered = steering.get();
                 let cancel = steered.take_over(pan_drag.pan);
                 steering.set(steered);
@@ -1000,8 +997,8 @@ pub(crate) fn AppView(
                         &|_| None,
                     );
                 }
-            });
-        });
+            },
+        );
     }
     let back = move |gesture: beui::BackGesture| {
         be_host_runtime::back_view(&app_id.value(), instance, region.id, gesture);
@@ -1069,7 +1066,7 @@ pub(crate) fn AppView(
         if passive.get() {
             return beui::Area::Nowhere;
         }
-        revision.get();
+        revision.track();
         let content = frame.get().and_then(|frame| frame.content);
         let beyond = match (region.is_main(), content) {
             (true, Some(placed)) => be_host_runtime::frame_rects(
@@ -1634,7 +1631,7 @@ fn focus_when_given(
     asked: Option<AskedFocus>,
     (app, own, region): (Stored<String>, EditorInstanceId, ViewId),
     state: Memo<PlacedView>,
-    revision: beui::reactive::ReadSignal<u64>,
+    revision: Trigger,
     catcher: &NodeRef,
     primary: Memo<bool>,
 ) {
@@ -1673,7 +1670,7 @@ fn focus_when_given(
         });
     });
     create_effect(move || {
-        revision.get();
+        revision.track();
         if !asked.asked.get() || !primary.get() {
             return;
         }

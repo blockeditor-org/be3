@@ -284,7 +284,7 @@ impl DesktopHost for Linux {
 
     fn window_status(window: HostWindowId) -> Option<WindowStatus> {
         let windows = windows()?;
-        windows.changes().get();
+        windows.changes().track();
         let id = WindowId(window.0);
         windows.list().with(|list| {
             let info = list.iter().find(|info| info.id == id)?;
@@ -356,7 +356,7 @@ impl DesktopHost for Linux {
     }
 
     #[component]
-    fn WindowSurface(window: HostWindowId, focus: Memo<u64>) -> NodeId {
+    fn WindowSurface(window: HostWindowId, focus: Trigger) -> NodeId {
         let occluders = crate::occlusion::occlusion();
         let occluders = create_memo(move || {
             occluders
@@ -378,7 +378,7 @@ impl DesktopHost for Linux {
         });
         match windows() {
             Some(windows) => view! {
-                <WindowView windows id={WindowId(window.0)} occluders carrier focus />
+                <WindowView windows id={WindowId(window.0)} occluders carrier focus={Some(focus)} />
             },
             None => view! {
                 <Frame />

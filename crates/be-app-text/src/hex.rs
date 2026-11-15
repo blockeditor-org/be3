@@ -479,7 +479,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     });
     let content = state.text.content();
     let rows = create_memo(move || {
-        content.get();
+        content.track();
         state.text.bytes().len().div_ceil(BYTES_PER_ROW).max(1)
     });
     let content_size = create_memo(move || {
@@ -492,7 +492,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let width = create_memo(move || Size::Custom(content_size.get().x));
     let height = create_memo(move || Size::Custom(content_size.get().y));
     let drawn = create_memo(move || {
-        content.get();
+        content.track();
         state.text.cursors().get();
         page(
             state,

@@ -289,8 +289,10 @@ pub fn use_viewport_size() -> Memo<Vec2> {
     })
 }
 
-pub fn use_font_revision() -> ReadSignal<u64> {
-    core::use_font_revision()
+/// Notified when the document's fonts change, so text laid out outside the tree
+/// (`lay_out_text`) is measured again.
+pub fn use_font_changes() -> Trigger {
+    core::use_font_changes()
 }
 
 pub fn use_preferences() -> Memo<Preferences> {

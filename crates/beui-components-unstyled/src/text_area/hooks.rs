@@ -237,7 +237,7 @@ impl TextLine {
         let (state, start) = (self.state, self.start);
         let content = state.content();
         create_memo(move || {
-            content.get();
+            content.track();
             let start = start.get();
             state.with_snapshot(|snapshot| {
                 snapshot

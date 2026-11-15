@@ -23,7 +23,7 @@ pub fn WindowView(
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
     #[prop(default = None)] carrier: Option<Carrier>,
-    #[prop(default = 0)] focus: Prop<u64>,
+    #[prop(default = None)] focus: Option<Trigger>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {
@@ -228,14 +228,16 @@ pub fn WindowView(
         answered.set(asked);
         untrack(|| node.focus());
     });
-    create_effect_on_change(
-        move || focus.get(),
-        move |_, _| {
-            if let Some(node) = catcher.try_get() {
-                node.focus();
-            }
-        },
-    );
+    if let Some(focus) = focus {
+        create_effect_on_change(
+            move || focus.track(),
+            move |_, _| {
+                if let Some(node) = catcher.try_get() {
+                    node.focus();
+                }
+            },
+        );
+    }
     let rect_measured = measure(built);
     create_effect(move || {
         if let Some(measured) = rect_measured.get() {
