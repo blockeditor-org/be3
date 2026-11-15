@@ -77,6 +77,12 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
         shift: true,
         ..Modifiers::NONE
     };
+    harness.key(Key::ArrowUp, ctrl_shift);
+    assert!(
+        dropped.get_untracked().is_empty(),
+        "with no place that way, Ctrl+Shift and an arrow drop nothing"
+    );
+    assert_eq!(carried.get_untracked(), None, "and leave nothing carried");
     harness.key(Key::ArrowRight, ctrl_shift);
     assert_eq!(
         dropped.get_untracked(),
