@@ -157,6 +157,9 @@ export function bindLetters(name) {
     letters = name ? { name, channel: new BroadcastChannel(name), page: false } : null;
 }
 
+// A letter no page can take is reported and its Box leaked (`be_letter_arrived` frees it):
+// throwing into the poster's wasm would skip its Rust destructors, and could leave a lock it
+// holds locked for good.
 function letterPost(letter) {
     if (letters === null || letters.page) {
         console.error(

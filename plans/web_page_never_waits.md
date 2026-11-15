@@ -64,6 +64,9 @@ a thread that runs beside it.
    wrote since the last), and the page's `Edit`s and replies travel as they do now. A
    worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
    `letters_web.rs`), but as the address of a value in the shared heap, which the page takes
-   and frees: with a memory of its own, the worker sends the letter's bytes instead.
+   and frees: with a memory of its own, the worker sends the letter's bytes instead. The page
+   then applies the messages once, at the start of a frame (be-host's frame and each app
+   runtime's), rather than taking the newest `Seen` on every read as it does now, so every
+   read in a frame reads one snapshot.
 3. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.
