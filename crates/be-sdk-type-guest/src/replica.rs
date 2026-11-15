@@ -583,8 +583,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// (`opening.taken-before`): `taken` counts on from there.
     taken_before: u64,
     /// The last local edit given again that an earlier opening submitted without hearing it
-    /// ordered (`opening.doubtful-through`): shown, in `doubtful`, but neither numbered nor
-    /// submitted, since the server may hold it already. Only before the replica joins.
+    /// ordered (`opening.doubtful-through`): shown, in `doubtful` with every local edit made
+    /// after it, but neither numbered nor submitted, since the server may hold it already. Only
+    /// before the replica joins.
     doubtful_through: u64,
     /// Those edits, in the order made, with the number of the first.
     doubtful: Vec<C::Op>,
@@ -1213,7 +1214,9 @@ where
         if local && self.edit_number() <= self.own_through {
             return self.job_already_ordered(job);
         }
-        if local && self.edit_number() <= self.doubtful_through {
+        // What follows a doubtful edit waits behind it: numbered here, it would be sealed before
+        // the edit it was made on, and given again with it once the replica joins.
+        if local && (self.edit_number() <= self.doubtful_through || self.first_doubtful.is_some()) {
             return self.job_doubtful(job);
         }
         match job {
