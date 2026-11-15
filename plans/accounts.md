@@ -80,9 +80,8 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
 ## Rules every method follows
 
-- **Email codes.** Eight characters from an alphabet without look-alikes (or
-  six digits; open question), valid ten minutes, dead
-  after five wrong tries. A code belongs to the one pending attempt that asked
+- **Email codes.** Eight characters from an alphabet without look-alikes,
+  valid ten minutes, dead after five wrong tries. A code belongs to the one pending attempt that asked
   for it (an attempt id held in the requesting browser's cookie), never to the
   email alone, and a new request for the same attempt ends the older code. The
   mail carries the code and a link that fills the code in; it completes sign-in only in
@@ -112,9 +111,8 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   or a provider sign-in. An email change (the existing `email_change_link` flow,
   now behind fresh proof) also mails the old address. Every identity added or
   removed mails a notice to the account's email, if it has one. Signing
-  in through an emailed code after "I can't sign in" (recovery) offers to end
-  every other session, as a password change does today; whether it ends them by
-  default is an open question.
+  in through an emailed code after "I can't sign in" (recovery) ends every
+  other session by default, as a password change does today.
 - **Mail goes to the log.** Real delivery is deferred
   (plans/deferred/mail_delivery.md); `LogDelivery` stays, so the server's
   journal holds every live sign-in code and link, and whoever reads it can sign
@@ -157,10 +155,11 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    `be-server login-link --data-dir DATA (--email EMAIL | --account ID)`
    (beside `invite-code create`, run against the data directory while the
    server runs) prints a link as the rules above say, in place of finding the
-   code in the log. It signs in an existing account only; the first account is still
-   made by registering with an invite code (whether the command should also
-   bootstrap the first registration is an open question). Done: a test where a
-   link signs in once and a second use and an expired one are refused.
+   code in the log. Given an email with no account, the link registers that
+   account (no invite code: only the operator runs the command), so a new
+   server's first account needs nothing from the log either. Done: tests where
+   a link signs in once and a second use and an expired one are refused, and
+   one where a link for a new email makes its account.
 4. **OIDC providers.** Operator config lists providers: issuer, client id and
    secret, and whether the provider is authoritative for email. Use the
    `openidconnect` crate. Rules:
@@ -306,10 +305,3 @@ asking for the code when the server wants one.
 - An account needs no email; its providers and passkeys are its recovery. A
   provider's email links to an existing account only after a code sent to it.
 
-## Open questions
-
-- Emailed codes: eight unambiguous characters or six digits?
-- Does signing in by emailed code for recovery end every other session by
-  default, as a password change does today?
-- Should `be-server login-link` also bootstrap the first account on a server,
-  in place of registering with an invite code?
