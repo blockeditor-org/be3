@@ -1789,9 +1789,11 @@ dependencies = [
 name = "be-host-tests"
 version = "0.1.0"
 dependencies = [
+ "be-block-commit",
  "be-block-fault-relay",
  "be-server",
  "be-tool-drive",
+ "beui-core",
  "beui-layer-drive",
  "beui-paint-snapshot",
  "tokio",

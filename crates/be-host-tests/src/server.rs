@@ -36,6 +36,11 @@ pub struct Account {
 
 impl Server {
     pub fn start() -> Self {
+        // The devices' clocks start at the test's moment, so the server's does too: it stamps
+        // when it took each edit, which a device reads against when the edit was made.
+        be_block_commit::start_now_at(
+            i64::try_from(beui_core::timer::TEST_WALL_CLOCK.as_millis()).unwrap_or(i64::MAX),
+        );
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .thread_name("test-server")
