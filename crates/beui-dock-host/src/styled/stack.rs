@@ -76,18 +76,16 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Show>
                     <ListItem grow=1.0>
                         <List spacing=Space::None>
-                            <Dynamic value={titled}>|titled: bool| {
-                                match titled {
-                                    true => view! {
-                                        <DockTitleButton action title icon noticed />
-                                    },
-                                    false => view! {
-                                        <Frame padding={Padding::horizontal(TITLE_PADDING)}>
-                                            <DockTitle title icon noticed opens=false />
-                                        </Frame>
-                                    },
-                                }
-                            }</Dynamic>
+                            <Show
+                                condition={titled}
+                                fallback={move || view! {
+                                    <Frame padding={Padding::horizontal(TITLE_PADDING)}>
+                                        <DockTitle title icon noticed opens=false />
+                                    </Frame>
+                                }}
+                            >
+                                <DockTitleButton action title icon noticed />
+                            </Show>
                         </List>
                     </ListItem>
                     <DockMenu menu room=BarRoom::Phone test_prefix={"dock".to_owned()} />

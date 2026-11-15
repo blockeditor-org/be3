@@ -355,9 +355,9 @@ impl DockHostLayout {
             layout.focused_root()
         });
         let snap = create_memo(move || root.get().and_then(|tab| layout.window_snap(tab)));
-        let has_focus = create_memo(move || focused.get().is_some());
+        let has_focus = create_memo(move || focused.with(Option::is_some));
         let snapped_as = move |wanted: DockSnap| {
-            create_memo(move || root.get().is_some() && snap.get() != Some(wanted))
+            create_memo(move || root.with(Option::is_some) && snap.get() != Some(wanted))
         };
         let on_root = move |act: fn(&DockHostLayout, TabId)| {
             move || {
@@ -366,7 +366,7 @@ impl DockHostLayout {
                 }
             }
         };
-        let several = create_memo(move || root.get().is_some() && layout.areas().len() > 1);
+        let several = create_memo(move || root.with(Option::is_some) && layout.areas().len() > 1);
         let can_clear = create_memo(move || {
             !disabled.get() && (!layout.cleared_windows().is_empty() || layout.shows_desktop())
         });
@@ -416,7 +416,7 @@ impl DockHostLayout {
             )
             .glyph(ICON_EYE_OFF)
             .enabled(create_memo(move || {
-                root.get().is_some() && snap.get().is_none()
+                root.with(Option::is_some) && snap.with(Option::is_none)
             })),
             snap_left: Action::new(
                 "dock.window.snap_left",
@@ -457,7 +457,7 @@ impl DockHostLayout {
                 }),
             )
             .glyph(ICON_MINIMIZE_2)
-            .enabled(create_memo(move || snap.get().is_some())),
+            .enabled(create_memo(move || snap.with(Option::is_some))),
             fullscreen: Action::new(
                 "dock.window.fullscreen",
                 "Show window full screen",
@@ -465,7 +465,7 @@ impl DockHostLayout {
             )
             .glyph(ICON_MAXIMIZE)
             .checked(fullscreen)
-            .enabled(create_memo(move || root.get().is_some())),
+            .enabled(create_memo(move || root.with(Option::is_some))),
             show_desktop: Action::new("dock.window.show_desktop", "Show desktop", move || {
                 layout.show_desktop();
             })

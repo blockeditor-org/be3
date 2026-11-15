@@ -232,45 +232,43 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
     let title = create_memo(move || notice.get().unwrap_or_else(|| title.get()));
     view! {
         <List spacing=Space::None>
-            <Dynamic value={icons_only}>|icons_only: bool| {
-                match icons_only {
-                    true => view! {
-                        <DockIconTab
-                            title
-                            icon
-                            picture
-                            grouped
-                            selected
-                            hovered
-                            active
-                            focused
-                            dragged
-                            waiting
-                            noticed
-                        />
-                    },
-                    false => view! {
-                        <DockTabChrome
-                            title
-                            icon
-                            picture
-                            grouped
-                            vertical
-                            selected
-                            hovered
-                            active
-                            focused
-                            dragged
-                            closable
-                            waiting
-                            noticed
-                            waiting_test_id={waiting_test_id(entry, test_key.as_deref())}
-                            close_test_id={close_test_id(test_key.as_deref())}
-                            close={close}
-                        />
-                    },
-                }
-            }</Dynamic>
+            <Show
+                condition={icons_only}
+                fallback={move || view! {
+                    <DockTabChrome
+                        title
+                        icon
+                        picture
+                        grouped
+                        vertical
+                        selected
+                        hovered
+                        active
+                        focused
+                        dragged
+                        closable
+                        waiting
+                        noticed
+                        waiting_test_id={waiting_test_id(entry, test_key.as_deref())}
+                        close_test_id={close_test_id(test_key.as_deref())}
+                        close={close}
+                    />
+                }}
+            >
+                <DockIconTab
+                    title
+                    icon
+                    picture
+                    grouped
+                    selected
+                    hovered
+                    active
+                    focused
+                    dragged
+                    waiting
+                    noticed
+                />
+            </Show>
         </List>
     }
 }
@@ -315,7 +313,6 @@ fn DockIconTab(
             (false, false) => TextColor::Muted,
         },
     );
-    let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let glyph = create_memo(move || match grouped {
         true => Some(ICON_APP_WINDOW),
         false => icon.get(),
@@ -343,7 +340,7 @@ fn DockIconTab(
             >
                 <List align=Align::Center spacing=Space::None>
                     <Show
-                        condition={shows_picture}
+                        condition={move || !grouped && picture.with(Option::is_some)}
                         fallback={move || view! {
                             <Show
                                 condition={move || glyph.with(Option::is_some)}
@@ -391,7 +388,6 @@ fn DockTabChrome(
         (false, false) => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
-    let pictured = create_memo(move || !grouped && !shows_picture.get() && icon.get().is_some());
     let (title_grow, title_shrink) = match vertical {
         true => (1.0, 0.0),
         false => (0.0, 1.0),
@@ -405,12 +401,12 @@ fn DockTabChrome(
             focus={focused}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                <Show condition={grouped}>
+                {grouped.then(|| view! {
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
-                </Show>
-                <Show condition={pictured}>
+                })}
+                <Show condition={move || !grouped && !shows_picture.get() && icon.with(Option::is_some)}>
                     <Text color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
@@ -525,7 +521,6 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         body,
         ..
     } = handle;
-    let pictured = create_memo(move || icon.get().is_some());
     let width = create_memo(move || Size::Custom(size.get().x + 2.0 * CHROME_BORDER));
     let header_fill = create_memo(move || match notice.with(Option::is_some) {
         true => ColorRole::AccentSoft,
@@ -564,7 +559,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             align=Align::Center
                             spacing=TAB_SPACING
                         >
-                            <Show condition={pictured}>
+                            <Show condition={move || icon.with(Option::is_some)}>
                                 <Text
                                     size=TextSize::Sm
                                     color=TextColor::Muted
@@ -676,13 +671,11 @@ fn DockTitleBar(
                             {tabs.map(|tabs| view! {
                                 <ListItem grow=1.0 gap=0.0>{tabs}</ListItem>
                             })}
-                            <Show condition={titled}>|| {
-                                let title = title.clone(); view! {
-                                    <ListItem grow=1.0>
-                                        <Text overflow=Overflow::Ellipsis>{title}</Text>
-                                    </ListItem>
-                                }
-                            }</Show>
+                            {titled.then(|| view! {
+                                <ListItem grow=1.0>
+                                    <Text overflow=Overflow::Ellipsis>{title.clone()}</Text>
+                                </ListItem>
+                            })}
                             <ListItem gap=0.0>
                                 <Frame padding={trailing}>
                                     <List
@@ -968,7 +961,7 @@ fn DockBarBandFace(handle: DockBarBandHandle) -> NodeId {
 #[component]
 fn DockDropHighlight(handle: DockHighlightHandle) -> NodeId {
     let DockHighlightHandle { group_with } = handle;
-    let grouping = create_memo(move || group_with.get().is_some());
+    let grouping = create_memo(move || group_with.with(Option::is_some));
     let label = create_memo(move || {
         group_with
             .get()
@@ -1016,7 +1009,6 @@ fn DockDropRefused() -> NodeId {
 
 #[component]
 fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool) -> NodeId {
-    let pictured = create_memo(move || !grouped && icon.get().is_some());
     let pictured_color = TextColor::Default;
     view! {
         <Frame
@@ -1028,12 +1020,12 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<Option<Glyph>>, grouped: bool
             padding={Padding::horizontal(PREVIEW_PADDING)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
-                <Show condition={grouped}>
+                {grouped.then(|| view! {
                     <Text size=TextSize::Sm align=TextAlign::Center>
                         <Icon glyph=ICON_APP_WINDOW />
                     </Text>
-                </Show>
-                <Show condition={pictured}>
+                })}
+                <Show condition={move || !grouped && icon.with(Option::is_some)}>
                     <Text size=TextSize::Sm color={pictured_color} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>

@@ -2003,20 +2003,18 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 <DockBarred dock leaf={None} holder={BarHolder::Dock}>
                     <Frame padding=inset>
                         <List spacing=0.0>
-                            <Dynamic value={stacks}>|stacks: bool| {
-                                match stacks {
-                                    false => view! {
-                                        <ListItem grow=1.0>
-                                            <DockTiles dock />
-                                        </ListItem>
-                                    },
-                                    true => view! {
-                                        <ListItem grow=1.0>
-                                            <DockStack dock />
-                                        </ListItem>
-                                    },
-                                }
-                            }</Dynamic>
+                            <Show
+                                condition={stacks}
+                                fallback={move || view! {
+                                    <ListItem grow=1.0>
+                                        <DockTiles dock />
+                                    </ListItem>
+                                }}
+                            >
+                                <ListItem grow=1.0>
+                                    <DockStack dock />
+                                </ListItem>
+                            </Show>
                         </List>
                     </Frame>
                 </DockBarred>
@@ -2076,7 +2074,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     create_effect(move || {
         panel.set(fullscreen.get().map(|shown| dock.panel(shown.tab)));
     });
-    let open = create_memo(move || fullscreen.get().is_some());
+    let open = create_memo(move || fullscreen.with(Option::is_some));
     let area = create_memo(move || fullscreen.get().and_then(|shown| shown.area));
     let placement = create_memo(move || match area.get() {
         Some(_) => Placement::At,
@@ -2190,7 +2188,7 @@ fn DockStack(dock: State) -> NodeId {
     create_effect(move || {
         let tab = shown
             .get()
-            .filter(|tab| away.get() != Some(*tab) && staged.get().is_none());
+            .filter(|tab| away.get() != Some(*tab) && staged.with(Option::is_none));
         let left = previous.replace(tab).filter(|left| Some(*left) != tab);
         let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
         panel.set(tab.map(|tab| dock.panel(tab)));
@@ -2198,8 +2196,8 @@ fn DockStack(dock: State) -> NodeId {
             untrack(|| dock.give_keyboard(tab));
         }
     });
-    let vacant = create_memo(move || shown.get().is_none());
-    let occupied = create_memo(move || shown.get().is_some());
+    let vacant = create_memo(move || shown.with(Option::is_none));
+    let occupied = create_memo(move || shown.with(Option::is_some));
     let backward = create_memo(move || state.with(|state| state.back().is_some()));
     let switching = create_signal(false);
     let tabs = create_memo(move || state.with(|state| state.switchable(state.recent_tabs())));
@@ -2211,9 +2209,9 @@ fn DockStack(dock: State) -> NodeId {
         .map(|switcher| switcher.call(switcher_handle(dock, shown, tabs, switching)));
     let barred = create_memo(move || bar.is_some() && occupied.get());
     let gone = dock.away_from(shown);
-    let left = create_memo(move || gone.get().is_some() && staged.get().is_none());
+    let left = create_memo(move || gone.with(Option::is_some) && staged.with(Option::is_none));
     let here =
-        create_memo(move || occupied.get() && gone.get().is_none() && staged.get().is_none());
+        create_memo(move || occupied.get() && gone.with(Option::is_none) && staged.with(Option::is_none));
     view! {
         <BackSlide
             enabled={backward}
@@ -2582,21 +2580,18 @@ fn DockTreeView(dock: State, tree: Tree) -> NodeId {
     });
     view! {
         <List spacing=0.0>
-            <Dynamic value={staged}>|staged: bool| {
-                let dock = dock;
-                match staged {
-                    true => view! {
-                        <ListItem grow=1.0>
-                            <DockCompactView dock tree />
-                        </ListItem>
-                    },
-                    false => view! {
-                        <ListItem grow=1.0>
-                            <DockTreeCanvas dock tree />
-                        </ListItem>
-                    },
-                }
-            }</Dynamic>
+            <Show
+                condition={staged}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <DockTreeCanvas dock tree />
+                    </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <DockCompactView dock tree />
+                </ListItem>
+            </Show>
         </List>
     }
 }
@@ -2754,7 +2749,7 @@ fn DockDropMarker(
             rect.size(),
         ))
     });
-    let shown = create_memo(move || marker.get().is_some());
+    let shown = create_memo(move || marker.with(Option::is_some));
     let rect = create_memo(move || marker.get().unwrap_or(Rect::ZERO));
     let x = create_memo(move || rect.get().min.x);
     let y = create_memo(move || rect.get().min.y);
@@ -2965,7 +2960,7 @@ fn DockPanelBody(dock: State, leaf: LeafId) -> NodeId {
 fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let state = dock.state;
     let shown = create_memo(move || state.with(|state| state.active_tab(leaf)));
-    let occupied = create_memo(move || shown.get().is_some());
+    let occupied = create_memo(move || shown.with(Option::is_some));
     view! {
         <List spacing=0.0>
             <Show
@@ -3017,8 +3012,8 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
         }
     });
     let gone = dock.away_from(shown);
-    let left = create_memo(move || gone.get().is_some());
-    let occupied = create_memo(move || shown.get().is_some() && gone.get().is_none());
+    let left = create_memo(move || gone.with(Option::is_some));
+    let occupied = create_memo(move || shown.with(Option::is_some) && gone.with(Option::is_none));
     view! {
         <List spacing=0.0>
             <Show condition={occupied}>
@@ -3349,14 +3344,13 @@ fn TabMenu(
     toggle_fullscreen: Callback<()>,
     children: NodeId,
 ) -> NodeId {
-    let offered = create_memo(move || fullscreen.get().is_some());
+    let offered = create_memo(move || fullscreen.with(Option::is_some));
     let fullscreen_label = create_memo(move || match fullscreen.get() {
         Some(true) => "Leave full screen".to_owned(),
         Some(false) | None => "Full screen".to_owned(),
     });
     let stuck = create_memo(move || floating || anchored.get());
     let alone = create_memo(move || !has_next.get());
-    let unclosable = create_memo(move || !closable.get());
     let (group_label, split_label, close_label) = match grouped {
         false => ("Group with next tab", "Split with next tab", "Close tab"),
         true => (
@@ -3379,7 +3373,7 @@ fn TabMenu(
                 <MenuItem label={split_label} disabled={alone} on_click={move || split.call(())} />
                 <MenuItem
                     label={close_label}
-                    disabled={unclosable}
+                    disabled={move || !closable.get()}
                     on_click={move || close.call(())}
                 />
                 <Show condition={grouped}>
@@ -3434,13 +3428,12 @@ fn GripMenu(
         false => "Show tabs in a sidebar",
     };
     let checked = create_memo(move || Some(icons_only.get()));
-    let lockable = create_memo(move || lock.get().is_some());
+    let lockable = create_memo(move || lock.with(Option::is_some));
     let GripPane {
         menu: tab_menu,
         closable,
         close,
     } = pane;
-    let unclosable = create_memo(move || !closable.get());
     let tab_menu = create_memo(move || {
         let mut nodes = tab_menu.get();
         if !nodes.is_empty() {
@@ -3456,7 +3449,7 @@ fn GripMenu(
                 <MenuItem label="Icons only" checked on_click={move || toggle_icons.call(())} />
                 <MenuItem
                     label="Close all tabs"
-                    disabled={unclosable}
+                    disabled={move || !closable.get()}
                     on_click={move || close.call(())}
                 />
                 <Show condition={lockable}>
@@ -4177,7 +4170,7 @@ fn DockDragLayer(dock: State) -> NodeId {
             floats.then_some(drag.highlight).flatten()
         })
     });
-    let marking = create_memo(move || marked.get().is_some());
+    let marking = create_memo(move || marked.with(Option::is_some));
     let highlight = create_memo(move || marked.get().unwrap_or(Rect::ZERO));
     let marker_anchor = create_memo(move || highlight.get().min)
         .into_prop()
