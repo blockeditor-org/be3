@@ -31,11 +31,10 @@ pub(crate) struct Adding {
 }
 
 #[component]
-pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<ListItem> {
+pub(crate) fn FilesToolbar(adding: Adding, shown: Prop<bool>) -> DynamicSegment<ListItem> {
     let Adding { editor, zoom, .. } = adding;
     let account = NodeRef::new();
     let focus = zoom.focus();
-    let zoomed = create_memo(move || focus.with(Option::is_some));
     view! {
         <Toolbar shown={shown} fit=true>
             <ListItem grow=1.0>
@@ -55,7 +54,7 @@ pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<
                             on_click={move || editor.show_host_menu(account)}
                         />
                     </List>
-                    <Show condition={zoomed}>
+                    <Show condition={move || focus.with(Option::is_some)}>
                         <Location zoom />
                     </Show>
                 </List>
@@ -67,10 +66,6 @@ pub(crate) fn FilesToolbar(adding: Adding, shown: Memo<bool>) -> DynamicSegment<
 #[component]
 fn FilterField(zoom: Zoom, query: Signal<String>) -> NodeId {
     let focus = zoom.focus();
-    let placeholder = create_memo(move || match focus.get() {
-        Some(focus) => format!("Filter {}", focus.row.label),
-        None => "Filter files".to_owned(),
-    });
     let field = NodeRef::new();
     on_key(
         KeyAt::Node(field),
@@ -91,7 +86,10 @@ fn FilterField(zoom: Zoom, query: Signal<String>) -> NodeId {
         <TextInput
             @node_ref={&field}
             value={query}
-            placeholder={placeholder}
+            placeholder={move || match focus.with(|focus| focus.as_ref().map(|focus| focus.row.label.clone())) {
+                Some(label) => format!("Filter {label}"),
+                None => "Filter files".to_owned(),
+            }}
             label="Filter files"
             glyph=ICON_SEARCH
             clearable=true
@@ -112,7 +110,6 @@ fn NewButton(adding: Adding) -> NodeId {
     } = adding;
     let (here, menu_button) = (NodeRef::new(), NodeRef::new());
     let focus = zoom.focus();
-    let zoomed = create_memo(move || focus.with(Option::is_some));
     let addable = create_memo(move || {
         focus.with(|focus| {
             focus
@@ -120,8 +117,6 @@ fn NewButton(adding: Adding) -> NodeId {
                 .and_then(|focus| focus.row.id.filter(|_| focus.row.can_add))
         })
     });
-    let primary = create_memo(move || addable.with(Option::is_some));
-    let menu = create_memo(move || !primary.get());
     let rows = tree.rows();
     let workspaces = create_memo(move || {
         rows.with(|rows| {
@@ -166,9 +161,57 @@ fn NewButton(adding: Adding) -> NodeId {
         query.set(String::new());
         super::ui::new_workspace(editor, renaming);
     };
+    let menu = move || {
+        view! {
+            <MenuButton
+                @node_ref={&menu_button}
+                label="New"
+                icon_only=true
+                disabled={move || focus.with(Option::is_some)}
+                open={opening}
+                @test_id={"file-tree.new"}
+                leading={view! {
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        spacing=Space::Xs2
+                    >
+                        <Text align=TextAlign::Center>
+                            <Icon glyph=ICON_PLUS />
+                        </Text>
+                        <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
+                            <Icon glyph=ICON_CHEVRON_DOWN />
+                        </Text>
+                    </List>
+                }}
+                items={view! {
+                    <ForEach keys={workspaces}>|id: Uuid| {
+                        let row = tree.row(RowKey::Block(vec![id]));
+                        view! {
+                            <MenuItem
+                                label={move || {
+                                    format!("New in {}…", row.get().map(|row| row.label).unwrap_or_default())
+                                }}
+                                glyph=ICON_FILE_PLUS
+                                row_test_id={format!("file-tree.new-in.{id}")}
+                                on_click={move || add_into(id)}
+                            />
+                        }
+                    }</ForEach>
+                    <MenuItem
+                        label="New workspace"
+                        glyph=ICON_BOXES
+                        separated=true
+                        row_test_id={"file-tree.new-workspace".to_owned()}
+                        on_click={new_workspace}
+                    />
+                }}
+            />
+        }
+    };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show condition={primary}>
+            <Show condition={move || addable.with(Option::is_some)} fallback={menu}>
                 <Button
                     @node_ref={&here}
                     glyph=ICON_PLUS
@@ -176,53 +219,6 @@ fn NewButton(adding: Adding) -> NodeId {
                     variant=ButtonVariant::Primary
                     @test_id={"file-tree.new"}
                     on_click={add_here}
-                />
-            </Show>
-            <Show condition={menu}>
-                <MenuButton
-                    @node_ref={&menu_button}
-                    label="New"
-                    icon_only=true
-                    disabled={zoomed}
-                    open={opening}
-                    @test_id={"file-tree.new"}
-                    leading={view! {
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=Space::Xs2
-                        >
-                            <Text align=TextAlign::Center>
-                                <Icon glyph=ICON_PLUS />
-                            </Text>
-                            <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
-                                <Icon glyph=ICON_CHEVRON_DOWN />
-                            </Text>
-                        </List>
-                    }}
-                    items={view! {
-                        <ForEach keys={workspaces}>|id: Uuid| {
-                            let row = tree.row(RowKey::Block(vec![id]));
-                            let label = create_memo(move || {
-                                format!("New in {}…", row.get().map(|row| row.label).unwrap_or_default())
-                            });
-                            view! {
-                                <MenuItem
-                                    label={label}
-                                    glyph=ICON_FILE_PLUS
-                                    row_test_id={format!("file-tree.new-in.{id}")}
-                                    on_click={move || add_into(id)}
-                                />
-                            }
-                        }</ForEach>
-                        <MenuItem
-                            label="New workspace"
-                            glyph=ICON_BOXES
-                            separated=true
-                            row_test_id={"file-tree.new-workspace".to_owned()}
-                            on_click={new_workspace}
-                        />
-                    }}
                 />
             </Show>
         </List>

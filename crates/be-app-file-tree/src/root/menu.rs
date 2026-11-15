@@ -86,7 +86,7 @@ fn UnfiledMenu<F: Fn() + 'static>(tools: RowTools, zoom_in: F) -> TreeMenu {
                 .collect::<Vec<_>>()
         })
     });
-    let none = create_memo(move || unused.with(Vec::is_empty));
+    let none = move || unused.with(Vec::is_empty);
     let move_unused = move || {
         for (id, block_type) in unused.get_untracked() {
             editor
@@ -116,12 +116,12 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
         renaming,
         ..
     } = tools;
-    let unaddable = create_memo(move || !row.get().is_some_and(|row| row.can_add));
-    let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
-    let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
+    let unaddable = move || !row.get().is_some_and(|row| row.can_add);
+    let edit = move || !row.get().is_some_and(|row| row.can_edit);
+    let unshareable = move || !row.get().is_some_and(|row| row.access.can_manage());
+    let deletable = move || !row.get().is_some_and(|row| row.can_delete);
     let my_files = be_block::my_files(editor.host().organization_id(), editor.host().account_id());
-    let offers_delete = create_memo(move || !row.get().is_some_and(|row| row.id == Some(my_files)));
+    let offers_delete = move || !row.get().is_some_and(|row| row.id == Some(my_files));
     let delete = move || {
         if let Some(shown) = row.get_untracked()
             && let Some(id) = shown.id
@@ -221,7 +221,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             editor.host().leave_block(id);
         }
     };
-    let restorable = create_memo(move || row.get().is_some_and(|row| row.deleted && row.can_edit));
+    let restorable = move || row.get().is_some_and(|row| row.deleted && row.can_edit);
     let restore = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().restore_block(id);
@@ -229,22 +229,20 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
     };
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
-    let unshareable = create_memo(move || !row.get().is_some_and(|row| row.access.can_manage()));
-    let unlinkable = create_memo(move || {
+    let unshareable = move || !row.get().is_some_and(|row| row.access.can_manage());
+    let unlinkable = move || {
         !row.get()
             .is_some_and(|row| row.is_reference && row.unlink.is_ok())
-    });
-    let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
-    let delete_label = create_memo(
-        move || match row.get().is_some_and(|row| row.is_reference) {
+    };
+    let deletable = move || !row.get().is_some_and(|row| row.can_delete);
+    let delete_label = move || match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
             false => "Delete".to_owned(),
-        },
-    );
+        };
     let rooted = create_memo(move || edit.get() || !row.get().is_some_and(|row| row.can_delete));
-    let uninspectable = create_memo(move || !row.get().is_some_and(|row| row.inspection.is_some()));
-    let taggable = create_memo(move || row.get().is_some_and(|row| row.can_edit && !row.deleted));
-    let choosable = create_memo(move || {
+    let uninspectable = move || !row.get().is_some_and(|row| row.inspection.is_some());
+    let taggable = move || row.get().is_some_and(|row| row.can_edit && !row.deleted);
+    let choosable = move || {
         row.get().is_some_and(|row| {
             row.can_edit
                 && editor
@@ -253,8 +251,8 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                     .len()
                     > 1
         })
-    });
-    let homeable = create_memo(move || {
+    };
+    let homeable = move || {
         row.get().is_some_and(|row| {
             !row.deleted
                 && row.id.is_some_and(|id| {
@@ -263,7 +261,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                     })
                 })
         })
-    });
+    };
     let rows = tree.rows();
     let destinations = create_memo(move || {
         let here = row.get().and_then(|row| row.container);
@@ -355,7 +353,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 row_test_id={"file-tree.move-to".to_owned()}
             >
                 <ForEach keys={destination_keys}>|target: Uuid| {
-                    let label = create_memo(move || {
+                    let label = move || {
                         destinations.with(|shown| {
                             shown
                                 .iter()
@@ -363,7 +361,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                                 .map(|(_, name)| name.clone())
                                 .unwrap_or_default()
                         })
-                    });
+                    };
                     view! {
                         <MenuItem
                             label={label}
@@ -456,7 +454,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
 
 #[component]
 fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuItem {
-    let disabled = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
+    let disabled = move || !row.get().is_some_and(|row| row.can_edit);
     let open = move || {
         if let Some(shown) = row.get_untracked().filter(|row| row.can_edit)
             && let Some(id) = shown.id
@@ -479,9 +477,9 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
 fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) -> MenuItem {
     let shown = create_memo(move || row.get().and_then(|row| row.id));
     let has = create_memo(move || shown.get().and_then(|id| editor.settings_block(id)));
-    let disabled = create_memo(move || {
+    let disabled = move || {
         has.get().is_none() && !row.get().is_some_and(|row| row.access.can_manage())
-    });
+    };
     let open = move || {
         if let Some(id) = shown.get_untracked()
             && let Some(settings) = editor.ensure_settings_block(id)
