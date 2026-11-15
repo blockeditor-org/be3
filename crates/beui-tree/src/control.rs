@@ -555,8 +555,10 @@ struct Shown<K, S> {
     rows: Vec<ShownRow<K, S>>,
     /// Each key's positions in `rows`.
     row_of: Box<dyn Lookup<K>>,
-    /// Whether a list fills this handle; two may not.
-    claimed: bool,
+    /// Which claim holds the handle: each list's `claim` takes it over, so a list rebuilt
+    /// under the same handle (a `Dynamic` builds the new branch before dropping the old)
+    /// replaces the old one, whose later fills and cleanup leave the handle alone.
+    owner: u64,
 }
 
 /// Finds each key's positions in a sequence of keys. Made where the key can be hashed, so a
@@ -619,7 +621,7 @@ impl<K: Clone + Eq + Hash + 'static, S: Clone + 'static> ForEachRef<K, S> {
                 places_made: true,
                 rows: Vec::new(),
                 row_of: Box::new(HashMap::<K, Positions>::default()),
-                claimed: false,
+                owner: 0,
             })),
             changed: create_trigger(),
         }
@@ -691,28 +693,46 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
         self.with_shown(|shown| shown.rows.iter().for_each(&mut visit));
     }
 
-    /// For the one list that fills this handle, in its scope: it holds the handle until the
-    /// scope ends, and the handle is empty again after.
+    /// For the list that fills this handle, in its scope: it takes the handle over from any
+    /// list before it and holds it until its scope ends, when the handle is empty again
+    /// unless another list has taken it since. A list filling a handle another has taken
+    /// since is two lists sharing one, a mistake.
     pub fn claim(&self) -> ForEachFill<K, S> {
-        if let Some(shown) = self.shown.try_value() {
-            let mut shown = shown.borrow_mut();
-            debug_assert!(!shown.claimed, "two lists share one ForEachRef");
-            shown.claimed = true;
-        }
+        let owner = self
+            .shown
+            .try_value()
+            .map_or(0, |shown| {
+                let mut shown = shown.borrow_mut();
+                shown.owner += 1;
+                shown.owner
+            });
         let handle = *self;
         beui_reactive::on_cleanup(move || {
-            if let Some(shown) = handle.shown.try_value() {
-                shown.borrow_mut().claimed = false;
+            let current = handle
+                .shown
+                .try_value()
+                .is_some_and(|shown| shown.borrow().owner == owner);
+            if current {
+                handle.set_keys(owner, Rc::from([]));
+                handle.set_rows(owner, Vec::new());
             }
-            handle.set_keys(Rc::from([]));
-            handle.set_rows(Vec::new());
         });
-        ForEachFill(handle)
+        ForEachFill(handle, owner)
     }
 
-    fn set_keys(&self, keys: Rc<[K]>) {
+    /// Whether `owner` still holds the handle; a fill from one that does not is two lists
+    /// sharing it.
+    fn holds(&self, shown: &Shown<K, S>, owner: u64) -> bool {
+        debug_assert!(shown.owner == owner, "two lists share one ForEachRef");
+        shown.owner == owner
+    }
+
+    fn set_keys(&self, owner: u64, keys: Rc<[K]>) {
         if let Some(shown) = self.shown.try_value() {
             let mut shown = shown.borrow_mut();
+            if !self.holds(&shown, owner) {
+                return;
+            }
             shown.keys = keys;
             shown.places_made = false;
             drop(shown);
@@ -720,9 +740,12 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
         }
     }
 
-    fn set_rows(&self, rows: Vec<ShownRow<K, S>>) {
+    fn set_rows(&self, owner: u64, rows: Vec<ShownRow<K, S>>) {
         if let Some(shown) = self.shown.try_value() {
             let mut shown = shown.borrow_mut();
+            if !self.holds(&shown, owner) {
+                return;
+            }
             let Shown { rows: held, row_of, .. } = &mut *shown;
             *held = rows;
             row_of.fill(&mut held.iter().map(|row| &row.key));
@@ -739,7 +762,7 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
 }
 
 /// How the list that claimed a `ForEachRef` fills it.
-pub struct ForEachFill<K: 'static, S: 'static>(ForEachRef<K, S>);
+pub struct ForEachFill<K: 'static, S: 'static>(ForEachRef<K, S>, u64);
 
 impl<K, S> Clone for ForEachFill<K, S> {
     fn clone(&self) -> Self {
@@ -752,12 +775,12 @@ impl<K, S> Copy for ForEachFill<K, S> {}
 impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachFill<K, S> {
     /// The keys shown, in order; the rows built may follow later.
     pub fn keys(&self, keys: Rc<[K]>) {
-        self.0.set_keys(keys);
+        self.0.set_keys(self.1, keys);
     }
 
     /// The rows built, in the order shown.
     pub fn rows(&self, rows: Vec<ShownRow<K, S>>) {
-        self.0.set_rows(rows);
+        self.0.set_rows(self.1, rows);
     }
 }
 
