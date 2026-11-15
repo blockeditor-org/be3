@@ -169,6 +169,14 @@ pub trait Get<T> {
         self.with(T::clone)
     }
 
+    /// Subscribes the running computation without reading the value: for the dependencies
+    /// of `create_effect_on`, or a memo that recomputes from something else when this
+    /// changes.
+    #[track_caller]
+    fn track(&self) {
+        self.with(|_| ());
+    }
+
     fn get_untracked(&self) -> T
     where
         T: Clone,

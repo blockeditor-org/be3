@@ -60,6 +60,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | State the user edits that resets when what it came from changes (a draft of a saved name) | `create_linked_signal`: a `Signal` that a change to its source's inputs resets; never a signal seeded with `get_untracked` and an effect copying into it |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
 | A side effect, or work that needs the tree built around it (moving focus) | `create_effect`: queued, runs at the end of the entry |
+| A side effect woken only by named inputs, or one that needs their last value | `create_effect_on(deps, run)`: `run` is untracked and gets `(&value, Option<&previous>)`; `create_effect_on_change` skips the first run and gets `&previous`. Never a `StoredCell` of the last value beside an effect |
 | "Is this row the selected one?" across N rows | `create_selector`: wakes only the two rows whose answer flips |
 | A struct whose fields change separately | `#[derive(Store)]`: a signal per field |
 | A list whose rows bind to their own item | `KeyedStore`: a signal per item, one for the order, `reconcile` writes what differs |
@@ -76,8 +77,11 @@ inside one function, keep the one `Signal`. `set` skips a value equal to the
 one held, so never compare before writing; `update` and `set_unconditionally`
 always notify, except that a store's `update` writes each field back with
 `set`. `get`/`with` subscribe the running
-computation; the `_untracked` forms and `untrack(|| ...)` do not. Dependencies
-are rediscovered on every run, so a branch not taken unsubscribes.
+computation; the `_untracked` forms and `untrack(|| ...)` do not; `track()`
+subscribes without reading, for a computation woken by a value it does not use.
+Dependencies are rediscovered on every run, so a branch not taken unsubscribes.
+A memo that builds on what it computed before takes it as an annotated argument,
+`create_memo(move |previous: Option<&T>| ...)`, `None` on the first run.
 
 ## When things run
 
