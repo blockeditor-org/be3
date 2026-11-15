@@ -377,7 +377,8 @@ pub fn take_updates_in_frame() {
 
 /// Applies what the worker handed over since the last take: what the page reads changes only
 /// here, so every read between two takes reads one snapshot. be-host takes as each frame starts
-/// (`take_updates_in_frame`); then the watchers hear what changed and the replies' callbacks
+/// (`take_updates_in_frame`), and on the web the page also takes between frames while a reply is
+/// awaited outside one (`taking_updates`); then the watchers hear what changed and the replies' callbacks
 /// run with their answers, which is when what they read has what the worker did before
 /// answering. Answers that land after the stack stopped are lost with it: a callback for a
 /// command sent just before a stop or a restart may not run.
