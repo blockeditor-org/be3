@@ -11,8 +11,8 @@ use beui::unstyled::{ColorAreaHandle, ColorPickerArea, HueSlider, SwatchHandle, 
 use beui::unstyled::{
     ColorPickerState, CompletionMenu, CompletionRowHandle, DateSegmentHandle, DateTimeBoxHandle,
     DateTimeCalendarHandle, DateTimePanelHandle, DateTimeTriggerHandle, HexText, MenuStyle,
-    NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves, TreeRevealHandle, TreeRowHandle,
-    TreeToggleHandle, emoji_completer,
+    NumberFaceHandle, NumberFieldHandle, SheetCurves, SheetGripHandle, SlideCurves,
+    TreeRevealHandle, TreeRowHandle, TreeToggleHandle, emoji_completer,
 };
 
 const FACE_PADDING_HORIZONTAL: Space = Space::Xl;
@@ -940,26 +940,29 @@ fn ThinScroll() -> NodeId {
 
 #[sample]
 fn thin_scrollbar() -> ScrollStyle {
-    ScrollStyle::new(RUBBER).bar(BAR_WIDTH, RenderFn::new(|handle: ScrollHandle| {
-        let ScrollHandle {
-            position,
-            direction,
-            scroll_to,
-            visibility,
-            on_engage,
-        } = handle;
-        view! {
-            <unstyled::Scrollbar
-                position
-                direction
-                shown={create_memo(move || visibility.get() > 0.0)}
-                on_scroll_to={move |offset: f32| scroll_to.call(offset)}
-                on_engage={move |engaged: bool| on_engage.call(engaged)}
-            >|bar: ScrollbarHandle|
-                <ThinThumb bar visibility />
-            </unstyled::Scrollbar>
-        }
-    }))
+    ScrollStyle::new(RUBBER).bar(
+        BAR_WIDTH,
+        RenderFn::new(|handle: ScrollHandle| {
+            let ScrollHandle {
+                position,
+                direction,
+                scroll_to,
+                visibility,
+                on_engage,
+            } = handle;
+            view! {
+                <unstyled::Scrollbar
+                    position
+                    direction
+                    shown={create_memo(move || visibility.get() > 0.0)}
+                    on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                    on_engage={move |engaged: bool| on_engage.call(engaged)}
+                >|bar: ScrollbarHandle|
+                    <ThinThumb bar visibility />
+                </unstyled::Scrollbar>
+            }
+        }),
+    )
 }
 
 #[sample]

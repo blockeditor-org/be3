@@ -8,7 +8,7 @@ use crate::list::List;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
-use crate::tokens::{Padding, Size, Space, Stroke, Movement};
+use crate::tokens::{Movement, Padding, Size, Space, Stroke};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{ScrollHandle, ScrollStyle};
 use beui_view::primitives::Spacer;
@@ -138,30 +138,34 @@ pub fn Scroll(
 
 pub fn scroll_style() -> ScrollStyle {
     let theme = use_theme();
-    ScrollStyle::new(Movement::Rubber.spring()).bar(SCROLLBAR_WIDTH, RenderFn::new(|handle: ScrollHandle| {
-        let ScrollHandle {
-            position,
-            direction,
-            scroll_to,
-            visibility,
-            on_engage,
-        } = handle;
-        view! {
-            <Scrollbar
-                position
-                direction
-                visibility
-                on_scroll_to={move |offset: f32| scroll_to.call(offset)}
-                on_engage={move |engaged: bool| on_engage.call(engaged)}
-            />
-        }
-    }))
-    .fading(SCROLL_FADE)
-    .marker(autoscroll_marker())
-    .browser_colors(
-        Prop::dynamic(move || theme.scroll_thumb.get()),
-        Color::TRANSPARENT,
-    )
+    ScrollStyle::new(Movement::Rubber.spring())
+        .bar(
+            SCROLLBAR_WIDTH,
+            RenderFn::new(|handle: ScrollHandle| {
+                let ScrollHandle {
+                    position,
+                    direction,
+                    scroll_to,
+                    visibility,
+                    on_engage,
+                } = handle;
+                view! {
+                    <Scrollbar
+                        position
+                        direction
+                        visibility
+                        on_scroll_to={move |offset: f32| scroll_to.call(offset)}
+                        on_engage={move |engaged: bool| on_engage.call(engaged)}
+                    />
+                }
+            }),
+        )
+        .fading(SCROLL_FADE)
+        .marker(autoscroll_marker())
+        .browser_colors(
+            Prop::dynamic(move || theme.scroll_thumb.get()),
+            Color::TRANSPARENT,
+        )
 }
 
 /// The marker a middle-button autoscroll shows where it started, for a

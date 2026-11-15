@@ -54,8 +54,8 @@ pub fn BackSlide(
     }
     match (open, behind) {
         (None, None) => slide!(),
-        (Some(open), None) => slide!(open={open}),
-        (None, Some(behind)) => slide!(behind={move || behind.call(())}),
+        (Some(open), None) => slide!(open = { open }),
+        (None, Some(behind)) => slide!(behind = { move || behind.call(()) }),
         (Some(open), Some(behind)) => slide!(open={open} behind={move || behind.call(())}),
     }
 }

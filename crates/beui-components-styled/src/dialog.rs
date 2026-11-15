@@ -4,8 +4,8 @@ use beui_view::types::LayerLevel;
 use beui_view::types::icons::ICON_X;
 use beui_view::types::text::Phrase;
 
-use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::back_slide::SLIDE_CURVES;
+use crate::button::{Button, ButtonSize, ButtonVariant};
 use crate::scroll::{Bleed, Scroll};
 use crate::sheet::ModalSheet;
 use crate::text::{Text, TextStyle};
