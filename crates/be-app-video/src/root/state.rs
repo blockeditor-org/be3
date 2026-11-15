@@ -28,11 +28,11 @@ pub(crate) struct ClipDrag {
 pub(crate) struct VideoState {
     editor: Editor,
     fit_requested: Signal<bool>,
-    pub(crate) clips: ReadSignal<Vec<VideoClip>>,
+    pub(crate) clips: Memo<Vec<VideoClip>>,
     /// The whole edit, for what is worked out from every clip at once (lanes, what shows).
-    pub(crate) edit: ReadSignal<Video>,
-    pub(crate) duration: ReadSignal<u64>,
-    pub(crate) frame_rate: ReadSignal<VideoFrameRate>,
+    pub(crate) edit: Memo<Video>,
+    pub(crate) duration: Memo<u64>,
+    pub(crate) frame_rate: Memo<VideoFrameRate>,
     pub(crate) selected: Signal<Option<Uuid>>,
     pub(crate) playhead: Signal<u64>,
     pub(crate) playing: Signal<bool>,
