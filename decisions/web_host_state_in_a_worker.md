@@ -27,6 +27,19 @@ and reads them at once.
   writes it too (Android's receiver), so it is read and written in the file, only where the
   device decrypts pushes itself.
 
+## Consequences
+
+- A change to the host state reaches its file a moment after the page makes it: the page's
+  copy changes at once, and the worker keeps the change as it takes the message, ahead of the
+  stacks' passes (`be_host_stack::run_first` drains the changes sent before each pass). A
+  change made in the moment before the page unloads, before the worker has taken it, is lost;
+  a native host writes in place and loses none. The changes are sign-ins, account switches and
+  settings, which the person makes and sees, and can make again.
+- A change the worker cannot keep (out of space, a failed write) is told to the page by letter
+  and shown as a host error, as a write that fails in place was.
+- The page reads its copy, not the file: a change another tab makes to `host.sqlite3` is not
+  seen until the page starts again, as before (one tab owns the files, `block-files` lock).
+
 ## Rejected
 
 - **A copy in the browser's local storage, read by the page at start.** Two stores of the
