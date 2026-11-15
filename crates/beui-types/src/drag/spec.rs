@@ -216,7 +216,10 @@ impl<D: 'static> DragSpec<D> {
                 label: candidate.label,
             }),
             DragSpec::Closest { of, sticky } => DragSpec::Closest {
-                of: of.into_iter().map(|spec| spec.map(Rc::clone(&drop))).collect(),
+                of: of
+                    .into_iter()
+                    .map(|spec| spec.map(Rc::clone(&drop)))
+                    .collect(),
                 sticky,
             },
             DragSpec::Free { area, drop: named } => DragSpec::Free {
@@ -476,12 +479,10 @@ fn walk<'s, D: Clone>(
                 }
             }
             match (held, nearest) {
-                (Some(held), Some(nearest)) => {
-                    match nearest.distance + sticky >= held.distance {
-                        true => Some(held),
-                        false => Some(nearest),
-                    }
-                }
+                (Some(held), Some(nearest)) => match nearest.distance + sticky >= held.distance {
+                    true => Some(held),
+                    false => Some(nearest),
+                },
                 (Some(held), None) => Some(held),
                 (None, Some(nearest)) => Some(nearest),
                 (None, None) => floats,
@@ -606,7 +607,10 @@ pub fn move_after<K: PartialEq>(order: &mut Vec<K>, item: K, after: Option<K>) {
     }
     order.retain(|shown| *shown != item);
     let at = match &after {
-        Some(after) => order.iter().position(|shown| shown == after).map_or(0, |at| at + 1),
+        Some(after) => order
+            .iter()
+            .position(|shown| shown == after)
+            .map_or(0, |at| at + 1),
         None => 0,
     };
     order.insert(at, item);

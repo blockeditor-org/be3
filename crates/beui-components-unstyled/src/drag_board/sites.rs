@@ -7,8 +7,7 @@ use std::any::Any;
 use std::rc::Rc;
 
 use beui_view::drag::{
-    CandidateId, Carry, DragFrame, DragPoint, DragSpec, Evaluation, STICKY,
-    evaluate,
+    CandidateId, Carry, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
 use beui_view::types::Velocity;
@@ -106,8 +105,8 @@ impl Board {
             .filter(|site| (site.accepts)(payload.as_ref()))
             .map(|site| {
                 let id = site.id;
-                let spec = (site.spec)(payload.as_ref())
-                    .map(Rc::new(move |drop: Erased| (id, drop)));
+                let spec =
+                    (site.spec)(payload.as_ref()).map(Rc::new(move |drop: Erased| (id, drop)));
                 (id, spec)
             })
             .collect();
@@ -202,7 +201,11 @@ impl Board {
     /// Ends the carry: on a release with a place chosen, its site commits the drop; either
     /// way every site hears it is over nothing.
     pub(crate) fn put_down(&self, commit: bool) -> bool {
-        let last = self.placing.borrow().as_ref().and_then(|placing| placing.last);
+        let last = self
+            .placing
+            .borrow()
+            .as_ref()
+            .and_then(|placing| placing.last);
         if commit && let Some(last) = last {
             self.place(last, true);
         }

@@ -56,7 +56,9 @@ where
     let typed = |payload: &dyn Any| payload.downcast_ref::<P>().cloned();
     let id = board.add_site(Site {
         id: 0,
-        accepts: Rc::new(move |payload| typed(payload).is_some_and(|payload| accepts.call(payload))),
+        accepts: Rc::new(move |payload| {
+            typed(payload).is_some_and(|payload| accepts.call(payload))
+        }),
         spec: Rc::new(move |payload| match typed(payload) {
             Some(payload) => spec
                 .call(payload)

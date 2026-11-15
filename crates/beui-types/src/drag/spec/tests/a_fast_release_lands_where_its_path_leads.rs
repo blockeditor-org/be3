@@ -17,7 +17,11 @@ fn a_fast_release_lands_where_its_path_leads() {
             &DragFrame::default(),
         )
     };
-    assert_eq!(release(vec2(100.0, 0.0)).drop, Some(1), "a slow release lands nearest");
+    assert_eq!(
+        release(vec2(100.0, 0.0)).drop,
+        Some(1),
+        "a slow release lands nearest"
+    );
     assert_eq!(
         release(vec2(THROW_SPEED * 4.0, 0.0)).drop,
         Some(2),

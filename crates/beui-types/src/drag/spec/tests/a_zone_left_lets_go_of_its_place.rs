@@ -12,6 +12,9 @@ fn a_zone_left_lets_go_of_its_place() {
     assert_eq!(inside.drop, Some(1));
 
     let outside = frame(&spec, at(pos2(150.0, 50.0)), &inside.frame);
-    assert_eq!(outside.drop, None, "out of every zone, the held place is let go");
+    assert_eq!(
+        outside.drop, None,
+        "out of every zone, the held place is let go"
+    );
     assert!(outside.frame.floating);
 }

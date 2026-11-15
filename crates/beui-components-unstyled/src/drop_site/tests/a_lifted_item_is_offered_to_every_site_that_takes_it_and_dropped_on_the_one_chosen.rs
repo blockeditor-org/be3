@@ -35,8 +35,15 @@ fn a_lifted_item_is_offered_to_every_site_that_takes_it_and_dropped_on_the_one_c
     fixture.track(pos2(450.0, 50.0));
     assert_eq!(on_left.over.get_untracked(), None, "the site left hears it");
     assert_eq!(on_right.over.get_untracked(), Some("right"));
-    assert_eq!(picky.over.get_untracked(), None, "a site that does not take it is never chosen");
-    assert!(dropped.borrow().is_empty(), "nothing is written before the release");
+    assert_eq!(
+        picky.over.get_untracked(),
+        None,
+        "a site that does not take it is never chosen"
+    );
+    assert!(
+        dropped.borrow().is_empty(),
+        "nothing is written before the release"
+    );
 
     fixture.release();
     assert_eq!(*dropped.borrow(), vec![(7, "right")]);
