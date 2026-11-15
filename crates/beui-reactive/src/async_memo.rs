@@ -22,7 +22,7 @@ type Spawner = dyn Fn(LocalFuture) -> Result<(), LocalFuture>;
 thread_local! {
     static SPAWNER: RefCell<Option<Rc<Spawner>>> = const { RefCell::new(None) };
     /// Futures spawned while no spawner could take them, handed to the next installed.
-    static UNSPAWNED: RefCell<Vec<LocalFuture>> = const { RefCell::new(Vec::new()) };
+    static UNSPAWNED: RefCell<Vec<(Rc<Running>, LocalFuture)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Installs what runs the futures of async memos on this thread, as `wake_with` installs the
@@ -33,19 +33,26 @@ thread_local! {
 /// and futures spawned while no spawner takes them wait for the next one installed.
 pub fn spawn_with(spawn: impl Fn(LocalFuture) -> Result<(), LocalFuture> + 'static) {
     SPAWNER.with(|spawner| spawner.replace(Some(Rc::new(spawn))));
-    for future in UNSPAWNED.with(|unspawned| std::mem::take(&mut *unspawned.borrow_mut())) {
-        hand_over(future);
+    for (running, future) in
+        UNSPAWNED.with(|unspawned| std::mem::take(&mut *unspawned.borrow_mut()))
+    {
+        hand_over(running, future);
     }
 }
 
-fn hand_over(future: LocalFuture) {
+/// Hands `future` to the spawner, or keeps it for the next one; one whose memo cancelled it
+/// meanwhile is dropped instead.
+fn hand_over(running: Rc<Running>, future: LocalFuture) {
+    if running.cancelled.get() {
+        return;
+    }
     let spawner = SPAWNER.with(|spawner| spawner.borrow().clone());
     let unspawned = match spawner {
         Some(spawner) => spawner(future).err(),
         None => Some(future),
     };
     if let Some(future) = unspawned {
-        UNSPAWNED.with(|unspawned| unspawned.borrow_mut().push(future));
+        UNSPAWNED.with(|unspawned| unspawned.borrow_mut().push((running, future)));
     }
 }
 
@@ -76,7 +83,7 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
         cancelled: Cell::new(false),
     });
     let polled = Rc::clone(&running);
-    hand_over(Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+    hand_over(Rc::clone(&running), Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
         let mut held = polled.future.borrow_mut();
         let Some(future) = held.as_mut() else {
             return Poll::Ready(());

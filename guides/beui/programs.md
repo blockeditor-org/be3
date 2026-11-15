@@ -74,6 +74,11 @@ is `choose_platform` and `stack` in crates/beui-host-window/src/runner.rs.
   the wgpu device, queue and format for a program that paints with the gpu
   itself (`draw_gpu`). `Setup`'s `Waker` can be woken from any thread and is how
   work finishing elsewhere asks for a frame; beui never polls.
+- Async memos (`create_async_memo`) run on the runner's executor, which polls a
+  woken future at the start of the next frame. `Runner::new` installs it as the
+  thread's spawner, replacing any earlier runner's: with several runners on one
+  thread the newest wins, and once it drops, futures queue until another is
+  installed. An app's platform installs be-sdk's executor over it instead.
 - `close_requested` may refuse a close (to ask about unsaved work, then call
   `Context::close_window`).
 - `exiting` runs once, while the GPU device and displays still exist; the
