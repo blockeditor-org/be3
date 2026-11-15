@@ -609,7 +609,6 @@ impl Open {
     /// which it may not reflect. Once it took them all there is nothing to give again, and what
     /// came between (heads, leases, peers' messages) is had afresh by whatever opens it again.
     fn reported_clean(&mut self, taken: u64) {
-        self.edits_changed = true;
         let local = self
             .replay
             .iter()
@@ -617,6 +616,8 @@ impl Open {
             .count() as u64;
         // The replay holds the last `local` edits sent: those before it were dropped already.
         let covered = taken.saturating_sub(self.sent.saturating_sub(local));
+        // What is kept changes only if something is dropped.
+        self.edits_changed |= covered > 0 && local > 0;
         if covered >= local {
             self.given_up += local;
             self.replay.clear();
@@ -975,6 +976,8 @@ impl<H: Host> Replicas<H> {
                 // A restart settles the replicas it reopened (`settling`).
                 self.release_held(ctx);
                 self.keep_edits(ctx.0).await;
+                // What is not yet kept, and why, as keeping left it.
+                self.counted(ctx.1);
                 return;
             }
             self.handled += (answers.len() + heard.len()) as u64;
