@@ -20,7 +20,7 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
                 </Button>
                 <Show
                     value={visible}
-                    then={move || {
+                    then={move |_| {
                         builds.update(|builds| *builds += 1);
                         view! {
                             <Text>"panel"</Text>
