@@ -3579,7 +3579,6 @@ where
             && (self.alone() || state > limit.saturating_mul(RESTART_CEILING))
     }
 
-
     /// Moves this replica's own edits not yet numbered from `before` onto the content it just
     /// reloaded at a restart: they go again, after it.
     fn carry_pending(&mut self, before: C) {
@@ -3610,6 +3609,8 @@ where
         }
         self.unsent = carried;
         self.in_flight = 0;
+        // They go again as new submissions: the ones on their way are passed over.
+        self.lacking.unsubmitted();
     }
 }
 

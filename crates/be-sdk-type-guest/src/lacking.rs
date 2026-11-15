@@ -177,6 +177,15 @@ impl Lacking {
         taken
     }
 
+    /// What was submitted and not numbered goes again in new submissions.
+    pub(crate) fn unsubmitted(&mut self) {
+        for entry in &mut self.entries {
+            if let Until::Unsettled(Some(_)) = entry.until {
+                entry.until = Until::Unsettled(None);
+            }
+        }
+    }
+
     /// The order numbered the submission `counter` as `sequence`.
     pub(crate) fn numbered(&mut self, counter: u64, sequence: u64) {
         for entry in &mut self.entries {

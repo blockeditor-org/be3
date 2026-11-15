@@ -484,7 +484,9 @@ impl Inner {
                     .and_then(|block| self.blocks.get(&block))
                     .and_then(|held| held.replica)
                 {
-                    self.on_replica(replica, |replica, host| replica.sequenced(host, vec![entry]));
+                    self.on_replica(replica, |replica, host| {
+            replica.sequenced(host, vec![entry]);
+        });
                 }
             }
             Call::RebaseJournal { reply, base, .. } => {
@@ -703,7 +705,9 @@ impl Inner {
             .encode(),
         };
         let entry = self.number(Some(block), submission, true);
-        self.on_replica(replica, |replica, host| replica.sequenced(host, vec![entry]));
+        self.on_replica(replica, |replica, host| {
+            replica.sequenced(host, vec![entry]);
+        });
     }
 
     /// Numbers `submission` in `block`'s order, as the server would (or this device offline,

@@ -21,6 +21,7 @@ fn a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling() {
         sim.erase(0, 1, 0..typed);
     }
     sim.type_at(0, 1, 0, "kept ");
+    sim.settle();
     sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 1);
     let state = base_state(&sim);
@@ -28,9 +29,9 @@ fn a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling() {
 
     crate::replica::RESTART_LIMIT.with(|limit| limit.set(state / 2));
     sim.type_at(0, 1, 0, "more ");
+    sim.settle();
     sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 2);
-    eprintln!("DEBUG state {} base {} journal {:?} restarted {:?}", state, base_state(&sim), sim.journal.as_ref().map(|j| (j.base.sequence, j.base.commit, j.entries.len())), sim.devices[0].undo.restarted_at);
     assert!(
         base_state(&sim) >= state,
         "below the ceiling, an owner with others in the session does not restart"
@@ -38,6 +39,7 @@ fn a_restart_waits_for_the_owner_to_be_alone_below_the_ceiling() {
 
     sim.close(1);
     sim.type_at(0, 1, 0, "alone ");
+    sim.settle();
     sim.advance(crate::QUIET_INTERVAL);
     assert_eq!(sim.publishes, 3);
     assert!(

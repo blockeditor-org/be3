@@ -28,12 +28,14 @@ fn a_restart_keeps_a_followers_pending_edit_and_the_peers_cursors() {
     sim.settle();
     assert!(sim.devices[1].undo.can_undo);
 
-    sim.deaf.insert(0);
+    // On its way when the session restarts: the server numbers it after the restart, based
+    // before it, so every replica passes it over, and its replica sends it again carried over.
+    sim.stalled_submits = true;
     sim.type_at(1, 1, 0, "pending ");
     sim.settle();
-    sim.deaf.clear();
+    sim.stalled_submits = false;
     sim.advance(crate::QUIET_INTERVAL);
-    sim.settle();
+    sim.unstall();
 
     let restarted = sim.head;
     assert!(restarted.is_some());
