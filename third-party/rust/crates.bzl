@@ -42104,6 +42104,38 @@ third_party = {
         ],
         "version": "0.1.29",
     },
+    "qrcodegen-1.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Project Nayuki",
+            "CARGO_PKG_DESCRIPTION": "High-quality QR Code generator library",
+            "CARGO_PKG_HOMEPAGE": "https://www.nayuki.io/page/qr-code-generator-library",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "Readme.markdown",
+            "CARGO_PKG_REPOSITORY": "https://github.com/nayuki/QR-Code-generator",
+        },
+        "library": {
+            "crate": "qrcodegen",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "qrcodegen",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "wasi": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "version": "1.8.0",
+    },
     "quick-error-2.0.1": {
         "build_script": None,
         "env": {

@@ -4,7 +4,7 @@ use beui::icons::Glyph;
 use beui::icons::{
     ICON_ARCHIVE_RESTORE, ICON_ARROW_LEFT_RIGHT, ICON_BOT, ICON_BUG, ICON_CLOUD_ALERT,
     ICON_CLOUD_CHECK, ICON_CLOUD_OFF, ICON_CLOUD_SYNC, ICON_CONTACT, ICON_INFO, ICON_KEY,
-    ICON_LAYOUT_PANEL_LEFT, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
+    ICON_LAYOUT_PANEL_LEFT, ICON_MAIL, ICON_POWER, ICON_SHIELD_ALERT, ICON_USER_COG, ICON_USER_PLUS,
     ICON_USERS,
 };
 use beui::reactive::*;
@@ -172,6 +172,12 @@ fn HostMenu(
                 label="Members"
                 glyph=ICON_USERS
                 on_click={move || pick(UiCommand::OpenMembers)}
+            />
+            <MenuItem
+                @test_id={"host.menu.invitations".to_owned()}
+                label="Invitations"
+                glyph=ICON_MAIL
+                on_click={move || pick(UiCommand::OpenInvitations)}
             />
         </Show>
         <MenuItem

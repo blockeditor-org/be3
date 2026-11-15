@@ -154,8 +154,13 @@ pub(crate) enum OrganizationsState {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct JoiningRow {
     pub(crate) organization: String,
-    pub(crate) role: String,
-    pub(crate) email: String,
+    /// Who invited them, from the inviter's card.
+    pub(crate) inviter: String,
+    /// Why this account can't take it (already a member, say), or why nobody can (expired);
+    /// empty while it can be joined.
+    pub(crate) problem: String,
+    /// Signed in with an account that may join it now.
+    pub(crate) can_join: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -241,8 +246,27 @@ pub(crate) struct InviteView {
     pub(crate) organization: String,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
-    pub(crate) sent: u64,
     pub(crate) link: Option<String>,
+}
+
+/// An invitation in the organization's invite list.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct InvitationRow {
+    pub(crate) id: Uuid,
+    pub(crate) title: String,
+    pub(crate) detail: String,
+    /// Its link again, for one of the person's own still open.
+    pub(crate) link: Option<String>,
+    pub(crate) revocable: bool,
+    /// Expired: a fresh link takes its place in one step.
+    pub(crate) renewable: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub(crate) struct InvitationsView {
+    pub(crate) rows: Vec<InvitationRow>,
+    pub(crate) busy: bool,
+    pub(crate) error: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -342,6 +366,7 @@ pub(crate) struct HostUi {
     pub(crate) removing_account: Option<String>,
     pub(crate) status: StatusView,
     pub(crate) invite: Option<InviteView>,
+    pub(crate) invitations: Option<InvitationsView>,
     pub(crate) agents: Option<AgentsView>,
     pub(crate) contacts: Option<ContactsView>,
     pub(crate) members: Option<MembersView>,
@@ -408,8 +433,10 @@ pub(crate) enum UiCommand {
     ConfirmDiscardUnsent,
     CancelDiscardUnsent,
     CloseApp,
-    SendInvite(String, OrganizationRole),
     CloseInvite,
+    OpenInvitations,
+    CloseInvitations,
+    RevokeInvitation(Uuid),
     OpenAgents,
     CloseAgents,
     OpenContacts,

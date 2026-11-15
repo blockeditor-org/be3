@@ -15,7 +15,9 @@ mod instance;
 mod local_settings;
 #[cfg(target_os = "linux")]
 mod login_session;
+mod invitations;
 mod members;
+mod qr;
 #[cfg(target_os = "linux")]
 mod memory;
 #[cfg(any(target_arch = "wasm32", target_os = "android"))]
@@ -600,9 +602,7 @@ struct HostCore {
 
     reauth: Option<ReauthState>,
     removing_account: Option<Account>,
-    invite_open: bool,
-    invite_sent: u64,
-    invite_link: Option<String>,
+    invitations: invitations::Invitations,
     agents_open: bool,
     agents: Vec<be_block_protocol::Agent>,
     agent_created: Option<accounts::AgentCredentials>,
@@ -733,9 +733,61 @@ struct PendingAccountRequest {
     authorization: Option<String>,
 }
 
+/// An invite link being opened. Its code is held across signing in or registering, so the
+/// invitation is there to accept once an account is.
+/// How an invite link being opened shows: whose it is and into what, and whether the account
+/// signed in can join it, or why not.
+fn joining_row(joining: &Joining) -> Option<ui::JoiningRow> {
+    use be_block_protocol::InvitationState;
+    let (organization, inviter) = match (&joining.invitation, &joining.preview) {
+        (Some(invited), _) => (invited.organization_name.clone(), invited.inviter.clone()),
+        (None, Some(preview)) => (preview.organization_name.clone(), preview.inviter.clone()),
+        (None, None) => return None,
+    };
+    let ended = match joining.preview.as_ref().map(|preview| preview.state) {
+        Some(InvitationState::Accepted) => Some("This invitation was already used."),
+        Some(InvitationState::Expired) => Some("This invitation expired."),
+        Some(InvitationState::Revoked) => Some("This invitation was revoked."),
+        _ => None,
+    };
+    let problem = match (ended, &joining.refused) {
+        (Some(ended), _) => format!("{ended} Ask {inviter} for a new link."),
+        (None, Some(refused)) => format!(
+            "{} Sign in with another account to accept it.",
+            sentence(refused)
+        ),
+        (None, None) => String::new(),
+    };
+    Some(ui::JoiningRow {
+        organization,
+        inviter,
+        can_join: joining.invitation.is_some() && problem.is_empty(),
+        problem,
+    })
+}
+
+/// A refusal as a sentence: capitalized, with a full stop.
+fn sentence(text: &str) -> String {
+    let mut characters = text.trim().chars();
+    let Some(first) = characters.next() else {
+        return String::new();
+    };
+    let mut sentence: String = first.to_uppercase().chain(characters).collect();
+    if !sentence.ends_with('.') {
+        sentence.push('.');
+    }
+    sentence
+}
+
 struct Joining {
     link: InviteLink,
+    /// Read before signing in: whose invitation it is, into what, and where it stands.
+    preview: Option<accounts::InvitationPreview>,
+    /// Read by the account signed in, which may accept it.
     invitation: Option<accounts::Invited>,
+    /// Why the account signed in can't take it (already a member, say).
+    refused: Option<String>,
+    _previewing: host::Mailbox,
 }
 
 enum OrganizationOperation {
@@ -743,7 +795,6 @@ enum OrganizationOperation {
     Create(String),
     LookUp(be_block_keys::InviteCode),
     Join(be_block_keys::InviteCode),
-    Invite(String, OrganizationRole),
     ListAgents,
     CreateAgent(String),
     RemoveAgent(Uuid),
@@ -755,7 +806,6 @@ enum OrganizationResult {
     Created(Organization),
     Invitation(accounts::Invited),
     Joined(Uuid),
-    Invited(String),
     Agents(
         Option<Vec<be_block_protocol::Agent>>,
         Option<accounts::AgentCredentials>,
@@ -922,9 +972,7 @@ impl HostCore {
             organization_error: None,
             reauth: None,
             removing_account: None,
-            invite_open: false,
-            invite_sent: 0,
-            invite_link: None,
+            invitations: invitations::Invitations::default(),
             agents_open: false,
             agents: Vec::new(),
             agent_created: None,
@@ -1311,12 +1359,42 @@ impl HostCore {
             return;
         };
         self.organization_error = None;
+        // Read before signing in at the server the link names, so whoever has no account
+        // here yet sees who invited them and to what.
+        let server = link
+            .server
+            .clone()
+            .unwrap_or_else(|| accounts::link_base(&self.server_url));
+        let code = link.code.clone();
         self.joining = Some(Joining {
             link,
+            preview: None,
             invitation: None,
+            refused: None,
+            _previewing: request(
+                accounts::preview_invitation(server, code),
+                HostCore::invitation_previewed,
+            ),
         });
-        if self.signed_in && self.organizations_loaded && !self.keys.needs_recovery() {
-            self.look_up_invite();
+    }
+
+    fn invitation_previewed(
+        &mut self,
+        previewed: Result<accounts::InvitationPreview, AccountError>,
+    ) {
+        match previewed {
+            Ok(preview) => {
+                if let Some(joining) = &mut self.joining {
+                    joining.preview = Some(preview);
+                }
+                if self.signed_in && self.organizations_loaded && !self.keys.needs_recovery() {
+                    self.look_up_invite();
+                }
+            }
+            Err(error) => {
+                self.joining = None;
+                self.organization_error = Some(error.message);
+            }
         }
     }
 
@@ -1324,7 +1402,15 @@ impl HostCore {
         let Some(joining) = &self.joining else {
             return;
         };
-        if joining.invitation.is_some() {
+        // Looked up once a preview says it is open, and once per account signed in.
+        let open = joining.preview.as_ref().is_some_and(|preview| {
+            matches!(
+                preview.state,
+                be_block_protocol::InvitationState::Waiting
+                    | be_block_protocol::InvitationState::Opened
+            )
+        });
+        if joining.invitation.is_some() || joining.refused.is_some() || !open {
             return;
         }
         if !joining.link.is_for(&accounts::link_base(&self.server_url)) {
@@ -1578,13 +1664,6 @@ impl HostCore {
                         .await
                         .map(OrganizationResult::Joined)
                 }
-                OrganizationOperation::Invite(email, role) => be_host_stack::invite(email, role)
-                    .await
-                    .map(OrganizationResult::Invited)
-                    .map_err(|message| AccountError {
-                        message,
-                        invalid_token: false,
-                    }),
                 OrganizationOperation::ListAgents => be_host_stack::agents()
                     .await
                     .map(|agents| OrganizationResult::Agents(Some(agents), None))
@@ -1703,10 +1782,7 @@ impl HostCore {
                 self.organizations_load_failed = false;
                 self.begin_organization_request(OrganizationOperation::Load);
             }
-            Ok(OrganizationResult::Invited(link)) => {
-                self.invite_sent += 1;
-                self.invite_link = Some(link);
-            }
+
             Ok(OrganizationResult::Agents(agents, created)) => {
                 if let Some(agents) = agents {
                     self.agents = agents;
@@ -1716,6 +1792,18 @@ impl HostCore {
                 }
             }
             Err(error) if error.invalid_token => self.begin_reauth(),
+            // A preview read is kept: the account signed in can't take the invitation, and is
+            // told whose it is and offered another account.
+            Err(error)
+                if self
+                    .joining
+                    .as_ref()
+                    .is_some_and(|joining| joining.preview.is_some() && joining.invitation.is_none()) =>
+            {
+                if let Some(joining) = &mut self.joining {
+                    joining.refused = Some(error.message);
+                }
+            }
             Err(error) => {
                 self.joining = self
                     .joining
@@ -2029,6 +2117,11 @@ impl HostCore {
         self.allow_close = false;
         self.organization = None;
         self.organizations.clear();
+        // A held invite link is looked up again for the account signed in now.
+        if let Some(joining) = &mut self.joining {
+            joining.invitation = None;
+            joining.refused = None;
+        }
         self.resumed = false;
         self.organizations_loaded = false;
         self.organizations_load_failed = false;
@@ -2036,8 +2129,7 @@ impl HostCore {
         self.pending_organization_request = None;
         self.organization_error = None;
         self.reauth = None;
-        self.invite_open = false;
-        self.invite_link = None;
+        self.invitations = invitations::Invitations::default();
         self.agents_open = false;
         self.agent_created = None;
         self.contacts.close();
@@ -3735,9 +3827,13 @@ impl HostCore {
             UiCommand::CancelRemoveAccount => self.removing_account = None,
             UiCommand::OpenInspector => self.inspector_requested = Some(true),
             UiCommand::InviteMember => {
-                self.invite_open = true;
-                self.invite_link = None;
+                if self.organization.is_some() {
+                    self.invitations.invite();
+                }
             }
+            UiCommand::OpenInvitations => self.invitations.show(),
+            UiCommand::CloseInvitations => self.invitations.close(),
+            UiCommand::RevokeInvitation(link) => self.invitations.revoke(link),
             UiCommand::SwitchOrganization => {
                 if be_host_stack::flush() == 0 {
                     self.scheduled_organization_list = true;
@@ -3787,16 +3883,7 @@ impl HostCore {
             }
             #[cfg(not(target_os = "linux"))]
             UiCommand::LockScreen | UiCommand::Unlock(_) | UiCommand::LockPower(_) => {}
-            UiCommand::SendInvite(email, role) => {
-                if self.organization.is_some() && !email.trim().is_empty() {
-                    self.invite_link = None;
-                    self.begin_organization_request(OrganizationOperation::Invite(email, role));
-                }
-            }
-            UiCommand::CloseInvite => {
-                self.invite_open = false;
-                self.invite_link = None;
-            }
+            UiCommand::CloseInvite => self.invitations.close_invite(),
             UiCommand::OpenAgents => {
                 self.agents_open = true;
                 self.agent_created = None;
@@ -4005,15 +4092,7 @@ impl HostCore {
                     .iter()
                     .map(|organization| (organization.id, organization.name.clone()))
                     .collect(),
-                joining: self
-                    .joining
-                    .as_ref()
-                    .and_then(|joining| joining.invitation.as_ref())
-                    .map(|invitation| ui::JoiningRow {
-                        organization: invitation.organization_name.clone(),
-                        role: invitation.invitation.role.label().to_lowercase(),
-                        email: invitation.invitation.email.clone(),
-                    }),
+                joining: self.joining.as_ref().and_then(joining_row),
                 busy: self.pending_organization_request.is_some(),
                 error: self.organization_error.clone(),
                 created: self.organization_created,
@@ -4085,13 +4164,8 @@ impl HostCore {
             }),
             contacts: self.contacts.view(),
             members: self.members.view(self.account.id),
-            invite: self.invite_open.then(|| ui::InviteView {
-                organization: organization_name,
-                busy: self.pending_organization_request.is_some(),
-                error: self.organization_error.clone(),
-                sent: self.invite_sent,
-                link: self.invite_link.clone(),
-            }),
+            invite: self.invitations.invite_view(organization_name),
+            invitations: self.invitations.view(),
             about: self.about_open,
             unsent: self.unsent_open.then(|| ui::UnsentView {
                 rows: be_host_stack::unsent()
