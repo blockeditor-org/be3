@@ -575,7 +575,7 @@ impl Builder<'_> {
                         .chars()
                         .next_back()
                         .is_some_and(char::is_whitespace);
-                if !spaced || ink == f32::NEG_INFINITY {
+                if !spaced || self.anywhere || ink == f32::NEG_INFINITY {
                     ink = x;
                 }
                 Stop {
@@ -591,8 +591,8 @@ impl Builder<'_> {
     /// Where the line from `from` breaks when the rest of the paragraph does not fit in `wrap`
     /// (guides/beui/text.md, "Wrapping"): the rightmost break point of the best tier inside the
     /// break zone, the last `zone` before `wrap`, else the rightmost grapheme boundary that fits.
-    /// Returns the byte, the least wrap that breaks there the same way and the least wrap that
-    /// does not. One pass forward from `from`, and on past the line at most `zone` further.
+    /// Returns the byte, the least wrap that breaks there the same way, the least wrap that
+    /// does not, and how wide the line is without the spaces that hang past its end. One pass forward from `from`, and on past the line at most `zone` further.
     fn breakpoint(
         &self,
         stops: &[Stop],
@@ -601,7 +601,7 @@ impl Builder<'_> {
         origin: f32,
         wrap: f32,
         zone: f32,
-    ) -> Option<(usize, f32, f32)> {
+    ) -> Option<(usize, f32, f32, f32)> {
         let first = stops.partition_point(|stop| stop.byte <= from);
         let edge = wrap - zone;
         let mut best = [None::<(usize, f32)>; 3];
@@ -638,7 +638,8 @@ impl Builder<'_> {
             let stop = stops[first..]
                 .iter()
                 .find(|stop| stop.byte < to && stop.x > origin && stop.tier.is_some())?;
-            return Some((stop.byte, 0.0, stop.fit.max(origin) - origin));
+            let x = stop.fit.max(origin) - origin;
+            return Some((stop.byte, 0.0, x, x));
         };
         let mut reach = x;
         if let Some(better) = (tier as usize).checked_sub(1) {
@@ -680,8 +681,8 @@ impl Builder<'_> {
             false => limit.min(rest),
         };
         match reach <= wrap && wrap < limit {
-            true => Some((byte, reach, limit)),
-            false => Some((byte, wrap, wrap + WRAP_SLACK)),
+            true => Some((byte, reach, limit, x)),
+            false => Some((byte, wrap, wrap + WRAP_SLACK, x)),
         }
     }
 }
@@ -868,7 +869,7 @@ impl RichLayout {
                     false => None,
                 };
                 let (to, mut runs) = match (broke, from == start) {
-                    (Some((to, _, _)), _) => (to, builder.runs(from, to)),
+                    (Some((to, ..)), _) => (to, builder.runs(from, to)),
                     (None, true) => (end, whole.take().unwrap_or_default()),
                     (None, false) => (end, builder.runs(from, end)),
                 };
@@ -877,11 +878,12 @@ impl RichLayout {
                 }
                 let mut line = line(from..to, runs, top, strut, options.padding);
                 top += line.height;
-                let Some((_, reach, limit)) = broke else {
+                let Some((_, reach, limit, ink)) = broke else {
                     line.reach = inked - origin + indent - WRAP_SLACK;
                     lines.push(line);
                     break;
                 };
+                line.width = line.width.min(ink + indent);
                 line.reach = reach + indent - WRAP_SLACK;
                 line.limit = limit + indent - WRAP_SLACK;
                 lines.push(line);

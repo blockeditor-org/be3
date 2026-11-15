@@ -149,9 +149,7 @@ pub fn grapheme_boundaries(bytes: &[u8]) -> impl Iterator<Item = usize> + '_ {
             let (right, width) = decode(bytes, at);
             let boundary = match left {
                 None => true,
-                Some(left) if left.is_ascii() && right.is_ascii() => {
-                    left != '\r' || right != '\n'
-                }
+                Some(left) if left.is_ascii() && right.is_ascii() => left != '\r' || right != '\n',
                 Some(left) => breaks_between(left, right, || linked, || joined, || odd),
             };
             joined = pictographic_run;

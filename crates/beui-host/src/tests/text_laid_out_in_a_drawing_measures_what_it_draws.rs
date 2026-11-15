@@ -52,7 +52,12 @@ fn text_laid_out_in_a_drawing_measures_what_it_draws() {
     );
     for line in &lines {
         assert!(line.rect.width() <= 60.0, "each line fits the wrap width");
-        assert!(line.rect.right() <= block.size().x + 0.5);
+        if !"one two three four"[line.bytes.clone()].ends_with(' ') {
+            assert!(
+                line.rect.right() <= block.size().x + 0.5,
+                "only a space after the last word hangs past the text's width"
+            );
+        }
         assert!(line.rect.top() < line.baseline && line.baseline < line.rect.bottom());
         assert_eq!(line.baseline - line.rect.top(), block.baseline());
     }

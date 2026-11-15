@@ -10,7 +10,10 @@ fn spaces_after_the_last_word_that_fits_hang_past_the_edge() {
         "the space after \"abcd\" lies before the zone"
     );
     let width = inked + 0.5;
-    assert!(width < width_of(&mut fonts, first), "the space does not fit");
+    assert!(
+        width < width_of(&mut fonts, first),
+        "the space does not fit"
+    );
 
     let lines = lines(&mut fonts, &format!("{first}next words"), width);
     assert_eq!(
