@@ -1224,63 +1224,63 @@ pub fn Sheet(
     let sheet = view! {
         <List spacing=0.0>
             <KeepAlive>
-            <Show value={move || !gone.get()}>
-                <ListItem
-                    length={move || match rest_at.get() {
-                        Rest::Free(height) => Some(height),
-                        Rest::Share(_) | Rest::Fitted => None,
-                    }}
-                    max={move || match rest_at.get() {
-                        Rest::Share(share) => share * extent.get(),
-                        Rest::Fitted | Rest::Free(_) => f32::INFINITY,
-                    }}
-                    shrink=1.0
-                >
-                    <Kept>
-                    <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
-                        {panel.call(view! {
-                            <Frame>
-                                <Interactive
-                                    @node_ref=&catcher
-                                    claims={flinging}
-                                    on_press={move |_: PointerPress| motion.value().stop_fling()}
-                                    on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
-                                    on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
-                                >
-                                    <List spacing=0.0>
+                <Show value={move || !gone.get()}>
+                    <ListItem
+                        length={move || match rest_at.get() {
+                            Rest::Free(height) => Some(height),
+                            Rest::Share(_) | Rest::Fitted => None,
+                        }}
+                        max={move || match rest_at.get() {
+                            Rest::Share(share) => share * extent.get(),
+                            Rest::Fitted | Rest::Free(_) => f32::INFINITY,
+                        }}
+                        shrink=1.0
+                    >
+                        <Kept>
+                            <Frame @node_ref=&slot translate={move || vec2(0.0, shift.get())}>
+                                {panel.call(view! {
+                                    <Frame>
                                         <Interactive
-                                            @test_id={"sheet.handle"}
-                                            cursor=CursorIcon::ResizeVertical
-                                            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
-                                            on_press={move |press: PointerPress| motion.value().handle_press(press)}
-                                            on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
-                                            on_cancel={move || motion.value().handle_cancel()}
-                                            on_active_change={move |active: bool| motion.value().handle_active(active)}
-                                            children={Some(grip)}
-                                        />
-                                        <ListItem shrink=1.0>
-                                            <Frame fade_edges={edges}>
-                                                <Offset
-                                                    @node_ref=&content
-                                                    fit=true
-                                                    on_change={move |value: ScrollPosition| {
-                                                        if !motion.value().settle_content(value) {
-                                                            position.set(Some(value));
-                                                        }
-                                                    }}
-                                                >
-                                                    {children}
-                                                </Offset>
-                                            </Frame>
-                                        </ListItem>
-                                    </List>
-                                </Interactive>
+                                            @node_ref=&catcher
+                                            claims={flinging}
+                                            on_press={move |_: PointerPress| motion.value().stop_fling()}
+                                            on_wheel={gestures::scroll_wheel(axis, move |gesture: ScrollGesture| motion.value().wheel(gesture))}
+                                            on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().drag(gesture))}
+                                        >
+                                            <List spacing=0.0>
+                                                <Interactive
+                                                    @test_id={"sheet.handle"}
+                                                    cursor=CursorIcon::ResizeVertical
+                                                    on_pointer={gestures::scroll_drag(axis, move |gesture: DragGesture| motion.value().outside_drag(gesture))}
+                                                    on_press={move |press: PointerPress| motion.value().handle_press(press)}
+                                                    on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
+                                                    on_cancel={move || motion.value().handle_cancel()}
+                                                    on_active_change={move |active: bool| motion.value().handle_active(active)}
+                                                    children={Some(grip)}
+                                                />
+                                                <ListItem shrink=1.0>
+                                                    <Frame fade_edges={edges}>
+                                                        <Offset
+                                                            @node_ref=&content
+                                                            fit=true
+                                                            on_change={move |value: ScrollPosition| {
+                                                                if !motion.value().settle_content(value) {
+                                                                    position.set(Some(value));
+                                                                }
+                                                            }}
+                                                        >
+                                                            {children}
+                                                        </Offset>
+                                                    </Frame>
+                                                </ListItem>
+                                            </List>
+                                        </Interactive>
+                                    </Frame>
+                                })}
                             </Frame>
-                        })}
-                    </Frame>
-                    </Kept>
-                </ListItem>
-            </Show>
+                        </Kept>
+                    </ListItem>
+                </Show>
             </KeepAlive>
         </List>
     };

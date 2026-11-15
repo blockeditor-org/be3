@@ -87,8 +87,8 @@ pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile,
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     Break, Canvas, CanvasItem, Drawing, GridCell, Interactive, KeepAlive, Kept, Layer, Layers,
-    ListItem, Modality,
-    Offset, Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList, use_modal,
+    ListItem, Modality, Offset, Overlay, Portal, SystemBars, TextChild, TextItem, VirtualList,
+    use_modal,
 };
 pub use beui_view::window::{Window, WindowHandle, opens_windows, use_window};
 pub use border::Separator;

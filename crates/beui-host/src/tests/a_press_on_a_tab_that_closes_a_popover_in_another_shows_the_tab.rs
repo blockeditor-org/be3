@@ -36,12 +36,18 @@ fn a_press_on_a_tab_that_closes_a_popover_in_another_shows_the_tab() {
         .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
-    assert!(harness.document().find_test_id("tools").is_some(), "the popover opens");
+    assert!(
+        harness.document().find_test_id("tools").is_some(),
+        "the popover opens"
+    );
 
     harness.click(harness.center(harness.find("dock.tab.2")));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
-    assert!(harness.document().find_test_id("tools").is_none(), "the press closes it");
+    assert!(
+        harness.document().find_test_id("tools").is_none(),
+        "the press closes it"
+    );
     assert!(
         harness.document().find_test_id("two").is_some(),
         "and goes on to the tab it landed on"

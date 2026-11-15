@@ -1,7 +1,7 @@
 use crate::components::overlay::OverlayPresence;
-use crate::reactive::Memo;
 use crate::reactive::Callback;
 use crate::reactive::Get;
+use crate::reactive::Memo;
 use crate::reactive::NodeRef;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
@@ -134,7 +134,9 @@ pub(crate) fn overlay(
             });
             drop(held.take());
             // What content a `Kept` keeps registered goes on lingering each time it closes.
-            presence.lingering().update(|lingering| lingering.retain(Memo::is_alive));
+            presence
+                .lingering()
+                .update(|lingering| lingering.retain(Memo::is_alive));
         });
     });
     overlay.id()

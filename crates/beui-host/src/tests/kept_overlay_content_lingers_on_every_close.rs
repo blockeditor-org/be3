@@ -1,9 +1,9 @@
 use super::*;
 use crate::base::overlay::OverlayNode;
-use beui_view::components::overlay::use_overlay_presence;
 use crate::primitives::*;
 use crate::reactive::*;
 use beui::layer::{OverlayAnchor, Placement};
+use beui_view::components::overlay::use_overlay_presence;
 
 #[test]
 fn kept_overlay_content_lingers_on_every_close() {
@@ -53,10 +53,17 @@ fn kept_overlay_content_lingers_on_every_close() {
         harness.frame(Vec::new());
         open.set(false);
         harness.frame(Vec::new());
-        assert!(showing(&harness), "the {close} close lingers while its content asks");
+        assert!(
+            showing(&harness),
+            "the {close} close lingers while its content asks"
+        );
         leaving.set(false);
         harness.frame(Vec::new());
         assert!(!showing(&harness), "and goes once it stops asking");
     }
-    assert_eq!(builds.get_untracked(), 1, "the content is built once and kept");
+    assert_eq!(
+        builds.get_untracked(),
+        1,
+        "the content is built once and kept"
+    );
 }

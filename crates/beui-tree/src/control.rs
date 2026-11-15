@@ -34,7 +34,6 @@ fn mount<C: SlotChild>(slot: &ChildSlot<C>, branch: impl FnOnce() -> Children<C>
     scope
 }
 
-
 /// What a `Show` shows on: a `bool`, or an `Option`, whose value it hands its children as a
 /// signal while it is `Some`, so a new value updates them in place.
 #[diagnostic::on_unimplemented(

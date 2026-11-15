@@ -96,61 +96,58 @@ pub fn Popover(
     });
     view! {
         <KeepAlive>
-        <List spacing=0.0>
-            <PopupTrigger
-                @node_ref=&trigger_ref
-                open
-                popup=HasPopup::Dialog
-                label={label}
-                glyph
-                icon_only
-                disabled={disabled}
-                focused={refocus}
-                accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
-                on_focus_change={move |focused: bool| {
-                    if !focused {
-                        refocus.set(false);
-                    }
-                }}
-                content={trigger}
-            />
-            <Anchored
-                style={surface}
-                anchor=anchor
-                placement
-                bounds
-                policy=LayerPolicy::Pass
-                trigger={trigger_ref}
-                open={move || open.get()}
-                on_dismiss={move || {
-                    open.set(false);
-                    if refocus_trigger.get_untracked() {
-                        refocus.set(true);
-                    }
-                }}
-            >|handle: AnchoredHandle| {
-                // Built the first time it opens as a dropdown, and again the first time it opens
-                // as a sheet: one `Kept` for each look, both kept, paused, while closed, so each
-                // keeps its own state. It carries the overlay's presence, which it reads.
-                let overlay = use_overlay_presence();
-                view! {
-                    <Kept key={handle.sheet}>|| {
-                        if let Some(overlay) = overlay {
-                            overlay.provide();
+            <List spacing=0.0>
+                <PopupTrigger
+                    @node_ref=&trigger_ref
+                    open
+                    popup=HasPopup::Dialog
+                    label={label}
+                    glyph
+                    icon_only
+                    disabled={disabled}
+                    focused={refocus}
+                    accessibility={accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)))}
+                    on_focus_change={move |focused: bool| {
+                        if !focused {
+                            refocus.set(false);
                         }
-                        view! {
-                            <PopoverSurface label>
-                                {content.call(PopoverHandle {
-                                    open,
-                                    shown: handle.shown,
-                                    close,
-                                })}
-                            </PopoverSurface>
+                    }}
+                    content={trigger}
+                />
+                <Anchored
+                    style={surface}
+                    anchor=anchor
+                    placement
+                    bounds
+                    policy=LayerPolicy::Pass
+                    trigger={trigger_ref}
+                    open={move || open.get()}
+                    on_dismiss={move || {
+                        open.set(false);
+                        if refocus_trigger.get_untracked() {
+                            refocus.set(true);
                         }
-                    }</Kept>
-                }
-            }</Anchored>
-        </List>
+                    }}
+                >|handle: AnchoredHandle| {
+                    let overlay = use_overlay_presence();
+                    view! {
+                        <Kept key={handle.sheet}>|| {
+                            if let Some(overlay) = overlay {
+                                overlay.provide();
+                            }
+                            view! {
+                                <PopoverSurface label>
+                                    {content.call(PopoverHandle {
+                                        open,
+                                        shown: handle.shown,
+                                        close,
+                                    })}
+                                </PopoverSurface>
+                            }
+                        }</Kept>
+                    }
+                }</Anchored>
+            </List>
         </KeepAlive>
     }
 }

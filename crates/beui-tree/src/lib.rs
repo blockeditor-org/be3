@@ -25,13 +25,13 @@ pub mod reactive {
         ComponentRecord, HandsAValue, IntoOptionalRender, IntoRender, IntoRenderFn, MissingProp,
         Render, RenderFn, component, current_component, try_current_component,
     };
-    pub use crate::keep::{kept_shown, provide_kept_shown};
     pub use crate::control::{
         Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, Keyed, Loading, Match, Matched, RowArgs,
         RowKey, Show, ShowValue,
     };
     pub use crate::into_prop_via;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
+    pub use crate::keep::{kept_shown, provide_kept_shown};
     pub use crate::prop::{
         ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoFunc, IntoLiftedProp,
         IntoOptionalFunc, IntoOptionalProp, IntoProp, IntoPropWith, IntoReadProp, PassedOn, Prop,

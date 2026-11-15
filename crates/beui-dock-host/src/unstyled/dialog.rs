@@ -423,44 +423,42 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     );
     let view = view! {
         <KeepAlive>
-        <Overlay
-            @node_ref=&overlay
-            anchor={at}
-            placement={placement}
-            policy
-            scrim={scrim}
-            scrim_radius={scrim_radius}
-            pointer={card}
-            beak={beak}
-            shown_in={shown_in}
-            traps_focus=false
-            open={shown}
-            on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
-                Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
-                Dismiss::Escape | Dismiss::Back => close.call(()),
-                Dismiss::OutsidePress | Dismiss::WithParent => {}
-            }}
-        >|| {
-            // The face is built the first time the dialog shows and kept, paused, while it is
-            // hidden; it carries the overlay's presence, which it reads.
-            let presence = use_overlay_presence();
-            view! {
-                <Kept>|| {
-                    if let Some(presence) = presence {
-                        presence.provide();
-                    }
-                    view! {
-                        <Interactive
-                            @node_ref=&frame
-                            on_press={move |_: PointerPress| dock.focus_dialog(tab)}
-                        >
-                            {face.call(())}
-                        </Interactive>
-                    }
-                }</Kept>
-            }
-        }</Overlay>
+            <Overlay
+                @node_ref=&overlay
+                anchor={at}
+                placement={placement}
+                policy
+                scrim={scrim}
+                scrim_radius={scrim_radius}
+                pointer={card}
+                beak={beak}
+                shown_in={shown_in}
+                traps_focus=false
+                open={shown}
+                on_dismiss={move |reason: Dismiss| match reason {
+                    Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => close.call(()),
+                    Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
+                    Dismiss::Escape | Dismiss::Back => close.call(()),
+                    Dismiss::OutsidePress | Dismiss::WithParent => {}
+                }}
+            >|| {
+                let presence = use_overlay_presence();
+                view! {
+                    <Kept>|| {
+                        if let Some(presence) = presence {
+                            presence.provide();
+                        }
+                        view! {
+                            <Interactive
+                                @node_ref=&frame
+                                on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                            >
+                                {face.call(())}
+                            </Interactive>
+                        }
+                    }</Kept>
+                }
+            }</Overlay>
         </KeepAlive>
     };
     on_cleanup(move || {

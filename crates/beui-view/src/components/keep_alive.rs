@@ -9,8 +9,8 @@ use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{
     AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Render, Scope, Set, Signal,
-    Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup,
-    provide_context, provide_kept_shown, untrack, use_context,
+    Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup, provide_context,
+    provide_kept_shown, untrack, use_context,
 };
 
 struct Entry {
@@ -53,7 +53,6 @@ impl Cache {
     }
 }
 
-
 #[derive(Clone)]
 struct KeepAliveCache(Rc<Cache>);
 
@@ -76,9 +75,8 @@ where
         owner: current_scope(),
         entries: RefCell::default(),
         next: Cell::new(0),
-        keeps: untrack(|| keep.keys().is_some()).then(|| {
-            create_memo(move || keep.keys().unwrap_or_default().into_iter().collect())
-        }),
+        keeps: untrack(|| keep.keys().is_some())
+            .then(|| create_memo(move || keep.keys().unwrap_or_default().into_iter().collect())),
     });
     if let Some(keeps) = cache.keeps {
         let watched = cache.clone();
@@ -89,7 +87,12 @@ where
     }
     let held = cache.clone();
     on_cleanup(move || {
-        let entries: Vec<Entry> = held.entries.borrow_mut().drain().map(|(_, entry)| entry).collect();
+        let entries: Vec<Entry> = held
+            .entries
+            .borrow_mut()
+            .drain()
+            .map(|(_, entry)| entry)
+            .collect();
         for entry in entries {
             entry.scope.dispose();
         }
@@ -115,7 +118,12 @@ where
     cache.next.set(me + 1);
     let around = kept_shown();
     let found = cache.entries.borrow().get(&key).map(|entry| {
-        (entry.node, entry.scope.clone(), entry.borrower, entry.around)
+        (
+            entry.node,
+            entry.scope.clone(),
+            entry.borrower,
+            entry.around,
+        )
     });
     let (node, borrower) = match found {
         Some((node, scope, borrower, held_around)) => {
@@ -137,8 +145,7 @@ where
             let held_around = create_signal_in(&scope, around);
             let node = scope.context().run(|| {
                 let shown = create_memo(move || {
-                    borrower.get().is_some()
-                        && held_around.get().is_none_or(|around| around.get())
+                    borrower.get().is_some() && held_around.get().is_none_or(|around| around.get())
                 });
                 provide_kept_shown(shown);
                 content.call(())
@@ -162,7 +169,10 @@ where
         create_effect(move || {
             let shown = around.get();
             let entries = followed.entries.borrow();
-            let Some(entry) = entries.get(&key).filter(|entry| entry.borrower.get_untracked() == Some(me)) else {
+            let Some(entry) = entries
+                .get(&key)
+                .filter(|entry| entry.borrower.get_untracked() == Some(me))
+            else {
                 return;
             };
             let scope = entry.scope.clone();

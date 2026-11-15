@@ -34,11 +34,18 @@ fn a_keep_alive_that_goes_takes_what_it_kept_with_it() {
     harness.frame(Vec::new());
     shown.set(Some(2));
     harness.frame(Vec::new());
-    assert!(gone.get_untracked().is_empty(), "the first is kept, hidden, while the second shows");
+    assert!(
+        gone.get_untracked().is_empty(),
+        "the first is kept, hidden, while the second shows"
+    );
 
     alive.set(false);
     harness.frame(Vec::new());
     let mut gone = gone.get_untracked();
     gone.sort_unstable();
-    assert_eq!(gone, [1, 2], "the `KeepAlive` going disposes the hidden and the shown alike");
+    assert_eq!(
+        gone,
+        [1, 2],
+        "the `KeepAlive` going disposes the hidden and the shown alike"
+    );
 }

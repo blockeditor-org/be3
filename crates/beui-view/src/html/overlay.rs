@@ -1,9 +1,9 @@
 use crate::components::overlay::OverlayPresence;
 use std::cell::RefCell;
 
-use crate::reactive::Memo;
 use crate::reactive::Callback;
 use crate::reactive::Get;
+use crate::reactive::Memo;
 use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
@@ -117,7 +117,9 @@ pub(crate) fn overlay(
             layered.fill(slot, Vec::new());
             drop(held.take());
             // What content a `Kept` keeps registered goes on lingering each time it closes.
-            presence.lingering().update(|lingering| lingering.retain(Memo::is_alive));
+            presence
+                .lingering()
+                .update(|lingering| lingering.retain(Memo::is_alive));
         });
     });
     host

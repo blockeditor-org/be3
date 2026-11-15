@@ -267,7 +267,9 @@ fn DialogBodyFace(
                     {content}
                     <KeepAlive>
                         <Show value={footed}>
-                            <Kept><DialogFooter handle id /></Kept>
+                            <Kept>
+                                <DialogFooter handle id />
+                            </Kept>
                         </Show>
                     </KeepAlive>
                 </List>
