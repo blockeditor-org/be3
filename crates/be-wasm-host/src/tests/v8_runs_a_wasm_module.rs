@@ -1,7 +1,6 @@
 // V8 is linked from the prebuilt library third-party/v8 pins (step 2 of
 // plans/wasm_on_v8.md): it compiles and runs a module that adds.
 #[test]
-#[cfg(not(target_os = "android"))]
 fn v8_runs_a_wasm_module() {
     let platform = v8::new_default_platform(0, false).make_shared();
     v8::V8::initialize_platform(platform);
