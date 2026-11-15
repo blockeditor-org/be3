@@ -126,7 +126,6 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let glyph = create_memo(move || level.with(|level| level.as_ref().map(|level| level.glyph)));
     let value =
         create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
-    let present = create_memo(move || value.get().is_some());
     let label = create_memo(move || {
         level.with(|level| {
             level
@@ -156,13 +155,13 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
                     <Icon glyph={glyph} />
                 </Text>
                 <Show
-                    value={present}
+                    value={value}
                     fallback={move || view! {
                         <Frame width=BAR_WIDTH>
                             <Text color=TextColor::Muted>{label}</Text>
                         </Frame>
                     }}
-                >
+                >|value: ReadSignal<f32>|
                     <LevelBar value label fill />
                 </Show>
             </List>
@@ -171,15 +170,16 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
 }
 
 #[component]
-fn LevelBar(value: Memo<Option<f32>>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
-    let spans = create_memo(move || spans(value.get().unwrap_or_default()));
+fn LevelBar(value: ReadSignal<f32>, label: Memo<String>, fill: Memo<ColorRole>) -> NodeId {
+    let spans = create_memo(move || spans(value.get()));
     let share =
         move |span: fn((f32, f32, f32)) -> f32| create_memo(move || span(spans.get()) + SLIVER);
     let said = create_memo(move || {
         let label = label.get();
-        match value.get() {
-            Some(level) if level > 1.0 => format!("{label} {}%", (level * 100.0).round()),
-            _ => label,
+        let level = value.get();
+        match level > 1.0 {
+            true => format!("{label} {}%", (level * 100.0).round()),
+            false => label,
         }
     });
     view! {

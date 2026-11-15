@@ -94,8 +94,6 @@ pub(super) fn SignIn(state: State) -> NodeId {
     let open_keys = move || {
         editor.then(editor.host().open_url(API_KEYS), |_| {});
     };
-    let problem_text = create_memo(move || problem.get().unwrap_or_default());
-    let has_problem = create_memo(move || problem.with(Option::is_some));
     let replacing = create_memo(move || reconnecting.get() && state.key.with(Option::is_some));
     view! {
         <List spacing=SECTION_SPACING @test_id="boat.sign-in">
@@ -182,9 +180,9 @@ pub(super) fn SignIn(state: State) -> NodeId {
                             </Text>
                         </List>
                     </Step>
-                    <Show value={has_problem}>
+                    <Show value={problem}>|problem: ReadSignal<String>|
                         <Text color=TextColor::Danger @test_id="boat.sign-in.problem">
-                            {problem_text}
+                            {problem}
                         </Text>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
