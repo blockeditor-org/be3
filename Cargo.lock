@@ -867,6 +867,7 @@ dependencies = [
  "be-sdk-test",
  "be-type-database",
  "beui",
+ "serde",
  "uuid",
 ]
 
@@ -1129,6 +1130,7 @@ dependencies = [
  "be-sdk-test",
  "be-type-workspace",
  "beui",
+ "serde",
  "uuid",
 ]
 

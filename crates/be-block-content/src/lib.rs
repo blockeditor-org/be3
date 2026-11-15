@@ -26,7 +26,9 @@ pub mod streamed;
 pub use be_block_model;
 pub use be_block_model::{Edit, Item, ObjectId, Touched};
 pub use blob::{Blob, BlobKind, BlobOp};
-pub use editor_view::{EditorView, EditorViewContent, VIEW_TYPE, ViewState};
+pub use editor_view::{
+    EditorView, EditorViewContent, VIEW_TYPE, ViewRef, ViewState, ViewStateKind,
+};
 pub use layered::{Follows, KindRule, KindVisibility, Layered, layered};
 pub use metadata::{
     ARTIFACT, Artifact, BlockMetadata, CREATED_BY, DELETED_FROM, Definition, DeletedFrom,

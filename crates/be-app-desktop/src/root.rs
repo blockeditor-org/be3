@@ -1,5 +1,5 @@
-mod bar;
-mod calendar;
+pub(crate) mod bar;
+pub(crate) mod calendar;
 mod clock;
 mod edges;
 mod ending;
@@ -177,7 +177,7 @@ fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor);
     view! {
         <Loaded label="Loading the desktop">|| {
-            let _layout = editor.view_content();
+            editor.wait_for_view_state();
             view! {
                 <Container>|_|
                     <DesktopBody workspace />

@@ -1,7 +1,6 @@
-use be_sdk_beui::be_block::profile::RECENTS;
 use be_sdk_beui::be_block::{Home, PREFERRED_EDITOR, Recents, WORKSPACE_TYPE};
 use be_sdk_beui::be_block_content::{BlockContent, BlockMetadata, VIEW_EDITOR};
-use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewState};
+use be_sdk_beui::be_block_content::{EditorView, EditorViewContent, ViewRef};
 use be_type_settings::EditorSettings;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -28,7 +27,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::panel::BlockPanel;
 use super::program::{Heard, Program, Programs, listed_windows};
-use super::saved::{self, CLOSED_VIEWS, ClosedView, LAYOUT, MAX_CLOSED_VIEWS, TITLES};
+use super::saved::{self, ClosedView, ClosedViews, MAX_CLOSED_VIEWS, SavedLayout, SavedTitles};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
 
@@ -650,38 +649,52 @@ impl Workspace {
             .info(view)
             .and_then(|info| info.metadata.get(&VIEW_EDITOR))
             .unwrap_or_default();
-        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let mut closed = self.closed_views();
         let mut dropped = Vec::new();
-        closed.retain(|(held, held_view)| {
+        closed.retain(|held| {
             let same = held.block == block && held.editor == editor;
-            if same && *held_view != view {
-                dropped.push(*held_view);
+            let held_view = held.view.block();
+            if same && held_view != Some(view) {
+                dropped.extend(held_view);
             }
-            !same && *held_view != view
+            !same && held_view != Some(view)
         });
-        closed.insert(0, (ClosedView { block, editor }, view));
+        closed.insert(
+            0,
+            ClosedView {
+                block,
+                editor,
+                view: ViewRef::new(view),
+            },
+        );
         while closed.len() > MAX_CLOSED_VIEWS {
-            if let Some((_, view)) = closed.pop() {
-                dropped.push(view);
+            if let Some(oldest) = closed.pop() {
+                dropped.extend(oldest.view.block());
             }
         }
-        self.editor
-            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
+        self.editor.view_state().set(Some(ClosedViews(closed)));
         for view in dropped {
             self.blocks().set_parent(view, BlockParent::Detached);
         }
     }
 
+    /// The closed views whose view blocks are still there.
+    fn closed_views(&self) -> Vec<ClosedView> {
+        let kept = self.editor.view_state::<ClosedViews>().get_untracked();
+        let mut closed = kept.ok().flatten().unwrap_or_default().0;
+        closed.retain(|held| held.view.block().is_some());
+        closed
+    }
+
     /// The view `block` had when last closed in `editor`, taken back out of the closed views.
     fn reopen_view(&self, block: Uuid, editor: Uuid) -> Option<Uuid> {
-        let mut closed = saved::closed_views(self.editor.view_state(CLOSED_VIEWS).as_ref());
+        let mut closed = self.closed_views();
         let at = closed
             .iter()
-            .position(|(held, _)| held.block == block && held.editor == editor)?;
-        let (_, view) = closed.remove(at);
-        self.editor
-            .set_view_state(CLOSED_VIEWS, Some(&saved::save_closed_views(closed)));
-        Some(view)
+            .position(|held| held.block == block && held.editor == editor)?;
+        let view = closed.remove(at).view.block();
+        self.editor.view_state().set(Some(ClosedViews(closed)));
+        view
     }
 
     /// A view for `item`: the one it was last closed with, else a new one.
@@ -696,29 +709,27 @@ impl Workspace {
         if inner.restored.get() {
             return;
         }
-        let Some(view) = self.editor.view_content() else {
-            if self.editor.view_block().is_none() {
-                self.ready.set(true);
-            }
+        if self.editor.view_block().is_none() {
+            self.ready.set(true);
             return;
-        };
-        let Ok((layout, titles)) = view.read(|held| {
-            let root = held.root();
-            (root.state(LAYOUT).cloned(), root.state(TITLES).cloned())
-        }) else {
+        }
+        let layout = self.editor.view_state::<SavedLayout>().get();
+        let titles = self.editor.view_state::<SavedTitles>().get();
+        if matches!(layout, Err(Pending::Loading)) || matches!(titles, Err(Pending::Loading)) {
             return;
-        };
+        }
         inner.restored.set(true);
         *inner.saved_titles.borrow_mut() = titles
-            .as_ref()
-            .map(saved::restore_titles)
+            .ok()
+            .flatten()
+            .map(SavedTitles::titles)
             .unwrap_or_default();
-        match layout.as_ref().map(saved::restore).transpose() {
-            Ok(restored) => untrack(|| self.adopt(restored)),
-            Err(error) => {
-                let bytes = layout.map_or(0, |layout| layout.bytes.len());
+        match layout {
+            Ok(layout) => untrack(|| self.adopt(layout.map(saved::restore))),
+            Err(Pending::Loading) => {}
+            Err(Pending::Failed(error)) => {
                 self.unreadable.set(Some(format!(
-                    "The saved layout of session {} could not be read: {error}\n\nIt holds {bytes} bytes, kept unchanged until the layout is reset.",
+                    "The saved layout of session {} could not be read: {error}\n\nIt is kept unchanged until the layout is reset.",
                     self.editor.block_id()
                 )));
             }
@@ -810,11 +821,11 @@ impl Workspace {
         if !inner.restored.get() || unreadable {
             return;
         }
-        let state = saved::save(&layout, inner.next_tab.get(), &tabs, &views, programs);
-        let titles = saved::save_titles(&titles);
+        let layout = saved::save(&layout, inner.next_tab.get(), &tabs, &views, programs);
+        let titles = SavedTitles::of(&titles);
         untrack(|| {
-            self.editor.set_view_state(LAYOUT, Some(&state));
-            self.editor.set_view_state(TITLES, Some(&titles));
+            self.editor.view_state().set(Some(layout));
+            self.editor.view_state().set(Some(titles));
         });
     }
 
@@ -885,14 +896,15 @@ impl Workspace {
     }
 
     fn remember(&self, id: Uuid, block_type: Uuid) {
-        let recents: Recents = self
-            .editor
-            .view_state(RECENTS)
-            .and_then(|state| state.value())
-            .unwrap_or_default();
+        let kept = self.editor.view_state::<Recents>();
+        // Not over recents not read yet; recents that cannot be read start afresh.
+        let recents = match kept.get_untracked() {
+            Err(Pending::Loading) => return,
+            Ok(recents) => recents.unwrap_or_default(),
+            Err(Pending::Failed(_)) => Recents::default(),
+        };
         if let Some(visited) = recents.visit(id, block_type) {
-            self.editor
-                .set_view_state(RECENTS, Some(&ViewState::new(&visited, Vec::new())));
+            kept.set(Some(visited));
         }
     }
 

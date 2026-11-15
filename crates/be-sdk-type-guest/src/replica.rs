@@ -2801,6 +2801,9 @@ where
                     Some((last, bound, weight)) if *bound + size <= LARGEST_RELAYED_OPERATION => {
                         let leftover = C::absorb_operation(last, operation);
                         if leftover.is_none() {
+                            // An upper bound: absorbing can shrink `last` (a later put replaces
+                            // an earlier one), so a long burst starts a new operation sooner
+                            // than its real size needs.
                             *bound += size;
                             *weight += 1;
                         }

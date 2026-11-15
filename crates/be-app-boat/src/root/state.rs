@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::time::Duration;
 
-use be_sdk_beui::be_block_content::{SettingsLayer, ViewState};
+use be_sdk_beui::be_block_content::{SettingsLayer, ViewStateKind};
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::{ContentProjection, Editor, KeptEdit, LayeredSettings, Task};
 use be_type_boat::{Boat, BoatContent, BoatKey, BoatSettings, BoatTerminal, TerminalAgent};
@@ -17,8 +17,6 @@ use super::terminals::{self, TerminalStatus};
 use crate::api::{self, Account, Action, BoatError, Phase, Sandbox};
 use crate::time::{self, DAY};
 
-/// The viewer's view state key under which the last list is kept.
-pub(crate) const CACHE: &str = "boat.sandboxes";
 /// How often the list is read while the editor is on screen.
 const POLL: Duration = Duration::from_secs(15);
 /// How often while a sandbox starts or stops.
@@ -40,6 +38,10 @@ pub(crate) struct Listed {
     pub sandboxes: Vec<Sandbox>,
     /// More sandboxes are listed than the editor reads (`api::PAGES` pages).
     pub cut_off: bool,
+}
+
+impl ViewStateKind for Listed {
+    const ID: Uuid = Uuid::from_u128(0x626f_6174_2d73_616e_6462_6f78_6573_0001);
 }
 
 /// What the block asks to see.
@@ -138,11 +140,8 @@ impl State {
         });
         let on_the_web = !editor.host().page_origin().is_empty();
         let web = create_memo(move || on_the_web);
-        let kept = create_memo(move || {
-            editor
-                .view_state(CACHE)
-                .and_then(|state| state.value::<Listed>())
-        });
+        let kept = editor.view_state::<Listed>();
+        let kept = create_memo(move || kept.get().ok().flatten());
         let fetched = create_signal(None::<Listed>);
         let listed = create_memo(move || {
             let filters = filters.get();
@@ -330,18 +329,15 @@ impl State {
                     })
             });
         });
-        let kept = self
-            .editor
-            .view_state(CACHE)
-            .and_then(|state| state.value::<Listed>());
+        let cache = self.editor.view_state::<Listed>();
+        let kept = cache.get_untracked().ok().flatten();
         let keep = kept.is_none_or(|kept| {
             kept.filters != listed.filters
                 || kept.sandboxes != listed.sandboxes
                 || listed.fetched - kept.fetched >= KEEP_AGAIN
         });
         if keep {
-            self.editor
-                .set_view_state(CACHE, Some(&ViewState::new(&listed, Vec::new())));
+            cache.set(Some(listed.clone()));
         }
         self.fetched.set(Some(listed));
     }

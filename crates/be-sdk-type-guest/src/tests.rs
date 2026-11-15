@@ -28,6 +28,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 mod a_break_ends_a_burst_but_not_an_open_gesture;
+mod a_burst_of_view_state_writes_is_journaled_as_one_put_each;
 mod a_conflicting_merge_keeps_the_unsealed_side_as_a_commit;
 mod a_documents_parts_cross_the_type_protocol_in_their_shape;
 mod a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending;
