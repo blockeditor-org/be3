@@ -467,6 +467,7 @@ async fn signed_organization(
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
             )
             .await?;
     }
@@ -755,11 +756,57 @@ impl TestClient {
                     Vec::new(),
                     Vec::new(),
                     Vec::new(),
+                    Vec::new(),
                 )
             })
             .await;
         assert!(response.is_ok(), "setting the recovery key failed: {response:?}");
         account
+    }
+
+    /// Moves `account` to a new phrase with nothing sealed to it to reseal, retiring its old keys
+    /// in every log it signed in, and answers the new secret, which it signs with from now on.
+    async fn new_phrase(&mut self, account: Uuid) -> be_block_keys::RecoverySecret {
+        let old = test_secret(account);
+        let new = be_block_keys::RecoveryPhrase::generate().secret();
+        let found = self
+            .call(|peer| client::keys::get_recovery_key(peer))
+            .await
+            .expect("reading the recovery key failed");
+        let retirements = found
+            .logs
+            .into_iter()
+            .map(|log| be_block_protocol::Retirement {
+                organization: log.organization,
+                kind: log.kind,
+                log: log.log,
+                entry: be_block_keys::Entry::retirement(
+                    &old,
+                    &new,
+                    account.into_bytes(),
+                    log.log.into_bytes(),
+                    log.head.try_into().unwrap(),
+                )
+                .encode(),
+            })
+            .collect();
+        let identity = new.identity();
+        let response = self
+            .call(|peer| {
+                client::keys::set_recovery_key(
+                    peer,
+                    identity.public.0,
+                    identity.signing.0,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                    retirements,
+                )
+            })
+            .await;
+        assert!(matches!(response, Ok(())), "{response:?}");
+        remember_secret(account, new.clone());
+        new
     }
 
     /// The root of `block`'s access log, as this client's account signs it on making the block.

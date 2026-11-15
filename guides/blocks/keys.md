@@ -104,6 +104,11 @@ making it, a member from the invitation, which carries it sealed with the code,
 and an agent from its maker. `Peer::organization_log` refuses a log whose root
 is not the pinned one. The personal organization has no log.
 
+A device takes a log only checked from its pinned root to its head
+(`be_block_keys::check_log`): each entry names the hash of the one before and
+is signed by its signer's current key. Every root names its kind
+(`LogKind`), so a block's log never checks as an organization's.
+
 ### Rotation
 
 When an account stops being able to view a block (revoked, left, moved away,
@@ -172,7 +177,11 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   the first phrase without the check screen, as the dev workspace does.
 - **A new phrase** must reseal every row sealed to the account by itself or a
   verified contact, and everything it sealed for itself (`OwnSealed`), which
-  the server checks, so only a device with the old secret can make one. Each
+  the server checks, so only a device with the old secret can make one. It
+  also appends a retirement (`be_block_keys::Retirement`) to every access log
+  the account signed in (`recovery-key`'s `logs`): endorsed by the old signing
+  key, signed as an entry by the new one, and checked by the server and every
+  device, which take nothing the old key signs in that log after it. Each
   verified contact gets a key change naming both new public keys
   (`contacts::new_identity`, `RecoverySecret::seal_key_change`, kept in
   `key_changes`); a contact's device

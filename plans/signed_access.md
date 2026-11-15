@@ -213,12 +213,12 @@ instead.
 ## Order of work
 
 1. **Audit.** Done: the table above.
-2. **Roots and retirement.** Block roots, pinned from the creating device and
-   from every key (`CarriedKey`), and organization roots, pinned from making
-   the organization, the invitation and an agent's maker, are built
-   (guides/blocks/keys.md, "Access logs"). Left: retirement entries on a new
-   phrase. Done: a test where an account takes a new phrase and a record
-   signed with the old key after it is refused. A root carried only by a key opened through escrow is not pinned
+2. **Roots and retirement.** Built (guides/blocks/keys.md, "Access logs" and
+   "Identity, new phrases and devices"): block roots, pinned from the creating
+   device and from every key (`CarriedKey`); organization roots, pinned from
+   making the organization, the invitation and an agent's maker; and
+   retirement entries on a new phrase, endorsed by the old key and signed by
+   the new, in every log the account signed in. A root carried only by a key opened through escrow is not pinned
    (anyone can seal to the escrow key); step 3 decides how an administrator
    checks a log it reaches only through escrow. Agents' blocks and records are
    rooted at the agent's own keys, which its maker makes and holds no copy of,

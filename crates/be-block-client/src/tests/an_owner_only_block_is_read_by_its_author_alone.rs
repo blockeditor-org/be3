@@ -183,7 +183,9 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
     );
 
     let fresh = be_block_keys::RecoveryPhrase::generate().secret();
-    let RecoveryKey { sealed, own, .. } =
+    let RecoveryKey {
+        sealed, own, logs, ..
+    } =
         crate::ask(client::keys::get_recovery_key(&member.connection()))
             .await
             .unwrap();
@@ -193,6 +195,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         &fresh,
         sealed,
         own,
+        logs,
     )
     .unwrap();
     crate::ask(client::keys::set_recovery_key(
@@ -202,6 +205,7 @@ async fn an_owner_only_block_is_read_by_its_author_alone() {
         resealed.sealed,
         resealed.own,
         resealed.changes,
+        resealed.retirements,
     ))
     .await
     .unwrap();

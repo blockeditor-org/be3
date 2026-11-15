@@ -26,7 +26,9 @@ fn an_access_root_checks_only_as_its_creator_signed_it() {
     );
 
     let mut claimed = root.clone();
-    let Record::Root(inner) = &mut claimed.record;
+    let Record::Root(inner) = &mut claimed.record else {
+        panic!("a root's record is a root");
+    };
     inner.identity = other.identity();
     assert!(
         claimed.checked_root(LogKind::Block, block).is_err(),

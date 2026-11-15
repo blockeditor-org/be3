@@ -22,22 +22,8 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
         (Some(test_secret(account).public().0), Vec::new())
     );
 
-    let first = be_block_keys::RecoveryPhrase::generate().secret();
+    let first = owner.new_phrase(account).await;
     let identity = first.identity();
-    remember_secret(account, first);
-    let response = owner
-        .call(|peer| {
-            client::keys::set_recovery_key(
-                peer,
-                identity.public.0,
-                identity.signing.0,
-                Vec::new(),
-                Vec::new(),
-                Vec::new(),
-            )
-        })
-        .await;
-    assert!(matches!(response, Ok(())), "{response:?}");
     let workspace = owner.scope_root(account, BlockParent::Root).await;
     let (public, sealed) = recovery(&mut owner).await;
     assert_eq!(public, Some(identity.public.0));
@@ -82,6 +68,7 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                 Vec::new(),
                 Vec::new(),
                 Vec::new(),
+                Vec::new(),
             )
         })
         .await;
@@ -91,12 +78,35 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
     );
     assert_eq!(recovery(&mut owner).await.0, Some(identity.public.0));
 
+    let second = be_block_keys::RecoveryPhrase::generate().secret();
+    let next = second.identity();
+    let logs = owner
+        .call(|peer| client::keys::get_recovery_key(peer))
+        .await
+        .unwrap()
+        .logs;
+    assert_eq!(logs.len(), 2, "the organization's log and the workspace's");
+    let retirement = |log: be_block_protocol::SignedLog| be_block_protocol::Retirement {
+        organization: log.organization,
+        kind: log.kind,
+        log: log.log,
+        entry: be_block_keys::Entry::retirement(
+            &first,
+            &second,
+            account.into_bytes(),
+            log.log.into_bytes(),
+            log.head.try_into().unwrap(),
+        )
+        .encode(),
+    };
+    let mut retirements: Vec<_> = logs.into_iter().map(retirement).collect();
+    let kept = retirements.pop().unwrap();
     let response = owner
         .call(|peer| {
             client::keys::set_recovery_key(
                 peer,
-                [2; 32],
-                [2; 32],
+                next.public.0,
+                next.signing.0,
                 vec![SealedKey {
                     organization,
                     key: workspace.scope,
@@ -105,14 +115,40 @@ async fn a_new_recovery_key_reseals_every_key_sealed_to_the_account() {
                 }],
                 Vec::new(),
                 Vec::new(),
+                retirements.clone(),
+            )
+        })
+        .await;
+    assert!(
+        matches!(response, Err(_)),
+        "a new recovery key left a log the old one signed in unretired: {response:?}"
+    );
+    retirements.push(kept);
+
+    let response = owner
+        .call(|peer| {
+            client::keys::set_recovery_key(
+                peer,
+                next.public.0,
+                next.signing.0,
+                vec![SealedKey {
+                    organization,
+                    key: workspace.scope,
+                    sender: account,
+                    sealed: b"resealed to the new phrase".to_vec(),
+                }],
+                Vec::new(),
+                Vec::new(),
+                retirements,
             )
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
+    remember_secret(account, second);
     assert_eq!(
         recovery(&mut owner).await,
         (
-            Some([2; 32]),
+            Some(next.public.0),
             vec![SealedKey {
                 organization,
                 key: workspace.scope,

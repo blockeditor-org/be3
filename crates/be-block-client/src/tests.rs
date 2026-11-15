@@ -40,6 +40,7 @@ async fn upload(peer: &Peer<MemoryStore>, objects: Vec<Vec<u8>>) -> Result<(), C
 }
 
 mod a_block_whose_root_the_server_swaps_is_refused;
+mod a_record_the_old_key_signs_after_a_new_phrase_is_refused;
 mod a_root_an_administrator_reaches_only_through_escrow_is_never_passed_on;
 mod a_block_a_shared_one_links_to_shows_only_that_it_exists;
 mod a_block_deleted_after_its_folder_was_listed_is_listed_only_as_deleted_offline;
