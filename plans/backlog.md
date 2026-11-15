@@ -92,3 +92,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   a quota and so on), each option naming its value beside its label, with no
   position or parallel array left, and the organization's settings tests still
   pass.
+
+## 14. Flaky host tests
+
+- **Two host tests that failed once under verify load.**
+  `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
+  (1); `a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects`
+  timed out in `synced` with "6 edit(s) wait to be sent". Neither failed in
+  120 and 80 runs under `stress` (at 14 at a time, and with `--latency 60`).
+  Their next failure explains itself: `synced` names each unsealed block, each
+  operation in the outbox and the drains, and the host log says when a
+  listing's answer left out a block the device held as listed there
+  (`log_unlisted_held`); with no such line, the missing reference is past the
+  graph, in what the app's `Backrefs` watch was told. Done: the cause found
+  from that output and fixed at its source, with a test that shows it.

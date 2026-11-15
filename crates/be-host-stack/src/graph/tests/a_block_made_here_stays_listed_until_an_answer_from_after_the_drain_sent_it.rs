@@ -28,11 +28,26 @@ fn a_block_made_here_stays_listed_until_an_answer_from_after_the_drain_sent_it()
         "an answer to a request from before the drain sent it leaves it listed"
     );
 
+    assert!(
+        graph.take_unlisted_held().is_empty(),
+        "no answer has left out what this device holds yet"
+    );
+
     // Asked for again after the drain sent it, the roots answer for it.
     assert!(!graph.take_wanted().is_empty(), "the roots are asked for again");
     graph.listed(roots, Vec::new(), 3);
     assert!(
         graph.get(session).is_none(),
         "an answer from after it was sent that leaves it out is believed"
+    );
+    assert_eq!(
+        graph.take_unlisted_held(),
+        [UnlistedHeld {
+            listing: roots,
+            blocks: vec![session],
+            revision: 3,
+            stale: false,
+        }],
+        "and the worker is told, to log what a list lost"
     );
 }
