@@ -129,18 +129,17 @@ impl Board {
         self.lifted.update(|lifted| *lifted = Some(payload));
         self.current.set(Some(id));
         self.place(point, false);
-        let rests = self.rests();
-        let shown = self.shown.get_untracked().map(|frame| frame.item);
-        let over = rests.iter().position(|(rest, _)| Some(*rest) == shown);
+        let over = self.over_chosen();
+        let places = self.rests().len();
         self.say(match over {
-            Some(at) => format!("Lifted, {}", over_place(&rests, at)),
-            None => format!("Lifted, {} places to drop it", rests.len()),
+            Some(over) => format!("Lifted, {over}"),
+            None => format!("Lifted, {places} places to drop it"),
         });
         Some(id)
     }
 
-    /// Every fixed place of the carry, where it rests now and its label.
-    fn rests(&self) -> Vec<(beui_view::types::Rect, Option<String>)> {
+    /// Every fixed place of the carry, where it is now.
+    fn rests(&self) -> Vec<beui_view::drag::Rest> {
         let space = Rc::clone(&self.space);
         let placed = move |node: NodeId| space.placed(node);
         self.placing
@@ -156,38 +155,66 @@ impl Board {
         }
     }
 
-    /// Moves a carry the keyboard holds to the nearest place `toward` from where it is drawn,
-    /// and says which place of how many it is over.
+    /// Moves a carry the keyboard holds to the nearest place `toward` from the one it is
+    /// over, aiming at the place's zone when it has one, and says the place then chosen.
     pub fn step(&self, toward: beui_view::types::Vec2) -> bool {
-        let Some((item, from)) = self.placing.borrow().as_ref().and_then(|placing| {
-            (placing.pointer == PointerId::Keyboard)
-                .then(|| (placing.carry.item, placing.frame.item.center()))
+        let Some((item, chosen, drawn, last)) = self.placing.borrow().as_ref().and_then(|placing| {
+            (placing.pointer == PointerId::Keyboard).then(|| {
+                (
+                    placing.carry.item,
+                    placing.frame.chosen,
+                    placing.frame.item.center(),
+                    placing.last,
+                )
+            })
         }) else {
             return false;
         };
-        let rests = self.rests();
-        let shapes: Vec<_> = rests.iter().map(|(rect, _)| *rect).collect();
-        let Some(at) = beui_view::drag::step_toward(&shapes, from, toward) else {
-            return false;
-        };
-        let (rest, _) = &rests[at];
-        // The point that draws the item exactly at the place's rest.
-        let item = item.unwrap_or(beui_view::types::Rect::from_min_size(
-            beui_view::types::Pos2::ZERO - rest.size() / 2.0,
-            rest.size(),
-        ));
-        let last = self.placing.borrow().as_ref().and_then(|placing| placing.last);
         let Some(last) = last else {
             return false;
         };
-        let point = DragPoint {
-            pos: rest.center() - item.center().to_vec2(),
-            ..last
+        let rests = self.rests();
+        let from = rests
+            .iter()
+            .find(|rest| Some(rest.id) == chosen)
+            .map_or(drawn, |rest| rest.aim());
+        let aims: Vec<_> = rests
+            .iter()
+            .map(|rest| beui_view::types::Rect::from_center_size(rest.aim(), rest.rest.size()))
+            .collect();
+        let Some(at) = beui_view::drag::step_toward(&aims, from, toward) else {
+            return false;
         };
-        self.place(point, false);
-        let said = over_place(&rests, at);
-        self.say(format!("{}{}", said[..1].to_uppercase(), &said[1..]));
+        let target = &rests[at];
+        // A zoned place is chosen while the pointer is in its zone; any other while the item
+        // is drawn on its rest.
+        let pos = match target.zone {
+            Some(zone) => zone.center(),
+            None => {
+                let item = item.unwrap_or(beui_view::types::Rect::from_center_size(
+                    beui_view::types::Pos2::ZERO,
+                    target.rest.size(),
+                ));
+                target.rest.center() - item.center().to_vec2()
+            }
+        };
+        self.place(DragPoint { pos, ..last }, false);
+        let said = match self.over_chosen() {
+            Some(over) => format!("{}{}", over[..1].to_uppercase(), &over[1..]),
+            None => "Over no place".to_owned(),
+        };
+        self.say(said);
         true
+    }
+
+    /// "over the left basket, place 1 of 3": the place the carry has chosen, if it is one of
+    /// the fixed places, for a screen reader.
+    fn over_chosen(&self) -> Option<String> {
+        let chosen = self.placing.borrow().as_ref()?.frame.chosen?;
+        let rests = self.rests();
+        let at = rests.iter().position(|rest| rest.id == chosen)?;
+        let name = rests[at].label.clone().unwrap_or_else(|| "a place".to_owned());
+        Some(format!("over {name}, place {} of {}", at + 1, rests.len()))
     }
 
     /// Whether the carry is held by `pointer`; another pointer's moves and releases leave it.
@@ -228,13 +255,19 @@ impl Board {
                 item: placing.carry.item.unwrap_or(point.item),
                 ..point
             };
-            placing.velocity.sample(now(), point.pos);
+            // A keyboard carry jumps from place to place: it is never thrown.
+            if placing.pointer != PointerId::Keyboard {
+                placing.velocity.sample(now(), point.pos);
+            }
             placing.last = Some(point);
             let evaluated = evaluate(
                 &placing.spec,
                 &Evaluation {
                     point,
-                    velocity: placing.velocity.get(),
+                    velocity: match placing.pointer {
+                        PointerId::Keyboard => beui_view::types::Vec2::ZERO,
+                        _ => placing.velocity.get(),
+                    },
                     released,
                     placed: &placed,
                 },
@@ -282,7 +315,12 @@ impl Board {
             .borrow()
             .as_ref()
             .and_then(|placing| placing.last);
-        if commit && let Some(last) = last {
+        // A pointer's release places once more, as a release (a throw lands further on); a
+        // keyboard drop commits the place its last step chose, as said.
+        if commit
+            && !self.carried_by(PointerId::Keyboard)
+            && let Some(last) = last
+        {
             self.place(last, true);
         }
         let committing = commit
@@ -318,10 +356,4 @@ impl Board {
         }
         true
     }
-}
-
-/// "over the left basket, place 1 of 3": the place a carry is over, for a screen reader.
-fn over_place(rests: &[(beui_view::types::Rect, Option<String>)], at: usize) -> String {
-    let name = rests[at].1.clone().unwrap_or_else(|| "a place".to_owned());
-    format!("over {name}, place {} of {}", at + 1, rests.len())
 }

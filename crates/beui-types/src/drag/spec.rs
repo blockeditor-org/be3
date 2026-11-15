@@ -591,36 +591,62 @@ fn walk<'s, D: Clone>(
     }
 }
 
-/// Every fixed place in `spec`, where it rests now and its label, in the spec's order: what
-/// a keyboard carry steps between. A place whose node is gone is left out.
-pub fn rests<D>(
-    spec: &DragSpec<D>,
-    placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>,
-) -> Vec<(Rect, Option<String>)> {
+/// A fixed place of a spec, as a keyboard carry steps between them: where the item rests
+/// there, the zone the pointer must be in for it to be chosen (if it has one), its label,
+/// and the id `evaluate` names it by.
+#[derive(Clone, PartialEq, Debug)]
+pub struct Rest {
+    pub rest: Rect,
+    pub zone: Option<Rect>,
+    pub label: Option<String>,
+    pub id: CandidateId,
+}
+
+impl Rest {
+    /// Where a pointer chooses this place: the middle of its zone, else of its rest.
+    pub fn aim(&self) -> Pos2 {
+        self.zone.unwrap_or(self.rest).center()
+    }
+}
+
+/// Every fixed place in `spec`, where it is now, in the spec's order. A place whose node is
+/// gone is left out; ids are counted as `evaluate` counts them.
+pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>) -> Vec<Rest> {
     fn walk<D>(
         spec: &DragSpec<D>,
         placed: &dyn Fn(NodeId) -> Option<(Rect, f32)>,
-        into: &mut Vec<(Rect, Option<String>)>,
+        next: &mut usize,
+        into: &mut Vec<Rest>,
     ) {
+        let id = CandidateId(*next);
+        *next += 1;
         match spec {
             DragSpec::Fixed(candidate) => {
-                let rest = candidate.node.try_get().and_then(placed).map(|(at, scale)| {
-                    Rect::from_min_size(
-                        at.min + candidate.rest.min.to_vec2() * scale,
-                        candidate.rest.size() * scale,
-                    )
-                });
-                if let Some(rest) = rest {
-                    into.push((rest, candidate.label.clone()));
+                let place = |rect: Rect| {
+                    let (at, scale) = candidate.node.try_get().and_then(placed)?;
+                    Some(Rect::from_min_size(
+                        at.min + rect.min.to_vec2() * scale,
+                        rect.size() * scale,
+                    ))
+                };
+                if let Some(rest) = place(candidate.rest) {
+                    into.push(Rest {
+                        rest,
+                        zone: candidate.zone.and_then(place),
+                        label: candidate.label.clone(),
+                        id,
+                    });
                 }
             }
-            DragSpec::Closest { of, .. } => of.iter().for_each(|spec| walk(spec, placed, into)),
+            DragSpec::Closest { of, .. } => {
+                of.iter().for_each(|spec| walk(spec, placed, next, into))
+            }
             DragSpec::WhenFar { near, far, .. } => {
-                walk(near, placed, into);
-                walk(far, placed, into);
+                walk(near, placed, next, into);
+                walk(far, placed, next, into);
             }
             DragSpec::SnapRadius { spec, .. } | DragSpec::Thrown { spec, .. } => {
-                walk(spec, placed, into)
+                walk(spec, placed, next, into)
             }
             DragSpec::Free { .. }
             | DragSpec::Floating
@@ -629,7 +655,7 @@ pub fn rests<D>(
         }
     }
     let mut into = Vec::new();
-    walk(spec, placed, &mut into);
+    walk(spec, placed, &mut 0, &mut into);
     into
 }
 

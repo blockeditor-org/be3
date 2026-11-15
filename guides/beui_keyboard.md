@@ -43,6 +43,10 @@ control's exact keys are in its code and tests. The patterns that span them:
   (`text_area::keys::caret_key`; the hex view follows it). Shift extends the
   selection with any of them. Backspace and Delete take a word with Alt, and
   with Ctrl elsewhere; Cmd takes the rest of the line (`delete_stop`).
+- A focusable source given `drag` (guides/beui/components.md, Drags as places)
+  lifts its carry on the press of Space, which it takes, so it does not also
+  activate; the arrows then step to the nearest place that way, Space or Enter
+  drops it there and Escape or Tab puts it down, keeping the focus.
 - The context menu opens on Shift+F10 or the Menu key with the focus in its
   `ContextMenu` or on the control it is part of; Escape closes one level.
 - The inspector is a document of its own; Ctrl+Shift+F moves the focus into
