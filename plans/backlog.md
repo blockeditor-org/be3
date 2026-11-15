@@ -137,14 +137,23 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 15. Flaky host tests
 
-- **Two host tests that failed once under verify load.**
+- **A joined block's tabs, once under verify load.**
   `a_joined_blocks_tabs_carry_its_menu` waited for "Referenced by (2)" and saw
-  (1); `a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects`
-  timed out in `synced` with "6 edit(s) wait to be sent". Neither failed in
-  120 and 80 runs under `stress` (at 14 at a time, and with `--latency 60`).
-  Their next failure explains itself: `synced` names each unsealed block, each
-  operation in the outbox and the drains, and the host log says when a
-  listing's answer left out a block the device held as listed there
-  (`log_unlisted_held`); with no such line, the missing reference is past the
-  graph, in what the app's `Backrefs` watch was told. Done: the cause found
-  from that output and fixed at its source, with a test that shows it.
+  (1), and has not failed since in 240 runs under `stress`. Its next failure
+  explains itself: the host log says when a listing's answer left out a block
+  the device held as listed there (`log_unlisted_held`); with no such line, the
+  missing reference is past the graph, in what the app's `Backrefs` watch was
+  told. Done: the cause found from that output and fixed at its source, with a
+  test that shows it.
+- **Adding to My files offline, about once in 400 runs.**
+  `a_device_that_loaded_my_files_adds_to_it_offline_and_the_other_sees_it_once_it_reconnects`
+  failed 3 times in 1250 runs under `stress` (12 at a time, `--latency 60`),
+  each a different way: busy on an editor's view block whose edits were not
+  journaled and owed no seal, at a click in the setup; the other device's files
+  pane loading for good while it waited for the block added offline; and, after
+  reconnecting, six publishes of one block left in the outbox through each
+  drain. Each failure now names its cause: a replica's `unjournaled` in the busy
+  reason (a timer a stopped clock never brings, or stuck work), whether the
+  failed test's host is in step and with what, and what the last drain answered
+  of what it left. Done: each cause found from that output and fixed at its
+  source, with a test that shows it.
