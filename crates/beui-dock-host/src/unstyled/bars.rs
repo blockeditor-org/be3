@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use beui_components_unstyled::{DragSource, DropHandle, DropTarget, drag_board};
 use beui_macros::{component, view};
-use beui_view::components::overlay::Overlay;
+use beui_view::components::overlay::{Overlay, OverlaysWithin};
 use beui_view::components::root::Root;
 use beui_view::drag::DragPoint;
 use beui_view::primitives::*;
@@ -104,12 +104,6 @@ impl DockBarDriver for State {
         }
     }
 
-    fn hold_band(&self, bar: TabId, held: bool) {
-        if self.panels.is_alive() {
-            self.reveal.hold(bar, held);
-        }
-    }
-
     fn begin_move(&self, bar: TabId, press: PointerPress) {
         let dock = *self;
         if !dock.panels.is_alive() || dock.mode.get_untracked() != DockMode::Tiled {
@@ -170,6 +164,15 @@ impl State {
                 Rc::new(dock),
                 bar_menu(placement, place, hide, Some(auto_hide)),
             ));
+            // A menu or panel open from the bar keeps its hidden band out from under it.
+            let within = OverlaysWithin::new();
+            provide_context(within);
+            let reveal = dock.reveal;
+            create_effect(move || {
+                let held = within.any();
+                untrack(|| reveal.hold(bar, held));
+            });
+            on_cleanup(move || reveal.hold(bar, false));
             self.content.call(bar)
         });
         self.bar_panels

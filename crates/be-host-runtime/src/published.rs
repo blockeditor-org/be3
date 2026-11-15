@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use be_sdk_api::{
-    ContactsWatch, EditorInstanceId, ScreenEdgesWatch, Watched as _, WindowsWatch,
+    ContactsWatch, EditorInstanceId, ScreenInputWatch, Watched as _, WindowsWatch,
     ops::{MethodId, Started, Watching},
 };
 use be_sdk_manifest::extension_of;
@@ -81,14 +81,15 @@ pub(super) fn offers(interface: &str, platform: Platform, desktop: bool) -> bool
     }
 }
 
-/// The screen edges wall the pointer, so only the shell sets them and hears their pushes.
+/// The shell's screen input walls the pointer and takes touches, so only the shell sets it and
+/// hears it.
 fn shell_only(open: MethodId) -> bool {
-    open == ContactsWatch::OPEN || open == WindowsWatch::OPEN || open == ScreenEdgesWatch::OPEN
+    open == ContactsWatch::OPEN || open == WindowsWatch::OPEN || open == ScreenInputWatch::OPEN
 }
 
 fn shell_only_call(started: &Started) -> bool {
     interface_of(started) == Some(WindowsWatch::INTERFACE)
-        || be_sdk_api::requested::set_edges(started).is_some()
+        || be_sdk_api::requested::set_screen_input(started).is_some()
 }
 
 pub(super) type Published = HashMap<MethodId, Arc<Vec<u8>>>;

@@ -4,7 +4,10 @@ use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
 use crate::reactive::RenderFn;
-use crate::reactive::{Get, Memo, Set, Signal, create_memo, create_signal, use_context};
+use crate::reactive::{
+    Get, Memo, Set, Signal, StoredCell, create_effect, create_memo, create_signal, on_cleanup,
+    untrack, use_context,
+};
 use crate::types::Color;
 use crate::types::Dismiss;
 use crate::types::LayerLevel;
@@ -37,8 +40,15 @@ pub fn Overlay(
     #[prop(children)] content: RenderFn<()>,
 ) -> NodeId {
     let blocks = policy.clone();
+    let open = create_memo(move || open.get());
+    if let Some(within) = use_context::<OverlaysWithin>() {
+        let takes_input = policy.clone();
+        within.follow(create_memo(move || {
+            open.get() && takes_input.get() != LayerPolicy::Inert
+        }));
+    }
     let presence = OverlayPresence::new(
-        create_memo(move || open.get()),
+        open,
         create_memo(move || blocks.get() == LayerPolicy::BlocksAll),
     );
     crate::core::overlay(
@@ -61,6 +71,46 @@ pub fn Overlay(
         presence,
         content,
     )
+}
+
+/// Hears whether any overlay opened beneath where it is provided is open, other than an
+/// `Inert` one (a tooltip): whatever provides it can then stay put while a menu or popover opened
+/// from inside it is up, as a dock's hidden band stays out while a bar in it has one open.
+#[derive(Clone, Copy)]
+pub struct OverlaysWithin(Signal<usize>);
+
+impl OverlaysWithin {
+    pub fn new() -> Self {
+        Self(create_signal(0))
+    }
+
+    /// Whether one is open, tracked.
+    pub fn any(self) -> bool {
+        self.0.get() > 0
+    }
+
+    fn follow(self, open: Memo<bool>) {
+        let counted = StoredCell::new(false);
+        let count = move |open: bool| {
+            if counted.replace(open) != open && self.0.is_alive() {
+                self.0.update(|count| match open {
+                    true => *count += 1,
+                    false => *count = count.saturating_sub(1),
+                });
+            }
+        };
+        create_effect(move || {
+            let open = open.get();
+            untrack(|| count(open));
+        });
+        on_cleanup(move || count(false));
+    }
+}
+
+impl Default for OverlaysWithin {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone, Copy)]
