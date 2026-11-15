@@ -810,7 +810,7 @@ struct Presenter {
 }
 
 pub(super) fn install(setup: &beui::native::Setup) -> Availability {
-    let Some(gpu) = setup.get::<beui_host::native::GpuSetup>() else {
+    let Some(gpu) = setup.get::<beui_renderer_wgpu::present::GpuSetup>() else {
         return Availability(Ok(()));
     };
     let platform = build_presenter(&gpu.device, &gpu.queue);

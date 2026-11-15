@@ -2204,7 +2204,9 @@ pub fn view(item: TokenStream) -> TokenStream {
 
 fn resolve_tree(tokens: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     use proc_macro_crate::{FoundCrate, crate_name};
-    let target = ["beui", "beui-view", "beui-html", "beui-tree"]
+    // beui-documents is found by its package name and answers with the name it is depended on
+    // under (`beui`), as the app runtime does, rather than through the fallback below.
+    let target = ["beui", "beui-documents", "beui-view", "beui-html", "beui-tree"]
         .into_iter()
         .find_map(|name| crate_name(name).ok().map(|found| (name, found)))
         .map(|(name, found)| match found {
