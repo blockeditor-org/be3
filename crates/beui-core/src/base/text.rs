@@ -246,10 +246,6 @@ impl Shaper for CachedShaper<'_> {
         self.fresh.insert(key, galley.clone());
         galley
     }
-
-    fn slice(&mut self, galley: &Galley, range: Range<usize>, _font: FontId) -> Galley {
-        galley.slice(range, self.painter.ctx().pixels_per_point())
-    }
 }
 
 pub struct TextItemNode {
