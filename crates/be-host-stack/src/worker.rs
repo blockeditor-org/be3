@@ -661,9 +661,10 @@ pub struct Shared {
     /// a session's journal. Unlike `error`, it is about being in step with the server, so it
     /// clears once the device is connected and nothing waits to be sent (`report`).
     pub sync_error: Option<String>,
-    /// What the last drain answered of what it did not send (`Drained` other than `Created`
-    /// and `Published`), and the last error recorded, which `unsynced` names beside the
-    /// outbox they leave waiting.
+    /// What the last drain that ran answered of what it did not send (`Drained` other than
+    /// `Created`, `Published`, `Moved` and `Defined`), which `unsynced` names beside the outbox
+    /// they leave waiting, with the errors recorded. A drain that fails as a whole leaves the
+    /// outcomes of the one before, its error in `sync_error`.
     pub last_drain: Vec<String>,
     pub module_error: Option<(Uuid, String)>,
     pub conflicts: HashMap<Uuid, Vec<Conflict>>,
@@ -1854,6 +1855,8 @@ async fn drain_outbox(
                         outcome,
                         be_block_client::Drained::Created { .. }
                             | be_block_client::Drained::Published { .. }
+                            | be_block_client::Drained::Moved { .. }
+                            | be_block_client::Drained::Defined { .. }
                     )
                 })
                 .map(|outcome| format!("{outcome:?}"))
