@@ -44,13 +44,10 @@ fn RunButton(
             menu_label="More ways to run it"
             disabled
             items={view! {
-                <ForEach value={(0..MORE.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={MORE.to_vec()}>|(label, product, fresh): (&'static str, Product, bool)|
                     <MenuItem
-                        label={MORE[index].0}
-                        on_click={move || {
-                            let (_, product, fresh) = MORE[index];
-                            runs.run(slot, commit.get_untracked(), product, fresh);
-                        }}
+                        label
+                        on_click={move || runs.run(slot, commit.get_untracked(), product, fresh)}
                     />
                 </ForEach>
             }}

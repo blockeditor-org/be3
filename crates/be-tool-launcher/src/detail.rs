@@ -241,7 +241,6 @@ fn CommentCard(
     });
     let heading = format!("{} {verb}", author.login);
     let time = relative(now(), when);
-    let inline_keys: Vec<usize> = (0..inline.len()).collect();
     let open = move || model.open(&url);
     view! {
         <Frame padding={Padding::vertical(Space::Sm)}>
@@ -268,12 +267,9 @@ fn CommentCard(
                     <Frame padding=CARD_PADDING>
                         <List spacing=Space::Md>
                             <Blocks model={model} blocks={body} />
-                            <ForEach value={inline_keys}>|index: usize| {
-                                let comment = inline[index].clone();
-                                view! {
-                                    <InlineCommentView model={model} comment />
-                                }
-                            }</ForEach>
+                            <ForEach value={inline}>|comment: InlineComment|
+                                <InlineCommentView model={model} comment />
+                            </ForEach>
                         </List>
                     </Frame>
                 </List>
@@ -353,15 +349,11 @@ fn Avatar(model: Model, url: String) -> NodeId {
 
 #[component]
 fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
-    let keys: Vec<usize> = (0..blocks.len()).collect();
     view! {
         <List spacing=Space::Md>
-            <ForEach value={keys}>|index: usize| {
-                let block = blocks[index].clone();
-                view! {
-                    <BlockView model={model} block />
-                }
-            }</ForEach>
+            <ForEach value={blocks}>|block: Block|
+                <BlockView model={model} block />
+            </ForEach>
         </List>
     }
 }
@@ -399,8 +391,9 @@ fn BlockView(model: Model, block: Block) -> NodeId {
 #[component]
 fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
     let columns = rows.iter().map(Vec::len).max().unwrap_or(0).max(1);
-    let keys: Vec<(usize, usize)> = (0..rows.len())
-        .flat_map(|row| (0..columns).map(move |column| (row, column)))
+    let cells: Vec<Vec<Block>> = rows
+        .iter()
+        .flat_map(|row| (0..columns).map(move |column| row.get(column).cloned().unwrap_or_default()))
         .collect();
     view! {
         <Frame
@@ -413,12 +406,9 @@ fn Table(model: Model, rows: Vec<Vec<Vec<Block>>>) -> NodeId {
                 column_spacing=Space::Md
                 row_spacing=Space::Md
             >
-                <ForEach value={keys}>|(row, column): (usize, usize)| {
-                    let blocks = rows[row].get(column).cloned().unwrap_or_default();
-                    view! {
-                        <Blocks model={model} blocks />
-                    }
-                }</ForEach>
+                <ForEach value={cells}>|blocks: Vec<Block>|
+                    <Blocks model={model} blocks />
+                </ForEach>
             </Grid>
         </Frame>
     }

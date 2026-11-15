@@ -101,14 +101,6 @@ pub fn WindowView(
     let size = create_memo(move || shown.get().map_or(Vec2::ZERO, |at| at.size()));
     let parent = use_window().map_or(beui::WindowId::MAIN, |window| window.id);
     let hosted = opens_windows();
-    let openings = create_memo(move || match (hosted.get(), open.get()) {
-        (true, true) => {
-            let at = at.get();
-            vec![Some((at.x.to_bits(), at.y.to_bits()))]
-        }
-        (true, false) => Vec::new(),
-        (false, _) => vec![None],
-    });
     let into_window = move |mut input: ForwardedInput| {
         let at = shown.get_untracked().unwrap_or(Rect::ZERO);
         input.rect = input.rect.translate(-at.min.to_vec2());
@@ -157,7 +149,17 @@ pub fn WindowView(
                     <Frame fill={dim} />
                 </Layers>
             </Interactive>
-            <ForEach value={openings}>|_: Option<(u32, u32)>| {
+            <Dynamic
+                value={move || match (hosted.get(), open.get()) {
+                    (true, true) => {
+                        let at = at.get();
+                        Some(Some((at.x.to_bits(), at.y.to_bits())))
+                    }
+                    (true, false) => None,
+                    (false, _) => Some(None),
+                }}
+                fallback=()
+            >|_: Option<(u32, u32)>| {
                 let placement = WindowPlacement::Over {
                     window: parent,
                     at: at.get_untracked(),
@@ -201,7 +203,7 @@ pub fn WindowView(
                         }
                     }</Window>
                 }
-            }</ForEach>
+            }</Dynamic>
         </Layers>
     };
     let grabs = signals.grabs;
