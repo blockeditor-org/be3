@@ -30,8 +30,7 @@ the parent replaces its one child in place (`Single::mount`), with no node of
 the control flow's own. A `NodeId` slot (a `ListItem`, a `ForEach` row) takes
 `One` or `ZeroOrOne` in a bare frame the core builds around it, which sizes to
 its child. A run where one child goes is a compile error saying to put a `List`
-or `Layers` around it
-([decision](../../decisions/control_flow_swaps_in_place_and_takes_a_host_only_where_a_node_is_needed.md)). An either/or is one `Show` with a `fallback`, never two
+or `Layers` around it. An either/or is one `Show` with a `fallback`, never two
 `Show`s on a condition and its negation. A component whose whole view is a
 `Show` returns `DynamicSegment<ListItem>` (any count, for a run) or
 `DynamicSegment<NodeId, One>` (for a slot that takes one).
