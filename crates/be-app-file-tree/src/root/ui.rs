@@ -154,10 +154,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
 
     let narrow = phone_layout();
     let chrome = editor.chrome_shown();
-    let toolbar = create_memo(move || chrome.get());
     let focus = zoom.focus();
-    let zoomed = create_memo(move || focus.with(Option::is_some));
-    let swipes = create_memo(move || narrow.get() && zoomed.get());
     let query = create_signal(String::new());
     let filter = create_memo(move || query.get().trim().to_lowercase());
     let filtering = create_memo(move || !filter.with(String::is_empty));
@@ -191,10 +188,13 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     });
     view! {
         <List spacing=Space::None>
-            <FilesToolbar adding shown={toolbar} />
+            <FilesToolbar adding shown={chrome} />
             <ListItem grow=1.0>
                 <Frame @node_ref={&content_node}>
-                    <BackSlide enabled={swipes} on_back={move || zoom.up()}>
+                    <BackSlide
+                        enabled={move || narrow.get() && focus.with(Option::is_some)}
+                        on_back={move || zoom.up()}
+                    >
                         <Frame fill=ColorRole::Background>
                             <List spacing=Space::None>
                                 <Show condition={filtering}>
@@ -208,8 +208,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                             {count}
                                         </Text>
                                     </Frame>
-                                </Show>
-                                <Show condition={filtering}>
                                     <ContentHits editor hits={content} />
                                 </Show>
                                 <ListItem grow=1.0>
@@ -289,7 +287,6 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> NodeId {
-    let open = create_memo(move || inspecting.get().is_some());
     let field = |read: fn(&Inspection) -> &String| {
         create_memo(move || {
             inspecting.with(|shown| shown.as_ref().map(read).cloned().unwrap_or_default())
@@ -308,7 +305,7 @@ fn Inspector(inspecting: Signal<Option<Inspection>>, opened_from: NodeRef) -> No
     let dismiss = move || inspecting.set(None);
     view! {
         <Dialog
-            open={open}
+            open={move || inspecting.with(Option::is_some)}
             title="Inspect"
             width=INSPECT_WIDTH
             anchor={DialogAnchor::Control(opened_from)}
@@ -414,7 +411,6 @@ fn TreeRow(
     let row_focused = face.focused;
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let (before, hit, after) = highlighted(label, filter);
-    let generated = create_memo(move || row.get().is_some_and(|row| row.dynamic_artifact));
     let tag_keys = create_memo(move || {
         row.get()
             .map(|row| row.tags.iter().map(|tag| tag.id).collect::<Vec<_>>())
@@ -431,16 +427,6 @@ fn TreeRow(
             .unwrap_or_default()
             .to_owned()
     });
-    let restricted = create_memo(move || access.get().is_some());
-    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
-    let muted = create_memo(move || {
-        row.get()
-            .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
-    });
-    let weight = create_memo(move || match row.get().is_some_and(|row| row.section) {
-        true => Weight::Bold,
-        false => Weight::Normal,
-    });
     let glyph_size = glyph_size();
     let (detail, detailed, inline) = detail(editor, row);
     let beside = create_memo(move || match inline.get() {
@@ -449,15 +435,27 @@ fn TreeRow(
     });
     let generated_color = TextColor::Muted;
     let access_color = TextColor::Muted;
-    let color = create_memo(move || match muted.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
+    let muted = move || {
+        row.with(|row| {
+            row.as_ref()
+                .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
+        })
+    };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <ListItem grow=1.0>
                 <List spacing=Space::None>
-                    <Text color={color} weight={weight} overflow=Overflow::Ellipsis>
+                    <Text
+                        color={move || match muted() {
+                            true => TextColor::Muted,
+                            false => TextColor::Default,
+                        }}
+                        weight={move || match row.with(|row| row.as_ref().is_some_and(|row| row.section)) {
+                            true => Weight::Bold,
+                            false => Weight::Normal,
+                        }}
+                        overflow=Overflow::Ellipsis
+                    >
                         {before}
                         <Span background=ColorRole::AccentSoft>{hit}</Span>
                         {after}
@@ -478,21 +476,23 @@ fn TreeRow(
                     <TagChip tag={shown} size=TextSize::Xs />
                 }
             }</ForEach>
-            <Show condition={generated}>
+            <Show
+                condition={move || row.with(|row| row.as_ref().is_some_and(|row| row.dynamic_artifact))}
+            >
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
                         <Icon glyph=ICON_SPARKLES />
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={restricted}>
+            <Show condition={move || access.with(Option::is_some)}>
                 <Tooltip label={access_label}>
                     <Text size={glyph_size} color={access_color} align=TextAlign::Center>
                         <Icon glyph={access} />
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={actions}>
+            <Show condition={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
                 <RowActions
                     editor={editor}
                     row={row}
@@ -507,18 +507,19 @@ fn TreeRow(
 #[component]
 fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListItem> {
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
-    let has_glyph = create_memo(move || glyph.get().is_some());
     let glyph_size = glyph_size();
-    let glyph_color = create_memo(move || {
-        row.get()
-            .and_then(|row| row.icon_color)
-            .map_or(TextColor::Muted, |[r, g, b]| {
-                TextColor::Custom(Color32::from_rgb(r, g, b).into())
-            })
-    });
     Children::from([into_segment(view! {
-        <Show condition={has_glyph}>
-            <Text size={glyph_size} color={glyph_color} align=TextAlign::Center>
+        <Show condition={move || glyph.with(Option::is_some)}>
+            <Text
+                size={glyph_size}
+                color={move || {
+                    row.with(|row| row.as_ref().and_then(|row| row.icon_color))
+                        .map_or(TextColor::Muted, |[r, g, b]| {
+                            TextColor::Custom(Color32::from_rgb(r, g, b).into())
+                        })
+                }}
+                align=TextAlign::Center
+            >
                 <Icon glyph={glyph} />
             </Text>
         </Show>
@@ -535,7 +536,6 @@ fn SectionRow(
     let row_focused = face.focused;
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let (before, hit, after) = highlighted(label, filter);
-    let actions = create_memo(move || row.get().is_some_and(|row| has_actions(&row)));
     let (detail, detailed, _) = detail(editor, row);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
@@ -551,7 +551,7 @@ fn SectionRow(
                     </Show>
                 </List>
             </ListItem>
-            <Show condition={actions}>
+            <Show condition={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
                 <RowActions
                     editor={editor}
                     row={row}
@@ -657,36 +657,32 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
     let keys = create_memo(move || {
         editors.with(|editors| editors.iter().map(|(id, _)| *id).collect::<Vec<_>>())
     });
-    let none = create_memo(move || keys.with(Vec::is_empty));
     view! {
         <MenuItem
             label="Open with"
             glyph=ICON_MOVE
-            disabled={none}
+            disabled={move || keys.with(Vec::is_empty)}
             row_test_id={"file-tree.open-with".to_owned()}
         >
-            <ForEach keys={keys}>|chosen: Uuid| {
-                let label = create_memo(move || {
-                    editors.with(|editors| {
-                        editors
-                            .iter()
-                            .find(|(id, _)| *id == chosen)
-                            .map(|(_, name)| name.clone())
-                            .unwrap_or_default()
-                    })
-                });
-                view! {
-                    <MenuItem
-                        label={label}
-                        row_test_id={format!("file-tree.open-with.{chosen}")}
-                        on_click={move || {
-                            if let Some((id, block_type)) = block.get_untracked() {
-                                editor.host().open_block_with(id, block_type, chosen);
-                            }
-                        }}
-                    />
-                }
-            }</ForEach>
+            <ForEach keys={keys}>|chosen: Uuid|
+                <MenuItem
+                    label={move || {
+                        editors.with(|editors| {
+                            editors
+                                .iter()
+                                .find(|(id, _)| *id == chosen)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_default()
+                        })
+                    }}
+                    row_test_id={format!("file-tree.open-with.{chosen}")}
+                    on_click={move || {
+                        if let Some((id, block_type)) = block.get_untracked() {
+                            editor.host().open_block_with(id, block_type, chosen);
+                        }
+                    }}
+                />
+            </ForEach>
         </MenuItem>
     }
 }
@@ -710,12 +706,16 @@ pub(crate) fn ExportAs(
     let keys = create_memo(move || {
         shown.with(|shown| shown.iter().map(|(format, _)| *format).collect::<Vec<_>>())
     });
-    let none = create_memo(move || keys.with(Vec::is_empty));
     let prefix = row_test_id.clone();
     view! {
-        <MenuItem label="Export as" glyph=ICON_DOWNLOAD disabled={none} row_test_id={row_test_id}>
+        <MenuItem
+            label="Export as"
+            glyph=ICON_DOWNLOAD
+            disabled={move || keys.with(Vec::is_empty)}
+            row_test_id={row_test_id}
+        >
             <ForEach keys={keys}>|format: ExportFormat| {
-                let label = create_memo(move || {
+                let label = move || {
                     shown.with(|shown| {
                         shown
                             .iter()
@@ -723,7 +723,7 @@ pub(crate) fn ExportAs(
                             .map(|(_, label)| label.clone())
                             .unwrap_or_default()
                     })
-                });
+                };
                 let named = match format {
                     ExportFormat::Own => format!("{prefix}.own"),
                     ExportFormat::BlockFile => format!("{prefix}.block"),
@@ -748,12 +748,11 @@ pub(crate) fn ExportAs(
 fn RowButton(
     row_focused: ReadSignal<bool>,
     glyph: Glyph,
-    label: Memo<String>,
+    label: &'static str,
     named: String,
     on_click: be_sdk_beui::beui::reactive::Callback<()>,
 ) -> NodeId {
     let focused = create_signal(false);
-    let reachable = create_memo(move || row_focused.get() || focused.get());
     view! {
         <Button
             @test_id={named}
@@ -762,7 +761,7 @@ fn RowButton(
             label={label}
             variant=ButtonVariant::Ghost
             size=ButtonSize::Small
-            tab_stop={reachable}
+            tab_stop={move || row_focused.get() || focused.get()}
             capture_presses=true
             on_focus_change={focused}
             on_click={on_click}
@@ -783,14 +782,7 @@ fn RowActions(
 ) -> NodeId {
     let prefix = row_test_id(&key);
     let (share_id, settings_id) = (format!("{prefix}.share"), format!("{prefix}.settings"));
-    let shared = create_memo(move || {
-        row.get()
-            .is_some_and(|row| row.sets_access && row.access.can_manage())
-    });
     let settings = create_memo(move || row.get().and_then(|row| row.settings));
-    let has_settings = create_memo(move || settings.get().is_some());
-    let share_label = create_memo(|| "Share: access is set here".to_owned());
-    let settings_label = create_memo(|| "Settings".to_owned());
     let share = move || {
         if let Some(id) = row.get_untracked().and_then(|row| row.id) {
             editor.host().share_block(id);
@@ -803,20 +795,27 @@ fn RowActions(
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show condition={shared}>
+            <Show
+                condition={move || {
+                    row.with(|row| {
+                        row.as_ref()
+                            .is_some_and(|row| row.sets_access && row.access.can_manage())
+                    })
+                }}
+            >
                 <RowButton
                     row_focused={row_focused}
                     glyph=ICON_SHARE_2
-                    label={share_label}
+                    label="Share: access is set here"
                     named={share_id.clone()}
                     on_click={share}
                 />
             </Show>
-            <Show condition={has_settings}>
+            <Show condition={move || settings.with(Option::is_some)}>
                 <RowButton
                     row_focused={row_focused}
                     glyph=ICON_SETTINGS
-                    label={settings_label}
+                    label="Settings"
                     named={settings_id.clone()}
                     on_click={open_settings}
                 />

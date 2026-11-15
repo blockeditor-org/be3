@@ -249,8 +249,6 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
                 .map(|(block_type, _)| ChildTarget::new(id, *block_type))
         })
     });
-    let readable = create_memo(move || target.get().is_some());
-    let hidden = create_memo(move || !readable.get());
     view! {
         <List
             direction=Direction::Horizontal
@@ -258,11 +256,13 @@ fn AttachmentChip(editor: Editor, attached: Attached, id: Uuid, link_id: String)
             spacing=Space::Xs
             @test_id={link_id}
         >
-            <Show condition={readable}>
+            <Show
+                condition={move || target.get().is_some()}
+                fallback={|| view! {
+                    <NoAccess />
+                }}
+            >
                 <BlockLink editor block={target} />
-            </Show>
-            <Show condition={hidden}>
-                <NoAccess />
             </Show>
         </List>
     }
@@ -479,10 +479,6 @@ pub fn Chat(editor: Editor) -> NodeId {
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, block, me, at_end);
     let has_unread = create_memo(move || unread.get().is_some_and(|count| count > 0));
-    let unread_label = create_memo(move || match unread.get().unwrap_or_default() {
-        1 => "1 new message".to_owned(),
-        count => format!("{count} new messages"),
-    });
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
@@ -491,10 +487,6 @@ pub fn Chat(editor: Editor) -> NodeId {
     let reply_label = create_memo(move || replying.get().unwrap_or_default());
     let has_reply = create_memo(move || replying.get().is_some());
     let editing = create_memo(move || composer.editing.get().is_some());
-    let send_label = create_memo(move || match editing.get() {
-        true => "Save".to_owned(),
-        false => "Send".to_owned(),
-    });
 
     // The messages sent from this device that the server lacks: sending, or not sent once
     // the server refused them. The replica keeps them, so they show whichever editor sent them.
@@ -625,7 +617,10 @@ pub fn Chat(editor: Editor) -> NodeId {
                     <Show condition={has_unread}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Button
-                                label={unread_label}
+                                label={move || match unread.get().unwrap_or_default() {
+                                    1 => "1 new message".to_owned(),
+                                    count => format!("{count} new messages"),
+                                }}
                                 glyph=ICON_ARROW_DOWN
                                 variant=ButtonVariant::Secondary
                                 size=ButtonSize::Small
@@ -707,7 +702,10 @@ pub fn Chat(editor: Editor) -> NodeId {
                             />
                         </ListItem>
                         <Button
-                            label={send_label}
+                            label={move || match editing.get() {
+                                true => "Save".to_owned(),
+                                false => "Send".to_owned(),
+                            }}
                             glyph=ICON_SEND
                             variant=ButtonVariant::Primary
                             @test_id={"chat.send"}
@@ -1401,10 +1399,6 @@ fn MessageRow(
     let mine = create_memo(move || row.with(|row| row.mine));
     let actionable = create_memo(move || row.with(|row| !row.deleted));
     let deleted = create_memo(move || !actionable.get());
-    let body_color = create_memo(move || match deleted.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
     let quote = create_memo(move || row.with(|row| row.reply.clone().unwrap_or_default()));
     let replies = create_memo(move || row.with(|row| row.reply.is_some()));
     let reactions = create_memo(move || {
@@ -1420,7 +1414,6 @@ fn MessageRow(
     let unsent = create_memo(move || unsent.with(|unsent| unsent.get(&id).copied()));
     let sending = create_memo(move || unsent.get().is_some());
     let failed = create_memo(move || unsent.get().is_some_and(|unsent| unsent.failed));
-    let sending_now = create_memo(move || sending.get() && !failed.get());
     // A message the server refused is sent again as a new one, or given up; either way the
     // one that failed goes.
     let let_go = move |again: bool| {
@@ -1447,10 +1440,6 @@ fn MessageRow(
         delete(editor, chat, signing.get_untracked(), me, id);
         chat.dismiss_lacking(unsent.lacking);
     };
-    let fill = create_memo(move || match mine.get() {
-        true => ColorRole::AccentSoft,
-        false => ColorRole::Control,
-    });
 
     let reaction_chips = move |reaction: String| {
         let name = reaction.clone();
@@ -1530,7 +1519,10 @@ fn MessageRow(
 
     view! {
         <Frame
-            fill={fill}
+            fill={move || match mine.get() {
+                true => ColorRole::AccentSoft,
+                false => ColorRole::Control,
+            }}
             radius=Radius::Md
             padding={Padding::symmetric(Space::Lg, Space::Md)}
             @test_id={format!("chat.message.{id}")}
@@ -1552,44 +1544,46 @@ fn MessageRow(
                             <Show condition={edited}>
                                 <Text style=TextStyle::CAPTION>"edited"</Text>
                             </Show>
-                            <Show condition={sending_now}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    @test_id={format!("chat.message.{id}.sending")}
+                            <Show condition={sending}>
+                                <Show
+                                    condition={failed}
+                                    fallback={move || view! {
+                                        <Text
+                                            style=TextStyle::CAPTION
+                                            @test_id={format!("chat.message.{id}.sending")}
+                                        >
+                                            "Sending"
+                                        </Text>
+                                    }}
                                 >
-                                    "Sending"
-                                </Text>
-                            </Show>
-                            <Show condition={failed}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    color=TextColor::Danger
-                                    @test_id={format!("chat.message.{id}.not_sent")}
-                                >
-                                    "Not sent"
-                                </Text>
-                            </Show>
-                            <Show condition={failed}>
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=Space::Xs
-                                >
-                                    <Button
-                                        label="Send again"
-                                        variant=ButtonVariant::Ghost
-                                        size=ButtonSize::Small
-                                        @test_id={format!("chat.message.{id}.retry")}
-                                        on_click={move || let_go(true)}
-                                    />
-                                    <Button
-                                        label="Discard"
-                                        variant=ButtonVariant::Ghost
-                                        size=ButtonSize::Small
-                                        @test_id={format!("chat.message.{id}.discard")}
-                                        on_click={move || let_go(false)}
-                                    />
-                                </List>
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        color=TextColor::Danger
+                                        @test_id={format!("chat.message.{id}.not_sent")}
+                                    >
+                                        "Not sent"
+                                    </Text>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=Space::Xs
+                                    >
+                                        <Button
+                                            label="Send again"
+                                            variant=ButtonVariant::Ghost
+                                            size=ButtonSize::Small
+                                            @test_id={format!("chat.message.{id}.retry")}
+                                            on_click={move || let_go(true)}
+                                        />
+                                        <Button
+                                            label="Discard"
+                                            variant=ButtonVariant::Ghost
+                                            size=ButtonSize::Small
+                                            @test_id={format!("chat.message.{id}.discard")}
+                                            on_click={move || let_go(false)}
+                                        />
+                                    </List>
+                                </Show>
                             </Show>
                             <Show condition={unverified}>
                                 <Text style=TextStyle::CAPTION>"not verified"</Text>
@@ -1682,7 +1676,15 @@ fn MessageRow(
                     </Frame>
                 </Show>
                 <Show condition={has_body}>
-                    <Text italic={deleted} color={body_color}>{body}</Text>
+                    <Text
+                        italic={deleted}
+                        color={move || match deleted.get() {
+                            true => TextColor::Muted,
+                            false => TextColor::Default,
+                        }}
+                    >
+                        {body}
+                    </Text>
                 </Show>
                 <Show condition={has_attachments}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>

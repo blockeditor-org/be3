@@ -30,12 +30,12 @@ pub(super) fn AppearanceSection(
     let scale = DisplaySettings::scale_setting();
     let chosen_scale = settings.value(&scale);
     let below_scale = settings.fallback(&scale);
-    let inherited_scale_label = create_memo(move || {
+    let inherited_scale_label = move || {
         format!(
             "Default ({}%)",
             below_scale.get().unwrap_or(DisplaySettings::DEFAULT_SCALE)
         )
-    });
+    };
     let selected_scale = create_memo(move || {
         Some(
             chosen_scale
@@ -53,14 +53,14 @@ pub(super) fn AppearanceSection(
     let keyboard = DisplaySettings::keyboard_setting();
     let chosen_keyboard = settings.value(&keyboard);
     let below_keyboard = settings.fallback(&keyboard);
-    let inherited_keyboard_label = create_memo(move || {
+    let inherited_keyboard_label = move || {
         format!(
             "Default ({}%)",
             below_keyboard
                 .get()
                 .unwrap_or(DisplaySettings::DEFAULT_KEYBOARD_HEIGHT)
         )
-    });
+    };
     let selected_keyboard = create_memo(move || {
         Some(
             chosen_keyboard
@@ -82,13 +82,13 @@ pub(super) fn AppearanceSection(
                 label="Theme"
                 description="The colors of the app and every editor in it."
                 locked={read_only}
-                overridden={create_memo(move || developer.get().theme.is_some())}
+                overridden={move || developer.get().theme.is_some()}
                 id={"display.theme".to_owned()}
             >
                 <ListItem grow=1.0>
                     <ThemeSelect
                         chosen={chosen_theme}
-                        inherited={create_memo(move || below_theme.get().unwrap_or(system.get().theme))}
+                        inherited={move || below_theme.get().unwrap_or(system.get().theme)}
                         on_change={set_theme}
                         disabled={read_only}
                         @test_id={"display.theme"}
@@ -101,13 +101,13 @@ pub(super) fn AppearanceSection(
                 description="Reduced motion finishes animations at once, and stops inertia and blinking carets."
                 separated=true
                 locked={read_only}
-                overridden={create_memo(move || developer.get().motion.is_some())}
+                overridden={move || developer.get().motion.is_some()}
                 id={"display.motion".to_owned()}
             >
                 <ListItem grow=1.0>
                     <MotionSelect
                         chosen={chosen_motion}
-                        inherited={create_memo(move || below_motion.get().unwrap_or(system.get().motion))}
+                        inherited={move || below_motion.get().unwrap_or(system.get().motion)}
                         on_change={set_motion}
                         disabled={read_only}
                         @test_id={"display.motion"}

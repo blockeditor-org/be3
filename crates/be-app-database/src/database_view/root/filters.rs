@@ -246,9 +246,6 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
 #[component]
 fn AddFilter(data: Data) -> NodeId {
     let adding = create_signal(None::<ObjectId>);
-    let choosing = create_memo(move || adding.get().is_none());
-    let editing = create_memo(move || adding.get());
-    let has_editing = create_memo(move || adding.get().is_some());
     let open = create_signal(false);
     let open = Binding::new(open, move |next: bool| {
         open.set(next);
@@ -269,20 +266,17 @@ fn AddFilter(data: Data) -> NodeId {
             open
         >|_: PopoverHandle|
             <List spacing=Space::None>
-                <Show condition={choosing}>
-                    <FieldChoices data={data} on_pick={move |id: ObjectId| adding.set(Some(id))} />
-                </Show>
-                <Show condition={has_editing}>|| {
-                    let id = editing.get_untracked();
-                    match id {
-                        Some(id) => view! {
-                            <FilterEditor data={data} id={id} />
-                        },
-                        None => view! {
-                            <Frame />
-                        },
-                    }
-                }</Show>
+                <Dynamic
+                    value={adding}
+                    fallback={move || view! {
+                        <FieldChoices
+                            data={data}
+                            on_pick={move |id: ObjectId| adding.set(Some(id))}
+                        />
+                    }}
+                >|id: ObjectId|
+                    <FilterEditor data={data} id={id} />
+                </Dynamic>
             </List>
         </Popover>
     }
@@ -394,7 +388,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
             &FilterCondition::Contains(text),
         ));
     };
-    let value_fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(move || {
         let filter = filter.get();
         match (filter.field, filter.condition) {
@@ -450,7 +443,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
-                        fields={value_fields}
+                        fields={move || field.get().into_iter().collect::<Vec<_>>()}
                         values={values}
                         labels={labels}
                         disabled={value_off}

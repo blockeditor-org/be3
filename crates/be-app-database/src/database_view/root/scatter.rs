@@ -27,19 +27,20 @@ struct Point {
 #[component]
 pub fn Scatter(data: Data) -> NodeId {
     let axes = axis_fields(data);
-    let missing = create_memo(move || axes.get().is_none());
     let ready = create_memo(move || axes.get().is_some());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={missing}>
-                    <Frame padding=Space::Lg>
-                        <Text style=TextStyle::CAPTION>
-                            "Choose X and Y fields to use the scatter view."
-                        </Text>
-                    </Frame>
-                </Show>
-                <Show condition={ready}>
+                <Show
+                    condition={ready}
+                    fallback={|| view! {
+                        <Frame padding=Space::Lg>
+                            <Text style=TextStyle::CAPTION>
+                                "Choose X and Y fields to use the scatter view."
+                            </Text>
+                        </Frame>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Plot data={data} axes={axes} />
                     </ListItem>
@@ -183,10 +184,10 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
     let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
-    let color = create_memo(move || match selected.get() {
+    let color = move || match selected.get() {
         true => ColorRole::Accent,
         false => ColorRole::Text,
-    });
+    };
     view! {
         <CanvasItem x={x} y={y} width={side} height={side}>
             <Frame

@@ -28,26 +28,27 @@ pub fn Spreadsheet(data: Data) -> NodeId {
         display.with(|display| display.iter().map(|row| row.index).collect::<Vec<usize>>())
     });
     let empty = create_memo(move || fields.with(Vec::is_empty));
-    let filled = create_memo(move || !empty.get());
     let keyboard = Callback::new(keyboard(data, display));
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={empty}>
+                <Show
+                    condition={empty}
+                    fallback={move || view! {
+                        <ListItem grow=1.0>
+                            <Grid
+                                data={data}
+                                header={data}
+                                display={display}
+                                keys={keys}
+                                on_key={keyboard}
+                            />
+                        </ListItem>
+                    }}
+                >
                     <Frame padding=Space::Lg>
                         <Text style=TextStyle::CAPTION>"This database has no columns yet."</Text>
                     </Frame>
-                </Show>
-                <Show condition={filled}>
-                    <ListItem grow=1.0>
-                        <Grid
-                            data={data}
-                            header={data}
-                            display={display}
-                            keys={keys}
-                            on_key={keyboard}
-                        />
-                    </ListItem>
                 </Show>
             </List>
         </Frame>
@@ -162,12 +163,11 @@ fn HeaderCell(
     on_click: Callback<()>,
 ) -> NodeId {
     let sorted = create_memo(move || sorted.get());
-    let glyph = create_memo(move || match sorted.get() {
+    let glyph = move || match sorted.get() {
         Some(SortDirection::Ascending) => Some(ICON_ARROW_UP),
         Some(SortDirection::Descending) => Some(ICON_ARROW_DOWN),
         None => None,
-    });
-    let marked = create_memo(move || sorted.get().is_some());
+    };
     view! {
         <Frame
             width=width
@@ -180,7 +180,7 @@ fn HeaderCell(
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text>{label}</Text>
                         <Spacer />
-                        <Show condition={marked}>
+                        <Show condition={move || sorted.get().is_some()}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
                             </Text>
@@ -219,10 +219,10 @@ fn Row(
     let keys = create_memo(move || {
         fields.with(|fields| fields.iter().map(|field| field.id).collect::<Vec<Uuid>>())
     });
-    let header_fill = create_memo(move || match selected.get() {
+    let header_fill = move || match selected.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::Surface,
-    });
+    };
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
             <ListItem length=ROW_HEADER_WIDTH>
@@ -291,10 +291,10 @@ fn Cell(
         })
     });
     let checked = create_memo(move || matches!(value.get(), Some(DatabaseValue::Boolean(true))));
-    let check_glyph = create_memo(move || match checked.get() {
+    let check_glyph = move || match checked.get() {
         true => ICON_SQUARE_CHECK,
         false => ICON_SQUARE,
-    });
+    };
     let colored = create_memo(move || matches!(value.get(), Some(DatabaseValue::Color(_))));
     let swatch = create_memo(move || match value.get() {
         Some(DatabaseValue::Color(color)) => swatch_color(color),
@@ -329,21 +329,21 @@ fn Cell(
         }
     });
     let glyph_color = TextColor::Default;
-    let fill = create_memo(move || match selected.get() {
+    let fill = move || match selected.get() {
         true => ColorRole::AccentSoft,
         false => ColorRole::Background,
-    });
-    let outline = create_memo(move || match selected.get() {
+    };
+    let outline = move || match selected.get() {
         true => ColorRole::Accent,
         false => ColorRole::Border,
-    });
+    };
     view! {
         <Frame
             @node_ref=&shown
             width=width
             height={Size::Custom(ROW_HEIGHT)}
             fill={fill}
-            border={create_memo(move || Some(Border::new(outline.get())))}
+            border={move || Some(Border::new(outline()))}
         >
             <Interactive @test_id={element_test_id} on_click={click}>
                 <Frame padding={Padding::horizontal(CELL_PADDING)}>

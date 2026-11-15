@@ -104,18 +104,19 @@ pub fn CalendarView(data: Data) -> NodeId {
             })
         })
     });
-    let missing = create_memo(move || !ready.get());
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
-                <Show condition={missing}>
-                    <Frame padding=GUTTER>
-                        <Text style=TextStyle::CAPTION>
-                            "Choose a date field to use the calendar view."
-                        </Text>
-                    </Frame>
-                </Show>
-                <Show condition={ready}>
+                <Show
+                    condition={ready}
+                    fallback={|| view! {
+                        <Frame padding=GUTTER>
+                            <Text style=TextStyle::CAPTION>
+                                "Choose a date field to use the calendar view."
+                            </Text>
+                        </Frame>
+                    }}
+                >
                     <ListItem grow=1.0>
                         <Calendar data={data} />
                     </ListItem>

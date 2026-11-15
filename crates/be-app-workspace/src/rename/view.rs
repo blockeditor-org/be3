@@ -212,19 +212,7 @@ fn RenameBody(
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || rows.with(Vec::is_empty));
-    let error = create_memo(move || format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes."));
-    let pictured = create_memo(move || {
-        let look = look.get();
-        look.icon.and_then(named).or(look.type_icon)
-    });
-    let tinted = create_memo(move || {
-        shown
-            .get()
-            .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
-    });
-    let tile = TILE.px();
-    let gap = TILE_SPACING.px();
-    let row_size = create_memo(move || tile + gap);
+    let row_size = TILE.px() + TILE_SPACING.px();
     let field = NodeRef::new();
     let built = view! {
         <DialogBody title="Rename" id="rename" scrolls=false on_dismiss={move || dismiss.call(())}>
@@ -237,8 +225,21 @@ fn RenameBody(
                         fill=ColorRole::Shade
                         align={Align2::CENTER}
                     >
-                        <Text color={tinted} size=TextSize::Xl align=TextAlign::Center>
-                            <Icon glyph={pictured} />
+                        <Text
+                            color={move || {
+                                shown
+                                    .get()
+                                    .map_or(TextColor::Muted, |color| TextColor::Custom(color.into()))
+                            }}
+                            size=TextSize::Xl
+                            align=TextAlign::Center
+                        >
+                            <Icon
+                                glyph={move || {
+                                    let look = look.get();
+                                    look.icon.and_then(named).or(look.type_icon)
+                                }}
+                            />
                         </Text>
                     </Frame>
                     <ListItem grow=1.0>
@@ -253,15 +254,17 @@ fn RenameBody(
                     </ListItem>
                 </List>
                 <Show condition={invalid}>
-                    <Text style=TextStyle::CAPTION>{error}</Text>
+                    <Text style=TextStyle::CAPTION>
+                        {format!("Name must be at most {MAX_NAME_BYTES} UTF-8 bytes.")}
+                    </Text>
                 </Show>
                 <Text style=TextStyle::CAPTION>"Color"</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SWATCH_SPACING>
                     <SwatchButton
                         @test_id={"rename.color.default"}
                         label="Block type color"
-                        color={create_memo(move || rgb(look.get().type_color.unwrap_or(NEUTRAL)))}
-                        selected={create_memo(move || look.get().color.is_none())}
+                        color={move || rgb(look.get().type_color.unwrap_or(NEUTRAL))}
+                        selected={move || look.get().color.is_none()}
                         on_click={move || set_color.call(None)}
                     />
                     <ForEach keys={COLORS.to_vec()}>|(name, color): (&'static str, [u8; 3])|
@@ -269,7 +272,7 @@ fn RenameBody(
                             @test_id={format!("rename.color.{}", name.to_lowercase())}
                             label={name}
                             color={rgb(color)}
-                            selected={create_memo(move || look.get().color == Some(color))}
+                            selected={move || look.get().color == Some(color)}
                             on_click={move || set_color.call(Some(color))}
                         />
                     </ForEach>
@@ -299,7 +302,7 @@ fn RenameBody(
                         </Show>
                         <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
                             <List direction=Direction::Horizontal spacing=TILE_SPACING>
-                                <ForEach keys={create_memo(move || row.get())}>|tile: Tile|
+                                <ForEach keys={row}>|tile: Tile|
                                     <IconTile tile look shown set_icon />
                                 </ForEach>
                             </List>

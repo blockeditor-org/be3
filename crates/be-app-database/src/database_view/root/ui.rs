@@ -64,17 +64,15 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
         editor.set_intrinsic_size(size);
     });
 
-    let spreadsheet = create_memo(move || data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
-    let cell_bar = create_memo(move || chrome.get() && spreadsheet.get());
     let opened = open_row(data);
     let beside = create_memo(move || opened.get().is_some());
-    let code = create_memo(move || {
+    let code = move || {
         opened
             .get()
             .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
             .unwrap_or_default()
-    });
+    };
     let content = NodeRef::new();
     editor.content(&content);
     let layout = DockingLayout::<&'static str>::new();
@@ -108,7 +106,9 @@ pub(crate) fn EditorBody(data: Data) -> NodeId {
                     </DockPane>
                 </Show>
             </DockSplit>
-            <Show condition={cell_bar}>
+            <Show
+                condition={move || chrome.get() && data.kind.get() == DatabaseViewKind::Spreadsheet}
+            >
                 <DockBar
                     id=CELL_BAR
                     parent=STAGE
@@ -202,7 +202,6 @@ fn CellEditor(data: Data) -> NodeId {
             None => String::new(),
         }
     });
-    let fields = create_memo(move || field.get().into_iter().collect::<Vec<_>>());
     let values = create_memo(move || {
         let Some(selection) = data.selected.get() else {
             return Default::default();
@@ -237,7 +236,7 @@ fn CellEditor(data: Data) -> NodeId {
                 <Show condition={chosen}>
                     <ListItem length=CELL_EDITOR_WIDTH>
                         <DatabaseValueEditor
-                            fields={fields}
+                            fields={move || field.get().into_iter().collect::<Vec<_>>()}
                             values={values}
                             labels={labels}
                             disabled={read_only}

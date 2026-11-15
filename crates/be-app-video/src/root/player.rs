@@ -23,25 +23,26 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
             .unwrap_or_default()
     });
     let empty = create_memo(move || visible.get().is_empty());
-    let any = create_memo(move || !empty.get());
 
     view! {
         <Frame fill={ColorRole::Custom(STAGE.into())} padding=Space::Md>
             <List spacing=Space::None>
-                <Show condition={empty}>
+                <Show
+                    condition={empty}
+                    fallback={move || view! {
+                        <Frame
+                            aspect_ratio=DEFAULT_ASPECT_RATIO
+                            fill={ColorRole::Custom(Color32::BLACK.into())}
+                        >
+                            <List spacing=Space::None>
+                                <ForEach keys={visible}>|id: Uuid|
+                                    <Layer state id />
+                                </ForEach>
+                            </List>
+                        </Frame>
+                    }}
+                >
                     <Text style=TextStyle::CAPTION>"No clip at the playhead"</Text>
-                </Show>
-                <Show condition={any}>
-                    <Frame
-                        aspect_ratio=DEFAULT_ASPECT_RATIO
-                        fill={ColorRole::Custom(Color32::BLACK.into())}
-                    >
-                        <List spacing=Space::None>
-                            <ForEach keys={visible}>|id: Uuid|
-                                <Layer state id />
-                            </ForEach>
-                        </List>
-                    </Frame>
                 </Show>
             </List>
         </Frame>

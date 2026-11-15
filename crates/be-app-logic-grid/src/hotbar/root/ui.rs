@@ -111,7 +111,6 @@ fn SlotRow(
             _ => String::new(),
         })
     });
-    let is_folder = create_memo(move || !folder.get().is_empty());
     let component = create_memo(move || {
         row.with(|row| match row {
             Some(Row {
@@ -158,12 +157,10 @@ fn SlotRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Spacer width={indent} />
-            <Show condition={is_folder}>
+            <Show condition={move || !folder.with(String::is_empty)}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_FOLDER />
                 </Text>
-            </Show>
-            <Show condition={is_folder}>
                 <Text>{folder}</Text>
             </Show>
             <Show condition={is_component}>

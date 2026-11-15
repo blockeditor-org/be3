@@ -181,13 +181,6 @@ fn MoveCell(
                 .flatten()
         })
     });
-    let text = create_memo(move || {
-        cell.with(|cell| {
-            cell.as_ref()
-                .map(|cell| cell.text.clone())
-                .unwrap_or_default()
-        })
-    });
     let chosen = create_memo(move || {
         let shown = shown.get();
         cell.with(|cell| {
@@ -202,7 +195,13 @@ fn MoveCell(
     };
     view! {
         <ListRow
-            label={text}
+            label={move || {
+                cell.with(|cell| {
+                    cell.as_ref()
+                        .map(|cell| cell.text.clone())
+                        .unwrap_or_default()
+                })
+            }}
             selected={chosen}
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
@@ -221,7 +220,6 @@ fn Result(table: Memo<Table>) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let scored = create_memo(move || score.with(|score| !score.is_empty()));
     let description = create_memo(move || {
         table.with(|table| {
             table
@@ -235,7 +233,7 @@ fn Result(table: Memo<Table>) -> NodeId {
     let muted = TextColor::Muted;
     view! {
         <List spacing=Space::Xs2 align=Align::Center @test_id={"game.result"}>
-            <Show condition={scored}>
+            <Show condition={move || score.with(|score| !score.is_empty())}>
                 <Text size=TextSize::Lg weight=Weight::Bold color={text} align=TextAlign::Center>
                     {score}
                 </Text>

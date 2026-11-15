@@ -63,15 +63,14 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
             None => format!("Editing on {branch}"),
         })
     });
-    let repository = create_memo(move || {
+    let repository = move || {
         state.with(|state| {
             state
                 .repository
                 .map(|repository| ChildTarget::new(repository, Repository::CONTENT_TYPE))
         })
-    });
-    let idle = create_memo(move || editable.get() && !status.with(|status| status.busy));
-    let blocked = create_memo(move || !idle.get());
+    };
+    let blocked = create_memo(move || !editable.get() || status.with(|status| status.busy));
     let note = create_memo(move || {
         status.with(|status| match (status.busy, &status.error) {
             (true, _) => "Working…".to_owned(),
@@ -79,7 +78,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
             (false, None) => String::new(),
         })
     });
-    let has_note = create_memo(move || !note.with(String::is_empty));
     let behind = create_memo(move || status.with(|status| status.behind));
     let changes = create_memo(move || {
         status.with(|status| {
@@ -116,7 +114,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 .collect::<Vec<_>>()
         })
     });
-    let conflicted = create_memo(move || !conflicts.with(Vec::is_empty));
     let combining = create_memo(move || {
         status.with(|status| {
             status
@@ -125,8 +122,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                 .is_some_and(|working| working.parents.len() > 1)
         })
     });
-    let combined_note = create_memo(move || combining.get() && unchanged.get());
-    let empty_note = create_memo(move || !combining.get() && unchanged.get());
     let branches = create_memo(move || {
         let current = state.with(|state| state.branch.clone());
         status.with(|status| {
@@ -184,7 +179,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     block={repository}
                                     @test_id={"checkout.repository"}
                                 />
-                                <Show condition={has_note}>
+                                <Show condition={move || !note.with(String::is_empty)}>
                                     <Text style=TextStyle::CAPTION @test_id={"checkout.note"}>
                                         {note}
                                     </Text>
@@ -213,7 +208,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     </List>
                                 </Card>
                             </Show>
-                            <Show condition={conflicted}>
+                            <Show condition={move || !conflicts.with(Vec::is_empty)}>
                                 <Card>
                                     <List spacing=Space::Lg>
                                         <Text style=TextStyle::HEADING>"Clashing edits"</Text>
@@ -230,15 +225,19 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                     <Text style=TextStyle::CAPTION>
                                         "Your edits are kept here as you make them. Describe them and save to start a new change on top."
                                     </Text>
-                                    <Show condition={empty_note}>
-                                        <Text style=TextStyle::CAPTION>
-                                            "Nothing has changed since the last saved change."
-                                        </Text>
-                                    </Show>
-                                    <Show condition={combined_note}>
-                                        <Text style=TextStyle::CAPTION>
-                                            "This change combines another branch into this one."
-                                        </Text>
+                                    <Show condition={unchanged}>
+                                        <Show
+                                            condition={combining}
+                                            fallback={|| view! {
+                                                <Text style=TextStyle::CAPTION>
+                                                    "Nothing has changed since the last saved change."
+                                                </Text>
+                                            }}
+                                        >
+                                            <Text style=TextStyle::CAPTION>
+                                                "This change combines another branch into this one."
+                                            </Text>
+                                        </Show>
                                     </Show>
                                     <ForEach keys={changes} view={change_rows} />
                                     <List
@@ -342,14 +341,14 @@ fn ChangeLine(editor: Editor, row: ChangeRow) -> NodeId {
             @test_id={format!("checkout.change.{block}")}
         >
             <Text style=TextStyle::CAPTION>{label}</Text>
-            <Show condition={removed}>|| {
-                let name = name.clone(); view! {
+            {match removed {
+                true => view! {
                     <Text>{name}</Text>
-                }
-            }</Show>
-            <Show condition={!removed}>
-                <BlockLink editor={editor} block={target} />
-            </Show>
+                },
+                false => view! {
+                    <BlockLink editor={editor} block={target} />
+                },
+            }}
         </List>
     }
 }
@@ -381,7 +380,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                 <BlockLink editor={editor} block={working} />
                 <Text style=TextStyle::CAPTION>{label}</Text>
             </List>
-            <Show condition={compared}>
+            {compared.then(|| view! {
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Text style=TextStyle::CAPTION>"Before"</Text>
                     <BlockLink editor={editor} block={base} fallback="none" />
@@ -390,7 +389,7 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                     <Text style=TextStyle::CAPTION>"Incoming"</Text>
                     <BlockLink editor={editor} block={theirs} fallback="none" />
                 </List>
-            </Show>
+            })}
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                 <Button
                     label="Use before"
@@ -428,7 +427,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
 #[component]
 fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) -> NodeId {
     let (switched, merged) = (name.clone(), name.clone());
-    let disabled = create_memo(move || blocked.get() || current);
     let label = match current {
         true => "You are here",
         false => "Move here",
@@ -446,23 +444,20 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
             <ListItem grow=1.0>
                 <Text overflow=Overflow::Ellipsis>{name}</Text>
             </ListItem>
-            <Show condition={!current}>|| {
-                let (merged, merge_test_id) = (merged.clone(), merge_test_id.clone());
-                view! {
-                    <Button
-                        label="Combine into this"
-                        glyph=ICON_GIT_MERGE
-                        variant=ButtonVariant::Ghost
-                        disabled={blocked}
-                        @test_id=merge_test_id
-                        on_click={move || editor.version(VersionCommand::Merge { branch: merged.clone() })}
-                    />
-                }
-            }</Show>
+            {(!current).then(|| view! {
+                <Button
+                    label="Combine into this"
+                    glyph=ICON_GIT_MERGE
+                    variant=ButtonVariant::Ghost
+                    disabled={blocked}
+                    @test_id=merge_test_id
+                    on_click={move || editor.version(VersionCommand::Merge { branch: merged.clone() })}
+                />
+            })}
             <Button
                 label={label}
                 variant=ButtonVariant::Secondary
-                disabled={disabled}
+                disabled={move || blocked.get() || current}
                 @test_id=switch_test_id
                 on_click={move || editor.version(VersionCommand::Switch { branch: switched.clone() })}
             />

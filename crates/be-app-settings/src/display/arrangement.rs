@@ -261,17 +261,16 @@ fn ArrangedTile(
             .unwrap_or_default()
     });
     let is_main = create_memo(move || main.get().as_deref() == Some(id.as_str()));
-    let fill = create_memo(move || match is_main.get() {
-        true => ColorRole::AccentSoft,
-        false => ColorRole::Surface,
-    });
     view! {
         <Frame
             @test_id={format!("display.arrangement.{connector}")}
             width={width}
             height={height}
             translate={translate}
-            fill={fill}
+            fill={move || match is_main.get() {
+                true => ColorRole::AccentSoft,
+                false => ColorRole::Surface,
+            }}
             border={Border::DEFAULT}
             radius=Radius::Xs
             align=Align2::CENTER

@@ -171,16 +171,15 @@ pub(crate) fn ProgramsPanelOverlay(
 ) -> NodeId {
     let open = programs_panel.open;
     let buttoned = programs_panel.has_button(display);
-    let shown = create_memo(move || open.get() == Some(display) && !buttoned.get());
     let surface = popover_surface(Some(PANEL_WIDTH));
     let close = Callback::new(move |()| programs_panel.close(display));
     view! {
         <Anchored
             style={surface}
-            anchor={create_memo(move || OverlayAnchor::Rect(area.get()))}
+            anchor={move || OverlayAnchor::Rect(area.get())}
             placement=Placement::CenterOn
             policy=LayerPolicy::Pass
-            open={shown}
+            open={move || open.get() == Some(display) && !buttoned.get()}
             on_dismiss={move || programs_panel.close(display)}
         >|handle: AnchoredHandle|
             <ProgramsPanelContent
@@ -260,10 +259,6 @@ fn SessionRows(programs_panel: ProgramsPanel, close: Callback<()>) -> NodeId {
     });
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
-    let why = create_memo(move || match unready.get() {
-        true => "Needs this workspace's settings block".to_owned(),
-        false => String::new(),
-    });
     let create = move || {
         close.call(());
         sessions.create();
@@ -277,7 +272,10 @@ fn SessionRows(programs_panel: ProgramsPanel, close: Callback<()>) -> NodeId {
             <ListRow
                 @test_id={"desktop.apps.sessions.new"}
                 label="New session"
-                detail={why}
+                detail={move || match unready.get() {
+                    true => "Needs this workspace's settings block".to_owned(),
+                    false => String::new(),
+                }}
                 glyph={Some(ICON_PLUS)}
                 size=RowSize::Large
                 disabled={unready}

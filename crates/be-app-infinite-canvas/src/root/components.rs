@@ -82,7 +82,6 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     let partial = create_memo(move || attached.get() != selected.get());
     let coverage =
         create_memo(move || format!("Attached to {} of {}", attached.get(), selected.get()));
-    let whole = create_memo(move || !partial.get());
     let values = create_memo(move || {
         let mut shared: Option<RowValues> = None;
         for entity in state.selected_entities() {
@@ -185,7 +184,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                     on_click={remove}
                 />
             </List>
-            <Show condition={whole}>
+            <Show condition={move || !partial.get()}>
                 <DatabaseValueEditor
                     fields={fields}
                     values={values}

@@ -28,7 +28,6 @@ pub(crate) fn NotificationList(
     popover: PopoverHandle,
 ) -> NodeId {
     let empty = create_memo(move || listed.with(Vec::is_empty));
-    let some = create_memo(move || !empty.get());
     let clear = move || {
         let ids: Vec<u32> =
             listed.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
@@ -49,16 +48,18 @@ pub(crate) fn NotificationList(
                     on_click={clear}
                 />
             </List>
-            <Show condition={empty}>
+            <Show
+                condition={empty}
+                fallback={move || view! {
+                    <NotificationRows
+                        notifications={notifications}
+                        listed={listed}
+                        height={height}
+                        popover={popover}
+                    />
+                }}
+            >
                 <Text style=TextStyle::CAPTION>"Nothing new."</Text>
-            </Show>
-            <Show condition={some}>
-                <NotificationRows
-                    notifications={notifications}
-                    listed={listed}
-                    height={height}
-                    popover={popover}
-                />
             </Show>
         </List>
     }
@@ -71,9 +72,8 @@ fn NotificationRows(
     height: Memo<f32>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let max_length = create_memo(move || Size::Custom(height.get()));
     view! {
-        <Scroll max_length>
+        <Scroll max_length={move || Size::Custom(height.get())}>
             <ForEach keys={listed}>|shown: Listed|
                 <NotificationRow notifications={notifications} shown popover={popover} />
             </ForEach>
@@ -113,28 +113,20 @@ fn NotificationRow(
             <ListItem grow=1.0>
                 <ListRow @test_id={format!("desktop.notifications.{id}")} on_click={activate}>
                     <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                        <Show condition={pictured}>|| {
-                            let image = image.clone(); view! {
-                                <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
-                                    <Picture image />
-                                </Frame>
-                            }
-                        }</Show>
+                        {pictured.then(|| view! {
+                            <Frame width=PICTURE_SIZE height=PICTURE_SIZE>
+                                <Picture image />
+                            </Frame>
+                        })}
                         <ListItem grow=1.0>
                             <List spacing=ROW_SPACING>
                                 <Text style=TextStyle::CAPTION>{source}</Text>
-                                <Show condition={titled}>|| {
-                                    let heading = heading.clone(); view! {
-                                        <Text color={summary_color} weight=Weight::Bold>
-                                            {heading}
-                                        </Text>
-                                    }
-                                }</Show>
-                                <Show condition={said}>|| {
-                                    let body = body.clone(); view! {
-                                        <Text size=TextSize::Sm color={body_color}>{body}</Text>
-                                    }
-                                }</Show>
+                                {titled.then(|| view! {
+                                    <Text color={summary_color} weight=Weight::Bold>{heading}</Text>
+                                })}
+                                {said.then(|| view! {
+                                    <Text size=TextSize::Sm color={body_color}>{body}</Text>
+                                })}
                             </List>
                         </ListItem>
                     </List>
