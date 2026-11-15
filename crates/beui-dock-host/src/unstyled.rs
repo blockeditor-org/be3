@@ -3054,7 +3054,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let preview = dock.preview;
     view! {
         <Reorder
-            keys={entries}
+            value={entries}
             direction
             payload={Func::new(|entry: Entry| Some(DockDragged::Entry(entry)))}
             accepts={move |dragged: DockDragged| dock.bar_admits(leaf, dragged)}

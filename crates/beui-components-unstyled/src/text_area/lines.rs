@@ -71,7 +71,7 @@ pub(super) fn Lines(cx: Context) -> NodeId {
         >
             <List spacing=0.0>
                 <Frame height=top />
-                <VirtualList @node_ref=&list keys item_size=estimate>|line: ReadSignal<usize>|
+                <VirtualList @node_ref=&list value={keys} item_size=estimate>|line: ReadSignal<usize>|
                     <AreaRow cx={cx} line />
                 </VirtualList>
                 <Frame height=bottom />

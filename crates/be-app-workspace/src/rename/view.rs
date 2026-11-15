@@ -300,7 +300,7 @@ fn RenameBody(
                         <Show value={empty}>
                             <Text style=TextStyle::CAPTION>"No icons match."</Text>
                         </Show>
-                        <VirtualList keys={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
+                        <VirtualList value={rows} item_size={row_size}>|row: ReadSignal<Vec<Tile>>|
                             <List direction=Direction::Horizontal spacing=TILE_SPACING>
                                 <ForEach value={row}>|tile: Tile|
                                     <IconTile tile look shown set_icon />

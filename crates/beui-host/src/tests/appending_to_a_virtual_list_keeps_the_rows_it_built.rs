@@ -14,7 +14,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
                     <Scroll @node_ref=&scroll style={plain_scroll()}>
                         <VirtualList
                             @node_ref=&list
-                            keys={keys}
+                            value={keys}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {

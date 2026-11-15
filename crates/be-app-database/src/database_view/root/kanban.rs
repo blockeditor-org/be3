@@ -192,7 +192,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
     };
     view! {
         <Reorder
-            keys={keys}
+            value={keys}
             payload={Func::new(|row: ObjectId| Some(row))}
             accepts={Func::new(|_: ObjectId| true)}
             disabled={read_only}
@@ -251,7 +251,7 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                         <ListItem grow=1.0>
                             <Scroll>
                                 <VirtualList
-                                    keys={reorder.order}
+                                    value={reorder.order}
                                     item_size=CARD_HEIGHT
                                     overscan=CARD_HEIGHT
                                 >|row: ReadSignal<ObjectId>|

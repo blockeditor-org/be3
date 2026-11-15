@@ -1878,7 +1878,7 @@ pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
@@ -1922,7 +1922,7 @@ pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScrol
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={keys}
+                            value={keys}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
                             create_binding(move || {
@@ -3037,7 +3037,7 @@ pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
     build_node(move || {
         view! {
             <Reorder
-                keys={keys}
+                value={keys}
                 direction=Direction::Horizontal
                 payload={Func::new(|key: usize| Some(key))}
                 preview={|key: usize| view! {
@@ -3122,7 +3122,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
             view! {
                 <Frame @test_id={format!("list.{column}")} width=REORDER_COLUMN>
                     <Reorder
-                        keys={keys}
+                        value={keys}
                         payload={Func::new(|key: u32| Some(key))}
                         accepts={Func::new(move |_: u32| refuses != Some(column))}
                         disabled={disabled}
