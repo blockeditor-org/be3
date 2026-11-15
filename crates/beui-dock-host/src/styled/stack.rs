@@ -62,7 +62,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let titled = create_memo(move || action.with(Option::is_some));
     view! {
         <List spacing=Space::None>
-            <Frame fill=ColorRole::Surface padding=BAR_PADDING>
+            <Frame fill=ColorRole::Surface padding=BAR_PADDING @test_id={"dock.stack"}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={backward}>
                         <Button
