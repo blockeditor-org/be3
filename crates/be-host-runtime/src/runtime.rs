@@ -260,8 +260,11 @@ pub(super) struct Runtime {
     restart_asked: bool,
     taking_in: bool,
     /// A frame held until the poll applies the children and docks its layout brought
-    /// (`Runtime::pump`), so both show in the same host frame.
+    /// (`Runtime::received`), so both show in the same host frame.
     held_frame: Option<Frame>,
+    /// The sequence of the last present heard that painted: frames up to it were drawn before
+    /// any layout heard since (`Laid::drawn_after`).
+    painted_heard: u64,
     layouts_heard: u64,
     presents_heard: u64,
     /// Presents applied, in the order the app sent them among its other answers.
@@ -361,6 +364,10 @@ struct Laid {
     /// the layout commit it came in. Children come and go only with the frame that punches or
     /// fills their space, so a closed child never leaves its hole in the placer's old frame.
     presented_by: u64,
+    /// The sequence of the last frame drawn before its layout: a frame past it may paint what
+    /// these children go with, so it waits for them (`Runtime::received`), even when it arrives
+    /// before the present that brings it is heard.
+    drawn_after: u64,
     sizes: Vec<ViewSize>,
     windows: Vec<ScreenWindow>,
     children: Vec<ChildPlacements>,
@@ -548,6 +555,7 @@ impl Runtime {
             held: Vec::new(),
             taking_in: false,
             held_frame: None,
+            painted_heard: 0,
             layouts_heard: 0,
             presents_heard: 0,
             presents_applied: 0,
@@ -602,6 +610,8 @@ impl Runtime {
         self.session = session();
         self.queued.clear();
         self.held.clear();
+        self.held_frame = None;
+        self.painted_heard = 0;
         self.layouts_heard = 0;
         self.presents_heard = 0;
         self.presents_applied = 0;
@@ -952,6 +962,7 @@ impl Runtime {
             return;
         }
         self.error = Some(error);
+        self.held_frame = None;
         let _ = be_host_base::panic_guard::contain(|| self.backend.shutdown());
         self.instances.forget_fetches(None);
         previews::forget(&self.app.identity.id);
@@ -1062,25 +1073,25 @@ impl Runtime {
         }
     }
 
-    /// Shows a frame the app presented, unless its layout brought children or docks that wait
-    /// for the poll: shown now, its painting (a dock's bar showing the tab it switched to) would
-    /// sit a frame over the children it replaces, so it waits for that poll and is shown with
-    /// them (`hear`).
+    /// Shows a frame the app presented, unless it may paint what held children or docks go
+    /// with: shown before the poll applies them, its painting (a dock's bar showing the tab it
+    /// switched to) would sit a frame over the children it replaces. It is shown once they are
+    /// applied, in `hear`.
     fn received(&mut self, frame: Frame) {
-        let waits = !self.taking_in
-            && self.held.iter().any(
-                |held| matches!(held, Answer::Laid(laid) if laid.presented_by <= self.presents_heard),
-            );
-        match waits {
-            true => {
-                self.held_frame = Some(frame);
-                host::request_repaint();
-            }
-            false => {
-                self.held_frame = None;
-                self.show_frame(frame);
-            }
+        if self.waits_for_children(frame.presents()) {
+            self.held_frame = Some(frame);
+            host::request_repaint();
+            return;
         }
+        self.held_frame = None;
+        self.show_frame(frame);
+    }
+
+    /// Whether the frame of present `sequence` comes after the layout of children still held.
+    fn waits_for_children(&self, sequence: u64) -> bool {
+        self.held
+            .iter()
+            .any(|held| matches!(held, Answer::Laid(laid) if sequence > laid.drawn_after))
     }
 
     fn show_frame(&mut self, mut frame: Frame) {
@@ -1125,10 +1136,13 @@ impl Runtime {
                         self.held.push(Answer::Laid(later));
                     }
                 }
-                heard @ (Heard::Paintings(_)
-                | Heard::Layout(_)
-                | Heard::FrameNeeded
-                | Heard::Presented(_)) => {
+                Heard::Presented(commit) => {
+                    if let Some(presented) = &commit.presented {
+                        self.painted_heard = self.painted_heard.max(presented.sequence);
+                    }
+                    answers.push(Answer::Presented(commit));
+                }
+                heard @ (Heard::Paintings(_) | Heard::Layout(_) | Heard::FrameNeeded) => {
                     answers.push(Answer::from(heard));
                 }
                 heard if self.taking_in && self.held.is_empty() => {
@@ -1147,7 +1161,8 @@ impl Runtime {
             host::request_repaint();
         }
         self.apply(answers);
-        if self.taking_in
+        if let Some(frame) = &self.held_frame
+            && !self.waits_for_children(frame.presents())
             && let Some(frame) = self.held_frame.take()
         {
             self.show_frame(frame);
@@ -1289,20 +1304,24 @@ impl Runtime {
     fn split(&self, commit: LayoutCommit) -> (LayoutCommit, Option<Laid>) {
         let mut commit = commit;
         self.instances.translate(&mut commit, true);
-        let (moving, coming) =
-            std::mem::take(&mut commit.children)
-                .into_iter()
-                .partition(|placements| {
-                    !self.held.iter().any(|held| {
-                    matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
-                        (earlier.instance, earlier.view) == (placements.instance, placements.view)
-                    }))
-                }) && self.instances.only_moves(placements)
-                });
-        commit.children = moving;
+        // Children that only move are applied at once, with the painting that goes with them.
+        // When any child comes or goes the painting waits for the poll (`received`), so the
+        // ones that move wait with it.
+        let moves = |placements: &ChildPlacements| {
+            !self.held.iter().any(|held| {
+                matches!(held, Answer::Laid(laid) if laid.children.iter().any(|earlier| {
+                    (earlier.instance, earlier.view) == (placements.instance, placements.view)
+                }))
+            }) && self.instances.only_moves(placements)
+        };
+        let coming = match commit.children.iter().all(moves) {
+            true => Vec::new(),
+            false => std::mem::take(&mut commit.children),
+        };
         let mut later = Laid {
             serial: commit.serial,
             presented_by: self.layouts_heard,
+            drawn_after: self.painted_heard,
             sizes: Vec::new(),
             windows: std::mem::take(&mut commit.windows),
             children: coming,
@@ -1552,6 +1571,7 @@ impl Runtime {
         changed |= self.lay(Laid {
             serial,
             presented_by: 0,
+            drawn_after: 0,
             sizes,
             windows,
             children,

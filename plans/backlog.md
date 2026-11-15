@@ -148,3 +148,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   (`log_unlisted_held`); with no such line, the missing reference is past the
   graph, in what the app's `Backrefs` watch was told. Done: the cause found
   from that output and fixed at its source, with a test that shows it.
+
+## 16. Host test tools
+
+- **Stepping an app's present apart from the poll.** With the clock stopped,
+  `drive` runs each frame only once the apps have answered, so an app's
+  present and the `poll` that applies its held children always land in the
+  same host frame. A host test can't show a frame drawn between them (a
+  stacked dock's bar over the children it replaces); only the runtime's unit
+  test `a_frame_whose_children_wait_for_the_poll_is_shown_with_them` does.
+  Done: a `drive` step that lets an app's present arrive before the next poll,
+  and a host test at phone size that opens a document from the files and
+  shows each frame between.
