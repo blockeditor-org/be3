@@ -30,6 +30,7 @@ use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
 use beui_components_unstyled::ScrollStyle;
+use beui_components_unstyled::drawn_child;
 use beui_components_unstyled::back_slide::{BackSlide, SlideCurves};
 use beui_components_unstyled::context_menu::ContextMenu;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
@@ -800,8 +801,10 @@ impl State {
                 .get(&leaf)
                 .and_then(|bar| bar.tabs.try_get());
             for tab in tabs.map(|tabs| tabs.children()).unwrap_or_default() {
-                if let Some(rect) = tracked_rect(tab) {
-                    bar = bar.without(rect);
+                for rect in [Some(tab), drawn_child(tab)].into_iter().flatten() {
+                    if let Some(rect) = tracked_rect(rect) {
+                        bar = bar.without(rect);
+                    }
                 }
             }
         }
@@ -818,9 +821,14 @@ impl State {
         else {
             return Vec::new();
         };
+        // A tab still gliding into place is drawn off its laid-out rect: both are the tab.
         node.children()
             .into_iter()
-            .filter_map(|child| Some(measure(child).get_untracked()?.rect))
+            .filter_map(|tab| {
+                let laid = measure(tab).get_untracked()?.rect;
+                let drawn = drawn_child(tab).and_then(|drawn| measure(drawn).get_untracked());
+                Some(drawn.map_or(laid, |drawn| laid.union(drawn.rect)))
+            })
             .collect()
     }
 

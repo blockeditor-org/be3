@@ -373,6 +373,7 @@ mod a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on;
 mod a_press_just_outside_a_windows_border_resizes_it;
 mod a_press_on_a_scaled_canvas_item_reaches_what_takes_presses_in_its_own_units;
 mod a_press_on_a_scroll_with_nothing_to_scroll_leaves_the_focus_where_it_is;
+mod a_press_on_a_window_tab_still_gliding_in_carries_the_tab_not_the_window;
 mod a_press_on_a_windows_border_resizes_it;
 mod a_press_outside_an_interactive_is_reported_to_it;
 mod a_press_released_in_the_frame_it_began_drags_once_where_it_was;
@@ -3035,7 +3036,8 @@ pub(crate) const TAB_WIDTHS: [f32; 3] = [80.0, 20.0, 40.0];
 pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
     use crate::primitives::*;
     use crate::reactive::*;
-    use crate::unstyled::{Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
+    use crate::styled::Reorder;
+    use crate::unstyled::{ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
     build_node(move || {
         view! {
             <Reorder
@@ -3109,7 +3111,8 @@ impl ReorderLists {
 pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
     use crate::primitives::*;
     use crate::reactive::*;
-    use crate::unstyled::{Reorder, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
+    use crate::styled::Reorder;
+    use crate::unstyled::{ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
     let count = state.lists.with_untracked(Vec::len);
     let ReorderLists {
         lists,
