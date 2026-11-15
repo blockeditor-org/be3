@@ -135,23 +135,18 @@ pub fn info_of(node: &Node, deleted: bool, unfiled: Option<Uuid>, out_of_reach: 
 pub fn answer(query: BlockQuery) -> Vec<BlockInfo> {
     let nodes = crate::query(query_of(query));
     let unfiled = crate::unfiled();
-    let nodes: Vec<(Node, bool)> = match crate::offline_peer() {
-        Some(peer) => nodes
-            .into_iter()
-            .map(|node| {
-                let out_of_reach = out_of_reach(&peer, &node);
-                (node, out_of_reach)
-            })
-            .collect(),
-        None => nodes.into_iter().map(|node| (node, false)).collect(),
-    };
-    crate::with_graph(|graph| {
+    crate::with_seen(|seen| {
         nodes
             .iter()
-            .filter(|(node, _)| node.access.can_know_exists() && Some(node.id) != unfiled)
-            .map(|(node, out_of_reach)| {
-                let deleted = graph.deleted_root(node.id).is_some();
-                info_of(node, deleted, unfiled, *out_of_reach)
+            .filter(|node| node.access.can_know_exists() && Some(node.id) != unfiled)
+            .map(|node| {
+                let deleted = seen.graph.deleted_root(node.id).is_some();
+                let source = seen
+                    .revision_previews
+                    .get(&node.id)
+                    .map_or(node.id, |preview| preview.source);
+                let out_of_reach = seen.out_of_reach.contains(&source);
+                info_of(node, deleted, unfiled, out_of_reach)
             })
             .collect()
     })
@@ -173,7 +168,8 @@ pub fn entries_of(entries: MetadataEntries) -> be_block_content::Entries {
 }
 
 /// Offline, whether this device holds none of a block's heads whole (`Peer::held_head`), so it
-/// can neither open nor change it. A block with no content yet has nothing to hold.
+/// can neither open nor change it. A block with no content yet has nothing to hold. The worker
+/// asks it, into `Seen::out_of_reach`.
 pub(crate) fn out_of_reach(peer: &Peer<Store>, node: &Node) -> bool {
     node.head.is_some() && peer.held_head(node.id).is_none()
 }

@@ -151,6 +151,8 @@ pub struct Graph {
     /// can hold one, so it stays a member of the listings it belongs in until the drain sends
     /// its creation (`relist_around`), and they are asked for again.
     unpublished: imbl::HashSet<Uuid>,
+    /// Nodes added, changed or removed since the worker last took them (`take_nodes_moved`).
+    nodes_moved: imbl::HashSet<Uuid>,
     /// Nodes a change copied because a `Seen` handed over still shared them (`node_mut`), for a
     /// test to count.
     #[cfg(test)]
@@ -557,7 +559,7 @@ impl Graph {
             .filter(|block| !self.covers(*block))
             .collect();
         for block in kept {
-            self.nodes.remove(&block);
+            self.remove_node(block);
             self.moved();
         }
     }
@@ -609,7 +611,30 @@ impl Graph {
 
     /// A node to change, copied first if a `Seen` handed over shares it: the persistent map
     /// copies the path to it, and the node itself only when shared.
+    /// Removes a node, answering whether it was there.
+    fn remove_node(&mut self, block: Uuid) -> bool {
+        let removed = self.nodes.remove(&block).is_some();
+        if removed {
+            self.nodes_moved.insert(block);
+        }
+        removed
+    }
+
+    /// Takes the nodes added, changed or removed since the last take (`nodes_moved`), for the
+    /// worker to work out again what it derives from them alone. Asks first, so a graph with
+    /// nothing moved is not written.
+    pub(crate) fn take_nodes_moved(&mut self) -> imbl::HashSet<Uuid> {
+        if self.nodes_moved.is_empty() {
+            return imbl::HashSet::new();
+        }
+        std::mem::take(&mut self.nodes_moved)
+    }
+
     fn node_mut(&mut self, block: Uuid) -> Option<&mut Node> {
+        if !self.nodes.contains_key(&block) {
+            return None;
+        }
+        self.nodes_moved.insert(block);
         let node = self.nodes.get_mut(&block)?;
         #[cfg(test)]
         if Arc::strong_count(node) > 1 {
@@ -635,7 +660,7 @@ impl Graph {
         *count -= 1;
         if *count == 0 {
             self.pending.remove(&block);
-            if !self.covers(block) && self.nodes.remove(&block).is_some() {
+            if !self.covers(block) && self.remove_node(block) {
                 self.moved();
             }
             return true;
@@ -771,6 +796,10 @@ impl Graph {
     }
 
     /// The children that dropped out of their parent's references since this was last asked.
+    pub(crate) fn has_nodes_moved(&self) -> bool {
+        !self.nodes_moved.is_empty()
+    }
+
     pub fn has_dropped(&self) -> bool {
         !self.dropped.is_empty()
     }
@@ -821,7 +850,7 @@ impl Graph {
             }
         }
         if !self.covers(node.id) {
-            if self.nodes.remove(&node.id).is_some() {
+            if self.remove_node(node.id) {
                 self.moved();
             }
             return;
@@ -832,6 +861,7 @@ impl Graph {
         };
         let id = node.id;
         if self.nodes.get(&node.id).map(|known| &**known) != Some(&node) {
+            self.nodes_moved.insert(node.id);
             self.nodes.insert(node.id, Arc::new(node));
             self.moved();
         }
@@ -908,7 +938,7 @@ impl Graph {
                 listed.members.remove(&block);
             }
         }
-        if self.nodes.remove(&block).is_some() {
+        if self.remove_node(block) {
             self.moved();
         }
     }
