@@ -824,50 +824,60 @@ impl Older {
         self.failed.set(false);
         let this = *self;
         let held = segment.clone();
-        read_segment(self.editor, self.chat, segment, true, move |messages| {
+        read_segment(self.editor, self.chat, segment, true, move |found| {
             this.reading.set(false);
-            match messages {
-                Some(messages) => {
+            match found {
+                SegmentRead::Held(messages) => {
                     let mut read = this.read.get_untracked();
                     read.push((held, messages));
                     this.read.set(read);
                 }
-                None => this.failed.set(true),
+                SegmentRead::Broken | SegmentRead::Failed => this.failed.set(true),
             }
         });
     }
 }
 
-/// Reads `segment`'s messages, by the range the header held now gives it, and hands them to
-/// `done`, or `None` when the segment is gone or its part could not be read. The replica's
-/// header can differ from this one's while the chat is busy, which moves the range and fails
-/// the check against the index; the read is tried once more then.
+/// What reading a closed segment's part found.
+enum SegmentRead {
+    Held(Vec<(ObjectId, Message)>),
+    /// Bytes came back that are not the part the index names (their length or hash differs).
+    Broken,
+    /// The segment left the header, or its part could not be read.
+    Failed,
+}
+
+/// Reads `segment`'s messages, by the range the header held now gives it, and hands what it
+/// found to `done`. The replica's header can differ from this one's while the chat is busy,
+/// which moves the range and fails the check against the index; the read is tried once more
+/// then.
 fn read_segment(
     editor: Editor,
     chat: Chat,
     segment: &Segment,
     retry: bool,
-    done: impl FnOnce(Option<Vec<(ObjectId, Message)>>) + 'static,
+    done: impl FnOnce(SegmentRead) + 'static,
 ) {
     let live = chat.live();
     let Ok(Some((index, range))) = chat.read(|content| {
         let index = content.segments().iter().position(|held| held == segment)?;
         Some((index, content.segment_ranges().get(index).cloned()?))
     }) else {
-        done(None);
+        done(SegmentRead::Failed);
         return;
     };
     let segment = segment.clone();
     let reading = live.read_range(range.start, range.end.saturating_sub(range.start));
     editor.then(async move { Some(reading.await) }, move |bytes| {
-        let messages = bytes.ok().and_then(|bytes| {
-            chat.read(|content| content.read_segment(index, &bytes))
-                .ok()
-                .flatten()
-        });
-        match messages {
-            None if retry => read_segment(editor, chat, &segment, false, done),
-            messages => done(messages),
+        let found = match bytes.ok().map(|bytes| chat.read(|content| content.read_segment(index, &bytes))) {
+            Some(Ok(Some(messages))) => SegmentRead::Held(messages),
+            Some(Ok(None)) => SegmentRead::Broken,
+            _ => SegmentRead::Failed,
+        };
+        match found {
+            SegmentRead::Held(_) => done(found),
+            _ if retry => read_segment(editor, chat, &segment, false, done),
+            found => done(found),
         }
     });
 }
@@ -939,8 +949,9 @@ fn row_list(
 /// The recent messages removed outright, each as `(the message that names it, the missing
 /// one)` (`ChatContent::gaps`). A gap counts once the naming message's signature verifies,
 /// so a forged message claims none, and, when a closed segment's filter says it may hold the
-/// missing one, once that segment is read and does not. Each naming message is asked about
-/// once and each such segment read once; until then, or when a read fails, nothing shows.
+/// missing one, once that segment is read and does not (a part that fails its check against
+/// the index holds nothing). Each naming message is asked about once and each such segment
+/// read once; until then, or when the part cannot be read at all, nothing shows.
 fn missing_messages(
     editor: Editor,
     chat: Chat,
@@ -1006,13 +1017,19 @@ fn missing_messages(
                     read.insert(segment.clone(), None);
                 });
                 let key = segment.clone();
-                read_segment(editor, chat, segment, true, move |messages| {
-                    if let Some(messages) = messages {
-                        let ids = messages.into_iter().map(|(id, _)| id).collect();
-                        read.update(|read| {
-                            read.insert(key, Some(ids));
-                        });
-                    }
+                read_segment(editor, chat, segment, true, move |found| {
+                    let ids = match found {
+                        SegmentRead::Held(messages) => {
+                            messages.into_iter().map(|(id, _)| id).collect()
+                        }
+                        // A part that is not what the index names holds nothing, so breaking
+                        // it hides no gap; one that could not be read shows nothing yet.
+                        SegmentRead::Broken => HashSet::new(),
+                        SegmentRead::Failed => return,
+                    };
+                    read.update(|read| {
+                        read.insert(key, Some(ids));
+                    });
                 });
             }
             held.push((gap, hash, segments));
