@@ -236,7 +236,8 @@ pub(crate) async fn handle(
                 let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
                 let credential: webauthn_rs::prelude::PublicKeyCredential = passkeys::answer(value("credential"))?;
                 let (handle, credential_id) = relying_party.identify_discoverable_authentication(&credential).map_err(passkeys::not_accepted)?;
-                let found = services.store.passkey(credential_id).await?;
+                let rp_id = passkeys::rp_id(origin).unwrap_or_default();
+                let found = services.store.passkey(&rp_id, credential_id).await?;
                 // The user handle a passkey was made with is its account's id.
                 if handle != found.account { return Err(passkeys::not_accepted(webauthn_rs::prelude::WebauthnError::InvalidUserUniqueId)); }
                 let result = relying_party.finish_discoverable_authentication_v2(&credential, state, &found.passkey).map_err(passkeys::not_accepted)?;
@@ -252,7 +253,7 @@ pub(crate) async fn handle(
                 let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
                 let credential: webauthn_rs::prelude::PublicKeyCredential = passkeys::answer(value("credential"))?;
                 let result = relying_party.finish_passkey_authentication(&credential, &state).map_err(passkeys::not_accepted)?;
-                services.store.passkey_proved(account, token, result).await?;
+                services.store.passkey_proved(&passkeys::rp_id(origin).unwrap_or_default(), account, token, result).await?;
                 response.location = Some("/auth/settings?proved=1".into());
             },
             "/auth/passkey/add" => {
@@ -263,7 +264,7 @@ pub(crate) async fn handle(
                 let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
                 let credential: webauthn_rs::prelude::RegisterPublicKeyCredential = passkeys::answer(value("credential"))?;
                 let passkey = relying_party.finish_passkey_registration(&credential, &state).map_err(passkeys::not_accepted)?;
-                let added = services.store.add_passkey(account, token, passkey).await?;
+                let added = services.store.add_passkey(&passkeys::rp_id(origin).unwrap_or_default(), account, token, passkey).await?;
                 if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_added_notice(services, &profile.email, &identity_label(&services.config, &added)); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
@@ -488,7 +489,10 @@ pub(crate) async fn handle(
     let (passkey, ceremony) = match (relying_party.as_ref(), step) {
         (Some(relying_party), Some(step)) => {
             let passkeys = match account.as_ref() {
-                Some((account, _)) => services.store.passkeys(*account).await?,
+                Some((account, _)) => {
+                    let rp_id = passkeys::rp_id(origin).unwrap_or_default();
+                    services.store.passkeys(&rp_id, *account).await?
+                }
                 None => Vec::new(),
             };
             // A proof needs a passkey of the account's own.

@@ -20,11 +20,11 @@ async fn accounts_stranded_by_a_removed_provider_are_counted() {
     let store = ServerStore::open(&harness.directory).unwrap();
     assert_eq!(
         store
-            .stranded_by_providers(vec![provider.issuer.clone()])
+            .stranded_accounts(vec![provider.issuer.clone()], None)
             .await
             .unwrap(),
         0
     );
     // Without the provider, the account that signs in only with it has no way in.
-    assert_eq!(store.stranded_by_providers(Vec::new()).await.unwrap(), 1);
+    assert_eq!(store.stranded_accounts(Vec::new(), None).await.unwrap(), 1);
 }

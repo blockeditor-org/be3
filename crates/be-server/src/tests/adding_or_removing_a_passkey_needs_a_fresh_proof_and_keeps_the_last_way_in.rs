@@ -70,6 +70,19 @@ async fn adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way
     let identities = page_of(&ada.get(&harness, "/auth/settings").await).identities;
     assert_eq!(identities.len(), 1);
     assert!(!identities[0].removable);
+    // Its passkey works only at this RP ID: were `--auth-origin` to change, nothing lets it in
+    // but a login link.
+    let store = ServerStore::open(&harness.directory).unwrap();
+    for (rp_id, stranded) in [(Some("localhost"), 0), (Some("elsewhere.example"), 1), (None, 1)] {
+        assert_eq!(
+            store
+                .stranded_accounts(Vec::new(), rp_id.map(str::to_owned))
+                .await
+                .unwrap(),
+            stranded,
+            "{rp_id:?}"
+        );
+    }
     let (status, response) = ada
         .submit(
             &harness,

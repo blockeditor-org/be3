@@ -679,14 +679,15 @@ provider for a sign-in just now (`max_age=0`), refusing a token whose
 `auth_time` is older than the begun sign-in. A provider identity keeps the
 email it gave only while its account holds that email. Begun sign-ins are capped per address
 and overall. At start the server warns how many accounts sign in only with
-providers it no longer has (`stranded_by_providers`); `login-link --account`
-lets one in.
+providers it no longer has, or only with passkeys made for another RP ID
+(`stranded_accounts`); `login-link --account` lets one in.
 
 **Passkeys** are WebAuthn credentials (`passkeys.rs` with `webauthn-rs`, and
 `store/passkeys.rs`) whose RP ID is the portal's origin's host (`--auth-origin`,
 or `localhost` in development; an IP address has none, and then no page offers
-one). A passkey identity's subject is its credential id and its `credential`
-the key and counter; its user handle is the account's id. They are made
+one). A passkey identity's subject is `"{rp_id} {credential id}"`, so one made
+before `--auth-origin` changed is never found, and its `credential` the key and
+counter; its user handle is the account's id. They are made
 discoverable (`residentKey: required`), so the sign-in page offers one before an
 email is typed. A page that offers a ceremony (sign-in; on settings and
 sessions, adding one when the proof is fresh, else proving with one) begins it

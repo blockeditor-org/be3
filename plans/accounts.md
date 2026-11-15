@@ -43,7 +43,9 @@ signs in. One mechanism, three kinds:
    baseline: it works on any device with a browser, stores no secret and
    doubles as recovery (it can add or replace any other identity).
 2. **Passkey (WebAuthn).** An upgrade offered after sign-in and used when
-   present; never required.
+   present; never required. The settings page names one by when it was added;
+   a name the person gives, or one from its authenticator's AAGUID, waits until
+   asked.
 3. **OIDC identity `(issuer, sub)`.** Sign in with Google, Microsoft (one
    tenant) or an organization's own provider. Generic OIDC is the one
    implementation, single-tenant: each provider is configured with its own

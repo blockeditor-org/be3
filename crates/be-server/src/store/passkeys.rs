@@ -1,5 +1,6 @@
 //! Passkeys: the accounts half (`passkeys.rs` is the ceremony half). A passkey is an identity
-//! of kind `passkey` whose subject is its credential id, base64url without padding, and whose
+//! of kind `passkey` whose subject is `"{rp_id} {credential id}"`, the id base64url without
+//! padding, so one made for another RP ID (before `--auth-origin` changed) is never found, and whose
 //! `credential` holds the key webauthn-rs checks assertions with and its signature counter. A
 //! credential id belongs to one account at most. The account's id is the passkey's user
 //! handle, so a discoverable sign-in names the account it is for; the credential id decides.
@@ -17,9 +18,12 @@ fn refused(message: &str) -> ServerError {
     ServerError::Refused(be_block_protocol::ErrorCode::InvalidRequest, message.into())
 }
 
-/// A passkey identity's subject: its credential id.
-pub(crate) fn subject(credential_id: &[u8]) -> String {
-    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(credential_id)
+/// A passkey identity's subject: the RP ID it was made for and its credential id.
+pub(crate) fn subject(rp_id: &str, credential_id: &[u8]) -> String {
+    format!(
+        "{rp_id} {}",
+        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(credential_id)
+    )
 }
 
 fn stored(passkey: &Passkey) -> Result<String, ServerError> {
@@ -32,6 +36,7 @@ fn read(credential: &str) -> Result<Passkey, ServerError> {
 
 /// A passkey found by its credential id.
 pub(crate) struct Found {
+    pub subject: String,
     pub account: Uuid,
     pub passkey: Passkey,
 }
@@ -54,23 +59,32 @@ fn note_use(
 }
 
 impl ServerStore {
-    /// The account's passkeys.
-    pub(crate) async fn passkeys(&self, account: Uuid) -> Result<Vec<Passkey>, ServerError> {
+    /// The account's passkeys for `rp_id`.
+    pub(crate) async fn passkeys(
+        &self,
+        rp_id: &str,
+        account: Uuid,
+    ) -> Result<Vec<Passkey>, ServerError> {
+        let prefix = format!("{rp_id} ");
         self.with_database(move |_, database| {
             let mut query = database.prepare(
-                "SELECT credential FROM identities WHERE account_id = ?1 AND kind = 'passkey' ORDER BY created, id",
+                "SELECT credential FROM identities WHERE account_id = ?1 AND kind = 'passkey' AND substr(subject, 1, length(?2)) = ?2 ORDER BY created, id",
             )?;
             let found = query
-                .query_map([account.to_string()], |row| row.get::<_, String>(0))?
+                .query_map(params![account.to_string(), prefix], |row| row.get::<_, String>(0))?
                 .collect::<Result<Vec<_>, _>>()?;
             found.iter().map(|credential| read(credential)).collect()
         })
         .await
     }
 
-    /// The passkey with this credential id, and the account it signs in to.
-    pub(crate) async fn passkey(&self, credential_id: &[u8]) -> Result<Found, ServerError> {
-        let subject = subject(credential_id);
+    /// The passkey for `rp_id` with this credential id, and the account it signs in to.
+    pub(crate) async fn passkey(
+        &self,
+        rp_id: &str,
+        credential_id: &[u8],
+    ) -> Result<Found, ServerError> {
+        let subject = subject(rp_id, credential_id);
         self.with_database(move |_, database| {
             let row: Option<(String, String)> = database
                 .query_row(
@@ -83,6 +97,7 @@ impl ServerStore {
                 refused("That passkey does not sign in to an account here. Sign in another way.")
             })?;
             Ok(Found {
+                subject,
                 account: parse_uuid(&account)?,
                 passkey: read(&credential)?,
             })
@@ -94,11 +109,13 @@ impl ServerStore {
     /// account's and proved so just now. Answers the identity added, for the notice.
     pub(crate) async fn add_passkey(
         &self,
+        rp_id: &str,
         account: Uuid,
         browser: &str,
         passkey: Passkey,
     ) -> Result<Identity, ServerError> {
         let browser = hash_token(browser);
+        let rp_id = rp_id.to_owned();
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let fresh: bool = transaction.query_row(
@@ -111,7 +128,7 @@ impl ServerStore {
                     "Confirm it is you first, with one of your ways to sign in.",
                 ));
             }
-            let subject = subject(passkey.cred_id());
+            let subject = subject(&rp_id, passkey.cred_id());
             let taken: bool = transaction.query_row(
                 "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'passkey' AND subject = ?1)",
                 [&subject],
@@ -146,7 +163,7 @@ impl ServerStore {
         result: AuthenticationResult,
         address: &str,
     ) -> Result<String, ServerError> {
-        let subject = subject(result.cred_id());
+        let subject = found.subject.clone();
         let (session, email) = self
             .with_database(move |_, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
@@ -182,11 +199,12 @@ impl ServerStore {
     /// relying party accepted, if the passkey is still the account's.
     pub(crate) async fn passkey_proved(
         &self,
+        rp_id: &str,
         account: Uuid,
         browser: &str,
         result: AuthenticationResult,
     ) -> Result<(), ServerError> {
-        let subject = subject(result.cred_id());
+        let subject = subject(rp_id, result.cred_id());
         let browser = hash_token(browser);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;

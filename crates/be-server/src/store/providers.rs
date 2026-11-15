@@ -540,9 +540,14 @@ impl ServerStore {
         .await
     }
 
-    /// How many accounts sign in only with providers the server no longer has: nothing but
+    /// How many accounts sign in only with providers the server no longer has, or with
+    /// passkeys made for another RP ID than `rp_id` (before `--auth-origin` changed): nothing but
     /// `be-server login-link --account ID` lets them in.
-    pub async fn stranded_by_providers(&self, issuers: Vec<String>) -> Result<usize, ServerError> {
+    pub async fn stranded_accounts(
+        &self,
+        issuers: Vec<String>,
+        rp_id: Option<String>,
+    ) -> Result<usize, ServerError> {
         self.with_database(move |_, database| {
             let mut query = database.prepare("SELECT account_id, kind, subject FROM identities")?;
             let mut usable = std::collections::HashMap::<String, bool>::new();
@@ -554,10 +559,15 @@ impl ServerStore {
                 ))
             })? {
                 let (account, kind, subject) = row?;
-                let works = kind != "oidc"
-                    || issuers
+                let works = match kind.as_str() {
+                    "oidc" => issuers
                         .iter()
-                        .any(|issuer| subject.starts_with(&format!("{issuer} ")));
+                        .any(|issuer| subject.starts_with(&format!("{issuer} "))),
+                    "passkey" => rp_id
+                        .as_ref()
+                        .is_some_and(|rp_id| subject.starts_with(&format!("{rp_id} "))),
+                    _ => true,
+                };
                 *usable.entry(account).or_default() |= works;
             }
             Ok(usable.values().filter(|works| !**works).count())

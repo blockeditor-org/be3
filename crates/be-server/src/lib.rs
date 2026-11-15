@@ -421,18 +421,19 @@ pub async fn serve_with_mail(
         );
     }
     let stranded = store
-        .stranded_by_providers(
+        .stranded_accounts(
             config
                 .providers
                 .iter()
                 .map(|provider| provider.issuer.clone())
                 .collect(),
+            passkeys::configured_rp_id(&config),
         )
         .await?;
     if stranded > 0 {
         tracing::warn!(
             stranded,
-            "accounts sign in only with providers this server no longer has: let one in with `be-server login-link --account ID`"
+            "accounts sign in only with providers this server no longer has, or with passkeys made for another --auth-origin: let one in with `be-server login-link --account ID`"
         );
     }
     let services = Services {

@@ -19,11 +19,22 @@ fn refused(message: &str) -> ServerError {
     ServerError::Refused(be_block_protocol::ErrorCode::InvalidRequest, message.into())
 }
 
+/// The RP ID of the portal at `origin`: its host, unless that is an IP address.
+pub(crate) fn rp_id(origin: &str) -> Option<String> {
+    Url::parse(origin).ok()?.domain().map(str::to_owned)
+}
+
+/// The RP ID passkeys are made for at start: `--auth-origin`'s, or with none `localhost`, the
+/// only host with an RP ID the portal serves without one.
+pub(crate) fn configured_rp_id(config: &crate::ServerConfig) -> Option<String> {
+    rp_id(config.auth_origin.as_deref().unwrap_or("http://localhost"))
+}
+
 /// The relying party for the portal at `origin`, its host as the RP ID; none when the host is
 /// an IP address, which WebAuthn has no RP ID for.
 pub(crate) fn relying_party(origin: &str) -> Option<Webauthn> {
+    let host = rp_id(origin)?;
     let origin = Url::parse(origin).ok()?;
-    let host = origin.domain()?.to_owned();
     WebauthnBuilder::new(&host, &origin)
         .ok()?
         .rp_name("be3")
