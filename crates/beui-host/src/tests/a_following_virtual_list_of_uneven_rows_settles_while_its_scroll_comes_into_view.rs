@@ -26,7 +26,7 @@ fn a_following_virtual_list_of_uneven_rows_settles_while_its_scroll_comes_into_v
                                 <Frame padding={Sides::symmetric(0.0, 8.0)}>
                                     <VirtualList
                                         @node_ref=&list
-                                        keys={keys}
+                                        value={keys}
                                         item_size=ESTIMATE
                                     >|index: ReadSignal<usize>| {
                                         let tall = create_memo(move || height(index.get()));

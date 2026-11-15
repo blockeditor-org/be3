@@ -19,7 +19,7 @@ fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(ROWS)}
+                            value={indices(ROWS)}
                             item_size=ESTIMATE
                         >|_: ReadSignal<usize>|
                             <Frame height=ACTUAL>

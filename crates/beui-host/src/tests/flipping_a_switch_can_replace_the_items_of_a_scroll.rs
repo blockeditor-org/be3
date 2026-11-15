@@ -32,7 +32,7 @@ fn check_compact_rows(inset: f32) {
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {

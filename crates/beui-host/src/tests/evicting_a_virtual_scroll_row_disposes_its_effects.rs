@@ -15,7 +15,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                     <Scroll @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(100)}
+                            value={indices(100)}
                             item_size=20.0
                         >|index: ReadSignal<usize>|
                             <List spacing=0.0>

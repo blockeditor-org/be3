@@ -188,7 +188,7 @@ pub fn TerminalView(
                                 value={wheel}
                                 fallback={move || view! {
                                     <VirtualList
-                                        keys
+                                        value={keys}
                                         item_size=line_height
                                         text={move |key: ObjectId| table.text(key)}
                                     >|key: ReadSignal<ObjectId>|
@@ -200,7 +200,7 @@ pub fn TerminalView(
                                     on_wheel={beui::unstyled::gestures::scroll_wheel(None, wheeled.clone())}
                                 >
                                     <VirtualList
-                                        keys={screen_keys}
+                                        value={screen_keys}
                                         item_size=line_height
                                         text={move |key: ObjectId| table.text(key)}
                                     >|key: ReadSignal<ObjectId>|

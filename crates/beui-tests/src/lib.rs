@@ -392,7 +392,7 @@ fn TextHooksFixture() -> NodeId {
             </Frame>
             <Frame width=160.0 height=100.0>
                 <Offset>
-                    <VirtualList @node_ref=&rows keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                    <VirtualList @node_ref=&rows value={keys} item_size=20.0>|row: ReadSignal<u32>|
                         <Frame height=20.0 fill={BLUE}>
                             <Text color={PAPER}>{format!("Item {}", row.get_untracked())}</Text>
                         </Frame>
@@ -732,7 +732,7 @@ fn VirtualListFixture() -> NodeId {
         <List spacing=12.0>
             <Frame width=160.0 height=200.0>
                 <Offset offset={offset}>
-                    <VirtualList keys={keys} item_size=20.0>|row: ReadSignal<u32>|
+                    <VirtualList value={keys} item_size=20.0>|row: ReadSignal<u32>|
                         <Frame
                             height=30.0
                             fill={if row.get_untracked() % 2 == 0 { BLUE } else { GREEN }}

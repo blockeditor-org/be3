@@ -13,7 +13,7 @@ fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
                         <VirtualList
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
+                            value={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|_: ReadSignal<usize>|
                             <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>

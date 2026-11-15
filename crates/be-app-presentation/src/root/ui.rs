@@ -498,7 +498,7 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                         <ListItem grow=1.0>
                             <Scroll direction={direction} @test_id={"presentation.filmstrip"}>
                                 <Reorder
-                                    keys={keys}
+                                    value={keys}
                                     direction={direction}
                                     payload={Func::new(Some)}
                                     disabled={read_only}

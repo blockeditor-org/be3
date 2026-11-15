@@ -896,7 +896,7 @@ where
 
 #[component]
 pub fn Reorder<K, P>(
-    keys: Prop<Vec<K>>,
+    value: Prop<Vec<K>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
     #[prop(default = None)] accepts: Option<Func<P, bool>>,
@@ -916,7 +916,7 @@ where
     K: Clone + Eq + Hash + 'static,
     P: Clone + PartialEq + 'static,
 {
-    let keys = create_memo(move || keys.get());
+    let keys = create_memo(move || value.get());
     let lifted = create_signal(None::<Lifted<K, P>>);
     let gap = create_signal(None::<ReorderGap<K>>);
     let visited = create_signal(false);

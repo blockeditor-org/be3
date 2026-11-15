@@ -222,7 +222,7 @@ fn LinesView(lines: Memo<Vec<Line>>) -> NodeId {
     let keys = create_memo(move || (0..lines.get().len()).collect::<Vec<_>>());
     view! {
         <Scroll>
-            <VirtualList keys={keys} item_size=LINE_HEIGHT>|index: ReadSignal<usize>| {
+            <VirtualList value={keys} item_size=LINE_HEIGHT>|index: ReadSignal<usize>| {
                 let line = create_memo(move || lines.with(|lines| lines.get(index.get()).cloned()));
                 view! {
                     <LineView line />

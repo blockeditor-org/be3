@@ -48,7 +48,7 @@ fn LayerList(state: CanvasState) -> NodeId {
     view! {
         <List spacing=Space::Xs2>
             <Reorder
-                keys={ids}
+                value={ids}
                 payload={Func::new(Some)}
                 disabled={read_only}
                 text={text}

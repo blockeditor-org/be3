@@ -21,7 +21,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                 <ListItem grow=1.0>
                     <Offset on_change={position}>
                         <VirtualList
-                            keys={indices(ROWS)}
+                            value={indices(ROWS)}
                             item_size=ROW_HEIGHT
                         >|index: ReadSignal<usize>|
                             <Frame height=ROW_HEIGHT>

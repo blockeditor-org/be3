@@ -22,7 +22,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
                     <Offset @node_ref=&scroll>
                         <VirtualList
                             @node_ref=&list
-                            keys={indices(ROWS)}
+                            value={indices(ROWS)}
                             item_size=ESTIMATE
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
