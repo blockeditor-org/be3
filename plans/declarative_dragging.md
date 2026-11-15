@@ -1,7 +1,6 @@
 # Declarative dragging: drags as the places they can lead to
 
-Depends on: plans/glide_on_a_signal.md and plans/for_each_handle.md, before step 2;
-plans/tentative_gestures.md, before a site previews by holding a tentative gesture;
+Depends on: plans/tentative_gestures.md, before a site previews by holding a tentative gesture;
 plans/host_as_platform_adapter.md, step 3, before step 6.
 
 Every drag in beui becomes a description of where the dragged thing can end up, adapted from
@@ -141,7 +140,7 @@ clamped or quantised, so there is no optimiser until a drag needs one.
   a prop on the container that takes the drop (`<List drop={site}>`), which gives it its node.
   Its handle has `over: Memo<Option<D>>`, the chosen place in it; that is all a site draws from.
 - **The board:** `board().carrying::<P>()` and `board().is_carried(&key)`.
-- **List slots:** `slots_in(rows: ForEachRef<K>, carried: &K) -> Vec<Candidate<After<K>>>` reads
+- **List slots:** `slots_in(rows: ForEachRef<K, NodeId>, carried: &K) -> Vec<Candidate<After<K>>>` reads
   the rests from the rows' laid-out rects (`measure`, with the scroll around them taken out by
   `measure::scrolled_by`, as `Glide` does), so a list's layout is written once, by the list. Rows
   of any height, wrapped text included, are exact; a row of several children rests where its run
@@ -170,7 +169,7 @@ What a list site looks like, and what step 2 measures `Reorder` against:
 ```rust
 #[component]
 fn TodoList(todos: Signal<Vec<Todo>>) -> NodeId {
-    let rows = ForEachRef::<TodoId>::new();
+    let rows = ForEachRef::<TodoId, NodeId>::new();
     let site = DropSite {
         accepts: Func::new(|_: TodoId| true),
         spec: Func::new(move |carried: TodoId| closest(slots_in(rows, &carried)).when_far(floating())),
@@ -289,7 +288,7 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
   is a tentative edit it commits on the drop. Whether `Carry` hears that through a `moved_away`
   callback or the payload carries its own removal is decided in step 2. Within one tree, a row
   could move without being rebuilt by being `Kept` (the `KeepAlive` in the user's queued
-  control-flow spec, plans/for_each_handle.md) under its key in both lists; decide in step 2
+  control-flow spec, `ForEachRef`) under its key in both lists; decide in step 2
   whether that is worth it.
 - **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
   or close it (today a flicked-out row leaves at once)? Decide in step 2.

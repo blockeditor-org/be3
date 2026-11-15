@@ -560,6 +560,7 @@ mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_vertical_wheel_scrolls_a_horizontal_scroll_unless_something_around_it_scrolls_vertically;
 mod a_virtual_list_builds_its_overscan_beyond_the_window;
 mod a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured;
+mod a_virtual_list_handle_places_every_key_and_holds_only_built_rows;
 mod a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row;
 mod a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view;
 mod a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate;
@@ -3063,7 +3064,7 @@ pub(crate) fn tab_strip(keys: crate::reactive::Signal<Vec<usize>>) -> Document {
                 })}
             >|reorder: ReorderHandle<usize, usize>|
                 <List direction=Direction::Horizontal spacing=4.0>
-                    <ForEach value={reorder.order}>|key: usize|
+                    <ForEach value={reorder.order} handle={reorder.rows}>|key: usize|
                         <ReorderItem reorder item=key>|_: ReorderItemHandle|
                             <Frame
                                 @test_id={format!("tab.{key}")}
@@ -3167,7 +3168,7 @@ pub(crate) fn reorder_lists(state: ReorderLists) -> Document {
                         }}
                     >|reorder: ReorderHandle<u32, u32>|
                         <List spacing=0.0>
-                            <ForEach value={reorder.order}>|key: u32|
+                            <ForEach value={reorder.order} handle={reorder.rows}>|key: u32|
                                 <ReorderItem reorder item=key>|_: ReorderItemHandle|
                                     <Interactive focusable=true>
                                         <Frame

@@ -440,20 +440,20 @@ impl<C: SlotChild> SlotHost<C> for Rows<C> {
     }
 }
 
-/// A handle on what a `ForEach` built: the order it shows, each key's place in it, and the
-/// children each key's row holds (one on the fast path, a run for a row of several).
-/// Made like a `NodeRef`, handed to the `ForEach` as `handle`, and empty until it builds;
-/// a key no longer shown has no place and no children. `S` is how the `ForEach`'s children
-/// are kept: `NodeId` for node children.
+/// A handle on what a `ForEach` or `VirtualList` shows: the order of its keys, each key's
+/// place in it, and the children each built row holds (one on the fast path, a run for a row
+/// of several). Made like a `NodeRef`, handed to the list as `handle`, and empty until it
+/// builds; a key no longer shown has no place, and a key a `VirtualList` has not built has
+/// a place but no nodes. `S` is what a child is known by (`SlotChild::Node`): `NodeId` for
+/// node children, whatever parent they are placed in.
 pub struct ForEachRef<K: 'static, S: 'static> {
-    shown: Stored<RefCell<Vec<ShownRow<K, S>>>>,
+    shown: Stored<RefCell<Shown<K, S>>>,
     changed: Trigger,
 }
 
-struct ShownRow<K, S> {
-    key: K,
-    index: ReadSignal<usize>,
-    children: Vec<S>,
+struct Shown<K, S> {
+    keys: Vec<K>,
+    rows: Vec<(K, ReadSignal<usize>, Vec<S>)>,
 }
 
 impl<K, S> Clone for ForEachRef<K, S> {
@@ -474,63 +474,79 @@ impl<K: Clone + PartialEq + 'static, S: Clone + 'static> ForEachRef<K, S> {
     /// Panics with no current scope, like `store`.
     pub fn new() -> Self {
         Self {
-            shown: store(RefCell::new(Vec::new())),
+            shown: store(RefCell::new(Shown {
+                keys: Vec::new(),
+                rows: Vec::new(),
+            })),
             changed: create_trigger(),
         }
     }
 
     /// The keys shown, in order; tracked, so a computation reading it reruns when the order
-    /// or a row's children change.
+    /// or what a row holds changes.
     pub fn keys(&self) -> Vec<K> {
         self.changed.track();
-        self.with_shown(|shown| shown.iter().map(|row| row.key.clone()).collect())
-    }
-
-    /// Where `key` sits in the order shown, as the signal its row was handed.
-    pub fn index(&self, key: &K) -> Option<ReadSignal<usize>> {
-        self.with_shown(|shown| shown.iter().find(|row| row.key == *key).map(|row| row.index))
+        self.with_shown(|shown| shown.keys.clone())
     }
 
     /// Where `key` sits now, untracked.
     pub fn index_of(&self, key: &K) -> Option<usize> {
-        self.index(key).map(|index| index.get_untracked())
+        self.with_shown(|shown| shown.keys.iter().position(|shown| shown == key))
     }
 
-    /// The children `key`'s row holds; none for a key not shown.
-    pub fn children_of(&self, key: &K) -> Vec<S> {
+    /// Where `key`'s built row sits, as the signal the row was handed.
+    pub fn index(&self, key: &K) -> Option<ReadSignal<usize>> {
         self.with_shown(|shown| {
             shown
+                .rows
                 .iter()
-                .find(|row| row.key == *key)
-                .map(|row| row.children.clone())
+                .find(|(shown, ..)| shown == key)
+                .map(|(_, index, _)| *index)
+        })
+    }
+
+    /// The nodes `key`'s row holds; none for a key not shown or not built.
+    pub fn nodes_of(&self, key: &K) -> Vec<S> {
+        self.with_shown(|shown| {
+            shown
+                .rows
+                .iter()
+                .find(|(shown, ..)| shown == key)
+                .map(|(.., children)| children.clone())
                 .unwrap_or_default()
         })
     }
 
-    /// The key whose row holds `child`.
-    pub fn key_of(&self, child: &S) -> Option<K>
+    /// The key whose built row holds `node`.
+    pub fn key_of(&self, node: &S) -> Option<K>
     where
         S: PartialEq,
     {
         self.with_shown(|shown| {
             shown
+                .rows
                 .iter()
-                .find(|row| row.children.contains(child))
-                .map(|row| row.key.clone())
+                .find(|(.., nodes)| nodes.contains(node))
+                .map(|(key, ..)| key.clone())
         })
     }
 
-    fn with_shown<R>(&self, read: impl FnOnce(&[ShownRow<K, S>]) -> R) -> R {
-        match self.shown.try_value() {
-            Some(shown) => read(&shown.borrow()),
-            None => read(&[]),
+    /// For a list filling its handle: the keys it shows, in order, and for each row it has
+    /// built, its key, the index signal it handed the row, and the children the row holds.
+    pub fn show(&self, keys: Vec<K>, rows: Vec<(K, ReadSignal<usize>, Vec<S>)>) {
+        if let Some(shown) = self.shown.try_value() {
+            *shown.borrow_mut() = Shown { keys, rows };
+            self.changed.notify();
         }
     }
 
-    fn show(&self, rows: Vec<ShownRow<K, S>>) {
-        if let Some(shown) = self.shown.try_value() {
-            *shown.borrow_mut() = rows;
-            self.changed.notify();
+    fn with_shown<R>(&self, read: impl FnOnce(&Shown<K, S>) -> R) -> R {
+        match self.shown.try_value() {
+            Some(shown) => read(&shown.borrow()),
+            None => read(&Shown {
+                keys: Vec::new(),
+                rows: Vec::new(),
+            }),
         }
     }
 }
@@ -561,7 +577,7 @@ pub fn ForEach<T, KF, H, C, R, F>(
     value: Prop<Vec<T>>,
     key: KF,
     fallback: F,
-    #[prop(default = None)] handle: Option<ForEachRef<KF::Key, C::Stored>>,
+    #[prop(default = None)] handle: Option<ForEachRef<KF::Key, C::Node>>,
     #[prop(children)] view: RenderFn<H, R>,
 ) -> DynamicSegment<C>
 where
@@ -591,12 +607,11 @@ where
             *rows.shown.borrow_mut() = Some(Box::new(move |children: Vec<Vec<C::Stored>>| {
                 let keys = shown_keys.borrow();
                 handle.show(
+                    keys.iter().map(|(key, _)| key.clone()).collect(),
                     keys.iter()
                         .zip(children)
-                        .map(|((key, index), children)| ShownRow {
-                            key: key.clone(),
-                            index: *index,
-                            children,
+                        .map(|((key, index), children)| {
+                            (key.clone(), *index, children.iter().map(C::node).collect())
                         })
                         .collect(),
                 );
@@ -647,7 +662,7 @@ where
                 rows.runs.borrow_mut().clear();
                 shown_keys.borrow_mut().clear();
                 if let Some(handle) = handle {
-                    handle.show(Vec::new());
+                    handle.show(Vec::new(), Vec::new());
                 }
                 return;
             }

@@ -60,6 +60,11 @@ impl<P: ParentKind> Counted for Placed<P> {
 
 impl<P: ParentKind> SlotChild for Placed<P> {
     type Stored = PlacedItem<P>;
+    type Node = NodeId;
+
+    fn node(stored: &PlacedItem<P>) -> NodeId {
+        stored.node
+    }
 
     fn store(self) -> PlacedItem<P> {
         PlacedItem {

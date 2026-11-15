@@ -134,6 +134,11 @@ impl ChildValue for NodeId {
 
 impl SlotChild for NodeId {
     type Stored = NodeId;
+    type Node = NodeId;
+
+    fn node(stored: &NodeId) -> NodeId {
+        *stored
+    }
 
     fn store(self) -> NodeId {
         self

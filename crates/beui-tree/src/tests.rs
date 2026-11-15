@@ -85,6 +85,11 @@ crate::child_type!(DomNode);
 
 impl SlotChild for DomNode {
     type Stored = DomNode;
+    type Node = DomNode;
+
+    fn node(stored: &DomNode) -> DomNode {
+        stored.clone()
+    }
 
     fn store(self) -> DomNode {
         self

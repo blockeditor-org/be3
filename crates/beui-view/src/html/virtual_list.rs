@@ -4,12 +4,15 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::reactive::Callback;
+use crate::reactive::ForEachRef;
 use crate::reactive::Get;
 use crate::reactive::KeyedItems;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::reactive::ReadSignal;
 use crate::reactive::RenderFn;
+use crate::reactive::Set;
+use crate::reactive::Signal;
 use crate::reactive::ScopeContext;
 use crate::reactive::SlotHost;
 use crate::reactive::SlotId;
@@ -47,6 +50,9 @@ struct Rows<K: Clone + Hash + Eq + 'static> {
     first: Cell<Option<f32>>,
     stale: Cell<bool>,
     watch: Watch,
+    /// The place each built row was handed, by its numbered key.
+    places: Rc<RefCell<HashMap<(K, usize), Signal<usize>>>>,
+    handle: Option<ForEachRef<K, NodeId>>,
 }
 
 impl<K: Clone + Hash + Eq + 'static> Rows<K> {
@@ -134,6 +140,36 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         }
         *self.nodes.borrow_mut() = nodes;
         self.shown.set(range);
+        self.place(range);
+    }
+
+    /// Hands each built row its place, forgets the rows no longer built, and tells the
+    /// handle, if any.
+    fn place(&self, (start, end): (usize, usize)) {
+        let keys = self.keys.borrow();
+        let built = &keys[start.min(keys.len())..end.min(keys.len())];
+        let mut places = self.places.borrow_mut();
+        places.retain(|key, _| built.contains(key));
+        for (at, key) in built.iter().enumerate() {
+            if let Some(place) = places.get(key)
+                && place.get_untracked() != start + at
+            {
+                place.set(start + at);
+            }
+        }
+        let Some(handle) = self.handle else {
+            return;
+        };
+        let nodes = self.nodes.borrow();
+        let rows = built
+            .iter()
+            .zip(nodes.iter())
+            .filter_map(|(key, node)| {
+                let place = places.get(key)?;
+                Some((key.0.clone(), place.read_only(), vec![*node]))
+            })
+            .collect();
+        handle.show(keys.iter().map(|(key, _)| key.clone()).collect(), rows);
     }
 
     fn place_spacers(&self) {
@@ -206,11 +242,14 @@ pub(crate) fn virtual_list<K>(
     direction: Prop<Direction>,
     overscan: Prop<f32>,
     text: Callback<K, String>,
-    item: RenderFn<ReadSignal<K>>,
+    handle: Option<ForEachRef<K, NodeId>>,
+    item: RenderFn<(ReadSignal<K>, ReadSignal<usize>)>,
 ) -> NodeId
 where
     K: Clone + Hash + Eq + 'static,
 {
+    let places = Rc::new(RefCell::new(HashMap::<(K, usize), Signal<usize>>::default()));
+    let placing = Rc::clone(&places);
     let _ = text;
     let list = create("VirtualList", "div");
     set_style(list, "display", Some("flex".to_owned()));
@@ -231,8 +270,10 @@ where
         keys: RefCell::default(),
         sizes: RefCell::default(),
         metrics: RefCell::new(RowMetrics::new(0, 0.0)),
-        items: KeyedItems::new(move |(key, _): (K, usize)| {
-            item.call(create_signal(key).read_only())
+        items: KeyedItems::new(move |numbered: (K, usize)| {
+            let place = create_signal(0);
+            placing.borrow_mut().insert(numbered.clone(), place);
+            item.call((create_signal(numbered.0).read_only(), place.read_only()))
         }),
         shown: Cell::new((0, 0)),
         nodes: RefCell::default(),
@@ -240,6 +281,8 @@ where
         first: Cell::new(None),
         stale: Cell::new(true),
         watch: Watch::new(),
+        places,
+        handle,
     });
     let held = Rc::clone(&rows);
     create_binding(move || held.set_direction(direction.get()));

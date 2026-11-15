@@ -17,8 +17,13 @@ use crate::prop::{IntoProp, Prop};
 )]
 pub trait SlotChild: Sized + 'static {
     type Stored: Clone + 'static;
+    /// What a kept child is known by to a list's handle (`ForEachRef`): its node, for node
+    /// children of any parent kind, so one handle type serves them all.
+    type Node: Clone + 'static;
 
     fn store(self) -> Self::Stored;
+
+    fn node(stored: &Self::Stored) -> Self::Node;
 }
 
 pub trait SlotHost<C: SlotChild> {
@@ -919,9 +924,14 @@ macro_rules! value_child_type {
 
         impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::SlotChild for $ty {
             type Stored = ::std::rc::Rc<$ty>;
+            type Node = ::std::rc::Rc<$ty>;
 
             fn store(self) -> Self::Stored {
                 ::std::rc::Rc::new(self)
+            }
+
+            fn node(stored: &Self::Stored) -> Self::Node {
+                stored.clone()
             }
         }
     };

@@ -208,6 +208,11 @@ impl TextChild {
 
 impl SlotChild for TextChild {
     type Stored = NodeId;
+    type Node = NodeId;
+
+    fn node(stored: &NodeId) -> NodeId {
+        *stored
+    }
 
     fn store(self) -> NodeId {
         self.build(false).0
