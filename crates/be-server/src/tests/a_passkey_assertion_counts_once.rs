@@ -27,17 +27,29 @@ async fn a_passkey_assertion_counts_once() {
         )
     };
     let (status, response) = second
-        .request(&harness, "POST", "/auth/passkey/sign-in", &post(&pages[1], &answers[1]))
+        .request(
+            &harness,
+            "POST",
+            "/auth/passkey/sign-in",
+            &post(&pages[1], &answers[1]),
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     let (status, response) = first
-        .request(&harness, "POST", "/auth/passkey/sign-in", &post(&pages[0], &answers[0]))
+        .request(
+            &harness,
+            "POST",
+            "/auth/passkey/sign-in",
+            &post(&pages[0], &answers[0]),
+        )
         .await;
     assert_eq!(status, 400, "{response}");
     assert!(response.contains("did not work here"), "{response}");
     assert!(first.cookie.is_empty());
     // An authenticator whose counter went back is refused the same way.
     authenticator.counter = 1;
-    let (status, _) = first.sign_in_with_passkey(&harness, &mut authenticator).await;
+    let (status, _) = first
+        .sign_in_with_passkey(&harness, &mut authenticator)
+        .await;
     assert_eq!(status, 400);
 }

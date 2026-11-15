@@ -29,9 +29,12 @@ fn credential_class() -> Option<JsValue> {
     let window: JsValue = web_sys::window()?.into();
     let class = get(&window, "PublicKeyCredential").ok()?;
     let prototype = get(&class, "prototype").ok()?;
-    let usable = ["parseRequestOptionsFromJSON", "parseCreationOptionsFromJSON"]
-        .iter()
-        .all(|name| get(&class, name).is_ok_and(|method| method.is_function()))
+    let usable = [
+        "parseRequestOptionsFromJSON",
+        "parseCreationOptionsFromJSON",
+    ]
+    .iter()
+    .all(|name| get(&class, name).is_ok_and(|method| method.is_function()))
         && get(&prototype, "toJSON").is_ok_and(|method| method.is_function());
     usable.then_some(class)
 }

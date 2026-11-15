@@ -49,7 +49,12 @@ async fn a_passkey_signs_in_with_no_email_typed() {
     assert_eq!(status, 303, "{response}");
     assert_eq!(location(&response), format!("/auth?code={code}"));
     let (status, response) = device
-        .submit(&harness, &location(&response), "/auth/approve", &[("code", &code)])
+        .submit(
+            &harness,
+            &location(&response),
+            "/auth/approve",
+            &[("code", &code)],
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     assert!(matches!(

@@ -20,13 +20,6 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
-mod a_passkey_assertion_counts_once;
-mod a_passkey_for_an_old_origin_is_no_way_in;
-mod a_passkey_for_another_rp_id_or_origin_is_refused;
-mod a_passkey_signs_in_with_no_email_typed;
-mod a_provider_the_server_no_longer_has_is_no_way_in;
-mod an_account_holds_a_bounded_number_of_passkeys;
-mod adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way_in;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -87,10 +80,15 @@ mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_notification_sent_again_with_the_keys_it_told_pushes_nothing;
 mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_block;
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
+mod a_passkey_assertion_counts_once;
+mod a_passkey_for_an_old_origin_is_no_way_in;
+mod a_passkey_for_another_rp_id_or_origin_is_refused;
+mod a_passkey_signs_in_with_no_email_typed;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_provider_email_matching_an_account_links_only_after_the_emailed_code;
 mod a_provider_is_called_only_so_often_whatever_strangers_send;
 mod a_provider_sign_in_with_no_account_waits_for_an_invite_code;
+mod a_provider_the_server_no_longer_has_is_no_way_in;
 mod a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_refused;
 mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
 mod a_publish_pushes_the_new_storage_usage_to_its_payer;
@@ -125,7 +123,9 @@ mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
 mod adding_a_provider_or_moving_its_email_tells_the_account;
+mod adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way_in;
 mod an_account_creates_a_bounded_number_of_agents;
+mod an_account_holds_a_bounded_number_of_passkeys;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
 mod an_administrator_creates_lists_and_revokes_an_invitation;
 mod an_administrator_sees_a_members_unfiled_as_their_my_files;
@@ -1693,11 +1693,15 @@ impl Browser {
             portal::encode(&page.code),
             portal::encode(&answer(&offer.options)),
         );
-        self.request(harness, "POST", offer.step.action(), &body).await
+        self.request(harness, "POST", offer.step.action(), &body)
+            .await
     }
     /// Adds a passkey from the settings page, which needs a fresh proof, and answers the
     /// authenticator that holds it.
-    async fn add_passkey(&mut self, harness: &Harness) -> crate::fake_authenticator::FakeAuthenticator {
+    async fn add_passkey(
+        &mut self,
+        harness: &Harness,
+    ) -> crate::fake_authenticator::FakeAuthenticator {
         let origin = self.origin();
         let mut made = None;
         let (status, response) = self

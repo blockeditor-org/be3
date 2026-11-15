@@ -24,7 +24,10 @@ async fn adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way
     assert_eq!(status, 400, "{response}");
     assert!(response.contains("Confirm it is you first"), "{response}");
     // A stale page offers no passkey to add while the account has none to prove with.
-    assert_eq!(page_of(&ada.get(&harness, "/auth/settings").await).passkey, None);
+    assert_eq!(
+        page_of(&ada.get(&harness, "/auth/settings").await).passkey,
+        None
+    );
     ada.prove(&harness, "ada@example.com").await;
     let mut authenticator = ada.add_passkey(&harness).await;
     // Once stale again, the page offers to prove with it, and removing it is refused until then.
@@ -73,7 +76,11 @@ async fn adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way
     // Its passkey works only at this RP ID: were `--auth-origin` to change, nothing lets it in
     // but a login link.
     let store = ServerStore::open(&harness.directory).unwrap();
-    for (rp_id, stranded) in [(Some("localhost"), 0), (Some("elsewhere.example"), 1), (None, 1)] {
+    for (rp_id, stranded) in [
+        (Some("localhost"), 0),
+        (Some("elsewhere.example"), 1),
+        (None, 1),
+    ] {
         assert_eq!(
             store
                 .stranded_accounts(Vec::new(), rp_id.map(str::to_owned))

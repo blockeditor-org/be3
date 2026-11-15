@@ -70,8 +70,8 @@ impl FakeAuthenticator {
         let options: Value = serde_json::from_str(options).unwrap();
         let rng = SystemRandom::new();
         let pkcs8 = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &rng).unwrap();
-        let key =
-            EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8.as_ref(), &rng).unwrap();
+        let key = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, pkcs8.as_ref(), &rng)
+            .unwrap();
         let authenticator = Self {
             key,
             credential_id: uuid::Uuid::new_v4().as_bytes().to_vec(),

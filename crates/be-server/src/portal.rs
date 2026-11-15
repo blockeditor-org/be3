@@ -1,6 +1,7 @@
 use crate::{
-    ServerError, Services, browser_auth, passkeys,
+    ServerError, Services, browser_auth,
     mail::Email,
+    passkeys,
     store::{
         AccountSession, MailLink, Profile, ServerStore,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
@@ -538,7 +539,12 @@ pub(crate) async fn handle(
             // As `remove_identity` judges it.
             let issuers = issuers(config);
             let works = |identity: &codes::Identity| {
-                providers::signs_in(&identity.kind, &identity.subject, &issuers, rp_id.as_deref())
+                providers::signs_in(
+                    &identity.kind,
+                    &identity.subject,
+                    &issuers,
+                    rp_id.as_deref(),
+                )
             };
             identities
                 .iter()

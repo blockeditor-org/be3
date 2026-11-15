@@ -8,7 +8,13 @@ async fn a_provider_the_server_no_longer_has_is_no_way_in() {
     let mut ada = Browser::default();
     ada.sign_in_by_code(&harness, "ada@example.com").await;
     let (status, response) = ada
-        .provider_sign_in(&harness, &provider, "test", "?intent=link", Grant::new("ada"))
+        .provider_sign_in(
+            &harness,
+            &provider,
+            "test",
+            "?intent=link",
+            Grant::new("ada"),
+        )
         .await;
     assert_eq!(status, 303, "{response}");
     // As if the operator removed the provider since: its identity names an issuer the server

@@ -7,7 +7,10 @@ async fn a_passkey_for_another_rp_id_or_origin_is_refused() {
     harness.member("ada@example.com").await;
     // At an IP address there is no RP ID, so no page offers a passkey.
     let mut plain = Browser::default();
-    assert_eq!(page_of(&plain.get(&harness, "/auth/login").await).passkey, None);
+    assert_eq!(
+        page_of(&plain.get(&harness, "/auth/login").await).passkey,
+        None
+    );
     let mut ada = Browser::at_localhost(&harness);
     ada.sign_in_by_code(&harness, "ada@example.com").await;
     // A passkey made for another RP ID, or answered from another origin, is not added.
@@ -63,7 +66,15 @@ async fn a_passkey_for_another_rp_id_or_origin_is_refused() {
     let body = format!(
         "csrf={}&credential={}",
         portal::encode(&other.csrf),
-        portal::encode(&authenticator.get(&page_of(&second.get(&harness, "/auth/login").await).passkey.unwrap().options, &second.origin()))
+        portal::encode(
+            &authenticator.get(
+                &page_of(&second.get(&harness, "/auth/login").await)
+                    .passkey
+                    .unwrap()
+                    .options,
+                &second.origin()
+            )
+        )
     );
     let (status, response) = second
         .request(&harness, "POST", "/auth/passkey/sign-in", &body)

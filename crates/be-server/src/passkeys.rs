@@ -104,7 +104,8 @@ pub(crate) fn begin(
         }
         (_, None) => return Err(refused("Sign in to continue.")),
     };
-    let options = options.map_err(|_| refused("Passkeys are unavailable right now. Sign in another way."))?;
+    let options =
+        options.map_err(|_| refused("Passkeys are unavailable right now. Sign in another way."))?;
     Ok((PasskeyOffer { step, options }, ceremony))
 }
 
@@ -134,7 +135,11 @@ pub(crate) fn label(created: i64, subject: &str) -> String {
     let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
     let shifted = (5 * day_of_year + 2) / 153;
     let day = day_of_year - (153 * shifted + 2) / 5 + 1;
-    let month = if shifted < 10 { shifted + 3 } else { shifted - 9 };
+    let month = if shifted < 10 {
+        shifted + 3
+    } else {
+        shifted - 9
+    };
     let year = year_of_era + era * 400 + i64::from(month <= 2);
     let (hour, minute) = (seconds / 3600, seconds % 3600 / 60);
     let credential = subject.rsplit(' ').next().unwrap_or_default();
