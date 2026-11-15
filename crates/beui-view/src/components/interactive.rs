@@ -20,7 +20,7 @@ use crate::types::forward::ForwardedInput;
 use crate::types::input::PointerInput;
 use crate::types::input::WheelInput;
 use crate::types::region::{Area, Claim};
-use beui_macros::component;
+use beui_macros::{component, view};
 
 #[component]
 pub fn Interactive(
@@ -79,9 +79,9 @@ pub fn Interactive(
     on_press_outside: Callback<Pos2>,
     children: Option<Child>,
 ) -> NodeId {
-    let (on_press, on_drag) = match drag {
-        Some(drag) => lifting(drag, on_press, on_drag),
-        None => (on_press, on_drag),
+    let (on_press, on_drag, children) = match drag {
+        Some(drag) => carrying(drag, on_press, on_drag, children),
+        None => (on_press, on_drag, children),
     };
     crate::core::interactive(
         focusable,
@@ -140,24 +140,38 @@ pub fn Interactive(
     )
 }
 
+type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
+
 /// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
-/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer.
-fn lifting(
+/// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
+/// press hears no more drags. While the carry floats, the children are drawn where the item
+/// floats, raised above their siblings (a scroll around them still clips them), unless the
+/// carry gives a `preview`, which floats in a layer of its own instead. If this node goes
+/// while its carry is held, the carry is put down, dropping nothing.
+fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
-) -> (Callback<PointerPress>, Callback<PointerPress>) {
-    let asked = std::rc::Rc::new(std::cell::Cell::new(false));
+    children: Option<Child>,
+) -> (Callback<PointerPress>, Callback<PointerPress>, Option<Child>) {
+    use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
+    use std::cell::RefCell;
+    use crate::components::overlay::Overlay;
+    use crate::primitives::{Frame, List};
+    use crate::types::{LayerLevel, LayerPolicy, Placement, Rect};
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    let asked = Rc::new(Cell::new(false));
     // Whether this press lifted a carry: the board follows its drags from then on, so they
     // are not this node's to hear.
-    let lifted = std::rc::Rc::new(std::cell::Cell::new(false));
-    let origin = std::rc::Rc::new(std::cell::Cell::new(None::<PointerPress>));
+    let lifted = Rc::new(Cell::new(false));
+    let origin = Rc::new(Cell::new(None::<PointerPress>));
+    let mine = create_signal(None::<crate::drag::CarryId>);
+    let preview = Rc::new(RefCell::new(None::<Preview>));
+    let previewed = create_signal(false);
     let pressed = {
-        let (asked, lifted, origin) = (
-            std::rc::Rc::clone(&asked),
-            std::rc::Rc::clone(&lifted),
-            std::rc::Rc::clone(&origin),
-        );
+        let (asked, lifted, origin) = (Rc::clone(&asked), Rc::clone(&lifted), Rc::clone(&origin));
         Callback::new(move |press: PointerPress| {
             asked.set(false);
             lifted.set(false);
@@ -165,28 +179,97 @@ fn lifting(
             on_press.call(press);
         })
     };
-    let dragged = Callback::new(move |press: PointerPress| {
-        if lifted.get() {
-            return;
-        }
-        if !asked.replace(true)
-            && let Some(driver) = crate::drag::driver()
-            && !driver.carrying()
-            && let Some(mut carry) = drag.call(press)
-        {
-            // Unless the carry says otherwise, the item is this node, held where it was pressed.
-            if carry.item.is_none() {
-                let at = origin.get().unwrap_or(press);
-                carry.item = Some(crate::types::Rect::from_min_size(
-                    crate::types::Pos2::ZERO - at.local.to_vec2(),
-                    at.size,
-                ));
+    let dragged = {
+        let (origin, preview) = (Rc::clone(&origin), Rc::clone(&preview));
+        Callback::new(move |press: PointerPress| {
+            if lifted.get() {
+                return;
             }
-            lifted.set(true);
-            driver.lift(carry, crate::drag::DragPoint::of(press));
-            return;
+            if !asked.replace(true)
+                && let Some(driver) = crate::drag::driver()
+                && !driver.carrying()
+                && let Some(mut carry) = drag.call(press)
+            {
+                // Unless the carry says otherwise, the item is this node, held where it was
+                // pressed.
+                if carry.item.is_none() {
+                    let at = origin.get().unwrap_or(press);
+                    carry.item = Some(Rect::from_min_size(
+                        Pos2::ZERO - at.local.to_vec2(),
+                        at.size,
+                    ));
+                }
+                let floats = carry.preview.clone();
+                if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
+                    lifted.set(true);
+                    previewed.set(floats.is_some());
+                    *preview.borrow_mut() = floats;
+                    mine.set(Some(id));
+                }
+                return;
+            }
+            on_drag.call(press);
+        })
+    };
+    on_cleanup(move || {
+        let id = mine.is_alive().then(|| mine.get_untracked()).flatten();
+        if let (Some(id), Some(driver)) = (id, crate::drag::driver()) {
+            driver.put_down(id);
         }
-        on_drag.call(press);
     });
-    (pressed, dragged)
+    // The frame this node's carry shows, while it holds one.
+    let frame = create_memo(move || {
+        let id = mine.get()?;
+        let driver = crate::drag::driver()?;
+        (driver.carry() == Some(id)).then(|| driver.frame()).flatten()
+    });
+    let floating = create_memo(move || frame.get().is_some_and(|frame| frame.floating));
+    let raised = create_memo(move || floating.get() && !previewed.get());
+    // Where the children are laid out, measured once the wrapper below is built.
+    let measured = create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
+    let placed = create_memo(move || {
+        measured
+            .get()
+            .and_then(|measured| measured.get())
+            .map(|measured| measured.rect.min)
+    });
+    let offset = create_memo(move || match (raised.get(), frame.get(), placed.get()) {
+        (true, Some(frame), Some(placed)) => frame.item.min - placed,
+        _ => Vec2::ZERO,
+    });
+    let anchor = create_memo(move || {
+        crate::reactive::OverlayAnchor::Point(frame.get().map_or(Pos2::ZERO, |frame| frame.item.min))
+    });
+    let window = create_memo(move || origin_window(&origin));
+    let open = create_memo(move || floating.get() && previewed.get());
+    let wrapped = view! {
+        <Frame raised={raised}>
+            <List spacing=0.0>
+                <Frame translate={offset} children={children} />
+                <Overlay
+                    anchor={anchor}
+                    placement=Placement::BelowStart
+                    policy=LayerPolicy::Inert
+                    level=LayerLevel::Top
+                    traps_focus=false
+                    shown_in={window}
+                    open={open}
+                >
+                    || {
+                        let shown = preview.borrow().clone();
+                        match shown {
+                            Some(preview) => preview(),
+                            None => view! { <Frame /> },
+                        }
+                    }
+                </Overlay>
+            </List>
+        </Frame>
+    };
+    measured.set(Some(crate::measure::measure(wrapped)));
+    (pressed, dragged, Some(wrapped.into()))
+}
+
+fn origin_window(origin: &std::rc::Rc<std::cell::Cell<Option<PointerPress>>>) -> Option<crate::types::WindowId> {
+    origin.get().map(|press| press.window)
 }

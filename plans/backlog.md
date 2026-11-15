@@ -113,3 +113,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   (`log_unlisted_held`); with no such line, the missing reference is past the
   graph, in what the app's `Backrefs` watch was told. Done: the cause found
   from that output and fixed at its source, with a test that shows it.
+
+## 16. Dragging
+
+- **A carried item's own face, unclipped.** A carry with no `preview` floats as
+  its source drawn displaced and raised, which a scroll around the source still
+  clips (guides/beui/components.md, Drags as places). Done: the source's face
+  captured as a texture on both cores floats in a top layer like a preview,
+  so no carry needs `preview` just to leave its scroll.

@@ -7,7 +7,7 @@ use std::any::Any;
 use std::rc::Rc;
 
 use beui_view::drag::{
-    CandidateId, Carry, DragFrame, DragPoint, DragSpec, Evaluation, STICKY,
+    CandidateId, Carry, CarryId, DragFrame, DragPoint, DragSpec, Evaluation, STICKY,
     evaluate,
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
@@ -97,10 +97,12 @@ impl Board {
 
     /// Lifts `carry` at `point`: every site that accepts its payload gives its places, read
     /// from the layout now, and the carry chooses among them from here on.
-    pub fn lift(&self, carry: Carry, point: DragPoint) {
+    pub fn lift(&self, carry: Carry, point: DragPoint) -> Option<CarryId> {
         if self.carrying() {
-            return;
+            return None;
         }
+        let id = CarryId(self.next.get());
+        self.next.set(id.0 + 1);
         let payload = Rc::clone(&carry.payload);
         let specs: Vec<(u64, DragSpec<Placed>)> = self
             .sites
@@ -126,7 +128,9 @@ impl Board {
             last: None,
         });
         self.lifted.update(|lifted| *lifted = Some(payload));
+        self.current.set(Some(id));
         self.place(point, false);
+        Some(id)
     }
 
     /// Whether the carry is held by `pointer`; another pointer's moves and releases leave it.
@@ -223,6 +227,7 @@ impl Board {
         };
         self.lifted.update(|lifted| *lifted = None);
         self.shown.set(None);
+        self.current.set(None);
         let sites: Vec<(u64, Rc<dyn Fn(Option<Erased>)>, Rc<dyn Fn(Erased, Erased)>)> = self
             .sites
             .borrow()
