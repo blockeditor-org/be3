@@ -26,7 +26,13 @@ It opens connection-wide streams on the first `subscribe()` and a session's as
 `be_block_client::Event`. A block's heads arrive as `Event::BlockChanged` on
 the `changes` stream once the block is listed (reading its summary lists it);
 `own` marks a change this connection's own call made, which it learns from
-`organization-opened.client` (`Connection::opened`). Key work arrives as
+`organization-opened.client` (`Connection::opened`). A change the server
+announces as what it did to the block's references (`moved-references`) reaches
+listeners with every reference all the same: the pump applies it to what this
+device holds (`Connection::hold_with`, a `Held`: `Peer` gives its refs as it
+opens the organization) and keeps the result there, so the next change resolves
+against it; when the result's `references_digest` is not the server's (a change
+heard out of order, or references never held) it reads the block again. Key work arrives as
 `Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
 what it wants and rejoins its sessions, as after a reconnect.
 

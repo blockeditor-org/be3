@@ -103,6 +103,7 @@ mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_trashed_block_reaches_its_reader_as_detached;
 mod a_type_with_a_short_retention_keeps_only_its_recent_states;
 mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
+mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
@@ -297,6 +298,7 @@ impl Harness {
 enum Notice {
     BlockChanged {
         block: BlockSummary,
+        moved: Option<be_block_protocol::MovedReferences>,
         from: ClientId,
     },
     BlockRemoved {
@@ -334,7 +336,9 @@ impl Heard {
         match self {
             Heard::Changes(stream) => stream.poll_recv(context).map(|change| {
                 change.map(|change| match change {
-                    BlockChange::Changed { block, from } => Notice::BlockChanged { block, from },
+                    BlockChange::Changed { block, moved, from } => {
+                        Notice::BlockChanged { block, moved, from }
+                    }
                     BlockChange::Removed { block, revision } => {
                         Notice::BlockRemoved { block, revision }
                     }
@@ -525,6 +529,7 @@ impl TestClient {
             if let Notice::BlockChanged {
                 block: changed,
                 from,
+                ..
             } = self.graph_change().await
                 && changed.id == block
                 && changed.head == Some(head)
