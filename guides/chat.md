@@ -35,9 +35,11 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   slot's earlier live records (`put_counted`). A slot's `Head` is its live
   record with the highest count, which takes that key's count, so a record
   moved to another count or author fails its signature; a removed key counted
-  past the head means the latest was cut (`Head::cut`). A count past
-  `MAX_SEQ` (2^32) is junk that cuts the slot and is never its head, and a
-  next count stops at `MAX_SEQ`, so made-up keys never overflow it. So a
+  past the head means the latest was cut (`Head::cut`). A count of
+  `MAX_SEQ` (2^32) or more is junk that cuts the slot and is never its head;
+  a next count stops at `MAX_SEQ - 1`, so made-up keys never overflow it, and
+  a slot that reached that count shows as cut for good, since a record put
+  back over another at one count leaves no trace. So a
   record put back is not the latest unless the later ones are removed, which
   shows. Two devices writing one count share its key and the later stamp keeps
   one, either genuine; a device's next record counts past a cut, which heals
