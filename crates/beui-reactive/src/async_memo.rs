@@ -83,7 +83,8 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
         cancelled: Cell::new(false),
     });
     let polled = Rc::clone(&running);
-    let mut wrapped: LocalFuture = Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
+    let mut wrapped: LocalFuture =
+        Box::pin(std::future::poll_fn(move |context: &mut Context<'_>| {
             let mut held = polled.future.borrow_mut();
             let Some(future) = held.as_mut() else {
                 return Poll::Ready(());
@@ -106,7 +107,11 @@ fn spawn(future: impl Future<Output = ()> + 'static) -> Rc<Running> {
     // A future whose answer is already there (a value held locally) lands at once, with no
     // turn of the executor between; one still waiting goes to the spawner, whose first poll
     // gives it the waker that counts.
-    if wrapped.as_mut().poll(&mut Context::from_waker(Waker::noop())).is_pending() {
+    if wrapped
+        .as_mut()
+        .poll(&mut Context::from_waker(Waker::noop()))
+        .is_pending()
+    {
         hand_over(Rc::clone(&running), wrapped);
     }
     running
@@ -220,7 +225,6 @@ impl<T: 'static> AsyncMemo<T> {
     pub fn is_alive(&self) -> bool {
         self.value.is_alive()
     }
-
 }
 
 impl<T: 'static> Get<Ready<T>> for AsyncMemo<T> {
