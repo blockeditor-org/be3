@@ -9,7 +9,7 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Pos2;
 
-use super::{LeafId, State, TabId};
+use super::{DockState, Entry, LeafId, State, TabId};
 
 impl State {
     pub(super) fn chrome_pressed(&self, leaf: LeafId, pos: Option<Pos2>) {
@@ -60,6 +60,13 @@ impl State {
                 held.set(None);
             }
         });
+    }
+
+    /// Whether the keyboard is in a tab `entry` holds or stands for (`remember_focus`).
+    pub(super) fn entry_holds_keyboard(&self, state: &DockState, entry: Entry) -> bool {
+        let mut tabs = state.entry_tabs(entry);
+        tabs.extend(state.standing_tabs(entry));
+        tabs.into_iter().any(|tab| self.remember_focus(tab))
     }
 
     pub(super) fn give_keyboard(&self, tab: TabId) {

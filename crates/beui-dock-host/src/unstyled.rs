@@ -1205,7 +1205,20 @@ impl State {
             true => (index + count - 1) % count,
             false => (index + 1) % count,
         };
+        // An entry that is a joined editor's group shows a body built anew, which hands on no
+        // keyboard from the one it replaces as a pane switching tabs does (`DockShownBody`): the
+        // keyboard moves here, from the entry that held it to the one shown.
+        let leaving = state.active_entry(leaf);
+        let groups = [leaving, state.entries(leaf).get(next).copied()]
+            .into_iter()
+            .flatten()
+            .any(|entry| entry.group().is_some());
+        let held = groups && leaving.is_some_and(|entry| self.entry_holds_keyboard(&state, entry));
         self.edit(|state| state.set_active_index(leaf, next));
+        let taker = self.state.with_untracked(|state| shown_tab(state, leaf));
+        if held && let Some(tab) = taker {
+            self.give_keyboard(tab);
+        }
     }
 
     /// The focused pane and the entry it shows: for a joined editor's stage, the pane its group
@@ -4484,4 +4497,22 @@ fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
     })
     .enabled(closable)
     .register();
+}
+
+/// The tab `leaf` shows: its active tab, or for a joined editor's group, the tab its stage shows.
+fn shown_tab(state: &DockState, leaf: LeafId) -> Option<TabId> {
+    let mut leaf = leaf;
+    for _ in 0..16 {
+        match state.active_entry(leaf)? {
+            Entry::Tab(tab) => return Some(tab),
+            Entry::Group(group) => {
+                let tree = Tree::Group(group);
+                leaf = match state.tree_leaves(tree)[..] {
+                    [only] => only,
+                    _ => state.stage_of(tree)?,
+                };
+            }
+        }
+    }
+    None
 }

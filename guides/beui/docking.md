@@ -109,7 +109,9 @@ there it shows its tab (`DockTabControl::content_focused`) or, in an empty pane'
 that pane (`DockPaneControl::focus`), which brings the window in front. `content_focused` also
 records that the tab's content has the keyboard, until this document or an empty pane takes it,
 so a dock that stops showing the tab hands the keyboard to the tab shown in its place, as it does
-for focus inside its own panels. A focused empty pane in a joined
+for focus inside its own panels. A pane switching between joined editors' groups builds the shown
+group's body anew, which hands on nothing, so Next and Previous tab do it themselves: from the
+entry that held the keyboard to the tab the entry now shown shows (`State::cycle`). A focused empty pane in a joined
 group has no tab, so `DockState::focused_or_host` stands the group's host tab in for it: that is
 what `DockingLayout::focused` and `DockHosted::focused` report.
 
