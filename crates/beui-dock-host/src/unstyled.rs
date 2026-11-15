@@ -1145,7 +1145,7 @@ impl State {
 
     fn cycle(&self, backwards: bool) {
         let state = self.state.get_untracked();
-        let Some(leaf) = state.focused_leaf() else {
+        let Some(leaf) = state.focused_leaf().map(|leaf| state.standing_leaf(leaf)) else {
             return;
         };
         let count = state.entries(leaf).len();
@@ -4329,7 +4329,7 @@ fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
         dock.state.with(|state| {
             state
                 .focused_leaf()
-                .is_some_and(|leaf| state.entries(leaf).len() > 1)
+                .is_some_and(|leaf| state.entries(state.standing_leaf(leaf)).len() > 1)
         })
     });
     let cycles = create_memo(move || several.get() && focused_here.get());

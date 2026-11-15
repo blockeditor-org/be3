@@ -97,9 +97,11 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
 }
 
 /// An empty text given the keyboard (an editor that just made it handed it over, as a deck's
-/// "Add notes" does) puts its caret in the text, so typing starts there.
+/// "Add notes" does) puts its caret in the text, so typing starts there. It watches this
+/// instance's own views (`Editor::has_keyboard`), not the app's: every text of the app shares one
+/// document, and another empty text taking the caret would take the keyboard from this one.
 fn caret_when_given_the_keyboard(state: State) {
-    let keyboard = use_keyboard();
+    let keyboard = state.editor.has_keyboard();
     let read_only = state.editor.read_only();
     let armed = StoredCell::new(false);
     let had = StoredCell::new(false);
