@@ -147,7 +147,9 @@ to hold: a key it drops is disposed once nothing shows it, and everything is
 disposed when the `KeepAlive` goes. Keys of any `Hash + Eq` type share one
 `KeepAlive`. Two `Kept`s with one key shown at once show it where the one
 built last is. A `Kept` inside another one's subtree pauses and resumes with
-it.
+it. A key in `awake` keeps running while hidden and reads as shown, for a
+subtree whose purpose is shown elsewhere (a dock tab whose own dock joined);
+it is still dropped once `keep` no longer lists it.
 
 A kept subtree belongs to the `KeepAlive`, not the `Kept` that first built it,
 so it reads the context provided around the `KeepAlive`, not what is provided

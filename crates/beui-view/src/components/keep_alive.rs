@@ -28,12 +28,36 @@ struct Cache {
     next: Cell<u64>,
     /// The keys kept while nothing shows them, or `None` when every key is.
     keeps: Option<Memo<HashSet<AnyKey>>>,
+    /// The keys whose subtree keeps running, and counts as shown, while nothing shows it.
+    awake: Option<Memo<HashSet<AnyKey>>>,
 }
 
 impl Cache {
     fn kept(&self, key: &AnyKey) -> bool {
         self.keeps
             .is_none_or(|keeps| keeps.with_untracked(|keeps| keeps.contains(key)))
+    }
+
+    fn awake(&self, key: &AnyKey) -> bool {
+        self.awake
+            .is_some_and(|awake| awake.with_untracked(|awake| awake.contains(key)))
+    }
+
+    /// Pauses every entry nothing shows, or resumes it while its key is awake.
+    fn wake(&self) {
+        let hidden: Vec<(Rc<Scope>, bool)> = self
+            .entries
+            .borrow()
+            .iter()
+            .filter(|(_, entry)| entry.borrower.get_untracked().is_none())
+            .map(|(key, entry)| (entry.scope.clone(), self.awake(key)))
+            .collect();
+        for (scope, awake) in hidden {
+            match awake {
+                true => scope.resume(),
+                false => scope.pause(),
+            }
+        }
     }
 
     /// Forgets every entry its keep set dropped that nothing shows.
@@ -60,16 +84,23 @@ struct KeepAliveCache(Rc<Cache>);
 /// subtree is built the first time a `Kept` with its key is, paused (nothing in it runs)
 /// while no `Kept` shows it, and resumed and shown again by the next `Kept` with that key,
 /// wherever it is. Given `keep`, a key it no longer lists is dropped once nothing shows it.
-/// Two `Kept`s with one key shown at once show it where the one built last is.
+/// Two `Kept`s with one key shown at once show it where the one built last is. A key `awake`
+/// lists keeps running while hidden, and counts as shown: what it serves is shown elsewhere (a
+/// dock tab whose own dock joined the one around it).
 ///
 /// A kept subtree belongs to the `KeepAlive`, so it reads the context provided around the
 /// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
 /// does.
 #[component]
-pub fn KeepAlive<B, KS>(keep: KS, #[prop(children)] content: Render<(), B>) -> B::Output
+pub fn KeepAlive<B, KS, AS>(
+    keep: KS,
+    awake: AS,
+    #[prop(children)] content: Render<(), B>,
+) -> B::Output
 where
     B: Unwrapped + 'static,
     KS: KeepSet,
+    AS: KeepSet,
 {
     let cache = Rc::new(Cache {
         owner: current_scope(),
@@ -77,7 +108,17 @@ where
         next: Cell::new(0),
         keeps: untrack(|| keep.keys().is_some())
             .then(|| create_memo(move || keep.keys().unwrap_or_default().into_iter().collect())),
+        // Left out, `awake` lists nothing.
+        awake: untrack(|| awake.keys().is_some())
+            .then(|| create_memo(move || awake.keys().unwrap_or_default().into_iter().collect())),
     });
+    if let Some(awake) = cache.awake {
+        let watched = cache.clone();
+        create_effect(move || {
+            awake.with(|_| ());
+            untrack(|| watched.wake());
+        });
+    }
     if let Some(keeps) = cache.keeps {
         let watched = cache.clone();
         create_effect(move || {
@@ -144,8 +185,12 @@ where
             let borrower = create_signal_in(&scope, Some(me));
             let held_around = create_signal_in(&scope, around);
             let node = scope.context().run(|| {
+                let awake = cache.awake;
+                let named = key.clone();
                 let shown = create_memo(move || {
-                    borrower.get().is_some() && held_around.get().is_none_or(|around| around.get())
+                    let woken = awake.is_some_and(|awake| awake.with(|awake| awake.contains(&named)));
+                    (borrower.get().is_some() || woken)
+                        && held_around.get().is_none_or(|around| around.get())
                 });
                 provide_kept_shown(shown);
                 content.call(())
@@ -198,6 +243,7 @@ where
         let scope = entry.scope.clone();
         drop(entries);
         match keep {
+            true if released.awake(&key) => {}
             true => scope.pause(),
             false => {
                 if let Some(entry) = released.entries.borrow_mut().remove(&key) {
