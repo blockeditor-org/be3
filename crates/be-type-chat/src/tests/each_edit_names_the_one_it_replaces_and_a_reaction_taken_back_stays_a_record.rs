@@ -1,13 +1,13 @@
-use be_block_model::RankedMap;
+use be_block_model::LatestMap;
 
 use super::*;
 use crate::{ChatHeader, Deletion, EditSlot, MessageEdit, Reaction, ReactionKey};
 
 /// What someone with Edit writes at `slot` of the edits at `rank`: a record or a removal.
 fn edit_at(chat: &ChatContent, slot: &EditSlot, rank: u64, edit: Option<&MessageEdit>) -> ChatContent {
-    let edits: RankedMap<EditSlot, MessageEdit> =
+    let edits: LatestMap<EditSlot, MessageEdit> =
         chat.header().field(ObjectId::ROOT, ChatHeader::EDITS);
-    let change = ChatHeader::EDITS.rank(ObjectId::ROOT, slot, rank, edit, edits.next(slot, 99, BO));
+    let change = ChatHeader::EDITS.put(ObjectId::ROOT, slot, edit, edits.next(slot, 99, BO).ranked(rank));
     edited(chat, [[change].into_iter().collect()])
 }
 
@@ -17,10 +17,10 @@ fn reaction_at(
     rank: u64,
     reaction: Option<&Reaction>,
 ) -> ChatContent {
-    let reactions: RankedMap<ReactionKey, Reaction> =
+    let reactions: LatestMap<ReactionKey, Reaction> =
         chat.header().field(ObjectId::ROOT, ChatHeader::REACTIONS);
-    let change =
-        ChatHeader::REACTIONS.rank(ObjectId::ROOT, key, rank, reaction, reactions.next(key, 99, BO));
+    let stamp = reactions.next(key, 99, BO).ranked(rank);
+    let change = ChatHeader::REACTIONS.put(ObjectId::ROOT, key, reaction, stamp);
     edited(chat, [[change].into_iter().collect()])
 }
 

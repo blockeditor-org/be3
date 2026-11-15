@@ -187,7 +187,6 @@ impl Tree {
             | Change::Paint { object, .. }
             | Change::Reshape { object, .. }
             | Change::Stamp { object, .. }
-            | Change::Rank { object, .. }
             | Change::Text { object, .. }
             | Change::Mark { object, .. }
             | Change::Unmark { object, .. }
@@ -344,15 +343,6 @@ impl Tree {
                 stamped,
             } => match self.value_mut(*object, *field) {
                 Some(Value::Latest(entries)) => crate::latest::stamp(entries, key, stamped),
-                _ => false,
-            },
-            Change::Rank {
-                object,
-                field,
-                key,
-                ranked,
-            } => match self.value_mut(*object, *field) {
-                Some(Value::Ranked(entries)) => crate::ranked::rank(entries, key, ranked),
                 _ => false,
             },
             Change::Text { object, field, op } => match self.value_mut(*object, *field) {
@@ -529,7 +519,7 @@ impl Tree {
                     },
                 ))
             }
-            Change::Stamp { .. } | Change::Rank { .. } => None,
+            Change::Stamp { .. } => None,
             Change::Text { object, field, op } => {
                 let sequence = match self.value(*object, *field) {
                     Some(Value::Text(sequence)) => sequence,
@@ -694,7 +684,6 @@ impl Tree {
             | Change::Paint { object, field, .. }
             | Change::Reshape { object, field, .. }
             | Change::Stamp { object, field, .. }
-            | Change::Rank { object, field, .. }
             | Change::Text { object, field, .. }
             | Change::Mark { object, field, .. }
             | Change::Unmark { object, field, .. }
