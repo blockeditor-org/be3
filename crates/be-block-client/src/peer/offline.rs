@@ -667,13 +667,12 @@ impl<S: ObjectStore> Peer<S> {
             Err(ClientError::Refused(code, _)) if lost_access(code) => {
                 self.refused(sequence, block, code).await
             }
-            Err(ClientError::Refused(code, _)) => {
-                self.refs.remove(&[sequence])?;
-                Ok(Drained::Refused {
-                    block,
-                    code,
-                    restored: false,
-                })
+            // As a publish is: set aside only when sending it again cannot help, and otherwise
+            // kept to try again (a quota, a missing key), since a hold dropped could let what a
+            // commit still to publish uses be collected first.
+            Err(ClientError::Refused(code, _)) if never_taken(code) => {
+                self.move_to_unsent(block, Some(code))?;
+                Ok(Drained::SetAside { block, code })
             }
             Err(error) => Err(error),
         }
