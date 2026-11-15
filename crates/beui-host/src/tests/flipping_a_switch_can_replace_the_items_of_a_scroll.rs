@@ -41,7 +41,7 @@ fn check_compact_rows(inset: f32) {
                             });
                             view! {
                                 <Frame
-                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
+                                    padding={move || Sides::symmetric(0.0, padding.get())}
                                 >
                                     <Frame />
                                 </Frame>
