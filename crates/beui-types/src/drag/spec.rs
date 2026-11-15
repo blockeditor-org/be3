@@ -202,6 +202,76 @@ impl<D> DragSpec<D> {
     }
 }
 
+impl<D: 'static> DragSpec<D> {
+    /// The same places with what dropping on each means mapped by `drop`: how a board
+    /// erases a site's places, or tags them with the site.
+    pub fn map<E: 'static>(self, drop: Rc<dyn Fn(D) -> E>) -> DragSpec<E> {
+        match self {
+            DragSpec::Fixed(candidate) => DragSpec::Fixed(Candidate {
+                drop: drop(candidate.drop),
+                rest: candidate.rest,
+                zone: candidate.zone,
+                node: candidate.node,
+                label: candidate.label,
+            }),
+            DragSpec::Closest { of, sticky } => DragSpec::Closest {
+                of: of.into_iter().map(|spec| spec.map(Rc::clone(&drop))).collect(),
+                sticky,
+            },
+            DragSpec::Free { area, drop: named } => DragSpec::Free {
+                area,
+                drop: Rc::new(move |rect| drop(named(rect))),
+            },
+            DragSpec::WhenFar { near, far, reach } => DragSpec::WhenFar {
+                near: Box::new(near.map(Rc::clone(&drop))),
+                far: Box::new(far.map(drop)),
+                reach,
+            },
+            DragSpec::Floating => DragSpec::Floating,
+            DragSpec::SnapRadius {
+                spec,
+                radius,
+                chain,
+            } => DragSpec::SnapRadius {
+                spec: Box::new(spec.map(drop)),
+                radius,
+                chain,
+            },
+            DragSpec::Thrown { spec, speed } => DragSpec::Thrown {
+                spec: Box::new(spec.map(drop)),
+                speed,
+            },
+            DragSpec::Into { region, drop: into } => DragSpec::Into {
+                region,
+                drop: drop(into),
+            },
+            DragSpec::Custom(frame) => DragSpec::Custom(frame),
+        }
+    }
+}
+
+/// What a drag lifts: its payload, erased (a board hands it back typed), and the item's rect
+/// relative to the pointer, which the item keeps while it floats.
+#[derive(Clone)]
+pub struct Carry {
+    pub payload: Rc<dyn std::any::Any>,
+    pub item: Rect,
+}
+
+impl Carry {
+    pub fn new<P: 'static>(payload: P) -> Self {
+        Self {
+            payload: Rc::new(payload),
+            item: Rect::ZERO,
+        }
+    }
+
+    /// The item's rect relative to the pointer, as the source drew it when lifted.
+    pub fn item(self, item: Rect) -> Self {
+        Self { item, ..self }
+    }
+}
+
 /// Which place a frame chose: the position of its spec in the tree, counted depth first, so it
 /// stays the same while the spec does.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
