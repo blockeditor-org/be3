@@ -405,7 +405,7 @@ impl std::fmt::Debug for Effect {
 impl Effect {
     fn of(computation: &Rc<Computation>) -> Self {
         Self {
-            key: Some(arena::insert_owned(Rc::new(Rc::downgrade(computation)))),
+            key: Some(arena::insert_owned_computation(Rc::downgrade(computation))),
         }
     }
 
@@ -415,7 +415,7 @@ impl Effect {
     }
 
     fn computation(&self) -> Option<Rc<Computation>> {
-        arena::get::<Weak<Computation>>(self.key?)?.upgrade()
+        arena::get_computation(self.key?)
     }
 
     /// Stops it now, as disposing its scope would. Does nothing once it has stopped.
