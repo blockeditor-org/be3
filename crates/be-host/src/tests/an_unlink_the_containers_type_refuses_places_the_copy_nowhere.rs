@@ -13,7 +13,7 @@ fn an_unlink_the_containers_type_refuses_places_the_copy_nowhere() {
     let (source, notes) = (Uuid::new_v4(), Uuid::new_v4());
     let text = TextContent::CONTENT_TYPE;
     make(source, text, BlockParent::Root, "Source", TextBlock::of("source").encode());
-    make(notes, text, BlockParent::Root, "Notes", TextBlock::of("no link").encode());
+    make(notes, text, BlockParent::Root, "Unlinked notes", TextBlock::of("no link").encode());
     synced();
     known(&[text]);
     let mut core = core();
@@ -28,7 +28,7 @@ fn an_unlink_the_containers_type_refuses_places_the_copy_nowhere() {
     };
     settle(&mut core);
 
-    assert!(refused("still links to the original"));
+    assert!(refused("Unlinked notes can't take its own copy"));
     assert_ne!(
         be_host_stack::node(copy).and_then(|node| node.parent),
         Some(BlockParent::Block(notes)),

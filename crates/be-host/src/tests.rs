@@ -165,6 +165,8 @@ fn pending(core: &HostCore) -> String {
     copies.chain(transfers).chain(reorders).collect::<Vec<_>>().join(", ")
 }
 
+/// Whether a refusal containing `text` was shown. Notices are the process's, and a target's tests
+/// share a process: `text` names what only its own test does.
 fn refused(text: &str) -> bool {
     notices::shown()
         .iter()
