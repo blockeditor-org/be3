@@ -4,6 +4,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::reactive::Callback;
+use crate::reactive::ForEachFill;
 use crate::reactive::ForEachRef;
 use crate::reactive::Get;
 use crate::reactive::KeyedItems;
@@ -14,6 +15,7 @@ use crate::reactive::RenderFn;
 use crate::reactive::Set;
 use crate::reactive::Signal;
 use crate::reactive::ScopeContext;
+use crate::reactive::ShownRow;
 use crate::reactive::SlotHost;
 use crate::reactive::SlotId;
 use crate::reactive::create_binding;
@@ -52,7 +54,9 @@ struct Rows<K: Clone + Hash + Eq + 'static> {
     watch: Watch,
     /// The place each built row was handed, by its numbered key.
     places: Rc<RefCell<HashMap<(K, usize), Signal<usize>>>>,
-    handle: Option<ForEachRef<K, NodeId>>,
+    /// The handle this list fills, if given one: the keys as they change, the rows each
+    /// time the rows built change, at a layout pass, as natively.
+    fill: Option<ForEachFill<K, NodeId>>,
 }
 
 impl<K: Clone + Hash + Eq + 'static> Rows<K> {
@@ -73,6 +77,9 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
             entries.sort_unstable_by_key(|(at, _)| *at);
             entries
         };
+        if let Some(fill) = self.fill {
+            fill.keys(keys.iter().map(|(key, _)| key.clone()).collect());
+        }
         let estimated = self.metrics.borrow().estimated();
         *self.metrics.borrow_mut() = RowMetrics::measured(keys.len(), estimated, entries);
         *self.keys.borrow_mut() = keys;
@@ -149,7 +156,8 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
         let keys = self.keys.borrow();
         let built = &keys[start.min(keys.len())..end.min(keys.len())];
         let mut places = self.places.borrow_mut();
-        places.retain(|key, _| built.contains(key));
+        let kept: be_lib_stable_hash::HashSet<&(K, usize)> = built.iter().collect();
+        places.retain(|key, _| kept.contains(key));
         for (at, key) in built.iter().enumerate() {
             if let Some(place) = places.get(key)
                 && place.get_untracked() != start + at
@@ -157,7 +165,7 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
                 place.set(start + at);
             }
         }
-        let Some(handle) = self.handle else {
+        let Some(fill) = self.fill else {
             return;
         };
         let nodes = self.nodes.borrow();
@@ -166,10 +174,15 @@ impl<K: Clone + Hash + Eq + 'static> Rows<K> {
             .zip(nodes.iter())
             .filter_map(|(key, node)| {
                 let place = places.get(key)?;
-                Some((key.0.clone(), place.read_only(), vec![*node]))
+                Some(ShownRow {
+                    key: key.0.clone(),
+                    index: place.read_only(),
+                    nodes: vec![*node],
+                })
             })
             .collect();
-        handle.show(keys.iter().map(|(key, _)| key.clone()).collect(), rows);
+        drop((places, nodes, keys));
+        fill.rows(rows);
     }
 
     fn place_spacers(&self) {
@@ -282,7 +295,7 @@ where
         stale: Cell::new(true),
         watch: Watch::new(),
         places,
-        handle,
+        fill: handle.map(|handle| handle.claim()),
     });
     let held = Rc::clone(&rows);
     create_binding(move || held.set_direction(direction.get()));

@@ -295,11 +295,16 @@ changes and reads it through a signal; for items held in a `KeyedStore`, list
 the keys and let each row read its own item from the store. A row may take its
 `index: ReadSignal<usize>` after its item, in a `ForEach` or a `VirtualList` alike.
 Code around a list that needs where a key sits or which nodes its row built makes a
-`ForEachRef<K, NodeId>` (as it makes a `NodeRef`) and hands it to the list as `handle`
-(`keys`, `index`/`index_of`, `nodes_of`, `key_of`); a `VirtualList` places every key
-but holds nodes only for the rows it has built, and a `Choice` takes one for its
-options too. Children are known to the handle by `SlotChild::Node`: the node, for
-node children whatever parent places them.
+`ForEachRef<K, NodeId>` (as it makes a `NodeRef`) and hands it to one list as `handle`
+(`keys`, `index`/`index_of`, `nodes_of`, `key_of`, and `for_each_row` to walk the built
+rows in order); a `VirtualList` places every key but holds nodes only for the rows it has
+built, and a `Choice` takes one for its options too, reporting each option's `item`. A
+lookup by key costs the same however long the list; a repeated key is known by its first
+place and `nodes_of` gives every repeat's nodes. The list fills the handle through
+`claim` (two lists sharing one is a debug assertion), and it is empty again once the list
+is gone. A `ForEach` fills it as it builds; both `VirtualList` cores give the keys as they
+change and the built rows once per layout pass. Children are known to the handle by
+`SlotChild::Node`: the node, for node children whatever parent places them.
 
 ### Context
 

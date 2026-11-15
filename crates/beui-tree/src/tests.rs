@@ -15,6 +15,8 @@ mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
 mod a_fallback_given_after_the_children_or_outside_view_is_inferred;
 mod a_for_each_builds_a_row_for_each_repeat_of_an_item;
 mod a_for_each_handle_follows_each_key_across_a_reorder_an_insert_and_a_removal;
+mod a_for_each_handle_is_empty_once_its_list_is_gone;
+mod a_for_each_handle_knows_a_repeated_key_by_its_first_place_and_holds_every_repeat;
 mod a_for_each_keeps_its_fallback_when_a_row_changes_as_the_list_empties;
 mod a_for_each_shows_its_fallback_while_it_has_no_keys;
 mod a_match_shows_the_first_case_that_holds;
@@ -227,3 +229,4 @@ fn OrdinaryProps(test_id: String, node_ref: String) -> DomNode {
         <Element tag="p" text={format!("{test_id}:{node_ref}")} />
     }
 }
+mod two_lists_given_one_for_each_handle_is_a_mistake;
