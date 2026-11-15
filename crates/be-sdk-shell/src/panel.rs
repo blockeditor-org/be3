@@ -294,7 +294,7 @@ pub(crate) fn BlockPanel(
 /// A revision's preview, inside the tab's body under the revision bar: its editor's dock does not
 /// join the tab, which would take the whole tab and hide that bar.
 #[component]
-fn RevisionPreview(editor: Editor, preview: Memo<Option<ChildTarget>>) -> NodeId {
+fn RevisionPreview(editor: Editor, preview: Prop<Option<ChildTarget>>) -> NodeId {
     provide_context(DockJoin::none());
     view! {
         <ChildBlock
