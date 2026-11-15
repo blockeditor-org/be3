@@ -24,7 +24,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
                     variant=ButtonVariant::Primary
                     on_click={move || pressed.set(true)}
                 />
-                <Show keep_alive=true condition={pressed}>
+                <Show keep_alive=true value={pressed}>
                     <Text>"Pressed"</Text>
                 </Show>
                 <Button
@@ -32,7 +32,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
                     variant=ButtonVariant::Primary
                     on_click={move || then.set(true)}
                 />
-                <Show keep_alive=true condition={then}>
+                <Show keep_alive=true value={then}>
                     <Text>"Then pressed"</Text>
                 </Show>
             </styled::List>

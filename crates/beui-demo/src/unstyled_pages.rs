@@ -174,7 +174,7 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
                     }}
                     align=Align::Center
                 >
-                    <Show condition={checked}>
+                    <Show value={checked}>
                         <Frame width=MARK_SIZE height=MARK_SIZE fill=ColorRole::Accent />
                     </Show>
                 </Frame>
@@ -500,7 +500,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                     border={Border::new(ColorRole::TextMuted).width(Stroke::Focus)}
                     align=Align::Center
                 >
-                    <Show condition={selected}>
+                    <Show value={selected}>
                         <Frame
                             width=MARK_SIZE
                             height=MARK_SIZE
@@ -701,7 +701,7 @@ fn ExportMenu() -> NodeId {
             <List direction=Direction::Horizontal spacing=Space::None>
                 <unstyled::MenuButton
                     items={view! {
-                        <ForEach keys={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
+                        <ForEach value={(0..formats.len()).collect::<Vec<_>>()}>|index: usize|
                             <unstyled::MenuItem
                                 label={formats[index]}
                                 on_click={move || exported.set(format!("Exported as {}", formats[index]))}
@@ -846,7 +846,7 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
                 >
                     <List spacing=Space::Md>
                         <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
-                        <ForEach keys={fruits}>|fruit: usize|
+                        <ForEach value={fruits}>|fruit: usize|
                             <unstyled::Draggable
                                 payload={Some(fruit)}
                                 preview={move |fruit: usize| view! {
@@ -902,7 +902,7 @@ fn ThinScroll() -> NodeId {
                         <Frame padding=Space::Lg>
                             <List spacing=Space::Sm>
                                 <ForEach
-                                    keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}
+                                    value={(1..=SCROLL_LINES).collect::<Vec<usize>>()}
                                 >|line: usize|
                                     <Text>{format!("Line {line}")}</Text>
                                 </ForEach>

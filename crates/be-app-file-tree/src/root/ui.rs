@@ -197,7 +197,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     >
                         <Frame fill=ColorRole::Background>
                             <List spacing=Space::None>
-                                <Show condition={filtering}>
+                                <Show value={filtering}>
                                     <Frame
                                         padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}
                                     >
@@ -461,12 +461,12 @@ fn TreeRow(
                         {after}
                         <Span size=TextSize::Sm color=TextColor::Muted>{beside}</Span>
                     </Text>
-                    <Show condition={detailed}>
+                    <Show value={detailed}>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                     </Show>
                 </List>
             </ListItem>
-            <ForEach keys={tag_keys}>|tag: Uuid| {
+            <ForEach value={tag_keys}>|tag: Uuid| {
                 let shown = create_memo(move || {
                     row.get()
                         .and_then(|row| row.tags.into_iter().find(|held| held.id == tag))
@@ -477,7 +477,7 @@ fn TreeRow(
                 }
             }</ForEach>
             <Show
-                condition={move || row.with(|row| row.as_ref().is_some_and(|row| row.dynamic_artifact))}
+                value={move || row.with(|row| row.as_ref().is_some_and(|row| row.dynamic_artifact))}
             >
                 <Tooltip label="Generated from another block">
                     <Text size={glyph_size} color={generated_color} align=TextAlign::Center>
@@ -485,14 +485,14 @@ fn TreeRow(
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={move || access.with(Option::is_some)}>
+            <Show value={move || access.with(Option::is_some)}>
                 <Tooltip label={access_label}>
                     <Text size={glyph_size} color={access_color} align=TextAlign::Center>
                         <Icon glyph={access} />
                     </Text>
                 </Tooltip>
             </Show>
-            <Show condition={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
+            <Show value={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
                 <RowActions
                     editor={editor}
                     row={row}
@@ -509,7 +509,7 @@ fn RowGlyph(row: Memo<Option<Row>>) -> Children<ListItem> {
     let glyph = create_memo(move || row.get().and_then(|row| row.glyph));
     let glyph_size = glyph_size();
     Children::from([into_segment(view! {
-        <Show condition={move || glyph.with(Option::is_some)}>
+        <Show value={move || glyph.with(Option::is_some)}>
             <Text
                 size={glyph_size}
                 color={move || {
@@ -546,12 +546,12 @@ fn SectionRow(
                         <Span background=ColorRole::AccentSoft>{hit}</Span>
                         {after}
                     </Text>
-                    <Show condition={detailed}>
+                    <Show value={detailed}>
                         <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{detail}</Text>
                     </Show>
                 </List>
             </ListItem>
-            <Show condition={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
+            <Show value={move || row.with(|row| row.as_ref().is_some_and(has_actions))}>
                 <RowActions
                     editor={editor}
                     row={row}
@@ -664,7 +664,7 @@ pub(crate) fn OpenWith(editor: Editor, row: Memo<Option<Row>>) -> MenuItem {
             disabled={move || keys.with(Vec::is_empty)}
             row_test_id={"file-tree.open-with".to_owned()}
         >
-            <ForEach keys={keys}>|chosen: Uuid|
+            <ForEach value={keys}>|chosen: Uuid|
                 <MenuItem
                     label={move || {
                         editors.with(|editors| {
@@ -714,7 +714,7 @@ pub(crate) fn ExportAs(
             disabled={move || keys.with(Vec::is_empty)}
             row_test_id={row_test_id}
         >
-            <ForEach keys={keys}>|format: ExportFormat| {
+            <ForEach value={keys}>|format: ExportFormat| {
                 let label = move || {
                     shown.with(|shown| {
                         shown
@@ -796,7 +796,7 @@ fn RowActions(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
             <Show
-                condition={move || {
+                value={move || {
                     row.with(|row| {
                         row.as_ref()
                             .is_some_and(|row| row.sets_access && row.access.can_manage())
@@ -811,7 +811,7 @@ fn RowActions(
                     on_click={share}
                 />
             </Show>
-            <Show condition={move || settings.with(Option::is_some)}>
+            <Show value={move || settings.with(Option::is_some)}>
                 <RowButton
                     row_focused={row_focused}
                     glyph=ICON_SETTINGS

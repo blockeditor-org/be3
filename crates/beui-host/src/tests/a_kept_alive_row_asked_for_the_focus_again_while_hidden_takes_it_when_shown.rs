@@ -16,7 +16,7 @@ fn a_kept_alive_row_asked_for_the_focus_again_while_hidden_takes_it_when_shown()
                 <Button on_click={|| ()}>
                     <Text>"outside"</Text>
                 </Button>
-                <Show keep_alive=true condition={visible}>
+                <Show keep_alive=true value={visible}>
                     <Button @node_ref=&row focused={wanted} on_click={|| ()}>
                         <Text>"row"</Text>
                     </Button>

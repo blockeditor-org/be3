@@ -28,7 +28,7 @@ fn a_scroll_keeps_its_place_when_a_container_above_reflows_after_a_resize() {
                                 <Frame height fill=Color32::WHITE />
                             }
                         }</Container>
-                        <ForEach keys={indices(rows.len())}>|index: usize|
+                        <ForEach value={indices(rows.len())}>|index: usize|
                             <Frame @node_ref={&rows[index]} height=40.0 />
                         </ForEach>
                     </List>

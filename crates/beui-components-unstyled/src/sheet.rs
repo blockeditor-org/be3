@@ -1207,7 +1207,7 @@ pub fn Sheet(
     let panel = panel.once();
     let sheet = view! {
         <List spacing=0.0>
-            <Show keep_alive=true condition={move || !gone.get()}>
+            <Show keep_alive=true value={move || !gone.get()}>
                 <ListItem
                     length={move || match rest_at.get() {
                         Rest::Free(height) => Some(height),

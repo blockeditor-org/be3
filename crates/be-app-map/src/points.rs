@@ -59,7 +59,7 @@ pub(crate) fn Marker(
                         <Icon glyph=ICON_MAP_PIN />
                     </Text>
                 </Frame>
-                <Show condition={named}>|| {
+                <Show value={named}>|| {
                     let label = label.clone();
                     view! {
                         <Frame

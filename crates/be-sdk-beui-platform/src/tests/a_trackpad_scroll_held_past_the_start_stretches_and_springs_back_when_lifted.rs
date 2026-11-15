@@ -17,7 +17,7 @@ fn a_trackpad_scroll_held_past_the_start_stretches_and_springs_back_when_lifted(
                 <List spacing=Space::None>
                     <ListItem grow=1.0>
                         <Scroll @node_ref=&scroll>
-                            <ForEach keys={(0..40).collect::<Vec<usize>>()}>|_: usize|
+                            <ForEach value={(0..40).collect::<Vec<usize>>()}>|_: usize|
                                 <Frame padding={Padding::vertical(Space::Xl2)}>
                                     <Frame />
                                 </Frame>

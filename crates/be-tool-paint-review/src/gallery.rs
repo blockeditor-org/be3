@@ -77,7 +77,7 @@ pub(crate) fn Gallery(review: Review) -> NodeId {
                                         wrap=true
                                         @test_id={"paint_review.grid"}
                                     >
-                                        <ForEach keys={keys}>|index: usize|
+                                        <ForEach value={keys}>|index: usize|
                                             <Tile review index />
                                         </ForEach>
                                     </List>
@@ -172,7 +172,7 @@ fn Tile(review: Review, index: usize) -> NodeId {
                         >
                             <Layers>
                                 <Picture image={image} fit=ImageFit::ScaleDown />
-                                <Show condition={move || !notice.with(String::is_empty)}>
+                                <Show value={move || !notice.with(String::is_empty)}>
                                     <Frame align=Align::Center>
                                         <Text
                                             style=TextStyle::CAPTION
@@ -251,7 +251,7 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
     });
     view! {
         <Frame align={Align2::CENTER}>
-            <Show condition={move || shown.with(Option::is_some)}>
+            <Show value={move || shown.with(Option::is_some)}>
                 <Frame
                     fill=ColorRole::Surface
                     border={Some(Border::DEFAULT)}
@@ -260,7 +260,7 @@ fn Preview(review: Review, size: ReadSignal<Vec2>) -> NodeId {
                     @test_id={"paint_review.preview"}
                 >
                     <List spacing=Space::Xs align=Align::Center>
-                        <Show condition={move || picture.with(Option::is_some)}>
+                        <Show value={move || picture.with(Option::is_some)}>
                             <Frame width={width} height={height}>
                                 <Picture image={image} fit=ImageFit::Fill smooth=false />
                             </Frame>

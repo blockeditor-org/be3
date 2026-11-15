@@ -62,7 +62,7 @@ pub fn DatabaseValueEditor(
     });
     view! {
         <List spacing=FIELD_SPACING>
-            <ForEach keys={keys}>|id: Uuid| {
+            <ForEach value={keys}>|id: Uuid| {
                 let field = field_of(fields, id);
                 let value = value_of(values, id);
                 let test_id = format!("{}.field.{id}", prefix.get_untracked());
@@ -117,11 +117,11 @@ fn DatabaseValueRow(
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Show condition={headings}>
+                <Show value={headings}>
                     <Text style=TextStyle::CAPTION>{heading}</Text>
                 </Show>
                 <Spacer />
-                <Show condition={set}>
+                <Show value={set}>
                     <Button
                         icon_only=true
                         glyph=ICON_X
@@ -384,7 +384,7 @@ fn EnumValue(
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>|id: Uuid| {
+                <ForEach value={keys}>|id: Uuid| {
                     let label = create_memo(move || {
                         options.with(|options| {
                             options
@@ -590,12 +590,12 @@ fn RelationValue(
     };
     view! {
         <List spacing=SPACING>
-            <Show condition={move || target.get().is_none()}>
+            <Show value={move || target.get().is_none()}>
                 <Text style=TextStyle::CAPTION>"Choose the database this column links to."</Text>
             </Show>
             <Select
                 options={view! {
-                    <ForEach keys={keys}>|link: RowRef| {
+                    <ForEach value={keys}>|link: RowRef| {
                         let label = create_memo(move || {
                             choices.with(|choices| {
                                 choices
@@ -679,7 +679,7 @@ fn LinksValue(
     let add_id = format!("{id}.add");
     view! {
         <List spacing=SPACING>
-            <ForEach keys={linked}>|link: RowRef| {
+            <ForEach value={linked}>|link: RowRef| {
                 let remove_id = format!("{id}.remove.{}", link.row);
                 let label = create_memo(move || {
                     labels.with(|labels| labels.row(&link))
@@ -710,7 +710,7 @@ fn LinksValue(
             }</ForEach>
             <Select
                 options={view! {
-                    <ForEach keys={add_keys}>|link: RowRef| {
+                    <ForEach value={add_keys}>|link: RowRef| {
                         let label = create_memo(move || {
                             addable.with(|rows| {
                                 rows.iter()

@@ -315,7 +315,7 @@ pub(crate) fn ProgramsBar(shell: Shell, display: u32, layout: DockingLayout<TabI
     view! {
         <DockBarSurface @test_id={"desktop.bar.apps"}>
             <DockBarGrip bounds={bar_bounds()} />
-            <Show condition={shown}>
+            <Show value={shown}>
                 <ProgramsPanelButton programs_panel={shell.programs_panel} display layout />
             </Show>
         </DockBarSurface>
@@ -377,10 +377,10 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
     view! {
         <List direction align=Align::Center spacing=STATUS_SPACING>
             <TrayItems editor={editor} direction />
-            <Show condition={shell.layouts.several}>
+            <Show value={shell.layouts.several}>
                 <LayoutButton layouts={shell.layouts} />
             </Show>
-            <Show condition={keyboard}>
+            <Show value={keyboard}>
                 <Button
                     icon_only=true
                     glyph=ICON_KEYBOARD
@@ -391,10 +391,10 @@ fn StatusItems(shell: Shell, display: u32) -> NodeId {
                     on_click={toggle_keyboard}
                 />
             </Show>
-            <Show condition={rotatable}>
+            <Show value={rotatable}>
                 <RotateButton editor={editor} display={screen} />
             </Show>
-            <Show condition={epaper}>
+            <Show value={epaper}>
                 <Button
                     icon_only=true
                     glyph=ICON_REFRESH_CW

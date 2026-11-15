@@ -179,7 +179,7 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                 row_test_id={"file-tree.section.share".to_owned()}
                 on_click={share}
             />
-            <Show condition={offers_delete}>
+            <Show value={offers_delete}>
                 <MenuItem
                     label="Delete"
                     glyph=ICON_TRASH
@@ -191,7 +191,7 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
             </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.section.settings".to_owned()} />
-            <Show condition={leavable}>
+            <Show value={leavable}>
                 <MenuItem
                     label="Leave"
                     glyph=ICON_LOG_OUT
@@ -365,7 +365,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 disabled={rooted}
                 row_test_id={"file-tree.move-to".to_owned()}
             >
-                <ForEach keys={destination_keys}>|target: Uuid| {
+                <ForEach value={destination_keys}>|target: Uuid| {
                     let label = move || {
                         destinations.with(|shown| {
                             shown
@@ -433,7 +433,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 on_click={inspecting}
             />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
-            <Show condition={restorable}>
+            <Show value={restorable}>
                 <MenuItem
                     label="Restore"
                     glyph=ICON_ROTATE_CCW_CLOCK
@@ -443,16 +443,16 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             </Show>
             <Appearance editor picker row />
             <BlockSettings editor row row_test_id={"file-tree.settings".to_owned()} />
-            <Show condition={taggable}>
+            <Show value={taggable}>
                 <TagsMenu editor row />
             </Show>
-            <Show condition={choosable}>
+            <Show value={choosable}>
                 <OpensIn editor row />
             </Show>
-            <Show condition={homeable}>
+            <Show value={homeable}>
                 <HomeItems editor row />
             </Show>
-            <Show condition={leavable}>
+            <Show value={leavable}>
                 <MenuItem
                     label="Leave"
                     glyph=ICON_LOG_OUT

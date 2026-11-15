@@ -25,7 +25,7 @@ pub fn Banner(
     let id = id.get_untracked();
     view! {
         <List spacing=Space::None>
-            <Show condition={move || message.with(Option::is_some)}>
+            <Show value={move || message.with(Option::is_some)}>
                 <BannerBar
                     text
                     id={id.clone()}

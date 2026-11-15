@@ -146,13 +146,13 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <ListItem grow=1.0>
                     <Card>
                         <List spacing=Space::Md>
-                            <Show condition={empty}>
+                            <Show value={empty}>
                                 <Text align=TextAlign::Center>"No tasks match this view."</Text>
                             </Show>
                             <ListItem grow=1.0>
                                 <Scroll>
                                     <List spacing=Space::Md>
-                                        <ForEach keys={visible} view={rows} />
+                                        <ForEach value={visible} view={rows} />
                                     </List>
                                 </Scroll>
                             </ListItem>

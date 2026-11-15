@@ -54,7 +54,7 @@ pub(crate) fn FilesToolbar(adding: Adding, shown: Prop<bool>) -> DynamicSegment<
                             on_click={move || editor.show_host_menu(account)}
                         />
                     </List>
-                    <Show condition={move || focus.with(Option::is_some)}>
+                    <Show value={move || focus.with(Option::is_some)}>
                         <Location zoom />
                     </Show>
                 </List>
@@ -181,7 +181,7 @@ fn NewButton(adding: Adding) -> NodeId {
                     </List>
                 }}
                 items={view! {
-                    <ForEach keys={workspaces}>|id: Uuid| {
+                    <ForEach value={workspaces}>|id: Uuid| {
                         let row = tree.row(RowKey::Block(vec![id]));
                         view! {
                             <MenuItem
@@ -207,7 +207,7 @@ fn NewButton(adding: Adding) -> NodeId {
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::None>
-            <Show condition={move || addable.with(Option::is_some)} fallback={menu}>
+            <Show value={move || addable.with(Option::is_some)} fallback={menu}>
                 <Button
                     @node_ref={&here}
                     glyph=ICON_PLUS
@@ -242,7 +242,7 @@ fn Location(zoom: Zoom) -> NodeId {
                 label="Up one level"
                 on_click={move || zoom.up()}
             />
-            <ForEach keys={trail}>|key: RowKey| {
+            <ForEach value={trail}>|key: RowKey| {
                 let shown = key.clone();
                 let label = create_memo(move || {
                     focus.with(|focus| {

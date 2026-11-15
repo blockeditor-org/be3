@@ -11,7 +11,7 @@ fn a_show_with_a_fallback_swaps_runs_of_different_lengths() {
             <Element tag="div">
                 <Element tag="b" text="before" />
                 <Show
-                    condition={editing}
+                    value={editing}
                     fallback={|| view! {
                         <Element tag="i" text="one" />
                         <Element tag="i" text="two" />

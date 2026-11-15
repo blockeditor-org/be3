@@ -21,7 +21,7 @@ pub fn Boat(editor: Editor) -> NodeId {
     let not_on_the_web = move || {
         view! {
             <Show
-                condition={move || state.key.with(Option::is_none) || state.reconnecting.get()}
+                value={move || state.key.with(Option::is_none) || state.reconnecting.get()}
                 fallback={move || view! {
                     <Sandboxes state />
                 }}
@@ -34,7 +34,7 @@ pub fn Boat(editor: Editor) -> NodeId {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
-                    <Show condition={web} fallback={not_on_the_web}>
+                    <Show value={web} fallback={not_on_the_web}>
                         <OnTheWeb />
                     </Show>
                 </List>

@@ -11,11 +11,11 @@ fn view_control_flow_and_bindings_update_the_html_tree() {
         view! {
             <Element tag="main" @attr={("title", value)}>
                 <Text value={value} />
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Element tag="p">"visible"</Element>
                 </Show>
                 <Element tag="ul">
-                    <ForEach keys={items}>|item: String|
+                    <ForEach value={items}>|item: String|
                         <Element tag="li">{item}</Element>
                     </ForEach>
                 </Element>

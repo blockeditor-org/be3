@@ -19,7 +19,7 @@ fn Stacked(windows: Windows) -> NodeId {
     ORDER.with(|held| *held.borrow_mut() = Some(order));
     view! {
         <Layers>
-            <ForEach keys={order}>|id: WindowId|
+            <ForEach value={order}>|id: WindowId|
                 <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                     <WindowView windows id />
                 </Frame>

@@ -367,7 +367,7 @@ pub fn TableLines(line: TextLine, color: Memo<Color>, rule: f32) -> NodeId {
     view! {
         <Layers>
             <Layers>
-                <ForEach keys={edges}>|edge: u32|
+                <ForEach value={edges}>|edge: u32|
                     <Frame
                         padding={Sides::new(f32::from_bits(edge), 0.0, 0.0, 0.0)}
                         align={Align2::new(Align::Start, Align::Stretch)}

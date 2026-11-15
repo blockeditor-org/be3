@@ -66,7 +66,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                                 "In Recently Deleted"
                             </Text>
                         })}
-                        <Show condition={editable}>
+                        <Show value={editable}>
                             <Button
                                 label="Edit"
                                 variant=ButtonVariant::Secondary

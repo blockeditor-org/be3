@@ -18,7 +18,7 @@ fn touch_overscroll_bands_without_hovering_a_row() {
                                 <Frame />
                             </Frame>
                         </Interactive>
-                        <ForEach keys={indices(20)}>|_: usize|
+                        <ForEach value={indices(20)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />
                             </Frame>

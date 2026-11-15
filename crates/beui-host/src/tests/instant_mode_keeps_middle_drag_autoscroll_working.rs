@@ -12,7 +12,7 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(100)}>|index: usize|
+                        <ForEach value={indices(100)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} />
                         </ForEach>
                     </Scroll>

@@ -232,7 +232,7 @@ fn DialogBodyFace(
         <Frame padding={below} @test_id={id}>
             <Frame padding=PADDING>
                 <List spacing=SPACING>
-                    <Show condition={titled}>
+                    <Show value={titled}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <ListItem grow=1.0>
                                 <Text style=TextStyle::TITLE>{title}</Text>
@@ -251,7 +251,7 @@ fn DialogBodyFace(
                         </List>
                     </Show>
                     {content}
-                    <Show keep_alive=true condition={footed}>
+                    <Show keep_alive=true value={footed}>
                         <DialogFooter handle id />
                     </Show>
                 </List>
@@ -269,7 +269,7 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
     view! {
         <List spacing=Space::None @test_id={named(id, "actions")}>
             <Show
-                condition={narrow}
+                value={narrow}
                 fallback={move || view! {
                     <List
                         direction=Direction::Horizontal
@@ -278,20 +278,20 @@ fn DialogFooter(handle: DialogBodyHandle, id: Memo<String>) -> NodeId {
                         wrap=true
                         spacing=ACTION_SPACING
                     >
-                        <ForEach keys={start}>|index: usize|
+                        <ForEach value={start}>|index: usize|
                             <ActionButton handle index id />
                         </ForEach>
-                        <Show condition={move || !start.with(Vec::is_empty)}>
+                        <Show value={move || !start.with(Vec::is_empty)}>
                             <Spacer />
                         </Show>
-                        <ForEach keys={end}>|index: usize|
+                        <ForEach value={end}>|index: usize|
                             <ActionButton handle index id />
                         </ForEach>
                     </List>
                 }}
             >
                 <List spacing=ACTION_SPACING>
-                    <ForEach keys={end}>|index: usize|
+                    <ForEach value={end}>|index: usize|
                         <ActionButton handle index id />
                     </ForEach>
                 </List>

@@ -93,7 +93,7 @@ fn PaintReview(
         <Frame fill=ColorRole::Background>
             <List spacing=Space::None>
                 <Show
-                    condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Loading))}
+                    value={move || manifest.with(|manifest| matches!(manifest, Fetch::Loading))}
                 >
                     <ListItem grow=1.0>
                         <Frame align=Align::Center>
@@ -111,7 +111,7 @@ fn PaintReview(
                         </Frame>
                     </ListItem>
                 </Show>
-                <Show condition={move || failure.with(Option::is_some)}>
+                <Show value={move || failure.with(Option::is_some)}>
                     <ListItem grow=1.0>
                         <Frame align=Align::Center padding=MESSAGE_PADDING>
                             <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
@@ -130,10 +130,10 @@ fn PaintReview(
                     </ListItem>
                 </Show>
                 <Show
-                    condition={move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_)))}
+                    value={move || manifest.with(|manifest| matches!(manifest, Fetch::Ready(_)))}
                 >
                     <Show
-                        condition={move || review.open.with(Option::is_some)}
+                        value={move || review.open.with(Option::is_some)}
                         fallback={move || view! {
                             <ListItem grow=1.0>
                                 <Gallery review={review} />

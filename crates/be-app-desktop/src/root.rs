@@ -64,7 +64,7 @@ impl be_sdk_beui::BeuiRoot for DesktopRoot {
     fn Display(editor: Editor, display: u32) -> NodeId {
         let shared = shared(editor.block_id());
         view! {
-            <Show condition={move || shared.with(Option::is_some)}>|| {
+            <Show value={move || shared.with(Option::is_some)}>|| {
                 let Some(desktop) = shared.get_untracked() else {
                     return view! {
                         <Frame />
@@ -155,7 +155,7 @@ fn DisplayBody(desktop: Desktop, display: u32) -> NodeId {
                 </ListItem>
                 <edges::HiddenBands edges={shell.edges} layout=host display />
                 <media::LevelDisplay osd={desktop.osd} area display />
-                <Show condition={launches}>
+                <Show value={launches}>
                     <ProgramsPanelKey
                         programs_panel={shell.programs_panel}
                         windows={shell.windows}
@@ -232,18 +232,18 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                                     <Frame />
                                 }}
                             ></DockPane>
-                            <ForEach keys={block_windows}>|tab: TabId|
+                            <ForEach value={block_windows}>|tab: TabId|
                                 <BlockWindow workspace tab />
                             </ForEach>
-                            <ForEach keys={program_windows}>|tab: TabId|
+                            <ForEach value={program_windows}>|tab: TabId|
                                 <ProgramWindow workspace tab />
                             </ForEach>
                             <ForEach
-                                keys={dialog_windows}
+                                value={dialog_windows}
                             >|(window, parent): (HostWindowId, HostWindowId)|
                                 <WindowDialog workspace window parent />
                             </ForEach>
-                            <ForEach keys={panels}>|panel: HostPanel|
+                            <ForEach value={panels}>|panel: HostPanel|
                                 <PanelWindow workspace panel />
                             </ForEach>
                             <DockBar id={bars.programs} placement=PROGRAMS_PLACE>
@@ -261,16 +261,16 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                 <WorkspaceDialogs workspace />
                 <UnshownWindows workspace />
                 <bar::UnreadableBarsDialog editor />
-                <Show condition={keyed}>
+                <Show value={keyed}>
                     <MediaKeys editor osd />
                 </Show>
-                <Show condition={several_layouts}>
+                <Show value={several_layouts}>
                     <layouts::LayoutKey layouts />
                 </Show>
                 <WindowShortcuts editor host />
                 <edges::HiddenBands edges={shell.edges} layout=host display=0 />
                 <media::LevelDisplay osd area display=0 />
-                <Show condition={launches}>
+                <Show value={launches}>
                     <ProgramsPanelKey programs_panel windows host />
                 </Show>
                 <ProgramsPanelOverlay programs_panel display=0 layout area />

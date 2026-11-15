@@ -370,7 +370,7 @@ pub fn Swatches(
     view! {
         <Choice
             options={view! {
-                <ForEach keys={indices}>|index: usize|
+                <ForEach value={indices}>|index: usize|
                     <ChoiceOption label={labels[index].clone()} />
                 </ForEach>
             }}

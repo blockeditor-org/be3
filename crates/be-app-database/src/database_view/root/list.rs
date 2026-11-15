@@ -111,7 +111,7 @@ pub fn ListView(data: Data) -> NodeId {
                     <Scroll @test_id={"database-view.list"}>
                         <Frame padding={Padding::ZERO.bottom(Space::Xl3)}>
                             <List spacing=Space::None>
-                                <Show condition={empty}>
+                                <Show value={empty}>
                                     <Frame padding={Padding::symmetric(Space::Xl, Space::Lg)}>
                                         <Text style=TextStyle::CAPTION>{blank}</Text>
                                     </Frame>
@@ -269,7 +269,7 @@ fn GroupHeader(data: Data, groups: Memo<Vec<Group>>, key: GroupKey) -> NodeId {
                     @test_id={format!("database-view.group.{test_key}.toggle")}
                     on_click={toggle}
                 />
-                <Show condition={marked}>
+                <Show value={marked}>
                     <ChoiceMark option={option} size=MARK />
                 </Show>
                 <Text>{label}</Text>
@@ -407,7 +407,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
         <ListRow @node_ref=&shown selected={selected} @test_id={element_test_id} on_activate={pick}>
             <List spacing=Space::None>
                 <Show
-                    condition={narrow}
+                    value={narrow}
                     fallback={move || view! {
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <ListItem length=CODE_WIDTH>
@@ -452,7 +452,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>, viewport: ReadSignal<Vec2>) 
 fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
-            <ForEach keys={marks}>|field: Uuid| {
+            <ForEach value={marks}>|field: Uuid| {
                 let option = create_memo(move || {
                     let chosen = entry.with(|entry| match entry.as_ref()?.get(field) {
                         Some(DatabaseValue::Enum(option)) => Some(option),
@@ -468,7 +468,7 @@ fn Marks(data: Data, entry: Memo<Option<DatabaseRow>>, marks: Memo<Vec<Uuid>>) -
                 let set = create_memo(move || option.with(Option::is_some));
                 view! {
                     <Frame width={Size::Custom(MARK_SIZE)} height={Size::Custom(MARK_SIZE)}>
-                        <Show condition={set}>
+                        <Show value={set}>
                             <ChoiceMark option={option} size=MARK />
                         </Show>
                     </Frame>
@@ -486,7 +486,7 @@ pub fn Parts(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm wrap={wrap}>
-            <ForEach keys={keys}>|key: Uuid| {
+            <ForEach value={keys}>|key: Uuid| {
                 let part = create_memo(move || {
                     parts.with(|parts| {
                         parts.iter().find(|(held, _)| *held == key).map(|(_, part)| part.clone())
@@ -565,7 +565,7 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
             padding={Padding::symmetric(Space::Md, Space::Xs2)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-                <Show condition={dotted}>
+                <Show value={dotted}>
                     <Frame
                         width={Size::Custom(8.0)}
                         height={Size::Custom(8.0)}
@@ -573,7 +573,7 @@ fn Chip(part: Memo<Option<Part>>, text: Memo<String>) -> NodeId {
                         fill={dot}
                     />
                 </Show>
-                <Show condition={linked}>
+                <Show value={linked}>
                     <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph=ICON_LINK />
                     </Text>

@@ -418,13 +418,13 @@ pub(crate) fn MenuList(
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
             <Show
-                condition={paged}
+                value={paged}
                 fallback={move || {
                     let title_test_id = title_test_id.clone();
                     let lines = lines();
                     view! {
                         <List spacing={state.spacing}>
-                            <Show condition={state.titled}>
+                            <Show value={state.titled}>
                                 <MenuBackRow
                                     state={state}
                                     title
@@ -628,7 +628,7 @@ fn MenuGridRow(
     );
     let built = view! {
         <List spacing={state.spacing}>
-            <Show condition={separated}>
+            <Show value={separated}>
                 {row.call(quiet_handle(MenuRowKind::Separator, Prop::Static(String::new())))}
             </Show>
             <Grid
@@ -751,7 +751,7 @@ fn MenuRow(
                 }}
                 on_key={move |press: KeyPress| key(state, at, press)}
             />
-            <Show condition={move || cascades && has_children.get()}>|| {
+            <Show value={move || cascades && has_children.get()}>|| {
                 let children = children.clone();
                 let leave = MenuParent(Some(Callback::new(move |()| {
                     open.set(false);
@@ -1159,7 +1159,7 @@ pub fn MenuNodes(
         nodes.with(|nodes| nodes.iter().filter_map(MenuNode::key).collect::<Vec<u64>>())
     });
     view! {
-        <ForEach keys>|key: u64|
+        <ForEach value={keys}>|key: u64|
             <MenuNodeItem nodes={nodes} key test_prefix={test_prefix.clone()} />
         </ForEach>
     }

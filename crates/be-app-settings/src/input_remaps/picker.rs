@@ -157,7 +157,7 @@ pub(super) fn KeyPicker(
             <List spacing=SPACING>
                 <Tabs
                     options={view! {
-                        <ForEach keys={tabs}>|which: Tab|
+                        <ForEach value={tabs}>|which: Tab|
                             <ChoiceOption label={which.label()} />
                         </ForEach>
                     }}
@@ -165,7 +165,7 @@ pub(super) fn KeyPicker(
                     label="Find the key by"
                     @test_id={"input-remaps.picker.tabs"}
                 />
-                <Show condition={pressing}>
+                <Show value={pressing}>
                     <PressTab
                         target={target}
                         listening={listening}
@@ -174,14 +174,14 @@ pub(super) fn KeyPicker(
                         pick={pick}
                     />
                 </Show>
-                <Show condition={shown(Tab::Mouse)}>
+                <Show value={shown(Tab::Mouse)}>
                     <MouseTab wheel={wheel} pick={pick} />
                 </Show>
-                <Show condition={shown(Tab::AllKeys)}>
+                <Show value={shown(Tab::AllKeys)}>
                     <AllKeysTab query={query} wheel={wheel} pick={pick} />
                 </Show>
                 <Separator />
-                <Show condition={move || target.get() == Some(Target::Key)}>
+                <Show value={move || target.get() == Some(Target::Key)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=KEY_SPACING>
                         <Button
                             label=NOTHING
@@ -317,13 +317,13 @@ fn PressTab(
     view! {
         <Frame border=Border::DEFAULT radius=Radius::Md padding={Padding::all(Space::Xl)}>
             <List spacing=SPACING align=Align::Center>
-                <Show condition={listening} fallback={idle}>
+                <Show value={listening} fallback={idle}>
                     <List spacing=SPACING align=Align::Center>
                         <List direction=Direction::Horizontal spacing=KEY_SPACING wrap=true>
-                            <ForEach keys={held}>|name: String|
+                            <ForEach value={held}>|name: String|
                                 <KeyCap label={label(&name)} />
                             </ForEach>
-                            <Show condition={move || listening.get() && held.with(Vec::is_empty)}>
+                            <Show value={move || listening.get() && held.with(Vec::is_empty)}>
                                 <Text color=TextColor::Muted>"Listening…"</Text>
                             </Show>
                         </List>
@@ -346,7 +346,7 @@ fn MouseTab(wheel: Memo<bool>, pick: Callback<Picked>) -> NodeId {
     view! {
         <List spacing=SPACING>
             <KeyButtons title="Buttons" names={keys::buttons()} pick={pick} />
-            <Show condition={wheel}>
+            <Show value={wheel}>
                 <KeyButtons title="Wheel" names={keys::wheels()} pick={pick} />
             </Show>
         </List>
@@ -385,7 +385,7 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
                 clearable=true
                 @test_id={"input-remaps.picker.search"}
             />
-            <ForEach keys={kinds}>|kind: be_lib_remap::names::KeyKind| {
+            <ForEach value={kinds}>|kind: be_lib_remap::names::KeyKind| {
                 let names = create_memo(move || {
                     listed.with(|listed| {
                         listed
@@ -399,10 +399,10 @@ fn AllKeysTab(query: Signal<String>, wheel: Memo<bool>, pick: Callback<Picked>) 
                     <KeyButtons title={kind.title()} names={names} pick={pick} />
                 }
             }</ForEach>
-            <Show condition={wheeled}>
+            <Show value={wheeled}>
                 <KeyButtons title="Wheel" names={wheels} pick={pick} />
             </Show>
-            <Show condition={move || kinds.with(Vec::is_empty) && !wheeled.get()}>
+            <Show value={move || kinds.with(Vec::is_empty) && !wheeled.get()}>
                 <Text style=TextStyle::CAPTION>{nothing}</Text>
             </Show>
         </List>
@@ -416,7 +416,7 @@ fn KeyButtons(title: Prop<String>, names: Prop<Vec<String>>, pick: Callback<Pick
         <List spacing=CATEGORY_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
             <List direction=Direction::Horizontal spacing=KEY_SPACING wrap=true>
-                <ForEach keys={names}>|name: String| {
+                <ForEach value={names}>|name: String| {
                     let chosen = name.clone();
                     view! {
                         <Button

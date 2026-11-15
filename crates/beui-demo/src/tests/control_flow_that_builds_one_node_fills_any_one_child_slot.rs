@@ -19,13 +19,13 @@ fn control_flow_that_builds_one_node_fills_any_one_child_slot() {
             <Root>
                 <List spacing=Space::Md>
                     <Frame @test_id="frame">
-                        <Show condition={shown}>
+                        <Show value={shown}>
                             <Frame @test_id="in_frame" height=Size::Sm />
                         </Show>
                     </Frame>
                     <ListItem grow=1.0>
                         <Show
-                            condition={shown}
+                            value={shown}
                             fallback={|| view! {
                                 <Frame @test_id="item_fallback" height=Size::Sm />
                             }}
@@ -33,13 +33,13 @@ fn control_flow_that_builds_one_node_fills_any_one_child_slot() {
                             <Frame @test_id="in_item" height=Size::Lg />
                         </Show>
                     </ListItem>
-                    <ForEach keys>|key: u32|
-                        <Show condition={shown}>
+                    <ForEach value={keys}>|key: u32|
+                        <Show value={shown}>
                             <Frame @test_id={format!("row{key}")} height=Size::Sm />
                         </Show>
                     </ForEach>
                     <Dynamic value={shown}>|_: bool|
-                        <Show condition={shown}>
+                        <Show value={shown}>
                             <Frame @test_id="in_dynamic" height=Size::Sm />
                         </Show>
                     </Dynamic>

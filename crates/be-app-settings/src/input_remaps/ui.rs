@@ -63,7 +63,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 title="Input remaps"
                 description="Change what keys, mouse buttons and the wheel do in a Linux session, everywhere or only in the programs you choose."
             >
-                <Show condition={offered}>
+                <Show value={offered}>
                     <SettingsRow label="This device">
                         <Text style=TextStyle::CAPTION>{status}</Text>
                     </SettingsRow>
@@ -78,7 +78,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 </SettingsRow>
             </SettingsSection>
             <Show
-                condition={toml}
+                value={toml}
                 fallback={move || view! {
                     <EditorTab shared={shared} editor={editor} />
                 }}

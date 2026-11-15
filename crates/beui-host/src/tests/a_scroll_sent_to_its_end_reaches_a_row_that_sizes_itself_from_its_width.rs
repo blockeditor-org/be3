@@ -13,7 +13,7 @@ fn a_scroll_sent_to_its_end_reaches_a_row_that_sizes_itself_from_its_width() {
         view! {
             <Scroll @node_ref=&scroll api>
                 <List spacing=0.0>
-                    <ForEach keys={rows}>|_row: usize|
+                    <ForEach value={rows}>|_row: usize|
                         <Container>|size: ReadSignal<Vec2>| {
                             let height = create_memo(move || match size.get().x < 300.0 {
                                 true => 120.0,

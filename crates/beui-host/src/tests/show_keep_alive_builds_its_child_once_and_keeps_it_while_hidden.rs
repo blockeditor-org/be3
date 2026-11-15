@@ -20,7 +20,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
                 </Button>
                 <Show
                     keep_alive=true
-                    condition={visible}
+                    value={visible}
                     then={move || {
                         builds.update(|builds| *builds += 1);
                         view! {

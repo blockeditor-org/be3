@@ -49,7 +49,7 @@ pub(crate) fn NotificationList(
                 />
             </List>
             <Show
-                condition={empty}
+                value={empty}
                 fallback={move || view! {
                     <NotificationRows
                         notifications={notifications}
@@ -74,7 +74,7 @@ fn NotificationRows(
 ) -> NodeId {
     view! {
         <Scroll max_length={move || Size::Custom(height.get())}>
-            <ForEach keys={listed}>|shown: Listed|
+            <ForEach value={listed}>|shown: Listed|
                 <NotificationRow notifications={notifications} shown popover={popover} />
             </ForEach>
         </Scroll>

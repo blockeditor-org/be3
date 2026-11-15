@@ -1384,7 +1384,7 @@ pub(super) fn DockBarred(
                                 align=DockAlign::End
                                 ends={right}
                             />
-                            <Show condition={matches!(holder, BarHolder::Dock)}>
+                            <Show value={matches!(holder, BarHolder::Dock)}>
                                 <Layers>
                                     <DockBarHidden dock edge=DockEdge::Top />
                                     <DockBarHidden dock edge=DockEdge::Bottom />
@@ -1414,7 +1414,7 @@ fn DockBarBand(dock: State, holder: BarHolder, edge: DockEdge) -> NodeId {
     });
     let band = view! {
         <List direction={across(edge)} spacing=0.0>
-            <ForEach keys={shown}>|edge: DockEdge| {
+            <ForEach value={shown}>|edge: DockEdge| {
                 let dock = dock;
                 let ends = create_signal([0.0_f32; 2]);
                 let body = view! {
@@ -1502,7 +1502,7 @@ fn DockBarLine(
     let built = view! {
         <Frame align={float_align(edge, align)} padding={padding}>
             <List @node_ref=&held direction={direction} spacing={margin}>
-                <ForEach keys={bars}>|bar: TabId| {
+                <ForEach value={bars}>|bar: TabId| {
                     let dock = dock;
                     view! {
                         <ListItem shrink=1.0>
@@ -1678,7 +1678,7 @@ fn DockBarOverlay(dock: State, edge: DockEdge, align: DockAlign, ends: Signal<[f
     let margin = dock.bar_margin;
     let line = view! {
         <List direction={across(edge)} spacing={margin}>
-            <ForEach keys={bars}>|bar: TabId| {
+            <ForEach value={bars}>|bar: TabId| {
                 let dock = dock;
                 let placement = DockBarPlacement::Over(edge, align);
                 view! {
@@ -1835,7 +1835,7 @@ pub(super) fn DockBarWindows(dock: State) -> NodeId {
     });
     view! {
         <List spacing=0.0>
-            <ForEach keys={keys}>|key: String| {
+            <ForEach value={keys}>|key: String| {
                 let dock = dock;
                 view! {
                     <DockBarWindow dock key />
@@ -1948,7 +1948,7 @@ fn DockBarWindow(dock: State, key: String) -> NodeId {
             view! {
                 <Root clear_color=Color::TRANSPARENT>
                     <Canvas>
-                        <ForEach keys={bars}>|bar: TabId| {
+                        <ForEach value={bars}>|bar: TabId| {
                             let dock = dock;
                             view! {
                                 <SharedBar dock bar followed sizes />

@@ -74,7 +74,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                 }}
             >
                 <Show
-                    condition={docked}
+                    value={docked}
                     fallback={move || view! {
                         <List spacing=Space::None>
                             <ListItem grow=1.0>
@@ -89,7 +89,7 @@ pub fn PresentationView(editor: Editor) -> NodeId {
                                     report_size=true
                                 />
                             </ListItem>
-                            <Show condition={presenting}>
+                            <Show value={presenting}>
                                 <Playback editor={editor} slides={slides} />
                             </Show>
                         </List>
@@ -245,7 +245,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     });
     view! {
         <Layers>
-            <Show condition={hidden}>
+            <Show value={hidden}>
                 <Text size=TextSize::Sm color=TextColor::Muted>{message}</Text>
             </Show>
         </Layers>
@@ -321,7 +321,7 @@ fn Playback(editor: Editor, slides: Slides) -> NodeId {
         <Frame height=PLAYBACK_HEIGHT>
             <Interactive on_hover_change={over} @test_id={"presentation.playback"}>
                 <Layers>
-                    <Show condition={over}>
+                    <Show value={over}>
                         <Frame
                             fill={ColorRole::Custom(PLAYBACK_SHADE.into())}
                             padding={Padding::horizontal(Space::Lg)}
@@ -398,7 +398,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
         <Frame fill=ColorRole::Surface>
             <Layers>
                 <List spacing=Space::None>
-                    <Show condition={move || notes.get() == Notes::None}>
+                    <Show value={move || notes.get() == Notes::None}>
                         <Frame padding=NOTES_PADDING>
                             <List
                                 direction=Direction::Horizontal
@@ -418,7 +418,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                             </List>
                         </Frame>
                     </Show>
-                    <Show condition={move || status.with(Option::is_some)}>
+                    <Show value={move || status.with(Option::is_some)}>
                         <Frame padding=NOTES_PADDING>
                             <Text style=TextStyle::CAPTION @test_id={"presentation.notes.status"}>
                                 {message}
@@ -426,7 +426,7 @@ fn SpeakerNotes(editor: Editor, slides: Slides) -> NodeId {
                         </Frame>
                     </Show>
                 </List>
-                <Show condition={move || target.with(Option::is_some)}>
+                <Show value={move || target.with(Option::is_some)}>
                     <ChildBlock
                         editor={editor}
                         block={target}
@@ -489,7 +489,7 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                 });
                 view! {
                     <List spacing=Space::None>
-                        <Show condition={empty}>
+                        <Show value={empty}>
                             <Frame padding=FILMSTRIP_PADDING>
                                 <Text style=TextStyle::CAPTION>
                                     "Add a slide to start this deck."
@@ -513,7 +513,7 @@ fn Filmstrip(editor: Editor, slides: Slides, duplicate: Action) -> NodeId {
                                             align=Align::Start
                                             spacing=TILE_SPACING
                                         >
-                                            <ForEach keys={reorder.order}>|id: Uuid|
+                                            <ForEach value={reorder.order}>|id: Uuid|
                                                 <SlideTile
                                                     editor={editor}
                                                     slides={slides}

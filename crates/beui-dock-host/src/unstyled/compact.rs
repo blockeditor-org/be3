@@ -217,7 +217,7 @@ fn DockGathered(dock: State, tree: Tree, vertical: bool, folded: bool) -> NodeId
     };
     let list = view! {
         <List direction spacing={dock.tab_spacing}>
-            <ForEach keys={tabs}>|tab: TabId| {
+            <ForEach value={tabs}>|tab: TabId| {
                 let dock = dock;
                 view! {
                     <DockGatheredTab dock tab shown vertical />

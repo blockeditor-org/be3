@@ -13,7 +13,7 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
         view! {
             <Root clear_color={beui_types::color::Color32::BLACK}>
                 <Scroll @test_id="scroll">
-                    <ForEach keys={(0..12).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(0..12).collect::<Vec<usize>>()}>|row: usize|
                         <Frame
                             height=16.0
                             radius=0.0

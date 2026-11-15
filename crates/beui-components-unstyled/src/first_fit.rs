@@ -112,7 +112,7 @@ pub fn FirstFit(children: Children<NodeId>) -> NodeId {
     view! {
         <Layers>
             {sizer}
-            <ForEach keys={keys}>|(stage, node): (Stage, NodeId)| {
+            <ForEach value={keys}>|(stage, node): (Stage, NodeId)| {
                 let shown = view! {
                     <Portal node={Some(node)} />
                 };

@@ -9,7 +9,7 @@ fn a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it() {
         view! {
             <Root clear_color={beui_types::color::Color32::BLACK}>
                 <Scroll @test_id="scroll" style={ScrollStyle::default().fading(16.0)}>
-                    <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_: usize|
+                    <ForEach value={(0..8).collect::<Vec<usize>>()}>|_: usize|
                         <Frame height=16.0 radius=0.0 fill=Color32::WHITE />
                     </ForEach>
                 </Scroll>

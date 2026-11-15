@@ -56,7 +56,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show
-                condition={listing}
+                value={listing}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <BackSlide
@@ -76,7 +76,7 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                                             on_click={back}
                                         />
                                     </Frame>
-                                    <ForEach keys={opened}>|number: u64| {
+                                    <ForEach value={opened}>|number: u64| {
                                         let pull_request = create_memo(move || {
                                             model.opened.with(|opened| {
                                                 opened
@@ -223,16 +223,16 @@ fn Sidebar(model: Model) -> NodeId {
                             />
                         </ListItem>
                     </List>
-                    <Show condition={loading}>
+                    <Show value={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                             <Progress width=Size::Sm label="Loading pull requests" />
                             <Text style=TextStyle::CAPTION>"Loading pull requests"</Text>
                         </List>
                     </Show>
-                    <Show condition={failed}>
+                    <Show value={failed}>
                         <Text color=TextColor::Danger>{error}</Text>
                     </Show>
-                    <Show condition={empty}>
+                    <Show value={empty}>
                         <Text style=TextStyle::CAPTION>{empty_text}</Text>
                     </Show>
                 </List>
@@ -241,7 +241,7 @@ fn Sidebar(model: Model) -> NodeId {
                 <Scroll>
                     <Frame padding={Padding::horizontal(PADDING).bottom(PADDING)}>
                         <List spacing=Space::None>
-                            <ForEach keys={visible}>|number: u64| {
+                            <ForEach value={visible}>|number: u64| {
                                 let pull_request = model.pull_requests.get(&number);
                                 let pull_request = create_memo(move || pull_request.get());
                                 view! {
@@ -299,7 +299,7 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                         <Text>{title}</Text>
                         <Text style=TextStyle::CAPTION>{details}</Text>
                         <Show
-                            condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
+                            value={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}
                         >
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
@@ -342,10 +342,10 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
     let keys = create_memo(move || (0..labels.get().len()).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=Space::Sm>
-            <Show condition={checked_out}>
+            <Show value={checked_out}>
                 <Chip text=CURRENT color={move || resolve_color(theme.accent.get())} />
             </Show>
-            <ForEach keys>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let label = create_memo(move || labels.get().get(index).cloned());
                 view! {
                     <Chip

@@ -73,7 +73,7 @@ pub(crate) fn LinkedBar(
     let nowhere = create_memo(|| None);
     let heading_color = TextColor::Default;
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <Frame
                 fill=ColorRole::Surface
                 padding={Padding::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
@@ -85,7 +85,7 @@ pub(crate) fn LinkedBar(
                         </Text>
                         <Text>"Linked block"</Text>
                         <Show
-                            condition={via_reference}
+                            value={via_reference}
                             fallback={move || view! {
                                 <ListItem shrink=1.0>
                                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
@@ -102,7 +102,7 @@ pub(crate) fn LinkedBar(
                         </Show>
                     </List>
                     <Show
-                        condition={via_reference}
+                        value={via_reference}
                         fallback={move || view! {
                             <ReferenceMenu
                                 workspace={workspace}
@@ -202,10 +202,10 @@ pub(crate) fn ReferenceMenu(
             @test_id={named}
             label={label}
             items={view! {
-                <Show condition={nothing}>
+                <Show value={nothing}>
                     <MenuItem label={nothing_label} disabled=true />
                 </Show>
-                <ForEach keys={indices}>|index: usize| {
+                <ForEach value={indices}>|index: usize| {
                     let reference = create_memo(move || {
                         refs.with(|refs| refs.list.get(index).cloned())
                     });

@@ -297,7 +297,7 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                 <List spacing=Space::Md>
                     <Text style=TextStyle::HEADING>"Revision history"</Text>
                     <Show
-                        condition={no_file}
+                        value={no_file}
                         fallback={move || view! {
                             <Text>{name}</Text>
                         }}
@@ -307,18 +307,18 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                         </Text>
                     </Show>
                     <Show
-                        condition={move || {
+                        value={move || {
                             history.loading.get()
                                 && history.listed.get() != history.target.get().map(|item| item.id)
                         }}
                     >
                         <Text style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
-                    <Show condition={history.busy}>
+                    <Show value={history.busy}>
                         <Text style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
                     <Show
-                        condition={move || {
+                        value={move || {
                             !no_file.get()
                                 && !history.loading.get()
                                 && history.error.with(Option::is_none)
@@ -327,7 +327,7 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                     >
                         <Text style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
-                    <Show condition={move || history.error.with(Option::is_some)}>
+                    <Show value={move || history.error.with(Option::is_some)}>
                         <List spacing=Space::Md>
                             <Text style=TextStyle::CAPTION>{error}</Text>
                             <Button
@@ -338,7 +338,7 @@ pub(crate) fn RevisionHistoryPanel(workspace: Workspace, history: RevisionHistor
                             />
                         </List>
                     </Show>
-                    <ForEach keys={keys}>|commit: [u8; 32]| {
+                    <ForEach value={keys}>|commit: [u8; 32]| {
                         let label = create_memo(move || revisions.with(|entries| entries.get(&commit).map(|entry| {
                             let date = revision_time(entry.time);
                             format!("{date}{}", if history.selected.get().is_some_and(|selected| selected.commit == commit) { " · Preview" } else if entry.current { " · Current" } else { "" })
@@ -384,7 +384,7 @@ pub(crate) fn RevisionPreviewBar(
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={visible}>
+            <Show value={visible}>
                 <Frame padding=Space::Lg>
                     <List spacing=Space::Md>
                         <Text style=TextStyle::CAPTION>{label}</Text>
@@ -397,7 +397,7 @@ pub(crate) fn RevisionPreviewBar(
                                 on_click={move || history.current()}
                             />
                             <Show
-                                condition={move || {
+                                value={move || {
                                     history
                                         .target
                                         .get()
@@ -413,7 +413,7 @@ pub(crate) fn RevisionPreviewBar(
                                 />
                             </Show>
                         </List>
-                        <Show condition={history.confirm}>
+                        <Show value={history.confirm}>
                             <List spacing=Space::Md>
                                 <Text style=TextStyle::CAPTION>
                                     "Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."

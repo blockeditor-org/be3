@@ -62,7 +62,7 @@ fn a_views_menu_is_an_anchored_view_it_paints_describes_and_takes_input_on() {
         &EditorHost::default(),
         Windowed::new(move |_| {
             let items = view! {
-                <ForEach keys={(0..4).collect::<Vec<usize>>()}>|index: usize| {
+                <ForEach value={(0..4).collect::<Vec<usize>>()}>|index: usize| {
                     let label = format!("Item {index}");
                     view! {
                         <beui::unstyled::MenuItem

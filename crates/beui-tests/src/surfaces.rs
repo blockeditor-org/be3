@@ -317,7 +317,7 @@ pub fn SheetFixture() -> NodeId {
                 }}
             >
                 <List spacing=Space::None>
-                    <ForEach keys={(1..=3).collect::<Vec<usize>>()}>|row: usize|
+                    <ForEach value={(1..=3).collect::<Vec<usize>>()}>|row: usize|
                         <ActionRow
                             label={format!("Row {row}")}
                             on_click={move || open.set(false)}

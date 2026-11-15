@@ -19,7 +19,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
                             item_size=20.0
                         >|index: ReadSignal<usize>|
                             <List spacing=0.0>
-                                <Show condition={shown}>
+                                <Show value={shown}>
                                     <Text>
                                         {create_memo(move || format!("Row {}", index.get()))}
                                     </Text>

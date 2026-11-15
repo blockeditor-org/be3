@@ -193,7 +193,7 @@ impl Program for Windowed {
                 view! {
                     <styled::Root>
                         <styled::List spacing=styled::Space::None>
-                            <ForEach keys>|id: ViewRef|
+                            <ForEach value={keys}>|id: ViewRef|
                                 <Shown
                                     id
                                     requested

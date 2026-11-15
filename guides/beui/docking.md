@@ -40,7 +40,7 @@ view! {
             <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
                 <DockPane id="files"><DockTab id=Key::Files title="Files"><Files /></DockTab></DockPane>
                 <DockPane id="editors" empty={move || view! { <Nothing /> }}>
-                    <ForEach keys={open}>|key: Key|
+                    <ForEach value={open}>|key: Key|
                         <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
                             <Panel key />
                         </DockTab>

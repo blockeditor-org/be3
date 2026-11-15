@@ -92,26 +92,26 @@ pub fn SettingsSection(
     view! {
         <Frame padding={inset}>
             <List spacing=SECTION_SPACING>
-                <Show condition={headed}>
+                <Show value={headed}>
                     <Frame padding={header_inset}>
                         <List spacing=HEADER_SPACING>
-                            <Show condition={titled}>
+                            <Show value={titled}>
                                 <Text style=SECTION_TITLE>{title}</Text>
                             </Show>
-                            <Show condition={described}>
+                            <Show value={described}>
                                 <Text style=TextStyle::CAPTION>{description}</Text>
                             </Show>
                         </List>
                     </Frame>
                 </Show>
                 <List spacing=Space::None>
-                    <Show condition={edge}>
+                    <Show value={edge}>
                         <Separator />
                     </Show>
                     <Frame fill=ColorRole::Surface border={border} radius={radius}>
                         <List spacing=Space::None>{children}</List>
                     </Frame>
-                    <Show condition={edge}>
+                    <Show value={edge}>
                         <Separator />
                     </Show>
                 </List>
@@ -172,7 +172,7 @@ pub fn SettingsRow(
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>
@@ -187,10 +187,10 @@ pub fn SettingsRow(
                             <ListItem grow=label_grow>
                                 <List justify=Justify::Center spacing=LABEL_SPACING>
                                     <Text>{label}</Text>
-                                    <Show condition={move || !description.with(String::is_empty)}>
+                                    <Show value={move || !description.with(String::is_empty)}>
                                         <Text style=TextStyle::CAPTION>{description}</Text>
                                     </Show>
-                                    <Show condition={move || !note.with(String::is_empty)}>
+                                    <Show value={move || !note.with(String::is_empty)}>
                                         <Text style=NOTE>{note}</Text>
                                     </Show>
                                 </List>
@@ -229,7 +229,7 @@ pub fn SettingsLink(
     });
     view! {
         <List spacing=Space::None>
-            <Show condition={separated}>
+            <Show value={separated}>
                 <Frame padding={Padding::horizontal(ROW_PADDING_HORIZONTAL)}>
                     <Separator />
                 </Frame>

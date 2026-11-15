@@ -28,14 +28,14 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
         view! {
             <List spacing=0.0>
                 <Text>{create_memo(move || title.get())}</Text>
-                <ForEach keys={rows}>|row: u32|
+                <ForEach value={rows}>|row: u32|
                     <styled::Button
                         variant=styled::ButtonVariant::Primary
                         label={format!("Row {row}")}
                         on_click={|| {}}
                     />
                 </ForEach>
-                <Show condition={panel}>
+                <Show value={panel}>
                     <List spacing=0.0>
                         <Text>"Details"</Text>
                         <styled::Button

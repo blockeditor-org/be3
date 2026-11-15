@@ -13,7 +13,7 @@ fn RetainedPair(
     flush();
     view! {
         <Element tag="p" text={label} />
-        <Show condition={tail}>
+        <Show value={tail}>
             <Element tag="span" text="tail" />
         </Show>
     }
@@ -35,7 +35,7 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
         view! {
             <Element tag="div">
                 <Element tag="b" text="before" />
-                <Show keep_alive=true condition={shown}>
+                <Show keep_alive=true value={shown}>
                     <RetainedPair label tail builds={built.clone()} disposed={cleaned.clone()} />
                     <Element tag="i" text="sibling" />
                 </Show>

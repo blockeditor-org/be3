@@ -17,7 +17,7 @@ fn scrolling_resends_only_the_scrolled_space_and_keeps_rows_where_they_show() {
             <List spacing=0.0>
                 <Frame height=200.0>
                     <Scroll @test_id="scroll">
-                        <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>|row: u32|
+                        <ForEach value={(0..ROWS).collect::<Vec<_>>()}>|row: u32|
                             <Frame height=ROW_HEIGHT>
                                 <styled::Button
                                     @test_id={format!("row.{row}")}

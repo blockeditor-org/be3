@@ -26,11 +26,11 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
     let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show condition={empty}>
+            <beui::reactive::Show value={empty}>
                 <Text style=TextStyle::CAPTION>"No changes have been saved yet."</Text>
             </beui::reactive::Show>
             <ForEach
-                keys={rows}
+                value={rows}
             >|(id, change, message, conflicted): ([u8; 32], [u8; 16], String, bool)| {
                 let commit_test_id = format!("version.commit.{}", short_id(&id));
                 let message = match message.is_empty() {
@@ -45,7 +45,7 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                     >
                         <Text style=TextStyle::CAPTION>{short_id(&change)}</Text>
                         <Text>{message}</Text>
-                        <beui::reactive::Show condition={conflicted}>
+                        <beui::reactive::Show value={conflicted}>
                             <Text style=TextStyle::CAPTION>"still has clashing edits"</Text>
                         </beui::reactive::Show>
                     </List>
@@ -78,10 +78,10 @@ pub fn VersionSteps(
     let empty = create_memo(move || rows.with(Vec::is_empty));
     view! {
         <List spacing=Space::Sm>
-            <beui::reactive::Show condition={empty}>
+            <beui::reactive::Show value={empty}>
                 <Text style=TextStyle::CAPTION>"Nothing has been done yet."</Text>
             </beui::reactive::Show>
-            <ForEach keys={rows}>|(id, description, undone): ([u8; 16], String, bool)| {
+            <ForEach value={rows}>|(id, description, undone): ([u8; 16], String, bool)| {
                 let short = short_id(&id);
                 let (step_test_id, undo_test_id) =
                     (format!("version.step.{short}"), format!("version.undo.{short}"));
@@ -95,7 +95,7 @@ pub fn VersionSteps(
                         <ListItem grow=1.0>
                             <Text>{description}</Text>
                         </ListItem>
-                        <beui::reactive::Show condition={undone}>
+                        <beui::reactive::Show value={undone}>
                             <Text style=TextStyle::CAPTION>"Undone"</Text>
                         </beui::reactive::Show>
                         <Button

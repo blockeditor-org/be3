@@ -20,7 +20,7 @@ pub(crate) fn TerminalBlock(editor: Editor) -> NodeId {
     view! {
         <List spacing=Space::None>
             <Show
-                condition={setup}
+                value={setup}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <Running session editor={editor} />
@@ -84,7 +84,7 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                         <Icon glyph={ICON_TERMINAL.to_owned()} />
                     </Text>
                     <Show
-                        condition={connected}
+                        value={connected}
                         fallback={move || view! {
                             <List
                                 direction=Direction::Horizontal
@@ -113,7 +113,7 @@ fn Running(session: Session, editor: Editor) -> NodeId {
                     </Show>
                     <Text style=TextStyle::CAPTION @test_id={"terminal.status"}>{status}</Text>
                     <Spacer />
-                    <Show condition={alternate}>
+                    <Show value={alternate}>
                         <ToggleButton
                             label="Main screen"
                             glyph={ICON_SCROLL_TEXT.to_owned()}

@@ -171,16 +171,16 @@ pub fn RowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing={size.spacing()}>
                 <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
-                <Show condition={move || !lead.with(String::is_empty)}>
+                <Show value={move || !lead.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                 </Show>
                 <Show
-                    condition={move || leading.get() || pictured.get() || glyph.with(Option::is_some)}
+                    value={move || leading.get() || pictured.get() || glyph.with(Option::is_some)}
                 >
                     <Frame width=side>
                         <List spacing=Space::None align=Align::Center>
                             <Show
-                                condition={pictured}
+                                value={pictured}
                                 fallback={move || view! {
                                     <Text color={icon_color} align=TextAlign::Center>
                                         <Icon glyph={glyph} />
@@ -199,12 +199,12 @@ pub fn RowFace(
                         <RowLabel size label detail color={text_color} />
                     </Frame>
                 </ListItem>
-                <Show condition={move || !shortcut.with(String::is_empty)}>
+                <Show value={move || !shortcut.with(String::is_empty)}>
                     <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                         {shortcut}
                     </Text>
                 </Show>
-                <Show condition={move || trailing.get() != RowTrailing::None}>
+                <Show value={move || trailing.get() != RowTrailing::None}>
                     <Text color={trailing_color} align=TextAlign::Center>
                         <Icon glyph={trailing_glyph} />
                     </Text>
@@ -229,7 +229,7 @@ fn RowLabel(
     view! {
         <List justify=Justify::Center spacing=LABEL_SPACING>
             <Text color align=TextAlign::Start overflow>{label}</Text>
-            <Show condition={move || !detail.with(String::is_empty)}>
+            <Show value={move || !detail.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION align=TextAlign::Start overflow>{detail}</Text>
             </Show>
         </List>

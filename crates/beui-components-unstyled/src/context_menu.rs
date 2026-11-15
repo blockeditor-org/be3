@@ -169,7 +169,7 @@ pub fn ContextMenu(
         >
             <List spacing=0.0>
                 <ListItem grow=child_grow>{children}</ListItem>
-                <Show condition={built}>
+                <Show value={built}>
                     <MenuPopup
                         overlay
                         content
@@ -187,7 +187,7 @@ pub fn ContextMenu(
                         }}
                     />
                 </Show>
-                <Show condition={toolbar_open}>|| {
+                <Show value={toolbar_open}>|| {
                     let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
                     view! {
                         <Toolbar

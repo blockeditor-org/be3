@@ -319,10 +319,10 @@ fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) ->
     view! {
         <List spacing=Space::None>
             <Show
-                condition={move || keys.with(Vec::is_empty)}
+                value={move || keys.with(Vec::is_empty)}
                 fallback={move || view! {
                     <Table label="Devices and profiles" heading="Setting" columns={columns}>
-                        <ForEach keys={keys}>|key: String|
+                        <ForEach value={keys}>|key: String|
                             <DevicesRow model={model} key={key} />
                         </ForEach>
                     </Table>
@@ -369,7 +369,7 @@ fn DevicesRow(model: Memo<Model>, key: String) -> NodeId {
                 }}
                 @test_id={all_id}
             />
-            <ForEach keys={profiles}>|profile: Uuid| {
+            <ForEach value={profiles}>|profile: Uuid| {
                 let cell = create_memo(move || {
                     row.with(|row| {
                         row.as_ref()

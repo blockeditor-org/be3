@@ -159,8 +159,8 @@ fn ToastStack(
     }));
     view! {
         <List spacing>
-            <Show condition={move || hidden.get() > 0}>|| { more.call(hidden) }</Show>
-            <ForEach keys={toasts}>|toast: Toast| {
+            <Show value={move || hidden.get() > 0}>|| { more.call(hidden) }</Show>
+            <ForEach value={toasts}>|toast: Toast| {
                 let lasts = match toast.expires() {
                     true => duration.get_untracked(),
                     false => None,

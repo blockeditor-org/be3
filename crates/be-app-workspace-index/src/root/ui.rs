@@ -142,7 +142,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         })}
                     >
                         <List spacing=Space::None>
-                            <Show condition={empty}>
+                            <Show value={empty}>
                                 <Frame padding=PADDING>
                                     <Text
                                         style=TextStyle::CAPTION
@@ -184,7 +184,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                     </Frame>
                 </DockTab>
             </DockPane>
-            <Show condition={chrome}>
+            <Show value={chrome}>
                 <DockBar
                     id=TOOLBAR
                     parent=STAGE
@@ -254,7 +254,7 @@ fn EntryRows(cells: Cells) -> NodeId {
     let chosen = create_selector(move || selected.get());
     view! {
         <List spacing=Space::Xs2>
-            <ForEach keys={keys}>|key: Uuid| {
+            <ForEach value={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
                 let here = chosen.memo(Some(key));
@@ -288,7 +288,7 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     let chosen = create_selector(move || selected.get());
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
-            <ForEach keys={keys}>|key: Uuid| {
+            <ForEach value={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
                 let here = chosen.memo(Some(key));

@@ -329,7 +329,7 @@ fn PanelBody(
                     selected={Binding::new(page, show_page)}
                 />
                 <Show
-                    condition={move || page.get() == 0}
+                    value={move || page.get() == 0}
                     fallback={move || view! {
                         <TimePane
                             handle={times}

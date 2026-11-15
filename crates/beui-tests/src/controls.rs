@@ -162,14 +162,14 @@ pub fn LongMenusFixture() -> NodeId {
                 <MenuButton
                     label="Long"
                     items={view! {
-                        <ForEach keys={rows}>|row: u32|
+                        <ForEach value={rows}>|row: u32|
                             <MenuItem
                                 label={format!("Item {row}")}
                                 on_click={move || chosen.set(vec![row as usize - 1])}
                             />
                         </ForEach>
                         <MenuItem label="Item 24">
-                            <ForEach keys={subrows}>|row: u32|
+                            <ForEach value={subrows}>|row: u32|
                                 <MenuItem
                                     label={format!("Sub {row}")}
                                     on_click={move || chosen.set(vec![23, row as usize - 1])}

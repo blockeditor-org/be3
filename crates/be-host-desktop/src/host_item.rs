@@ -40,7 +40,7 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                         "Unsupported block type"
                     </Text>
                 })}
-                <Show condition={move || glyph.with(Option::is_some)}>
+                <Show value={move || glyph.with(Option::is_some)}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
@@ -50,7 +50,7 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 })}
                 <Show
-                    condition={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}
+                    value={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}
                 >
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>

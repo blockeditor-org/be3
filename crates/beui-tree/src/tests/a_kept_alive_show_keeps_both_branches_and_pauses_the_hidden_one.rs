@@ -17,7 +17,7 @@ fn a_kept_alive_show_keeps_both_branches_and_pauses_the_hidden_one() {
             <Holder tag="div">
                 <Show
                     keep_alive=true
-                    condition={editing}
+                    value={editing}
                     fallback={move || view! {
                         <Element tag="p" text={text} />
                     }}

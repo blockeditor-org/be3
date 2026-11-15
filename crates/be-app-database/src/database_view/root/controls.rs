@@ -59,7 +59,7 @@ pub fn ChoicePicker(
                 }}
                 @test_id={picker_id.clone()}
                 items={view! {
-                    <ForEach keys={keys}>|id: Uuid| {
+                    <ForEach value={keys}>|id: Uuid| {
                         let shown = create_memo(move || {
                             field.with(|field| field.as_ref()?.option(id).cloned())
                         });

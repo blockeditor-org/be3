@@ -84,7 +84,7 @@ fn RadioMark(checked: Memo<bool>) -> NodeId {
             radius=Radius::Full
             align=Align::Center
         >
-            <Show condition={checked}>
+            <Show value={checked}>
                 <Frame width=MARK_DOT height=MARK_DOT fill=ColorRole::Accent radius=Radius::Full />
             </Show>
         </Frame>

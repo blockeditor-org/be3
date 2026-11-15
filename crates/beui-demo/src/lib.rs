@@ -632,7 +632,7 @@ fn DemoShell() -> NodeId {
                                 }</DockDocumentTabs>
                             </DockPane>
                         </DockSplit>
-                        <ForEach keys={attached}>|dialog: DemoDialog|
+                        <ForEach value={attached}>|dialog: DemoDialog|
                             <DockDialog
                                 id={dialog.id}
                                 parent={dialog.parent}
@@ -775,7 +775,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <Text style=TextStyle::TITLE>"beui"</Text>
-            <Show condition={move || !narrow.get()}>
+            <Show value={move || !narrow.get()}>
                 <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer />
@@ -783,7 +783,7 @@ fn DemoToolbar(pages: Pages) -> NodeId {
                 label="Theme"
                 options={view! {
                     <ChoiceOption label="System" />
-                    <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                    <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
                         <ChoiceOption label={kind.name()} />
                     </ForEach>
                 }}
@@ -863,7 +863,7 @@ fn CatalogGroup(
                     <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{summary}</Text>
                 </List>
             </Frame>
-            <ForEach keys={listed}>|page: Page| {
+            <ForEach value={listed}>|page: Page| {
                 let selected = active.memo(Some(page));
                 view! {
                     <CatalogRow page pages selected />

@@ -82,7 +82,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
     view! {
         <List spacing=SETTINGS_SPACING>
             <Show
-                condition={move || decoded.with(Option::is_some)}
+                value={move || decoded.with(Option::is_some)}
                 fallback={|| view! {
                     <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
                 }}

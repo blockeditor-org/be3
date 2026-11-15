@@ -39,7 +39,7 @@ pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId 
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={SCREEN_OFF.to_vec()}>|offered: ScreenOff|
+                            <ForEach value={SCREEN_OFF.to_vec()}>|offered: ScreenOff|
                                 <ChoiceOption label={screen_off_label(offered)} />
                             </ForEach>
                         }}
@@ -65,7 +65,7 @@ pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId 
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={LOCK_AFTER.to_vec()}>|offered: LockAfter|
+                            <ForEach value={LOCK_AFTER.to_vec()}>|offered: LockAfter|
                                 <ChoiceOption label={lock_after_label(offered)} />
                             </ForEach>
                         }}

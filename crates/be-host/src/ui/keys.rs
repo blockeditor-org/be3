@@ -65,7 +65,7 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
     view! {
         <Column>
             <Text style=TextStyle::TITLE>{title}</Text>
-            <Show condition={replacing}>
+            <Show value={replacing}>
                 <Text style=TextStyle::PARAGRAPH>
                     "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
                 </Text>
@@ -89,12 +89,12 @@ pub(super) fn RecoveryScreen(view: HostUiStore) -> NodeId {
             />
             <ErrorText text={error} />
             <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
-                <Show condition={busy}>
+                <Show value={busy}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
                 <Spacer />
                 <Show
-                    condition={replacing}
+                    value={replacing}
                     fallback={|| view! {
                         <Button
                             label="Switch account"
@@ -159,7 +159,7 @@ pub(super) fn UnlockScreen(view: HostUiStore) -> NodeId {
             </List>
             <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show
-                condition={move || unlock.get().code.is_some()}
+                value={move || unlock.get().code.is_some()}
                 fallback={|| view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                         <ListItem grow=1.0>
@@ -259,7 +259,7 @@ pub(super) fn PairingDialog(view: HostUiStore) -> NodeId {
         >
             <Text style=TextStyle::PARAGRAPH>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
-            <Show condition={move || !refused.with(String::is_empty)}>
+            <Show value={move || !refused.with(String::is_empty)}>
                 <Text style=TextStyle::CAPTION @test_id="host.pairing.refused">{refused}</Text>
             </Show>
         </Dialog>

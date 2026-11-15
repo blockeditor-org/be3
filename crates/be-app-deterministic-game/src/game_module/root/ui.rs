@@ -61,7 +61,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                     <DockTab id=STAGE title="Module">
                         <Frame @node_ref={&content} padding=PADDING>
                             <List spacing=SPACING>
-                                <Show condition={named}>
+                                <Show value={named}>
                                     <Text
                                         style=TextStyle::HEADING
                                         align=TextAlign::Center
@@ -70,7 +70,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                                         {name}
                                     </Text>
                                 </Show>
-                                <Show condition={failed}>
+                                <Show value={failed}>
                                     <Text
                                         style=TextStyle::PARAGRAPH
                                         align=TextAlign::Center
@@ -80,7 +80,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                                         {reason}
                                     </Text>
                                 </Show>
-                                <Show condition={waiting}>
+                                <Show value={waiting}>
                                     <Text style=TextStyle::CAPTION align=TextAlign::Center>
                                         "Loading…"
                                     </Text>
@@ -93,7 +93,7 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="panel" locked=true>
                         <DockTab id=PANEL title="Game module">
                             <ModulePanel editor={editor} />
@@ -131,7 +131,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                             @test_id={"game-module.replace"}
                             on_click={replace}
                         />
-                        <Show condition={move || error.with(Option::is_some)}>
+                        <Show value={move || error.with(Option::is_some)}>
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>

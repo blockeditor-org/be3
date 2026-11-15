@@ -10,10 +10,10 @@ fn dynamic_ranges_are_marked_for_hydration() {
     scope.run(|| {
         let children: Children<Node> = view! {
             "head"
-            <Show condition={shown}>"shown"</Show>
+            <Show value={shown}>"shown"</Show>
             <elements::Ul>
                 <elements::Li>"static"</elements::Li>
-                <ForEach keys={items}>|item: i32|
+                <ForEach value={items}>|item: i32|
                     <elements::Li>{item.to_string()}</elements::Li>
                 </ForEach>
             </elements::Ul>

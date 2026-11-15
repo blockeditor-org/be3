@@ -287,7 +287,7 @@ pub(crate) fn PerformancePanel(
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
-                <Show condition={measured}>
+                <Show value={measured}>
                     <MemoryGraph memory />
                 </Show>
                 <PerformanceLine
@@ -299,10 +299,10 @@ pub(crate) fn PerformancePanel(
                         peak: "Peak".to_owned(),
                     }))}
                 />
-                <Show condition={measured}>
+                <Show value={measured}>
                     <MemoryRows memory />
                 </Show>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let row = create_memo(move || rows.get().get(index).cloned());
                     view! {
                         <PerformanceLine row />
@@ -356,7 +356,7 @@ fn MemoryRows(memory: Memo<Option<MemoryView>>) -> NodeId {
     view! {
         <Frame padding={Padding::ZERO.bottom(Space::Lg)}>
             <List spacing=Space::None>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let row = create_memo(move || rows.get().get(index).cloned());
                     let color = create_memo(move || {
                         row.get()
@@ -504,17 +504,17 @@ fn AppsPanel(apps: Memo<Option<AppsView>>) -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <Scroll>
-                <ForEach keys={line_keys}>|index: usize| {
+                <ForEach value={line_keys}>|index: usize| {
                     let line = create_memo(move || lines.get().get(index).cloned());
                     view! {
                         <LineView line />
                     }
                 }</ForEach>
                 <Text style=TextStyle::HEADING>{running}</Text>
-                <Show condition={move || runtime_keys.with(Vec::is_empty)}>
+                <Show value={move || runtime_keys.with(Vec::is_empty)}>
                     <Text style=TextStyle::CAPTION>"no apps are running"</Text>
                 </Show>
-                <ForEach keys={runtime_keys}>|id: String| {
+                <ForEach value={runtime_keys}>|id: String| {
                     let key = id.clone();
                     let runtime = create_memo(move || {
                         runtimes.get().into_iter().find(|runtime| runtime.id == key)
@@ -568,7 +568,7 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
                         on_click={move || debug(DebugCommand::CrashApp(crash.clone()))}
                     />
                 </List>
-                <ForEach keys={keys}>|index: usize| {
+                <ForEach value={keys}>|index: usize| {
                     let line = create_memo(move || lines.get().get(index).cloned());
                     view! {
                         <LineView line />

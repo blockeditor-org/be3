@@ -12,7 +12,7 @@ fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(40)}>|_: usize|
+                        <ForEach value={indices(40)}>|_: usize|
                             <Frame padding={Sides::symmetric(0.0, 20.0)}>
                                 <Frame />
                             </Frame>

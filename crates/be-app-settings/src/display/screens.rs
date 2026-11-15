@@ -210,7 +210,7 @@ pub(super) fn ScreenSection(
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
     view! {
         <SettingsSection title={name} description={showing}>
-            <Show condition={several}>
+            <Show value={several}>
                 <LayeredSettingsRow
                     setting={used_row}
                     label="Use"
@@ -222,7 +222,7 @@ pub(super) fn ScreenSection(
                         <Select
                             width={Extent::fraction(1.0)}
                             options={view! {
-                                <ForEach keys={choice_labels}>|label: String|
+                                <ForEach value={choice_labels}>|label: String|
                                     <ChoiceOption label={label} />
                                 </ForEach>
                             }}
@@ -239,7 +239,7 @@ pub(super) fn ScreenSection(
                     </ListItem>
                 </LayeredSettingsRow>
             </Show>
-            <Show condition={move || on_desktop.get() && arranged.get()}>
+            <Show value={move || on_desktop.get() && arranged.get()}>
                 <SettingsRow
                     label="Main display"
                     description="Shows the sign-in, the desktop's Status bar and the windows that open first."
@@ -267,7 +267,7 @@ pub(super) fn ScreenSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={size_list}>|size: Size|
+                            <ForEach value={size_list}>|size: Size|
                                 <ChoiceOption label={size_label(size)} />
                             </ForEach>
                         }}
@@ -306,7 +306,7 @@ pub(super) fn ScreenSection(
                     <Select
                         width={Extent::fraction(1.0)}
                         options={view! {
-                            <ForEach keys={rate_list}>|mode: DisplayMode|
+                            <ForEach value={rate_list}>|mode: DisplayMode|
                                 <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
                             </ForEach>
                         }}
@@ -335,7 +335,7 @@ pub(super) fn ScreenSection(
                         width={Extent::fraction(1.0)}
                         options={view! {
                             <ChoiceOption label={inherited_scale_label} />
-                            <ForEach keys={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
+                            <ForEach value={DisplaySettings::SCREEN_SCALES.to_vec()}>|percent: u32|
                                 <ChoiceOption label={format!("{percent}%")} />
                             </ForEach>
                         }}

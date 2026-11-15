@@ -565,7 +565,7 @@ fn PlacedHole(editor: Editor) -> NodeId {
             let strips = create_memo(move || hole_strips(size.get(), placed.get()));
             view! {
                 <Canvas>
-                    <ForEach keys={vec![0usize, 1, 2, 3]}>|strip: usize| {
+                    <ForEach value={vec![0usize, 1, 2, 3]}>|strip: usize| {
                         let rect = create_memo(move || strips.get()[strip]);
                         let x = create_memo(move || rect.get().min.x);
                         let y = create_memo(move || rect.get().min.y);

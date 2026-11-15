@@ -121,7 +121,7 @@ pub(crate) fn Pickers(editor: Editor) -> NodeId {
     });
     view! {
         <Layers>
-            <ForEach keys>|serial: u64| {
+            <ForEach value={keys}>|serial: u64| {
                 match picking.get_untracked().filter(|picking| picking.serial() == serial) {
                     Some(picking) => view! {
                         <PickerPopover editor picking />

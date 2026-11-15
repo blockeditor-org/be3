@@ -93,7 +93,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                         <Text style=TextStyle::CAPTION @test_id="boat.account">{whose}</Text>
                     </List>
                 </ListItem>
-                <Show condition={offline}>
+                <Show value={offline}>
                     <Text color=TextColor::Muted>
                         <Icon glyph=ICON_CLOUD_OFF />
                     </Text>
@@ -109,7 +109,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
             </List>
             <KeyNotice state />
             <Filters state />
-            <Show condition={empty}>
+            <Show value={empty}>
                 <List spacing=SPACING @test_id="boat.empty">
                     <Text>"No sandboxes"</Text>
                     <Text style=TextStyle::CAPTION>
@@ -118,7 +118,7 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 </List>
             </Show>
             <List spacing=SPACING>
-                <ForEach keys={ids} view={rows} />
+                <ForEach value={ids} view={rows} />
             </List>
             <GoneTerminals state />
         </List>
@@ -168,9 +168,9 @@ fn GoneTerminals(state: State) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <List spacing=SPACING @test_id="boat.gone">
-                    <ForEach keys={blocks} view={rows} />
+                    <ForEach value={blocks} view={rows} />
                 </List>
             </Show>
         </List>
@@ -245,9 +245,9 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
     view! {
         <List spacing=Space::None>
             <Show
-                condition={has_terminal}
+                value={has_terminal}
                 fallback={move || view! {
-                    <Show condition={connectable}>
+                    <Show value={connectable}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Button
                                 label="Connect a terminal"
@@ -268,7 +268,7 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                             {text}
                         </Text>
                     </ListItem>
-                    <Show condition={retryable}>
+                    <Show value={retryable}>
                         <Button
                             label="Retry"
                             variant=ButtonVariant::Ghost
@@ -276,7 +276,7 @@ fn TerminalLine(state: State, id: String, phase: Memo<Phase>, name: Memo<String>
                             on_click={retry}
                         />
                     </Show>
-                    <Show condition={disconnectable}>
+                    <Show value={disconnectable}>
                         <Button
                             label="Disconnect"
                             glyph=ICON_UNPLUG
@@ -323,7 +323,7 @@ fn KeyNotice(state: State) -> NodeId {
     };
     view! {
         <List spacing=Space::None>
-            <Show condition={shown}>
+            <Show value={shown}>
                 <Card>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Text color={color}>
@@ -450,7 +450,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                             </Text>
                         </List>
                     </ListItem>
-                    <Show condition={startable}>
+                    <Show value={startable}>
                         <Button
                             label="Start"
                             glyph=ICON_CIRCLE_PLAY
@@ -459,7 +459,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                             on_click={move || confirming.set(true)}
                         />
                     </Show>
-                    <Show condition={stoppable}>
+                    <Show value={stoppable}>
                         <Button
                             label="Stop"
                             glyph=ICON_CIRCLE_STOP
@@ -470,7 +470,7 @@ fn SandboxRow(state: State, id: String) -> NodeId {
                     </Show>
                 </List>
                 <TerminalLine state id={sandbox_id} phase name />
-                <Show condition={asking}>
+                <Show value={asking}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <ListItem grow=1.0>
                             <Text style=TextStyle::CAPTION>{question}</Text>

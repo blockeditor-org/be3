@@ -89,7 +89,7 @@ pub fn TextContextMenu(
             opens_on_hold=false
             on_toolbar_close={move || requested.set(None)}
             items={view! {
-                <ForEach keys={actions}>|action: MenuAction|
+                <ForEach value={actions}>|action: MenuAction|
                     <MenuItem
                         label={action.label().to_owned()}
                         on_click={move || {

@@ -200,7 +200,7 @@ fn Page(
             <Layers>
                 <Subregion editor={editor} placed={page} punch=false />
                 <List align=Align::Center justify=Justify::Center spacing=Space::None>
-                    <Show condition={failed}>
+                    <Show value={failed}>
                         <Text
                             style=TextStyle::CAPTION
                             color=TextColor::Danger

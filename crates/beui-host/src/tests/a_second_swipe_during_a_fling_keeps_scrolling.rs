@@ -12,7 +12,7 @@ fn a_second_swipe_during_a_fling_keeps_scrolling() {
             <List spacing=0.0>
                 <ListItem grow=1.0>
                     <Scroll @node_ref=&scroll>
-                        <ForEach keys={indices(300)}>|index: usize|
+                        <ForEach value={indices(300)}>|index: usize|
                             <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                         </ForEach>
                     </Scroll>

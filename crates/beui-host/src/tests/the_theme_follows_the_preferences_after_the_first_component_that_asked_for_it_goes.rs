@@ -10,7 +10,7 @@ fn the_theme_follows_the_preferences_after_the_first_component_that_asked_for_it
     let document = build_node(move || {
         view! {
             <List spacing=0.0>
-                <Show condition={shown}>|| {
+                <Show value={shown}>|| {
                     let theme = use_theme();
                     view! {
                         <Frame height=10.0 fill={theme.surface.get()} />

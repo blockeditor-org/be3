@@ -15,7 +15,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
         });
         view! {
             <Element tag="div">
-                <Show keep_alive=true condition={open}>
+                <Show keep_alive=true value={open}>
                     <Element tag="p" text={text} />
                 </Show>
             </Element>

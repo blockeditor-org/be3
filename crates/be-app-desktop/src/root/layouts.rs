@@ -93,7 +93,7 @@ fn LayoutItems(layouts: Layouts) -> DynamicSegment<MenuItem> {
         listed.with(|listed| (0..listed.layouts.len() as u32).collect::<Vec<u32>>())
     });
     view! {
-        <ForEach keys>|index: u32|
+        <ForEach value={keys}>|index: u32|
             <LayoutItem layouts index />
         </ForEach>
     }

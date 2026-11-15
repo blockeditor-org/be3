@@ -742,7 +742,7 @@ pub(crate) fn ShellSurface(shell: Memo<Option<Uuid>>) -> NodeId {
     let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid| {
+            <ForEach value={keys}>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <TabFrame block top_bar=TopBar::Hidden />
@@ -757,7 +757,7 @@ pub(crate) fn ShellDisplay(shell: Memo<Option<Uuid>>, display: u32) -> NodeId {
     let keys = create_memo(move || shell.get().into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid| {
+            <ForEach value={keys}>|block: Uuid| {
                 provide_context(Nesting::root());
                 view! {
                     <BlockView block region={View::display(display)} />
@@ -801,7 +801,7 @@ pub(crate) fn PresentingSurface() -> NodeId {
             }}
         >
             <Layers>
-                <ForEach keys={keys}>|block: Uuid| {
+                <ForEach value={keys}>|block: Uuid| {
                     provide_context(Nesting::root());
                     be_host_base::host::set_fullscreen(true);
                     on_cleanup(move || {
@@ -879,7 +879,7 @@ fn ConflictDialog(comparison: Memo<Option<be_host_stack::conflicts::Comparison>>
                         <ConflictSide comparison side=be_host_stack::conflicts::Side::Theirs />
                     </ListItem>
                 </List>
-                <Show condition={move || !error.with(String::is_empty)}>
+                <Show value={move || !error.with(String::is_empty)}>
                     <Text color=TextColor::Danger>{error}</Text>
                 </Show>
             </List>
@@ -1024,7 +1024,7 @@ fn BlockView(block: Uuid, region: View) -> NodeId {
     let child_view = child_view(block, region);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: ViewKey| {
+            <ForEach value={keys}>|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />
@@ -1124,7 +1124,7 @@ fn FrameStack(
     view! {
         <Layers>
             {body}
-            <ForEach keys={shown}>|id: Uuid| {
+            <ForEach value={shown}>|id: Uuid| {
                 let node = create_memo(move || {
                     portals.with(|held| {
                         held.iter().find(|(block, _)| *block == id).map(|(_, node)| *node)
@@ -1236,7 +1236,7 @@ fn BlockFrame(
     let keys = create_memo(move || shown.get().then_some(block).into_iter().collect::<Vec<_>>());
     view! {
         <Layers>
-            <ForEach keys={keys}>|block: Uuid|
+            <ForEach value={keys}>|block: Uuid|
                 <BlockFrameBody
                     block
                     chrome={chrome}
@@ -1480,7 +1480,7 @@ fn BlockFrameBody(
                     }
                 }
             }</Dynamic>
-            <ForEach keys={conflicted}>|count: usize|
+            <ForEach value={conflicted}>|count: usize|
                 <ConflictNotice block count />
             </ForEach>
         </Layers>
@@ -1910,7 +1910,7 @@ fn HostedChild(
         <Canvas>
             <CanvasItem x={x} y={y} width={width} height={height}>
                 <Layers>
-                    <ForEach keys={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
+                    <ForEach value={keys}>|(id, kind, _): (Uuid, Kind, Option<Uuid>)| {
                         provide_context(PlacedAnchor(create_memo(move || {
                             child.get().and_then(|child| {
                                 let anchor = child.anchor?;
@@ -2346,7 +2346,7 @@ fn BlockPreview(block: Uuid) -> NodeId {
     let child_view = child_view(block, View::PREVIEW);
     view! {
         <Layers>
-            <ForEach keys={keys}>|_key: ViewKey| {
+            <ForEach value={keys}>|_key: ViewKey| {
                 let Some(view_editor) = editors.handle(block).and_then(|handle| editors.region(&handle)) else {
                     return view! {
                         <Frame />

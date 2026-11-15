@@ -43,7 +43,7 @@ fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListItem> {
     view! {
-        <ForEach keys={indices(count)}>|index: usize|
+        <ForEach value={indices(count)}>|index: usize|
             <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
                 {format!("Row {index}")}
             </Text>

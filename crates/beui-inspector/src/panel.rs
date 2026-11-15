@@ -362,7 +362,7 @@ fn TreePanel(
                             <TreeCells row_key={row.key} entries={entries} />
                         </Tree>
                     </ListItem>
-                    <Show condition={move || properties.with(|properties| !properties.is_empty())}>
+                    <Show value={move || properties.with(|properties| !properties.is_empty())}>
                         <ListItem grow=PROPERTIES_SHARE>
                             <Frame @test_id={"inspector.properties"}>
                                 <PropertiesSection properties />
@@ -485,7 +485,7 @@ fn SimulationPanel(
                             @test_id={"inspector.simulation.pixel_ratio"}
                             label="Device pixel ratio"
                             options={view! {
-                                <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
+                                <ForEach value={labels(&PIXEL_RATIOS)}>|label: &'static str|
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
@@ -510,7 +510,7 @@ fn SimulationPanel(
                             label="Theme"
                             options={view! {
                                 <ChoiceOption label=NO_OVERRIDE />
-                                <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                                <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
                                     <ChoiceOption label={kind.name()} />
                                 </ForEach>
                             }}
@@ -529,7 +529,7 @@ fn SimulationPanel(
                             label="Motion"
                             options={view! {
                                 <ChoiceOption label=NO_OVERRIDE />
-                                <ForEach keys={Motion::ALL.to_vec()}>|motion: Motion|
+                                <ForEach value={Motion::ALL.to_vec()}>|motion: Motion|
                                     <ChoiceOption label={motion.name()} />
                                 </ForEach>
                             }}
@@ -670,7 +670,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 @test_id={"inspector.simulation.color_vision"}
                 label="Colour vision"
                 options={view! {
-                    <ForEach keys={vision_labels}>|label: &'static str|
+                    <ForEach value={vision_labels}>|label: &'static str|
                         <ChoiceOption label />
                     </ForEach>
                 }}
@@ -729,7 +729,7 @@ fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
             <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
-            <ForEach keys={lines.to_vec()}>|line: &'static str|
+            <ForEach value={lines.to_vec()}>|line: &'static str|
                 <Text style=TextStyle::CAPTION>{line.to_owned()}</Text>
             </ForEach>
         </List>
@@ -842,10 +842,10 @@ fn RendererSection(rows: ReadSignal<RendererRows>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
             <Text style=TextStyle::HEADING>"Renderer"</Text>
-            <Show condition={move || rows.with(Vec::is_empty)}>
+            <Show value={move || rows.with(Vec::is_empty)}>
                 <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>
-            <ForEach keys={rows}>|(label, value): (&'static str, String)|
+            <ForEach value={rows}>|(label, value): (&'static str, String)|
                 <LabeledRow label={label.to_owned()} value />
             </ForEach>
         </List>
@@ -862,7 +862,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
                     <Frame padding=BODY_PADDING>
                         <List spacing=TIMING_SPACING>
                             <Text style=TextStyle::HEADING>"Properties"</Text>
-                            <ForEach keys={properties}>|(label, value): (String, String)|
+                            <ForEach value={properties}>|(label, value): (String, String)|
                                 <LabeledRow label value />
                             </ForEach>
                         </List>

@@ -76,7 +76,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                         </Frame>
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="panel" locked=true>
                         <DockTab id=PANEL title="Image">
                             <Frame fill=ColorRole::Surface>
@@ -90,7 +90,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                                                 @test_id={"image.replace"}
                                                 on_click={choose}
                                             />
-                                            <Show condition={move || failure.with(Option::is_some)}>
+                                            <Show value={move || failure.with(Option::is_some)}>
                                                 <Text
                                                     style=TextStyle::CAPTION
                                                     color=TextColor::Danger
@@ -123,7 +123,7 @@ fn ImageArea(
             <ListItem grow=1.0>
                 <Artwork editor={editor} image={image} thumbhash={thumbhash} />
             </ListItem>
-            <Show condition={move || error.with(Option::is_some)}>
+            <Show value={move || error.with(Option::is_some)}>
                 <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>

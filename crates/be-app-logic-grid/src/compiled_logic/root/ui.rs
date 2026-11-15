@@ -84,7 +84,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
                             <Separator />
                             <List spacing=Space::Sm>
                                 <Text style=TextStyle::HEADING>"Calls"</Text>
-                                <Show condition={no_calls}>
+                                <Show value={no_calls}>
                                     <Text style=TextStyle::CAPTION>
                                         "This component calls nothing else."
                                     </Text>
@@ -108,7 +108,7 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={calls}>|called: Uuid| {
+            <ForEach value={calls}>|called: Uuid| {
                 let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                 view! {
                     <BlockLink
@@ -127,7 +127,7 @@ fn Lines(lines: Memo<Vec<String>>, #[prop(default = false)] monospace: bool) -> 
     let keys = create_memo(move || (0..lines.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=Space::Xs2>
-            <ForEach keys={keys}>|index: usize| {
+            <ForEach value={keys}>|index: usize| {
                 let line = create_memo(move || {
                     lines.with(|lines| lines.get(index).cloned().unwrap_or_default())
                 });

@@ -45,7 +45,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
                         <Track @node_ref={&content} editor={editor} />
                     </DockTab>
                 </DockPane>
-                <Show condition={chrome}>
+                <Show value={chrome}>
                     <DockPane id="panel" locked=true>
                         <DockTab id=PANEL title="Audio">
                             <AudioPanel editor={editor} />
@@ -155,7 +155,7 @@ fn Track(editor: Editor) -> NodeId {
                 <Text style=TextStyle::CAPTION align=TextAlign::Center @test_id={"audio.position"}>
                     {elapsed}
                 </Text>
-                <Show condition={failed}>
+                <Show value={failed}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center color=TextColor::Danger>
                         {reason}
                     </Text>
@@ -192,7 +192,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                             @test_id={"audio.replace"}
                             on_click={replace}
                         />
-                        <Show condition={move || error.with(Option::is_some)}>
+                        <Show value={move || error.with(Option::is_some)}>
                             <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
                         </Show>
                     </List>

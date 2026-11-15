@@ -274,7 +274,7 @@ pub(super) fn ProgramDialog(
                 <Text style=TextStyle::PARAGRAPH>
                     "They apply only while that program's window has the keyboard."
                 </Text>
-                <Show condition={listing}>
+                <Show value={listing}>
                     <List spacing=SPACING>
                         <TextInput
                             value={query}
@@ -284,7 +284,7 @@ pub(super) fn ProgramDialog(
                             clearable=true
                             @test_id={"input-remaps.programs.search"}
                         />
-                        <Show condition={any_running}>
+                        <Show value={any_running}>
                             <ProgramList
                                 title="Open now"
                                 kind="open"
@@ -293,7 +293,7 @@ pub(super) fn ProgramDialog(
                                 choose={choose}
                             />
                         </Show>
-                        <Show condition={any_installed}>
+                        <Show value={any_installed}>
                             <ProgramList
                                 title="Installed"
                                 kind="installed"
@@ -302,10 +302,10 @@ pub(super) fn ProgramDialog(
                                 choose={choose}
                             />
                         </Show>
-                        <Show condition={more}>
+                        <Show value={more}>
                             <Text style=TextStyle::CAPTION>"Search to find more programs."</Text>
                         </Show>
-                        <Show condition={none}>
+                        <Show value={none}>
                             <Text style=TextStyle::CAPTION>"No program matches."</Text>
                         </Show>
                     </List>
@@ -382,7 +382,7 @@ fn ProgramList(
         <List spacing=FIELD_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
             <List spacing=Space::None>
-                <ForEach keys={indices}>|index: usize| {
+                <ForEach value={indices}>|index: usize| {
                     let item = create_memo(move || listed.with(|listed| listed.get(index).cloned()));
                     let name = move || item.get().map(|item| item.name).unwrap_or_default();
                     let detail = move || item.get().map(|item| item.detail).unwrap_or_default();

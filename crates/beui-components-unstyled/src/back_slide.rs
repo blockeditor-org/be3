@@ -313,7 +313,7 @@ pub fn BackSlide(
     };
     view! {
         <Layers>
-            <Show condition={revealing}>|| {
+            <Show value={revealing}>|| {
                 let page = behind.call(());
                 view! {
                     <Frame translate={behind_shift}>

@@ -91,7 +91,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                 <Frame @test_id={"infinite-canvas.dock.grip"}>
                     <DockBarGrip />
                 </Frame>
-                <Show condition={narrow}>
+                <Show value={narrow}>
                     <ModeMenu state />
                 </Show>
                 <ToggleButton
@@ -99,7 +99,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
                     action={actions.tool_lock.clone()}
                     @test_id={"infinite-canvas.dock.tool-lock"}
                 />
-                <ForEach keys={tool_keys}>|index: usize| {
+                <ForEach value={tool_keys}>|index: usize| {
                     let actions = tools.clone();
                     view! {
                         <ToolChoice state actions index />
@@ -143,7 +143,7 @@ pub(crate) fn ToolBar(state: CanvasState, open: Memo<bool>, size: Signal<Vec2>) 
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true condition={open}>{content.call(())}</Show>
+            <Show keep_alive=true value={open}>{content.call(())}</Show>
         </List>
     }
 }
@@ -209,7 +209,7 @@ pub(crate) fn SelectionDock(
     });
     view! {
         <Frame align={align} padding={padding}>
-            <Show condition={chosen}>
+            <Show value={chosen}>
                 <SelectionTools state layout direction />
             </Show>
         </Frame>
@@ -258,7 +258,7 @@ pub(crate) fn ZoomBar(state: CanvasState, open: Memo<bool>) -> NodeId {
     .once();
     view! {
         <List spacing=Space::None>
-            <Show keep_alive=true condition={open}>{content.call(())}</Show>
+            <Show keep_alive=true value={open}>{content.call(())}</Show>
         </List>
     }
 }

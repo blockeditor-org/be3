@@ -166,7 +166,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
     let built = view! {
         <List spacing=Space::Md>
             <Show
-                condition={zoomed}
+                value={zoomed}
                 fallback={move || view! {
                     <ListItem grow=1.0>
                         <Interactive

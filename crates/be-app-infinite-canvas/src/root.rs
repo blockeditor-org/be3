@@ -65,7 +65,7 @@ impl be_sdk_beui::BeuiRoot for CanvasRoot {
             <Root>
                 <Loaded>
                     <Show
-                        condition={presented}
+                        value={presented}
                         fallback={move || view! {
                             <CanvasEditor editor={editor} />
                         }}
@@ -131,7 +131,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
                     </DockTab>
                 </DockPane>
                 <Show
-                    condition={move || {
+                    value={move || {
                         chrome.get()
                             && state.profile.get() != be_type_infinite_canvas::CanvasProfile::Prototyping
                     }}

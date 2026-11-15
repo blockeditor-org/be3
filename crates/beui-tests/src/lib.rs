@@ -286,7 +286,7 @@ fn ListFixture() -> NodeId {
     let rows = create_signal(vec![1_u32, 2, 3]);
     let list = view! {
         <List @test_id="list.rows" spacing=10.0>
-            <ForEach keys={rows}>|row: u32|
+            <ForEach value={rows}>|row: u32|
                 <Frame width=160.0 height=20.0 fill={GREEN} @test_id={format!("list.row{row}")} />
             </ForEach>
         </List>
@@ -540,7 +540,7 @@ fn HostFixture() -> NodeId {
     };
     let hosted: NodeId = into_child(view! {
         <Show
-            condition={swapped}
+            value={swapped}
             fallback={move || view! {
                 <Interactive
                     @test_id="host.first"
@@ -561,7 +561,7 @@ fn HostFixture() -> NodeId {
     };
     let shrunk_hosted: NodeId = into_child(view! {
         <Show
-            condition={swapped}
+            value={swapped}
             fallback={|| view! {
                 <Frame width=200.0 height=20.0 fill={GREEN} />
             }}
@@ -574,7 +574,7 @@ fn HostFixture() -> NodeId {
     };
     let cell_hosted: NodeId = into_child(view! {
         <Show
-            condition={hovered}
+            value={hovered}
             fallback={move || view! {
                 <Interactive
                     @test_id="host.cell"
@@ -594,7 +594,7 @@ fn HostFixture() -> NodeId {
             on_press={move |_: beui::PointerPress| swap()}
         >
             <Show
-                condition={swapped}
+                value={swapped}
                 fallback={|| view! {
                     <Frame width=40.0 height=20.0 fill={GREEN} />
                 }}
@@ -658,7 +658,7 @@ fn HostFixture() -> NodeId {
             <Show
                 @test_id="host.named"
                 @node_ref=&named
-                condition={swapped}
+                value={swapped}
                 fallback={move || view! {
                     <Interactive focusable=true on_focus_change={named_focused}>
                         <Frame width=40.0 height=20.0 fill={GREEN} />
@@ -703,7 +703,7 @@ fn OffsetFixture() -> NodeId {
                     on_change={move |now: ScrollPosition| position.set(Some(now))}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={keys}>|row: u32|
+                        <ForEach value={keys}>|row: u32|
                             <Frame
                                 height=30.0
                                 fill={if row % 2 == 0 { BLUE } else { GREEN }}

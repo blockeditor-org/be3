@@ -38,7 +38,7 @@ pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> Dynamic
     });
     let shown = create_memo(move || !hits.with(Vec::is_empty));
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <Frame padding={Padding::ZERO.top(PADDING).left(PADDING).right(PADDING)}>
                 <Text style=TextStyle::CAPTION @test_id={"file-tree.content-hits"}>
                     "In content"
@@ -46,7 +46,7 @@ pub(crate) fn ContentHits(editor: Editor, hits: Memo<Vec<SearchHit>>) -> Dynamic
             </Frame>
             <Frame padding={Padding::ZERO.top(Space::Xs2).left(PADDING).right(PADDING)}>
                 <List spacing=Space::Xs2>
-                    <ForEach keys={keys}>|(block, key): (Uuid, String)| {
+                    <ForEach value={keys}>|(block, key): (Uuid, String)| {
                         let hit = create_memo(move || {
                             hits.with(|hits| {
                                 hits.iter()

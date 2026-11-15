@@ -254,7 +254,7 @@ fn ModuleWindows(
     view! {
         <List spacing=Space::None>
             <ForEach
-                keys
+                value={keys}
             >|(shown, instance, _generation, _docked): (be_sdk::View, EditorInstanceId, u64, bool)|
                 <ViewWindow
                     registry={Rc::clone(&registry)}

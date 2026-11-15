@@ -9,7 +9,7 @@ fn a_show_without_a_fallback_fills_an_optional_single_slot() {
     let page = scope.run(|| {
         view! {
             <MaybeHolder tag="div">
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Element tag="p" text="badge" />
                 </Show>
             </MaybeHolder>

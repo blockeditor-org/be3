@@ -108,10 +108,10 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
     view! {
         <SettingsPage>
             <SettingsSection title={move || name_of(editor, owner)} description={description}>
-                <Show condition={move || kinds_here.with(Vec::is_empty)}>
+                <Show value={move || kinds_here.with(Vec::is_empty)}>
                     <SettingsRow label={NOTHING_HERE.to_owned()} compact=true />
                 </Show>
-                <ForEach keys={kinds_here}>|kind: Uuid| {
+                <ForEach value={kinds_here}>|kind: Uuid| {
                     let block = create_memo(move || {
                         here.with(|here| {
                             here.iter()
@@ -128,12 +128,12 @@ pub(super) fn BlockSettingsView(editor: Editor, owner: Uuid) -> NodeId {
                     }
                 }</ForEach>
             </SettingsSection>
-            <Show condition={move || !above.with(Vec::is_empty)}>
+            <Show value={move || !above.with(Vec::is_empty)}>
                 <SettingsSection
                     title="From above"
                     description="Set on a folder or workspace this is inside. What is set here replaces it."
                 >
-                    <ForEach keys={above_kinds}>|kind: Uuid| {
+                    <ForEach value={above_kinds}>|kind: Uuid| {
                         let set = create_memo(move || {
                             above.with(|above| {
                                 above

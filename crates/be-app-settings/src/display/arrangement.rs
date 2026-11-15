@@ -215,7 +215,7 @@ pub(super) fn ArrangementRow(
                     on_active_change={move |active: bool| if !active { finish() }}
                 >
                     <Layers>
-                        <ForEach keys={keys}>|id: String|
+                        <ForEach value={keys}>|id: String|
                             <Frame align=Align2::START>
                                 <ArrangedTile id shown view main />
                             </Frame>
@@ -278,7 +278,7 @@ fn ArrangedTile(
         >
             <List spacing=Space::None align=Align::Center>
                 <Text size=TextSize::Xs align=TextAlign::Center>{name}</Text>
-                <Show condition={is_main}>
+                <Show value={is_main}>
                     <Text size=TextSize::Xs color=TextColor::Accent>"Main"</Text>
                 </Show>
             </List>

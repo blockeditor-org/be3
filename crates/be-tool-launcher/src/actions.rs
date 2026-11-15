@@ -44,7 +44,7 @@ fn RunButton(
             menu_label="More ways to run it"
             disabled
             items={view! {
-                <ForEach keys={(0..MORE.len()).collect::<Vec<_>>()}>|index: usize|
+                <ForEach value={(0..MORE.len()).collect::<Vec<_>>()}>|index: usize|
                     <MenuItem
                         label={MORE[index].0}
                         on_click={move || {
@@ -100,13 +100,13 @@ pub(crate) fn Notes(
     view! {
         <List spacing=Space::Md>
             <Show
-                condition={move || !pull_request.with(|pull_request| pull_request.same_repository)}
+                value={move || !pull_request.with(|pull_request| pull_request.same_repository)}
             >
                 <Text style=TextStyle::CAPTION>
                     "It comes from a fork, so the build helper does not build it."
                 </Text>
             </Show>
-            <Show condition={deleted}>
+            <Show value={deleted}>
                 <Text style=TextStyle::CAPTION>
                     "Its branch was deleted, so there is nothing to build."
                 </Text>
@@ -162,7 +162,7 @@ fn KeyEntry(runs: Runs) -> DynamicSegment<ListItem> {
         }
     };
     view! {
-        <Show condition={shown}>
+        <Show value={shown}>
             <List spacing=Space::Md>
                 <Text style=TextStyle::CAPTION>
                     "The build helper is behind the API gateway: enter its key to build."
@@ -230,13 +230,13 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
     });
     view! {
         <List spacing=Space::Md>
-            <Show condition={working}>
+            <Show value={working}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
                     <Progress width=Size::Sm label="Working on the build" />
                     <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>
-            <Show condition={move || !problem.with(String::is_empty)}>
+            <Show value={move || !problem.with(String::is_empty)}>
                 <Text color=TextColor::Danger>{problem}</Text>
             </Show>
             <SlotLog model slot />
@@ -249,7 +249,7 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
 fn SlotLog(model: Model, slot: Slot) -> DynamicSegment<ListItem> {
     let runs = model.runs;
     view! {
-        <Show condition={move || runs.logged.get() == Some(slot)}>
+        <Show value={move || runs.logged.get() == Some(slot)}>
             <Button
                 label="Show the log"
                 glyph=ICON_TERMINAL
@@ -270,7 +270,7 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
     let pane = runs.pane;
     view! {
         <List spacing=Space::Md>
-            <Show condition={logged}>
+            <Show value={logged}>
                 <Button
                     label={move || if open.get() { "Hide the log" } else { "Show the log" }.to_owned()}
                     glyph=ICON_TERMINAL
@@ -278,7 +278,7 @@ fn SlotLog(model: Model, slot: Slot) -> NodeId {
                     on_click={toggle}
                 />
             </Show>
-            <Show condition={move || logged.get() && open.get()}>
+            <Show value={move || logged.get() && open.get()}>
                 <ListItem length=LOG_HEIGHT>
                     <Frame>
                         <TerminalPane pane />

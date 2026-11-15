@@ -12,7 +12,7 @@ fn Asked(windows: Windows) -> NodeId {
     view! {
         <List spacing=Space::None>
             <TextInput @test_id={"test.input"} value="" />
-            <ForEach keys={ids}>|id: WindowId|
+            <ForEach value={ids}>|id: WindowId|
                 <Frame width={Size::Custom(SHOWN.x)} height={Size::Custom(SHOWN.y)}>
                     <WindowView windows id focus={asks} />
                 </Frame>

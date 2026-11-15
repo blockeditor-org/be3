@@ -18,7 +18,7 @@ fn scrolling() -> Document {
                         <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
                         <Frame height=40.0 fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
                             <Scroll @test_id="scroll" style={ScrollStyle::default().fading(12.0)}>
-                                <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                                <ForEach value={(0..20).collect::<Vec<usize>>()}>|row: usize|
                                     <Frame
                                         height=10.0
                                         radius=0.0

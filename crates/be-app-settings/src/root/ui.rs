@@ -81,7 +81,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
         <Scroll>
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
-                    <Show condition={move || !own.get()}>
+                    <Show value={move || !own.get()}>
                         <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                     </Show>
                     <Section title="This device" caption="">
@@ -99,14 +99,14 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 blocked={blocked}
                                 shown={shown}
                             />
-                            <Show condition={move || push_device.with(Option::is_some)}>
+                            <Show value={move || push_device.with(Option::is_some)}>
                                 <PushRow editor={editor} device={push_device} />
                             </Show>
                         </List>
                     </Section>
                     <Devices editor={editor} settings={settings} blocked={blocked} shown={shown} />
                     <Workspaces editor={editor} shown={shown} />
-                    <Show condition={own}>
+                    <Show value={own}>
                         <Section title="You" caption="">
                             <List spacing=ROW_SPACING>
                                 <StorageRow editor={editor} />
@@ -121,7 +121,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         }
                                     }}
                                 />
-                                <Show condition={move || editor.organization_settings().is_some()}>
+                                <Show value={move || editor.organization_settings().is_some()}>
                                     <Text style=TextStyle::CAPTION @test_id={"settings.only-yours"}>
                                         {ONLY_YOURS}
                                     </Text>
@@ -267,10 +267,10 @@ fn Workspaces(editor: Editor, shown: Memo<Option<Uuid>>) -> NodeId {
     let workspaces = workspaces(editor);
     view! {
         <List spacing=Space::None>
-            <Show condition={move || !workspaces.with(Vec::is_empty)}>
+            <Show value={move || !workspaces.with(Vec::is_empty)}>
                 <Section title="Workspaces" caption="">
                     <List spacing=ROW_SPACING>
-                        <ForEach keys={workspaces}>|workspace: Uuid| {
+                        <ForEach value={workspaces}>|workspace: Uuid| {
                             let settings = create_memo(move || editor.settings_block(workspace));
                             let manages =
                                 create_memo(move || editor.blocks().access(workspace).can_manage());
@@ -327,7 +327,7 @@ fn Devices(
                             .open_block_with(block, SettingsContent::CONTENT_TYPE, DEVICES_EDITOR)
                     }}
                 />
-                <ForEach keys={profiles}>|profile: Uuid| {
+                <ForEach value={profiles}>|profile: Uuid| {
                     let label = move || {
                         children
                             .get()
@@ -398,7 +398,7 @@ fn Organization(editor: Editor, shown: Memo<Option<Uuid>>) -> NodeId {
     let settings = create_memo(move || editor.organization_settings());
     view! {
         <List spacing=Space::None>
-            <Show condition={move || settings.with(Option::is_some)}>
+            <Show value={move || settings.with(Option::is_some)}>
                 <Section title="Organization" caption="">
                     <SettingRow
                         label="Policies"
@@ -481,7 +481,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                         false => "Not used on this device".to_owned(),
                     }}
                 >
-                    <Show condition={move || !used.get() && !blocked.get()}>
+                    <Show value={move || !used.get() && !blocked.get()}>
                         <Button
                             label="Use on this device"
                             variant=ButtonVariant::Primary
@@ -506,19 +506,19 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     };
     view! {
         <SettingsPage>
-            <Show condition={move || !own.get()}>
+            <Show value={move || !own.get()}>
                 <Frame padding={Padding::horizontal(NOTICE_INSET)}>
                     <Text style=TextStyle::CAPTION>{NOT_OURS}</Text>
                 </Frame>
             </Show>
-            <Show condition={setting_up}>
+            <Show value={setting_up}>
                 <SetUpHeading />
             </Show>
             <DeviceSection setup={setup} blocked={blocked} />
-            <Show condition={differs}>
+            <Show value={differs}>
                 <DifferencesSection setup={setup} blocked={blocked} />
             </Show>
-            <Show condition={setting_up} fallback={browsing}>
+            <Show value={setting_up} fallback={browsing}>
                 <SetUpDone on_done={move || finished.set(true)} />
             </Show>
         </SettingsPage>
@@ -577,7 +577,7 @@ fn SettingRow(
                             >
                                 {label}
                             </Text>
-                            <Show condition={move || detail.with(|detail| !detail.is_empty())}>
+                            <Show value={move || detail.with(|detail| !detail.is_empty())}>
                                 <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>
                                     {detail}
                                 </Text>

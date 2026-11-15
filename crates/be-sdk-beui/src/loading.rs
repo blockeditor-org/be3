@@ -20,7 +20,7 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
         <Frame @test_id={"editor.loading"}>
             <List spacing=Space::None align=Align::Center>
                 <Spacer />
-                <Show condition={late}>
+                <Show value={late}>
                     <Progress width=INLINE_PROGRESS_WIDTH label={label} />
                 </Show>
                 <Spacer />

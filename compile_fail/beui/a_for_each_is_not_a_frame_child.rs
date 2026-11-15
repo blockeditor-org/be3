@@ -4,5 +4,5 @@ use beui::styled::*;
 
 #[component]
 fn Case(keys: Prop<Vec<u32>>) -> NodeId {
-    view! { <Frame><ForEach keys>|_key: u32| <Frame /></ForEach></Frame> } //~ ERROR put it in a `<List>` or `<Layers>`
+    view! { <Frame><ForEach value={keys}>|_key: u32| <Frame /></ForEach></Frame> } //~ ERROR put it in a `<List>` or `<Layers>`
 }

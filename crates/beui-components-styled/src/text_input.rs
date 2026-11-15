@@ -146,7 +146,7 @@ fn TextInputFrame(
                     }}
                     spacing=Space::None
                 >
-                    <Show condition={move || glyph.with(Option::is_some)}>
+                    <Show value={move || glyph.with(Option::is_some)}>
                         <Frame padding={Padding::ZERO.left(PADDING_HORIZONTAL)}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
                                 <Icon glyph={glyph} />
@@ -154,7 +154,7 @@ fn TextInputFrame(
                         </Frame>
                     </Show>
                     <ListItem grow=1.0>{field}</ListItem>
-                    <Show condition={move || clearable.get() && !empty.get()}>
+                    <Show value={move || clearable.get() && !empty.get()}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true
@@ -167,7 +167,7 @@ fn TextInputFrame(
                             />
                         </Frame>
                     </Show>
-                    <Show condition={copyable}>
+                    <Show value={copyable}>
                         <Frame padding={Padding::horizontal(CLEAR_PADDING)}>
                             <Button
                                 icon_only=true

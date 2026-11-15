@@ -61,7 +61,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
                 <Loaded label="Loading the text">|| {
                     editor.block_content::<TextContent>();
                     view! {
-                        <Show condition={state.hex_view} fallback={text_surface}>
+                        <Show value={state.hex_view} fallback={text_surface}>
                             <HexView state={state} />
                         </Show>
                     }

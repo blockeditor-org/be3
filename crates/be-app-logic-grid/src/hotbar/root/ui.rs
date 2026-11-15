@@ -52,7 +52,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     view! {
         <Frame padding=PADDING>
             <List spacing=ROW_SPACING>
-                <Show condition={empty}>
+                <Show value={empty}>
                     <Text style=TextStyle::CAPTION>
                         "Nothing is pinned yet. Compiling a grid pins the component it builds."
                     </Text>
@@ -60,7 +60,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
                 <ListItem grow=1.0>
                     <Scroll>
                         <List spacing=ROW_SPACING>
-                            <ForEach keys={keys}>|index: usize| {
+                            <ForEach value={keys}>|index: usize| {
                                 let row = create_memo(move || {
                                     rows.with(|rows| rows.get(index).cloned())
                                 });
@@ -157,13 +157,13 @@ fn SlotRow(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
             <Spacer width={indent} />
-            <Show condition={move || !folder.with(String::is_empty)}>
+            <Show value={move || !folder.with(String::is_empty)}>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_FOLDER />
                 </Text>
                 <Text>{folder}</Text>
             </Show>
-            <Show condition={is_component}>
+            <Show value={is_component}>
                 <BlockLink
                     editor={editor}
                     block={component}
@@ -173,7 +173,7 @@ fn SlotRow(
             </Show>
             <Text style=TextStyle::CAPTION>{note}</Text>
             <Spacer />
-            <Show condition={is_component}>
+            <Show value={is_component}>
                 <Button
                     icon_only=true
                     glyph=ICON_TRASH

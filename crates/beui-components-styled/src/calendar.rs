@@ -93,7 +93,7 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
             />
             <ListItem grow=1.0>
                 <List direction=Direction::Horizontal justify=Justify::Center spacing=Space::None>
-                    <Show condition={move || !years_open.get()}>
+                    <Show value={move || !years_open.get()}>
                         <HeaderToggle
                             label={month_label}
                             accessibility={month_toggle}

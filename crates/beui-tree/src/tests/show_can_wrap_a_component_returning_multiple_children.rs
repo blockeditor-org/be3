@@ -6,7 +6,7 @@ fn Pair(label: Prop<String>, tail: Prop<bool>, disposed: Rc<Cell<usize>>) -> Chi
     flush();
     view! {
         <Element tag="p" text={label} />
-        <Show condition={tail}>
+        <Show value={tail}>
             <Element tag="span" text="tail" />
         </Show>
     }
@@ -26,7 +26,7 @@ fn show_can_wrap_a_component_returning_multiple_children() {
         view! {
             <Element tag="div">
                 <Element tag="b" text="before" />
-                <Show condition={shown}>
+                <Show value={shown}>
                     <Pair label tail disposed={counter.clone()} />
                 </Show>
                 <Element tag="b" text="after" />

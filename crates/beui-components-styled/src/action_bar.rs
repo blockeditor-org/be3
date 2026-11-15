@@ -85,9 +85,9 @@ fn ActionBarFace(
     let menu_id = format!("{test_prefix}.menu");
     view! {
         <List direction=direction align=Align::Center spacing=SPACING>
-            <ForEach keys={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
+            <ForEach value={icon_keys}>|key: u64| { icon_pin(icons, key, false) }</ForEach>
             <Show
-                condition={move || {
+                value={move || {
                     labels == ActionLabels::Shown
                         && icons.with(|icons| !icons.is_empty())
                         && labelled.with(|labelled| !labelled.is_empty())
@@ -97,10 +97,10 @@ fn ActionBarFace(
                     <Separator direction=Direction::Vertical length=DIVIDER_HEIGHT />
                 </Frame>
             </Show>
-            <ForEach keys={label_keys}>|key: u64| {
+            <ForEach value={label_keys}>|key: u64| {
                 labelled_pin(labelled, key, labels == ActionLabels::Shown)
             }</ForEach>
-            <Show condition={move || overflow.with(|items| !items.is_empty())}>
+            <Show value={move || overflow.with(|items| !items.is_empty())}>
                 <MenuButton
                     icon_only=true
                     variant=ButtonVariant::Ghost
