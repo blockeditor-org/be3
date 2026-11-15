@@ -636,14 +636,17 @@ impl Editor {
                 })
                 .collect(),
         };
+        // With no link base (a local server's, or none told yet), the text carries the URL's
+        // fragment alone, which a text still reads as naming the block.
+        let base = base.unwrap_or_default();
         let text = blocks
             .iter()
-            .map(|(id, _, title)| match &base {
-                Some(base) if !base.is_empty() && !organization.is_nil() => format!(
+            .map(|(id, _, title)| match organization.is_nil() {
+                false => format!(
                     "{title} {}",
-                    be_block_content::block_url::block_url(base, organization, *id)
+                    be_block_content::block_url::block_url(&base, organization, *id)
                 ),
-                _ => title.clone(),
+                true => title.clone(),
             })
             .collect::<Vec<_>>()
             .join("\n");
