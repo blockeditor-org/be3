@@ -287,8 +287,7 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
             </ListItem>
             <ListItem grow=1.0>
                 <Frame>
-                    <List spacing=Space::None>
-                        <Show
+                    <Show
                             condition={choice}
                             fallback={move || view! {
                                 <DatabaseValueEditor
@@ -311,7 +310,6 @@ fn Property(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 on_pick={picked}
                             />
                         </Show>
-                    </List>
                 </Frame>
             </ListItem>
         </List>
