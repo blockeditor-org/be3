@@ -1,5 +1,6 @@
 use crate as unstyled;
 use crate::ChoiceOption;
+use crate::choice::{keyed, option_key};
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
 use crate::form::Posted;
@@ -38,14 +39,14 @@ enum Focus {
 struct State<T: 'static> {
     trigger: NodeRef,
     options: Stored<Run<ChoiceOption<T>>>,
-    lists: [ComponentRef<SearchListApi<usize>>; 2],
+    lists: [ComponentRef<SearchListApi<u64>>; 2],
     sheet: Signal<bool>,
     open: Signal<bool>,
     focus: Signal<Focus>,
     query: Signal<String>,
     selected: Binding<Option<T>>,
-    chosen: Memo<Option<usize>>,
-    highlighted: Signal<Option<usize>>,
+    chosen: Memo<Option<u64>>,
+    highlighted: Signal<Option<u64>>,
 }
 
 impl<T> Clone for State<T> {
@@ -94,9 +95,12 @@ where
     let among = options.clone();
     let chosen = create_memo(move || {
         selected.with(|selected| {
-            selected
-                .as_ref()
-                .and_then(|value| crate::choice::position(&among, value))
+            let selected = selected.as_ref()?;
+            among
+                .items()
+                .iter()
+                .find(|option| option.value() == selected)
+                .map(|option| option_key(option))
         })
     });
     let initial = chosen.get_untracked();
@@ -123,13 +127,7 @@ where
 
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
     let labelled = options.clone();
-    let label = create_memo(move || {
-        let index = chosen.get()?;
-        labelled
-            .items()
-            .get(index)
-            .map(|option| option.label().get())
-    });
+    let label = create_memo(move || Some(keyed(&labelled, chosen.get()?)?.label().get()));
     let trigger_accessibility = create_memo(move || {
         let mut node = accessibility.get();
         if let Some(label) = label.get() {
@@ -153,18 +151,20 @@ where
         crate::search_list::rank(&options, &query, |option, query| {
             crate::search_list::substring_score(&option.label().get(), query)
         })
+        .into_iter()
+        .map(|index| option_key(&options[index]))
+        .collect()
     };
-    let row_accessibility = move |index: usize| {
+    let row_accessibility = move |key: u64| {
         let mut node = Node::new(Role::ListBoxOption);
-        if let Some(option) = state.options.value().items().get(index) {
+        if let Some(option) = keyed(&state.options.value(), key) {
             node.set_label(option.label().get());
         }
-        node.set_selected(state.chosen.get() == Some(index));
+        node.set_selected(state.chosen.get() == Some(key));
         node
     };
-    let row = move |handle: SearchRowHandle<usize>| {
-        let index = handle.key;
-        let Some(shown) = state.options.value().get_untracked().get(index).cloned() else {
+    let row = move |handle: SearchRowHandle<u64>| {
+        let Some(shown) = untrack(|| keyed(&state.options.value(), handle.key)) else {
             return view! {
                 <Frame />
             };
@@ -182,10 +182,7 @@ where
     };
 
     let valued = options.clone();
-    let posted = create_memo(move || {
-        let index = chosen.get()?;
-        valued.items().get(index).map(|option| option.posted().get())
-    });
+    let posted = create_memo(move || Some(keyed(&valued, chosen.get()?)?.posted().get()));
     let select = view! {
         <List spacing=0.0>
             <unstyled::Button
@@ -217,7 +214,7 @@ where
                         highlighted={state.highlighted}
                         rank
                         highlight_first=false
-                        on_choose={move |index: usize| confirm(state, index)}
+                        on_choose={move |key: u64| confirm(state, key)}
                         focused={create_memo(move || shown.get() && focused.is_selected(&Focus::Search))}
                         keyboard_on_focus=false
                         on_focus_change={move |has_focus: bool| blur(state, has_focus)}
@@ -260,15 +257,22 @@ fn trigger_key<T: Clone + PartialEq + 'static>(state: State<T>, press: KeyPress)
     }
     if press.pressed {
         open(state);
-        let count = state.options.value().get_untracked().len();
-        let current = state.highlighted.get_untracked();
+        let options = state.options.value().get_untracked();
+        let count = options.len();
+        let current = state.highlighted.get_untracked().and_then(|key| {
+            options
+                .iter()
+                .position(|option| option_key(option) == key)
+        });
         let next = match press.key {
             Key::ArrowDown => current.map_or(0, |at| (at + 1).min(count.saturating_sub(1))),
             Key::ArrowUp => current.map_or(0, |at| at.saturating_sub(1)),
             Key::Home => 0,
             _ => count.saturating_sub(1),
         };
-        state.highlighted.set((count > 0).then_some(next));
+        state
+            .highlighted
+            .set(options.get(next).map(|option| option_key(option)));
     }
     true
 }
@@ -292,8 +296,10 @@ fn dismiss<T>(state: State<T>) {
     state.focus.set(Focus::Away);
 }
 
-fn confirm<T: Clone + PartialEq + 'static>(state: State<T>, index: usize) {
-    if let Some(value) = crate::choice::value_at(&state.options.value(), index) {
+/// Chooses the option the row was built for, wherever it now sits among the options.
+fn confirm<T: Clone + PartialEq + 'static>(state: State<T>, key: u64) {
+    if let Some(option) = untrack(|| keyed(&state.options.value(), key)) {
+        let value = option.value().clone();
         state.selected.update(|selected| *selected = Some(value));
     }
     dismiss(state);
@@ -310,15 +316,15 @@ impl<T> Clone for SelectApi<T> {
 impl<T> Copy for SelectApi<T> {}
 
 impl<T: Clone + PartialEq + 'static> SelectApi<T> {
-    fn list(&self) -> ComponentRef<SearchListApi<usize>> {
+    fn list(&self) -> ComponentRef<SearchListApi<u64>> {
         self.0.lists[usize::from(self.0.sheet.get_untracked())]
     }
 
     /// The chosen option's value, or `None` while no option holds the bound value.
     pub fn selected(&self) -> Option<T> {
         let state = self.0;
-        let index = state.chosen.get_untracked()?;
-        crate::choice::value_at(&state.options.value(), index)
+        let key = state.chosen.get_untracked()?;
+        untrack(|| keyed(&state.options.value(), key)).map(|option| option.value().clone())
     }
 
     pub fn open(&self) -> bool {
@@ -335,12 +341,20 @@ impl<T: Clone + PartialEq + 'static> SelectApi<T> {
 
     /// The row the open popup shows for the option holding `value`.
     pub fn option_button(&self, value: &T) -> Option<NodeId> {
-        let index = crate::choice::position(&self.0.options.value(), value)?;
-        self.list().try_get()?.row(&index)
+        let key = self
+            .0
+            .options
+            .value()
+            .get_untracked()
+            .iter()
+            .find(|option| option.value() == value)
+            .map(|option| option_key(option))?;
+        self.list().try_get()?.row(&key)
     }
 
     /// The value of the option the popup highlights.
     pub fn highlighted(&self) -> Option<T> {
-        crate::choice::value_at(&self.0.options.value(), self.0.highlighted.get_untracked()?)
+        let key = self.0.highlighted.get_untracked()?;
+        untrack(|| keyed(&self.0.options.value(), key)).map(|option| option.value().clone())
     }
 }

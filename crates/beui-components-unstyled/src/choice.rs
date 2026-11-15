@@ -29,6 +29,7 @@ pub struct ChoiceOptionHandle<T> {
 /// One option of a `Choice` or `Select`: the `value` it stands for, which the
 /// control's binding holds when it is chosen, and the label it shows.
 pub struct ChoiceOption<T> {
+    key: u64,
     value: T,
     label: Memo<String>,
     posted: Memo<String>,
@@ -76,6 +77,7 @@ where
 {
     let label = create_memo(move || label.get());
     ChoiceOption {
+        key: next_key(),
         value,
         label,
         posted: create_memo(move || {
@@ -85,6 +87,32 @@ where
         }),
         test_id: None,
     }
+}
+
+thread_local! {
+    static NEXT_KEY: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn next_key() -> u64 {
+    NEXT_KEY.with(|next| {
+        let key = next.get();
+        next.set(key + 1);
+        key
+    })
+}
+
+/// Names one option for as long as it lives, wherever it moves among its siblings, so
+/// rows, focus and highlights follow it rather than a position.
+pub(crate) fn option_key<T>(option: &ChoiceOption<T>) -> u64 {
+    option.key
+}
+
+/// The option `key` names among `options`, read tracked.
+pub(crate) fn keyed<T: 'static>(
+    options: &Run<ChoiceOption<T>>,
+    key: u64,
+) -> Option<std::rc::Rc<ChoiceOption<T>>> {
+    options.items().into_iter().find(|option| option.key == key)
 }
 
 /// Where the option holding `value` sits among `options`, read tracked.
@@ -115,7 +143,7 @@ pub struct ChoiceItem<T> {
 
 struct State<T: 'static> {
     options: Stored<Run<ChoiceOption<T>>>,
-    focus: Signal<Option<usize>>,
+    focus: Signal<Option<u64>>,
     selected: Binding<Option<T>>,
     shown: Memo<Option<usize>>,
     kind: ChoiceKind,
@@ -213,7 +241,7 @@ where
             }
             node
         });
-        let id = option_id(&built);
+        let id = option_key(&built);
         let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
         let focus_here = focused.memo(Some(id));
         let button = view! {
@@ -256,20 +284,16 @@ where
     }
 }
 
-fn option_id<T>(option: &Rc<ChoiceOption<T>>) -> usize {
-    Rc::as_ptr(option) as usize
-}
-
-fn id_at<T: 'static>(state: State<T>, index: usize) -> Option<usize> {
+fn id_at<T: 'static>(state: State<T>, index: usize) -> Option<u64> {
     state
         .options
         .value()
         .get_untracked()
         .get(index)
-        .map(option_id)
+        .map(|option| option_key(option))
 }
 
-fn track_focus<T>(state: State<T>, id: usize, has_focus: bool) {
+fn track_focus<T>(state: State<T>, id: u64, has_focus: bool) {
     if has_focus {
         state.focus.set(Some(id));
     } else if state.focus.get_untracked() == Some(id) {

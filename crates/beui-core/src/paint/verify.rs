@@ -334,9 +334,15 @@ impl Compare<'_> {
         self.restacked(&was.children, &now.children);
     }
 
+    /// A child kept in place whose paint order changed against the others kept in place
+    /// needs its rect repainted. A child that moved is repainted where it was and where it
+    /// is, which covers wherever its new order against the others could show, so only the
+    /// children that stayed are compared, as damage compares them.
     fn restacked(&mut self, was: &[Key], now: &[Key]) {
+        let stayed = |key: &Key| self.old.nodes[key].subtree.1 == self.new.nodes[key].subtree.1;
         let positions: HashMap<Key, usize> = was
             .iter()
+            .filter(|key| self.new.nodes.contains_key(key) && stayed(key))
             .enumerate()
             .map(|(position, key)| (*key, position))
             .collect();
