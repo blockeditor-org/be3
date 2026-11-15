@@ -1,4 +1,3 @@
-use std::cell::Cell;
 use std::hash::Hash;
 use std::rc::Rc;
 
@@ -23,7 +22,7 @@ struct Projection<C: LiveEdit> {
     _announcing: Subscription,
     announced: OwnedTrigger,
     live: LiveContent<C>,
-    payload: std::cell::RefCell<Option<(OwnedSignal<Ready<Payload>>, Subscription)>>,
+    payload: std::cell::RefCell<Option<(Scope, AsyncMemo<Payload>)>>,
 }
 
 pub struct ContentProjection<C: LiveEdit>(Stored<Projection<C>>);
@@ -282,49 +281,49 @@ impl<K: be_block_content::BlobKind> ContentProjection<be_block_content::Blob<K>>
     /// The payload, which a kind that loads only its header (`BlobKind::LOADS`) leaves in the
     /// store: read by range once the first snapshot arrives, and again with each new one (a
     /// replacement), never on a header edit.
-    pub fn payload(&self) -> ReadSignal<Ready<Payload>> {
+    pub fn payload(&self) -> AsyncMemo<Payload> {
         let projection = self.inner();
-        if let Some((signal, _)) = projection.payload.borrow().as_ref() {
-            return signal.handle().read_only();
+        if let Some((_, payload)) = projection.payload.borrow().as_ref() {
+            return *payload;
         }
-        let owned = OwnedSignal::new(Err(Pending::Loading));
-        let payload = owned.handle();
-        let fetched = Rc::new(Cell::new(None::<u64>));
+        let announced = projection.announced.handle();
         let this = *self;
-        let fetch = Rc::new(move || {
-            let live = this.live();
-            let Ok(length) = live.stored_length() else {
-                return;
-            };
-            let snapshot = live.snapshots();
-            if fetched.get() == Some(snapshot) {
-                return;
-            }
-            fetched.set(Some(snapshot));
-            let (start, held) = live.visible(|blob| {
-                let start = be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
-                let whole = start + blob.data().len() as u64 == length;
-                (start, whole.then(|| Payload(blob.data().into())))
+        // Kept with the projection, which outlives the scope that first asked for it.
+        let scope = Scope::detached();
+        let payload = scope.run(|| {
+            let stored = create_memo(move || {
+                announced.track();
+                let live = this.live();
+                live.stored_length().ok().map(|length| (length, live.snapshots()))
             });
-            if let Some(held) = held {
-                payload.set(Ok(held));
-                return;
-            }
-            let current = Rc::clone(&fetched);
-            live.read_range(start, length.saturating_sub(start), move |read| {
-                if current.get() != Some(snapshot) {
-                    return;
+            create_async_memo(move || {
+                let stored = stored.get();
+                let live = this.live();
+                let read = stored.map(|(length, _)| {
+                    let (start, held) = live.visible(|blob| {
+                        let start =
+                            be_block_content::encode_streamed(blob.header(), &[]).len() as u64;
+                        let whole = start + blob.data().len() as u64 == length;
+                        (start, whole.then(|| Payload(blob.data().into())))
+                    });
+                    match held {
+                        Some(held) => Ok(held),
+                        None => Err(live.read_range(start, length.saturating_sub(start))),
+                    }
+                });
+                async move {
+                    match read.ok_or(Pending::Loading)? {
+                        Ok(held) => Ok(held),
+                        Err(reading) => reading
+                            .await
+                            .map(|bytes| Payload(bytes.into()))
+                            .map_err(Pending::Failed),
+                    }
                 }
-                payload.set(
-                    read.map(|bytes| Payload(bytes.into()))
-                        .map_err(Pending::Failed),
-                );
-            });
+            })
         });
-        fetch();
-        let subscription = projection.live.on_revision(move |_| fetch());
-        *projection.payload.borrow_mut() = Some((owned, subscription));
-        payload.read_only()
+        *projection.payload.borrow_mut() = Some((scope, payload));
+        payload
     }
 }
 

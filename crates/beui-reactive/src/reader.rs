@@ -1,3 +1,5 @@
+use crate::async_memo::AsyncMemo;
+use crate::loading::Ready;
 use crate::memo::Memo;
 use crate::runtime::check_tracked_read;
 use crate::signal::{Get, ReadSignal, Signal};
@@ -89,5 +91,11 @@ impl<T: 'static> From<Signal<T>> for Reader<T> {
 impl<T: 'static> From<Memo<T>> for Reader<T> {
     fn from(memo: Memo<T>) -> Self {
         Self(Source::Memo(memo))
+    }
+}
+
+impl<T: 'static> From<AsyncMemo<T>> for Reader<Ready<T>> {
+    fn from(memo: AsyncMemo<T>) -> Self {
+        Self(Source::Signal(memo.value()))
     }
 }

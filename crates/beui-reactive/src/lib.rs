@@ -11,6 +11,7 @@
 extern crate self as beui_reactive;
 
 mod arena;
+mod async_memo;
 mod computation;
 mod keyed;
 mod loading;
@@ -23,6 +24,7 @@ mod signal;
 mod stored;
 mod trigger;
 
+pub use async_memo::{AsyncMemo, LocalFuture, create_async_memo, spawn_with};
 pub use beui_reactive_macros::Store;
 pub use computation::{
     Effect, create_binding, create_effect, create_effect_on, create_effect_on_change,
