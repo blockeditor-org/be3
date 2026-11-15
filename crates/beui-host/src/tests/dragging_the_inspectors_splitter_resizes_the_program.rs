@@ -23,8 +23,8 @@ fn dragging_the_inspectors_splitter_resizes_the_program() {
         "the program keeps the left of the window"
     );
     assert!(
-        (WIDE_VIEWPORT.x - program.right() - 340.0).abs() <= 1.0,
-        "the tools start 340 points wide, the program has {program:?}"
+        (WIDE_VIEWPORT.x - program.right() - 400.0).abs() <= 1.0,
+        "the tools start 400 points wide, the program has {program:?}"
     );
     assert_eq!(
         harness.document().node_rect(text).map(|rect| rect.right()),

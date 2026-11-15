@@ -37,7 +37,7 @@ use beui_view::reactive::*;
 use panel::Summary;
 use tree::{Entry, Key};
 
-const DEFAULT_WIDTH: f32 = 380.0;
+const DEFAULT_WIDTH: f32 = 400.0;
 const HANDLE_REACH: f32 = beui_core::screen_simulation::MARGIN;
 const HANDLE_THICKNESS: f32 = 4.0;
 const HANDLE_LENGTH: f32 = 40.0;
