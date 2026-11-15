@@ -486,9 +486,7 @@ fn CentredSurface(picker: Picker, held: Memo<Option<Pick>>) -> NodeId {
 fn PickerSurface(picker: Picker) -> NodeId {
     let held = picker.held();
     let act = act_on(picker);
-    view! {
-        <List spacing=Space::None>
-            <Dynamic value={move || {
+    let shown = move || {
         held.with(|held| match held.as_ref() {
             Some(held)
                 if held
@@ -501,7 +499,10 @@ fn PickerSurface(picker: Picker) -> NodeId {
             Some(held) => Some(Some(held.stage)),
             None => None,
         })
-    }}>|shown: Option<Option<Stage>>| {
+    };
+    view! {
+        <List spacing=Space::None>
+            <Dynamic value={shown}>|shown: Option<Option<Stage>>| {
                 match shown {
                     Some(None) => view! {
                         <ListItem>

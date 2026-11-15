@@ -517,29 +517,28 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
             Some(Part::Page) | None => String::new(),
         })
     });
-    view! {
-        <List direction=Direction::Horizontal spacing=Space::None>
-            <Dynamic value={move || {
+    let kind = create_memo(move || {
         part.with(|part| match part {
             Some(Part::Page) | None => PartKind::Page,
             Some(Part::Text(_)) => PartKind::Plain,
             Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)) => PartKind::Chip,
         })
-    }}>|kind: PartKind| {
-                match kind {
-                    PartKind::Page => view! {
-                        <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
-                            <Icon glyph=ICON_FILE_TEXT />
-                        </Text>
-                    },
-                    PartKind::Plain => view! {
-                        <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{text}</Text>
-                    },
-                    PartKind::Chip => view! {
-                        <Chip part={part} text={text} />
-                    },
-                }
-            }</Dynamic>
+    });
+    view! {
+        <List direction=Direction::Horizontal spacing=Space::None>
+            <Match value={kind}>
+                <Case is={PartKind::Page}>
+                    <Text size=MARK color=TextColor::Muted align=TextAlign::Center>
+                        <Icon glyph=ICON_FILE_TEXT />
+                    </Text>
+                </Case>
+                <Case is={PartKind::Plain}>
+                    <Text style=TextStyle::CAPTION overflow=Overflow::Ellipsis>{text}</Text>
+                </Case>
+                <Case is={PartKind::Chip}>
+                    <Chip part={part} text={text} />
+                </Case>
+            </Match>
         </List>
     }
 }

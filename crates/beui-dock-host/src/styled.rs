@@ -659,6 +659,10 @@ fn DockTitleBar(
             >
                 <Container>|size: ReadSignal<Vec2>| {
                     let menu_prefix = test_prefix.clone();
+                    let room = move || match size.get().x < ROOMY_BAR {
+                        true => BarRoom::Narrow,
+                        false => BarRoom::Wide,
+                    };
                     view! {
                         <List
                             direction=Direction::Horizontal
@@ -681,10 +685,7 @@ fn DockTitleBar(
                                         align=Align::Center
                                         spacing=BAR_SPACING
                                     >
-                                        <Dynamic value={move || match size.get().x < ROOMY_BAR {
-                        true => BarRoom::Narrow,
-                        false => BarRoom::Wide,
-                    }}>|room: BarRoom|
+                                        <Dynamic value={room}>|room: BarRoom|
                                             <DockMenu menu room test_prefix={menu_prefix.clone()} />
                                         </Dynamic>
                                         <DockClose
