@@ -42,8 +42,7 @@ pub struct VersionState {
 
 #[derive(Default)]
 pub(super) struct Versions {
-    trees: HashMap<CommitId, Tree>,
-    commits: HashMap<CommitId, Commit>,
+    objects: Objects,
     /// What the graph lists for statuses (`Owner::Version`): the subtrees of the followed
     /// checkouts' roots, and each block `followed` names, whose head moves the connection's
     /// `changes` then tells.
@@ -53,6 +52,71 @@ pub(super) struct Versions {
     /// status, so blocks that left the subtree are let go (`reconcile`).
     followed: HashMap<Uuid, Followed>,
     statuses: Statuses,
+}
+
+/// The trees and commits version control read or wrote, by commit, which never change: one
+/// cache for the loop's `Versions`, which computes the statuses, and each version command's in
+/// the lane (`Served::version`), so neither reads again what the other holds.
+#[derive(Clone, Default)]
+pub(super) struct Objects(Arc<Mutex<Held>>);
+
+#[derive(Default)]
+struct Held {
+    trees: HashMap<CommitId, Tree>,
+    commits: HashMap<CommitId, Commit>,
+}
+
+/// How many times each tree and commit was read from the peer, whichever `Objects` keeps it,
+/// for a test to tell that nothing was read twice. Each test file runs as a process of its own.
+#[cfg(test)]
+static READS: std::sync::Mutex<Option<HashMap<(&'static str, CommitId), usize>>> =
+    std::sync::Mutex::new(None);
+
+impl Objects {
+    fn held(&self) -> std::sync::MutexGuard<'_, Held> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn tree(&self, commit: CommitId) -> Option<Tree> {
+        self.held().trees.get(&commit).cloned()
+    }
+
+    fn commit(&self, commit: CommitId) -> Option<Commit> {
+        self.held().commits.get(&commit).cloned()
+    }
+
+    fn put_tree(&self, commit: CommitId, tree: Tree) {
+        self.held().trees.insert(commit, tree);
+    }
+
+    fn put_commit(&self, id: CommitId, commit: Commit) {
+        self.held().commits.insert(id, commit);
+    }
+}
+
+#[cfg(test)]
+fn count_read(what: &'static str, commit: CommitId) {
+    let mut reads = READS.lock().unwrap_or_else(PoisonError::into_inner);
+    *reads
+        .get_or_insert_default()
+        .entry((what, commit))
+        .or_default() += 1;
+}
+
+/// How many trees and commits version control read from the peer, and which more than once.
+#[cfg(test)]
+pub(crate) fn reads() -> (usize, Vec<(&'static str, CommitId)>) {
+    let reads = READS.lock().unwrap_or_else(PoisonError::into_inner);
+    let reads = reads.as_ref();
+    (
+        reads.map_or(0, |reads| reads.values().sum()),
+        reads
+            .into_iter()
+            .flatten()
+            .filter(|(_, count)| **count > 1)
+            .map(|(read, _)| *read)
+            .collect(),
+    )
 }
 
 struct Followed {
@@ -360,6 +424,14 @@ fn pick<T: Clone + PartialEq>(base: &T, ours: &T, theirs: &T) -> T {
 }
 
 impl Versions {
+    /// A `Versions` that reads and keeps trees and commits in `objects`.
+    pub(super) fn sharing(objects: Objects) -> Self {
+        Self {
+            objects,
+            ..Self::default()
+        }
+    }
+
     pub(super) async fn run(
         &mut self,
         context: &mut Context<'_>,
@@ -416,10 +488,12 @@ impl Versions {
         let Some(commit) = commit else {
             return Ok(Tree::default());
         };
-        if let Some(tree) = self.trees.get(&commit) {
-            return Ok(tree.clone());
+        if let Some(tree) = self.objects.tree(commit) {
+            return Ok(tree);
         }
         let manifest = self.commit_of(peer, commit).await?.manifest;
+        #[cfg(test)]
+        count_read("tree", commit);
         let tree: Tree = be_block_store::decode_value(
             &peer
                 .read_manifest(&manifest)
@@ -427,7 +501,7 @@ impl Versions {
                 .map_err(Failure::client)?,
         )
         .map_err(Failure::stored)?;
-        self.trees.insert(commit, tree.clone());
+        self.objects.put_tree(commit, tree.clone());
         Ok(tree)
     }
 
@@ -449,11 +523,13 @@ impl Versions {
     }
 
     async fn commit_of(&mut self, peer: &Peer<Store>, commit: CommitId) -> Result<Commit, Failure> {
-        if let Some(found) = self.commits.get(&commit) {
-            return Ok(found.clone());
+        if let Some(found) = self.objects.commit(commit) {
+            return Ok(found);
         }
         let loaded = peer.load_commit(commit).await.map_err(Failure::client)?;
-        self.commits.insert(commit, loaded.clone());
+        #[cfg(test)]
+        count_read("commit", commit);
+        self.objects.put_commit(commit, loaded.clone());
         Ok(loaded)
     }
 
@@ -621,7 +697,7 @@ impl Versions {
             .hold(repository, &held, be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
-        self.trees.insert(commit, tree.clone());
+        self.objects.put_tree(commit, tree.clone());
         Ok(commit)
     }
 
@@ -638,7 +714,7 @@ impl Versions {
             .hold(repository, &[id.hash()], be_block_protocol::Hold::Lasting)
             .await
             .map_err(failed)?;
-        self.commits.insert(id, commit);
+        self.objects.put_commit(id, commit);
         Ok(id)
     }
 
@@ -655,8 +731,8 @@ impl Versions {
             .with_change(ChangeId::new())
             .with_kind(CommitKind::Snapshot(String::new()));
         let id = self.put(context, repository, commit).await?;
-        if let Some(tree) = self.trees.get(&parent).cloned() {
-            self.trees.insert(id, tree);
+        if let Some(tree) = self.objects.tree(parent) {
+            self.objects.put_tree(id, tree);
         }
         Ok(id)
     }
@@ -796,7 +872,7 @@ impl Versions {
         .with_change(current.change())
         .with_kind(CommitKind::Snapshot(description.to_owned()));
         let finished = self.put(context, repository, finished).await?;
-        self.trees.insert(finished, current.working.tree.clone());
+        self.objects.put_tree(finished, current.working.tree.clone());
         let next = self.start_change(context, repository, finished).await?;
         let branch = state.branch.clone();
         self.operate(

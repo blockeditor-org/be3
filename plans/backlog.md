@@ -42,11 +42,6 @@ guides/apps/host_services.md, Copying and cutting blocks). Left of it:
 
 ## 9. Version control's caches
 
-- **Trees and commits read once.** A version command in the lane runs on a `Versions` of its
-  own (`Served::version`), so it reads again every tree and commit the loop's statuses already
-  hold, and what it writes never reaches theirs. Done: the loop's `Versions` and the lane's
-  share one cache of trees and commits (behind an `Arc`), and a status after a command reads
-  nothing the command already read.
 - **A bounded walk to the merge base.** A version command's write of a block that moved
   (`version.rs`, `merge_over`) finds the two heads' common ancestor by walking all the history
   the device holds of each, up to four times a write. Done: the walk stops at a depth past
