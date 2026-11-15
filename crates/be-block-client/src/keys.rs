@@ -331,6 +331,10 @@ impl KeyBook {
     /// Makes a minted escrow (`mint_escrow`) the latest in the chain, once the server holds it.
     pub fn adopt_escrow(&self, escrow: EscrowKey) {
         let mut chain = self.escrow.lock().unwrap().chain.clone();
+        // The key work read meanwhile may have brought it already.
+        if chain.iter().any(|held| held.id == escrow.id) {
+            return;
+        }
         chain.push(escrow);
         self.set_escrows(chain);
     }
