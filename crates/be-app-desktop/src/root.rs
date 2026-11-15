@@ -29,7 +29,7 @@ use be_sdk_beui::beui::{Modifiers, NodeId, Pos2, Rect, Vec2, pos2, vec2};
 use be_sdk_beui::{Editor, Loaded};
 use be_sdk_beui::{HostPanel, HostWindowId};
 use be_sdk_shell::{
-    BlockTab, Failure, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace,
+    BlockTab, PanelWindow, ProgramWindow, UnshownWindows, WindowDialog, Workspace,
     WorkspaceDialogs,
 };
 use uuid::Uuid;
@@ -193,9 +193,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     workspace.editor().content(&surface);
     let layout = workspace.layout();
     let host = workspace.dock_host();
-    let failure = workspace.error();
-    let failed = create_memo(move || failure.get().is_some());
-    let reason = create_memo(move || failure.get().unwrap_or_default());
     let program_windows = workspace.program_tabs();
     let windows = DeskWindows::new(workspace);
     let block_windows = workspace.block_tabs();
@@ -225,7 +222,6 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     view! {
         <Frame @node_ref={&surface}>
             <List spacing=Space::None>
-                <Failure failed={failed} reason={reason} />
                 <ListItem grow=1.0>
                     <DockHost
                         @test_id={"desktop.dock"}

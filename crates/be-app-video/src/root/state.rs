@@ -193,9 +193,6 @@ impl VideoState {
         let state = *self;
         self.editor
             .pick_block(BlockFilter::default(), PickAnchor::Centre, move |picked| {
-                let Ok(picked) = picked else {
-                    return;
-                };
                 if state.inner.is_alive() {
                     state.adopt(picked.id());
                     state.insert_clip(

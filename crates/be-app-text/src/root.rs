@@ -3,7 +3,6 @@ use be_type_text::TextContent;
 mod tests;
 
 pub(crate) mod embeds;
-mod import_error;
 mod large_embed;
 mod position;
 pub(crate) mod state;
@@ -18,7 +17,6 @@ use uuid::Uuid;
 
 use crate::hex::HexView;
 
-use import_error::ImportError;
 use state::State;
 use surface::TextSurface;
 use toolbar::{EditorMenu, FormatBar, format_actions};
@@ -72,7 +70,6 @@ pub fn TextEditor(editor: Editor) -> NodeId {
     view! {
         <List @node_ref=&content spacing=Space::None>
             <EditorMenu state={state} />
-            <ImportError state={state} />
             <ListItem grow=1.0>
                 <Loaded label="Loading the text">|| {
                     editor.block_content::<TextContent>();

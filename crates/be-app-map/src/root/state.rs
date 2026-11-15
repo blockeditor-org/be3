@@ -67,7 +67,6 @@ pub(crate) struct MapState {
     pub(crate) selected: Signal<Option<Uuid>>,
     pub(crate) visible_region: Signal<MapRegion>,
     pub(crate) last_error: Signal<Option<String>>,
-    pub(crate) import_error: Signal<Option<String>>,
     pub(crate) labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
     pub(crate) revision: Signal<u64>,
     pub(crate) reloads: Signal<u64>,
@@ -84,7 +83,6 @@ impl MapState {
         let selected = create_signal(None);
         let visible_region = create_signal(MapRegion::WORLD);
         let last_error = create_signal(None);
-        let import_error = create_signal(None);
         let references = editor.watch_blocks(BlockQuery::References(editor.block_id()));
         let labels = create_memo(move || {
             let types = editor.block_types();
@@ -108,7 +106,6 @@ impl MapState {
             selected,
             visible_region,
             last_error,
-            import_error,
             labels,
             revision,
             reloads,
@@ -141,10 +138,6 @@ impl MapState {
 
     pub(crate) fn select(&self, id: Option<Uuid>) {
         self.selected.set(id);
-    }
-
-    pub(crate) fn dismiss_import_error(&self) {
-        self.import_error.set(None);
     }
 
     pub(crate) fn request_fit(&self) {
@@ -197,7 +190,7 @@ impl MapState {
     ) {
         self.editor
             .pick_block(BlockFilter::default(), anchor, move |picked| {
-                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                if self.inner.is_alive() {
                     self.place_picked(picked.id(), at);
                 }
             });
@@ -490,7 +483,6 @@ impl MapState {
             inner.pending_file_drop.set(Some(at(drop.position)));
             return;
         }
-        self.import_error.set(None);
         let base = inner
             .pending_file_drop
             .take()
@@ -509,7 +501,6 @@ impl MapState {
     pub(crate) fn take_paste(&self, pasted: ClipItem) {
         let inner = self.inner.value();
         if pasted.format == formats::PNG {
-            self.import_error.set(None);
             let position = inner.view_center.get();
             self.import(
                 ImageFile::from_file("Pasted Image.png".to_owned(), pasted.data),

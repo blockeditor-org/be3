@@ -855,11 +855,15 @@ impl Editor {
         self.state().core.intrinsic_size()
     }
 
+    /// Asks the person for a block with the host's picker, anchored at `anchor`. `picked` hears
+    /// the block they chose; nothing, when they cancel. A pick that failed (the picker did not
+    /// open, the host did not make the block) is reported to the host
+    /// (`EditorHost::report_failure`), so the editor has nothing to show for it.
     pub fn pick_block(
         &self,
         filter: BlockFilter,
         anchor: impl Into<crate::PickAnchor>,
-        picked: impl FnOnce(Result<PickedBlock, be_sdk::Failure>) + 'static,
+        picked: impl FnOnce(PickedBlock) + 'static,
     ) {
         let state = self.state();
         let anchor = anchor.into();
@@ -998,6 +1002,10 @@ impl Editor {
             return;
         };
         state.picking.set(None);
+        if let Err(failure) = &answer {
+            self.host()
+                .report_failure(format!("The block could not be picked: {failure}"));
+        }
         picking.answer(answer);
     }
 
@@ -1379,7 +1387,7 @@ impl Creation {
         &self,
         filter: BlockFilter,
         anchor: impl Into<crate::PickAnchor>,
-        picked: impl FnOnce(Result<PickedBlock, be_sdk::Failure>) + 'static,
+        picked: impl FnOnce(PickedBlock) + 'static,
     ) {
         self.0.children.pick_block(filter, anchor, picked);
     }

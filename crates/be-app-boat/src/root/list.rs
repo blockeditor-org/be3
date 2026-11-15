@@ -74,9 +74,6 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 .is_some_and(|listed| listed.sandboxes.is_empty())
         })
     });
-    let notice = state.notice;
-    let noticed = create_memo(move || notice.with(Option::is_some));
-    let notice_text = create_memo(move || notice.get().unwrap_or_default());
     let rows = move |id: String| {
         view! {
             <SandboxRow state id />
@@ -111,23 +108,6 @@ pub(super) fn Sandboxes(state: State) -> NodeId {
                 />
             </List>
             <KeyNotice state />
-            <Show condition={noticed}>
-                <Card>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <ListItem grow=1.0>
-                            <Text color=TextColor::Danger @test_id="boat.notice">
-                                {notice_text}
-                            </Text>
-                        </ListItem>
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Ghost
-                            @test_id="boat.notice.dismiss"
-                            on_click={move || notice.set(None)}
-                        />
-                    </List>
-                </Card>
-            </Show>
             <Filters state />
             <Show condition={empty}>
                 <List spacing=SPACING @test_id="boat.empty">

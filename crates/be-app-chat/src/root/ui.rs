@@ -168,9 +168,6 @@ fn attach(editor: Editor, chat: Chat, me: Uuid, composer: Composer, anchor: Node
         },
         &anchor,
         move |picked| {
-            let Ok(picked) = picked else {
-                return;
-            };
             let block_type = Uuid::from_bytes(picked.block_type);
             match picked.linked {
                 true => pend(

@@ -96,8 +96,6 @@ pub(crate) struct State {
     pub failure: Signal<Option<BoatError>>,
     /// Starts and stops asked for that the list doesn't show moving yet.
     pub asked: Signal<BTreeMap<String, Action>>,
-    /// Why the last start or stop was refused.
-    pub notice: Signal<Option<String>>,
     /// The wall clock as of the last reading, for the list's age.
     pub now: Signal<i64>,
     /// The viewer's own terminals, from their owner-only settings, by terminal block.
@@ -166,7 +164,6 @@ impl State {
             listed,
             failure,
             asked: create_signal(BTreeMap::new()),
-            notice: create_signal(None),
             now: create_signal(time::now()),
             own_terminals: terminals::own_terminals(held),
             content_terminals: content.project(|content| {
@@ -364,7 +361,6 @@ impl State {
         let Some(account) = untrack(|| self.account()) else {
             return;
         };
-        self.notice.set(None);
         self.asked.update(|asked| {
             asked.insert(sandbox.clone(), action);
         });
@@ -382,7 +378,7 @@ impl State {
                 });
                 match error {
                     BoatError::Reconnect { .. } => state.failure.set(Some(error)),
-                    error => state.notice.set(Some(error.to_string())),
+                    error => state.editor.host().report_failure(error.to_string()),
                 }
             }
         });
