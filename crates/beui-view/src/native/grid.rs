@@ -1,3 +1,4 @@
+use crate::reactive::Child;
 use crate::reactive::Children;
 use crate::reactive::Get;
 use crate::reactive::Prop;
@@ -27,7 +28,7 @@ pub(crate) fn grid(
     grid.id()
 }
 
-pub(crate) fn grid_cell(span: Prop<usize>, children: NodeId) -> GridCell {
+pub(crate) fn grid_cell(span: Prop<usize>, children: Child) -> GridCell {
     GridCell {
         node: children,
         data: span,

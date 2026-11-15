@@ -349,7 +349,7 @@ impl Layer {
         let anchor = self.anchor.borrow().clone();
         let rect = match anchor {
             OverlayAnchor::Node(node) => {
-                let node = node.try_get()?;
+                let node = crate::document::boxed(node.try_get()?)?;
                 let name = anchor_name(node);
                 set_style(node, "anchor-name", Some(name.clone()));
                 return Some(name);

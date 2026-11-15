@@ -1,4 +1,5 @@
 use crate::reactive::Callback;
+use crate::reactive::Child;
 use crate::reactive::Get;
 use crate::reactive::Prop;
 use crate::reactive::create_effect;
@@ -13,7 +14,7 @@ pub(crate) fn offset(
     fit: bool,
     follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
-    children: NodeId,
+    children: Child,
 ) -> NodeId {
     let node = with_document(|document| {
         let node = document.create_offset(children);

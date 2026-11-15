@@ -1,3 +1,4 @@
+use crate::reactive::Child;
 use crate::reactive::Prop;
 use crate::reactive::{ChildValue, ComponentContext, NodeId, ScopeContext};
 use crate::types::Color;
@@ -9,7 +10,7 @@ pub fn Root(
     clear_color: Prop<Color>,
     title: Option<Prop<String>>,
     #[prop(default = SystemBars::default())] system_bars: Prop<SystemBars>,
-    children: NodeId,
+    children: Child,
 ) -> Root {
     crate::core::root(clear_color, title, system_bars, children)
 }

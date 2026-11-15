@@ -504,17 +504,10 @@ fn named_setter(prop: &Prop) -> Setter {
             .inner_ty
             .as_ref()
             .expect("an optional child has an inner type");
-        if is_named_type(item, "Child") || is_named_type(item, "Single") {
-            plain(
-                quote! { value: impl ::__beui_tree::reactive::IntoOptionalChild<#item> },
-                quote! { ::__beui_tree::reactive::IntoOptionalChild::into_optional_child(value) },
-            )
-        } else {
-            plain(
-                quote! { value: impl Into<Option<#item>> },
-                quote! { value.into() },
-            )
-        }
+        plain(
+            quote! { value: impl Into<Option<#item>> },
+            quote! { value.into() },
+        )
     } else if let Some(render) = &prop.optional_render {
         render_setter(ident, render, |build| quote! { Some(#build) })
     } else if let Some(render) = &prop.render {
@@ -589,8 +582,14 @@ fn reactive_setter(
     }
 }
 
+/// Whether a prop takes the typestate path: required props, and `#[prop(optional)]` props
+/// typed by a component generic, whose typestate is that generic itself, starting as
+/// `MissingProp`.
 fn prop_is_required(prop: &Prop) -> bool {
-    if prop.inner_ty.is_some() || prop.is_children || prop.generic_param.is_some() {
+    if prop.generic_param.is_some() {
+        return true;
+    }
+    if prop.inner_ty.is_some() || prop.is_children {
         return false;
     }
     if prop.is_child {
@@ -871,6 +870,81 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     })
 }
 
+struct GenericSetter<'a> {
+    props: &'a [Prop],
+    req_slot_of: &'a [Option<usize>],
+    prop: &'a Prop,
+    param: &'a Ident,
+    builder_ident: &'a Ident,
+    all_generics: &'a proc_macro2::TokenStream,
+    builder_all: &'a proc_macro2::TokenStream,
+    all_args: &'a [proc_macro2::TokenStream],
+    where_clause: Option<&'a proc_macro2::TokenStream>,
+    phantom: Option<&'a Ident>,
+}
+
+/// The typestate setter of a `#[prop(optional)]` prop typed by a component generic: it
+/// retypes that generic (and every bound naming it) from `MissingProp` to what it is given.
+fn generic_setter(setter: GenericSetter<'_>) -> syn::Result<proc_macro2::TokenStream> {
+    let GenericSetter {
+        props,
+        req_slot_of,
+        prop,
+        param,
+        builder_ident,
+        all_generics,
+        builder_all,
+        all_args,
+        where_clause,
+        phantom,
+    } = setter;
+    let ident = &prop.ident;
+    for (index, other) in props.iter().enumerate() {
+        let optional = req_slot_of[index].is_none() && other.binding_inner_ty.is_none();
+        let ty = &other.ty;
+        let mentions = quote! { #ty }
+            .into_iter()
+            .any(|token| mentions_ident(&token, param));
+        if optional && mentions {
+            return Err(syn::Error::new_spanned(
+                &other.ty,
+                format!(
+                    "prop `{}` is optional and names `{param}`, which `{ident}` decides; make it required",
+                    other.ident
+                ),
+            ));
+        }
+    }
+    let replacement = format_ident!("__{}", camel_case(ident));
+    let replacement = quote! { #replacement };
+    let set_args: Vec<proc_macro2::TokenStream> = all_args
+        .iter()
+        .map(|arg| replace_ident(arg.clone(), param, &replacement))
+        .collect();
+    let set_args = angle_bracketed(&set_args);
+    let set_where = where_clause.map(|clause| replace_ident(clause.clone(), param, &replacement));
+    let others: Vec<&Ident> = props
+        .iter()
+        .map(|prop| &prop.ident)
+        .filter(|other| *other != ident)
+        .collect();
+    let phantom = phantom.map(|phantom| quote! { #phantom: ::core::marker::PhantomData, });
+    Ok(quote! {
+        impl #all_generics #builder_all #where_clause {
+            pub fn #ident<#replacement>(self, value: #replacement) -> #builder_ident #set_args #set_where {
+                debug_assert!(self.with_built.is_empty());
+                let #builder_ident { #(#others,)* .. } = self;
+                #builder_ident {
+                    #ident: value,
+                    #(#others,)*
+                    with_built: ::std::vec::Vec::new(),
+                    #phantom
+                }
+            }
+        }
+    })
+}
+
 struct ComponentSpec {
     attrs: Vec<Attribute>,
     vis: Visibility,
@@ -976,12 +1050,10 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             let optional_render = inner_ty.as_ref().and_then(render_kind);
             let optional_func_args = inner_ty.as_ref().and_then(func_args);
             let is_children = is_named_type(ty, "Children");
-            let is_child = ["Child", "Single", "NodeId"]
-                .iter()
-                .any(|name| is_named_type(ty, name));
+            let is_child = is_named_type(ty, "Child") || is_named_type(ty, "NodeId");
             let is_optional_child = inner_ty
                 .as_ref()
-                .is_some_and(|inner| is_named_type(inner, "Child") || is_named_type(inner, "Single"));
+                .is_some_and(|inner| is_named_type(inner, "Child"));
             let generic_param = match ty.as_ref() {
                 Type::Path(path) if optional && path.qself.is_none() => path
                     .path
@@ -1065,7 +1137,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             return Err(syn::Error::new_spanned(
                 &prop.ty,
                 format!(
-                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children<_>`, `Child`, `Option<Child>`, `Single<_>`, `NodeId`, `Render<_>`, or `RenderFn<_>`",
+                    "prop `{}` of component `{name}` takes its children, so it must be typed `Children<_>`, `Child`, `Option<Child>`, `NodeId`, `Render<_>`, or `RenderFn<_>`",
                     prop.ident,
                 ),
             ));
@@ -1080,7 +1152,20 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .collect();
     let req_params: Vec<Ident> = required
         .iter()
-        .map(|index| format_ident!("Prop{}", camel_case(&props[*index].ident)))
+        .map(|index| match &props[*index].generic_param {
+            Some(param) => param.clone(),
+            None => format_ident!("Prop{}", camel_case(&props[*index].ident)),
+        })
+        .collect();
+    let generic_params: Vec<Ident> = props
+        .iter()
+        .filter_map(|prop| prop.generic_param.clone())
+        .collect();
+    // A generic prop's typestate is the component's own parameter, already among its
+    // generics; the others are added after them.
+    let state_params: Vec<&Ident> = req_params
+        .iter()
+        .filter(|param| !generic_params.contains(param))
         .collect();
     let req_traits: Vec<Ident> = required
         .iter()
@@ -1117,10 +1202,6 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             }
         });
 
-    let generic_params: Vec<Ident> = props
-        .iter()
-        .filter_map(|prop| prop.generic_param.clone())
-        .collect();
     let missing = quote! { ::__beui_tree::reactive::MissingProp };
     let fields = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;
@@ -1128,10 +1209,6 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             Some(slot) => {
                 let param = &req_params[slot];
                 quote! { #ident: #param }
-            }
-            None if prop.generic_param.is_some() => {
-                let ty = &prop.ty;
-                quote! { #ident: #ty }
             }
             None => {
                 let ty = &prop.ty;
@@ -1201,7 +1278,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .iter()
         .map(|param| quote! { #param })
         .chain(
-            req_params
+            state_params
                 .iter()
                 .map(|param| quote! { #param = ::__beui_tree::reactive::MissingProp }),
         )
@@ -1210,13 +1287,13 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     let all_params: Vec<proc_macro2::TokenStream> = comp_params
         .iter()
         .map(|param| quote! { #param })
-        .chain(req_params.iter().map(|param| quote! { #param }))
+        .chain(state_params.iter().map(|param| quote! { #param }))
         .collect();
     let all_generics = angle_bracketed(&all_params);
     let all_args: Vec<proc_macro2::TokenStream> = comp_args
         .iter()
         .cloned()
-        .chain(req_params.iter().map(|param| quote! { #param }))
+        .chain(state_params.iter().map(|param| quote! { #param }))
         .collect();
     let all_args_list = all_args.clone();
     let all_args = angle_bracketed(&all_args);
@@ -1236,8 +1313,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     let init_fields = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;
         match req_slot_of[index] {
-            Some(_) => quote! { #ident: ::__beui_tree::reactive::MissingProp },
-            None if prop.generic_param.is_some() => quote! { #ident: #missing },
+            Some(_) => quote! { #ident: #missing },
             None => quote! { #ident: ::core::default::Default::default() },
         }
     });
@@ -1245,7 +1321,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
     let optional_methods: Vec<proc_macro2::TokenStream> = props
         .iter()
         .enumerate()
-        .filter(|(index, prop)| req_slot_of[*index].is_none() && prop.generic_param.is_none())
+        .filter(|(index, _)| req_slot_of[*index].is_none())
         .flat_map(|(index, prop)| {
             let ident = prop.ident.clone();
             let mut setters = vec![named_setter(prop)];
@@ -1278,6 +1354,25 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         let prop = &props[*index];
         let ident = &prop.ident;
         let ty = &prop.ty;
+        if let Some(param) = &prop.generic_param {
+            return generic_setter(GenericSetter {
+                props: &props,
+                req_slot_of: &req_slot_of,
+                prop,
+                param,
+                builder_ident: &builder_ident,
+                all_generics: &all_generics,
+                builder_all: &builder_all,
+                all_args: &all_args_list,
+                where_clause: where_clause.as_ref(),
+                phantom: phantom_field.is_some().then_some(&phantom_ident),
+            });
+        }
+        let state_params: Vec<(usize, &Ident)> = req_params
+            .iter()
+            .enumerate()
+            .filter(|(_, param)| !generic_params.contains(param))
+            .collect();
         let others: Vec<&Ident> = field_idents
             .iter()
             .filter(|field| *field != ident)
@@ -1286,9 +1381,8 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             .iter()
             .map(|param| quote! { #param })
             .chain(
-                req_params
+                state_params
                     .iter()
-                    .enumerate()
                     .filter(|(other, _)| *other != slot)
                     .map(|(_, param)| quote! { #param }),
             )
@@ -1297,8 +1391,8 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         let unset_args: Vec<proc_macro2::TokenStream> = comp_args
             .iter()
             .cloned()
-            .chain(req_params.iter().enumerate().map(|(other, param)| {
-                if other == slot {
+            .chain(state_params.iter().map(|(other, param)| {
+                if *other == slot {
                     quote! { ::__beui_tree::reactive::MissingProp }
                 } else {
                     quote! { #param }
@@ -1309,8 +1403,8 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         let set_args: Vec<proc_macro2::TokenStream> = comp_args
             .iter()
             .cloned()
-            .chain(req_params.iter().enumerate().map(|(other, param)| {
-                if other == slot {
+            .chain(state_params.iter().map(|(other, param)| {
+                if *other == slot {
                     quote! { #ty }
                 } else {
                     quote! { #param }
@@ -1344,70 +1438,13 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             }
         });
 
-        quote! {
+        Ok(quote! {
             impl #impl_generics #builder_ident #unset_args #where_clause {
                 #(#methods)*
             }
-        }
-    });
-
-    let generic_impls = props
-        .iter()
-        .filter_map(|prop| Some((prop, prop.generic_param.as_ref()?)))
-        .map(|(prop, param)| {
-            let ident = &prop.ident;
-            let replacement = format_ident!("__{}", camel_case(ident));
-            let replacement = quote! { #replacement };
-            for (index, other) in props.iter().enumerate() {
-                let unset_optional = req_slot_of[index].is_none()
-                    && other.generic_param.is_none()
-                    && other.binding_inner_ty.is_none();
-                let ty = &other.ty;
-                let mentions = quote! { #ty }
-                    .into_iter()
-                    .any(|token| mentions_ident(&token, param));
-                if unset_optional && mentions {
-                    return Err(syn::Error::new_spanned(
-                        &other.ty,
-                        format!(
-                            "prop `{}` is optional and names `{param}`, which `{ident}` decides; make it required",
-                            other.ident
-                        ),
-                    ));
-                }
-            }
-            let set_args: Vec<proc_macro2::TokenStream> = all_args_list
-                .iter()
-                .map(|arg| replace_ident(arg.clone(), param, &replacement))
-                .collect();
-            let set_args = angle_bracketed(&set_args);
-            let set_where = where_clause
-                .as_ref()
-                .map(|clause| replace_ident(clause.clone(), param, &replacement));
-            let others: Vec<&Ident> = props
-                .iter()
-                .map(|prop| &prop.ident)
-                .filter(|other| *other != ident)
-                .collect();
-            let phantom = phantom_field
-                .is_some()
-                .then(|| quote! { #phantom_ident: ::core::marker::PhantomData, });
-            Ok(quote! {
-                impl #all_generics #builder_all #where_clause {
-                    pub fn #ident<#replacement>(self, value: #replacement) -> #builder_ident #set_args #set_where {
-                        debug_assert!(self.with_built.is_empty());
-                        let #builder_ident { #(#others,)* .. } = self;
-                        #builder_ident {
-                            #ident: value,
-                            #(#others,)*
-                            with_built: ::std::vec::Vec::new(),
-                            #phantom
-                        }
-                    }
-                }
-            })
         })
-        .collect::<syn::Result<Vec<_>>>()?;
+    })
+    .collect::<syn::Result<Vec<_>>>()?;
 
     let field_lets = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;
@@ -1418,9 +1455,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 let ty = &prop.ty;
                 quote! { <#param as #trait_ident<#ty>>::__prop(self.#ident) }
             }
-            None if prop.binding_inner_ty.is_some() || prop.generic_param.is_some() => {
-                quote! { self.#ident }
-            }
+            None if prop.binding_inner_ty.is_some() => quote! { self.#ident },
             None => match &prop.default {
                 Some(default) if prop.reactive_inner_ty.is_some() => quote! {
                     self.#ident
@@ -1462,21 +1497,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 });
             }
         });
-    let returns_run = match &sig.output {
-        ReturnType::Type(_, ty) => generic_args(ty, "DynamicSegment").is_some_and(|args| args.len() == 1),
-        ReturnType::Default => false,
-    };
     let finish = match finish {
-        Finish::Body(block) if returns_run => quote! {
-            ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
-                #(#owned_bindings)*
-                ::__beui_tree::reactive::DynamicSegment::into_run(#block)
-            })
-        },
         Finish::Body(block) => quote! {
             ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
                 #(#owned_bindings)*
-                #block
+                ::__beui_tree::reactive::ComponentOutput::<#output_ty>::into_output(#block)
             })
         },
         Finish::Call(call) => {
@@ -1528,8 +1553,6 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         }
 
         #(#required_impls)*
-
-        #(#generic_impls)*
 
         impl #all_generics #builder_all #where_clause {
             #[track_caller]

@@ -30,29 +30,26 @@ pub use crate::painter::{Draw, Painter, TextBlock};
 pub use crate::types::clipboard::formats;
 pub use crate::types::keys::{KeyAt, KeyEvent, KeyInput, KeyReveal};
 pub use crate::types::layer::OverlayAnchor;
-pub use crate::types::node::{BuildsNode, ImeCursor, NodeId, NodeRef};
+pub use crate::types::node::{BuildsNode, ImeCursor, NamesNode, NodeId, NodeRef, create_host};
 pub use crate::types::tree::{BareChild, FromPlaced, ParentKind, Placed};
 pub use crate::types::{Clip, ClipItem};
 
-/// What a slot that takes one node holds: a node built once, or one a `Show` with a
-/// `fallback`, a `Dynamic` or a `Keyed` swaps. A slot that needs the node itself (to measure
-/// it, say) is typed `NodeId`, and takes only a node built once.
-pub type Child = Single<NodeId>;
+pub type Child = NodeId;
 
-/// A render prop builds a node once by default; one typed `Render<H, Child>` may also hand
-/// back a `Show` (with a `fallback`) or a `Dynamic` that swaps it.
 pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
 
-pub fn test_id<T: BuildsNode>(built: T, value: impl IntoProp<String>) -> T {
-    bind_test_id(built.built_node(), value.into_prop());
-    built
+pub fn test_id<T: NamesNode>(built: T, value: impl IntoProp<String>) -> T::Named {
+    let (named, node) = built.name_node();
+    bind_test_id(node, value.into_prop());
+    named
 }
 
-pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
-    reference.fill(built.built_node());
-    built
+pub fn node_ref<T: NamesNode>(built: T, reference: &NodeRef) -> T::Named {
+    let (named, node) = built.name_node();
+    reference.fill(node);
+    named
 }
 
 /// Owned by the reactive scope that created it; calling it after that scope is gone does

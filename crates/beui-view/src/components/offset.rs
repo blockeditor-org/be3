@@ -1,4 +1,5 @@
 use crate::reactive::Callback;
+use crate::reactive::Child;
 use crate::reactive::NodeId;
 use crate::reactive::Prop;
 use crate::types::Direction;
@@ -26,7 +27,7 @@ pub fn Offset(
     #[prop(default = false)] fit: bool,
     #[prop(default = false)] follow_end: Prop<bool>,
     on_change: Callback<ScrollPosition>,
-    children: NodeId,
+    children: Child,
 ) -> NodeId {
     crate::core::offset(offset, direction, fit, follow_end, on_change, children)
 }

@@ -15,13 +15,13 @@ fn a_show_without_a_fallback_fills_an_optional_single_slot() {
             </MaybeHolder>
         }
     });
-    assert_eq!(page.html(), "<div id=0></div>");
+    assert_eq!(page.html(), "<div id=1><host id=0></host></div>");
 
     shown.set(true);
     flush();
-    assert_eq!(page.html(), "<div id=0><p id=1>badge</p></div>");
+    assert_eq!(page.html(), "<div id=1><host id=0><p id=2>badge</p></host></div>");
 
     shown.set(false);
     flush();
-    assert_eq!(page.html(), "<div id=0></div>");
+    assert_eq!(page.html(), "<div id=1><host id=0></host></div>");
 }

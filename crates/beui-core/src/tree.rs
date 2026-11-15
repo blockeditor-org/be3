@@ -9,7 +9,8 @@ use beui_tree::reactive::{
     ComponentContext, Get, IntoProp, IntoSlotHost, Prop, ReadSignal, ScopeContext, Set, Signal,
     SlotHost, SlotId, create_effect, create_signal, current_component, on_cleanup,
 };
-use beui_types::node::{CoreHooks, NodeCell, install_core_hooks};
+use beui_tree::reactive::LazyChild;
+use beui_types::node::{CoreHooks, NodeCell, install_core_hooks, install_host_hook};
 
 use crate::base::canvas::CanvasNode;
 use crate::base::grid::{GridItem, GridNode};
@@ -134,15 +135,18 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref,
         finish_component,
-        host,
     });
+    install_host_hook(host);
 }
 
-/// A bare frame: it sizes to its child, draws nothing and swaps the child in place.
-fn host(child: beui_tree::reactive::Single<NodeId>) -> NodeId {
-    let frame = with_document(|document| document.create_frame());
+/// A bare frame: it sizes to its child, draws nothing and swaps the child in place. Not a
+/// one-child `Layers`, which does not pass scroll anchoring through to what it holds.
+fn host(child: LazyChild<NodeId>) -> Result<NodeId, LazyChild<NodeId>> {
+    let Some(frame) = crate::current::try_with_document(|document| document.create_frame()) else {
+        return Err(child);
+    };
     child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
-    frame.id()
+    Ok(frame.id())
 }
 
 #[diagnostic::on_unimplemented(

@@ -734,9 +734,9 @@ impl Document {
         })
     }
 
-    pub fn set_canvas_item_child(&mut self, item: NodeOf<CanvasItemNode>, child: Option<NodeId>) {
-        if self.contains(item) && self.arena.get_as::<CanvasItemNode>(item).child != child {
-            self.arena.get_mut_as::<CanvasItemNode>(item).child = child;
+    pub fn set_canvas_item_child(&mut self, item: NodeOf<CanvasItemNode>, child: NodeId) {
+        if self.arena.get_as::<CanvasItemNode>(item).child != Some(child) {
+            self.arena.get_mut_as::<CanvasItemNode>(item).child = Some(child);
         }
     }
 

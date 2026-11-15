@@ -1,5 +1,5 @@
 use crate::actions::Chord;
-use crate::reactive::{Callback, ComponentRef, NodeId, Prop};
+use crate::reactive::{Callback, Child, ComponentRef, NodeId, Prop};
 use crate::types::{Color, Key, Rect};
 use beui_macros::component;
 
@@ -26,7 +26,7 @@ pub fn copy_selection(state: SelectableState) {
 #[component]
 pub fn Selectable(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectableState>,
-    children: NodeId,
+    children: Child,
     #[prop(default = SelectableState::default())] state: SelectableState,
     color: Prop<Color>,
     handle_color: Prop<Color>,

@@ -9,8 +9,8 @@ use beui_reactive::{
 };
 
 use crate::children::{
-    Branch, ChildSlot, Children, DynamicSegment, Fallback, IntoChild, NestedHost, Or, SlotChild,
-    ValueFallback,
+    Branch, ChildSlot, Children, Count, Counted, DynamicSegment, Fallback, FormOf, IntoChild,
+    NestedHost, Or, SlotChild, ValueFallback,
 };
 use crate::component::{Render, RenderFn};
 use crate::prop::{Func, Prop};
@@ -45,19 +45,19 @@ pub fn Show<C, B, F>(
     #[prop(default = false)] keep_alive: bool,
     fallback: F,
     #[prop(children)] then: RenderFn<(), B>,
-) -> DynamicSegment<C, <B::Count as Or<F::Count>>::Count>
+) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
     C: SlotChild,
     B: Branch<C>,
     F: Fallback<C>,
-    B::Count: Or<F::Count>,
+    <B as Counted>::Count: Or<F::Count>,
 {
     let then = built(then);
     let fallback = fallback.into_render();
-    DynamicSegment::counted(move |slot: ChildSlot<C>| match keep_alive {
+    <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(move |slot: ChildSlot<C>| match keep_alive {
         false => show(condition, [fallback, Some(then)], slot),
         true => keep(condition, [fallback, Some(then)], slot),
-    })
+    }))
 }
 
 fn show<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], slot: ChildSlot<C>) {
@@ -111,15 +111,15 @@ fn keep<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], sl
 pub fn Loading<C, B, F>(
     fallback: RenderFn<Pending, F>,
     #[prop(children)] content: Render<(), B>,
-) -> DynamicSegment<C, <B::Count as Or<F::Count>>::Count>
+) -> FormOf<C, <B as Counted>::Count, <F as Counted>::Count>
 where
     C: SlotChild,
     B: Branch<C>,
     F: Branch<C>,
-    B::Count: Or<F::Count>,
+    <B as Counted>::Count: Or<<F as Counted>::Count>,
 {
     let fallback = built(fallback);
-    DynamicSegment::counted(move |slot: ChildSlot<C>| {
+    <<<B as Counted>::Count as Or<<F as Counted>::Count>>::Count as Count>::form(DynamicSegment::new(move |slot: ChildSlot<C>| {
         let scope = Scope::detached().pausable_effects();
         scope.pause();
         let (boundary, host) = scope.context().run(|| {
@@ -160,7 +160,7 @@ where
                 }
             }
         });
-    })
+    }))
 }
 
 /// Builds `view` from `value`, again each time it changes. Given a `fallback`, `value` is
@@ -171,17 +171,17 @@ pub fn Dynamic<V, C, B, F>(
     value: Prop<V>,
     fallback: F,
     #[prop(children)] view: RenderFn<F::Handed, B>,
-) -> DynamicSegment<C, <B::Count as Or<F::Count>>::Count>
+) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
     V: Clone + 'static,
     C: SlotChild,
     B: Branch<C>,
     F: ValueFallback<V, C>,
-    B::Count: Or<F::Count>,
+    <B as Counted>::Count: Or<F::Count>,
 {
     let view = built(view);
     let fallback = fallback.into_render();
-    DynamicSegment::counted(move |slot: ChildSlot<C>| {
+    <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held = store(RefCell::new(None::<(bool, Option<Scope>)>));
         create_binding(move || {
             let value = F::split(value.get());
@@ -200,7 +200,7 @@ where
             }
             drop(held.replace((some, built)));
         });
-    })
+    }))
 }
 
 #[component]
@@ -234,7 +234,7 @@ pub fn Keyed<V, K, C, B, F>(
     fallback: F,
     key: Func<F::Handed, K>,
     #[prop(children)] view: RenderFn<ReadSignal<F::Handed>, B>,
-) -> DynamicSegment<C, <B::Count as Or<F::Count>>::Count>
+) -> FormOf<C, <B as Counted>::Count, F::Count>
 where
     V: Clone + 'static,
     K: PartialEq + 'static,
@@ -242,11 +242,11 @@ where
     B: Branch<C>,
     F: ValueFallback<V, C>,
     F::Handed: PartialEq,
-    B::Count: Or<F::Count>,
+    <B as Counted>::Count: Or<F::Count>,
 {
     let view = built(view);
     let fallback = fallback.into_render();
-    DynamicSegment::counted(move |slot: ChildSlot<C>| {
+    <<<B as Counted>::Count as Or<F::Count>>::Count as Count>::form(DynamicSegment::new(move |slot: ChildSlot<C>| {
         let current = store(RefCell::new(None::<Signal<F::Handed>>));
         let held = store(RefCell::new(None::<(Option<K>, Option<Scope>)>));
         create_binding(move || {
@@ -276,5 +276,5 @@ where
             }
             drop(held.replace((next, built)));
         });
-    })
+    }))
 }

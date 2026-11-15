@@ -35,6 +35,7 @@ fn a_show_with_a_fallback_swaps_the_one_child_a_frame_holds() {
     editing.set(true);
     test.frame(Vec::new());
     assert!(test.shows("editing") && !test.shows("reading"));
+    eprintln!("DEBUG holder {:?} reading {:?} editing {:?}", test.rect_of("holder"), reading, test.rect_of("editing"));
     assert!(
         test.rect_of("holder").height() > reading.height(),
         "the frame lays out the child it holds now"

@@ -385,17 +385,11 @@ impl Document {
         self.arena.insert(node)
     }
 
-    pub fn set_interactive_child(
-        &mut self,
-        interactive: NodeOf<InteractiveNode>,
-        child: Option<NodeId>,
-    ) {
-        if !self.contains(interactive)
-            || self.arena.get_as::<InteractiveNode>(interactive).child == child
-        {
+    pub fn set_interactive_child(&mut self, interactive: NodeOf<InteractiveNode>, child: NodeId) {
+        if self.arena.get_as::<InteractiveNode>(interactive).child == Some(child) {
             return;
         }
-        self.arena.get_mut_as::<InteractiveNode>(interactive).child = child;
+        self.arena.get_mut_as::<InteractiveNode>(interactive).child = Some(child);
     }
 
     pub fn set_interactive_cursor(

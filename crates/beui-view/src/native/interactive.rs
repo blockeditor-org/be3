@@ -143,13 +143,11 @@ pub(crate) fn interactive(
         node.on_wheel = on_wheel;
         node.on_forward = on_forward;
         document.set_interactive_on_press_outside(interactive, on_press_outside);
+        if let Some(child) = children {
+            document.set_interactive_child(interactive, child);
+        }
         interactive
     });
-    if let Some(child) = children {
-        child.mount(move |child| {
-            with_document(|document| document.set_interactive_child(interactive, child))
-        });
-    }
     if focusable {
         create_binding(move || {
             let (tab_stop, ime) = (tab_stop.get(), ime.get());

@@ -11,8 +11,7 @@ use crate::types::Outline;
 use crate::types::Sides;
 use crate::types::Vec2;
 use beui_core_html::css;
-use beui_core_html::document::{create, set_style};
-use beui_core_html::tree::node_host;
+use beui_core_html::document::{append, create, set_style};
 
 use super::bind;
 
@@ -49,7 +48,7 @@ pub(crate) fn frame(
         Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
     );
     if let Some(child) = children {
-        child.mount_in(node_host(frame));
+        append(frame, child);
     }
     bind_extent(frame, width, ["width", "min-width", "max-width"]);
     bind_extent(frame, height, ["height", "min-height", "max-height"]);

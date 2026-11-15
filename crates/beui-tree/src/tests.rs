@@ -3,7 +3,7 @@ use std::rc::{Rc, Weak};
 
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show, Signal,
-    Single, SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal,
+    SlotChild, SlotHost, SlotId, component, create_effect, create_memo, create_signal,
     flush, on_cleanup, store, view,
 };
 
@@ -135,33 +135,53 @@ fn Element(
     element
 }
 
-/// An element that keeps one child, as a frame does, and replaces it when told.
+type Child = DomNode;
+
+/// An element that keeps one child, as a frame does.
 #[component]
-fn Holder(tag: &'static str, children: Single<DomNode>) -> DomNode {
+fn Holder(tag: &'static str, children: Child) -> DomNode {
     let element = DomNode::new(tag);
-    hold(&element, Some(children));
+    element.0.children.borrow_mut().push(children);
     element
 }
 
 #[component]
-fn MaybeHolder(tag: &'static str, children: Option<Single<DomNode>>) -> DomNode {
+fn MaybeHolder(tag: &'static str, children: Option<Child>) -> DomNode {
     let element = DomNode::new(tag);
-    hold(&element, children);
+    if let Some(child) = children {
+        element.0.children.borrow_mut().push(child);
+    }
     element
 }
 
-fn hold(element: &DomNode, child: Option<Single<DomNode>>) {
-    let held = Rc::downgrade(&element.0);
-    if let Some(child) = child {
-        child.mount(move |child| {
-            if let Some(held) = held.upgrade() {
-                let mut children = held.children.borrow_mut();
-                *children = ChildList::default();
-                if let Some(child) = child {
-                    children.push(child);
-                }
+/// What a core does with control flow in a slot that takes one node: a host node holding
+/// the child it swaps.
+fn host(child: crate::reactive::LazyChild<DomNode>) -> DomNode {
+    let host = DomNode::new("host");
+    let held = Rc::downgrade(&host.0);
+    child.mount(move |child| {
+        if let Some(held) = held.upgrade() {
+            let mut children = held.children.borrow_mut();
+            *children = ChildList::default();
+            if let Some(child) = child {
+                children.push(child);
             }
-        });
+        }
+    });
+    host
+}
+
+impl crate::reactive::IntoChild<DomNode> for crate::reactive::OneOf<DomNode> {
+    fn into_child(self) -> DomNode {
+        host(self.into_lazy())
+    }
+}
+
+impl crate::reactive::AtMostOneChild<DomNode>
+    for crate::reactive::SingleChild<crate::reactive::ZeroOrOne<DomNode>>
+{
+    fn at_most_one_child(self) -> Option<DomNode> {
+        Some(host(self.0.into_lazy()))
     }
 }
 
