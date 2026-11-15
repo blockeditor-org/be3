@@ -47,6 +47,7 @@ pub fn holds_focus(node: NodeRef) -> Memo<bool> {
 }
 
 pub fn set_focus(node: Option<NodeId>) {
+    let node = node.map(|node| crate::document::boxed(node).unwrap_or(node));
     WANTED.with(|wanted| wanted.set(node));
     apply_wanted();
     crate::frame::request_frame();

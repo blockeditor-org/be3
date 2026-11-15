@@ -61,8 +61,8 @@ pub enum PaletteItems {
 }
 
 impl PaletteItems {
-    pub fn list(items: impl IntoProp<Vec<PaletteItem>>) -> Self {
-        Self::List(items.into_prop())
+    pub fn list<M1>(items: impl IntoPropWith<Vec<PaletteItem>, M1>) -> Self {
+        Self::List(items.into_prop_with())
     }
 }
 

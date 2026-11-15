@@ -184,7 +184,21 @@ pub fn adopt(kind: &'static str, element: Node) -> NodeId {
     create_on(kind, element, Rc::default(), 0)
 }
 
+/// A node that is its child's own element, so `Interactive` adds no element of its own. A
+/// host node (`create_host`) is `display: contents` and has no box, so a node wrapping one
+/// gets an element of its own holding the host.
 pub fn wrap(kind: &'static str, child: NodeId) -> NodeId {
+    if HOSTS.with(|hosts| hosts.borrow().contains_key(&child)) {
+        let node = create(kind, "div");
+        set_style(node, "display", Some("grid".to_owned()));
+        set_style(
+            node,
+            "grid-template",
+            Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
+        );
+        append(node, child);
+        return node;
+    }
     let (element, shared, wraps) = with_entry(child, |entry| {
         (entry.element.clone(), entry.shared.clone(), entry.wraps + 1)
     })

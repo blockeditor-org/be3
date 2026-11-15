@@ -44,6 +44,8 @@ pub type NodeCell = Cell<Option<NodeId>>;
 pub struct CoreHooks {
     pub fill_ref: fn(NodeId, Weak<NodeCell>),
     pub finish_component: fn(NodeId, &ComponentContext, &ScopeContext),
+    /// Builds a host node holding `child`, which control flow swaps (`create_host`).
+    pub create_host: fn(LazyChild<NodeId>) -> NodeId,
 }
 
 static HOOKS: OnceLock<CoreHooks> = OnceLock::new();
@@ -52,40 +54,14 @@ pub fn install_core_hooks(hooks: CoreHooks) {
     let _ = HOOKS.set(hooks);
 }
 
-/// Builds a host node for control flow in a slot that takes one node, or hands the child
-/// back when this core is not the one building (`create_host`).
-pub type HostHook = fn(LazyChild<NodeId>) -> Result<NodeId, LazyChild<NodeId>>;
-
-static HOSTS: std::sync::Mutex<Vec<HostHook>> = std::sync::Mutex::new(Vec::new());
-
-/// Each core registers how it builds a host. Both cores may live in one process (a test
-/// renders HTML beside a native document), so a host goes to the first core that is
-/// building now, as `fill_ref` reaches only the core that knows the node.
-pub fn install_host_hook(hook: HostHook) {
-    let mut hosts = HOSTS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if !hosts.iter().any(|held| std::ptr::fn_addr_eq(*held, hook)) {
-        hosts.push(hook);
-    }
-}
-
 /// A node with no look of its own that sizes to `child` and swaps it in place: what control
 /// flow becomes in a slot that takes one node, or when it is named with `@test_id` or
-/// `@node_ref`.
+/// `@node_ref`. The core builds it (`CoreHooks::create_host`).
 pub fn create_host(child: LazyChild<NodeId>) -> NodeId {
-    let hosts: Vec<HostHook> = HOSTS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone();
-    let mut child = child;
-    for host in hosts {
-        match host(child) {
-            Ok(node) => return node,
-            Err(back) => child = back,
-        }
-    }
-    panic!("control flow was placed in a node's slot while no core was building")
+    let hooks = HOOKS
+        .get()
+        .expect("a core is installed before control flow is placed in a node's slot");
+    (hooks.create_host)(child)
 }
 
 impl IntoChild<NodeId> for OneOf<NodeId> {

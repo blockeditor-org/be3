@@ -260,8 +260,8 @@ impl<C: SlotChild, F: Fn() -> B + 'static, B: Branch<C>> Fallback<C> for F {
 /// The `fallback` of a `Dynamic` or `Keyed`: given one, the value is an `Option` and the
 /// fallback builds while it is `None`; without one, the render takes the value as it is.
 #[diagnostic::on_unimplemented(
-    message = "a `fallback` is a closure that builds children, and with one the value is an `Option`",
-    label = "write a closure here, and give `value` an `Option<_>`"
+    message = "a `fallback` on a `Dynamic` or `Keyed` needs an `Option` value, and is a closure that builds children, or `()` for nothing",
+    label = "give `value` an `Option<_>`, or leave the fallback out"
 )]
 pub trait ValueFallback<V, C: SlotChild> {
     type Handed: Clone + 'static;
@@ -278,6 +278,20 @@ impl<V: Clone + 'static, C: SlotChild> ValueFallback<V, C> for MissingProp {
 
     fn split(value: V) -> Option<V> {
         Some(value)
+    }
+
+    fn into_render(self) -> Option<RenderFn<(), Children<C>>> {
+        None
+    }
+}
+
+/// `fallback=()`: the value is an `Option`, and nothing shows while it is `None`.
+impl<T: Clone + 'static, C: SlotChild> ValueFallback<Option<T>, C> for () {
+    type Handed = T;
+    type Count = CountZero;
+
+    fn split(value: Option<T>) -> Option<T> {
+        value
     }
 
     fn into_render(self) -> Option<RenderFn<(), Children<C>>> {

@@ -4,6 +4,7 @@ mod a_dynamic_in_a_slot_that_needs_one_child_builds_one;
 mod a_for_each_is_not_a_frame_child;
 mod a_frame_takes_one_child;
 mod a_list_item_is_only_a_list_child;
+mod a_node_ref_names_a_node;
 mod a_run_is_not_a_frame_child;
 mod a_run_is_not_a_list_item_child;
 mod a_show_hands_its_children_no_value;

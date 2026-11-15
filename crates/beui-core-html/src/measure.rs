@@ -152,7 +152,7 @@ fn measured(node: NodeId) -> Option<Measured> {
     use wasm_bindgen::JsCast;
 
     let rect = rect(node)?;
-    let size = crate::dom::dom(node)
+    let size = crate::dom::dom(crate::document::boxed(node)?)
         .and_then(|dom| dom.dyn_into::<web_sys::HtmlElement>().ok())
         .map_or(rect.size(), |element| {
             beui_types::vec2(

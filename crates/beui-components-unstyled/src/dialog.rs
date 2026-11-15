@@ -46,12 +46,12 @@ pub struct DialogAction {
 }
 
 impl DialogAction {
-    pub fn new(
+    pub fn new<M1>(
         role: ActionRole,
-        label: impl IntoProp<String>,
+        label: impl IntoPropWith<String, M1>,
         on_click: impl IntoUnitCallback,
     ) -> Self {
-        let label = label.into_prop();
+        let label = label.into_prop_with();
         Self {
             label: create_memo(move || label.get()),
             role,
@@ -67,19 +67,19 @@ impl DialogAction {
         }
     }
 
-    pub fn primary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn primary<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Primary, label, on_click)
     }
 
-    pub fn destructive(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn destructive<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Destructive, label, on_click)
     }
 
-    pub fn secondary(label: impl IntoProp<String>, on_click: impl IntoUnitCallback) -> Self {
+    pub fn secondary<M1>(label: impl IntoPropWith<String, M1>, on_click: impl IntoUnitCallback) -> Self {
         Self::new(ActionRole::Secondary, label, on_click)
     }
 
-    pub fn cancel(label: impl IntoProp<String>) -> Self {
+    pub fn cancel<M1>(label: impl IntoPropWith<String, M1>) -> Self {
         Self::new(ActionRole::Cancel, label, Callback::empty())
     }
 

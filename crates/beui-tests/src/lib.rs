@@ -579,6 +579,21 @@ fn HostFixture() -> NodeId {
             <Frame @test_id="host.hovered" height=20.0 fill={AMBER} />
         </Show>
     });
+    let wrapped = view! {
+        <Interactive @test_id="host.wrapped" focusable=true on_press={move |_: beui::PointerPress| swap()}>
+            <Show condition={swapped} fallback={|| view! { <Frame width=40.0 height=20.0 fill={GREEN} /> }}>
+                <Frame width=60.0 height=20.0 fill={AMBER} />
+            </Show>
+        </Interactive>
+    };
+    let wrapped_rect = measured_rect(wrapped);
+    let wrapped_report = create_memo(move || format!("Wrapped {}", size(wrapped_rect.get())));
+    let named = NodeRef::new();
+    let named_focused = create_signal(false);
+    let focus_report = create_memo(move || match named_focused.get() {
+        true => "Named host focused".to_owned(),
+        false => "Named host not focused".to_owned(),
+    });
     let rects = [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted].map(measured_rect);
     let report = create_memo(move || {
         let [plain, hosted, shrunk_plain, shrunk_hosted, cell_plain, cell_hosted] =
@@ -609,6 +624,19 @@ fn HostFixture() -> NodeId {
                 </Grid>
             </Frame>
             <Text color={INK}>{report}</Text>
+            <Show @test_id="host.named" @node_ref=&named condition={swapped} fallback={move || view! {
+                <Interactive focusable=true on_focus_change={named_focused}>
+                    <Frame width=40.0 height=20.0 fill={GREEN} />
+                </Interactive>
+            }}>
+                <Interactive focusable=true>
+                    <Frame width=40.0 height=20.0 fill={AMBER} />
+                </Interactive>
+            </Show>
+            <Button id="host.focus" label="Focus the named host" on_click={move || set_focus(Some(named.get()))} />
+            <Text color={INK}>{focus_report}</Text>
+            <Frame align={Align2::all(Align::Start)}>{wrapped}</Frame>
+            <Text color={INK}>{wrapped_report}</Text>
         </List>
     }
 }

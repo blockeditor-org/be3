@@ -83,8 +83,14 @@ fn show<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], sl
 
 fn keep<C: SlotChild>(condition: Prop<bool>, branches: [Option<Built<C>>; 2], slot: ChildSlot<C>) {
     let held = store(RefCell::new([None, None] as [Kept<C>; 2]));
+    let shown = StoredCell::new(None::<bool>);
     create_binding(move || {
-        let visible = usize::from(condition.get());
+        let visible = condition.get();
+        if shown.get() == Some(visible) {
+            return;
+        }
+        shown.set(Some(visible));
+        let visible = usize::from(visible);
         let held = held.value();
         let mut held = held.borrow_mut();
         if let Some((host, scope)) = held[1 - visible].as_ref() {
@@ -265,10 +271,10 @@ where
                 let next = value.clone().map(|value| key.call(value));
                 let held = held.value();
                 let mut held = held.borrow_mut();
-                if let (Some(value), Some(signal)) = (value.clone(), *current.value().borrow()) {
-                    signal.set(value);
-                }
                 if held.as_ref().is_some_and(|(key, _)| *key == next) {
+                    if let (Some(value), Some(signal)) = (value, *current.value().borrow()) {
+                        signal.set(value);
+                    }
                     return;
                 }
                 let built = match value {

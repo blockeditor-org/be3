@@ -67,14 +67,6 @@ mod web {
     }
 
     fn rect_of(element: &web_sys::Element, ratio: f32) -> Rect {
-        let mut element = element.clone();
-        while element
-            .get_attribute("style")
-            .is_some_and(|style| style.contains("display: contents"))
-            && let Some(child) = element.first_element_child()
-        {
-            element = child;
-        }
         let bounds = element.get_bounding_client_rect();
         Rect::from_min_size(
             pos2(bounds.left() as f32 * ratio, bounds.top() as f32 * ratio),
@@ -166,7 +158,14 @@ mod web {
                 true => self.viewport,
                 false => clip,
             };
-            let rect = rect_of(element, self.ratio);
+            // A host node has no box of its own: it stands where the child it holds is, and
+            // holding none it has no box at all.
+            let Some(rect) = crate::document::boxed(about.node)
+                .and_then(crate::dom::element)
+                .map(|boxed| rect_of(&boxed, self.ratio))
+            else {
+                return;
+            };
             let focused = self.focused.as_ref() == Some(dom);
             let text = about
                 .kinds

@@ -21,9 +21,9 @@ same `view!`.
 return a lazy form whose type says how many children it builds, read from what
 the branches build: `OneOf<C>` (exactly one: a `Show` with a `fallback` whose
 branches each build one, a `Dynamic` or `Keyed` building one), `ZeroOrOne<C>`
-(a `Show` without a `fallback`, or a `Dynamic` whose render returns an
-`Option`, as `|item| item.map(|item| view! {..})`, which builds nothing on
-`None`), or a run, `DynamicSegment<C>` (several
+(a `Show` without a `fallback`, or a `Dynamic` or `Keyed` over an `Option`
+given `fallback=()`, which builds nothing on `None` and hands its render the
+value inside), or a run, `DynamicSegment<C>` (several
 children, `ForEach`). Among a parent's run every form fills its place with no
 node of its own, so a hidden `Show` takes no room and no spacing. In a slot
 that takes one node, `OneOf` (and `ZeroOrOne` where the slot is
@@ -33,12 +33,15 @@ that passes its placed styles on to its child. `@test_id` and `@node_ref` on
 `OneOf` or `ZeroOrOne` name that host, which it then becomes even among a run.
 A run where one node goes, and a `Show` without a `fallback` where a node must
 always be, are compile errors saying what to add. A `ForEach` row that is a
-one-child `Show` costs a host per row. An either/or is one `Show` with a
+one-child `Show` costs a host per row, and a `ZeroOrOne` row there is a host that
+stays empty while it builds nothing. An either/or is one `Show` with a
 `fallback`, never two `Show`s on a condition and its negation
 ([decision](../../decisions/control_flow_in_single_child_slots_is_held_by_a_host_node.md)). A component
 whose whole view is control flow returns `DynamicSegment<ListItem>` (for a run)
 or `NodeId` (a host), which `#[component]` turns it into
-(`ComponentOutput`).
+(`ComponentOutput`). That conversion hides the body's type from inference, so a
+body ending in `x.into()` or `Default::default()` names its type
+(`NodeId::from(x)`).
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
@@ -75,7 +78,11 @@ returning one, which it reads as a getter: `condition={move || !hex.get()}`.
 Pass a derived value as a closure. Make a memo instead when its output changes
 less often than its inputs (a boolean from a scroll offset or a long list), so
 what reads it is not woken for nothing, or when it is costly and read in
-several places. Pass a signal or memo as it is, not as `move || memo.get()`. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
+several places. Pass a signal or memo as it is, not as `move || memo.get()`. A closure
+returns the prop's own type: the conversions a prop type adds with
+`into_prop_via!` (a `Space` for a `Padding`) apply to values, signals and memos,
+not to closures. Every builder method and function that takes a prop takes
+`impl IntoPropWith<T, M>`, never `impl IntoProp<T>`, so it takes a closure too. A tag's children are built in a `move` closure, so inside a render closure that runs more than once,
 clone a non-`Copy` prop in a block head:
 `<Show condition>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 A `Callback<T>` also takes a `Signal<T>`, which it sets. A `Callback<()>` prop takes a closure without arguments (`on_click={move || ..}`) and is called with `.call(())`.

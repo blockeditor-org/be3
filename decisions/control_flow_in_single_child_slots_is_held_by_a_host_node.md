@@ -19,8 +19,9 @@ one) or a run (`DynamicSegment<C>`). The count comes from what each branch build
 - Every single-child slot keeps one type, `Child = NodeId`, and takes one-child control flow:
   the slots that measure, place or portal their child included.
 - Control flow can be named with `@test_id` and `@node_ref`.
-- The HTML `Interactive` keeps one DOM shape, and fraction widths reach the child, which a
-  `<Layers>` wrapper got wrong.
+- Fraction widths and other placed styles reach the child on HTML, which a `<Layers>`
+  wrapper got wrong. (A wrapper that needs a box of its own, such as `Interactive`, builds
+  its own element around a host, since a `display: contents` element has none.)
 - The node a host costs is the one a hand-written wrapper cost before, and only where one
   node is needed; a run still adds none.
 
@@ -29,8 +30,7 @@ one) or a run (`DynamicSegment<C>`). The count comes from what each branch build
 - Swapping in place inside the parent (each single-child node kind replaces its child). It
   saved one node, but it needed a second single-child slot type besides `NodeId`; it left
   about a third of single-child slots (those that measure, place or portal their child) still
-  refusing control flow; it could not name control flow with `@test_id`; and it gave the HTML
-  `Interactive` two DOM shapes.
+  refusing control flow; it could not name control flow with `@test_id`.
 - A one-child `Layers` as the host: it does not pass scroll anchoring through, and is not
   transparent to fraction widths on HTML.
 - Single-child slots typed `Prop<NodeId>`: a `Prop` is a value read reactively and owns no

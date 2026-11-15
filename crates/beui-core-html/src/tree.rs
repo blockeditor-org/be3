@@ -109,14 +109,14 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref: document::fill_ref,
         finish_component,
+        create_host,
     });
-    beui_types::node::install_host_hook(host_node);
 }
 
 /// A host node (`create_host`): a `display: contents` element holding the one child control
 /// flow swaps, passing its placed styles on to that child, so a fraction width or a grid span
 /// set on the host reaches what it holds.
-fn host_node(child: LazyChild<NodeId>) -> Result<NodeId, LazyChild<NodeId>> {
+fn create_host(child: LazyChild<NodeId>) -> NodeId {
     let host = document::create("Host", "div");
     document::make_host(host);
     let slot: Rc<dyn SlotHost<NodeId>> = Rc::new(HostSlot {
@@ -124,7 +124,7 @@ fn host_node(child: LazyChild<NodeId>) -> Result<NodeId, LazyChild<NodeId>> {
         inner: node_host(host),
     });
     child.mount_in(slot);
-    Ok(host)
+    host
 }
 
 struct HostSlot {

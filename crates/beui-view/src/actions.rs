@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use std::any::Any;
 
 use crate::reactive::{
-    Get, IntoProp, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal,
+    Get, IntoPropWith, KeyAt, KeyEvent, KeyInput, Memo, NodeId, NodeRef, OwnedSignal,
     Prop, Set, create_effect, create_memo, on_cleanup, provide_context, untrack, use_context,
 };
 use crate::types::icons::Glyph;
@@ -162,14 +162,14 @@ impl PartialEq for Action {
 
 impl Action {
     #[allow(clippy::new_ret_no_self)]
-    pub fn new(
+    pub fn new<M1>(
         id: impl Into<String>,
-        label: impl IntoProp<String>,
+        label: impl IntoPropWith<String, M1>,
         run: impl Fn() + 'static,
     ) -> ActionBuilder {
         ActionBuilder {
             id: id.into(),
-            label: label.into_prop(),
+            label: label.into_prop_with(),
             glyph: None,
             shortcuts: Vec::new(),
             enabled: Prop::Static(true),
@@ -318,8 +318,8 @@ impl ActionBuilder {
         self
     }
 
-    pub fn radio(mut self, chosen: impl IntoProp<bool>) -> Self {
-        self.checked = Some(chosen.into_prop());
+    pub fn radio<M1>(mut self, chosen: impl IntoPropWith<bool, M1>) -> Self {
+        self.checked = Some(chosen.into_prop_with());
         self.radio = true;
         self
     }
