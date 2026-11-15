@@ -6,8 +6,7 @@ package be3:block-type@0.1.0;
 /// request has that request as its parent (only `read-part`).
 interface host {
     use types.{
-        announced, announcement, byte-range, commit-id, description, journal-base, journal-entry,
-        loaded, merging,
+        announcement, byte-range, commit-id, description, journal-base, loaded, merging, submission,
         part-ref, recipients, relay-kind, resume, status, written,
     };
 
@@ -51,15 +50,18 @@ interface host {
     /// unchanged save answers `published` with the same head; one sealed on
     /// this device alone, offline or behind others in its outbox, answers
     /// `kept`, and the replica hears `drained` once it reaches the server.
-    /// `sealed-through`, for a seal of the session's owner, is the session's generation and the
-    /// last sequence number the content holds: kept with the commit, so what was journaled past
-    /// it while the commit was on its way replays on top of it when the journal is still on the
-    /// commit's parent.
+    /// `sealed-through`, for a seal of the lease holder, is the last sequence number of the
+    /// session's order the content holds: kept with the commit, so what the order numbered
+    /// past it while the commit was on its way replays on top of it when the journal is still
+    /// on the commit's parent.
     publish: async func(
         expected: option<commit-id>,
         merging: option<merging>,
         content: written,
-        sealed-through: option<tuple<u64, u64>>,
+        sealed-through: option<u64>,
+        /// How many times the session had started over (`status.restarts`): a
+        /// seal's sequence counts in that run of the order alone.
+        restarts: u64,
     ) -> result<publish-outcome, string>;
 
     variant publish-outcome {
@@ -74,34 +76,36 @@ interface host {
     /// The host fetches both histories and runs `be_session::resume`.
     resume-session: async func(local: option<commit-id>) -> result<resume, string>;
 
-    /// Sent once per generation when the owner is gone from the participants.
+    /// Sent once per generation when the lease holder is gone from the participants.
     claim-lease: async func(generation: u64);
 
-    /// The owner's heartbeat.
+    /// The lease holder's heartbeat.
     report-clean: async func(generation: u64, clean-at: option<commit-id>);
 
-    /// The owner of `generation` appends what it sequenced to the block's
-    /// journal, on the device and on the server, and with `relay` the server
-    /// relays each entry to every other participant as `send` to peers would.
-    /// True once the server holds the entries; false when only the device
-    /// does (offline, or the server did not take them). `announcements` are
-    /// those of the edits made on this device among the entries: the host
-    /// keeps them beside the entries and sends them once the server holds
-    /// the entries, or a commit of this device that holds them (`rebase-journal`).
-    append: async func(
-        generation: u64,
-        entries: list<journal-entry>,
-        relay: bool,
-        announcements: list<announced>,
-    ) -> bool;
+    /// Hands the session's order a submission: the server numbers it, keeps it
+    /// in the block's journal and every replica hears it (`replica.sequenced`),
+    /// this one too. Offline the host numbers it in this device's own order
+    /// and the replica hears it the same way. `announcements` are those of the
+    /// edits made on this device it holds: the host keeps them and sends them
+    /// once the server holds the edit.
+    submit: async func(submission: submission, announcements: list<announcement>) -> submitted;
 
-    /// The owner of `generation` starts the journal from `base`: after each
-    /// commit, and before its first append when the journal it opened with
-    /// was not its base. `entries` are what it sequenced past the base
-    /// meanwhile, kept with the base in one write. The announcements kept
+    variant submitted {
+        /// The server numbered it.
+        held,
+        /// Numbered in this device's own order, offline: the server lacks it
+        /// until a commit that holds it reaches it.
+        kept,
+        /// It did not reach the order (the connection dropped, or the server
+        /// refused it): the replica hears nothing of it.
+        failed(string),
+    }
+
+    /// The lease holder of `generation` sealed the order through `base`: the
+    /// journal starts from it, keeping what came after. The announcements kept
     /// beside the entries `base` holds go with its commit when this device
-    /// sealed it, sent once the server holds it; the others are dropped.
-    rebase-journal: async func(generation: u64, base: journal-base, entries: list<journal-entry>);
+    /// sealed it, sent once the server holds it.
+    rebase-journal: async func(generation: u64, base: journal-base);
 
     /// Opaque bytes for a peer, every peer, an editor or the host.
     send: async func(to: recipients, kind: relay-kind, bytes: list<u8>);
@@ -116,8 +120,4 @@ interface host {
 
     error: async func(message: string);
 
-    /// Announcements of edits made on this device that the server already
-    /// holds (a follower's, once the owner accepted them): the host sends each
-    /// it has not sent before.
-    announce: async func(announcements: list<announcement>);
 }

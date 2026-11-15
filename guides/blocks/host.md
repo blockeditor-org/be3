@@ -179,20 +179,26 @@ no network), and hands every later connection to it with `attach`.
 
 ## Disconnects, offline and stopping
 
-`flush()` seals and waits until every open block is kept on the device (in its
-journal or as a local commit), not for the server, so closing a host whose
-server stopped answering does not wait for it; `stop()` and organization
-changes go through it, because a session merely dropped loses everything since
-the last autosave. What a flush kept is sent as the outbox drains.
+`flush()` waits until the server ordered every edit an open replica in a live
+session submitted (`Replicas::ordering`), seals, and waits until every open
+block is kept: in the server's journal, this device's, or a local commit. It
+waits for the server no longer than `FLUSH_TIMEOUT`, so closing a host whose
+server stopped answering does not hang; what that server never ordered is
+still kept on the device (Opening again, below). `stop()` flushes first,
+so organization changes do too, because closing the connection would lose an
+edit on its way; `crash` does not. What a flush kept is sent as the outbox
+drains. Commands that seal the open blocks first (a version snapshot, the
+bookmark a restore keeps) wait the same way in the worker (`after_order`), and
+until the modules took every edit sent before them.
 
 A dropped connection (`Connection::closed`, not the broadcast, which outlives
 the socket) leaves content on screen; the worker backs off (`reconnect_delay`,
 cut short by `retry_now`), reconnects, reloads the graph and rejoins every open
 block. Meanwhile it keeps serving from the same `Peer` (the loop's `Line`:
-`Up` or `Down`), and every open replica is handed a session it owns
-(`Replicas::disconnected`), so a follower takes over what it had not confirmed,
-and each is asked to seal at once, locally, since reconnecting reopens it from
-its head. `Replicas::reconnect` asks the same of every replica that holds
+`Up` or `Down`), and every open replica is handed a made-up session whose lease
+it holds (`Replicas::disconnected`), in which this device numbers what it
+submits, and each is asked to seal at once, locally, since reconnecting reopens
+it on the server's journal. `Replicas::reconnect` asks the same of every replica that holds
 unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
@@ -200,40 +206,69 @@ one. `Connection::is_closed` reads true as soon as `close` is called, a moment
 before `Connection::closed` says so, so be-host's link never hands a new stack
 the connection a stopping stack closed.
 
-- **Opening again.** A replica opened again (on joining, rejoining or a module
-  restart) starts on a head: rejoining and a restart on the last head it
-  reported, joining on the server's head unless it was edited meanwhile or
-  holds commits ahead of it. It is handed the journal on that head
-  (`reopening_journal`): the server's when there is one, otherwise this
-  device's, entries included. The journal carries the session's state, which
-  numbers each writer's next edit: without it an edit an editor made on what it
-  was shown is refused as out of order. When the server's is taken, this
-  device's journal becomes it, so what the replica journals next follows the
-  session's numbering and a later start opens on the session's journal; entries
-  it held that the server's lacks (journaled offline beside another owner, or on
-  another commit) are reported lost to the replica (`lost-edits`). The replica is given again the local edits its module took
-  that neither the head nor this device's journal holds (`Open::replay`):
-  every status cuts `replay` at `status.sealed-taken` (for an owner what its
-  head holds, a replacement on its way not included; for a follower, once it is
-  clean, what its owner accepted into the session's journal), and a reopen
-  handed this device's journal at `status.journaled-taken` too, unless the
-  replica's last append to it failed. One count is conservative: an edit a
-  follower took before it was promoted and that waits for its part to be put is
-  not known among the local edits, so none taken since it was last clean counts
-  as sequenced.
-- **Opening early.** A block this device knows opens from its local head as a
-  follower of a placeholder owner (`JOINING_OWNER`) if joining takes longer
+- **Opening again.** A replica opened again (on joining, rejoining, a module
+  restart, or when the host fell behind what the server sent) starts where
+  `journal_for` says: on the server's journal, at its base, when there is one
+  (the order goes on from there; the host then tells it of heads that landed
+  since, and its holder merges them in), or on a seal made on that base that the
+  journal reaches (`opening.sealed-head`); offline, on this device's journal when
+  it is on the head, entries included, `journal-kept` when this device numbered
+  them. This device's journal keeps the server's as joining answered it. A
+  server with no journal of the block starts one at its head: online, this
+  device's journal is passed over then, unless it holds what only this device
+  numbered, and a replica joining as the lease holder first starts the server's
+  journal from this device's when that is on the server's head
+  (`started_from_mirror`), so the session state its last seal kept, which an
+  editor shown that content numbers its next edit by, goes on. The
+  replica is given again the local edits its module took that neither the head
+  nor the order holds (`Open::replay`): every status cuts `replay` at
+  `status.sealed-taken` (what its head holds, a replacement on its way not
+  included), and a reopen at `status.journaled-taken` too. The replica keeps its
+  `origin` (`Open::origin`) and is told how many local edits it is no longer
+  given (`Open::given_up`, `opening.taken-before`), so it numbers what it is given
+  again as before and skips what the order holds already: an edit whose answer
+  was lost is never made twice. The same holds across a stop or crash: the host
+  keeps each open block's origin, `given_up`, the last edit it submitted online
+  (`Open::submitted_through`) and the editors' frames in `replay`
+  (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`,
+  and before any submission past the `submitted_through` last written, which fails
+  if it cannot be written), and a replica opened later is given them under that
+  origin. Kept edits that do not open while the block's own key is not on the
+  device stay as they are, and the block waits locked until keys arrive
+  (`Replicas::lock`), so no replica writes over them. Ones that do not open
+  otherwise (unreadable, or under a key that has not come though the block's
+  has, such as a key generation that has not arrived yet: those are set aside,
+  not waited for) are set aside (`refs::SetAside`, never sent) with an error
+  naming how many, and the block opens under a fresh origin. Once keys arrive,
+  set-aside edits that read are told so, and that they were not sent
+  (`Replicas::read_set_aside`), and left a tombstone (their count). A block
+  keeps its newest `SetAside::KEPT`, and forgetting the block drops them; a
+  block whose kept edits hold any is not forgotten. Opened before it
+  joins (offline, or joining), those the server may hold already only show
+  (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
+  they could land twice. Once joined, the order says which it holds, even after
+  a seal trimmed the entries that held them: the journal's base and each reload
+  carry each recent origin's highest `through` (`wire::BaseState`, sealed with
+  the rest of the base). Kept edits made before a restart the order had since
+  (`opening.kept-restart`, against the base's last restart) are dropped, each
+  told to its editor as not sent: a restart, the last one out leaving included,
+  makes every edit kept from before it fail visibly.
+- **A lost entry.** The host tracks the last number of the order it heard per
+  open block (`Open::heard_through`); an entry past the next makes the replica
+  rejoin and open again on the server's journal.
+- **Opening early.** A block this device knows opens from its local head in a
+  session a placeholder holds (`JOINING_OWNER`) if joining takes longer
   than `EARLY_OPEN`; when the join lands (`Io::Joined`) the replica is reopened
   with the real session, replaying what happened meanwhile; an editor that made
   an edit kept for that and has detached since is attached for its edits to be
   given again (`Open::departed`), or the replica would drop them. A seal asked of a
-  joining replica with unconfirmed edits first gives it a session it owns, so
-  flush and stop never wait for a join.
-- **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` owning a
-  made-up session (`Open::made_up`): `Publish` becomes `Peer::seal` (a local
-  commit in the outbox), `Resume` treats the local head as remote, and
-  heartbeats, claims and relays are skipped, and the journal is the device's
-  alone. It opens on the newest head whose content the device holds
+  joining replica with unconfirmed edits first gives it a made-up session whose
+  lease it holds, so flush and stop never wait for a join.
+- **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` holding
+  the lease of a made-up session (`Open::made_up`): `Submit` is numbered in this
+  device's own order (`Peer::submit` offline) and heard by the replica at once,
+  `Publish` becomes `Peer::seal` (a local commit in the outbox), `Resume` treats
+  the local head as remote, and heartbeats, claims and relays are skipped. It opens on the newest head whose content the device holds
   (`Peer::held_head`, guides/blocks/client.md), not the server's newest, which
   it may never have read. The same happens while the block
   has outbox commits, and while the host keeps (`Replicas::keep_all`, used by
@@ -259,16 +294,21 @@ the connection a stopping stack closed.
   (`searched`, cleared when a search opens keys and on reconnecting), a message
   still locked is dropped and recorded, so a peer sealing with a key this device
   cannot get costs one search.
+- **A module that restarts** has its replicas opened again on this device's
+  journal and, in a live session, joined again before it is given their edits
+  (`Replicas::restart`), so the replica opens on the server's journal: this
+  device's copy was never trimmed by another device's seals, and an edit on its
+  way when the module stopped is found in the order rather than made again.
 - **Stopping**: `be_host_stack::stop`, `stop_and_wait`. Tests stop as a crash
   would with `crash`: the worker ends without keeping the open blocks, so only
   what the device had written survives.
 
 `be_host_stack::status()` reports `connected`, `syncing`, `waiting` (outbox
 operations), `unsent`, `conflicts`/`conflicted`, `kept`, `connecting` and
-`unsaved` (edits not yet in the device's journal, `Replicas::counts`' third
-number, plus every command sent and not yet carried out, `Shared::pending`, and
-imports; an edit that is journaled but not yet committed is durable and not
-counted). The "Saving changes" toast follows `unsaved`.
+`unsaved` (edits no journal holds yet, `Replicas::counts`' third number: in a
+live session, until the server holds them in its journal; plus every command sent and not
+yet carried out, `Shared::pending`, and imports; an edit a journal holds but no
+commit yet is durable and not counted). The "Saving changes" toast follows `unsaved`.
 
 The close and switch guards ask only while `be_host_stack::flush()` returns
 more than zero. It returns the worker's count as it answers the flush: open
@@ -281,6 +321,14 @@ close still closes. On a timeout, and on the web, which cannot wait, it returns
 Not built yet: a closing web tab cannot wait for `flush()`, so it asks first
 (`beforeunload`) while anything is unsaved (`Replicas::counts`).
 
+**One process per data directory.** The refs database keeps one origin per block for this
+device (`refs::OpenEdits`), so two processes on one data directory would number edits under
+the same origin. `be_host_stack::refs_in` locks `be-refs.lock` in the directory for the
+process: the hosts of one process share the database, and another process is refused with
+"Another be-host is using this data directory". The be-host binary hands a second launch over
+to the first before that (`instance.lock`). The web build takes no file lock: the `block-files`
+Web Lock already keeps one tab the owner.
+
 **Create, define, move and duplicate** are kept on the device and wait in the
 outbox, online as offline (`Peer::keep_creation`, `keep_definition`,
 `keep_move`), and the loop starts a drain for them; the loop never waits on the
@@ -291,7 +339,7 @@ creation (`Peer::create_block`), `Peer::summary` answers from the device until
 the server knows it, and a listing the server answers is laid over with what the
 outbox adds or moves (`Peer::listed`). A block opened before its creation is
 sent opens as offline does; once a drain sends it, the replica seals what it
-owns and joins (`Replicas::created` asks for that seal once, while it owes one
+ordered and joins (`Replicas::created` asks for that seal once, while it owes one
 and none is on its way). A command that needs the server to know a block waits
 first for a drain to send what this device made of it (`Tasks::sent`; an
 export, and a version command in the lane, waits for the whole outbox, since it
@@ -518,10 +566,11 @@ index and search it locally.
   a first commit, and is ignored for a block that has content or is open.
 - **Replacing.** `editor.replace_content` (`write-content` with `replace`)
   becomes the replica's `Change::Replace`, or a direct publish when nothing has
-  the block open. The replica publishes a commit (the bytes take the chunked
-  upload, not the session) and the replacement wins: unsaved work is stashed
-  as a parent of a later head, and followers reload (`SessionMessage::Replaced`
-  from a follower). Image, audio and PDF "replace" and compiled logic use it.
+  the block open. The replica stashes it as a commit (the bytes take the chunked
+  upload, not the session) and submits a barrier reload of it, and the
+  replacement wins: unsaved work is stashed as a parent of a later head, and
+  every replica reloads it (guides/type_modules.md, Peers). Image, audio and PDF
+  "replace" and compiled logic use it.
 
 ## Exporting and importing
 

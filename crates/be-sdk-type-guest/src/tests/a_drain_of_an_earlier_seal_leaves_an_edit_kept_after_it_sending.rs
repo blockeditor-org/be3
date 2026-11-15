@@ -6,7 +6,7 @@ use super::*;
 fn a_drain_of_an_earlier_seal_leaves_an_edit_kept_after_it_sending() {
     let mut sim = Sim::<ChecklistContent>::new(1, checklist_module);
     sim.kept_publishes = true;
-    sim.unheld_appends = true;
+    sim.offline_submits = true;
     sim.open(0);
     sim.attach(0, 1, true);
     sim.send_from_editor(0, 1, FromEditor::FollowLacking);

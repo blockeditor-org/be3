@@ -57,6 +57,11 @@ pub enum Push {
         payload: std::sync::Arc<[u8]>,
         received: i64,
     },
+    /// The order numbered a submission: every participant hears it, its author too.
+    Sequenced {
+        block: Place,
+        entry: std::sync::Arc<be_block_protocol::JournalEntry>,
+    },
     Paired(PairingMessage),
     ContactsChanged,
     /// The account's notices changed (`store/account_notices.rs`).
@@ -723,6 +728,14 @@ impl WatchHub {
 
     pub async fn send_to(&self, client: u64, message: Push) {
         deliver(&mut *self.clients.lock().await, client, message);
+    }
+
+    /// Sends `message` to each of `clients`, the sender among them.
+    pub async fn send_every(&self, clients: &[u64], message: &Push) {
+        let mut senders = self.clients.lock().await;
+        for client in clients {
+            deliver(&mut senders, *client, message.clone());
+        }
     }
 
     pub async fn send_all(&self, clients: &[u64], from: u64, message: &Push) {

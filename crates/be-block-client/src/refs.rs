@@ -52,10 +52,12 @@ pub(crate) enum Table {
     ContactNames,
     /// The objects a local account's block holds, one row each (`Refs::grow`).
     Objects,
+    OpenEdits,
+    SetAside,
 }
 
 impl Table {
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 21] = [
         Self::Session,
         Self::Head,
         Self::Remote,
@@ -75,6 +77,8 @@ impl Table {
         Self::LetGo,
         Self::ContactNames,
         Self::Objects,
+        Self::OpenEdits,
+        Self::SetAside,
     ];
 
     pub fn code(self) -> u8 {
@@ -98,6 +102,8 @@ impl Table {
             Self::LetGo => 17,
             Self::ContactNames => 18,
             Self::Objects => 19,
+            Self::OpenEdits => 20,
+            Self::SetAside => 21,
         }
     }
 
@@ -373,6 +379,8 @@ struct State {
     /// The distinct objects each of a local account's blocks holds, which its `size` counts
     /// (`grow`).
     objects: HashMap<Uuid, HashSet<Hash>>,
+    open_edits: HashMap<Uuid, OpenEdits>,
+    set_aside: HashMap<Uuid, Vec<SetAside>>,
     next: u64,
 }
 
@@ -381,12 +389,64 @@ struct State {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct JournalHead {
     tag: Hash,
-    generation: u64,
     base: JournalBase,
-    /// A seal this device made of the journal, with the last sequence it holds, written with
-    /// the seal's commit in one write and dropped by the next rebase: while it stands, the
-    /// seal's commit holds the journal through that sequence (`Peer::sealing`).
-    sealing: Option<(CommitId, u64)>,
+    /// Where the order stands: what this device heard the server number, or numbered itself
+    /// offline.
+    order: be_block_session::Sequencer,
+}
+
+/// A block's replica origin on this device and its local edits no journal holds yet, as the
+/// host gave them its replica: kept so every replica of the block on this device submits as one
+/// origin, whose count goes on, and one opened after the host stopped is given them again, as
+/// one opened again in the same run is (guides/blocks/host.md, "Opening again").
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OpenEdits {
+    /// The replica's origin, which its submissions name.
+    pub origin: u64,
+    /// How many local edits came before the first of `edits` (`opening.taken-before`).
+    pub given_up: u64,
+    /// The last of them submitted to the server, which may hold it.
+    pub submitted_through: u64,
+    /// How many times the session had started over for the replica that made them
+    /// (`status.restarts`).
+    pub restarts: u64,
+    /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
+    pub edits: Vec<Vec<u8>>,
+}
+
+/// Kept edits of a block that could not be read when it opened (`Refs::set_aside`): never
+/// sent, and kept until they read and are told so, then only as a tombstone.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SetAside {
+    /// How many edits were set aside.
+    pub count: usize,
+    /// The edits, until they read and were told so.
+    pub kept: Option<OpenEdits>,
+}
+
+impl SetAside {
+    /// How many a block keeps, the newest.
+    pub const KEPT: usize = 3;
+}
+
+/// A local edit the host gave a replica: an editor's frame, or a change the host made.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptEdit {
+    Frame { editor: u64, bytes: Vec<u8> },
+    Change(KeptChange),
+}
+
+/// A change the host asked of a replica (`be_sdk_type_api::Change`), as kept.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum KeptChange {
+    AddChild(Uuid),
+    DeleteChild(Uuid),
+    ReplaceChild { old: Uuid, new: Uuid },
+    ReorderChild { block: Uuid, after: Option<Uuid> },
+    FromFile { name: String, bytes: Vec<u8> },
+    Replace(Vec<u8>),
+    Undo,
+    Redo,
 }
 
 #[derive(Clone, Debug)]
@@ -507,6 +567,12 @@ impl State {
                 self.unsent.insert(uuid_key(&row.key)?, decode(value)?);
             }
             Table::Workspaces => {}
+            Table::OpenEdits => {
+                self.open_edits.insert(uuid_key(&row.key)?, decode(value)?);
+            }
+            Table::SetAside => {
+                self.set_aside.insert(uuid_key(&row.key)?, decode(value)?);
+            }
             Table::LetGo => {
                 self.let_go.insert(uuid_key(&row.key)?, decode(value)?);
             }
@@ -540,13 +606,12 @@ impl State {
                     .or_insert_with(|| Journaled {
                         head: JournalHead {
                             tag: Hash::from_bytes([0; 32]),
-                            generation: 0,
                             base: JournalBase {
                                 commit: None,
                                 sequence: 0,
                                 state: Vec::new(),
                             },
-                            sealing: None,
+                            order: be_block_session::Sequencer::starting(0),
                         },
                         entries: BTreeMap::new(),
                     })
@@ -1295,6 +1360,74 @@ impl Refs {
         )])
     }
 
+    /// What the host keeps of an open block's local edits no journal holds yet, to give its
+    /// replica again after the host stops (`OpenEdits`).
+    pub fn open_edits(&self, block: Uuid) -> Option<OpenEdits> {
+        self.state.lock().unwrap().open_edits.get(&block).cloned()
+    }
+
+    /// Keeps `edits` as `block`'s: kept with none too, for its origin and count, which every
+    /// later replica of the block on this device goes on with.
+    pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        if state.open_edits.get(&block) == Some(&edits) {
+            return Ok(());
+        }
+        state.open_edits.insert(block, edits.clone());
+        drop(state);
+        self.write(vec![row(Table::OpenEdits, block.as_bytes().to_vec(), &edits)])
+    }
+
+    /// Moves `block`'s kept edits aside (`SetAside`), for a replica to open under a fresh origin.
+    pub fn set_aside(&self, block: Uuid) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(kept) = state.open_edits.remove(&block) else {
+            return Ok(());
+        };
+        let aside = state.set_aside.entry(block).or_default();
+        aside.push(SetAside {
+            count: kept.edits.len(),
+            kept: Some(kept),
+        });
+        let over = aside.len().saturating_sub(SetAside::KEPT);
+        aside.drain(..over);
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![
+            row(Table::SetAside, block.as_bytes().to_vec(), &aside),
+            Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            },
+        ])
+    }
+
+    /// Every block's kept edits set aside.
+    pub fn set_aside_edits(&self) -> Vec<(Uuid, Vec<SetAside>)> {
+        let state = self.state.lock().unwrap();
+        state
+            .set_aside
+            .iter()
+            .map(|(block, aside)| (*block, aside.clone()))
+            .collect()
+    }
+
+    /// Leaves `block`'s set-aside edits at `index` a tombstone, once they read and were told.
+    pub fn tombstone_set_aside(&self, block: Uuid, index: usize) -> Result<(), StoreError> {
+        let mut state = self.state.lock().unwrap();
+        let Some(aside) = state.set_aside.get_mut(&block) else {
+            return Ok(());
+        };
+        let Some(entry) = aside.get_mut(index) else {
+            return Ok(());
+        };
+        entry.kept = None;
+        let aside = aside.clone();
+        drop(state);
+        self.write(vec![row(Table::SetAside, block.as_bytes().to_vec(), &aside)])
+    }
+
     /// The blocks the search indexer let go (`let_go`).
     pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
         let state = self.state.lock().unwrap();
@@ -1357,39 +1490,22 @@ impl Refs {
 
     /// Keeps a sealed commit in the outbox. With `sealing`, the last sequence of the block's
     /// journal the commit holds, the journal notes the seal in the same write.
-    pub fn push_publish(&self, pending: Pending, sealing: Option<u64>) -> Result<u64, StoreError> {
+    pub fn push_publish(&self, pending: Pending) -> Result<u64, StoreError> {
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
             let mut state = self.state.lock().unwrap();
             let sequence = state.take();
-            let mut rows = vec![
+            let rows = vec![
                 row(Table::Outbox, sequence.to_be_bytes().to_vec(), &op),
                 row(Table::Head, block.as_bytes().to_vec(), &head),
             ];
-            if let Some(through) = sealing
-                && let Some(journal) = state.journals.get_mut(&block)
-            {
-                journal.head.sealing = Some((head, through));
-                rows.push(row(
-                    Table::JournalBase,
-                    block.as_bytes().to_vec(),
-                    &journal.head,
-                ));
-            }
             state.outbox.insert(sequence, op);
             state.heads.insert(block, head);
             (sequence, rows)
         };
         self.write(rows)?;
         Ok(sequence)
-    }
-
-    /// The seal this device made of the block's journal since its last rebase, and the last
-    /// sequence it holds (`JournalHead::sealing`).
-    pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
-        let state = self.state.lock().unwrap();
-        state.journals.get(&block)?.head.sealing
     }
 
     /// The block's journal on this device, sealed.
@@ -1404,31 +1520,33 @@ impl Refs {
         })
     }
 
-    /// Appends sealed entries past the journal's last, starting the journal over for another
-    /// `tag`, as the server does.
+    fn journaled(state: &mut State, block: Uuid, tag: Hash) -> &mut Journaled {
+        state.journals.entry(block).or_insert_with(|| Journaled {
+            head: JournalHead {
+                tag,
+                base: JournalBase {
+                    commit: None,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+                order: be_block_session::Sequencer::starting(0),
+            },
+            entries: BTreeMap::new(),
+        })
+    }
+
+    /// Keeps entries the order numbered (sealed) past the journal's last, starting the journal
+    /// over for another `tag`, as the server does.
     pub fn append_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            let journal = state.journals.entry(block).or_insert_with(|| Journaled {
-                head: JournalHead {
-                    tag,
-                    generation,
-                    base: JournalBase {
-                        commit: None,
-                        sequence: 0,
-                        state: Vec::new(),
-                    },
-                    sealing: None,
-                },
-                entries: BTreeMap::new(),
-            });
+            let journal = Self::journaled(&mut state, block, tag);
             if journal.head.tag != tag {
                 for sequence in std::mem::take(&mut journal.entries).into_keys() {
                     rows.push(Row {
@@ -1439,21 +1557,12 @@ impl Refs {
                 }
                 journal.head.tag = tag;
             }
-            journal.head.generation = generation;
-            rows.push(row(
-                Table::JournalBase,
-                block.as_bytes().to_vec(),
-                &journal.head,
-            ));
-            let mut last = journal
-                .entries
-                .last_key_value()
-                .map_or(journal.head.base.sequence, |(sequence, _)| *sequence);
             for entry in entries {
-                if entry.sequence <= last {
+                if entry.sequence <= journal.head.order.sequence {
                     continue;
                 }
-                last = entry.sequence;
+                journal.head.order.sequence = entry.sequence;
+                journal.head.order.barrier = journal.head.order.barrier.max(entry.floor);
                 rows.push(row(
                     Table::JournalEntry,
                     journal_entry_key(block, entry.sequence),
@@ -1461,59 +1570,140 @@ impl Refs {
                 ));
                 journal.entries.insert(entry.sequence, entry);
             }
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
         }
         self.write(rows)
     }
 
-    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does,
-    /// and keeps `entries` past it (sealed) in the same write.
+    /// Numbers `submission` (its payload sealed) in this device's own order, as the server
+    /// would, for a session kept offline, and keeps it: the entry every replica of the block on
+    /// this device is to hear.
+    pub fn number_offline(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        submission: be_block_session::Submission,
+    ) -> Result<JournalEntry, StoreError> {
+        // A journal this device starts offline starts on the head it holds.
+        if self.journal(block).is_none() {
+            let base = JournalBase {
+                commit: self.head(block),
+                sequence: 0,
+                state: Vec::new(),
+            };
+            self.rebase_journal(block, tag, base)?;
+        }
+        let entry = {
+            let mut state = self.state.lock().unwrap();
+            let journal = Self::journaled(&mut state, block, tag);
+            let be_block_session::OpId { origin, counter } = submission.id;
+            // Numbered before, as the server does: the entry it holds, not a second one.
+            if let Some(held) = journal
+                .entries
+                .values()
+                .find(|entry| entry.origin == origin && entry.counter == counter)
+            {
+                return Ok(held.clone());
+            }
+            // Numbered on a copy: `append_journal` keeps the entry and moves the order past it.
+            let mut order = journal.head.order;
+            let op = order.number(submission, None);
+            JournalEntry {
+                sequence: op.sequence,
+                origin,
+                counter,
+                base: op.base,
+                floor: op.floor,
+                received: None,
+                payload: op.payload,
+            }
+        };
+        self.append_journal(block, tag, vec![entry.clone()])?;
+        Ok(entry)
+    }
+
+    /// Starts the journal from `base` (sealed), as the server does: keeps the entries after it,
+    /// and for another `tag` drops every entry. A base that goes back while nothing after the
+    /// journal's own base was numbered starts the order afresh from it.
     pub fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         base: JournalBase,
-        entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            // A rebase starts the journal over from a commit: no seal of the old one stands.
-            let head = JournalHead {
-                tag,
-                generation,
-                base,
-                sealing: None,
-            };
-            if let Some(journal) = state.journals.get(&block) {
-                for sequence in journal.entries.keys() {
-                    rows.push(Row {
-                        table: Table::JournalEntry,
-                        key: journal_entry_key(block, *sequence),
-                        value: None,
-                    });
-                }
+            let journal = Self::journaled(&mut state, block, tag);
+            let other = journal.head.tag != tag;
+            let order = journal.head.order;
+            let goes_on = !other
+                && (order.sequence > base.sequence.max(journal.head.base.sequence)
+                    || base.sequence >= journal.head.base.sequence);
+            if !goes_on {
+                journal.head.order = be_block_session::Sequencer::starting(base.sequence);
             }
-            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
-            let mut kept = BTreeMap::new();
-            for entry in entries {
-                if entry.sequence <= head.base.sequence {
-                    continue;
-                }
+            let cut = match other {
+                true => u64::MAX,
+                false => base.sequence,
+            };
+            let dropped: Vec<u64> = journal.entries.range(..=cut).map(|(at, _)| *at).collect();
+            for sequence in dropped {
+                journal.entries.remove(&sequence);
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            journal.head.tag = tag;
+            journal.head.base = base;
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
+        }
+        self.write(rows)
+    }
+
+    /// Makes this device's journal `journal` (sealed), as the server holds it: its base, its
+    /// entries and its order, whatever this device held before.
+    pub fn replace_journal(&self, block: Uuid, journal: Journal) -> Result<(), StoreError> {
+        let mut rows = Vec::new();
+        {
+            let mut state = self.state.lock().unwrap();
+            let held = Self::journaled(&mut state, block, journal.tag);
+            for sequence in std::mem::take(&mut held.entries).into_keys() {
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            let mut order = be_block_session::Sequencer::starting(journal.base.sequence);
+            for entry in &journal.entries {
+                order.sequence = order.sequence.max(entry.sequence);
+                order.barrier = order.barrier.max(entry.floor);
+            }
+            held.head = JournalHead {
+                tag: journal.tag,
+                base: journal.base,
+                order,
+            };
+            for entry in journal.entries {
                 rows.push(row(
                     Table::JournalEntry,
                     journal_entry_key(block, entry.sequence),
                     &entry,
                 ));
-                kept.insert(entry.sequence, entry);
+                held.entries.insert(entry.sequence, entry);
             }
-            state.journals.insert(
-                block,
-                Journaled {
-                    head,
-                    entries: kept,
-                },
-            );
+            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &held.head));
         }
         self.write(rows)
     }
@@ -1603,6 +1793,13 @@ impl Refs {
                 .chain(state.unsent.keys().copied())
                 .chain(
                     state
+                        .open_edits
+                        .iter()
+                        .filter(|(_, kept)| !kept.edits.is_empty())
+                        .map(|(block, _)| *block),
+                )
+                .chain(
+                    state
                         .journals
                         .iter()
                         .filter(|(_, journal)| !journal.entries.is_empty())
@@ -1658,6 +1855,18 @@ impl Refs {
                         key: block.as_bytes().to_vec(),
                         value: None,
                     });
+                }
+                for (table, gone_too) in [
+                    (Table::OpenEdits, state.open_edits.remove(block).is_some()),
+                    (Table::SetAside, state.set_aside.remove(block).is_some()),
+                ] {
+                    if gone_too {
+                        rows.push(Row {
+                            table,
+                            key: block.as_bytes().to_vec(),
+                            value: None,
+                        });
+                    }
                 }
                 for (table, held) in [
                     (Table::Head, &mut state.heads),

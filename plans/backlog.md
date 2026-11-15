@@ -57,14 +57,6 @@ Fixed items are removed as they land.
   app worker's canvases and it keeps none. Done when the web keeps a hidden view's last canvas
   frame the same way, with a web test that shows it again before its app answers.
 
-## 7. Sessions
-
-- **Catch-ups from viewers.** `Catchup` is a `peer` relay, so any viewer can
-  send one, and each makes the owner answer a `Snapshot` (with session state
-  unless the asker already holds it) and may set it to reload. Done: the owner
-  answers one sender at most once per interval, shown by a be-sdk-type-guest
-  test where a viewer's repeated `Catchup`s get one `Snapshot`.
-
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites

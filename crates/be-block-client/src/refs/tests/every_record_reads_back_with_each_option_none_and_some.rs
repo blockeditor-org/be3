@@ -102,20 +102,27 @@ fn every_record_reads_back_with_each_option_none_and_some() {
         }]);
         reads_back(&JournalHead {
             tag: Hash::of(b"tag"),
-            generation: 2,
             base: JournalBase {
                 commit: some.then_some(commit(b"base")),
                 sequence: 4,
                 state: vec![9],
             },
-            sealing: some.then_some((commit(b"seal"), 4)),
+            order: be_block_session::Sequencer {
+                sequence: 5,
+                barrier: 3,
+            },
         });
         reads_back(&JournalEntry {
-            generation: 2,
             sequence: 5,
+            origin: 7,
+            counter: 8,
+            base: 4,
+            floor: 3,
+            received: some.then_some(1_000),
             payload: vec![10],
         });
         for until in [
+            Until::Submitted,
             Until::Journal(5),
             Until::Commit(commit(b"kept")),
             Until::Held,

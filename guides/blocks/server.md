@@ -52,19 +52,17 @@ the server are in guides/blocks/keys.md.
   indexer gives a batch back after a few such heads in a row and holds it until
   the index's head moves on, which the mirror lists the index for, or until a delay
   that doubles with each batch given back runs out (`Searching::moving`).
-- **be-block-session**: `Lease` (ownership), `resume` (whether a returning peer
+- **be-block-session**: `Sequencer` (the order's rules: each submission takes
+  the next number and the floor, the last barrier, which a barrier moves to
+  itself), `Lease` (who seals, and the build the session speaks: its first
+  participant's, `Lease::speaks`), `resume` (whether a returning peer
   fast-forwards, publishes or merges, decided from history rather than from
-  having been away), and `Sequencer`/`Follower`. Operations carry an `OpId`, so
-  work resubmitted after a reconnect is deduplicated: the owner answers an id it
-  took already with `Accepted` and the number it gave (`Sequencer::accepted_as`),
-  to the submitter only, and a follower drops its own operation at or below
-  what it has applied from pending (`Follower::included`); one past
-  `applied + 1` makes it catch up instead. A `ClientId` is shared by the
-  replicas made again on one connection, so a replica numbers every operation it
-  makes, owner or follower, from one counter that starts at a random point:
-  an owner refuses an id it took already. Lease length is
-  `ServerConfig::lease`; tests that claim pass zero (be-host's
-  `Harness::lapsing`, `Lease::lasting(0)` in the replica's `Sim`).
+  having been away) and the `SessionMessage`s replicas relay. A submission's
+  `OpId` is its replica's `origin`, random and kept across its reopenings, and a
+  counter it never repeats, so the server answers an id its journal holds
+  without numbering it again. Lease length is `ServerConfig::lease`; tests that
+  claim pass zero (be-host's `Harness::lapsing`, `Lease::lasting(0)` in the
+  replica's `Sim`).
 - **be-block-graph**: liveness and access.
 
 ### Liveness and reclamation
@@ -534,39 +532,41 @@ commit's objects in one query and adds and removes only what the publish
 changes. A relay is shared by every
 participant's queue (`Push::Relayed` holds an `Arc`). A relay named for one
 client that has left the session (or never joined) is dropped without an error:
-it is best-effort, and the sender cannot know the other left. Each relay, and
-each entry an `append` relays, reaches participants stamped with when the server
-took it (`received`, by its clock), which the owner writes into a follower's
-operation (`LiveEdit::arrival`) (guides/type_modules.md). The server cannot read a
-relay, so each names its `relay-kind`: `peer` (presence, channel messages,
-asking to catch up) needs view access, and `edit` (operations and session state)
-edit access (`rule`).
-Whether the sender holds the lease is not checked: an owner whose lease lapsed
-unseen still relays what it accepted, which the next owner takes over from a
-client it knew as an owner. Editors are trusted with the block's content and
-session; replicas keep owner-only messages to the owner (guides/type_modules.md).
-The server stamps what it checked on what it delivers (`relayed.kind`; an
-`append`'s entries are `edit`), and receivers drop a message that asks for more,
-since the label is the sender's. An owner that lost edit access hands the lease
+it is best-effort, and the sender cannot know the other left. Each relay reaches
+participants stamped with when the server took it (`received`, by its clock).
+The server cannot read a relay, so each names its `relay-kind`: `peer` (presence,
+channel messages) needs view access, and `seal` (a seal's news) edit access
+(`rule`). The server stamps what it checked on what it delivers
+(`relayed.kind`), and receivers drop a message that asks for more, since the
+label is the sender's. Editors are trusted with the block's content and session.
+
+**The order.** `submit` needs edit access and a build the session speaks
+(`Lease::speaks`): the server numbers the submission in the block's journal
+(`journal::submit`, one write transaction), stamps it with when it took it, and
+sends it to every participant, its author too (`Push::Sequenced`, read after the
+entry is kept, so a connection joining meanwhile reads it in the journal or hears
+it here). Joining registers the participant before it reads the journal. Two
+submissions numbered at once may reach a participant out of order; replicas hold
+what arrives early. The server never opens a payload: it numbers sealed bytes.
+A holder that lost edit access hands the lease
 on at its next heartbeat (`Lease::demote`), which also covers a grant or revoke
 racing a join. The lease goes only to a participant with edit access when it
-joined (`Lease::join`), so a session of viewers alone has no owner, and a viewer's
-claim is refused.
+joined (`Lease::join`), so a session of viewers alone has no holder, and a
+viewer's claim is refused.
 
 The session registry (`sessions.rs`) indexes leases by client, so leaving them
 all on a disconnect costs what that client joined, and remembers an empty
-session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`; a peer
-taking over a forgotten one merges rather than fast-forwards.
+session for its `clean_at` for a day and at most `MAX_EMPTY_SESSIONS`.
 
 Each block's journal (guides/blocks/client.md, "The journal") is two tables,
-`block_journals` (tag, generation, base) and `journal_entries`, written by
-`be_server::journal` and deleted with the block. It is kept whether or not
-anyone is in the session, so a crashed owner's edits wait for the next one. An
-`append` or a rebase is kept only from the current owner of its generation; from
-any other participant it is answered as done and not kept, since an owner whose
-lease lapsed writes on until the next `Lease` tells it (an append is relayed
-either way, as a relay is). An append is refused when the journal is another tag's until
-the owner rebases, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
+`block_journals` (tag, base, the order's last number and barrier) and
+`journal_entries` (an id unique per block), written by `be_server::journal` and
+deleted with the block. It is kept whether or not anyone is in the session, so
+what nobody sealed waits for the next holder. A rebase is kept only from the
+current holder of its generation; from any other participant it is answered as
+done and not kept, since a holder whose lease lapsed seals on until the next
+`Lease` tells it. A submission is refused while the journal holds another
+build's entries, and bounded by `MAX_JOURNAL_BYTES`; `read-contents` answers
 journals while they fit in a quarter of a frame.
 
 **Answers that fit a frame.** A summary carries metadata of up to

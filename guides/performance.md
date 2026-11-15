@@ -101,8 +101,8 @@ What keeps a gesture's cost independent of the document's size:
 - Every frame of a gesture writes the document (guides/adding_an_app.md, Gestures), but nothing walks it:
   a be-block-model `Document` updates its block references from what each edit touched; the
   host's worker encodes a snapshot only every few hundred operations; and pending edits rebase
-  under a peer's by what either touched (`Document::rebase`), with followers told by a `Beneath`
-  operation rather than a snapshot (guides/blocks/apps.md).
+  under a peer's numbered before them by what either touched (`Document::rebase`), with editors
+  told by a `Beneath` operation rather than a snapshot (guides/blocks/apps.md).
 - A pan, zoom or pen move places and paints only what is in view, found through a grid of world
   cells. A pen lift reads only the new stroke: the editor's catalog of frames, embedded blocks
   and bounds is fed by the entities each change touched, and only changed items are refiled in

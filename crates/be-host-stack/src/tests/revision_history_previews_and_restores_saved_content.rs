@@ -70,6 +70,8 @@ fn revision_history_previews_and_restores_saved_content() {
         Answered::Restored(Ok(()))
     ));
     wait_for_count(block, 5);
+    // The restore lands as the order reaches it, and a seal follows it.
+    flush_and_send();
     let restored = node(block).unwrap().head.unwrap();
     assert_ne!(restored, first);
     let Answered::Listed(Ok(entries)) = request(block, Asked::List) else {

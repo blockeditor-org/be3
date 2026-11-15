@@ -63,7 +63,7 @@ A type whose `BlockContent::LOADS` is `Loads::FirstPart` loads only the root's
 first part (a file's header): `from_stored` gets a `Stored` whose `bytes` hold
 that part (`Stored::holds` says which parts it has), `parts` hands the others
 back as `Reused`, and `encode` gives only the loaded bytes, which is what its
-replica's followers and editors are sent. Most such types (a file, an index) have an `encode` that is the whole
+replica's editors are sent. Most such types (a file, an index) have an `encode` that is the whole
 content anyway, so a copy through bytes loses nothing. A type whose `encode` leaves parts out
 sets `BlockContent::WHOLE_BYTES` to false (`type-info.whole-bytes`): chat's `decode(encode())`
 is a view, the header's index entries with no part behind them, and saving it writes the
@@ -123,13 +123,13 @@ How the model works:
   slot; an insert takes the next offset of the client that made it
   (`local_client`), so every replica gives it the same slot. A removed object
   leaves a tombstone and reuses its slot if it comes back.
-- **Session state.** Tombstones and text positions are never saved. The owner
-  hands them over in `Snapshot` (as of its last seal) and `Sealed`
-  (`LiveEdit::session_state`), and they go when the session ends. Loading
-  needs none to agree: every replica gives loaded content the same positions
-  (all from client `LOADED` at offsets `0..len`, list slots in stored order)
-  and ids, so replicas that load the same commit exchange edits without a
-  `Snapshot`.
+- **Session state.** Tombstones and text positions are never saved. The lease
+  holder keeps them in the journal's base with each seal
+  (`LiveEdit::session_state`), so a replica opening on the journal adopts them,
+  and they go when the session ends. Loading needs none to agree: every replica
+  gives loaded content the same positions (all from client `LOADED` at offsets
+  `0..len`, list slots in stored order) and ids, so replicas that load the same
+  commit apply the same order without them.
 - **Derived ids.** Anything two peers may create at once for the same purpose
   (a database row past the end, a canvas component for a schema) takes an id
   derived from what it is for, so the second insert is refused and its edits

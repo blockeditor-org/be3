@@ -57,22 +57,21 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 ## Arrival time
 
 - A message keeps when the server took the operation that sent it
-  (`Message::arrival`), as the session owner stamped it: `ChatOp::Edit`
+  (`Message::arrival`), as the session's order stamped it: `ChatOp::Edit`
   carries the stamp slot (`LiveEdit::arrival`, guides/type_modules.md
-  "Arrival time"), which the owner fills on a follower's operation. Applying
-  an edit (`stamped` in `src/chat.rs`) writes the slot's stamp into each
-  message it inserts, inside the insert, so it lands only when the insert does,
-  and drops any change that sets a message's `arrival`. So a follower in a
-  session an honest owner sequences cannot choose an arrival: not by sending a
-  message holding one, setting one after, or sending again under an existing
-  message's id. A closed segment keeps each message's stamp.
-- The guarantee holds only for operations an honest owner sequences. A member
-  whose replica owns the session (alone in the chat, say) writes its own
-  content, and a merge keeps whatever `arrival` a commit holds, so a member
-  who owns a session or commits directly can write any arrival; accepted, as
-  for any content a dishonest owner alters (plans/authorship.md).
-- Unstamped means unknown: the owner's own messages (plans/chat.md), and what
-  a device commits outside a live session. Operations fold
+  "Arrival time"), which every replica fills from the entry's `received` as it
+  applies it. Applying an edit (`stamped` in `src/chat.rs`) writes the slot's
+  stamp into each message it inserts, inside the insert, so it lands only when
+  the insert does, and drops any change that sets a message's `arrival`. So a
+  member in a live session cannot choose an arrival: not by sending a message
+  holding one, setting one after, or sending again under an existing message's
+  id. A closed segment keeps each message's stamp.
+- The guarantee holds only for operations the server orders. A merge keeps
+  whatever `arrival` a commit holds, so a member who commits directly (or seals
+  as the lease holder) can write any arrival; accepted, as for any content a
+  dishonest member alters (plans/authorship.md).
+- Unstamped means unknown: what a device numbered offline, and what a device
+  commits outside a live session. Operations fold
   (`absorb_operation`) only when their stamps are equal, carrying one over a
   restart keeps its own stamp, never another's, and undo makes unstamped
   operations (`ChatOp::from`).
@@ -96,8 +95,8 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   holds neither.
 - **Closing a segment** is an operation, `ChatOp::Close`: the header's change
   (the oldest recent messages leave `messages`, the index gains an entry) and
-  the segment's bytes, which every replica that applies it keeps, so an owner
-  that takes the session over saves the part like any other. The bytes ride in
+  the segment's bytes, which every replica that applies it keeps, so whichever
+  replica holds the lease saves the part like any other. The bytes ride in
   the operation (at most 256 KiB, or one larger message, which closes alone)
   rather than being put as a part named by hash: they are messages the session
   already relayed, so nothing is uploaded early and no hold is needed. Any
@@ -138,9 +137,9 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 - **Messages.** A `List` merge puts an insert after the sibling it was made
   after, except in a `merge_appends` list such as chat's messages, which keeps
   the published side as it is and puts what only the merging device added after
-  it, in its order (guides/blocks/content_types.md). In a live session the owner
-  sequences each send, an insert at the end, so a message lands after those
-  sequenced before it, the same order. Edits, deletions and reactions are
+  it, in its order (guides/blocks/content_types.md). In a live session the server
+  orders each send, an insert at the end, so a message lands after those
+  ordered before it, the same order. Edits, deletions and reactions are
   `LatestMap`s, so the later write of a key wins and none conflicts.
   Publishing is a compare-and-swap on the head: a device whose publish is
   rejected merges again on the new head, so a merge never has to give the same
@@ -204,8 +203,7 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   that sent it, and "Not sent", with Send again and Discard, once the server
   refused the commit holding it (`ContentProjection::lacking`,
   guides/blocks/apps.md "Sending"): the replica keeps those edits until the
-  server holds them, across editors and replicas. For an owner alone that is
-  every send for `APPEND_INTERVAL` (250 ms) and a round trip, even online.
+  server holds them, across editors and replicas: online, a round trip.
   After a host or type module restart, the messages the device's own
   commits in the outbox add over the server's last head show as sending
   (`ChatContent::unsent_over`) until they drain. be-host-stack tests and
