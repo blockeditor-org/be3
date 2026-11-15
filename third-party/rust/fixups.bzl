@@ -1,3 +1,5 @@
+load("@root//buck/platforms:cross.bzl", "cross_setting")
+
 # What buck/cargo/third_party.bzl is told about a third-party crate that it
 # cannot work out from cargo's plans alone, by crate name. Features and
 # dependencies are cargo's, per platform, so nothing here is about those unless
@@ -128,7 +130,7 @@ FIXUPS = {
             "RUSTY_V8_ARCHIVE": "$(location //third-party/v8:library)",
             "RUSTY_V8_SRC_BINDING": select({
                 "DEFAULT": "",
-                "root//buck/platforms:android_arm64_setting": "$(location //third-party/v8:android_arm64_binding)",
+                cross_setting("android_arm64"): "$(location //third-party/v8:android_arm64_binding)",
             }),
         },
         "overlay": {
