@@ -154,17 +154,16 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.refs.set_aside(block)?)
     }
 
-    /// Kept edits set aside and not yet recovered that read now: each block's count of them,
-    /// marked recovered, to be told as recovered and not sent.
-    pub fn recover_set_aside(&self) -> Vec<(Uuid, usize)> {
+    /// Kept edits set aside that read now: each block's count of them, left as tombstones, to
+    /// be told they read and were not sent.
+    pub fn read_set_aside(&self) -> Vec<(Uuid, usize)> {
         let mut recovered = Vec::new();
         for (block, aside) in self.refs.set_aside_edits() {
             for (index, entry) in aside.iter().enumerate() {
-                if entry.recovered {
+                let Some(kept) = &entry.kept else {
                     continue;
-                }
-                let opened: Result<Vec<crate::KeptEdit>, ClientError> = entry
-                    .kept
+                };
+                let opened: Result<Vec<crate::KeptEdit>, ClientError> = kept
                     .edits
                     .iter()
                     .map(|sealed| {
@@ -172,8 +171,8 @@ impl<S: ObjectStore> Peer<S> {
                         Ok(be_block_store::decode_value(&plain)?)
                     })
                     .collect();
-                if opened.is_ok() && self.refs.recovered(block, index).is_ok() {
-                    recovered.push((block, entry.kept.edits.len()));
+                if opened.is_ok() && self.refs.tombstone_set_aside(block, index).is_ok() {
+                    recovered.push((block, entry.count));
                 }
             }
         }
@@ -184,6 +183,17 @@ impl<S: ObjectStore> Peer<S> {
     #[cfg(test)]
     pub(crate) fn keep_sealed_open_edits(&self, block: Uuid, kept: crate::OpenEdits) {
         self.refs.keep_open_edits(block, kept).unwrap();
+    }
+
+    /// What this device keeps of `block`'s edits set aside.
+    #[cfg(test)]
+    pub(crate) fn set_aside_of(&self, block: Uuid) -> Vec<crate::SetAside> {
+        self.refs
+            .set_aside_edits()
+            .into_iter()
+            .find(|(of, _)| *of == block)
+            .map(|(_, aside)| aside)
+            .unwrap_or_default()
     }
 
     /// What this device keeps of `block`'s replica, its edits sealed.

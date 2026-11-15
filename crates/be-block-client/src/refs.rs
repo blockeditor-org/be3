@@ -393,12 +393,18 @@ pub struct OpenEdits {
 }
 
 /// Kept edits of a block that could not be read when it opened (`Refs::set_aside`): never
-/// sent, and never deleted, so what they held is still there to recover.
+/// sent, and kept until they read and are told so, then only as a tombstone.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SetAside {
-    pub kept: OpenEdits,
-    /// Whether they were read since and told as recovered, not sent.
-    pub recovered: bool,
+    /// How many edits were set aside.
+    pub count: usize,
+    /// The edits, until they read and were told so.
+    pub kept: Option<OpenEdits>,
+}
+
+impl SetAside {
+    /// How many a block keeps, the newest.
+    pub const KEPT: usize = 3;
 }
 
 /// A local edit the host gave a replica: an editor's frame, or a change the host made.
@@ -1220,9 +1226,11 @@ impl Refs {
         };
         let aside = state.set_aside.entry(block).or_default();
         aside.push(SetAside {
-            kept,
-            recovered: false,
+            count: kept.edits.len(),
+            kept: Some(kept),
         });
+        let over = aside.len().saturating_sub(SetAside::KEPT);
+        aside.drain(..over);
         let aside = aside.clone();
         drop(state);
         self.write(vec![
@@ -1245,8 +1253,8 @@ impl Refs {
             .collect()
     }
 
-    /// Marks `block`'s set-aside edits at `index` as recovered and told.
-    pub fn recovered(&self, block: Uuid, index: usize) -> Result<(), StoreError> {
+    /// Leaves `block`'s set-aside edits at `index` a tombstone, once they read and were told.
+    pub fn tombstone_set_aside(&self, block: Uuid, index: usize) -> Result<(), StoreError> {
         let mut state = self.state.lock().unwrap();
         let Some(aside) = state.set_aside.get_mut(&block) else {
             return Ok(());
@@ -1254,7 +1262,7 @@ impl Refs {
         let Some(entry) = aside.get_mut(index) else {
             return Ok(());
         };
-        entry.recovered = true;
+        entry.kept = None;
         let aside = aside.clone();
         drop(state);
         self.write(vec![row(Table::SetAside, block.as_bytes().to_vec(), &aside)])
@@ -1625,6 +1633,13 @@ impl Refs {
                 .chain(state.unsent.keys().copied())
                 .chain(
                     state
+                        .open_edits
+                        .iter()
+                        .filter(|(_, kept)| !kept.edits.is_empty())
+                        .map(|(block, _)| *block),
+                )
+                .chain(
+                    state
                         .journals
                         .iter()
                         .filter(|(_, journal)| !journal.entries.is_empty())
@@ -1680,6 +1695,18 @@ impl Refs {
                         key: block.as_bytes().to_vec(),
                         value: None,
                     });
+                }
+                for (table, gone_too) in [
+                    (Table::OpenEdits, state.open_edits.remove(block).is_some()),
+                    (Table::SetAside, state.set_aside.remove(block).is_some()),
+                ] {
+                    if gone_too {
+                        rows.push(Row {
+                            table,
+                            key: block.as_bytes().to_vec(),
+                            value: None,
+                        });
+                    }
                 }
                 for (table, held) in [
                     (Table::Head, &mut state.heads),

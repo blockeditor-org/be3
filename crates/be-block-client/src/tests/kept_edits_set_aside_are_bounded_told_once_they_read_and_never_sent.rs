@@ -7,10 +7,11 @@ use be_block_graph::Access;
 use crate::{Event, KeptEdit, OpenEdits};
 
 /// Kept edits that do not read are set aside: the block's kept edits are empty for a replica
-/// to open under a fresh origin, the set-aside ones stay as they were, and once their key
-/// arrives they read and are told as recovered once, never given to a replica to send.
+/// to open under a fresh origin, a block keeps its newest set aside, and once their key
+/// arrives they read and are told so once, left a tombstone, never given to a replica to send.
+/// Forgetting the block drops them.
 #[tokio::test]
-async fn kept_edits_set_aside_are_recovered_once_their_key_arrives_and_never_sent() {
+async fn kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent() {
     let harness = Harness::start().await;
     let owner = harness.owner("owner@example.com").await;
     let guest = harness.member(&owner, "guest@example.com").await;
@@ -38,11 +39,13 @@ async fn kept_edits_set_aside_are_recovered_once_their_key_arrives_and_never_sen
     ];
     owner.keep_open_edits(block, kept, edits).await.unwrap();
     let sealed = owner.sealed_open_edits(block).expect("kept");
-    guest.keep_sealed_open_edits(block, sealed.clone());
-
-    guest.set_aside_open_edits(block).unwrap();
+    for _ in 0..=crate::SetAside::KEPT {
+        guest.keep_sealed_open_edits(block, sealed.clone());
+        guest.set_aside_open_edits(block).unwrap();
+    }
+    assert_eq!(guest.set_aside_of(block).len(), crate::SetAside::KEPT, "the newest are kept");
     assert!(guest.open_edits(block).is_none(), "a replica opens afresh");
-    assert!(guest.recover_set_aside().is_empty(), "they do not read yet");
+    assert!(guest.read_set_aside().is_empty(), "they do not read yet");
 
     let mut events = guest.connection().subscribe();
     let public = owner.keys().contact(guest.account()).unwrap();
@@ -57,7 +60,20 @@ async fn kept_edits_set_aside_are_recovered_once_their_key_arrives_and_never_sen
     .expect("the server never told the guest of the key sealed to it");
     guest.keys_changed();
     guest.refresh_keys(Some(vec![block])).await.unwrap();
-    assert_eq!(guest.recover_set_aside(), [(block, 2)]);
-    assert!(guest.recover_set_aside().is_empty(), "told once");
+    assert_eq!(
+        guest.read_set_aside(),
+        vec![(block, 2); crate::SetAside::KEPT]
+    );
+    assert!(guest.read_set_aside().is_empty(), "told once");
     assert!(guest.open_edits(block).is_none(), "never given again");
+    assert!(
+        guest
+            .set_aside_of(block)
+            .iter()
+            .all(|aside| aside.count == 2 && aside.kept.is_none()),
+        "only tombstones are left"
+    );
+
+    guest.forget_cached(block).unwrap();
+    assert!(guest.set_aside_of(block).is_empty(), "forgetting the block drops them");
 }

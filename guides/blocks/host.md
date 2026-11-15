@@ -170,10 +170,13 @@ the connection a stopping stack closed.
   device stay as they are, and the block waits locked until keys arrive
   (`Replicas::lock`), so no replica writes over them. Ones that do not open
   otherwise (unreadable, or under a key that has not come though the block's
-  has) are set aside (`refs::SetAside`, never deleted, never sent) with an error
-  naming how many, and the block opens under a fresh origin; once keys arrive,
-  set-aside edits that read are told as recovered and not sent
-  (`Replicas::recover_set_aside`). Opened before it
+  has, such as a key generation that has not arrived yet: those are set aside,
+  not waited for) are set aside (`refs::SetAside`, never sent) with an error
+  naming how many, and the block opens under a fresh origin. Once keys arrive,
+  set-aside edits that read are told so, and that they were not sent
+  (`Replicas::read_set_aside`), and left a tombstone (their count). A block
+  keeps its newest `SetAside::KEPT`, and forgetting the block drops them; a
+  block whose kept edits hold any is not forgotten. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after

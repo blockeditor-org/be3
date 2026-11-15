@@ -1071,8 +1071,8 @@ impl<H: Host> Replicas<H> {
                 shared,
                 Some(block),
                 format!(
-                    "{} edits this device kept of this block could not be read ({error}) and \
-                     were not sent; they are set aside",
+                    "{} edits this device kept of this block could not be read and were not \
+                     sent ({error})",
                     kept.edits.len()
                 ),
             );
@@ -1787,17 +1787,14 @@ impl<H: Host> Replicas<H> {
     /// every block found locked is no longer, an open one reads again (`read_again`), and
     /// relayed messages search for their keys again. Answers the locked blocks that are not
     /// open, for the host to open again if it still wants them.
-    /// Keys arrived: kept edits set aside that read now are told as recovered and not sent
-    /// (`Peer::recover_set_aside`). They are never sent: what they were made on may be gone.
-    pub fn recover_set_aside(&self, peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
-        for (block, count) in peer.recover_set_aside() {
+    /// Keys arrived: kept edits set aside that read now are told so, and that they were not
+    /// sent (`Peer::read_set_aside`). They never are: what they were made on may be gone.
+    pub fn read_set_aside(&self, peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
+        for (block, count) in peer.read_set_aside() {
             H::report(
                 shared,
                 Some(block),
-                format!(
-                    "{count} edits this device set aside of this block read now: recovered, \
-                     not sent"
-                ),
+                format!("{count} set-aside edits of this block can now be read; they were not sent"),
             );
         }
     }
