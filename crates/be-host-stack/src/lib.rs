@@ -1587,24 +1587,31 @@ pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) 
     )));
 }
 
-/// Invitation codes this device made or listed as the person's own. Opening one of these links
-/// reads nothing from the server, so the inviter checking their own link never marks it opened.
-static OWN_INVITATIONS: std::sync::Mutex<Vec<be_block_keys::InviteCode>> =
-    std::sync::Mutex::new(Vec::new());
+/// Invitation codes this device made or listed, each with the server and account whose own it
+/// is. Opening one of these links as that account reads nothing from the server, so the inviter
+/// checking their own link never marks it opened; another account on the device opens it as
+/// anyone would.
+type OwnInvitation = (String, Uuid, be_block_keys::InviteCode);
 
-fn own_invitation(code: &be_block_keys::InviteCode) {
-    let mut own = OWN_INVITATIONS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-    if !own.contains(code) {
-        own.push(code.clone());
+static OWN_INVITATIONS: std::sync::Mutex<Vec<OwnInvitation>> = std::sync::Mutex::new(Vec::new());
+
+fn own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteCode) {
+    let own = (server_url.to_owned(), account, code.clone());
+    let mut held = OWN_INVITATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    if !held.contains(&own) {
+        held.push(own);
     }
 }
 
-/// Whether `code` is an invitation this device made or listed as the person's own.
-pub fn is_own_invitation(code: &be_block_keys::InviteCode) -> bool {
+/// Whether `code` is an invitation `account` on `server_url` made or listed as its own here.
+pub fn is_own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteCode) -> bool {
     OWN_INVITATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .contains(code)
+        .iter()
+        .any(|(server, owner, own)| server == server_url && *owner == account && own == code)
 }
 
 /// An invitation in the organization's invite list.
