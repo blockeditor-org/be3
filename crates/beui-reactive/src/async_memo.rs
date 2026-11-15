@@ -160,6 +160,11 @@ impl<T> std::fmt::Debug for AsyncMemo<T> {
 /// so `?` on another `Ready` inside it fails or waits the memo with it. Its readiness is part
 /// of the graph, as a `Source`'s is. An `Errored` boundary around where it is made runs it
 /// again on reset.
+///
+/// The future is polled once as it is made, with a waker that does nothing, so an answer
+/// already there lands at once; one still waiting goes to the spawner. A future must therefore
+/// take the waker afresh on every poll that returns `Pending`, as the `Future` contract asks,
+/// never keep the first one it was given.
 pub fn create_async_memo<T, F>(mut source: impl FnMut() -> F + 'static) -> AsyncMemo<T>
 where
     T: PartialEq + 'static,
