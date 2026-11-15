@@ -38,7 +38,7 @@ and reads them at once.
   person makes and sees, and can make again.
 - A change the worker cannot keep (out of space, a failed write), from the first one on, is
   told to the page by letter and shown as a host error that says what is lost: "This device
-  could not save signing in to … : it will be gone after the page reloads (…)" (`Write::what`).
+  could not save signing in to …: the page will undo it when it reloads (…)" (`Write::what`).
 - The page reads its copy, not the file: a change another tab makes to `host.sqlite3` is not
   seen until the page starts again, as before (one tab owns the files, `block-files` lock).
 
