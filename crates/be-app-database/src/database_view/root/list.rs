@@ -509,13 +509,6 @@ enum PartKind {
 
 #[component]
 fn RowPart(part: Memo<Option<Part>>) -> NodeId {
-    let kind = create_memo(move || {
-        part.with(|part| match part {
-            Some(Part::Page) | None => PartKind::Page,
-            Some(Part::Text(_)) => PartKind::Plain,
-            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)) => PartKind::Chip,
-        })
-    });
     let text = create_memo(move || {
         part.with(|part| match part {
             Some(Part::Choice(option)) => option.name.clone(),
@@ -526,7 +519,13 @@ fn RowPart(part: Memo<Option<Part>>) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal spacing=Space::None>
-            <Dynamic value={kind}>|kind: PartKind| {
+            <Dynamic value={move || {
+        part.with(|part| match part {
+            Some(Part::Page) | None => PartKind::Page,
+            Some(Part::Text(_)) => PartKind::Plain,
+            Some(Part::Choice(_) | Part::Link(_) | Part::Links(..)) => PartKind::Chip,
+        })
+    }}>|kind: PartKind| {
                 match kind {
                     PartKind::Page => view! {
                         <Text size=MARK color=TextColor::Muted align=TextAlign::Center>

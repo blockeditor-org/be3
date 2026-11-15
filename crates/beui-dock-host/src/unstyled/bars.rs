@@ -1387,14 +1387,14 @@ pub(super) fn DockBarred(
                                 align=DockAlign::End
                                 ends={right}
                             />
-                            <Show value={matches!(holder, BarHolder::Dock)}>
+                            {(matches!(holder, BarHolder::Dock)).then(|| view! {
                                 <Layers>
                                     <DockBarHidden dock edge=DockEdge::Top />
                                     <DockBarHidden dock edge=DockEdge::Bottom />
                                     <DockBarHidden dock edge=DockEdge::Left />
                                     <DockBarHidden dock edge=DockEdge::Right />
                                 </Layers>
-                            </Show>
+                            })}
                         </Layers>
                     </ListItem>
                     <DockBarBand dock holder edge=DockEdge::Right />

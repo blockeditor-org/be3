@@ -424,7 +424,7 @@ pub(crate) fn MenuList(
                     let lines = lines();
                     view! {
                         <List spacing={state.spacing}>
-                            <Show value={state.titled}>
+                            {state.titled.then(|| view! {
                                 <MenuBackRow
                                     state={state}
                                     title
@@ -432,7 +432,7 @@ pub(crate) fn MenuList(
                                     focused={focused}
                                     row={row}
                                 />
-                            </Show>
+                            })}
                             {lines}
                         </List>
                     }

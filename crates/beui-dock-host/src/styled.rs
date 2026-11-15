@@ -586,7 +586,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                             <ListItem grow=1.0>
                                 <Text color={label} overflow=Overflow::Ellipsis>{title}</Text>
                             </ListItem>
-                            <Show value={closable}>
+                            {closable.then(|| view! {
                                 <Button
                                     icon_only=true
                                     @test_id={format!("dock.dialog.{}.close", tab.value())}
@@ -597,7 +597,7 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                                     capture_presses=true
                                     on_click={close}
                                 />
-                            </Show>
+                            })}
                         </List>
                     </Frame>
                 </Interactive>
@@ -671,10 +671,6 @@ fn DockTitleBar(
                 align={Align2::new(Align::Stretch, Align::Center)}
             >
                 <Container>|size: ReadSignal<Vec2>| {
-                    let room = create_memo(move || match size.get().x < ROOMY_BAR {
-                        true => BarRoom::Narrow,
-                        false => BarRoom::Wide,
-                    });
                     let menu_prefix = test_prefix.clone();
                     view! {
                         <List
@@ -698,7 +694,10 @@ fn DockTitleBar(
                                         align=Align::Center
                                         spacing=BAR_SPACING
                                     >
-                                        <Dynamic value={room}>|room: BarRoom|
+                                        <Dynamic value={move || match size.get().x < ROOMY_BAR {
+                        true => BarRoom::Narrow,
+                        false => BarRoom::Wide,
+                    }}>|room: BarRoom|
                                             <DockMenu menu room test_prefix={menu_prefix.clone()} />
                                         </Dynamic>
                                         <DockClose

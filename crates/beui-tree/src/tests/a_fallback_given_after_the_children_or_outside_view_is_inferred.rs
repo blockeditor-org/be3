@@ -28,7 +28,7 @@ fn a_fallback_given_after_the_children_or_outside_view_is_inferred() {
                 }
             })
             .value(shown)
-            .then(|| {
+            .then(|_| {
                 view! {
                     <Element tag="b" text="then" />
                 }

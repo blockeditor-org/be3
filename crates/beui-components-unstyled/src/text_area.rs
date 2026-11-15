@@ -1710,9 +1710,13 @@ pub fn TextArea(
     let built = view! {
         <Frame @node_ref=&outer>
             <List spacing=0.0>
-                <Show
-                    value={single_line}
-                    fallback={move || view! {
+                {match single_line {
+                    true => view! {
+                        <ListItem grow=1.0>
+                            <Editing field={field} />
+                        </ListItem>
+                    },
+                    false => view! {
                         <ListItem grow=1.0>
                             <Canvas width={width} height={height}>
                                 <CanvasItem
@@ -1733,12 +1737,8 @@ pub fn TextArea(
                                 </CanvasItem>
                             </Canvas>
                         </ListItem>
-                    }}
-                >
-                    <ListItem grow=1.0>
-                        <Editing field={field} />
-                    </ListItem>
-                </Show>
+                    },
+                }}
                 <Show value={menu}>|| {
                     let menu = completion_menu
                         .expect("a completion menu is only shown when the area was given one");
