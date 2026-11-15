@@ -582,15 +582,23 @@ impl<S: ObjectStore> Peer<S> {
                     .create_with_id::<be_block::SettingsContent>(settings, BlockParent::Root)
                     .await
                 {
-                    Ok(_) => self.share_with_server(settings).await?,
-                    // Another administrator's device made it since: that device shares it.
-                    Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {}
+                    // Another administrator's device made it since.
+                    Ok(_) | Err(ClientError::Refused(ErrorCode::BlockAlreadyExists, _)) => {}
                     Err(error) => return Err(error),
                 }
                 self.summary(settings).await?
             }
             Err(error) => return Err(error),
         };
+        // Shared each time, as nothing this device reads says whether the server holds it: a
+        // device that stopped between making the settings and sharing them would otherwise leave
+        // the server refusing what the policies govern (`PolicyUnreadable`). Sharing again
+        // changes nothing. A device that cannot open the settings' key yet leaves it to one
+        // that can.
+        match self.share_with_server(settings).await.map_err(locked) {
+            Ok(()) | Err(ClientError::Locked(_)) => {}
+            Err(error) => return Err(error),
+        }
         if made.head.is_none() {
             self.save(settings, &be_block::SettingsContent::default(), None)
                 .await?;
