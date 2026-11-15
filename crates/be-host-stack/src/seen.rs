@@ -879,6 +879,13 @@ pub(crate) struct Handover {
     /// thread that waits on an answer to wait on (`wait_past`). The web's page never waits.
     #[cfg(not(target_arch = "wasm32"))]
     put: (std::sync::Mutex<(u64, bool)>, std::sync::Condvar),
+    /// How many updates were put, and who awaits the next (`handed_past`): what takes the
+    /// updates while no frame does (`taking_updates`).
+    handed: std::sync::atomic::AtomicU64,
+    woken: futures_util::task::AtomicWaker,
+    /// Frames take the updates (`take_updates_in_frame`), so a test's thread that takes them
+    /// for a test that runs none stops.
+    frames_take: std::sync::atomic::AtomicBool,
 }
 
 /// How many updates the handover holds before the worker gathers them into one (`Handover`).
@@ -913,12 +920,51 @@ impl Handover {
                 Err(now) => head = now,
             }
         }
+        self.signal();
+    }
+
+    /// Tells whoever waits that an update was put.
+    fn signal(&self) {
+        self.handed.fetch_add(1, Ordering::AcqRel);
+        self.woken.wake();
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (count, put) = &self.put;
             count.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
             put.notify_all();
         }
+    }
+
+    pub(crate) fn frames_take_now(&self) {
+        self.frames_take.store(true, Ordering::Release);
+    }
+
+    #[cfg_attr(
+        not(all(any(test, feature = "testing"), not(target_arch = "wasm32"))),
+        allow(dead_code)
+    )]
+    pub(crate) fn frames_take(&self) -> bool {
+        self.frames_take.load(Ordering::Acquire)
+    }
+
+    /// How many updates were put so far, to await past (`handed_past`).
+    pub(crate) fn handed(&self) -> u64 {
+        self.handed.load(Ordering::Acquire)
+    }
+
+    /// Ready once more than `handed` updates were put.
+    pub(crate) async fn handed_past(&self, handed: u64) {
+        std::future::poll_fn(|context| {
+            if self.handed() > handed {
+                return std::task::Poll::Ready(());
+            }
+            self.woken.register(context.waker());
+            match self.handed() > handed {
+                true => std::task::Poll::Ready(()),
+                false => std::task::Poll::Pending,
+            }
+        })
+        .await;
     }
 
     /// How many updates were put so far, to wait past (`wait_past`).
@@ -985,12 +1031,7 @@ impl Handover {
             replaced.push(held.bytes);
         }
         replaced.reverse();
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let (count, put) = &self.put;
-            count.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
-            put.notify_all();
-        }
+        self.signal();
         replaced
     }
 

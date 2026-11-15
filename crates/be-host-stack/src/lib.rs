@@ -369,10 +369,18 @@ impl Taken {
     }
 }
 
+/// Takes the worker's updates as a frame starts (`take_updates`), as be-host does in each.
+pub fn take_updates_in_frame() {
+    with_stack(|stack| stack.handover.frames_take_now());
+    take_updates();
+}
+
 /// Applies what the worker handed over since the last take: what the page reads changes only
-/// here, so every read between two takes reads one snapshot. be-host takes as each frame starts;
-/// then the watchers hear what changed and the replies' callbacks run with their answers, which
-/// is when what they read has what the worker did before answering.
+/// here, so every read between two takes reads one snapshot. be-host takes as each frame starts
+/// (`take_updates_in_frame`); then the watchers hear what changed and the replies' callbacks
+/// run with their answers, which is when what they read has what the worker did before
+/// answering. Answers that land after the stack stopped are lost with it: a callback for a
+/// command sent just before a stop or a restart may not run.
 pub fn take_updates() {
     if let Some(taken) = with_stack(Stack::catch_up) {
         taken.tell();
@@ -403,6 +411,27 @@ pub(crate) fn wait_for_answer<T>(
     }
 }
 
+/// Awaits `answer`, which a reply's callback gives, taking the worker's updates as they land:
+/// the callback runs only as they are taken (`take_updates`), and a page that runs no frames
+/// (a hidden tab, which the browser gives no animation frames) takes none otherwise. What
+/// answers the browser outside a frame, such as a push the service worker asks the page to
+/// open, awaits its reply through this; the page never waits.
+pub async fn taking_updates<F: std::future::Future>(answer: F) -> F::Output {
+    let mut answer = std::pin::pin!(answer);
+    loop {
+        let Some(handover) = with_stack(|stack| Arc::clone(&stack.handover)) else {
+            return answer.await;
+        };
+        let handed = handover.handed();
+        take_updates();
+        let landed = std::pin::pin!(handover.handed_past(handed));
+        match futures_util::future::select(answer.as_mut(), landed).await {
+            futures_util::future::Either::Left((answered, _)) => return answered,
+            futures_util::future::Either::Right(((), _)) => {}
+        }
+    }
+}
+
 fn stack() -> &'static Mutex<Option<Stack>> {
     static STACK: OnceLock<Mutex<Option<Stack>>> = OnceLock::new();
     STACK.get_or_init(|| Mutex::new(None))
@@ -425,13 +454,15 @@ pub fn start(config: Config) {
     let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
-    // A test has no frames to take the worker's updates in, so a thread takes each as it lands.
+    // A test that runs no frames has nothing to take the worker's updates in, so a thread takes
+    // each as it lands, until a frame takes them (`take_updates_in_frame`): a test that runs
+    // frames reads what they took, as the host does.
     #[cfg(all(any(test, feature = "testing"), not(target_arch = "wasm32")))]
     {
         let pumped = Arc::clone(&handover);
         std::thread::spawn(move || {
             let mut puts = 0;
-            while pumped.wait_past(puts, None) {
+            while pumped.wait_past(puts, None) && !pumped.frames_take() {
                 puts = pumped.puts();
                 take_updates();
             }
