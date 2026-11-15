@@ -2345,7 +2345,11 @@ fn stack_handle(
     // The badge counts what the switcher lists as open, its cards: not the tabs that are always
     // there (the files list, settings), which it lists as rows.
     let open_tabs = create_memo(move || {
-        tabs.with(|tabs| tabs.iter().filter(|tab| dock.standing_closable(**tab)).count())
+        tabs.with(|tabs| {
+            tabs.iter()
+                .filter(|tab| dock.standing_closable(**tab))
+                .count()
+        })
     });
     let switch_label = create_memo(move || match open_tabs.get() {
         0 => "No open tabs".to_owned(),

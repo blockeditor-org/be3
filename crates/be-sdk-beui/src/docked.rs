@@ -9,10 +9,10 @@ use beui::NodeId;
 use beui::dock::SplitSize;
 use beui::dock::{
     DockAlign, DockBarControl, DockBarMove, DockBarPlacement, DockBodies, DockCompact,
-    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab, DockDragStage, DockEdge,
-    DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping, DockMode, DockOutside,
-    DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry, DockSpecHome,
-    DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
+    DockDeclaration, DockDeclaredBar, DockDeclaredDialog, DockDeclaredGroup, DockDeclaredTab,
+    DockDragStage, DockEdge, DockHostEvent, DockHostLink, DockHostSlot, DockHosted, DockMapping,
+    DockMode, DockOutside, DockOutsidePlace, DockRequest, DockSpec, DockSpecBar, DockSpecEntry,
+    DockSpecHome, DockSpecNode, DockSpecPane, DockSpecPlace, DockSpecWindow, DockState, DockVisit,
     DockingSnapshot, TabId,
 };
 use beui::dock::{DockMenus, DockTabControl, DockTabMenu, dock_menu};

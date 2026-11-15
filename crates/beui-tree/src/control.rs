@@ -6,9 +6,8 @@ use std::rc::Rc;
 
 use beui_macros::component;
 use beui_reactive::{
-    Memo, create_memo, provide_context, use_context,
-    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Signal, StoredCell, create_binding,
-    create_signal, store, untrack,
+    Boundary, Get, KeyedItems, Memo, Pending, ReadSignal, Scope, Set, Signal, StoredCell,
+    create_binding, create_memo, create_signal, provide_context, store, untrack, use_context,
 };
 
 use crate::child_list::SlotId;
@@ -186,9 +185,8 @@ fn keep<C: SlotChild>(
     let shown = StoredCell::new(None::<bool>);
     let outer = kept_shown();
     let showing = [create_signal(false), create_signal(false)];
-    let branch_shown = showing.map(|own| {
-        create_memo(move || own.get() && outer.is_none_or(|outer| outer.get()))
-    });
+    let branch_shown =
+        showing.map(|own| create_memo(move || own.get() && outer.is_none_or(|outer| outer.get())));
     create_binding(move || {
         let visible = condition.get();
         if shown.get() == Some(visible) {

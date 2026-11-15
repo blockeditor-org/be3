@@ -18,7 +18,10 @@ fn crossing_the_phone_width_keeps_the_block_on_show() {
     show(&mut fixture, opened, None);
     let phone = placement(&fixture, opened);
     assert_eq!(phone.top_bar, TopBar::Hidden);
-    assert_eq!(fixture.test.take_phone_layout_requests().last(), Some(&true));
+    assert_eq!(
+        fixture.test.take_phone_layout_requests().last(),
+        Some(&true)
+    );
 
     fixture.test.set_size(Vec2::new(1200.0, 800.0));
     fixture.settle();

@@ -268,7 +268,9 @@ impl DockState {
             let Some(Tree::Group(group)) = self.tree_of(leaf) else {
                 break;
             };
-            let Some(host) = self.group(group).and_then(|group| joined_host(group.key.as_deref()?))
+            let Some(host) = self
+                .group(group)
+                .and_then(|group| joined_host(group.key.as_deref()?))
             else {
                 break;
             };

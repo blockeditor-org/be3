@@ -20,19 +20,21 @@ fn a_dock_kept_hidden_lets_its_tab_go_and_joins_again_when_shown() {
                         <DockTab id=2u64 title="Document">
                             <List spacing=Space::None>
                                 <Show keep_alive=true value={shown}>
-                                    <ListItem grow=1.0>{{
-                                        built.update(|built| *built += 1);
-                                        let inner = DockingLayout::new();
-                                        view! {
-                                            <dock::Docking layout=inner>
-                                                <DockPane id="inner" bare=true>
-                                                    <DockTab id=10u64 title="Stage">
-                                                        <Frame @test_id="content.10" />
-                                                    </DockTab>
-                                                </DockPane>
-                                            </dock::Docking>
-                                        }
-                                    }}</ListItem>
+                                    <ListItem grow=1.0>
+                                        {{
+                                            built.update(|built| *built += 1);
+                                            let inner = DockingLayout::new();
+                                            view! {
+                                                <dock::Docking layout=inner>
+                                                    <DockPane id="inner" bare=true>
+                                                        <DockTab id=10u64 title="Stage">
+                                                            <Frame @test_id="content.10" />
+                                                        </DockTab>
+                                                    </DockPane>
+                                                </dock::Docking>
+                                            }
+                                        }}
+                                    </ListItem>
                                 </Show>
                             </List>
                         </DockTab>
