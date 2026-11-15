@@ -134,7 +134,15 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref,
         finish_component,
+        host,
     });
+}
+
+/// A bare frame: it sizes to its child, draws nothing and swaps the child in place.
+fn host(child: beui_tree::reactive::Single<NodeId>) -> NodeId {
+    let frame = with_document(|document| document.create_frame());
+    child.mount(move |child| with_document(|document| document.set_frame_child(frame, child)));
+    frame.id()
 }
 
 #[diagnostic::on_unimplemented(

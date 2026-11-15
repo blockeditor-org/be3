@@ -25,10 +25,13 @@ a slot; write a `ForEach` over the keys inside the same `view!`.
 build (`One`, `ZeroOrOne`, `Many`), read from the branches' own types. Any
 count fills a run. A `Child` slot takes `One`: a `Show` with a `fallback`
 whose branches each build one child, or a `Dynamic` building one. An
-`Option<Child>` slot also takes `ZeroOrOne`, a `Show` without a `fallback`. A
-`NodeId` slot takes none of them. Each mismatch is a compile error saying so,
-and none adds a node: the parent replaces its one child in place
-(`Single::mount`). An either/or is one `Show` with a `fallback`, never two
+`Option<Child>` slot also takes `ZeroOrOne`, a `Show` without a `fallback`;
+the parent replaces its one child in place (`Single::mount`), with no node of
+the control flow's own. A `NodeId` slot (a `ListItem`, a `ForEach` row) takes
+`One` or `ZeroOrOne` in a bare frame the core builds around it, which sizes to
+its child. A run where one child goes is a compile error saying to put a `List`
+or `Layers` around it
+([decision](../../decisions/control_flow_swaps_in_place_and_takes_a_host_only_where_a_node_is_needed.md)). An either/or is one `Show` with a `fallback`, never two
 `Show`s on a condition and its negation. A component whose whole view is a
 `Show` returns `DynamicSegment<ListItem>` (any count, for a run) or
 `DynamicSegment<NodeId, One>` (for a slot that takes one).

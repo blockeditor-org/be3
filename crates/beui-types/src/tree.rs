@@ -197,10 +197,10 @@ impl ParentKind for CanvasKind {
 
 pub type CanvasItem = Placed<CanvasKind>;
 
-impl<P: ParentKind, N: beui_tree::reactive::BuiltOnce> IntoChild<Placed<P>>
-    for beui_tree::reactive::DynamicSegment<Placed<P>, N>
+impl<P: BareChild, N: beui_tree::reactive::AtMostOne> IntoChild<Placed<P>>
+    for beui_tree::reactive::DynamicSegment<NodeId, N>
 {
     fn into_child(self) -> Placed<P> {
-        unreachable!("no count is `BuiltOnce`")
+        crate::node::host(Single::from(self)).into_child()
     }
 }

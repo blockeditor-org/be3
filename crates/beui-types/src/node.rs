@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 
 use beui_tree::reactive::{
     ChildSegment, ChildValue, Children, ComponentContext, Counted, IntoChild, IntoSegment, One,
-    ScopeContext, Single, SlotChild, Stored, store,
+    ScopeContext, Single, SlotChild, Stored, store, AtMostOne, DynamicSegment,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -43,6 +43,8 @@ pub type NodeCell = Cell<Option<NodeId>>;
 pub struct CoreHooks {
     pub fill_ref: fn(NodeId, Weak<NodeCell>),
     pub finish_component: fn(NodeId, &ComponentContext, &ScopeContext),
+    /// A node with no look of its own that sizes to `child` and swaps it in place.
+    pub host: fn(Single<NodeId>) -> NodeId,
 }
 
 static HOOKS: OnceLock<CoreHooks> = OnceLock::new();
@@ -149,4 +151,18 @@ pub struct ImeCursor {
     pub rect: Option<be_lib_geometry::Rect>,
 }
 
-beui_tree::built_once!(NodeId);
+/// Control flow that builds at most one node, in a slot that needs a node built once
+/// (`ListItem`, `Root`, `Offset`): the core builds a bare frame that sizes to its child and
+/// swaps that child in place.
+impl<N: AtMostOne> IntoChild<NodeId> for DynamicSegment<NodeId, N> {
+    fn into_child(self) -> NodeId {
+        host(Single::from(self))
+    }
+}
+
+pub fn host(child: Single<NodeId>) -> NodeId {
+    let hooks = HOOKS
+        .get()
+        .expect("a core is installed before control flow is placed in a node's slot");
+    (hooks.host)(child)
+}

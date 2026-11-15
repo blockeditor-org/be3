@@ -109,7 +109,21 @@ pub(crate) fn install_hooks() {
     install_core_hooks(CoreHooks {
         fill_ref: document::fill_ref,
         finish_component,
+        host: host_node,
     });
+}
+
+/// A bare frame, as `Frame` builds one: it sizes to its child and swaps the child in place.
+fn host_node(child: beui_tree::reactive::Single<NodeId>) -> NodeId {
+    let frame = document::create("Frame", "div");
+    document::set_style(frame, "display", Some("grid".to_owned()));
+    document::set_style(
+        frame,
+        "grid-template",
+        Some("minmax(0, 1fr) / minmax(0, 1fr)".to_owned()),
+    );
+    child.mount_in(node_host(frame));
+    frame
 }
 
 pub trait ParentKind: beui_types::tree::ParentKind {

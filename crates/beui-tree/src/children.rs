@@ -140,28 +140,14 @@ pub trait ExactlyOne: Count {}
 impl ExactlyOne for One {}
 
 #[diagnostic::on_unimplemented(
-    message = "this slot takes a child built once, and a `Show`, `Dynamic`, `Keyed` or `Loading` swaps its child",
-    label = "type the slot `Child`, whose parent can swap its child, or put the `Show` inside a node built here"
+    message = "this slot takes one node, and what is written here can build `{Self}` children",
+    label = "a run of children needs a parent that keeps a run around it, such as a `List` or `Layers`"
 )]
-pub trait BuiltOnce: Count {}
+pub trait AtMostOne: Count {}
 
-/// Says that a slot of `$ty`s takes a child built once, so a `Show` there fails with
-/// `BuiltOnce`'s message.
-#[macro_export]
-macro_rules! built_once {
-    (<$($generic:ident),*> $ty:ty) => {
-        impl<$($generic: 'static,)* N: $crate::reactive::BuiltOnce> $crate::reactive::IntoChild<$ty>
-            for $crate::reactive::DynamicSegment<$ty, N>
-        {
-            fn into_child(self) -> $ty {
-                unreachable!("no count is `BuiltOnce`")
-            }
-        }
-    };
-    ($ty:ty) => {
-        $crate::built_once!(<> $ty);
-    };
-}
+impl AtMostOne for One {}
+impl AtMostOne for ZeroOrOne {}
+impl AtMostOne for Zero {}
 
 /// How many children a built value fills its place with (`Count`).
 #[diagnostic::on_unimplemented(
@@ -448,6 +434,12 @@ impl<T: SlotChild> Single<T> {
             SingleKind::Built(child) => Self(SingleKind::Built(change(child))),
             SingleKind::Dynamic(segment) => Self(SingleKind::Dynamic(segment.map(Rc::new(change)))),
         }
+    }
+}
+
+impl<T: SlotChild, N: AtMostOne> From<DynamicSegment<T, N>> for Single<T> {
+    fn from(segment: DynamicSegment<T, N>) -> Self {
+        Single(SingleKind::Dynamic(segment.into_run()))
     }
 }
 
