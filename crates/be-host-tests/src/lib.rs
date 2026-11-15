@@ -14,6 +14,8 @@ pub use server::{Account, Server};
 const SIZE: &str = "1100x720";
 const MISSING_EDITOR: [&str; 2] = ["Unsupported block type", "No block types match."];
 const SLOW_WAIT: Duration = Duration::from_secs(5);
+/// How long a failed test's report waits for the host to say what it is out of step with.
+const OUT_OF_STEP_WAIT: Duration = Duration::from_secs(5);
 const FILES: &str = "Pane \"Files\"";
 const SHOW_A_CODE: &str = "Button \"Show a code\"";
 const FILE_TREE: &str = "#file-tree.filter";
@@ -470,7 +472,16 @@ impl HostTest {
                     Ok(Reply::Text(tree)) => tree,
                     _ => "(the host did not answer)".to_owned(),
                 };
-                format!("\n\nWhat the host shows:\n{tree}\n\n{}", host.log_report())
+                // What it is out of step with, which a wait for something another device did
+                // may be waiting on, though a wait's own timeout names only what keeps it busy.
+                let synced = match host.request_within(&["synced"], OUT_OF_STEP_WAIT) {
+                    Ok(_) => "in step".to_owned(),
+                    Err(error) => error,
+                };
+                format!(
+                    "\n\nWhat the host shows:\n{tree}\n\nWhether it is in step with the server: {synced}\n\n{}",
+                    host.log_report()
+                )
             })
             .unwrap_or_default();
         let editors = self.editors.as_ref().map_or_else(String::new, |editors| {
