@@ -196,52 +196,25 @@ fn TypeItems(
                 .unwrap_or_default()
         })
     });
-    let keys = create_memo(move || common.get().iter().map(tile_key).collect::<Vec<_>>());
     let templated = create_memo(move || {
         held.with(|held| {
             held.as_ref()
                 .is_some_and(|held| !picker.templates_for(held.import_parent()).is_empty())
         })
     });
-    let first = create_memo(move || keys.get().first().cloned());
-    let row = move |key: String| {
-        let entry = create_memo({
-            let key = key.clone();
-            move || {
-                common
-                    .get()
-                    .into_iter()
-                    .find(|entry| tile_key(entry) == key)
-            }
-        });
-        let separated = {
-            let key = key.clone();
-            move || placing && first.get().as_ref() == Some(&key)
-        };
-        view! {
-            <TypeItem act key entry separated={separated} />
-        }
-    };
-    match placing {
-        true => view! {
+    view! {
+        {placing.then(|| view! {
             <LocationItem picker held act />
-            <ForEach value={keys}>|key: String| { row(key) }</ForEach>
-            <MoreItem act label="More blocks…" />
-            <Show value={templated}>
-                <TemplatesItem picker held act />
-            </Show>
-            <LinkItem act />
-            <ImportItem held act />
-        },
-        false => view! {
-            <ForEach value={keys}>|key: String| { row(key) }</ForEach>
-            <MoreItem act label="More blocks…" />
-            <Show value={templated}>
-                <TemplatesItem picker held act />
-            </Show>
-            <LinkItem act />
-            <ImportItem held act />
-        },
+        })}
+        <ForEach value={common} key={tile_key}>|entry: ReadSignal<TemplateEntry>, index: ReadSignal<usize>|
+            <TypeItem act entry separated={move || placing && index.get() == 0} />
+        </ForEach>
+        <MoreItem act label="More blocks…" />
+        <Show value={templated}>
+            <TemplatesItem picker held act />
+        </Show>
+        <LinkItem act />
+        <ImportItem held act />
     }
 }
 
@@ -269,21 +242,15 @@ fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<Me
                 .unwrap_or_default()
         })
     });
-    let keys = create_memo(move || slides.get().iter().map(tile_key).collect::<Vec<_>>());
     let caption = held.get_untracked().map_or_else(String::new, |held| {
         format!("New {}", held.filter.name.to_lowercase())
     });
     view! {
         <MenuCaption label={caption} />
         <MenuGrid columns=2 row_test_id="picker.slides">
-            <ForEach value={keys}>|key: String| {
-                let entry = create_memo({ let key = key.clone(); move || {
-                    slides.get().into_iter().find(|entry| tile_key(entry) == key)
-                } });
-                view! {
-                    <TypeItem act key entry />
-                }
-            }</ForEach>
+            <ForEach value={slides} key={tile_key}>|entry: ReadSignal<TemplateEntry>|
+                <TypeItem act entry />
+            </ForEach>
         </MenuGrid>
         <MoreItem act label="Other blocks…" />
         <LinkItem act />
@@ -293,28 +260,23 @@ fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<Me
 #[component]
 fn TypeItem(
     act: Act,
-    key: String,
-    entry: Memo<Option<TemplateEntry>>,
+    entry: ReadSignal<TemplateEntry>,
     #[prop(default = false)] separated: Prop<bool>,
 ) -> MenuItem {
+    let key = entry.with_untracked(tile_key);
     view! {
         <MenuItem
-            label={move || entry.get().map(|entry| entry.name).unwrap_or_default()}
-            glyph={move || entry.get().and_then(|entry| entry.icon)}
+            label={move || entry.with(|entry| entry.name.clone())}
+            glyph={move || entry.with(|entry| entry.icon)}
             glyph_color={move || {
                 entry
-                    .get()
-                    .and_then(|entry| entry.color)
+                    .with(|entry| entry.color)
                     .map(|[r, g, b]| Color::from(Color32::from_rgb(r, g, b)))
             }}
             separated
             then=MenuThen::Stay
             row_test_id={format!("picker.menu.{key}")}
-            on_click={move || {
-                if let Some(entry) = entry.get_untracked() {
-                    act.call(PickAction::Make(entry));
-                }
-            }}
+            on_click={move || act.call(PickAction::Make(entry.get_untracked()))}
         />
     }
 }
@@ -639,13 +601,6 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
                 .unwrap_or_default()
         })
     });
-    let titles = create_memo(move || {
-        groups
-            .get()
-            .into_iter()
-            .map(|group| group.title)
-            .collect::<Vec<_>>()
-    });
     view! {
         <DialogBody
             id="picker"
@@ -657,17 +612,15 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
             <ListItem grow=1.0>
                 <Scroll bleed=SIDE_BLEED>
                     <List spacing=ROW_SPACING>
-                        <Show value={move || titles.with(Vec::is_empty)}>
-                            <Text style=TextStyle::CAPTION>"No block types match."</Text>
-                        </Show>
-                        <ForEach value={titles}>|title: String| {
-                            let group = create_memo({ let title = title.clone(); move || {
-                                groups.get().into_iter().find(|group| group.title == title)
-                            } });
-                            view! {
-                                <TypeGroupView act group />
-                            }
-                        }</ForEach>
+                        <ForEach
+                            value={groups}
+                            key={|group: &TypeGroup| group.title.clone()}
+                            fallback={|| view! {
+                                <Text style=TextStyle::CAPTION>"No block types match."</Text>
+                            }}
+                        >|group: ReadSignal<TypeGroup>|
+                            <TypeGroupView act group />
+                        </ForEach>
                     </List>
                 </Scroll>
             </ListItem>
@@ -676,44 +629,34 @@ fn MoreBody(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> NodeId {
 }
 
 #[component]
-fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
-    let title = create_memo(move || group.get().map(|group| group.title).unwrap_or_default());
-    let types = create_memo(move || group.get().map(|group| group.types).unwrap_or_default());
-    let keys = create_memo(move || types.get().iter().map(tile_key).collect::<Vec<_>>());
+fn TypeGroupView(act: Act, group: ReadSignal<TypeGroup>) -> NodeId {
+    let title = create_memo(move || group.with(|group| group.title.clone()));
     view! {
         <List spacing=GROUP_SPACING>
             <Text style=TextStyle::CAPTION>{title}</Text>
-            <ForEach value={keys}>|key: String| {
-                let entry = create_memo({ let key = key.clone(); move || {
-                    types.get().into_iter().find(|entry| tile_key(entry) == key)
-                } });
-                view! {
-                    <TypeRow act key entry />
-                }
-            }</ForEach>
+            <ForEach value={move || group.with(|group| group.types.clone())} key={tile_key}>|entry: ReadSignal<TemplateEntry>|
+                <TypeRow act entry />
+            </ForEach>
         </List>
     }
 }
 
 #[component]
-fn TypeRow(act: Act, key: String, entry: Memo<Option<TemplateEntry>>) -> NodeId {
+fn TypeRow(act: Act, entry: ReadSignal<TemplateEntry>) -> NodeId {
+    let key = entry.with_untracked(tile_key);
     view! {
         <ListRow
             @test_id={format!("picker.more.{key}")}
-            label={move || entry.get().map(|entry| entry.name).unwrap_or_default()}
-            glyph={move || entry.get().and_then(|entry| entry.icon)}
+            label={move || entry.with(|entry| entry.name.clone())}
+            glyph={move || entry.with(|entry| entry.icon)}
             glyph_color={move || {
-                let color = entry.get().and_then(|entry| entry.color);
+                let color = entry.with(|entry| entry.color);
                 Some(color.map_or(TextColor::Muted, |[r, g, b]| {
                     TextColor::Custom(Color32::from_rgb(r, g, b).into())
                 }))
             }}
             size=RowSize::Regular
-            on_click={move || {
-                if let Some(entry) = entry.get_untracked() {
-                    act.call(PickAction::Make(entry));
-                }
-            }}
+            on_click={move || act.call(PickAction::Make(entry.get_untracked()))}
         />
     }
 }

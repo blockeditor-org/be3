@@ -358,10 +358,12 @@ pub(super) fn OfflinePage(editor: Editor) -> NodeId {
     view! {
         <SettingsPage>
             <SettingsSection title="Offline" description={OFFLINE_ABOUT}>
-                <Show value={move || workspaces.with(Vec::is_empty)}>
-                    <SettingsRow label="No workspaces yet" compact=true />
-                </Show>
-                <ForEach value={workspaces}>|workspace: Uuid| {
+                <ForEach
+                    value={workspaces}
+                    fallback={|| view! {
+                        <SettingsRow label="No workspaces yet" compact=true />
+                    }}
+                >|workspace: Uuid| {
                     let setting = keep_setting(workspace);
                     let personal = create_memo(move || editor.organization_settings().is_none());
                     let choice = create_memo(move || {

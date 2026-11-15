@@ -31,7 +31,6 @@ fn LayerList(state: CanvasState) -> NodeId {
     let entities = state.entities.ids();
     let ids =
         create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
-    let empty = create_memo(move || ids.with(Vec::is_empty));
     let read_only = state.editor().read_only();
     let moved = move |moved: ReorderMove<Uuid, Uuid>| state.move_layer(moved.payload, moved.after);
     let text = move |id: Uuid| {
@@ -48,9 +47,6 @@ fn LayerList(state: CanvasState) -> NodeId {
     };
     view! {
         <List spacing=Space::Xs2>
-            <Show value={empty}>
-                <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
-            </Show>
             <Reorder
                 keys={ids}
                 payload={Func::new(Some)}
@@ -60,7 +56,12 @@ fn LayerList(state: CanvasState) -> NodeId {
                 on_move={moved}
             >|reorder: ReorderHandle<Uuid, Uuid>|
                 <List spacing=Space::Xs2 @test_id={"infinite-canvas.layers"}>
-                    <ForEach value={reorder.order}>|id: Uuid|
+                    <ForEach
+                        value={reorder.order}
+                        fallback={|| view! {
+                            <Text style=TextStyle::CAPTION>"Nothing on the canvas yet."</Text>
+                        }}
+                    >|id: Uuid|
                         <LayerRow state reorder id />
                     </ForEach>
                 </List>
