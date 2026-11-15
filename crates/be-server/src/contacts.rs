@@ -347,6 +347,41 @@ fn stored_link(connection: &Connection, link: Uuid) -> Result<Option<StoredLink>
         .transpose()
 }
 
+/// Ends the outstanding invitations `owner` made into `organization`, as revoked: an invitation
+/// lasts only while its inviter administers the organization. Called in the transaction that
+/// demotes or removes them.
+pub(crate) fn revoke_invitations_of(
+    connection: &Connection,
+    owner: Uuid,
+    organization: Uuid,
+) -> Result<(), ServerError> {
+    connection.execute(
+        "UPDATE links SET invite_revoked = 1, invite_ended = ?3
+         WHERE owner_id = ?1 AND invite_organization = ?2 AND accepter_id = ''
+            AND invite_revoked = 0",
+        params![owner.to_string(), organization.to_string(), now()],
+    )?;
+    Ok(())
+}
+
+/// Where an invitation stands, counting one whose inviter no longer administers its
+/// organization as revoked, whatever its row says.
+fn invitation_state(
+    connection: &Connection,
+    stored: &StoredLink,
+    invited: Invited,
+    organization: Uuid,
+) -> Result<InvitationState, ServerError> {
+    let state = invited.state(stored.accepter.is_some());
+    let open = matches!(state, InvitationState::Waiting | InvitationState::Opened);
+    if open
+        && role_in(connection, stored.owner, organization)? != Some(OrganizationRole::Administrator)
+    {
+        return Ok(InvitationState::Revoked);
+    }
+    Ok(state)
+}
+
 /// Marks an invitation opened, the first time its link is read while it waits.
 fn mark_opened(connection: &Connection, link: Uuid) -> Result<(), ServerError> {
     connection.execute(
@@ -486,6 +521,7 @@ impl ServerStore {
                 // Ended ones past their retention go.
                 transaction.execute(
                     "DELETE FROM links WHERE invite_organization = ?1
+                        AND (accepter_id = '' OR invite_finished = 1)
                         AND ((invite_ended > 0 AND invite_ended <= ?2)
                              OR (invite_ended = 0 AND invite_expires <= ?2))",
                     params![organization, now - crate::limits::INVITATION_RETENTION],
@@ -508,7 +544,9 @@ impl ServerStore {
                     "DELETE FROM links WHERE id IN (
                         SELECT id FROM links
                         WHERE invite_organization = ?1
-                            AND (accepter_id != '' OR invite_revoked = 1 OR invite_expires <= ?2)
+                            AND ((accepter_id != '' AND invite_finished = 1)
+                                 OR (accepter_id = ''
+                                     AND (invite_revoked = 1 OR invite_expires <= ?2)))
                         ORDER BY invite_created
                         LIMIT max(0, (SELECT COUNT(*) FROM links WHERE invite_organization = ?1) - ?3 + 1))",
                     params![
@@ -614,8 +652,9 @@ impl ServerStore {
     pub async fn link(&self, caller: Uuid, link: Uuid) -> Result<Link, ServerError> {
         self.with_database(move |_, database| {
             let stored = stored_link(&database, link)?.ok_or_else(link_not_found)?;
-            if let Some(invited) = stored.invited {
-                let state = invited.state(stored.accepter.is_some());
+            if let (LinkKind::Invitation(invitation), Some(invited)) = (&stored.kind, stored.invited)
+            {
+                let state = invitation_state(&database, &stored, invited, invitation.organization)?;
                 if !matches!(state, InvitationState::Waiting | InvitationState::Opened) {
                     return Err(invitation_ended(state));
                 }
@@ -668,14 +707,16 @@ impl ServerStore {
             };
             let organization_name = organization_name(&database, invitation.organization)?
                 .ok_or_else(link_not_found)?;
-            let mut state = invited.state(stored.accepter.is_some());
+            let mut state = invitation_state(&database, &stored, invited, invitation.organization)?;
             if state == InvitationState::Waiting {
                 mark_opened(&database, link)?;
                 state = InvitationState::Opened;
             }
+            // An ended invitation says only that it ended.
+            let open = state == InvitationState::Opened;
             Ok(InvitationPreview {
-                organization_name,
-                card: stored.card,
+                organization_name: if open { organization_name } else { String::new() },
+                card: if open { stored.card } else { Vec::new() },
                 state,
             })
         })
@@ -692,6 +733,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             database.execute(
                 "DELETE FROM links WHERE invite_organization = ?1
+                    AND (accepter_id = '' OR invite_finished = 1)
                     AND ((invite_ended > 0 AND invite_ended <= ?2)
                          OR (invite_ended = 0 AND invite_expires <= ?2))",
                 params![
@@ -721,6 +763,7 @@ impl ServerStore {
                 let Some(invited) = stored.invited else {
                     continue;
                 };
+                let state = invitation_state(&database, &stored, invited, organization)?;
                 let seconds = |at: i64| at * 1000;
                 invitations.push(InvitationRow {
                     id: parse_uuid(&id)?,
@@ -730,7 +773,7 @@ impl ServerStore {
                         true => stored.code,
                         false => Vec::new(),
                     },
-                    state: invited.state(stored.accepter.is_some()),
+                    state,
                     accepter: stored.accepter,
                     accepter_name,
                     created: seconds(invited.created),
@@ -781,6 +824,20 @@ impl ServerStore {
                 return self
                     .with_database(move |_, database| {
                         let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                        // Checked again where it is taken: an inviter no longer administering
+                        // the organization ended it, and an account that joined meanwhile
+                        // through another invitation spends none.
+                        if role_in(&transaction, owner, invitation.organization)?
+                            != Some(OrganizationRole::Administrator)
+                        {
+                            return Err(invitation_ended(InvitationState::Revoked));
+                        }
+                        if is_member_of(&transaction, caller, invitation.organization)? {
+                            return Err(ServerError::Refused(
+                                ErrorCode::InvalidRequest,
+                                "you are already a member of that organization".into(),
+                            ));
+                        }
                         mark_accepted(&transaction, link, caller, &card)?;
                         befriend(&transaction, owner, &[], caller, &contact)?;
                         crate::keys::pin_escrow(

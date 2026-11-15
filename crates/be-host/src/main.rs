@@ -744,6 +744,11 @@ fn joining_row(joining: &Joining) -> Option<ui::JoiningRow> {
         (None, Some(preview)) => (preview.organization_name.clone(), preview.inviter.clone()),
         (None, None) => return None,
     };
+    // An ended invitation names neither.
+    let (organization, inviter) = match organization.is_empty() {
+        true => ("an organization".to_owned(), "Someone".to_owned()),
+        false => (organization, inviter),
+    };
     let ended = match joining.preview.as_ref().map(|preview| preview.state) {
         Some(InvitationState::Accepted) => Some("This invitation was already used."),
         Some(InvitationState::Expired) => Some("This invitation expired."),
@@ -751,7 +756,7 @@ fn joining_row(joining: &Joining) -> Option<ui::JoiningRow> {
         _ => None,
     };
     let problem = match (ended, &joining.refused) {
-        (Some(ended), _) => format!("{ended} Ask {inviter} for a new link."),
+        (Some(ended), _) => format!("{ended} Ask whoever invited you for a new link."),
         (None, Some(refused)) => format!(
             "{} Sign in with another account to accept it.",
             sentence(refused)
@@ -1359,6 +1364,14 @@ impl HostCore {
             return;
         };
         self.organization_error = None;
+        // The person's own link reads nothing: opening it would mark it opened for them.
+        if be_host_stack::is_own_invitation(&link.code) {
+            self.organization_error = Some(
+                "This is your own invite link: send it to the person you want to invite."
+                    .to_owned(),
+            );
+            return;
+        }
         // Read before signing in at the server the link names, so whoever has no account
         // here yet sees who invited them and to what.
         let server = link

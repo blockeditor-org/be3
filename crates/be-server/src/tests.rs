@@ -21,6 +21,7 @@ use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod an_expired_or_revoked_invitation_is_refused;
+mod an_invitation_ends_when_its_inviter_stops_administering;
 mod an_invitation_is_read_before_sign_in_and_listed_as_it_goes;
 mod an_invitation_joins_any_account_as_an_editor_once;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;

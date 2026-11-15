@@ -150,7 +150,9 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   it returns the invitee's card as any link does, pins the escrow key and joins
   the organization as an editor. It names no email: the link is a bearer
   secret, single use and good for `INVITATION_LIFETIME` (seven days), and the
-  server mails nothing, so the inviter sends it themselves. An administrator is
+  server mails nothing, so the inviter sends it themselves. It ends when its
+  inviter stops administering the organization: demoting or removing them
+  revokes their outstanding ones, and accepting checks their role again. An administrator is
   never made by invitation, since an administrator is sealed the escrow key:
   `set-role` on a member who is already the administrator's verified contact
   does that. The web build takes the code from the address bar and replaces it
@@ -158,17 +160,22 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
 - **Opening an invite link**: be-host reads the invitation before anyone signs
   in (`read-invitation`, a one-shot call, rate-limited per address), which
   answers the organization's name, the inviter's sealed card and where it
-  stands, and opens the card with the code, so a person with no account yet
+  stands (an ended one, its state alone), and opens the card with the code, so a person with no account yet
   sees who invited them to what. The host holds the code (`Joining` in
   be-host's main.rs) while they sign in or register through the portal, then
   looks the invitation up as that account and offers to join. An account that
   can't take it (already a member) is told whose invitation it is and offered
-  another account. Reading an invitation marks it opened.
+  another account. Reading an invitation marks it opened, so "opened" means a
+  holder of the link other than the inviter's own devices read it: be-host
+  reads nothing for a code it made or listed as the person's own
+  (`be_host_stack::is_own_invitation`).
 - **The invite list** (Invitations, in the organization's menu, for
   administrators; `list-invitations`): every invitation of the organization,
   outstanding and ended (accepted, expired, revoked), with who made it, who
   accepted it and when. A row stays `INVITATION_RETENTION` after it ends, and
-  an organization keeps at most `MAX_INVITATIONS_KEPT_PER_ORGANIZATION`. The
+  an organization keeps at most `MAX_INVITATIONS_KEPT_PER_ORGANIZATION`; one
+  accepted stays until its inviter's device finished it (made the accepter a
+  contact), whatever its age. The
   code comes back only to its inviter, sealed to their identity
   (`RecoverySecret::seal_own`), so they copy the link again; any administrator
   revokes an open one (`delete-link`), and an expired one offers a fresh link.
