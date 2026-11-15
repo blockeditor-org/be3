@@ -357,7 +357,7 @@ fn live_text(
         let editing = editing.get();
         match editing {
             true => {
-                let _ = content.revision();
+                content.track();
             }
             false => stored.track(),
         }
