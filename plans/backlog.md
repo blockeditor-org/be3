@@ -20,6 +20,15 @@ Fixed items are removed as they land.
   answers one sender at most once per interval, shown by a be-sdk-type-guest
   test where a viewer's repeated `Catchup`s get one `Snapshot`.
 
+## 10. Search
+
+- **Idle compaction on the device's idle and power.** The search index's idle
+  compaction (guides/blocks/host.md, Search) waits only for the stack's own
+  idleness, as nothing tells be-host-stack the user is away
+  (`Windows::idle` stays in be-host) or that the device is on power. Done: the
+  host passes both to the stack, and the pass waits for them, shown by a stack
+  test where an index over the cap is left alone on battery.
+
 ## 11. Large folders
 
 - **Republishing a large folder's summary.** A folder's summary lists every
