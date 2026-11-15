@@ -116,7 +116,6 @@ fn apps() -> &'static [be_tool_cli::apps::App] {
 }
 
 fn sources(settings: &Settings) -> be_tool_cli::tracker::Sources {
-    let cache = settings.cache.join("modules");
     let apps = apps();
     Box::new(move || {
         let mut sources = Vec::new();
@@ -126,7 +125,6 @@ fn sources(settings: &Settings) -> be_tool_cli::tracker::Sources {
                 be_block_type_host::modules::wasm(
                     app.manifest.identity.id.clone(),
                     Ok(be_block_type_host::tag_of(module)),
-                    Some(cache.clone()),
                     move |host| host.load_bytes(module),
                 )
                 .declaring(app.declared()),

@@ -4,23 +4,16 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-[features]
-all-arch = ["wasmtime/all-arch"]
-
 [dependencies]
 be-wasm-gpu-abi = { path = "../be-wasm-gpu-abi" }
 be-wasm-guest-abi = { path = "../be-wasm-guest-abi" }
 be-wasm-guest-host = { path = "../be-wasm-guest-host" }
 be-wasm-gpu-host = { path = "../be-wasm-gpu-host" }
-bytes = "1"
 rustc-demangle = "0.1"
-tokio = { version = "1", default-features = false }
 v8 = "=152.2.0"
 getrandom = "0.3"
 wasm-encoder = "0.257"
 wasmparser = "0.257"
-wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "demangle", "gc", "gc-drc", "parallel-compilation", "runtime", "std", "threads"] }
-wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
 be-wasm-dylink = { path = "../be-wasm-dylink" }
 wgpu = { version = "29", default-features = false, features = ["std", "wgsl"] }
 

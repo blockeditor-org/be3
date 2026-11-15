@@ -5,6 +5,7 @@
 
 mod dylink;
 pub(crate) mod engine;
+mod harness;
 mod gauge;
 mod gpu;
 mod instance;
@@ -42,6 +43,7 @@ use interrupt::Interrupt;
 use state::{Device, Memory};
 use threads::{Share, Spawner};
 use wake::Wake;
+use wasi::Wasi;
 
 pub use be_wasm_dylink::library_file_name;
 pub use be_wasm_gpu_host::Imports;
@@ -253,76 +255,66 @@ fn source(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
     Ok(bytes)
 }
 
-pub struct App {
+/// A guest instantiated on an isolate of its own, which an App runs and a test run runs
+/// (harness.rs).
+pub(crate) struct Running {
     isolate: ManuallyDrop<v8::SharedIsolate>,
     context: ManuallyDrop<v8::Global<v8::Context>>,
-    start: ManuallyDrop<v8::Global<v8::Function>>,
-    step: ManuallyDrop<v8::Global<v8::Function>>,
-    shutdown: ManuallyDrop<v8::Global<v8::Function>>,
-    /// Owned by the App, freed after its isolate; the isolate's host functions reach it
+    exports: ManuallyDrop<v8::Global<v8::Object>>,
+    /// Owned here, freed after the isolate; the isolate's host functions reach it
     /// (state::state_of), so it is never borrowed across a call into the guest.
     state: NonNull<State>,
-    wake: Arc<Wake>,
-    stopped: bool,
-    gauge: Arc<gauge::Gauge>,
 }
 
-// unsafe(ffi): the State and the isolate's handles move with the App, and only the thread that
-// holds the App reaches them.
-unsafe impl Send for App {}
+// unsafe(ffi): the State and the isolate's handles move with the guest, and only the thread that
+// holds it reaches them.
+unsafe impl Send for Running {}
 
-/// The parts of a new app that outlive its isolate's lock.
-struct Made {
-    state: NonNull<State>,
-    start: v8::Global<v8::Function>,
-    step: v8::Global<v8::Function>,
-    shutdown: v8::Global<v8::Function>,
+/// What a guest is given beside what its host gives every guest.
+pub(crate) struct Setup {
+    pub(crate) wasi: Arc<Wasi>,
+    /// Whether a whole module's `_initialize` or constructors run once it is instantiated (a
+    /// command's `_start` runs them itself).
+    pub(crate) initialize: bool,
 }
 
-impl App {
-    fn new(
+impl Running {
+    pub(crate) fn new(
         host: &Host,
         bytes: Vec<u8>,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+        wake: &Arc<Wake>,
+        setup: Setup,
     ) -> Result<Self, String> {
         if host.interrupt.interrupted() {
             return Err(INTERRUPTED.to_owned());
         }
         let (isolate, context) = engine::isolate();
-        let wake: Arc<Wake> = Arc::default();
         let made = {
             let mut locker = isolate.lock();
             v8::scope!(let scope, &mut *locker);
             let local = v8::Local::new(scope, &context);
             let scope = &mut v8::ContextScope::new(scope, local);
             v8::tc_scope!(let caught, scope);
-            let made = Self::make(caught, host, &isolate, bytes, library, &wake);
+            let made = Self::make(caught, host, &isolate, bytes, library, wake, setup);
             made.map_err(|error| match caught.has_caught() {
                 true => format!("{error}: {}", crate::engine::thrown!(caught)),
                 false => error,
             })
         };
-        let made = match made {
-            Ok(made) => made,
+        match made {
+            Ok((state, exports)) => Ok(Self {
+                isolate: ManuallyDrop::new(isolate),
+                context: ManuallyDrop::new(context),
+                exports: ManuallyDrop::new(exports),
+                state,
+            }),
             Err(error) => {
                 drop(context);
                 drop(isolate);
-                return Err(error);
+                Err(error)
             }
-        };
-        let app = Self {
-            isolate: ManuallyDrop::new(isolate),
-            context: ManuallyDrop::new(context),
-            start: ManuallyDrop::new(made.start),
-            step: ManuallyDrop::new(made.step),
-            shutdown: ManuallyDrop::new(made.shutdown),
-            state: made.state,
-            wake,
-            stopped: false,
-            gauge: gauge::Gauge::register(host.name.clone().unwrap_or_else(|| "wasm".to_owned())),
-        };
-        app.measure();
-        Ok(app)
+        }
     }
 
     fn make(
@@ -332,7 +324,8 @@ impl App {
         bytes: Vec<u8>,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
         wake: &Arc<Wake>,
-    ) -> Result<Made, String> {
+        setup: Setup,
+    ) -> Result<(NonNull<State>, v8::Global<v8::Object>), String> {
         let pure = host.flavor == Flavor::Pure;
         let bytes = source(bytes)?;
         let bytes = match pure {
@@ -342,30 +335,25 @@ impl App {
         let app = engine::compile(scope, &bytes)?;
         let (program, identities) = host.program(scope, app, library)?;
         let cap = host.memory_limit.map(engine::pages);
-        let imported = program.first().shape.memory_import().cloned();
-        let memory = match &imported {
+        let declared = match program.first().shape.memory_import() {
             Some(engine::Import {
                 kind: Kind::Memory(declared),
                 ..
-            }) => {
+            }) => Some(declared.clone()),
+            _ => None,
+        };
+        let memory = match &declared {
+            Some(declared) => {
                 let maximum = match cap {
                     Some(cap) => Some(engine::capped_maximum(declared, cap)?),
                     None => declared.maximum,
                 };
-                Some(engine::memory(
-                    scope,
-                    declared.initial,
-                    maximum,
-                    declared.shared,
-                )?)
+                Some(engine::memory(scope, declared.initial, maximum, declared.shared)?)
             }
-            _ => None,
+            None => None,
         };
-        let share = match (memory, &imported) {
-            (Some(memory), Some(engine::Import {
-                kind: Kind::Memory(declared),
-                ..
-            })) if declared.shared => Some(Share::of(scope, memory)?),
+        let share = match (memory, &declared) {
+            (Some(memory), Some(declared)) if declared.shared => Some(Share::of(scope, memory)?),
             _ => None,
         };
         if matches!(program, Program::Linked(_)) && share.is_none() {
@@ -376,6 +364,7 @@ impl App {
             program.clone(),
             share,
             Arc::clone(wake),
+            Arc::clone(&setup.wasi),
             Arc::clone(&host.interrupt),
             handle.clone(),
         );
@@ -398,19 +387,23 @@ impl App {
             transport: Default::default(),
             threads: Arc::clone(&threads),
             wake: Arc::clone(wake),
+            wasi: setup.wasi,
             gpu_time: Duration::ZERO,
             submit_time: Duration::ZERO,
             isolate: handle,
         };
         let state = NonNull::from(Box::leak(Box::new(state)));
-        let made = Self::instantiate(scope, host, &program, &identities, memory, state);
+        let made = Self::instantiate(
+            scope,
+            host,
+            &program,
+            &identities,
+            memory,
+            state,
+            setup.initialize,
+        );
         match made {
-            Ok((start, step, shutdown)) => Ok(Made {
-                state,
-                start,
-                step,
-                shutdown,
-            }),
+            Ok(exports) => Ok((state, v8::Global::new(scope, exports))),
             Err(error) => {
                 threads.release();
                 // unsafe(ffi): nothing the failed instance holds runs again.
@@ -420,7 +413,6 @@ impl App {
         }
     }
 
-    #[allow(clippy::type_complexity)]
     fn instantiate<'s>(
         scope: &mut v8::PinScope<'s, '_>,
         host: &Host,
@@ -428,14 +420,8 @@ impl App {
         identities: &[String],
         memory: Option<v8::Local<'s, v8::Object>>,
         state: NonNull<State>,
-    ) -> Result<
-        (
-            v8::Global<v8::Function>,
-            v8::Global<v8::Function>,
-            v8::Global<v8::Function>,
-        ),
-        String,
-    > {
+        initialize_whole: bool,
+    ) -> Result<v8::Local<'s, v8::Object>, String> {
         let pure = host.flavor == Flavor::Pure;
         // unsafe(ffi): no guest runs yet, so nothing else reaches the State.
         let fast = unsafe { state.as_ref() }.memory.shared().is_some();
@@ -450,7 +436,7 @@ impl App {
             pure,
         };
         let first = instance::instantiate_answered(scope, program.first(), &answers)?;
-        let exports = match program {
+        match program {
             Program::Whole(_) => {
                 // unsafe(ffi): as above; the instance's start function, which may run the guest,
                 // has returned.
@@ -461,8 +447,10 @@ impl App {
                 {
                     state.memory = Memory::Own(v8::Global::new(scope, own));
                 }
-                initialize(scope, first)?;
-                first
+                if initialize_whole {
+                    initialize(scope, first)?;
+                }
+                Ok(first)
             }
             Program::Linked(modules) => {
                 let memory = memory.ok_or("the root library does not import a shared memory")?;
@@ -478,19 +466,123 @@ impl App {
                     main: true,
                 };
                 threads.linked(Arc::clone(&linked));
-                dylink::link(scope, &answers, modules, &linked, first, &thread)?
+                dylink::link(scope, &answers, modules, &linked, first, &thread)
             }
+        }
+    }
+
+    pub(crate) fn state(&self) -> &State {
+        // unsafe(ffi): the guest runs only inside Running's own calls, so nothing else reaches
+        // the State while it is borrowed.
+        unsafe { self.state.as_ref() }
+    }
+
+    pub(crate) fn state_mut(&mut self) -> &mut State {
+        // unsafe(ffi): as in state.
+        unsafe { self.state.as_mut() }
+    }
+
+    /// Whether the guest exports a function `name`.
+    pub(crate) fn exports(&self, name: &str) -> bool {
+        self.with(|scope, exports| instance::function(scope, exports, name).is_some())
+    }
+
+    fn with<R>(
+        &self,
+        run: impl FnOnce(&mut v8::PinScope<'_, '_>, v8::Local<v8::Object>) -> R,
+    ) -> R {
+        let mut locker = self.isolate.lock();
+        v8::scope!(let scope, &mut *locker);
+        let context = v8::Local::new(scope, &*self.context);
+        let scope = &mut v8::ContextScope::new(scope, context);
+        let exports = v8::Local::new(scope, &*self.exports);
+        run(scope, exports)
+    }
+
+    /// Runs the guest's export `name` to its end: what it returned as an i32 when it returns
+    /// one, or, when it did not return, what was thrown (empty when it was terminated). Either
+    /// way the memory it holds is measured after.
+    pub(crate) fn call(&mut self, name: &str) -> (Result<Option<i32>, String>, usize) {
+        let state = self.state.as_ptr();
+        let mut locker = self.isolate.lock();
+        v8::scope!(let scope, &mut *locker);
+        let context = v8::Local::new(scope, &*self.context);
+        let scope = &mut v8::ContextScope::new(scope, context);
+        v8::tc_scope!(let caught, scope);
+        let exports = v8::Local::new(caught, &*self.exports);
+        let Some(function) = instance::function(caught, exports, name) else {
+            return (Err(format!("the app has no usable {name} export")), 0);
         };
-        let export = |scope: &mut v8::PinScope<'_, '_>, name: &str| {
-            instance::function(scope, exports, name)
-                .map(|function| v8::Global::new(scope, function))
-                .ok_or_else(|| format!("the app has no usable {name} export"))
+        let receiver = v8::undefined(caught).into();
+        let ran = function.call(caught, receiver, &[]);
+        // unsafe(ffi): the guest has returned.
+        let state = unsafe { &mut *state };
+        let terminated = caught.has_terminated();
+        let outcome = match ran {
+            Some(value) if state.fatal.is_none() => Ok(value.int32_value(caught)),
+            _ => Err(match caught.has_caught() && !terminated {
+                true => crate::engine::thrown!(caught),
+                false => String::new(),
+            }),
         };
-        Ok((
-            export(scope, "app_start")?,
-            export(scope, "app_step")?,
-            export(scope, "app_shutdown")?,
-        ))
+        let size = state.view_in(caught).size();
+        if terminated || state.fatal.is_some() {
+            state.isolate.cancel_terminate_execution();
+        }
+        (outcome, size)
+    }
+
+    pub(crate) fn measure(&self) -> usize {
+        self.with(|scope, _| self.state().view_in(scope).size())
+    }
+}
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        self.state().threads.release();
+        // unsafe(ffi): each is dropped once, here, the handles before their isolate and the
+        // State after it.
+        unsafe {
+            ManuallyDrop::drop(&mut self.exports);
+            ManuallyDrop::drop(&mut self.context);
+            ManuallyDrop::drop(&mut self.isolate);
+            drop(Box::from_raw(self.state.as_ptr()));
+        }
+    }
+}
+
+pub struct App {
+    running: Running,
+    wake: Arc<Wake>,
+    stopped: bool,
+    gauge: Arc<gauge::Gauge>,
+}
+
+impl App {
+    fn new(
+        host: &Host,
+        bytes: Vec<u8>,
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Self, String> {
+        let wake: Arc<Wake> = Arc::default();
+        let setup = Setup {
+            wasi: Wasi::app(),
+            initialize: true,
+        };
+        let running = Running::new(host, bytes, library, &wake, setup)?;
+        for name in [Call::Start, Call::Step, Call::Shutdown].map(Call::export) {
+            if !running.exports(name) {
+                return Err(format!("the app has no usable {name} export"));
+            }
+        }
+        let app = Self {
+            running,
+            wake,
+            stopped: false,
+            gauge: gauge::Gauge::register(host.name.clone().unwrap_or_else(|| "wasm".to_owned())),
+        };
+        app.gauge.set(app.running.measure() as u64);
+        Ok(app)
     }
 
     pub fn start(&mut self) -> Result<(), String> {
@@ -509,47 +601,19 @@ impl App {
         self.wake.take()
     }
 
-    fn state(&self) -> &State {
-        // unsafe(ffi): the guest runs only inside App's own calls, so nothing else reaches the
-        // State while the App is borrowed.
-        unsafe { self.state.as_ref() }
+    pub(crate) fn state(&self) -> &State {
+        self.running.state()
     }
 
     fn state_mut(&mut self) -> &mut State {
-        // unsafe(ffi): as in state.
-        unsafe { self.state.as_mut() }
+        self.running.state_mut()
     }
 
     /// Runs one of the guest's exports to its end, and says how it ended.
     fn run(&mut self, call: Call) -> Result<(), String> {
-        let function = match call {
-            Call::Start => &self.start,
-            Call::Step => &self.step,
-            Call::Shutdown => &self.shutdown,
-        };
-        let mut locker = self.isolate.lock();
-        v8::scope!(let scope, &mut *locker);
-        let context = v8::Local::new(scope, &*self.context);
-        let scope = &mut v8::ContextScope::new(scope, context);
-        v8::tc_scope!(let caught, scope);
-        let function = v8::Local::new(caught, &**function);
-        let receiver = v8::undefined(caught).into();
-        let ran = function.call(caught, receiver, &[]);
-        // unsafe(ffi): the guest has returned.
-        let state = unsafe { &mut *self.state.as_ptr() };
-        let terminated = caught.has_terminated();
-        let outcome = match ran {
-            Some(_) if state.fatal.is_none() => Ok(()),
-            _ => Err(match caught.has_caught() && !terminated {
-                true => crate::engine::thrown!(caught),
-                false => String::new(),
-            }),
-        };
-        self.gauge.set(state.view_in(caught).size() as u64);
-        if terminated || state.fatal.is_some() {
-            state.isolate.cancel_terminate_execution();
-        }
-        outcome
+        let (outcome, size) = self.running.call(call.export());
+        self.gauge.set(size as u64);
+        outcome.map(|_| ())
     }
 
     fn call(&mut self, call: Call) -> Result<(), String> {
@@ -645,32 +709,8 @@ impl App {
         }
     }
 
-    fn measure(&self) {
-        let mut locker = self.isolate.lock();
-        v8::scope!(let scope, &mut *locker);
-        let context = v8::Local::new(scope, &*self.context);
-        let scope = &mut v8::ContextScope::new(scope, context);
-        self.gauge.set(self.state().view_in(scope).size() as u64);
-    }
-
     fn interrupted(&self) -> bool {
         self.state().threads.halts(true)
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        self.state().threads.release();
-        // unsafe(ffi): each is dropped once, here, the handles before their isolate and the
-        // State after it.
-        unsafe {
-            ManuallyDrop::drop(&mut self.start);
-            ManuallyDrop::drop(&mut self.step);
-            ManuallyDrop::drop(&mut self.shutdown);
-            ManuallyDrop::drop(&mut self.context);
-            ManuallyDrop::drop(&mut self.isolate);
-            drop(Box::from_raw(self.state.as_ptr()));
-        }
     }
 }
 
@@ -679,6 +719,16 @@ enum Call {
     Start,
     Step,
     Shutdown,
+}
+
+impl Call {
+    fn export(self) -> &'static str {
+        match self {
+            Self::Start => "app_start",
+            Self::Step => "app_step",
+            Self::Shutdown => "app_shutdown",
+        }
+    }
 }
 
 impl Runnable for App {
