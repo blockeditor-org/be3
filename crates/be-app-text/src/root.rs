@@ -13,7 +13,6 @@ mod toolbar;
 use be_sdk_beui::beui::dock::{
     DockAlign, DockBar, DockBarPlacement, DockEdge, DockPane, DockTab, Docking, DockingLayout,
 };
-use be_sdk_beui::beui::dock_host::styled::DockHost;
 use be_sdk_beui::{Creation, Editor, Loaded};
 use beui::NodeId;
 use beui::reactive::*;
@@ -90,10 +89,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
             </DockBar>
         }
     };
-    // A dock of its own, so the text never joins the dock of what places it (a deck's notes, a
-    // canvas, the workspace): only its format bar joins, where a bar may.
     view! {
-        <DockHost>
         <Docking layout focus={Some(TEXT)}>
             <DockPane id="text" locked=true bare=true>
                 <DockTab id=TEXT title="Text">
@@ -116,6 +112,5 @@ pub fn TextEditor(editor: Editor) -> NodeId {
             </DockPane>
             <Show condition={format_bar} then={format_bar_body} />
         </Docking>
-        </DockHost>
     }
 }

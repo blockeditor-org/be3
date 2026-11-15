@@ -19,7 +19,9 @@ fn the_dock_hands_its_tab_keys_to_a_host_to_take_over_an_embedded_view() {
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}
-                                content={|| view! { <Frame /> }}
+                                content={|| view! {
+                                    <Frame />
+                                }}
                             />
                         </ForEach>
                     </DockPane>
