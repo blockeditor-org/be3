@@ -306,8 +306,10 @@ fn android_main(android: beui_host_window::AndroidApp) {
         Ok(bytes)
     });
     panic_guard::install();
-    android_push::install();
     let storage_root = android.internal_data_path();
+    if let Some(files) = &storage_root {
+        android_push::install(files.clone());
+    }
     let options = run_options();
     let exit_code = match HostCore::new(storage_root)
         .map_err(|error| error.to_string())

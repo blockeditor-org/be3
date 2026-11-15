@@ -5,12 +5,14 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.os.Build;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,6 +34,12 @@ final class Push {
 
     static final String EXTRA_ORGANIZATION = "com.be3.host.organization";
     static final String EXTRA_BLOCK = "com.be3.host.block";
+    /**
+     * The activity-alias a pressed notification starts `MainActivity` through. It is not
+     * exported, so only this app can start it: `MainActivity` honours a block to open only from
+     * an intent naming it, never from one another app sends to the exported activity.
+     */
+    static final String OPEN_ALIAS = "com.be3.host.OpenNotification";
 
     /** What `pushState` answers, as `be_host_base::push_device::PushDevice` reads it. */
     static final int UNSUPPORTED = 0;
@@ -52,18 +60,34 @@ final class Push {
     }
 
     /** The installed distributors' packages, by the receivers that take REGISTER. */
-    static String firstDistributor(Context context) {
-        List<ResolveInfo> found = context.getPackageManager()
-                .queryBroadcastReceivers(new Intent(REGISTER), 0);
-        String kept = preferences(context).getString(DISTRIBUTOR, null);
-        String first = null;
-        for (ResolveInfo info : found) {
+    static List<String> distributors(Context context) {
+        List<String> names = new ArrayList<>();
+        for (ResolveInfo info : context.getPackageManager().queryBroadcastReceivers(new Intent(REGISTER), 0)) {
             String name = info.activityInfo.packageName;
-            if (name.equals(context.getPackageName())) continue;
-            if (name.equals(kept)) return name;
-            if (first == null) first = name;
+            if (!name.equals(context.getPackageName()) && !names.contains(name)) names.add(name);
         }
-        return first;
+        return names;
+    }
+
+    /**
+     * The distributor to use without asking: the one chosen before while it is installed, or
+     * the only one. Null when there is none, or several and none chosen yet.
+     */
+    static String chosenDistributor(Context context) {
+        List<String> installed = distributors(context);
+        String kept = preferences(context).getString(DISTRIBUTOR, null);
+        if (kept != null && installed.contains(kept)) return kept;
+        return installed.size() == 1 ? installed.get(0) : null;
+    }
+
+    /** A distributor's name as the launcher shows it, or its package. */
+    static String label(Context context, String distributor) {
+        PackageManager packages = context.getPackageManager();
+        try {
+            return packages.getApplicationLabel(packages.getApplicationInfo(distributor, 0)).toString();
+        } catch (PackageManager.NameNotFoundException error) {
+            return distributor;
+        }
     }
 
     static boolean mayNotify(Context context) {
@@ -75,7 +99,7 @@ final class Push {
     static int state(Context context) {
         SharedPreferences kept = preferences(context);
         if (!mayNotify(context) && kept.getBoolean(ASKED, false)) return DENIED;
-        if (firstDistributor(context) == null) return UNSUPPORTED;
+        if (distributors(context).isEmpty()) return UNSUPPORTED;
         return kept.getString(TOKEN, null) != null && mayNotify(context) ? ON : OFF;
     }
 
@@ -84,12 +108,10 @@ final class Push {
     }
 
     /**
-     * Asks the distributor for an endpoint, with the server's VAPID key when known. It answers
-     * NEW_ENDPOINT or REGISTRATION_FAILED to `PushReceiver`. False with no distributor.
+     * Asks `distributor` for an endpoint, with the server's VAPID key when known, and keeps it as
+     * the chosen one. It answers NEW_ENDPOINT or REGISTRATION_FAILED to `PushReceiver`.
      */
-    static boolean register(Context context, String vapid) {
-        String distributor = firstDistributor(context);
-        if (distributor == null) return false;
+    static void register(Context context, String distributor, String vapid) {
         SharedPreferences kept = preferences(context);
         String token = kept.getString(TOKEN, null);
         if (token == null || !distributor.equals(kept.getString(DISTRIBUTOR, null))) {
@@ -100,7 +122,6 @@ final class Push {
         intent.putExtra("message", "Notifications of new messages");
         if (vapid != null) intent.putExtra("vapid", vapid);
         send(context, intent);
-        return true;
     }
 
     /** Tells the distributor to drop this app's endpoint, and forgets the token. */
@@ -164,7 +185,8 @@ final class Push {
         } else {
             builder = new Notification.Builder(context).setPriority(Notification.PRIORITY_HIGH);
         }
-        Intent open = new Intent(context, MainActivity.class)
+        Intent open = new Intent()
+                .setComponent(new ComponentName(context, OPEN_ALIAS))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP
                         | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         if (!block.isEmpty()) {
