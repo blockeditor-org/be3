@@ -15,7 +15,7 @@ use super::{
     worker::{Command, Store},
 };
 
-#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Preview {
     pub source: Uuid,
     pub root: Uuid,
