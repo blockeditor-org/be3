@@ -478,7 +478,6 @@ pub fn Chat(editor: Editor) -> NodeId {
     let scroll = ComponentRef::<ScrollApi>::new();
     let at_end = create_signal(true);
     let unread = unread_count(editor, chat, block, me, at_end);
-    let has_unread = create_memo(move || unread.get().is_some_and(|count| count > 0));
     let replying = create_memo(move || {
         let id = composer.replying.get()?;
         let quoted = rows.try_get(&id).or_else(|| older.rows.try_get(&id))?;
@@ -612,10 +611,10 @@ pub fn Chat(editor: Editor) -> NodeId {
             <Separator />
             <Frame padding={Padding::all(Space::Lg)}>
                 <List spacing=Space::Sm>
-                    <Show value={has_unread}>
+                    <Show value={move || unread.get().filter(|count| *count > 0)}>|count: ReadSignal<usize>|
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Sm>
                             <Button
-                                label={move || match unread.get().unwrap_or_default() {
+                                label={move || match count.get() {
                                     1 => "1 new message".to_owned(),
                                     count => format!("{count} new messages"),
                                 }}
