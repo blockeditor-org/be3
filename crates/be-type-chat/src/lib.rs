@@ -8,7 +8,7 @@ pub use chat::{
     OFFLINE_AFTER, Reaction, ReactionKey, Segment, Shown, Signature,
 };
 pub use reads::{ChatReads, ChatReadsContent, ReadPlace};
-pub use signed::MessageHash;
+pub use signed::{MessageHash, Prior};
 
 be_sdk_type_guest::be_block_types![ChatContent { undo, merge_parts }, ChatReadsContent];
 
