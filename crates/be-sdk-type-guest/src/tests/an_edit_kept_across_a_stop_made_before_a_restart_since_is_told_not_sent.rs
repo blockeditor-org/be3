@@ -25,7 +25,7 @@ fn an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent() {
     ));
     sim.send_from_editor(1, 1, kept.clone());
     sim.settle();
-    let kept_restart = sim.devices[1].status.last_restart;
+    let kept_restart = sim.devices[1].status.restarts;
     sim.held.clear();
     sim.stalled_submits = false;
     sim.crash(1);
@@ -39,7 +39,7 @@ fn an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent() {
     sim.advance(crate::QUIET_INTERVAL);
     sim.settle();
     assert!(
-        sim.devices[0].status.last_restart > kept_restart,
+        sim.devices[0].status.restarts > kept_restart,
         "the session restarted while the device was away"
     );
 

@@ -600,8 +600,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     first_doubtful: Option<u64>,
     /// Whether the local edit being taken is doubtful: `edit` keeps what it makes in `doubtful`.
     doubtful_now: bool,
-    /// The order's number of the last restart applied here, or 0 (`status.last-restart`).
-    last_restart: u64,
+    /// How many times the session started over before what this replica applied
+    /// (`status.restarts`, `wire::BaseState::restarts`).
+    restarts: u64,
     /// What the host kept across a stop (`opening.kept-restart`, `opening.kept-through`): once
     /// loaded on an order restarted since, the local edits through `stale_through` are dropped.
     kept_restart: u64,
@@ -853,7 +854,7 @@ where
             doubtful: Vec::new(),
             first_doubtful: None,
             doubtful_now: false,
-            last_restart: 0,
+            restarts: 0,
             kept_restart: opened.kept_restart,
             kept_through: opened.kept_through,
             stale_through: 0,
@@ -1195,18 +1196,20 @@ where
         crate::wire::BaseState {
             content,
             origins,
-            last_restart: self.last_restart,
+            restarts: self.restarts,
         }
         .encode()
     }
 
     /// Takes the origins a base or reload carries, this replica's own included, and answers the
     /// type's session state in it; none when it does not decode.
-    fn adopt_base_state(&mut self, bytes: &[u8]) -> Option<Vec<u8>> {
+    /// `at_most` is the sequence the state is had at: an origin noted past it was numbered in
+    /// an order that started over since, and counts as held there.
+    fn adopt_base_state(&mut self, bytes: &[u8], at_most: u64) -> Option<Vec<u8>> {
         let state = crate::wire::BaseState::decode(bytes)?;
-        self.last_restart = self.last_restart.max(state.last_restart);
+        self.restarts = self.restarts.max(state.restarts);
         for (origin, through, at) in state.origins {
-            self.note_origin(origin, through, at);
+            self.note_origin(origin, through, at.min(at_most));
             if origin == self.origin {
                 self.own_through = self.own_through.max(through);
             }
@@ -1273,6 +1276,9 @@ where
         let local = self.take(&job);
         if self.unreadable.is_some() {
             return self.job_while_unreadable(job);
+        }
+        if local {
+            eprintln!("DEBUG job number={} own_through={} doubtful_through={} stale={} taken_before={} origin={} epoch={} loaded={}", self.edit_number(), self.own_through, self.doubtful_through, self.stale_through, self.taken_before, self.origin, self.epoch, self.loaded);
         }
         // Given again after a reopening, and the order holds it already: it is not made twice.
         if local && self.edit_number() <= self.own_through {
@@ -1366,13 +1372,16 @@ where
         if self.loaded && self.is_holder() && self.alone() && self.is_clean() {
             // The last one out restarts the session for free: whoever opens next loads the
             // commit afresh and the order starts over.
+            // It counts as a restart, and keeps how far the order holds each origin's edits.
+            self.restarts += 1;
+            let state = self.base_state(Vec::new(), self.sealed);
             self.out.push(Effect::Rebase {
                 replica: self.id,
                 generation: self.state.generation,
                 base: JournalBase {
                     commit: self.base,
                     sequence: 0,
-                    state: Vec::new(),
+                    state,
                 },
             });
         }
@@ -2233,7 +2242,7 @@ where
             .filter(|journal| journal.base.commit == self.base);
         let sealed_head = self.sealed_head.take();
         if let Some(journal) = journal {
-            match self.adopt_base_state(&journal.base.state) {
+            match self.adopt_base_state(&journal.base.state, journal.base.sequence) {
                 Some(state) if !state.is_empty() => {
                     if self.confirmed.adopt_session_state(&state).is_err() {
                         self.incompatible = true;
@@ -2272,7 +2281,7 @@ where
         }
         // Local edits kept across a stop were made before a restart the order had since: what
         // they were made on is gone.
-        if self.last_restart > self.kept_restart {
+        if self.restarts > self.kept_restart {
             self.stale_through = self.kept_through;
         }
         self.visible = self.confirmed.clone();
@@ -2314,15 +2323,17 @@ where
                                     true => self.lacking.add_replayed(bytes, sequence),
                                     false => self.lacking.journaled(&bytes, Some(sequence)),
                                 }
+                                // This replica's own, made before it opened again: undo steps
+                                // back through it, as through one made here.
+                                self.history
+                                    .record(&self.confirmed, &operation, None, self.now);
                             }
                             self.confirmed.apply(&operation);
                             self.log_operation(sequence, operation, mine);
                         }
                     }
                     Entry::Operation(_) => {}
-                    Entry::Reload { restart: true, .. } => {
-                        self.last_restart = self.last_restart.max(sequence);
-                    }
+                    Entry::Reload { restart: true, .. } => self.restarts += 1,
                     Entry::Keep { commit } | Entry::Reload { commit, head: false, .. } => {
                         if !self.keep.contains(&commit) {
                             self.keep.push(commit);
@@ -2388,6 +2399,7 @@ where
 
     fn apply_entry(&mut self, op: SessionOp) {
         let mine = op.id.origin == self.origin;
+        eprintln!("DEBUG entry seq={} origin={} mine={mine} through={:?}", op.sequence, op.id.origin, Submitted::decode(&op.payload).map(|s| s.through));
         self.ordered_bytes += ordered_bytes(&op);
         // Another's edit counts from when it arrived; this replica's own from when it was made.
         if !mine {
@@ -2558,10 +2570,7 @@ where
     ) {
         let mut content = content;
         let mine = op.id.origin == self.origin;
-        if restart {
-            self.last_restart = self.last_restart.max(op.sequence);
-        }
-        match self.adopt_base_state(&state) {
+        match self.adopt_base_state(&state, op.sequence) {
             Some(state) if !state.is_empty() => {
                 if content.adopt_session_state(&state).is_err() {
                     self.incompatible = true;
@@ -2569,6 +2578,9 @@ where
             }
             Some(_) => {}
             None => self.incompatible = true,
+        }
+        if restart {
+            self.restarts += 1;
         }
         let sent = match mine {
             true => self.forget_sent(op.id),
@@ -3481,7 +3493,7 @@ where
         let status = Status {
             head: self.base,
             holder: self.is_holder(),
-            last_restart: self.last_restart,
+            restarts: self.restarts,
             clean: self.is_clean(),
             journaled: !unconfirmed,
             owes_seal: self.loaded && self.seal_would_settle(),

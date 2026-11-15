@@ -1,7 +1,7 @@
 use super::*;
 
-/// The server numbers an edit but its answers never arrive; another device seals it, so the
-/// journal no longer holds its entry; then this device crashes. Opened again, it finds in the
+/// The server numbers an edit but its answers never arrive; another device, which stays in the
+/// session, seals it, so the journal no longer holds its entry; then this device crashes. Opened again, it finds in the
 /// journal's base how far the order holds its edits: the edit lands once, and the one made
 /// after it, which never reached the server, is sent.
 #[test]
@@ -36,7 +36,6 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
     crash();
     platform::wait_for_stopped();
     harness.relay().hold_answers(false);
-    outside.leave();
 
     harness.connect();
     open(block, CounterContent::CONTENT_TYPE);
@@ -56,4 +55,5 @@ fn an_edit_the_server_ordered_before_a_crash_lands_once_after_another_device_sea
             .map(|counter| counter.root().value())
     });
     assert_eq!(saved, Some(7), "each edit landed once");
+    outside.leave();
 }

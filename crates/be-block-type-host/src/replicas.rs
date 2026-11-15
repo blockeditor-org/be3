@@ -1212,7 +1212,7 @@ impl<H: Host> Replicas<H> {
             .map_or(0, |recovered| recovered.submitted_through);
         let kept_restart = recovered
             .as_ref()
-            .map_or(0, |recovered| recovered.last_restart);
+            .map_or(0, |recovered| recovered.restarts);
         let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
         let opening_journal = journal.clone().filter(|_| !before_join);
         let replay: Vec<Replayed> = recovered_edits
@@ -4184,7 +4184,7 @@ fn kept_edits(open: &Open) -> (be_block_client::OpenEdits, Vec<be_block_client::
         origin: open.origin,
         given_up: open.given_up,
         submitted_through: open.submitted_through,
-        last_restart: open.status.last_restart,
+        restarts: open.status.restarts,
         edits: Vec::new(),
     };
     (kept, edits)
