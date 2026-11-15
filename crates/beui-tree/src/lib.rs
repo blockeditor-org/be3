@@ -38,10 +38,11 @@ pub mod reactive {
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
-        Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,
+        AsyncMemo, Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,
         OwnedStored, OwnedTrigger, Pending, ReadSignal, Reader, Ready, RootScope, Scope,
         ScopeContext, Selector, Set, Signal, Store, Stored, StoredCell, Trackable, Trigger,
-        child_scope, create_binding, create_effect, create_effect_on, create_effect_on_change,
+        child_scope, create_async_memo, create_binding, create_effect, create_effect_on,
+        create_effect_on_change, spawn_with,
         create_linked_signal, create_memo, create_selector, create_signal, create_trigger, flush,
         hold, on_cleanup, owner_scope, provide_context, store, untrack, use_context, wait_for,
         wait_while, zone_pending,
