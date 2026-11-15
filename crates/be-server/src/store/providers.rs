@@ -374,7 +374,7 @@ impl ServerStore {
                     )?;
                     if !fresh {
                         return Err(refused(
-                            "Confirm it is you first, with a code to your email or a provider you sign in with.",
+                            "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with.",
                         ));
                     }
                     add_provider_identity(&transaction, account, &subject, &email)?;

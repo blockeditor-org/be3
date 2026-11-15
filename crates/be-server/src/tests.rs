@@ -20,6 +20,9 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_passkey_for_another_rp_id_or_origin_is_refused;
+mod a_passkey_signs_in_with_no_email_typed;
+mod adding_or_removing_a_passkey_needs_a_fresh_proof_and_keeps_the_last_way_in;
 mod a_block_agent_is_deleted_with_its_block_or_its_grant;
 mod a_block_agent_is_refused_while_its_block_is_in_the_trash;
 mod a_block_agent_never_becomes_an_administrator;
@@ -1535,6 +1538,8 @@ struct Browser {
     cookie: String,
     /// The `be3-attempt` cookie of a pending code.
     attempt: String,
+    /// The host it asks for and its pages' origin: the server's address unless set.
+    host: String,
 }
 impl Browser {
     async fn request(
@@ -1545,8 +1550,12 @@ impl Browser {
         body: &str,
     ) -> (u16, String) {
         let address = harness.address;
+        let host = match self.host.is_empty() {
+            true => address.to_string(),
+            false => self.host.clone(),
+        };
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
-        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={}; be3-attempt={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, self.attempt, body.len()).as_bytes()).await.unwrap();
+        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\nCookie: be3-account={}; be3-attempt={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, self.attempt, body.len()).as_bytes()).await.unwrap();
         let mut bytes = Vec::new();
         stream.read_to_end(&mut bytes).await.unwrap();
         let response = String::from_utf8(bytes).unwrap();
@@ -1651,6 +1660,65 @@ impl Browser {
         let (status, page) = self.enter_code(harness, &code).await;
         assert_eq!(status, 303, "{page}");
         assert!(!self.cookie.is_empty());
+    }
+    /// A browser at `localhost`, the RP ID passkeys are made for when no `--auth-origin` is set.
+    fn at_localhost(harness: &Harness) -> Self {
+        Self {
+            host: format!("localhost:{}", harness.address.port()),
+            ..Self::default()
+        }
+    }
+    /// The origin its pages are at, which an authenticator is told.
+    fn origin(&self) -> String {
+        format!("http://{}", self.host)
+    }
+    /// Answers the passkey ceremony the page at `page_path` offers as the portal's wasm does:
+    /// `answer` plays the authenticator with the options, and the answer is posted with the
+    /// page's form token.
+    async fn passkey(
+        &mut self,
+        harness: &Harness,
+        page_path: &str,
+        answer: impl FnOnce(&str) -> String,
+    ) -> (u16, String) {
+        let page = page_of(&self.get(harness, page_path).await);
+        let offer = page.passkey.expect("the page offers a passkey");
+        let body = format!(
+            "csrf={}&code={}&credential={}",
+            portal::encode(&page.csrf),
+            portal::encode(&page.code),
+            portal::encode(&answer(&offer.options)),
+        );
+        self.request(harness, "POST", offer.step.action(), &body).await
+    }
+    /// Adds a passkey from the settings page, which needs a fresh proof, and answers the
+    /// authenticator that holds it.
+    async fn add_passkey(&mut self, harness: &Harness) -> crate::fake_authenticator::FakeAuthenticator {
+        let origin = self.origin();
+        let mut made = None;
+        let (status, response) = self
+            .passkey(harness, "/auth/settings", |options| {
+                let (authenticator, answer) =
+                    crate::fake_authenticator::FakeAuthenticator::create(options, &origin, None);
+                made = Some(authenticator);
+                answer
+            })
+            .await;
+        assert_eq!(status, 303, "{response}");
+        assert_eq!(location(&response), "/auth/settings?saved=1");
+        made.unwrap()
+    }
+    /// Signs in with `authenticator`'s passkey from the sign-in page, with no email.
+    async fn sign_in_with_passkey(
+        &mut self,
+        harness: &Harness,
+        authenticator: &mut crate::fake_authenticator::FakeAuthenticator,
+    ) -> (u16, String) {
+        let origin = self.origin();
+        self.passkey(harness, "/auth/login", |options| {
+            authenticator.get(options, &origin)
+        })
+        .await
     }
     /// Proves it is the account's owner with a code to its email.
     async fn prove(&mut self, harness: &Harness, email: &str) {

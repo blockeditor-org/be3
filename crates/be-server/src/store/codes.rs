@@ -126,12 +126,14 @@ pub struct EnteredCode {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Identity {
     pub id: String,
-    /// `email` or `oidc`, and later `passkey`.
+    /// `email`, `oidc` or `passkey`.
     pub kind: String,
     /// The email, or for a provider `"{issuer} {sub}"`.
     pub subject: String,
     /// For a provider authoritative for email, the verified email it last gave; else empty.
     pub email: String,
+    /// When it was added, in seconds since the epoch.
+    pub created: i64,
 }
 
 /// A fresh attempt secret for a browser's `be3-attempt` cookie.
@@ -585,7 +587,7 @@ impl ServerStore {
             true => Ok(()),
             false => Err(ServerError::Refused(
                 ErrorCode::InvalidRequest,
-                "Confirm it is you first, with a code to your email or a provider you sign in with."
+                "Confirm it is you first, with a code to your email, a passkey or a provider you sign in with."
                     .into(),
             )),
         }
@@ -594,7 +596,7 @@ impl ServerStore {
     pub async fn identities(&self, account: Uuid) -> Result<Vec<Identity>, ServerError> {
         self.with_database(move |_, database| {
             let mut query = database.prepare(
-                "SELECT id, kind, subject, email FROM identities WHERE account_id = ?1 ORDER BY created, id",
+                "SELECT id, kind, subject, email, created FROM identities WHERE account_id = ?1 ORDER BY created, id",
             )?;
             let found = query
                 .query_map([account.to_string()], |row| {
@@ -603,6 +605,7 @@ impl ServerStore {
                         kind: row.get(1)?,
                         subject: row.get(2)?,
                         email: row.get(3)?,
+                        created: row.get(4)?,
                     })
                 })?
                 .collect::<Result<Vec<_>, _>>()?;
@@ -625,7 +628,7 @@ impl ServerStore {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let identity: Option<Identity> = transaction
                 .query_row(
-                    "SELECT id, kind, subject, email FROM identities WHERE id = ?1 AND account_id = ?2",
+                    "SELECT id, kind, subject, email, created FROM identities WHERE id = ?1 AND account_id = ?2",
                     params![id, account.to_string()],
                     |row| {
                         Ok(Identity {
@@ -633,6 +636,7 @@ impl ServerStore {
                             kind: row.get(1)?,
                             subject: row.get(2)?,
                             email: row.get(3)?,
+                            created: row.get(4)?,
                         })
                     },
                 )

@@ -1,5 +1,5 @@
 use crate::{
-    ServerError, Services, browser_auth,
+    ServerError, Services, browser_auth, passkeys,
     mail::Email,
     store::{
         AccountSession, MailLink, Profile, ServerStore,
@@ -9,7 +9,8 @@ use crate::{
 };
 use base64::Engine;
 use be_server_portal::{
-    Account, Asset, IdentityRow, Page, Portal, Problem, ProviderLink, Screen, Session, SessionKind,
+    Account, Asset, IdentityRow, Page, PasskeyStep, Portal, Problem, ProviderLink, Screen, Session,
+    SessionKind,
 };
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -91,6 +92,7 @@ fn provider_identity_label(config: &crate::ServerConfig, subject: &str) -> Strin
             kind: "oidc".into(),
             subject: subject.into(),
             email: String::new(),
+            created: 0,
         },
     )
 }
@@ -156,7 +158,7 @@ pub(crate) async fn handle(
             return provider_step(services, &mut response, provider, step, query, profile.as_ref(), token, attempt, origin, address).await;
         }
         if method != "POST" { return Ok(String::new()); }
-        services.browser_auth.consume_form(value("csrf"), token)?;
+        let ceremony = services.browser_auth.consume_form(value("csrf"), token)?;
         let account = || profile.as_ref().map(|profile| profile.account).ok_or_else(|| invalid("Sign in to continue."));
         let login_allowed = || if services.config.allow_login { Ok(()) } else { Err(invalid("This server is not accepting sign-ins.")) };
         let registration_allowed = || if services.config.allow_registration { Ok(()) } else { Err(invalid("This server is not accepting new accounts.")) };
@@ -189,7 +191,7 @@ pub(crate) async fn handle(
             "/auth/proof" => {
                 let profile = profile.as_ref().ok_or_else(|| invalid("Sign in to continue."))?;
                 if profile.email.is_empty() {
-                    return Err(invalid("Your account has no email: confirm it is you with a provider you sign in with."));
+                    return Err(invalid("Your account has no email: confirm it is you with a passkey or a provider you sign in with."));
                 }
                 let attempt = attempt_for(&mut response);
                 let mailed = services.store.request_code(CodeRequest { purpose: CodePurpose::Proof, email: &profile.email, account: Some(profile.account), display_name: "", invite: "", device_code: "", attempt: &attempt, address }).await?;
@@ -226,6 +228,43 @@ pub(crate) async fn handle(
                 let account = account()?;
                 let removed = services.store.remove_identity(account, token, value("identity")).await?;
                 if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_notice(services, &profile.email, &identity_label(&services.config, &removed)); }
+                response.location = Some("/auth/settings?saved=1".into());
+            },
+            "/auth/passkey/sign-in" => {
+                login_allowed()?;
+                let Some(passkeys::Ceremony::SignIn(state)) = ceremony else { return Err(invalid("Open the sign-in page and try again.")) };
+                let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
+                let credential: webauthn_rs::prelude::PublicKeyCredential = passkeys::answer(value("credential"))?;
+                let (handle, credential_id) = relying_party.identify_discoverable_authentication(&credential).map_err(passkeys::not_accepted)?;
+                let found = services.store.passkey(credential_id).await?;
+                // The user handle a passkey was made with is its account's id.
+                if handle != found.account { return Err(passkeys::not_accepted(webauthn_rs::prelude::WebauthnError::InvalidUserUniqueId)); }
+                let result = relying_party.finish_discoverable_authentication_v2(&credential, state, &found.passkey).map_err(passkeys::not_accepted)?;
+                let session = services.store.passkey_signed_in(found, result, address).await?;
+                if !token.is_empty() { services.store.logout(token).await?; }
+                response.cookie = Some(session);
+                response.location = Some(link("/auth", &code));
+            },
+            "/auth/passkey/proof" => {
+                let account = account()?;
+                let Some(passkeys::Ceremony::Proof { account: began, state }) = ceremony else { return Err(invalid("Open your account settings and try again.")) };
+                if began != account { return Err(invalid("Open your account settings and try again.")); }
+                let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
+                let credential: webauthn_rs::prelude::PublicKeyCredential = passkeys::answer(value("credential"))?;
+                let result = relying_party.finish_passkey_authentication(&credential, &state).map_err(passkeys::not_accepted)?;
+                services.store.passkey_proved(account, token, result).await?;
+                response.location = Some("/auth/settings?proved=1".into());
+            },
+            "/auth/passkey/add" => {
+                let account = account()?;
+                let Some(passkeys::Ceremony::Add { account: began, state }) = ceremony else { return Err(invalid("Open your account settings and try again.")) };
+                if began != account { return Err(invalid("Open your account settings and try again.")); }
+                services.store.require_fresh(token).await?;
+                let relying_party = passkeys::relying_party(origin).ok_or_else(|| invalid("This server has no passkeys."))?;
+                let credential: webauthn_rs::prelude::RegisterPublicKeyCredential = passkeys::answer(value("credential"))?;
+                let passkey = relying_party.finish_passkey_registration(&credential, &state).map_err(passkeys::not_accepted)?;
+                let added = services.store.add_passkey(account, token, passkey).await?;
+                if let Some(profile) = profile.as_ref().filter(|profile| !profile.email.is_empty()) { identity_added_notice(services, &profile.email, &identity_label(&services.config, &added)); }
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/link" => {
@@ -310,8 +349,11 @@ pub(crate) async fn handle(
             _ => "/auth/login".into(),
         };
     }
-    if path == "/auth/proof" {
-        display_path = "/auth/settings".into();
+    if path == "/auth/proof" || path.starts_with("/auth/passkey/") {
+        display_path = match profile.is_some() {
+            true => "/auth/settings".into(),
+            false => "/auth/login".into(),
+        };
     }
     // A provider's sign-in that failed shows where it began.
     if oidc.is_some() {
@@ -425,6 +467,45 @@ pub(crate) async fn handle(
             .or_else(|| profile.as_ref().map(|profile| own(profile).clone()))
             .unwrap_or_default()
     };
+    // The passkey ceremony the screen offers, begun with the page's form token.
+    let relying_party = passkeys::relying_party(origin);
+    let step = match (&screen, profile.as_ref()) {
+        (Screen::SignIn, _) => Some(PasskeyStep::SignIn),
+        (Screen::Settings, Some(_)) if fresh => Some(PasskeyStep::Add),
+        (Screen::Settings | Screen::Sessions, Some(_)) if !fresh => Some(PasskeyStep::Proof),
+        _ => None,
+    };
+    let account = profile
+        .as_ref()
+        .filter(|_| step.is_some_and(|step| step != PasskeyStep::SignIn))
+        .map(|profile| {
+            let name = match profile.email.is_empty() {
+                true => profile.display_name.clone(),
+                false => profile.email.clone(),
+            };
+            (profile.account, name)
+        });
+    let (passkey, ceremony) = match (relying_party.as_ref(), step) {
+        (Some(relying_party), Some(step)) => {
+            let passkeys = match account.as_ref() {
+                Some((account, _)) => services.store.passkeys(*account).await?,
+                None => Vec::new(),
+            };
+            // A proof needs a passkey of the account's own.
+            match step == PasskeyStep::Proof && passkeys.is_empty() {
+                true => (None, None),
+                false => {
+                    let account = account
+                        .as_ref()
+                        .map(|(account, name)| (*account, name.as_str()));
+                    let (offer, ceremony) =
+                        passkeys::begin(relying_party, step, account, &passkeys)?;
+                    (Some(offer), Some(ceremony))
+                }
+            }
+        }
+        _ => (None, None),
+    };
     let page = Page {
         screen,
         email: field("email", |profile| &profile.email),
@@ -444,7 +525,7 @@ pub(crate) async fn handle(
         }),
         code: code.clone(),
         code_problem,
-        csrf: services.browser_auth.form(token, client),
+        csrf: services.browser_auth.form(token, client, ceremony),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
         mail_token: value("token").into(),
         sessions: sessions.into_iter().map(session).collect(),
@@ -509,6 +590,7 @@ pub(crate) async fn handle(
             _ => String::new(),
         },
         fresh,
+        passkey,
         code_email,
         email_code: linked_code.filter(|_| linked_here).unwrap_or_default(),
         saved: query.contains_key("saved"),
@@ -542,8 +624,10 @@ fn linked(identities: &[codes::Identity], provider: &crate::oidc::Provider) -> b
 /// How the settings page names an identity: its email, or its provider's name and the email
 /// the provider gave.
 fn identity_label(config: &crate::ServerConfig, identity: &codes::Identity) -> String {
-    if identity.kind != "oidc" {
-        return identity.subject.clone();
+    match identity.kind.as_str() {
+        "oidc" => {}
+        "passkey" => return passkeys::label(identity.created),
+        _ => return identity.subject.clone(),
     }
     let provider = config
         .providers

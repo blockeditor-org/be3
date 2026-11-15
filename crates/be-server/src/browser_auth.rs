@@ -136,6 +136,8 @@ impl<V> Bounded<V> {
 struct Form {
     expires: Instant,
     owner: String,
+    /// The passkey ceremony the page offers, which posting its form spends.
+    ceremony: Option<crate::passkeys::Ceremony>,
 }
 
 struct Pending {
@@ -234,7 +236,14 @@ impl Sessions {
         Ok(Polled::Approved { account, issuer })
     }
 
-    pub(crate) fn form(&self, owner: &str, address: IpAddr) -> String {
+    /// A page's form token for the session `owner`, holding the passkey ceremony the page
+    /// offers, if it offers one.
+    pub(crate) fn form(
+        &self,
+        owner: &str,
+        address: IpAddr,
+        ceremony: Option<crate::passkeys::Ceremony>,
+    ) -> String {
         let mut forms = self.forms.lock().unwrap();
         let token = Uuid::new_v4().to_string();
         forms.insert(
@@ -242,20 +251,28 @@ impl Sessions {
             Form {
                 expires: Instant::now() + LIFETIME,
                 owner: owner.into(),
+                ceremony,
             },
             address,
         );
         token
     }
 
-    pub(crate) fn consume_form(&self, token: &str, owner: &str) -> Result<(), ServerError> {
-        self.forms
+    /// Spends a form token the session `owner` was given, answering the passkey ceremony its
+    /// page began, if it began one.
+    pub(crate) fn consume_form(
+        &self,
+        token: &str,
+        owner: &str,
+    ) -> Result<Option<crate::passkeys::Ceremony>, ServerError> {
+        let form = self
+            .forms
             .lock()
             .unwrap()
             .remove(token)
             .filter(|form| form.expires > Instant::now() && form.owner == owner)
             .ok_or_else(|| invalid("this page expired; reload it and try again"))?;
-        Ok(())
+        Ok(form.ceremony)
     }
 }
 
