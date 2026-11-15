@@ -286,9 +286,8 @@ fn after(bytes: &[u8], index: usize) -> Option<(char, WordClass, usize)> {
 /// between two word clusters joins them into one word, as UAX #29's WB6, WB7, WB11 and WB12 do,
 /// so "don't" and "rock’n’roll" are each one word but "'quoted'" is not.
 fn class_of(bytes: &[u8], c: char, start: usize, end: usize) -> WordClass {
-    let word = |found: Option<(char, usize)>| {
-        found.is_some_and(|(c, _)| word_class(c) == WordClass::Word)
-    };
+    let word =
+        |found: Option<(char, usize)>| found.is_some_and(|(c, _)| word_class(c) == WordClass::Word);
     if matches!(c, '\'' | '\u{2019}')
         && word(cluster_before(bytes, start))
         && word(cluster_after(bytes, end))

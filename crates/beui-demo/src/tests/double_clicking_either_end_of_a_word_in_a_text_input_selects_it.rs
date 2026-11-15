@@ -25,7 +25,10 @@ fn double_clicking_either_end_of_a_word_in_a_text_input_selects_it() {
         .expect("the field shows its value");
     let double_click = |test: &mut DocumentTest, index: usize, beyond: f32| {
         let caret = test.document().text_caret_rect(text, index, 2.0).unwrap();
-        test.double_click(Target::point(pos2(caret.center().x + beyond, caret.center().y)));
+        test.double_click(Target::point(pos2(
+            caret.center().x + beyond,
+            caret.center().y,
+        )));
         test.leave();
         test.document()
             .api::<beui::unstyled::TextInputApi>(input)
