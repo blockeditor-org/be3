@@ -135,10 +135,19 @@ be-server invite-code revoke --data-dir DATA ID
 ```
 
 The server stores only a code's hash; a registration spends one use when the code mailed to its
-email is entered, and revoking a code also stops registrations still waiting on theirs. To
-bootstrap a server, make a code with `--uses 1`, start it with `--allow-registration`, register
-through the portal with the code and the code from the server log, then restart it without
-`--allow-registration`. A deployed server needs
+email is entered, and revoking a code also stops registrations still waiting on theirs.
+
+The operator signs anyone in without the log with a login link, made the same way:
+
+```
+be-server login-link --data-dir DATA --auth-origin ORIGIN (--email EMAIL | --account ID)
+```
+
+It prints a link that works once, within fifteen minutes, and ends the account's other sessions,
+as "I can't sign in" does; the server keeps only its hash. For an email with no account, using it
+makes the account, with no invite code and whatever `--allow-registration` says, so a new
+server's first account is a link for its owner's email. Then sign be-host in through the portal
+as usual, which needs `--allow-login`. A deployed server needs
 `--auth-origin https://api.be3.pfg.pw`, the exact origin used for Origin checks, Secure cookies
 and email links; request headers can't override it.
 

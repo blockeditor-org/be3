@@ -55,7 +55,7 @@ An account needs no email: one whose identities are only providers or passkeys
 is allowed, and those are its recovery. An account always keeps at least one
 identity; the last can't be removed, and an account with only one (a provider
 or a passkey alone) is nudged to add a second. An email verified by a provider
-the operator marks authoritative for email (step 3) becomes the account's
+the operator marks authoritative for email (step 2) becomes the account's
 verified email. Where an email is shown for an account today, the contact card
 and "Connect with NAME (EMAIL)?" among them, an account with no verified email
 shows only its name.
@@ -120,9 +120,9 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
   (plans/deferred/mail_delivery.md); `LogDelivery` stays, so the server's
   journal holds every live sign-in code and link, and whoever reads it can sign
   in to any account with an email.
-  On the hosted server the operator login link (step 2) is the documented way
-  in.
-- **Operator links.** `be-server login-link` (step 2) makes a single-use link
+  On the hosted server the operator login link (`be-server login-link`) is
+  the documented way in.
+- **Operator links.** `be-server login-link` makes a single-use link
   valid fifteen minutes, keeps only its hash, and builds it from
   `--auth-origin`. It is also the rescue for an account whose only identity was
   a provider the operator removed.
@@ -131,8 +131,8 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
 
 1. **What is left of identities and emailed codes.** Codes sign in, register,
    recover and prove (guides/blocks/server.md, Accounts). An
-   account with no email waits for the first identity that is not one (steps 3
-   and 4): until then every account that signs in has an email identity, so
+   account with no email waits for the first identity that is not one (steps 2
+   and 3): until then every account that signs in has an email identity, so
    `accounts.email` stays required, and the contact card and "Connect with NAME
    (EMAIL)?" still show it. Making it optional, and showing only the name where
    there is none, comes with that step.
@@ -140,17 +140,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    `/auth` without a prefix, so a sibling subdomain could set or shadow them;
    move both to `__Host-` names with `Path=/` once development serves HTTPS or
    the plain-HTTP setup uses a cookie name of its own.
-2. **Operator login link.** For any server whose mail goes to the log (every
-   server until plans/deferred/mail_delivery.md lands),
-   `be-server login-link --data-dir DATA (--email EMAIL | --account ID)`
-   (beside `invite-code create`, run against the data directory while the
-   server runs) prints a link as the rules above say, in place of finding the
-   code in the log. Given an email with no account, the link registers that
-   account (no invite code: only the operator runs the command), so a new
-   server's first account needs nothing from the log either. Done: tests where
-   a link signs in once and a second use and an expired one are refused, and
-   one where a link for a new email makes its account.
-3. **OIDC providers.** Operator config lists providers: issuer, client id and
+2. **OIDC providers.** Operator config lists providers: issuer, client id and
    secret, and whether the provider is authoritative for email. Providers are
    single-tenant: the issuer is the tenant's own, and a multi-tenant one
    (Microsoft's `common` or `organizations`, whose discovery returns a templated
@@ -188,7 +178,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    email links nothing; a provider email matching an account links only after
    the emailed code and never makes a second account; a changed provider email
    held by another account is not taken.
-4. **Passkeys.** Register and use WebAuthn credentials in the portal with
+3. **Passkeys.** Register and use WebAuthn credentials in the portal with
    `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
    wasm, which the CSP already allows (`script-src 'self'
    'wasm-unsafe-eval'`, `connect-src 'self'`). The RP ID is the
@@ -198,7 +188,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    orphans every passkey and every provider's registered redirect URI; say so
    in guides/hosting.md. Done: tests with a software authenticator: register,
    sign in without an email, remove, and a passkey for another RP ID refused.
-5. **Invitations stop depending on email.** Today an invitation is already a
+4. **Invitations stop depending on email.** Today an invitation is already a
    link the inviter sends themselves (`{server}/#invite/{CODE}`, a link of kind
    `invitation`; guides/blocks/keys.md, "Inviting"), and the server mails none.
    But it is bound to an email: only the account with that email reads or
@@ -252,7 +242,7 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    refused; the read before sign-in answers the organization name and sealed
    card only; the list shows opened and accepted; a painting of the invite list
    and of the link with its QR code.
-6. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
+5. **Docs.** Rewrite "Accounts" and "Running it" in guides/blocks/server.md,
    "Accounts and the portal" in guides/hosting.md (providers, `login-link` as
    the way in, codes in the log, and that changing `--auth-origin` orphans passkeys and
    redirect URIs), and the invitation lines in guides/blocks/keys.md

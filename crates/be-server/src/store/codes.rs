@@ -192,7 +192,10 @@ fn too_many() -> ServerError {
 }
 
 /// The account an email identity belongs to.
-fn account_of(database: &Connection, email: &str) -> Result<Option<String>, ServerError> {
+pub(crate) fn account_of(
+    database: &Connection,
+    email: &str,
+) -> Result<Option<String>, ServerError> {
     Ok(database
         .query_row(
             "SELECT account_id FROM identities WHERE kind = 'email' AND subject = ?1",
@@ -218,6 +221,53 @@ pub(crate) fn unregistered(database: &Connection, email: &str) -> Result<(), Ser
 }
 
 /// Adds an email identity to an account, as registering or verifying an email does.
+/// Makes an account with `email` as its one identity, an editor of the personal organization.
+pub(crate) fn make_account(
+    database: &Connection,
+    email: &str,
+    name: &str,
+) -> Result<Uuid, ServerError> {
+    let account = Uuid::new_v4();
+    database.execute(
+        "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
+        params![account.to_string(), email, name],
+    )?;
+    add_email_identity(database, &account.to_string(), email)?;
+    let personal = personal_organization(database)?;
+    database.execute(
+        "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
+        params![personal.to_string(), account.to_string()],
+    )?;
+    Ok(account)
+}
+
+/// Starts a browser session for the account that counts as fresh proof. `recover` first ends
+/// every other session and pending email change, since the account may be in someone else's
+/// hands; the caller then calls `sessions_changed`.
+pub(crate) fn open_browser_session(
+    database: &Connection,
+    account: Uuid,
+    recover: bool,
+) -> Result<String, ServerError> {
+    if recover {
+        database.execute(
+            "DELETE FROM sessions WHERE account_id = ?1",
+            [account.to_string()],
+        )?;
+        database.execute(
+            "DELETE FROM account_mail WHERE account_id = ?1",
+            [account.to_string()],
+        )?;
+    }
+    let now = now();
+    let token = issue_token(database, account)?;
+    database.execute(
+        "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
+        params![hash_token(&token), now + 30 * 86400, now],
+    )?;
+    Ok(token)
+}
+
 pub(crate) fn add_email_identity(
     database: &Connection,
     account: &str,
@@ -426,18 +476,7 @@ impl ServerStore {
                     CodePurpose::Register => {
                         unregistered(&transaction, &email)?;
                         invite_codes::spend(&transaction, &invite)?;
-                        let account = Uuid::new_v4();
-                        transaction.execute(
-                            "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
-                            params![account.to_string(), email, name],
-                        )?;
-                        add_email_identity(&transaction, &account.to_string(), &email)?;
-                        let personal = personal_organization(&transaction)?;
-                        transaction.execute(
-                            "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
-                            params![personal.to_string(), account.to_string()],
-                        )?;
-                        account
+                        make_account(&transaction, &email, &name)?
                     }
                     _ => parse_uuid(&account)?,
                 };
@@ -452,18 +491,7 @@ impl ServerStore {
                         }
                         None
                     }
-                    _ => {
-                        if purpose == CodePurpose::Recover {
-                            transaction.execute("DELETE FROM sessions WHERE account_id = ?1", [account.to_string()])?;
-                            transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [account.to_string()])?;
-                        }
-                        let token = issue_token(&transaction, account)?;
-                        transaction.execute(
-                            "UPDATE sessions SET kind = 'browser', expires = ?2, proved = ?3 WHERE token_hash = ?1",
-                            params![hash_token(&token), now + 30 * 86400, now],
-                        )?;
-                        Some(token)
-                    }
+                    _ => Some(open_browser_session(&transaction, account, purpose == CodePurpose::Recover)?),
                 };
                 transaction.commit()?;
                 if purpose == CodePurpose::Recover {

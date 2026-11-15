@@ -57,6 +57,13 @@ const SCHEMA: &str = "
     CREATE INDEX sign_in_codes_network ON sign_in_codes(network, created);
     CREATE INDEX sign_in_codes_account ON sign_in_codes(account_id, created);
 
+    CREATE TABLE login_links (
+        token_hash TEXT PRIMARY KEY,
+        account_id TEXT NOT NULL DEFAULT '',
+        email      TEXT NOT NULL DEFAULT '',
+        expires    INTEGER NOT NULL
+    );
+
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,
         account_id TEXT NOT NULL DEFAULT '',
