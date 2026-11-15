@@ -108,10 +108,15 @@ command palette lists them: Next tab and Previous tab walk the focused pane's ta
 right, Split down and Close tab act on the tab the focused pane shows. Next and Previous are bound
 to `DockHost`'s `tab_keys` (`DockTabKeys::CTRL`, Ctrl+Tab and Ctrl+Shift+Tab, by default; the
 desktop passes Super+Tab so a program keeps Ctrl+Tab) at `KeyAt::Window` with `.capture()`: they
-work from inside a text input, past a dialog, and, as intercepted keys
-(guides/beui_keyboard.md), over an embedded editor's view, which is how workspace-ui walks its
-tabs while an editor has the keyboard. With several docks in one window, the first enabled one
-takes the key.
+work from inside a text input and, as intercepted keys (guides/beui_keyboard.md), over an
+embedded editor's view, which is how workspace-ui walks its tabs while an editor has the keyboard.
+They are enabled only while the focus is in the dock: in its area (a `DockDialog` included), in one
+of its floating windows, or on no node of its document, as when an app's view or a program's
+window holds the keyboard. So a `Dialog`, sheet or menu outside the dock keeps them from switching
+the tab under it, and of several docks in one document the one holding the focus takes the key.
+A dock in another document (an editor whose dock stands alone, not joined) hears them only when
+the shell's dock does not take them first: while the shell's focused pane has several tabs, the
+shell walks those.
 The dock binds no other key: the switcher and window actions are actions the shell binds.
 
 ## Modes

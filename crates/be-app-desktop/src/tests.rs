@@ -569,6 +569,36 @@ impl Fixture {
         fixture
     }
 
+    /// Drops the tab of window 2 beside window 1's, so one window holds both.
+    fn group_two_windows(&mut self) {
+        let tab = |fixture: &Self, title: &str| {
+            let document = fixture.test.document();
+            let node = document
+                .root()
+                .and_then(|root| text_within(&document, root, title))
+                .unwrap_or_else(|| panic!("{title} has a tab"));
+            document.node_rect(node).expect("the tab is laid out")
+        };
+        let first = tab(self, "todo-1.txt");
+        let second = tab(self, "todo-2.txt");
+        self.test
+            .drag(second.center(), Pos2::new(first.max.x + 60.0, first.center().y));
+        self.settle();
+    }
+
+    /// The tab the main dock's focused pane shows.
+    fn shown_tab(&self) -> Option<be_sdk_beui::beui::dock::TabId> {
+        let document = self.test.document();
+        let dock = document
+            .find_test_id("desktop.dock")
+            .expect("the desktop has a dock");
+        let state = document
+            .api::<be_sdk_beui::beui::dock_host::styled::DockApi>(dock)
+            .state();
+        let leaf = state.focused_leaf()?;
+        state.active_tab(leaf)
+    }
+
     fn focused_windows(&mut self) -> Vec<HostWindowId> {
         let given = self.test.take_child_focus();
         given

@@ -125,10 +125,10 @@ program and block windows alike as floating dock windows. Under them, display 0'
 and one dropped at an edge splits it, tiling the desktop beneath the windows. Each dock of the desktop sits in its own
 `DockHost`; `DeskWindows` passes every display, and its work area, to `DockHostLayout::set_areas`.
 `root/window_keys.rs` binds the dock's `window_actions` at `KeyAt::Window`, capturing, so they work
-over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui binds none. Its
-`tab_keys` moves the dock's Next tab and Previous tab off Ctrl+Tab, which a program keeps
-(Windows takes Super+Tab and Ctrl+Alt+Tab itself, so where Super is kept they are on PageDown and
-PageUp).
+over programs; they are disabled while `ScreenLockedWatch` is set. workspace-ui binds none. The
+desktop's `DockHost` passes `window_keys::tab_keys` (`WindowKeys::tabs`) as its `tab_keys`, moving
+the dock's Next tab and Previous tab off Ctrl+Tab, which a program keeps (Windows takes Super+Tab
+and Ctrl+Alt+Tab itself, so where Super is kept they are on PageDown and PageUp).
 
 | Action | Linux | Where the system keeps Super |
 | --- | --- | --- |

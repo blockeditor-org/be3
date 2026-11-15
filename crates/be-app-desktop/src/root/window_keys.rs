@@ -19,6 +19,8 @@ pub(crate) struct WindowKeys {
     pub(crate) previous_display: Chord,
     pub(crate) next_of_app: Chord,
     pub(crate) fullscreen: Chord,
+    /// The dock's Next tab and Previous tab, off Ctrl+Tab, which a program keeps.
+    pub(crate) tabs: DockTabKeys,
 }
 
 impl WindowKeys {
@@ -35,6 +37,7 @@ impl WindowKeys {
                 previous_display: Chord::logo(Key::ArrowLeft).shift(),
                 next_of_app: Chord::logo(Key::Backtick),
                 fullscreen: Chord::logo(Key::F),
+                tabs: DockTabKeys::SUPER,
             },
             true => Self {
                 close: Chord::ctrl(Key::F4),
@@ -47,22 +50,20 @@ impl WindowKeys {
                 previous_display: Chord::ctrl(Key::ArrowLeft).alt().shift(),
                 next_of_app: Chord::ctrl(Key::Backtick).alt(),
                 fullscreen: Chord::ctrl(Key::F).alt(),
+                // Windows takes Super+Tab and Ctrl+Alt+Tab itself.
+                tabs: DockTabKeys {
+                    next: Chord::ctrl(Key::PageDown).alt(),
+                    previous: Chord::ctrl(Key::PageUp).alt(),
+                },
             },
         }
     }
 }
 
-/// The dock's Next tab and Previous tab on the desktop: Super+Tab, so a program keeps Ctrl+Tab;
-/// where the system keeps Super (and Windows takes Ctrl+Alt+Tab too), Ctrl+Alt+PageDown/PageUp.
+/// The dock's Next tab and Previous tab on the desktop (`WindowKeys::tabs`).
 pub(super) fn tab_keys(editor: Editor) -> Memo<DockTabKeys> {
     let super_kept = editor.watch::<SuperKeptWatch>();
-    create_memo(move || match super_kept.get() {
-        false => DockTabKeys::SUPER,
-        true => DockTabKeys {
-            next: Chord::ctrl(Key::PageDown).alt(),
-            previous: Chord::ctrl(Key::PageUp).alt(),
-        },
-    })
+    create_memo(move || WindowKeys::of(super_kept.get()).tabs)
 }
 
 #[component]

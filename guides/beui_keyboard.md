@@ -101,7 +101,8 @@ window for everything but media keys.
 
 A key command is an action registered under an `action_scope`: it runs after the
 focused control declines the key, and `.capture()` makes it run before the focused
-control instead. A plain-letter chord is skipped while text is
+control instead (the dock's Next tab, which works from a text input in a pane;
+guides/beui/docking.md). A plain-letter chord is skipped while text is
 being typed. A listener that must see raw presses, held keys or releases is
 `on_key(KeyAt::Node(component_node()), KeyPhase::Capture, KeyReveal::Focus, handler)`,
 and `on_key(KeyAt::Window, KeyPhase::Capture, KeyReveal::Focus, handler)` is the

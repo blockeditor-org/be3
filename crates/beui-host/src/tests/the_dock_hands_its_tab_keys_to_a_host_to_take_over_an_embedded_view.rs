@@ -19,8 +19,15 @@ fn the_dock_hands_its_tab_keys_to_a_host_to_take_over_an_embedded_view() {
                             <DockTab
                                 id
                                 title={format!("Tab {id}")}
-                                content={|| view! {
-                                    <Frame />
+                                content={move || {
+                                    let typed = create_signal(String::new());
+                                    view! {
+                                        <styled::TextInput
+                                            @test_id={format!("input.{id}")}
+                                            value={typed}
+                                            label="Notes"
+                                        />
+                                    }
                                 }}
                             />
                         </ForEach>
@@ -31,6 +38,9 @@ fn the_dock_hands_its_tab_keys_to_a_host_to_take_over_an_embedded_view() {
     });
     let dock = dock.get();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    harness.frame(Vec::new());
+    let input = harness.find("input.1");
+    harness.click(harness.center(input));
     let intercepted = harness
         .frame(Vec::new())
         .main()
