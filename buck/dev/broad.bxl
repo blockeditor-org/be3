@@ -19,11 +19,14 @@ _PLANNED = ["linux_x86_64", "linux_x86_64_html", "wasi", "wasi_guest", "wasi_htm
 
 # The cross platforms' plans are the host's whole workspace for each triple,
 # Linux-only crates included, so their crates are instead what these ship
-# there: be-host (as a library on Android) and the bootstrap, and on linux
-# arm64 `be` too (crates/be-tool-local:deploy).
+# there: be-host and the bootstrap, and on linux
+# arm64 `be` too (crates/be-tool-local:deploy). Android is left out until
+# third-party/v8 pins a V8 for it: be-host cannot build there without one
+# (plans/wasm_on_v8.md).
+_UNBUILDABLE = ["android_arm64"]
+
 _DESKTOP = ["//crates/be-host:bin", "//crates/be-tool-bootstrap:bin"]
 _SHIPPED = {name: _DESKTOP for name in CROSS_PLATFORMS} | {
-    "android_arm64": ["//crates/be-host:be-host"],
     "linux_arm64": _DESKTOP + ["//crates/be-tool-cli:bin"],
 }
 
@@ -38,7 +41,7 @@ _JOBS = [
     ("wasi", False, True, False),
     ("wasi_html", False, True, False),
     ("wasm32", False, True, False),
-] + [(name, False, True, False) for name in sorted(CROSS_PLATFORMS)]
+] + [(name, False, True, False) for name in sorted(CROSS_PLATFORMS) if name not in _UNBUILDABLE]
 
 # The configuration a target with no transition of its own has on the
 # platform, by name (Configuration itself has no equality).
