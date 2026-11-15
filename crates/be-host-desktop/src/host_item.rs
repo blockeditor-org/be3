@@ -27,12 +27,10 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
         _ => String::new(),
     });
-    let busy = create_memo(move || matches!(content.get(), HostItem::Notice { busy: true, .. }));
     let glyph = create_memo(move || match content.get() {
         HostItem::Notice { icon, .. } => icon,
         HostItem::Unsupported { .. } => None,
     });
-    let has_glyph = create_memo(move || glyph.get().is_some());
     let unsupported = matches!(kind, HostItem::Unsupported { .. });
     view! {
         <Frame padding=Space::Lg>
@@ -42,7 +40,7 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                         "Unsupported block type"
                     </Text>
                 </Show>
-                <Show condition={has_glyph}>
+                <Show condition={move || glyph.get().is_some()}>
                     <Text size=TextSize::Xl color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
@@ -51,7 +49,7 @@ pub fn HostItemFace(content: Memo<HostItem>) -> NodeId {
                 <Show condition={unsupported}>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 </Show>
-                <Show condition={busy}>
+                <Show condition={move || matches!(content.get(), HostItem::Notice { busy: true, .. })}>
                     <Progress width=INLINE_PROGRESS_WIDTH />
                 </Show>
             </List>

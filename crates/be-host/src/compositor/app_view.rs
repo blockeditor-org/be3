@@ -1170,7 +1170,7 @@ pub(crate) fn AppView(
                 <Interactive
                     @node_ref={&catcher}
                     focusable=true
-                    press_focus={create_memo(move || !presented.get())}
+                    press_focus={move || !presented.get()}
                     cursor={cursor}
                     ime={ime}
                     keyboard={keyboard}
@@ -1247,7 +1247,7 @@ fn Backdrop(state: Memo<PlacedView>, radius: Memo<f32>, upright: Memo<bool>) -> 
                 height={create_memo(move || rect.get().height().max(0.0))}
                 pointer=false
             >
-                <Frame fill={fill} radius={create_memo(move || Radius::Custom(radius.get()))} />
+                <Frame fill={fill} radius={move || Radius::Custom(radius.get())} />
             </CanvasItem>
         </Canvas>
     }
@@ -1517,7 +1517,6 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
                 view! {
                     <Window id={Some(id)} size placement on_report={report}>|handle: WindowHandle| {
                         follow_panel_asks(panel, handle);
-                        let hosted = create_memo(move || handle.is_window());
                         view! {
                             <Layers>
                                 <AppView
@@ -1526,7 +1525,7 @@ fn PanelWindows(editor: ViewEditor, region: View, rect: Memo<Rect>) -> NodeId {
                                     child_view
                                     on_focus={Callback::new(|()| {})}
                                 />
-                                <Show condition={hosted}>||
+                                <Show condition={move || handle.is_window()}>||
                                     <AnchoredViews />
                                 </Show>
                             </Layers>
@@ -1867,8 +1866,6 @@ fn take_keyboard(
 
 #[component]
 fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> NodeId {
-    let failed = create_memo(move || failure.get().is_some());
-    let still_loading = create_memo(move || loading.get() && failure.get().is_none());
     let title = create_memo(move || {
         failure
             .get()
@@ -1882,7 +1879,6 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
             .unwrap_or_default()
     });
     let restart = create_memo(move || failure.get().and_then(|failure| failure.restart));
-    let reloadable = create_memo(move || restart.get().is_some());
     let reload = move || {
         if let Some(app) = restart.get_untracked() {
             be_host_runtime::restart_app(&app);
@@ -1895,20 +1891,22 @@ fn Notices(loading: Memo<bool>, failure: Memo<Option<Failure>>, id: String) -> N
     });
     view! {
         <Frame align=Align::Center>
-            <List spacing=Space::None>
-                <Show condition={failed}>
-                    <CrashNotice
-                        title={title}
-                        detail={detail}
-                        reloadable={reloadable}
-                        on_reload={reload}
-                        id={id.clone()}
-                    />
-                </Show>
-                <Show condition={still_loading}>
-                    <HostItemFace content={loading_item} />
-                </Show>
-            </List>
+            <Show
+                condition={move || failure.get().is_some()}
+                fallback={move || view! {
+                    <Show condition={loading}>
+                        <HostItemFace content={loading_item} />
+                    </Show>
+                }}
+            >
+                <CrashNotice
+                    title={title}
+                    detail={detail}
+                    reloadable={move || restart.get().is_some()}
+                    on_reload={reload}
+                    id={id.clone()}
+                />
+            </Show>
         </Frame>
     }
 }

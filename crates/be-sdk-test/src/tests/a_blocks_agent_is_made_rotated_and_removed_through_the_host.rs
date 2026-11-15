@@ -39,10 +39,9 @@ impl BeuiRoot for AgentRoot {
                 }
             },
         );
-        let shown = create_memo(move || status.get());
         view! {
             <Root>
-                <Text @test_id={"agent.status"}>{shown}</Text>
+                <Text @test_id={"agent.status"}>{status}</Text>
             </Root>
         }
     }

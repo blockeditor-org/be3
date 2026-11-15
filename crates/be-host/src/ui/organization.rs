@@ -31,12 +31,11 @@ fn OrganizationBody(view: HostUiStore) -> NodeId {
     let debug = view.debug;
     provide_context(DebugPanels(create_memo(move || debug.get())));
     let presenting = view.presenting;
-    let normal = create_memo(move || !presenting.get());
     let status = create_memo(move || view.status.get());
     provide_context(HostStatus(status));
     view! {
         <List spacing=Space::None>
-            <Show condition={normal}>
+            <Show condition={move || !presenting.get()}>
                 <ListItem grow=1.0>
                     <MainSurface />
                 </ListItem>

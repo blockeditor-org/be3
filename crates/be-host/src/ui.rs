@@ -462,30 +462,28 @@ pub(crate) fn Displays(view: HostUiStore) -> NodeId {
     let windowed = create_memo(move || shown.with(|shown| !shown.is_empty()));
     view! {
         <Layers>
-            <Dynamic value={windowed}>|windowed: bool| {
-                match windowed {
-                    false => view! {
-                        <Layers>
-                            <Root view />
-                            <AnchoredViews />
-                        </Layers>
-                    },
-                    true => {
-                        let keys = create_memo(move || {
-                            shown.with(|shown| {
-                                shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
-                            })
-                        });
-                        view! {
-                            <Layers>
-                                <ForEach keys={keys}>|id: String|
-                                    <DisplayWindow view id />
-                                </ForEach>
-                            </Layers>
-                        }
-                    }
+            <Show
+                condition={windowed}
+                fallback={move || view! {
+                    <Layers>
+                        <Root view />
+                        <AnchoredViews />
+                    </Layers>
+                }}
+            >|| {
+                let keys = create_memo(move || {
+                    shown.with(|shown| {
+                        shown.iter().map(|display| display.id.clone()).collect::<Vec<_>>()
+                    })
+                });
+                view! {
+                    <Layers>
+                        <ForEach keys={keys}>|id: String|
+                            <DisplayWindow view id />
+                        </ForEach>
+                    </Layers>
                 }
-            }</Dynamic>
+            }</Show>
         </Layers>
     }
 }
@@ -536,16 +534,12 @@ fn DisplayWindow(view: HostUiStore, id: String) -> NodeId {
             view! {
                 <beui::styled::Root>
                     <Layers>
-                        <Dynamic value={primary}>|primary: bool| {
-                            match primary {
-                                true => view! {
-                                    <Root view />
-                                },
-                                false => view! {
-                                    <SecondaryDisplay view index />
-                                },
-                            }
-                        }</Dynamic>
+                        <Show
+                            condition={primary}
+                            fallback={move || view! { <SecondaryDisplay view index /> }}
+                        >
+                            <Root view />
+                        </Show>
                         <AnchoredViews />
                     </Layers>
                 </beui::styled::Root>
@@ -561,13 +555,16 @@ fn SecondaryDisplay(view: HostUiStore, index: Memo<usize>) -> NodeId {
     let screen = view.screen;
     let presenting = view.presenting;
     let shell = crate::compositor::shell();
-    let desktop = create_memo(move || {
-        screen.get() == Screen::Organization && !presenting.get() && shell.get().is_some()
-    });
     view! {
         <Frame @node_ref=&area>
             <List spacing=Space::None>
-                <Show condition={desktop}>
+                <Show
+                    condition={move || {
+                        screen.get() == Screen::Organization
+                            && !presenting.get()
+                            && shell.get().is_some()
+                    }}
+                >
                     <Dynamic value={index}>|index: usize| {
                         let display = u32::try_from(index).unwrap_or(u32::MAX);
                         view! {
@@ -645,12 +642,11 @@ pub(crate) fn Root(view: HostUiStore) -> NodeId {
 #[component]
 fn HostActions(view: HostUiStore) -> NodeId {
     let screen = view.screen;
-    let signed_in = create_memo(move || screen.get() == Screen::Organization);
     Action::new("host.switch-account", "Switch account", || {
         send(UiCommand::SwitchAccount)
     })
     .glyph(beui::icons::ICON_USERS)
-    .enabled(signed_in)
+    .enabled(move || screen.get() == Screen::Organization)
     .register();
     Action::new(
         "host.theme",
@@ -670,7 +666,6 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
     let notices = view.toasts;
     let toasts = create_memo(move || slow_save.with_toast(notices.get()));
     let keep_display = view.keep_display;
-    let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let toasts = create_memo(move || match primary {
         true => toasts.get(),
@@ -703,7 +698,7 @@ fn DisplayChrome(view: HostUiStore, area: NodeRef, primary: bool) -> NodeId {
                 }}
             />
             <keep_changes::KeepChanges
-                open={asking}
+                open={move || keep_display.get().is_some()}
                 title="Keep these display settings?"
                 timeout=crate::display::ANSWER_WITHIN
                 round={round}
