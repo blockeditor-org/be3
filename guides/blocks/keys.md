@@ -15,6 +15,12 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   derived from key and plaintext, then ChaCha20Poly1305 ciphertext. This covers
   chunks, commits, manifests, metadata, session traffic and wrapped keys. An
   unknown id is `StoreError::MissingKey`.
+- **Keys travel with their block and root**: what is sealed or wrapped is
+  `be_block_keys::CarriedKey`, the key, the block it is a key of (the
+  organization, for an escrow key) and the hash of that block's access log
+  root when the sender holds it pinned, so whoever opens it knows which block
+  it is for whatever the server's row says (`KeyBook::opened` drops a key
+  whose block differs) and may pin the root (below).
 - **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
   it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
@@ -67,6 +73,36 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move
   within a scope or to Recently Deleted changes no keys. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key.
+
+### Access logs
+
+Who may do what is moving from server rows to records members sign
+(plans/signed_access.md, decisions/the_server_never_vouches_for_an_identity.md).
+Each block has a log of `be_block_keys::Entry`s, each signed with the
+signer's account signing key in a domain of its own (`be3.access.v1`) and
+naming the hash of the entry before it. The first is the root: the block's
+creator and their keys, made by `Peer::creation` (and `import`) and sent with
+`CreateBlock`, also through the outbox. A device takes a root's hash only from
+somewhere the server cannot write: making the block (`KeyBook::pin_root`,
+before its keys are made, which carry it) or a trusted key of the block
+(`KeyBook::opened`). Keys of one block that carry different roots leave it
+with none (`RootPin::Conflicting`). `Peer::access_log` refuses a log whose
+root is not the pinned one, or a block whose root conflicts
+(`ClientError::Forged`). A key opened only through escrow or the server's
+seal pins nothing, since anyone who knows the escrow's public key can seal to
+it; and a device hands a key on with a root only when it holds that root
+pinned (`KeyBook::carried_plain`), so an administrator rotating a block it
+reaches only through escrow passes on no root at all.
+
+A company organization has a log too, rooted at its creator:
+`contacts::create_organization` picks the organization id, signs the root and
+sends it with `create-organization`, registering the account's keys first if
+the server holds none. What an account pins for an organization is
+`contacts::Pinned`, the root's hash and the escrow key, sealed to itself
+(`seal_pin`, kept by `pin-escrow` and in the session): the creator pins it on
+making it, a member from the invitation, which carries it sealed with the code,
+and an agent from its maker. `Peer::organization_log` refuses a log whose root
+is not the pinned one. The personal organization has no log.
 
 ### Rotation
 
@@ -146,9 +182,10 @@ one signature at a time (`keys::verify_escrow`) and pins the newest verified
   An invitation is a link of kind `invitation` (see Contacts below): the
   inviting device makes an `InviteCode` (200 bits) and names the link by
   `InviteCode::lookup`, so it is `{server}/#invite/{CODE}` (`invite_link.rs`).
-  It carries the inviter's card and escrow key sealed with the code; accepting
-  it returns the invitee's card as any link does, pins the escrow key and joins
-  the organization as an editor. It names no email: the link is a bearer
+  It carries the inviter's card and what the inviter pinned for the
+  organization (`Pinned`: its access log root and escrow key) sealed with the
+  code; accepting it returns the invitee's card as any link does, pins both
+  and joins the organization as an editor. It names no email: the link is a bearer
   secret, single use and good for `INVITATION_LIFETIME` (seven days), and the
   server mails nothing, so the inviter sends it themselves. It ends when its
   inviter stops administering the organization: demoting or removing them

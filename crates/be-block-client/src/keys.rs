@@ -3,7 +3,7 @@ use std::{
     sync::Mutex,
 };
 
-use be_block_keys::{EscrowSecret, Party, RecoveryPublic, RecoverySecret};
+use be_block_keys::{CarriedKey, EntryHash, EscrowSecret, Party, RecoveryPublic, RecoverySecret};
 use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
@@ -18,6 +18,51 @@ pub struct KeyBook {
     trusted: Mutex<HashSet<Uuid>>,
     escrow: Mutex<Escrow>,
     server: Mutex<Option<(Uuid, RecoveryPublic)>>,
+    roots: Mutex<Roots>,
+    /// The hash of the organization's access log root, pinned from making it or an
+    /// invitation (`crate::contacts::Pinned`).
+    organization_root: Mutex<Option<EntryHash>>,
+}
+
+/// Which block each content key is a key of, and the access log root each block's keys carry
+/// (`be_block_keys::CarriedKey`): learned from keys made here and keys opened, never from the
+/// server's rows alone.
+#[derive(Default)]
+struct Roots {
+    blocks: HashMap<Uuid, Uuid>,
+    pinned: HashMap<Uuid, EntryHash>,
+    /// Blocks whose trusted keys carried different roots: one of them was forged, so neither
+    /// is used.
+    conflicting: HashSet<Uuid>,
+}
+
+/// What a device holds of a block's access log root.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RootPin {
+    /// Pinned from making the block or from a trusted key of it.
+    Pinned(EntryHash),
+    /// Trusted keys of it carried different roots: one was forged.
+    Conflicting,
+    /// None yet.
+    Unknown,
+}
+
+impl Roots {
+    fn pin(&mut self, block: Uuid, root: EntryHash) {
+        if self.conflicting.contains(&block) {
+            return;
+        }
+        match self.pinned.get(&block) {
+            Some(pinned) if *pinned != root => {
+                self.pinned.remove(&block);
+                self.conflicting.insert(block);
+            }
+            Some(_) => {}
+            None => {
+                self.pinned.insert(block, root);
+            }
+        }
+    }
 }
 
 #[derive(Default)]
@@ -129,6 +174,8 @@ impl KeyBook {
             trusted: Mutex::new(HashSet::new()),
             escrow: Mutex::new(Escrow::default()),
             server: Mutex::new(None),
+            roots: Mutex::new(Roots::default()),
+            organization_root: Mutex::new(None),
         }
     }
 
@@ -183,9 +230,25 @@ impl KeyBook {
         self.settle_escrow();
     }
 
-    pub fn set_pinned(&self, pinned: Option<EscrowKey>) {
-        self.escrow.lock().unwrap().pinned = pinned;
+    /// What this account pinned for the organization: the escrow key, and the root of the
+    /// organization's access log.
+    pub fn set_pinned(&self, pinned: Option<crate::contacts::Pinned>) {
+        let pinned = pinned.unwrap_or_default();
+        *self.organization_root.lock().unwrap() = pinned.root;
+        self.escrow.lock().unwrap().pinned = pinned.escrow;
         self.settle_escrow();
+    }
+
+    /// Everything pinned for the organization, as `set_pinned` took it.
+    pub fn pins(&self) -> crate::contacts::Pinned {
+        crate::contacts::Pinned {
+            root: self.organization_root(),
+            escrow: self.pinned(),
+        }
+    }
+
+    pub fn organization_root(&self) -> Option<EntryHash> {
+        *self.organization_root.lock().unwrap()
     }
 
     pub fn escrows(&self) -> Vec<EscrowKey> {
@@ -269,12 +332,12 @@ impl KeyBook {
         if self.wrapped_by(key).contains(&WrappedBy::Key(escrow.id)) {
             return Ok(None);
         }
-        let plain = self.trusted_plain(key)?;
+        let plain = self.carried_plain(key)?;
         Ok(Some(WrappedKey {
             key,
             wrapped_by: WrappedBy::Key(escrow.id),
             sender: self.account,
-            sealed: RecoveryPublic(escrow.public).seal_anonymous(plain.as_bytes()),
+            sealed: RecoveryPublic(escrow.public).seal_anonymous(&plain),
         }))
     }
 
@@ -318,6 +381,11 @@ impl KeyBook {
         self.ring
             .insert(escrow.id, ContentKey::from_bytes(secret.to_bytes()));
         self.trusted.lock().unwrap().insert(escrow.id);
+        self.roots
+            .lock()
+            .unwrap()
+            .blocks
+            .insert(escrow.id, self.organization);
         let wrapped = vec![self.seal_to(escrow.id, self.account, &self.identity.public())?];
         Ok((
             escrow,
@@ -377,6 +445,58 @@ impl KeyBook {
         }
     }
 
+    /// The root this device holds for `block`'s access log: from making it, or carried by a
+    /// trusted key of it. None while it holds none, or when its keys carried different roots.
+    pub fn root(&self, block: Uuid) -> Option<EntryHash> {
+        self.roots.lock().unwrap().pinned.get(&block).copied()
+    }
+
+    pub fn root_pin(&self, block: Uuid) -> RootPin {
+        let roots = self.roots.lock().unwrap();
+        match roots.pinned.get(&block) {
+            Some(root) => RootPin::Pinned(*root),
+            None if roots.conflicting.contains(&block) => RootPin::Conflicting,
+            None => RootPin::Unknown,
+        }
+    }
+
+    /// Pins the root of a block this device makes, before minting its keys, which carry it.
+    pub fn pin_root(&self, block: Uuid, root: EntryHash) {
+        self.roots.lock().unwrap().pin(block, root);
+    }
+
+    /// `key` as it travels sealed or wrapped (`CarriedKey`): with the block it is a key of
+    /// (the organization, for an escrow key), and that block's root only when this device holds
+    /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
+    /// for. A key this device cannot place is not handed on.
+    pub fn carried_plain(&self, key: Uuid) -> Result<Vec<u8>, StoreError> {
+        let plain = self.trusted_plain(key)?;
+        let roots = self.roots.lock().unwrap();
+        let block = roots.blocks.get(&key).ok_or(StoreError::MissingKey(key))?;
+        Ok(CarriedKey {
+            key: *plain.as_bytes(),
+            block: block.into_bytes(),
+            root: roots.pinned.get(block).copied(),
+        }
+        .encode())
+    }
+
+    /// The key `bytes` opened to, when they carry the block `row` is a key of. A trusted key
+    /// pins the root it carries; any other pins nothing.
+    fn opened(&self, row: Option<KeyRow>, bytes: &[u8], vouched: bool) -> Option<[u8; 32]> {
+        let row = row?;
+        let carried = CarriedKey::decode(bytes).ok()?;
+        if carried.block != row.block.into_bytes() {
+            return None;
+        }
+        let mut roots = self.roots.lock().unwrap();
+        roots.blocks.insert(row.id, row.block);
+        if vouched && let Some(root) = carried.root {
+            roots.pin(row.block, root);
+        }
+        Some(carried.key)
+    }
+
     pub fn absorb(&self, set: KeySet) -> usize {
         let mut rows = self.rows.lock().unwrap();
         for row in set.keys {
@@ -398,10 +518,10 @@ impl KeyBook {
                 if self.trusted(*key) {
                     continue;
                 }
-                let block = rows.keys.get(key).map(|row| row.block);
+                let row = rows.keys.get(key).copied();
                 let vouched = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, block, &escrows, true));
+                    .find_map(|wrap| self.unwrap(wrap, row, &escrows, true));
                 if let Some(bytes) = vouched {
                     self.ring.insert(*key, ContentKey::from_bytes(bytes));
                     self.trusted.lock().unwrap().insert(*key);
@@ -414,7 +534,7 @@ impl KeyBook {
                 }
                 if let Some(bytes) = wraps
                     .iter()
-                    .find_map(|wrap| self.unwrap(wrap, block, &escrows, false))
+                    .find_map(|wrap| self.unwrap(wrap, row, &escrows, false))
                 {
                     self.ring.insert(*key, ContentKey::from_bytes(bytes));
                     changed += 1;
@@ -433,10 +553,11 @@ impl KeyBook {
     fn unwrap(
         &self,
         wrap: &WrappedKey,
-        block: Option<Uuid>,
+        row: Option<KeyRow>,
         escrows: &HashSet<Uuid>,
         vouched: bool,
     ) -> Option<[u8; 32]> {
+        let block = row.map(|row| row.block);
         let bytes = match wrap.wrapped_by {
             WrappedBy::Account(account) if account == self.account => {
                 if !self.accepts(wrap.sender, block, vouched) {
@@ -475,7 +596,7 @@ impl KeyBook {
                 self.ring.open(&wrap.sealed).ok()?
             }
         };
-        bytes.try_into().ok()
+        self.opened(row, &bytes, vouched)
     }
 
     pub fn row(&self, key: Uuid) -> Option<KeyRow> {
@@ -518,13 +639,13 @@ impl KeyBook {
     }
 
     pub fn wrap(&self, key: Uuid, under: Uuid) -> Result<WrappedKey, StoreError> {
-        let plain = self.trusted_plain(key)?;
+        let plain = self.carried_plain(key)?;
         self.trusted_plain(under)?;
         Ok(WrappedKey {
             key,
             wrapped_by: WrappedBy::Key(under),
             sender: self.account,
-            sealed: self.ring.seal(under, plain.as_bytes())?,
+            sealed: self.ring.seal(under, &plain)?,
         })
     }
 
@@ -534,7 +655,7 @@ impl KeyBook {
         account: Uuid,
         public: &RecoveryPublic,
     ) -> Result<WrappedKey, StoreError> {
-        let plain = self.trusted_plain(key)?;
+        let plain = self.carried_plain(key)?;
         let to = Party {
             account: account.into_bytes(),
             public: *public,
@@ -543,12 +664,9 @@ impl KeyBook {
             key,
             wrapped_by: WrappedBy::Account(account),
             sender: self.account,
-            sealed: self.identity.seal_for(
-                self.account.into_bytes(),
-                &to,
-                key.as_bytes(),
-                plain.as_bytes(),
-            ),
+            sealed: self
+                .identity
+                .seal_for(self.account.into_bytes(), &to, key.as_bytes(), &plain),
         })
     }
 
@@ -568,6 +686,7 @@ impl KeyBook {
         };
         self.ring.insert(row.id, ContentKey::random());
         self.trusted.lock().unwrap().insert(row.id);
+        self.roots.lock().unwrap().blocks.insert(row.id, block);
         row
     }
 

@@ -301,7 +301,10 @@ impl Harness {
         let response = client
             .call(|peer| client::account::authenticate(peer, Some(token)))
             .await;
-        assert!(response.is_ok(), "{response:?}");
+        let Ok(Authenticated { account, .. }) = response else {
+            panic!("signing in failed: {response:?}");
+        };
+        client.account = Some(account);
         client.open(organization).await;
         client
     }
@@ -425,6 +428,69 @@ struct TestClient {
     client: Option<ClientId>,
     closing: Option<oneshot::Sender<()>>,
     pump: Option<tokio::task::JoinHandle<()>>,
+    /// The account this client signed in as, whose keys are `test_secret`'s.
+    account: Option<Uuid>,
+}
+
+/// Identity secrets tests gave accounts besides `test_secret`'s (an agent's, a new phrase's), by
+/// account (`remember_secret`).
+static SECRETS: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashMap<Uuid, be_block_keys::RecoverySecret>>,
+> = std::sync::LazyLock::new(Default::default);
+
+/// A new organization's id and the root of its log, made by `account` with its test keys.
+fn organization_root(account: Uuid) -> (Uuid, Vec<u8>) {
+    let id = Uuid::new_v4();
+    let root = be_block_keys::Entry::root(
+        &test_secret(account),
+        account.into_bytes(),
+        be_block_keys::LogKind::Organization,
+        id.into_bytes(),
+    );
+    (id, root.encode())
+}
+
+/// Makes a company organization straight through the store, as `account`, whose test keys it
+/// registers first when it holds none.
+async fn signed_organization(
+    store: &ServerStore,
+    account: Uuid,
+    name: &str,
+) -> Result<be_block_protocol::Organization, ServerError> {
+    let identity = test_secret(account).identity();
+    if store.recovery_key(account).await?.0.is_none() {
+        store
+            .set_recovery_key(
+                account,
+                identity.public.0,
+                identity.signing.0,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            )
+            .await?;
+    }
+    let (id, root) = organization_root(account);
+    store
+        .create_organization(account, id, name, root, Vec::new())
+        .await
+}
+
+/// Makes `secret` the one `account` signs with in tests from now on.
+fn remember_secret(account: Uuid, secret: be_block_keys::RecoverySecret) {
+    SECRETS.lock().unwrap().insert(account, secret);
+}
+
+/// The identity secret a test account holds: set as its recovery key when it registers, or
+/// made for it as an agent, so it signs the roots of the blocks it makes (`TestClient::root`).
+fn test_secret(account: Uuid) -> be_block_keys::RecoverySecret {
+    if let Some(secret) = SECRETS.lock().unwrap().get(&account) {
+        return secret.clone();
+    }
+    let mut bytes = [0; 32];
+    bytes[..16].copy_from_slice(account.as_bytes());
+    bytes[16..].copy_from_slice(account.as_bytes());
+    be_block_keys::RecoverySecret::from_bytes(bytes)
 }
 
 impl Drop for TestClient {
@@ -470,6 +536,7 @@ impl TestClient {
             sessions: std::collections::HashMap::new(),
             notifications: Vec::new(),
             token: String::new(),
+            account: None,
             client: None,
             closing: Some(closing),
             pump: Some(pump),
@@ -677,12 +744,43 @@ impl TestClient {
             panic!("registration failed: {response:?}");
         };
         self.token = token;
+        self.account = Some(account);
+        let identity = test_secret(account).identity();
+        let response = self
+            .call(|peer| {
+                client::keys::set_recovery_key(
+                    peer,
+                    identity.public.0,
+                    identity.signing.0,
+                    Vec::new(),
+                    Vec::new(),
+                    Vec::new(),
+                )
+            })
+            .await;
+        assert!(response.is_ok(), "setting the recovery key failed: {response:?}");
         account
     }
 
+    /// The root of `block`'s access log, as this client's account signs it on making the block.
+    fn root(&self, block: Uuid) -> Vec<u8> {
+        let account = self.account.expect("a client makes blocks once signed in");
+        be_block_keys::Entry::root(
+            &test_secret(account),
+            account.into_bytes(),
+            be_block_keys::LogKind::Block,
+            block.into_bytes(),
+        )
+            .encode()
+    }
+
     async fn organization(&mut self, name: &str) -> Uuid {
+        let account = self.account.expect("a client makes an organization once signed in");
         let response = self
-            .call(|peer| client::organizations::create_organization(peer, name.into()))
+            .call(|peer| {
+                let (id, root) = organization_root(account);
+                client::organizations::create_organization(peer, id, name.into(), root, Vec::new())
+            })
             .await;
         let Ok(organization) = response else {
             panic!("organization creation failed: {response:?}");
@@ -725,6 +823,7 @@ impl TestClient {
         key: Uuid,
         keys: KeySet,
     ) {
+        let root = self.root(block);
         let response = self
             .call(|peer| {
                 client::blocks::create_block(
@@ -737,6 +836,7 @@ impl TestClient {
                     key,
                     keys,
                     false,
+                    root,
                 )
             })
             .await;
@@ -1249,20 +1349,25 @@ impl TestClient {
         organization: Uuid,
         block: Uuid,
     ) -> Result<(Uuid, String), Error> {
+        let secret = be_block_keys::RecoveryPhrase::generate().secret();
+        let identity = secret.identity();
         self.call(|peer| {
             client::members::create_agent(
                 peer,
                 organization,
                 "Terminal host".into(),
-                [7; 32],
-                [8; 32],
+                identity.public.0,
+                identity.signing.0,
                 Vec::new(),
                 Vec::new(),
                 Some(block),
             )
         })
         .await
-        .map(|created| (created.agent.account, created.token))
+        .map(|created| {
+            remember_secret(created.agent.account, secret);
+            (created.agent.account, created.token)
+        })
     }
 
     /// Whether `token` still signs a new connection in.
@@ -1416,9 +1521,7 @@ async fn fixture_account(
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(directory)?;
     let (profile, _) = store.register(email, name).await?;
-    let company = store
-        .create_organization(profile.account, organization)
-        .await?;
+    let company = signed_organization(&store, profile.account, organization).await?;
     Ok((profile.account, company.id))
 }
 

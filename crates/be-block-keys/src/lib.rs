@@ -1,5 +1,8 @@
 use std::fmt;
 
+mod access;
+pub use access::{CarriedKey, Entry, EntryHash, LogKind, Record, Root};
+
 use chacha20poly1305::{
     ChaCha20Poly1305, Key, Nonce,
     aead::{Aead, KeyInit},
@@ -41,6 +44,7 @@ pub enum KeyError {
     Invite,
     Card,
     Sender,
+    Record,
 }
 
 impl fmt::Display for KeyError {
@@ -52,6 +56,7 @@ impl fmt::Display for KeyError {
             Self::Invite => formatter.write_str("that is not an invite code"),
             Self::Card => formatter.write_str("the contact card did not open with this link"),
             Self::Sender => formatter.write_str("the key was not sealed by the account it names"),
+            Self::Record => formatter.write_str("the access record is not signed by whom it names"),
         }
     }
 }
@@ -193,7 +198,7 @@ impl RecoverySecret {
         expand(&self.0.to_bytes(), OWN_INFO, OWN_INFO)
     }
 
-    fn signing_key(&self) -> ed25519_dalek::SigningKey {
+    pub(crate) fn signing_key(&self) -> ed25519_dalek::SigningKey {
         ed25519_dalek::SigningKey::from_bytes(&expand(
             &self.0.to_bytes(),
             IDENTITY_SIGNING_INFO,

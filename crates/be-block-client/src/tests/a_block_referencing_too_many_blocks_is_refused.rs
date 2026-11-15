@@ -51,6 +51,7 @@ async fn a_block_referencing_too_many_blocks_is_refused() {
             Uuid::new_v4(),
             KeySet::default(),
             false,
+            Vec::new(),
         ))
         .await,
     );

@@ -387,10 +387,18 @@ impl Harness {
         .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
+        let phrase = be_block_keys::RecoveryPhrase::generate();
+        let me = crate::accounts::Me {
+            account: session.account,
+            identity: phrase.secret().to_bytes(),
+            display_name: session.display_name.clone(),
+            email: String::new(),
+        };
         let (account, token, organization) = runtime.block_on(async {
             let organization = crate::accounts::create_organization(
                 managed,
                 session.token.clone(),
+                me,
                 "Counters".to_owned(),
             )
             .await
@@ -404,7 +412,7 @@ impl Harness {
             account,
             token,
             organization,
-            phrase: be_block_keys::RecoveryPhrase::generate(),
+            phrase,
             lease,
             push,
             relay: None,

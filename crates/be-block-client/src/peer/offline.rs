@@ -543,6 +543,7 @@ impl<S: ObjectStore> Peer<S> {
             creation.key,
             creation.keys.clone(),
             creation.owner_only,
+            creation.root.clone(),
         ))
         .await;
         match response {

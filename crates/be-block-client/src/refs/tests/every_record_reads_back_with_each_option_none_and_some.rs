@@ -32,7 +32,10 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             role: OrganizationRole::Editor,
             kind: OrganizationKind::Personal,
             escrows: vec![escrow()],
-            pinned: some.then_some(escrow()),
+            pinned: crate::contacts::Pinned {
+                root: some.then_some([4; 32]),
+                escrow: some.then_some(escrow()),
+            },
             server: some.then_some(be_block_protocol::ServerAccount {
                 account: Uuid::new_v4(),
                 public: [4; 32],
@@ -62,6 +65,7 @@ fn every_record_reads_back_with_each_option_none_and_some() {
                 wrapped: Vec::new(),
             },
             owner_only: some,
+            root: vec![8],
         };
         let moving = Moving {
             block,

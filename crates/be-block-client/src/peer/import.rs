@@ -163,6 +163,7 @@ impl<S: ObjectStore> Peer<S> {
             },
             BlockParent::Root | BlockParent::Detached => None,
         };
+        let root = self.new_root(block.id);
         let (key, keys, children) = match under {
             Some(under) => {
                 let (key, keys) = self.keys.mint_data(block.id, under)?;
@@ -187,6 +188,7 @@ impl<S: ObjectStore> Peer<S> {
             keys: keys.clone(),
             // Block files hold no owner-only block: exporting leaves them out.
             owner_only: false,
+            root,
         };
         let Some(content) = &block.content else {
             return Ok(Prepared {
@@ -244,6 +246,7 @@ impl<S: ObjectStore> Peer<S> {
                 key,
                 keys,
                 owner_only,
+                root,
             } = ready.creation.clone();
             let created = client::blocks::create_block(
                 &self.connection(),
@@ -255,6 +258,7 @@ impl<S: ObjectStore> Peer<S> {
                 key,
                 keys,
                 owner_only,
+                root,
             );
             let published = ready.publish.clone().map(|pending| {
                 client::blocks::publish(

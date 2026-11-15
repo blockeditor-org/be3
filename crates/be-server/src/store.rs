@@ -440,10 +440,12 @@ impl ServerStore {
     pub async fn create_organization(
         &self,
         account: Uuid,
+        id: Uuid,
         name: &str,
+        root: Vec<u8>,
+        pinned: Vec<u8>,
     ) -> Result<Organization, ServerError> {
         let name = crate::limits::name("an organization name", name)?.to_owned();
-        let id = Uuid::new_v4();
         self.with_database(move |_, database| {
             let created: i64 = database
                 .prepare_cached("SELECT COUNT(*) FROM organizations WHERE owner_id = ?1")?
@@ -454,14 +456,27 @@ impl ServerStore {
                     crate::limits::MAX_ORGANIZATIONS_PER_ACCOUNT,
                 ));
             }
-            database.execute(
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            let exists: bool = transaction
+                .prepare_cached("SELECT EXISTS (SELECT 1 FROM organizations WHERE id = ?1)")?
+                .query_row([id.to_string()], |row| row.get(0))?;
+            if exists {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "that organization id is taken".into(),
+                ));
+            }
+            transaction.execute(
                 "INSERT INTO organizations (id, name, owner_id) VALUES (?1, ?2, ?3)",
                 params![id.to_string(), name, account.to_string()],
             )?;
-            database.execute(
+            transaction.execute(
                 "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'administrator')",
                 params![id.to_string(), account.to_string()],
             )?;
+            crate::access::store_organization_root(&transaction, account, id, &root)?;
+            crate::keys::pin_escrow(&transaction, account, id, &pinned)?;
+            transaction.commit()?;
             Ok(Organization {
                 id,
                 name,
@@ -470,6 +485,12 @@ impl ServerStore {
             })
         })
         .await
+    }
+
+    /// The organization's access log, root first (`get-organization-log`).
+    pub async fn organization_log(&self, organization: Uuid) -> Result<Vec<Vec<u8>>, ServerError> {
+        self.with_database(move |_, database| crate::access::organization_log(&database, organization))
+            .await
     }
 
     pub async fn personal_organization(&self) -> Result<Uuid, ServerError> {
