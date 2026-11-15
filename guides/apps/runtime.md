@@ -91,7 +91,7 @@ view whose window its frame opened was taken in only after that frame
 `INPUT_WAITING_FRAMES` in a row.
 
 Only what draws the frame (texture, layout, placements that move existing
-children) is applied at once; the rest (children coming or going, window
+children while none comes or goes) is applied at once; the rest (children coming or going, window
 requests) waits for the next `be_host_runtime::poll`, where the browser takes
 every answer, so host state changes at the same point on both. It also waits
 until the app has sent the `PresentCommit` that follows that layout
@@ -101,7 +101,19 @@ the placer's old painting. The commit's dock messages wait with its children
 (`Laid::docks`): which tabs a root shows decides which of the tab bodies it
 places are drawn (`docks::resolve`), so the body of a tab switched away from
 and the body of the tab switched to change in the same frame. Answers held
-after it wait with it, in order.
+after it wait with it, in order. The frame drawn after that layout waits too
+(`Runtime::received`, from the sequence of the last painted present heard
+before it, so also when it arrives ahead of its `PresentCommit`): shown at
+once, its painting (a stacked dock's bar showing the document opened from the
+files) would sit a frame over the children it replaces. It is shown at the
+poll that applies them, in the same host frame. Since that painting waits, the
+children that only move in the same layout, and the views' sizes (a fit
+child's), wait with it rather than change a frame early. A stop or restart
+drops a frame held this way. Holding it never lets the app draw into the
+texture on screen: each surface has two textures; the app presents only to
+answer a `Draw` (`be_sdk::runtime`); the host sends no `Draw` while one is
+unanswered, and at most one a pass, after that pass's poll; so the next `Draw`
+goes out after the poll that shows the held frame.
 
 A view its app has not reported a frame of yet (a dock tab's body, mounted
 again each time its tab is shown) is filled with the backdrop its instance
