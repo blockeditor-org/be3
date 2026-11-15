@@ -157,8 +157,8 @@ type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 
 /// Wraps a press's callbacks so the first drag of each press asks `drag` for a carry and
 /// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
-/// press hears no more drags. While the carry floats, the children are drawn where the item
-/// floats, raised above their siblings (a scroll around them still clips them), unless the
+/// press hears no more drags. While the carry is held, the children are drawn where its frame
+/// puts the item, raised above their siblings (a scroll around them still clips them), unless the
 /// carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
 /// corner and in this node's window (a carry crossing windows waits for the frame to name
 /// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
@@ -247,7 +247,10 @@ fn carrying(
         (driver.carry() == Some(id)).then(|| driver.frame()).flatten()
     });
     let floating = create_memo(move || frame.get().is_some_and(|frame| frame.floating));
-    let raised = create_memo(move || floating.get() && !previewed.get());
+    // The item is drawn where the frame says while it is carried: floating under the
+    // pointer, or on the place chosen (where a site that already draws it there, a list
+    // shown in its new order, leaves no offset).
+    let raised = create_memo(move || frame.get().is_some() && !previewed.get());
     // Where the children are laid out, measured once the wrapper below is built.
     let measured = create_signal(None::<crate::reactive::ReadSignal<Option<crate::measure::Measured>>>);
     let placed = create_memo(move || {
