@@ -40,6 +40,6 @@ here. The durations (`ENTER_SECONDS`, `LEAVE_SECONDS`, `RETURN_SECONDS`, `HANDOF
 1. `Movement` and its theme values, matching today's curves so nothing changes on screen.
 2. Make each curve above a required prop on its unstyled component, passed from styled. Unstyled
    components used outside styled (the dock's unstyled layer, beui-demo) pass values.
-3. Amend decisions/beui_unstyled_layer_has_no_appearance_defaults.md's list with the curves made
-   required; a theme test that every `Movement` resolves; components.md's Timers and animation
+3. Add each curve to decisions/beui_unstyled_layer_has_no_appearance_defaults.md's list as it
+   becomes required; a theme test that every `Movement` resolves; components.md's Timers and animation
    names the tokens.
