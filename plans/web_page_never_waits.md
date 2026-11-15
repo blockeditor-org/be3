@@ -24,10 +24,11 @@ remain on the page (guides/running/web.md, "Files and offline"):
 Other locks the page shares are std's own and would trap rather than spin if the page ever
 found one held past std's short spin:
 
-- be-host-base `host.rs`'s `POSTED` and `POSTED_COUNT`, which the stack's worker takes to post a
-  letter to a page mailbox.
 - The `Peer`'s locks, which the page takes through `be_host_stack::offline_peer`
   (`app_graph::answer`, `out_of_reach`).
+- be-host-base `host.rs`'s `UNSENT_SAVES`, which `save_file` pushes to and the host's frame
+  takes from. Only be-host-runtime's instances call `save_file` today, answering an app's
+  `save-file` on the page, so no worker takes it yet; a worker that saves a file would.
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
 - wasi-libc's `malloc`, which locks the one heap the page and the worker share.
 
@@ -57,10 +58,12 @@ a thread that runs beside it.
    never holds the worker's `Peer` (`Seen::peer` goes, as `Seen::connection` can once `stop`
    closes it by a command); open the refs database only in the worker, and move the page's
    other file reads behind commands.
-2. Send letters between the page and the worker with `postMessage` rather than `POSTED`.
-3. Give the stack's worker its own memory, serialize `Seen` and commands (the protocol crates'
+2. Give the stack's worker its own memory, serialize `Seen` and commands (the protocol crates'
    own encodings), and stop binding the page's files channel. The handed-over `Seen` then
    becomes messages: a whole `Seen` first, then the parts that changed (each `Part` the worker
-   wrote since the last), and the page's `Edit`s and replies travel as they do now.
-4. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
+   wrote since the last), and the page's `Edit`s and replies travel as they do now. A
+   worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
+   `letters_web.rs`), but as the address of a value in the shared heap, which the page takes
+   and frees: with a memory of its own, the worker sends the letter's bytes instead.
+3. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.

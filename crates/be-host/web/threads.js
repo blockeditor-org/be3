@@ -14,7 +14,8 @@
 // thread gives back when it ends.
 //
 // Only the modules and their memory are shared. Apart from the wake, which the
-// thread reports back here as a message, every other import the thread's
+// thread reports back here as a message, and a letter, which it posts to the
+// page (below), every other import the thread's
 // instance is given is a stub that throws, because the JavaScript state that
 // wasm-bindgen keeps beside a module — its object table, its cached views —
 // belongs to the thread that made it. A thread is for computing, and reaching
@@ -91,6 +92,7 @@ function threadSpawn(startArgument) {
         blocks: linked && takeBlocks(context.memory, linked.plan),
         rootBlock: linked && spawnedThreadLocals(context.memory, startArgument),
         files: filesChannel(),
+        letters: lettersChannel(),
     });
     return id;
 }
@@ -113,9 +115,58 @@ function stackWorkerStart(entry) {
         stackWorker.onerror = (event) => {
             console.error("the block stack's worker failed", event.message ?? event);
         };
-        stackWorker.postMessage({ module: context.module, memory: context.memory, files: filesChannel() });
+        stackWorker.postMessage({
+            module: context.module,
+            memory: context.memory,
+            files: filesChannel(),
+            letters: lettersChannel(),
+        });
     }
     stackWorker.postMessage({ entry: entry >>> 0 });
 }
 
 export { stackWorkerStart as "be-worker-start" };
+
+// Letters (be-host-base's host::Post::send) a worker posts to a mailbox the
+// page made. The page shares no lock with a worker for them
+// (plans/web_page_never_waits.md): the worker posts the letter's address on a
+// channel only this page's workers know the name of, and the page hands it to
+// the module, which puts it in the page's own list and wakes the host. A
+// channel delivers what one worker posts in the order it posted it.
+/** @type {{name: string, channel: BroadcastChannel, page: boolean} | null} */
+let letters = null;
+
+/**
+ * Makes the page the one that takes letters, handing each to `arrived` (the
+ * module's be_letter_arrived). The page calls it before it starts a worker.
+ */
+export function receiveLetters(arrived) {
+    const name = `be-letters-${crypto.randomUUID()}`;
+    const channel = new BroadcastChannel(name);
+    channel.onmessage = (event) => arrived(event.data);
+    letters = { name, channel, page: true };
+}
+
+/** The name receiveLetters chose, to hand on to a worker. */
+function lettersChannel() {
+    return letters?.name ?? null;
+}
+
+/** In a worker: posts letters on the channel the page named. */
+export function bindLetters(name) {
+    letters = name ? { name, channel: new BroadcastChannel(name), page: false } : null;
+}
+
+function letterPost(letter) {
+    if (letters === null || letters.page) {
+        console.error(
+            letters === null
+                ? "a letter was posted with no page to take it"
+                : "the page posted a letter to another thread's mailbox, which only the page makes",
+        );
+        return;
+    }
+    letters.channel.postMessage(letter >>> 0);
+}
+
+export { letterPost as "be-letter-post" };
