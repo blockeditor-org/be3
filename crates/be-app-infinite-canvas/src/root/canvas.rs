@@ -108,11 +108,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                         </ForEach>
                         <Show condition={!previewing}>
                             <CanvasHint state={state} camera={camera} stage={shown} />
-                        </Show>
-                        <Show condition={!previewing}>
                             <CanvasOverlay state={state} camera={camera} />
-                        </Show>
-                        <Show condition={!previewing}>
                             <LiveOverlay state={state} camera={camera} stage={shown} />
                         </Show>
                     </Canvas>
@@ -225,16 +221,6 @@ fn CanvasHint(
     });
     let shown = create_memo(move || hint.with(Option::is_some));
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
-    let draw = move || {
-        Prop::dynamic(move || -> Draw {
-            let hint = hint.get();
-            Rc::new(move |painter: &Painter, rect: Rect| {
-                if let Some(hint) = hint.as_ref() {
-                    hint.draw(painter, rect);
-                }
-            })
-        })
-    };
     view! {
         <Show condition={shown}>
             <CanvasItem
@@ -243,7 +229,16 @@ fn CanvasHint(
                 width={create_memo(move || visible.get().width().max(1.0))}
                 height={create_memo(move || visible.get().height().max(1.0))}
             >
-                <Drawing draw={draw()} />
+                <Drawing
+                    draw={move || -> Draw {
+                        let hint = hint.get();
+                        Rc::new(move |painter: &Painter, rect: Rect| {
+                            if let Some(hint) = hint.as_ref() {
+                                hint.draw(painter, rect);
+                            }
+                        })
+                    }}
+                />
             </CanvasItem>
         </Show>
     }
@@ -407,18 +402,6 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
             chrome,
         })
     });
-    let draw = Prop::dynamic(move || -> Draw {
-        let backdrop = backdrop.get();
-        Rc::new(move |painter: &Painter, rect: Rect| {
-            if let Some(backdrop) = backdrop.as_ref() {
-                let frame = Rect::from_min_max(
-                    pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
-                    rect.max,
-                );
-                backdrop.draw(painter, frame);
-            }
-        })
-    });
     view! {
         <CanvasItem
             x={create_memo(move || bounds.get().left())}
@@ -427,7 +410,20 @@ fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> 
             height={create_memo(move || bounds.get().height().max(1.0))}
             @test_id={format!("infinite-canvas.backdrop.{id}")}
         >
-            <Drawing draw={draw} />
+            <Drawing
+                draw={move || -> Draw {
+                    let backdrop = backdrop.get();
+                    Rc::new(move |painter: &Painter, rect: Rect| {
+                        if let Some(backdrop) = backdrop.as_ref() {
+                            let frame = Rect::from_min_max(
+                                pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
+                                rect.max,
+                            );
+                            backdrop.draw(painter, frame);
+                        }
+                    })
+                }}
+            />
         </CanvasItem>
     }
 }
@@ -619,20 +615,18 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
             width={create_memo(move || shown.get().width().max(least.get()))}
             height={create_memo(move || shown.get().height().max(least.get()))}
         >
-            <Layers>
-                <Show condition={linked}>
-                    <ChildBlock
-                        editor={editor}
-                        block={target}
-                        mode={mode}
-                        punch={punch}
-                        rotation={rotation}
-                        opacity={opacity}
-                        intrinsic={intrinsic}
-                        on_state={move |child: ChildState| state.report_child(id, child)}
-                    />
-                </Show>
-            </Layers>
+            <Show condition={linked}>
+                <ChildBlock
+                    editor={editor}
+                    block={target}
+                    mode={mode}
+                    punch={punch}
+                    rotation={rotation}
+                    opacity={opacity}
+                    intrinsic={intrinsic}
+                    on_state={move |child: ChildState| state.report_child(id, child)}
+                />
+            </Show>
         </CanvasItem>
     }
 }

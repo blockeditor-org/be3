@@ -367,13 +367,12 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
             .unwrap_or_default()
             .to_owned()
     });
-    let badged = create_memo(move || !hotkey.get().is_empty());
     view! {
         <Frame
             width={Size::Custom(SLOT_SIZE)}
             height={Size::Custom(SLOT_SIZE)}
             fill={fill}
-            border={create_memo(move || Some(Border::new(outline.get()).width(Stroke::Focus)))}
+            border={move || Some(Border::new(outline.get()).width(Stroke::Focus))}
             radius=Radius::Sm
         >
             <Canvas width=SLOT_SIZE height=SLOT_SIZE>
@@ -396,7 +395,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         {label}
                     </Text>
                 </CanvasItem>
-                <Show condition={badged}>
+                <Show condition={move || hotkey.with(|hotkey| !hotkey.is_empty())}>
                     <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
                         <Frame fill=ColorRole::Background radius=Radius::Xs>
                             <Text
@@ -445,7 +444,6 @@ fn ResetDialog(session: Session) -> NodeId {
 pub(super) fn ToolSettings(session: Session) -> NodeId {
     let merger =
         create_memo(move || session.read(|model| model.tool.kind == ToolKind::MergerSplitter));
-    let single = create_memo(move || !merger.get());
     let labelled = create_memo(move || {
         session.read(|model| {
             matches!(model.tool.kind, ToolKind::Input | ToolKind::Output)
@@ -456,13 +454,15 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
     let typed = move |text: String| session.update(|model| model.io_label = text);
     view! {
         <List spacing=SPACING>
-            <Show condition={single}>
-                <List spacing=Space::Xs>
-                    <Text style=TextStyle::CAPTION>"Scale"</Text>
-                    <ScalePicker session={session} output=false />
-                </List>
-            </Show>
-            <Show condition={merger}>
+            <Show
+                condition={merger}
+                fallback={move || view! {
+                    <List spacing=Space::Xs>
+                        <Text style=TextStyle::CAPTION>"Scale"</Text>
+                        <ScalePicker session={session} output=false />
+                    </List>
+                }}
+            >
                 <List spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION>"Input scale"</Text>
                     <ScalePicker session={session} output=false />

@@ -106,10 +106,9 @@ pub fn CompiledLogicView(editor: Editor) -> NodeId {
 
 #[component]
 fn Calls(editor: Editor, calls: Memo<Vec<Uuid>>) -> NodeId {
-    let keys = create_memo(move || calls.get());
     view! {
         <List spacing=Space::Xs>
-            <ForEach keys={keys}>|called: Uuid| {
+            <ForEach keys={calls}>|called: Uuid| {
                 let block = Some(ChildTarget::new(called, CompiledLogicContent::CONTENT_TYPE));
                 view! {
                     <BlockLink

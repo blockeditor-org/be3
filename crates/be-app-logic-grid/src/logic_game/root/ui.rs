@@ -48,14 +48,9 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
         )));
     });
 
-    let has_hotbar = create_memo(move || hotbar.get().is_some());
     let open_hotbar = move || game.open_hotbar();
     let manages = game.can_manage();
     let world_hotbar = game.world_hotbar();
-    let world_label = create_memo(move || match world_hotbar.get() {
-        Some(_) => "This world's hotbar".to_owned(),
-        None => "Give this world a hotbar".to_owned(),
-    });
     let open_world_hotbar = move || game.open_world_hotbar();
     let keys = create_memo(move || {
         levels.with(|levels| {
@@ -74,7 +69,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text style=TextStyle::HEADING>"Levels"</Text>
-                    <Show condition={has_hotbar}>
+                    <Show condition={move || hotbar.with(Option::is_some)}>
                         <Button
                             icon_only=true
                             glyph=ICON_BLOCKS
@@ -87,7 +82,10 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                         <Button
                             icon_only=true
                             glyph=ICON_EARTH
-                            label={world_label}
+                            label={move || match world_hotbar.with(Option::is_some) {
+                                true => "This world's hotbar".to_owned(),
+                                false => "Give this world a hotbar".to_owned(),
+                            }}
                             @test_id={"logic-game.world-hotbar"}
                             on_click={open_world_hotbar}
                         />
@@ -140,8 +138,6 @@ fn LevelRow(
         format!("{count} attempts")
     });
     let quiz = challenge == ChallengeId::BinaryAddition;
-    let shows_quiz = create_memo(move || expanded.get() && quiz);
-    let shows_solutions = create_memo(move || expanded.get() && !quiz);
     let goal = generate_challenge(challenge).goal;
     view! {
         <List spacing=Space::Xs>
@@ -163,21 +159,18 @@ fn LevelRow(
                 </List>
             </ListRow>
             <Show condition={expanded}>|| {
-                let goal = goal.clone(); view! {
+                let goal = goal.clone();
+                let detail = match quiz {
+                    true => view! { <BinaryAddition editor={editor} block={block} /> },
+                    false => view! {
+                        <Solutions editor={editor} game={game} challenge={challenge} level={level} />
+                    },
+                };
+                view! {
                     <Frame padding={Padding::ZERO.left(Space::Xl2)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION>{goal}</Text>
-                            <Show condition={shows_quiz}>
-                                <BinaryAddition editor={editor} block={block} />
-                            </Show>
-                            <Show condition={shows_solutions}>
-                                <Solutions
-                                    editor={editor}
-                                    game={game}
-                                    challenge={challenge}
-                                    level={level}
-                                />
-                            </Show>
+                            {detail}
                         </List>
                     </Frame>
                 }

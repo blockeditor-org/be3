@@ -71,9 +71,7 @@ fn CanvasPanels(state: CanvasState) -> NodeId {
 #[component]
 fn Inspector(state: CanvasState) -> NodeId {
     let empty = create_memo(move || state.selection.get().is_empty());
-    let chosen = create_memo(move || !empty.get());
     let narrow = narrow_chrome();
-    let roomy = create_memo(move || !narrow.get());
     let styled = create_memo(move || {
         state
             .selected_entities()
@@ -83,22 +81,24 @@ fn Inspector(state: CanvasState) -> NodeId {
     view! {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
-            <Show condition={empty}>
+            <Show
+                condition={empty}
+                fallback={move || view! {
+                    <List spacing=SPACING>
+                        <Show condition={styled}>
+                            <AppearanceSection state={state} />
+                        </Show>
+                        <TransformSection state={state} />
+                        <ArrangeSection state={state} />
+                        <FrameSection state={state} />
+                        <BlockSection state={state} />
+                        <CanvasComponents state={state} />
+                    </List>
+                }}
+            >
                 <Text style=TextStyle::CAPTION>"Select an object to edit its appearance."</Text>
             </Show>
-            <Show condition={chosen}>
-                <List spacing=SPACING>
-                    <Show condition={styled}>
-                        <AppearanceSection state={state} />
-                    </Show>
-                    <TransformSection state={state} />
-                    <ArrangeSection state={state} />
-                    <FrameSection state={state} />
-                    <BlockSection state={state} />
-                    <CanvasComponents state={state} />
-                </List>
-            </Show>
-            <Show condition={roomy}>
+            <Show condition={move || !narrow.get()}>
                 <List spacing=SPACING>
                     <Separator />
                     <ShortcutsSection />
@@ -288,16 +288,17 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
 fn TransformSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
     let single = create_memo(move || state.selected_entities().len() == 1);
-    let many = create_memo(move || !single.get());
     view! {
         <Accordion title="Transform" open={open}>
             <List spacing=Space::Sm>
-                <Show condition={many}>
-                    <Text style=TextStyle::CAPTION>
-                        "Select one object to edit exact transform values."
-                    </Text>
-                </Show>
-                <Show condition={single}>
+                <Show
+                    condition={single}
+                    fallback={|| view! {
+                        <Text style=TextStyle::CAPTION>
+                            "Select one object to edit exact transform values."
+                        </Text>
+                    }}
+                >
                     <TransformFields state={state} />
                 </Show>
             </List>
@@ -445,10 +446,6 @@ fn BlockSection(state: CanvasState) -> NodeId {
             .get()
             .is_some_and(|entity| entity.shape == CanvasShape::Editor)
     });
-    let label = create_memo(move || match direct.get() {
-        true => "Show preview only".to_owned(),
-        false => "Use direct editor".to_owned(),
-    });
     let unavailable = create_memo(move || {
         !direct.get()
             && entity
@@ -462,7 +459,10 @@ fn BlockSection(state: CanvasState) -> NodeId {
                 <Accordion title="Block" open={open}>
                     <List spacing=Space::Sm>
                         <Button
-                            label={label}
+                            label={move || match direct.get() {
+                                true => "Show preview only".to_owned(),
+                                false => "Use direct editor".to_owned(),
+                            }}
                             variant=ButtonVariant::Secondary
                             disabled={unavailable}
                             @test_id={"infinite-canvas.block-mode"}

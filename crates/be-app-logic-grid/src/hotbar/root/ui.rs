@@ -162,8 +162,6 @@ fn SlotRow(
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_FOLDER />
                 </Text>
-            </Show>
-            <Show condition={is_folder}>
                 <Text>{folder}</Text>
             </Show>
             <Show condition={is_component}>

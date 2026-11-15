@@ -33,7 +33,7 @@ impl TouchChoice {
         .checked(create_memo(move || {
             preferences.get().canvas_touch == CanvasTouch::Off
         }))
-        .enabled(create_memo(move || write.with(Option::is_some)))
+        .enabled(move || write.with(Option::is_some))
         .register()
     }
 }
