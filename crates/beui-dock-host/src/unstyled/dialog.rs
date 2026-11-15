@@ -188,10 +188,9 @@ impl super::State {
             return self.dialog_frames.value().borrow().get(&parent).copied();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
-        let built = self.panels.with_untracked(|panels| panels.get(&parent).copied());
-        built.filter(|_| shown).map(|built| {
+        shown.then(|| {
             let panel = NodeRef::new();
-            panel.fill(built);
+            panel.fill(self.panel(parent));
             panel
         })
     }
@@ -265,8 +264,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         if !shown.get() {
             return;
         }
-        // Again once the parent's panel is built, which can be after the dialog.
-        dock.panels.with(|panels| panels.get(&parent).copied());
         if let Some(node) = untrack(|| dock.anchor_ref(parent)) {
             anchor.set(node);
         }

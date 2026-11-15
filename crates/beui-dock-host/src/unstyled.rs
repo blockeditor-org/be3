@@ -275,13 +275,9 @@ struct State {
     fullscreen_layer: NodeRef,
     fullscreen_window: NodeRef,
     bars: Stored<RefCell<HashMap<LeafId, TabBar>>>,
-    /// The panels built now, kept by the dock's `KeepAlive` (`Held::Panel`).
-    panels: Signal<HashMap<TabId, NodeId>>,
+    panels: Stored<RefCell<HashMap<TabId, (NodeId, Scope)>>>,
     handles: Signal<HashMap<TabId, (NodeRef, bool)>>,
     owner: Stored<Option<ScopeContext>>,
-    /// Whether the dock itself is shown, for its panels: one hidden behind another tab, or behind
-    /// the stage a dock in it joined, is still shown as far as what it holds outside is concerned.
-    shown: Memo<bool>,
     tab: RenderFn<DockTabHandle>,
     content: RenderFn<TabId>,
     empty: RenderFn<LeafId>,
@@ -643,31 +639,20 @@ impl State {
         })
     }
 
-    /// Builds `tab`'s panel, in the scope of the `Kept` that keeps it (`DockPanel`).
-    fn build_panel(&self, tab: TabId) -> NodeId {
-        let control = self.tab_control(tab);
-        provide_context(DockTabMenu {
-            tab,
-            menu: self.menus,
+    fn panel(&self, tab: TabId) -> NodeId {
+        if let Some((panel, _)) = self.panels.value().borrow().get(&tab) {
+            return *panel;
+        }
+        let scope = self.open_scope();
+        let menus = self.menus;
+        let panel = scope.context().run(|| {
+            let control = self.tab_control(tab);
+            provide_context(DockTabMenu { tab, menu: menus });
+            provide_context(control);
+            beui_components_unstyled::provide_frame_anchor(create_memo(move || control.anchor()));
+            self.content.call(tab)
         });
-        provide_context(control);
-        provide_kept_shown(self.shown);
-        beui_components_unstyled::provide_frame_anchor(create_memo(move || control.anchor()));
-        let panel = self.content.call(tab);
-        untrack(|| self.panels.update(|panels| {
-            panels.insert(tab, panel);
-        }));
-        let (panels, remembered) = (self.panels, self.remembered);
-        on_cleanup(move || {
-            if panels.is_alive() {
-                panels.update(|panels| {
-                    panels.remove(&tab);
-                });
-            }
-            if remembered.is_alive() {
-                remembered.value().borrow_mut().remove(&tab);
-            }
-        });
+        self.panels.value().borrow_mut().insert(tab, (panel, scope));
         panel
     }
 
@@ -675,6 +660,26 @@ impl State {
         self.owner
             .with(|owner| owner.as_ref().and_then(ScopeContext::child))
             .unwrap_or_else(Scope::detached)
+    }
+
+    fn keep_panels(&self, tabs: &[TabId]) {
+        let dropped: Vec<TabId> = self
+            .panels
+            .value()
+            .borrow()
+            .keys()
+            .filter(|tab| !tabs.contains(tab))
+            .copied()
+            .collect();
+        for tab in dropped {
+            self.forget_panel(tab);
+        }
+    }
+
+    fn forget_panel(&self, tab: TabId) {
+        self.remembered.value().borrow_mut().remove(&tab);
+        let panel = self.panels.value().borrow_mut().remove(&tab);
+        drop(panel);
     }
 
     fn pane_rect(&self, tree: Tree) -> Option<Rect> {
@@ -1849,10 +1854,9 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         stacked: store(RefCell::default()),
         fullscreen_layer: NodeRef::new(),
         fullscreen_window: NodeRef::new(),
-        panels: create_signal(HashMap::default()),
+        panels: store(RefCell::default()),
         handles: create_signal(HashMap::default()),
         owner: store(owner_scope()),
-        shown: kept_shown().unwrap_or_else(|| create_memo(|| true)),
         on_close,
         drag,
         title,
@@ -1997,17 +2001,20 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
     api.fill(DockApi(dock));
     let area = NodeRef::new();
     tab_actions(dock, tab_keys, area);
-    let held = create_memo(move || {
+    create_effect(move || {
         let mut tabs = state.with(DockState::all_tabs);
         tabs.extend(hosts.get());
-        let mut held: Vec<Held> = tabs.into_iter().map(Held::Panel).collect();
-        held.extend(state.with(DockState::bars).into_iter().map(Held::Bar));
-        held
+        dock.keep_panels(&tabs);
     });
-    // A tab whose dock joined this one shows as that dock's tabs, so its panel keeps running.
-    let awake = create_memo(move || hosts.get().into_iter().map(Held::Panel).collect::<Vec<_>>());
+    create_effect(move || {
+        let bars = state.with(DockState::bars);
+        dock.keep_bar_panels(&bars);
+    });
+    on_cleanup(move || {
+        dock.keep_panels(&[]);
+        dock.keep_bar_panels(&[]);
+    });
     let built = view! {
-        <KeepAlive keep={held} awake={awake}>
         <List @node_ref=&area spacing=0.0>
             <ListItem grow=1.0>
                 <DockBarred dock leaf={None} holder={BarHolder::Dock}>
@@ -2033,7 +2040,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             <DockDialogs dock={dock} />
             <DockSwitchView dock={dock} />
         </List>
-        </KeepAlive>
     };
     let outer_measured = measure(built);
     create_effect(move || {
@@ -2081,7 +2087,10 @@ fn share_work_area(dock: State) {
 fn DockFullscreenView(dock: State) -> NodeId {
     let state = dock.state;
     let fullscreen = create_memo(move || state.with(DockState::fullscreen));
-    let panel = create_memo(move || fullscreen.get().map(|shown| shown.tab));
+    let panel = create_signal(None);
+    create_effect(move || {
+        panel.set(fullscreen.get().map(|shown| dock.panel(shown.tab)));
+    });
     let open = create_memo(move || fullscreen.with(Option::is_some));
     let area = create_memo(move || fullscreen.get().and_then(|shown| shown.area));
     let placement = create_memo(move || match area.get() {
@@ -2094,7 +2103,7 @@ fn DockFullscreenView(dock: State) -> NodeId {
     let height = create_memo(move || area.get().map(|area| area.height()));
     let front = create_memo(move || dock.fullscreen_in_front());
     let body = dock.fullscreen.call(view! {
-        <DockPanel dock tab={panel} />
+        <Portal node={panel} />
     });
     let face = view! {
         <Interactive
@@ -2191,7 +2200,6 @@ fn DockStack(dock: State) -> NodeId {
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let panel = create_signal(None);
-    let given = StoredCell::new(None);
     let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown
@@ -2199,8 +2207,10 @@ fn DockStack(dock: State) -> NodeId {
             .filter(|tab| away.get() != Some(*tab) && staged.with(Option::is_none));
         let left = previous.replace(tab).filter(|left| Some(*left) != tab);
         let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
-        given.set(tab.filter(|_| held));
-        panel.set(tab);
+        panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let vacant = create_memo(move || shown.with(Option::is_none));
     let occupied = create_memo(move || shown.with(Option::is_some));
@@ -2221,7 +2231,6 @@ fn DockStack(dock: State) -> NodeId {
     let here = create_memo(move || {
         occupied.get() && gone.with(Option::is_none) && staged.with(Option::is_none)
     });
-    give_keyboard_once_shown(dock, panel, given);
     view! {
         <BackSlide
             curves={dock.curves.slide}
@@ -2251,7 +2260,7 @@ fn DockStack(dock: State) -> NodeId {
                             leaf={None}
                             holder={BarHolder::Tab { tab: shown, stacked: true }}
                         >
-                            <DockPanel dock tab={panel} />
+                            <Portal node={panel} />
                         </DockBarred>
                     </ListItem>
                 </Show>
@@ -2300,11 +2309,12 @@ fn BackPreview(dock: State, switching: Signal<bool>) -> NodeId {
     let bar = dock
         .stack
         .map(|stack| stack.call(stack_handle(dock, shown, backward, tabs, switching)));
+    let panel = dock.panel(behind);
     view! {
         <List spacing=0.0>
             {bar}
             <ListItem grow=1.0>
-                <Kept key={Held::Panel(behind)}>|| { dock.build_panel(behind) }</Kept>
+                <Portal node={Some(panel)} />
             </ListItem>
         </List>
     }
@@ -3009,37 +3019,6 @@ fn EmptyPane(dock: State, leaf: LeafId) -> NodeId {
     dock.empty.call(leaf)
 }
 
-/// What the dock's `KeepAlive` keeps while hidden: a tab's panel or a bar's.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-enum Held {
-    Panel(TabId),
-    Bar(TabId),
-}
-
-/// `tab`'s panel, kept built and paused while no `DockPanel` shows it.
-#[component]
-fn DockPanel(dock: State, tab: Prop<Option<TabId>>) -> NodeId {
-    view! {
-        <Dynamic value={tab} fallback=()>|tab: TabId| {
-            view! {
-                <Kept key={Held::Panel(tab)}>|| { dock.build_panel(tab) }</Kept>
-            }
-        }</Dynamic>
-    }
-}
-
-/// Gives the keyboard to the panel `given` names once `shown`'s `DockPanel` shows it: an effect
-/// made after that view, so it runs after the view's control flow has put the panel in.
-fn give_keyboard_once_shown(dock: State, shown: Signal<Option<TabId>>, given: StoredCell<Option<TabId>>) {
-    create_effect(move || {
-        shown.with(|_| ());
-        if let Some(tab) = given.try_get().flatten() {
-            given.set(None);
-            untrack(|| dock.give_keyboard(tab));
-        }
-    });
-}
-
 #[component]
 fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) -> NodeId {
     let state = dock.state;
@@ -3047,24 +3026,25 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
         state.with(|state| state.fullscreen().map(|fullscreen| fullscreen.tab))
     });
     let panel = create_signal(None);
-    let given = StoredCell::new(None);
     let previous = Cell::new(None);
     create_effect(move || {
         let tab = shown.get().filter(|tab| away.get() != Some(*tab));
         let left = previous.replace(tab).filter(|left| Some(*left) != tab);
         let held = untrack(|| left.is_some_and(|left| dock.remember_focus(left)));
-        given.set(tab.filter(|_| held));
-        panel.set(tab);
+        panel.set(tab.map(|tab| dock.panel(tab)));
+        if let Some(tab) = tab.filter(|_| held) {
+            untrack(|| dock.give_keyboard(tab));
+        }
     });
     let gone = dock.away_from(shown);
     let left = create_memo(move || gone.with(Option::is_some));
     let occupied = create_memo(move || shown.with(Option::is_some) && gone.with(Option::is_none));
-    let view = view! {
+    view! {
         <List spacing=0.0>
             <Show value={occupied}>
                 <ListItem grow=1.0>
                     <DockBarred dock leaf holder={BarHolder::Tab { tab: shown, stacked: false }}>
-                        <DockPanel dock tab={panel} />
+                        <Portal node={panel} />
                     </DockBarred>
                 </ListItem>
             </Show>
@@ -3074,9 +3054,7 @@ fn DockShownBody(dock: State, leaf: Option<LeafId>, shown: Memo<Option<TabId>>) 
                 </ListItem>
             </Show>
         </List>
-    };
-    give_keyboard_once_shown(dock, panel, given);
-    view
+    }
 }
 
 #[component]
