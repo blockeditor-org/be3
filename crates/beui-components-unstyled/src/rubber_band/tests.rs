@@ -1,6 +1,7 @@
 use super::*;
 
-/// The curves the styled layer's `Movement::Rubber` and `Movement::Pull` give.
+/// The curves of `styled::Movement::Rubber` and `Movement::Pull` (copied: this
+/// crate is below styled).
 const RUBBER: Spring = Spring {
     stiffness: 180.0,
     damping: 26.832_815,

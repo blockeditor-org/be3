@@ -68,7 +68,7 @@ pub use back_slide::BackSlide;
 pub use banner::Banner;
 pub use beui_components_unstyled::NumberDrag;
 pub use beui_components_unstyled::{
-    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalMotion, ModalPlacement,
+    ActionRole, DialogAction, DialogAnchor, DialogKind, DialogSize, ModalPlacement,
     provide_frame_anchor, use_frame_anchor,
 };
 pub use beui_components_unstyled::{
@@ -104,7 +104,7 @@ pub use command_palette::CommandPalette;
 pub use context_menu::{ContextMenu, MenuPopup, MenuRows};
 pub use date_time_field::DateTimeField;
 pub use dialog::{
-    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, SHEET_BELOW, Scrim,
+    DIALOG_WIDTH, Dialog, DialogBody, DialogCard, DialogFrame, Modal, ModalMotion, SHEET_BELOW, Scrim,
 };
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius};

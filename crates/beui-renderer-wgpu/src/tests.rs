@@ -2,8 +2,8 @@ use super::*;
 #[allow(unused_imports)]
 use beui_view::native_api::{build, draw_gpu};
 
-/// A scroll with no bar or fade, springing back on the curve the styled layer's
-/// `Movement::Rubber` gives.
+/// A scroll with no bar or fade, springing back on the curve of
+/// `styled::Movement::Rubber` (copied: this crate does not link styled).
 #[allow(dead_code)]
 fn plain_scroll() -> beui_components_unstyled::ScrollStyle {
     beui_components_unstyled::ScrollStyle::new(beui_view::reactive::Spring {

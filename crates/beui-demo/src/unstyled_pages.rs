@@ -28,7 +28,7 @@ const SCROLL_HEIGHT: f32 = 200.0;
 const SCROLL_LINES: usize = 40;
 const BAR_WIDTH: f32 = 6.0;
 /// The unstyled layer has no curves of its own, so this page gives its motions
-/// theirs.
+/// theirs: the values of `styled::Movement`.
 const RUBBER: beui::reactive::Spring = beui::reactive::Spring {
     stiffness: 180.0,
     damping: 26.832_815,

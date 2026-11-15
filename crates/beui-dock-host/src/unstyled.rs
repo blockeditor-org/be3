@@ -4267,6 +4267,7 @@ pub struct DockCurves {
     pub ease: Easing,
     pub settle: Spring,
     pub pull: Spring,
+    /// For the tab strip drawn when no `strip` is given.
     pub rubber: Spring,
     pub slide: SlideCurves,
 }

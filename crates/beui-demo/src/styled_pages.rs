@@ -4003,17 +4003,21 @@ fn eased(movement: Movement) -> Vec<f32> {
         .collect()
 }
 
+/// How far a plotted spring travels, in pixels: a spring comes to rest by
+/// pixel distances, so it runs over a real one and is drawn as a share of it.
+const SPRUNG_DISTANCE: f32 = 200.0;
+
 /// Where `movement`'s spring has a motion let go still, over 0.3 seconds.
 fn sprung(movement: Movement) -> Vec<f32> {
     let spring = movement.spring();
     let step = 0.3 / (PLOT_STEPS - 1) as f32;
-    let (mut displacement, mut velocity) = (1.0, 0.0);
+    let (mut displacement, mut velocity) = (SPRUNG_DISTANCE, 0.0);
     (0..PLOT_STEPS)
         .map(|index| {
             if index > 0 {
                 spring.advance(&mut displacement, &mut velocity, step);
             }
-            1.0 - displacement
+            1.0 - displacement / SPRUNG_DISTANCE
         })
         .collect()
 }

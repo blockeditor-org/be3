@@ -319,10 +319,12 @@ impl Default for CornerSet {
 
 /// What a motion is for: the look of something moving, which the unstyled
 /// layer takes as an `Easing` (a motion that runs for a set time) or a `Spring`
-/// (one that carries the speed it was let go at). Each movement has one look in
-/// both forms; a component asks for the form its motion runs on. How long a
-/// motion takes is behaviour and stays with the component. `Motion::Instant`
-/// still lands every movement at once.
+/// (one that carries the speed it was let go at, and rests by pixel distances).
+/// A component asks for the form its motion runs on. Today `Settle` is used in
+/// both forms, `Enter` and `Leave` only as easings and `Rubber` and `Pull` only
+/// as springs; their other forms are placeholders, to be set when a component
+/// first asks for them. How long a motion takes is behaviour and stays with the
+/// component. `Motion::Instant` still lands every movement at once.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Movement {
     /// Something landing where layout puts it: a dropped item, dock panes and
@@ -347,6 +349,7 @@ impl Movement {
         Movement::Pull,
     ];
 
+    /// The movement as an easing. `Rubber` and `Pull` are placeholders.
     pub const fn easing(self) -> Easing {
         match self {
             Movement::Settle | Movement::Enter | Movement::Rubber | Movement::Pull => {
@@ -356,6 +359,7 @@ impl Movement {
         }
     }
 
+    /// The movement as a spring. `Enter` and `Leave` are placeholders.
     pub const fn spring(self) -> Spring {
         match self {
             Movement::Settle | Movement::Enter | Movement::Leave => Spring {
