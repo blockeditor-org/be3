@@ -373,7 +373,6 @@ fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
         field: ChatHeader::MESSAGES.index(),
     };
     let field = Message::ARRIVAL.index();
-    let stamp = be_block_model::to_cbor(&arrival);
     edit.0
         .iter()
         .filter(|change| match change {
@@ -400,12 +399,16 @@ fn stamped(edit: &Edit, arrival: Option<i64>) -> Edit {
                 place: *place,
                 anchor: *anchor,
                 client: *client,
+                // The first object is the message the insert places; whatever parent it claims,
+                // the insert gives it this place, so it is stamped whatever it says. Those after
+                // it are its own objects, and a message holds none.
                 objects: objects
                     .iter()
-                    .map(|(id, object)| {
+                    .enumerate()
+                    .map(|(index, (id, object))| {
                         let mut object = object.clone();
-                        if object.parent() == Some(messages) {
-                            object.set_register(field, stamp.clone());
+                        if index == 0 {
+                            Message::ARRIVAL.set_in(&mut object, &arrival);
                         }
                         (*id, object)
                     })

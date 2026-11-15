@@ -1,3 +1,5 @@
+use be_block_model::{Change, Object};
+
 use crate::{ChatOp, OFFLINE_AFTER};
 
 use super::*;
@@ -77,6 +79,50 @@ fn a_message_keeps_the_arrival_the_owner_stamped_and_no_member_writes_one() {
         "a stamp was erased"
     );
     assert_eq!(message(&chat, online).body, "written online");
+
+    // Or sends a message that claims no parent, which the insert places all the same.
+    let orphaned = |chat: &ChatContent| {
+        let (id, send) = chat.send(
+            CHAT,
+            Message {
+                arrival: Some(1),
+                ..Message::new(BO, 4_000_000, "claims no parent")
+            },
+        );
+        let changes = send
+            .0
+            .into_iter()
+            .map(|change| match change {
+                Change::Insert {
+                    place,
+                    anchor,
+                    client,
+                    objects,
+                } => Change::Insert {
+                    place,
+                    anchor,
+                    client,
+                    objects: objects
+                        .into_iter()
+                        .map(|(id, object)| (id, Object::new(None, object.fields().to_vec())))
+                        .collect(),
+                },
+                change => change,
+            })
+            .collect::<Edit>();
+        (id, changes)
+    };
+    for stamp in [Some(9_000_000), None] {
+        let (id, send) = orphaned(&chat);
+        let mut operation = ChatOp::from(send);
+        *ChatContent::arrival(&mut operation).expect("an edit keeps its arrival") = stamp;
+        chat.apply(&operation);
+        assert_eq!(
+            message(&chat, id).arrival,
+            stamp,
+            "the claimed arrival stayed"
+        );
+    }
 
     // Two operations the server took at different times never fold into one.
     let (_, first) = chat.send(CHAT, Message::new(ADA, 5_000, "one"));
