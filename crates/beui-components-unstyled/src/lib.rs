@@ -149,7 +149,7 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use table::{Table, TableCell, TableColumnHeader, TableRow, TableRowHeader};
 pub use text_area::{
-    BlockGeometry, ChipGeometry, Completer, Completion, CompletionMenu, CompletionRowHandle,
+    BlockGeometry, ChipGeometry, Completer, Completion, CompletionMenu, CompletionRowHandle, Cursors,
     LeafSpan, Margin, MarkerColumn, MarkerKind, PlainLine, Prose, ProseLine, QuoteBar,
     RemoteTextCursor, RowTable, ScrollAnchor, SyntaxColors, TableFill, TableLines, TextArea,
     TextAreaApi, TextAreaColors, TextAreaGeometry, TextAreaLayout, TextAreaLook, TextAreaState,

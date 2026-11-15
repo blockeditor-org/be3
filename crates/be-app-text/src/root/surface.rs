@@ -21,7 +21,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
     });
     let cursors = state.text.cursors();
     let remote_cursors = create_memo(move || {
-        cursors.get();
+        cursors.track();
         let remote = state.remote_cursors.get();
         be_sdk_text::remote_carets(
             state.text,
@@ -59,11 +59,13 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         state.refresh_embeds();
     });
     let visible = state.editor.presence_visible();
-    create_effect(move || {
-        let visible = visible.get();
-        state.text.cursors().get();
-        untrack(|| state.publish_cursor(visible));
-    });
+    create_effect_on(
+        move || {
+            state.text.cursors().track();
+            visible.get()
+        },
+        move |&visible, _| state.publish_cursor(visible),
+    );
     let revealed = state.editor.revealed();
     create_effect(move || {
         let Some(client_id) = revealed.get() else {

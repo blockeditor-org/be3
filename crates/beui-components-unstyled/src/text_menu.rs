@@ -4,7 +4,7 @@ use beui_text_editor_core::{CopyMode, EditorCommand};
 
 use crate::ContextMenu;
 use crate::MenuItem;
-use crate::TextAreaState;
+use crate::{Cursors, TextAreaState};
 use crate::menu_popup::MenuStyle;
 use beui_view::primitives::*;
 use beui_view::reactive::NodeId;
@@ -48,12 +48,13 @@ pub fn TextContextMenu(
             </List>
         };
     };
-    let requested = create_signal(None::<(Rect, u64)>);
+    // A request is for the cursors it was made at, and lapses once they move.
+    let requested = create_signal(None::<(Rect, Cursors)>);
     let cursors = state.cursors();
     let toolbar_at = create_memo(move || {
         requested
             .get()
-            .filter(|(_, version)| *version == cursors.get())
+            .filter(|(_, made_at)| cursors.with(|now| now == made_at))
             .map(|(rect, _)| rect)
     });
     let actions = create_memo(move || {

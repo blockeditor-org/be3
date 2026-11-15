@@ -493,7 +493,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
     let height = create_memo(move || Size::Custom(content_size.get().y));
     let drawn = create_memo(move || {
         content.track();
-        state.text.cursors().get();
+        state.text.cursors().track();
         page(
             state,
             &theme.get().resolve(),
