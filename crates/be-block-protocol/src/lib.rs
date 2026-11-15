@@ -227,6 +227,16 @@ impl ReferenceChange {
     }
 }
 
+/// What a block's references hash to, in order (`moved-references.digest`): how a connection
+/// checks that a change announced in their place left it holding what the server holds.
+pub fn references_digest(references: &[Uuid]) -> be_block_store::Hash {
+    let parts: Vec<&[u8]> = references
+        .iter()
+        .map(|reference| reference.as_bytes().as_slice())
+        .collect();
+    be_block_store::Hash::of_parts(&parts)
+}
+
 /// The first items of the longest run of `pairs` whose second items increase, where each
 /// pair is (an index in a new list, its position in an old one) and the pairs come in new
 /// order.

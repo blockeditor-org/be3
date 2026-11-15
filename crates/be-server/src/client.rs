@@ -678,10 +678,12 @@ impl Client {
         let streams = &mut self.streams;
         let sessions = |block: Place| move |route: &Route| matches!(route, Route::Events { block: of, .. } if *of == block);
         match push {
-            Push::BlockChanged { block, from } => {
-                streams.send(&mut lock, BlockChange::Changed { block, from }, |route| {
-                    *route == Route::Changes
-                })?;
+            Push::BlockChanged { block, moved, from } => {
+                streams.send(
+                    &mut lock,
+                    BlockChange::Changed { block, moved, from },
+                    |route| *route == Route::Changes,
+                )?;
             }
             Push::BlockRemoved { block, revision } => {
                 streams.send(
@@ -1241,7 +1243,13 @@ impl Client {
                         .await?;
                     if let Some(block) = bound_to {
                         connection
-                            .reannounce_in(organization, vec![block], true, before)
+                            .reannounce_in(
+                                organization,
+                                vec![block],
+                                true,
+                                before,
+                                crate::blocks::Moves::new(),
+                            )
                             .await;
                     }
                     connection.contacts_changed(&[account]).await;
@@ -1318,6 +1326,7 @@ impl Client {
                                 vec![granted.block],
                                 true,
                                 granted.before,
+                                crate::blocks::Moves::new(),
                             )
                             .await;
                     }
@@ -1538,9 +1547,8 @@ impl Client {
                         .await?;
                     let mut announced = vec![block.id];
                     announced.extend(block.references.iter().copied());
-                    connection
-                        .reannounce(identity, announced, false, BTreeSet::new())
-                        .await;
+                    let moves = crate::blocks::Moves::from([(block.id, None)]);
+                    connection.redescribed(identity, announced, moves).await;
                     Ok(block)
                 }
                 .await;
@@ -1555,15 +1563,17 @@ impl Client {
                 let set = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let (block, relinked) = connection
+                    let (block, relinked, moved) = connection
                         .store
                         .set_metadata(identity, block, metadata, references)
                         .await?;
                     let mut announced = vec![block.id];
                     announced.extend(relinked);
-                    connection
-                        .reannounce(identity, announced, false, BTreeSet::new())
-                        .await;
+                    let moves = moved
+                        .map(|moved| (block.id, Some(moved)))
+                        .into_iter()
+                        .collect();
+                    connection.redescribed(identity, announced, moves).await;
                     Ok(block)
                 }
                 .await;
@@ -1595,12 +1605,16 @@ impl Client {
                         .await?;
                     match &outcome {
                         // Its metadata or references changed: who may be told is the audience.
-                        PublishOutcome::Published(_, Some(unlinked)) => {
+                        PublishOutcome::Published(_, Some(redescribed)) => {
                             let mut blocks = vec![block];
-                            blocks.extend(unlinked);
-                            connection
-                                .reannounce(identity, blocks, false, BTreeSet::new())
-                                .await;
+                            blocks.extend(redescribed.relinked.iter().copied());
+                            let moves = redescribed
+                                .moved
+                                .clone()
+                                .map(|moved| (block, Some(moved)))
+                                .into_iter()
+                                .collect();
+                            connection.redescribed(identity, blocks, moves).await;
                         }
                         // Only its head moved: only who was told of it already hears.
                         PublishOutcome::Published(_, None) => {
@@ -2598,6 +2612,7 @@ impl Connection {
                 vec![granted.block],
                 true,
                 granted.before.clone(),
+                crate::blocks::Moves::new(),
             )
             .await;
             self.key_work_changed(granted.organization, granted.before.clone())
@@ -2695,7 +2710,26 @@ impl Connection {
         subtree: bool,
         before: BTreeSet<Uuid>,
     ) {
-        self.reannounce_in(identity.organization, blocks, subtree, before)
+        self.reannounce_in(
+            identity.organization,
+            blocks,
+            subtree,
+            before,
+            crate::blocks::Moves::new(),
+        )
+        .await;
+    }
+
+    /// Tells the audience of `blocks` of a change to the first of them that may have moved its
+    /// references or metadata, and to the rest it linked or unlinked; `moves` names what it did
+    /// to references.
+    async fn redescribed(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        moves: crate::blocks::Moves,
+    ) {
+        self.reannounce_in(identity.organization, blocks, false, BTreeSet::new(), moves)
             .await;
     }
 
@@ -2709,7 +2743,14 @@ impl Connection {
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(organization, identities, vec![block], false, self.client)
+            .graph_views(
+                organization,
+                identities,
+                vec![block],
+                false,
+                crate::blocks::Moves::new(),
+                self.client,
+            )
             .await
         else {
             return;
@@ -2727,6 +2768,7 @@ impl Connection {
         blocks: Vec<Uuid>,
         subtree: bool,
         before: BTreeSet<Uuid>,
+        moves: crate::blocks::Moves,
     ) {
         let Ok(mut accounts) = self.store.audience(organization, blocks.clone()).await else {
             return;
@@ -2736,7 +2778,14 @@ impl Connection {
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(organization, identities, blocks, subtree, self.client)
+            .graph_views(
+                organization,
+                identities,
+                blocks,
+                subtree,
+                moves,
+                self.client,
+            )
             .await
         else {
             return;

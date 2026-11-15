@@ -59,8 +59,17 @@ use crate::{
 };
 
 pub enum PublishOutcome {
-    Published(CommitId, Option<Vec<Uuid>>),
+    Published(CommitId, Option<Redescribed>),
     Rejected(Option<CommitId>),
+}
+
+/// What a publish changed besides its block's head: its metadata, its references or both.
+#[derive(Debug)]
+pub struct Redescribed {
+    /// The blocks it started or stopped referencing.
+    pub relinked: Vec<Uuid>,
+    /// How its references moved, if they did.
+    pub moved: Option<ReferenceChange>,
 }
 
 pub(crate) struct Visibility {
@@ -453,6 +462,7 @@ fn facts_of(
             None,
             true,
             entry,
+            false,
             HashSet::new(),
             false,
         ));
@@ -461,10 +471,16 @@ fn facts_of(
         Some(node.parent),
         graph.holds(block),
         entry,
+        true,
         node.references.iter().copied().collect(),
         node.is_open_inside() && graph.settings_owner(block).is_some(),
     ))
 }
+
+/// What a change did to the references of the blocks it announces: one named here moved them
+/// as its change says, or was made (`None`: every reference is new to whoever hears of it), and
+/// any other kept them.
+pub(crate) type Moves = HashMap<Uuid, Option<ReferenceChange>>;
 
 impl ServerStore {
     #[allow(clippy::too_many_arguments)]
@@ -562,7 +578,7 @@ impl ServerStore {
         block: Uuid,
         metadata: Vec<u8>,
         references: Vec<Uuid>,
-    ) -> Result<(BlockSummary, Vec<Uuid>), ServerError> {
+    ) -> Result<(BlockSummary, Vec<Uuid>, Option<ReferenceChange>), ServerError> {
         let references = distinct(references);
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         crate::limits::references(&references)?;
@@ -584,26 +600,39 @@ impl ServerStore {
                 params![organization, block.to_string(), metadata],
             )?;
             crate::changes::touch(&transaction, identity.organization, &[block])?;
-            if relinked.is_some() {
-                let before = graph.references(block);
-                change_edges(&transaction, &organization, block, &before, &references)?;
-            }
+            let moved = match relinked {
+                Some(_) => {
+                    let before = graph.references(block);
+                    Some(change_edges(
+                        &transaction,
+                        &organization,
+                        block,
+                        &before,
+                        &references,
+                    )?)
+                }
+                None => None,
+            };
             transaction.commit()?;
             graph.set_references(block, &references)?;
             graph.set_metadata(block, metadata)?;
             graph.touch(block)?;
             let summary = summary(graph, identity, block).ok_or(ServerError::Corrupt)?;
-            Ok((summary, relinked.unwrap_or_default()))
+            Ok((summary, relinked.unwrap_or_default(), moved))
         })
         .await
     }
 
+    /// What each of `members` is told of `blocks` after a change: with `subtree`, of everything
+    /// below them and what that references too, since who may view them moved. `moves` names
+    /// what the change did to references (`Moves`).
     pub async fn graph_views(
         &self,
         organization: Uuid,
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
+        moves: Moves,
         from: be_block_protocol::ClientId,
     ) -> Result<Vec<Vec<(crate::watch::Push, bool)>>, ServerError> {
         self.with_graph(organization, move |_, graph, _| {
@@ -614,15 +643,41 @@ impl ServerStore {
                     false => touched.push(block),
                 }
             }
-            let referenced: Vec<Uuid> = touched
-                .iter()
-                .flat_map(|block| graph.references(*block))
-                .collect();
-            touched.extend(referenced);
+            // A block someone may view gives them `KnowExists` on what it references, which a
+            // move or a grant changes; any other change names the blocks it linked or unlinked.
+            if subtree {
+                let referenced: Vec<Uuid> = touched
+                    .iter()
+                    .flat_map(|block| graph.references(*block))
+                    .collect();
+                touched.extend(referenced);
+            }
             touched.retain(|block| graph.contains(*block));
             touched.sort_unstable();
             touched.dedup();
             let revision = graph.revision();
+            // Read once for every member: each one's summary of a block it views lists the same
+            // references.
+            let moved: HashMap<Uuid, Option<be_block_protocol::MovedReferences>> = touched
+                .iter()
+                .map(|block| {
+                    let moved = match moves.get(block) {
+                        Some(None) => None,
+                        Some(Some(change)) => Some(change.clone()),
+                        None => Some(ReferenceChange::default()),
+                    };
+                    let moved = moved.map(|change| be_block_protocol::MovedReferences {
+                        change,
+                        digest: be_block_protocol::references_digest(
+                            graph
+                                .get(*block)
+                                .map(|node| node.references.as_slice())
+                                .unwrap_or_default(),
+                        ),
+                    });
+                    (*block, moved)
+                })
+                .collect();
             Ok(members
                 .into_iter()
                 .map(|identity| {
@@ -636,8 +691,16 @@ impl ServerStore {
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
                                 let entry = found.access.can_view() && shared.contains(block);
+                                let moved = match found.access.can_view() {
+                                    true => moved.get(block).cloned().flatten(),
+                                    false => None,
+                                };
                                 (
-                                    crate::watch::Push::BlockChanged { block: found, from },
+                                    crate::watch::Push::BlockChanged {
+                                        block: found,
+                                        moved,
+                                        from,
+                                    },
                                     entry,
                                 )
                             }
@@ -908,11 +971,10 @@ impl ServerStore {
                 require_keeping_settings(graph, &visibility(identity), block, &references)?;
                 require_one_index(graph, block, &references)?;
                 let relinked = relinked(graph, block, &references);
-                let redescribed = (relinked.is_some()
+                let redescribed = relinked.is_some()
                     || graph
                         .get(block)
-                        .is_some_and(|node| node.metadata != metadata))
-                .then(|| relinked.clone().unwrap_or_default());
+                        .is_some_and(|node| node.metadata != metadata);
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let existing: Option<i64> = transaction
                     .query_row(
@@ -987,10 +1049,19 @@ impl ServerStore {
                     ],
                 )?;
                 crate::changes::touch(&transaction, identity.organization, &[block])?;
-                if relinked.is_some() {
-                    let before = graph.references(block);
-                    change_edges(&transaction, &organization, block, &before, &references)?;
-                }
+                let moved = match relinked {
+                    Some(_) => {
+                        let before = graph.references(block);
+                        Some(change_edges(
+                            &transaction,
+                            &organization,
+                            block,
+                            &before,
+                            &references,
+                        )?)
+                    }
+                    None => None,
+                };
                 let content_type = graph.get(block).ok_or(ServerError::Corrupt)?.content_type;
                 let policy = crate::retention::policy(
                     content_type,
@@ -1010,7 +1081,13 @@ impl ServerStore {
                 graph.set_metadata(block, metadata)?;
                 graph.touch(block)?;
                 store.objects().remove_freed(&freed);
-                Ok(PublishOutcome::Published(commit, redescribed))
+                Ok(PublishOutcome::Published(
+                    commit,
+                    redescribed.then(|| Redescribed {
+                        relinked: relinked.unwrap_or_default(),
+                        moved,
+                    }),
+                ))
             })
         })
         .await
@@ -2456,14 +2533,15 @@ fn insert_edges(
 }
 
 /// Turns a block's edges from `before` into `after`, writing only the edges that left, joined
-/// or moved; an edge put in between two others takes a position between theirs.
+/// or moved; an edge put in between two others takes a position between theirs. Answers the
+/// change, which is what its announcement tells (`moved-references`).
 fn change_edges(
     transaction: &rusqlite::Transaction<'_>,
     organization: &str,
     block: Uuid,
     before: &[Uuid],
     after: &[Uuid],
-) -> Result<(), ServerError> {
+) -> Result<ReferenceChange, ServerError> {
     let change = ReferenceChange::between(before, after);
     {
         let mut removing = transaction.prepare_cached(
@@ -2479,7 +2557,7 @@ fn change_edges(
         }
     }
     if change.added.is_empty() {
-        return Ok(());
+        return Ok(change);
     }
     let mut positions: HashMap<Uuid, i64> = HashMap::new();
     {
@@ -2519,7 +2597,10 @@ fn change_edges(
                 let step = (high - low) / (count + 1);
                 (low + step, step)
             }
-            (Some(_), Some(_)) => return store_edges(transaction, organization, block, after),
+            (Some(_), Some(_)) => {
+                store_edges(transaction, organization, block, after)?;
+                return Ok(change);
+            }
         };
         for (offset, reference) in after[index..end].iter().enumerate() {
             let offset = i64::try_from(offset).map_err(|_| ServerError::Corrupt)?;
@@ -2528,7 +2609,8 @@ fn change_edges(
         low = placed.last().map(|(_, position)| *position);
         index = end;
     }
-    insert_edges(transaction, organization, block, placed)
+    insert_edges(transaction, organization, block, placed)?;
+    Ok(change)
 }
 
 /// The objects a commit of `block` holds, in the order it listed them: the commit first.
