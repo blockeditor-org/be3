@@ -1,5 +1,6 @@
 use crate as unstyled;
 use crate::ChoiceOption;
+use crate::choice::{keyed, option_key};
 use crate::anchored::{Anchored, AnchoredHandle, AnchoredStyle};
 use crate::button::ButtonHandle;
 use crate::form::Posted;
@@ -15,7 +16,6 @@ use beui_view::types::{Key, KeyPress, Placement};
 use accesskit::{Node, Role};
 
 pub struct SelectTriggerHandle {
-    pub selected: Binding<Option<usize>>,
     pub label: Memo<Option<String>>,
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
@@ -23,8 +23,8 @@ pub struct SelectTriggerHandle {
     pub disabled: Memo<bool>,
 }
 
-pub struct SelectOptionHandle {
-    pub index: usize,
+pub struct SelectOptionHandle<T> {
+    pub value: T,
     pub label: Prop<String>,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -36,18 +36,26 @@ enum Focus {
     Search,
 }
 
-#[derive(Clone, Copy)]
-struct State {
+struct State<T: 'static> {
     trigger: NodeRef,
-    options: Stored<Run<ChoiceOption>>,
-    lists: [ComponentRef<SearchListApi<usize>>; 2],
+    options: Stored<Run<ChoiceOption<T>>>,
+    lists: [ComponentRef<SearchListApi<u64>>; 2],
     sheet: Signal<bool>,
     open: Signal<bool>,
     focus: Signal<Focus>,
     query: Signal<String>,
-    selected: Binding<Option<usize>>,
-    highlighted: Signal<Option<usize>>,
+    selected: Binding<Option<T>>,
+    chosen: Memo<Option<u64>>,
+    highlighted: Signal<Option<u64>>,
 }
+
+impl<T> Clone for State<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for State<T> {}
 
 /// A trigger that opens a popup with a search box over the options.
 ///
@@ -58,11 +66,14 @@ struct State {
 /// Up/Down move eight options, and Home/End reach the first and last shown
 /// option; Enter picks the highlighted one and closes. Escape or a press outside
 /// closes without changing the selection and returns the focus to the trigger.
+///
+/// `selected` holds the chosen option's value; a value no option holds shows
+/// nothing chosen.
 #[component]
-pub fn Select(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi>,
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
+pub fn Select<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi<T>>,
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] name: Prop<String>,
@@ -73,14 +84,26 @@ pub fn Select(
     list_height: Prop<f32>,
     spacing: f32,
     trigger: Render<SelectTriggerHandle>,
-    option: RenderFn<SelectOptionHandle>,
+    option: RenderFn<SelectOptionHandle<T>>,
     surface: AnchoredStyle,
     accessibility: Option<Prop<Node>>,
-) -> NodeId {
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     let options = options.into_run();
-    let initial = selected
-        .get_untracked()
-        .filter(|index| *index < options.get_untracked().len());
+    let among = options.clone();
+    let chosen = create_memo(move || {
+        selected.with(|selected| {
+            let selected = selected.as_ref()?;
+            among
+                .items()
+                .iter()
+                .find(|option| option.value() == selected)
+                .map(|option| option_key(option))
+        })
+    });
+    let initial = chosen.get_untracked();
 
     let search_placeholder = create_memo(move || search_placeholder.get());
     let is_open = create_signal(false);
@@ -97,22 +120,16 @@ pub fn Select(
         focus,
         query: create_signal(String::new()),
         selected,
+        chosen,
         highlighted: create_signal(initial),
     };
     api.fill(SelectApi(state));
 
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
     let labelled = options.clone();
-    let label = create_memo(move || {
-        let index = selected.get()?;
-        labelled
-            .items()
-            .get(index)
-            .map(|option| option.label().get())
-    });
+    let label = create_memo(move || Some(keyed(&labelled, chosen.get()?)?.label().get()));
     let trigger_content = move |handle: ButtonHandle| {
         trigger.call(SelectTriggerHandle {
-            selected,
             label,
             hovered: handle.hovered,
             active: handle.active,
@@ -126,37 +143,34 @@ pub fn Select(
         crate::search_list::rank(&options, &query, |option, query| {
             crate::search_list::substring_score(&option.label().get(), query)
         })
+        .into_iter()
+        .map(|index| option_key(&options[index]))
+        .collect()
     };
-    let row_accessibility = move |index: usize| {
+    let row_accessibility = move |key: u64| {
         let mut node = Node::new(Role::ListBoxOption);
-        if let Some(option) = state.options.value().items().get(index) {
+        if let Some(option) = keyed(&state.options.value(), key) {
             node.set_label(option.label().get());
         }
-        node.set_selected(state.selected.get() == Some(index));
+        node.set_selected(state.chosen.get() == Some(key));
         node
     };
-    let row = move |handle: SearchRowHandle<usize>| {
-        let index = handle.key;
-        let label = state
-            .options
-            .value()
-            .get_untracked()
-            .get(index)
-            .map(|option| option.label())
-            .unwrap_or_else(|| create_memo(String::new));
+    let row = move |handle: SearchRowHandle<u64>| {
+        let Some(shown) = untrack(|| keyed(&state.options.value(), handle.key)) else {
+            return view! {
+                <Frame />
+            };
+        };
         option.call(SelectOptionHandle {
-            index,
-            label: label.into_prop(),
+            value: shown.value().clone(),
+            label: shown.label().into_prop(),
             highlighted: handle.highlighted,
             hovered: handle.hovered,
         })
     };
 
     let valued = options.clone();
-    let posted = create_memo(move || {
-        let index = selected.get()?;
-        valued.items().get(index).map(|option| option.value().get())
-    });
+    let posted = create_memo(move || Some(keyed(&valued, chosen.get()?)?.posted().get()));
     let select = view! {
         <List spacing=0.0>
             <unstyled::Button
@@ -195,7 +209,7 @@ pub fn Select(
                         highlighted={state.highlighted}
                         rank
                         highlight_first=false
-                        on_choose={move |index: usize| confirm(state, index)}
+                        on_choose={move |key: u64| confirm(state, key)}
                         focused={create_memo(move || shown.get() && focused.is_selected(&Focus::Search))}
                         keyboard_on_focus=false
                         on_focus_change={move |has_focus: bool| blur(state, has_focus)}
@@ -217,13 +231,13 @@ pub fn Select(
     }
 }
 
-fn blur(state: State, has_focus: bool) {
+fn blur<T>(state: State<T>, has_focus: bool) {
     if !has_focus && state.focus.get_untracked() == Focus::Search {
         state.focus.set(Focus::Away);
     }
 }
 
-fn trigger_key(state: State, press: KeyPress) -> bool {
+fn trigger_key<T: Clone + PartialEq + 'static>(state: State<T>, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -238,57 +252,74 @@ fn trigger_key(state: State, press: KeyPress) -> bool {
     }
     if press.pressed {
         open(state);
-        let count = state.options.value().get_untracked().len();
-        let current = state.highlighted.get_untracked();
+        let options = state.options.value().get_untracked();
+        let count = options.len();
+        let current = state.highlighted.get_untracked().and_then(|key| {
+            options
+                .iter()
+                .position(|option| option_key(option) == key)
+        });
         let next = match press.key {
             Key::ArrowDown => current.map_or(0, |at| (at + 1).min(count.saturating_sub(1))),
             Key::ArrowUp => current.map_or(0, |at| at.saturating_sub(1)),
             Key::Home => 0,
             _ => count.saturating_sub(1),
         };
-        state.highlighted.set((count > 0).then_some(next));
+        state
+            .highlighted
+            .set(options.get(next).map(|option| option_key(option)));
     }
     true
 }
 
-fn toggle(state: State) {
+fn toggle<T: Clone + PartialEq + 'static>(state: State<T>) {
     match state.open.get_untracked() {
         true => dismiss(state),
         false => open(state),
     }
 }
 
-fn open(state: State) {
+fn open<T: Clone + PartialEq + 'static>(state: State<T>) {
     state.query.set(String::new());
-    state.highlighted.set(state.selected.get_untracked());
+    state.highlighted.set(state.chosen.get_untracked());
     state.open.set(true);
     state.focus.set(Focus::Search);
 }
 
-fn dismiss(state: State) {
+fn dismiss<T>(state: State<T>) {
     state.open.set(false);
     state.focus.set(Focus::Away);
 }
 
-fn confirm(state: State, index: usize) {
-    state.selected.update(|selected| *selected = Some(index));
+/// Chooses the option the row was built for, wherever it now sits among the options.
+fn confirm<T: Clone + PartialEq + 'static>(state: State<T>, key: u64) {
+    if let Some(option) = untrack(|| keyed(&state.options.value(), key)) {
+        let value = option.value().clone();
+        state.selected.update(|selected| *selected = Some(value));
+    }
     dismiss(state);
 }
 
-#[derive(Clone, Copy)]
-pub struct SelectApi(State);
+pub struct SelectApi<T: 'static>(State<T>);
 
-impl SelectApi {
-    fn list(&self) -> ComponentRef<SearchListApi<usize>> {
+impl<T> Clone for SelectApi<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for SelectApi<T> {}
+
+impl<T: Clone + PartialEq + 'static> SelectApi<T> {
+    fn list(&self) -> ComponentRef<SearchListApi<u64>> {
         self.0.lists[usize::from(self.0.sheet.get_untracked())]
     }
 
-    pub fn selected(&self) -> Option<usize> {
+    /// The chosen option's value, or `None` while no option holds the bound value.
+    pub fn selected(&self) -> Option<T> {
         let state = self.0;
-        state
-            .selected
-            .get_untracked()
-            .filter(|index| *index < state.options.value().get_untracked().len())
+        let key = state.chosen.get_untracked()?;
+        untrack(|| keyed(&state.options.value(), key)).map(|option| option.value().clone())
     }
 
     pub fn open(&self) -> bool {
@@ -303,11 +334,22 @@ impl SelectApi {
         self.list().get().search()
     }
 
-    pub fn option_button(&self, index: usize) -> Option<NodeId> {
-        self.list().try_get()?.row(&index)
+    /// The row the open popup shows for the option holding `value`.
+    pub fn option_button(&self, value: &T) -> Option<NodeId> {
+        let key = self
+            .0
+            .options
+            .value()
+            .get_untracked()
+            .iter()
+            .find(|option| option.value() == value)
+            .map(|option| option_key(option))?;
+        self.list().try_get()?.row(&key)
     }
 
-    pub fn highlighted(&self) -> Option<usize> {
-        self.0.highlighted.get_untracked()
+    /// The value of the option the popup highlights.
+    pub fn highlighted(&self) -> Option<T> {
+        let key = self.0.highlighted.get_untracked()?;
+        untrack(|| keyed(&self.0.options.value(), key)).map(|option| option.value().clone())
     }
 }

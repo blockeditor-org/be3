@@ -57,6 +57,20 @@ const NUMBER_SCALES: [(DatabaseNumberScale, &str); 2] = [
     (DatabaseNumberScale::Logarithmic, "Logarithmic"),
 ];
 
+fn field_type_label(kind: DatabaseFieldType) -> &'static str {
+    FIELD_TYPES
+        .iter()
+        .find(|(held, _, _)| *held == kind)
+        .map_or("", |(_, label, _)| *label)
+}
+
+fn number_scale_label(scale: DatabaseNumberScale) -> &'static str {
+    NUMBER_SCALES
+        .iter()
+        .find(|(held, _)| *held == scale)
+        .map_or("", |(_, label)| *label)
+}
+
 #[component]
 pub fn SchemaView(editor: Editor) -> NodeId {
     let schema = editor.block_content::<DatabaseSchemaContent>();
@@ -183,18 +197,14 @@ fn FieldRow(
     });
     let kind =
         create_memo(move || field.with(|field| field.as_ref().map(|field| field.field_type)));
-    let selected = create_memo(move || {
-        kind.get()
-            .and_then(|kind| FIELD_TYPES.iter().position(|(value, _, _)| *value == kind))
-    });
     let renamed = move |name: String| {
         schema.operate(DatabaseSchema::rename_field(id, name));
     };
-    let retyped = move |selected: Option<usize>| {
-        let Some(index) = selected else {
+    let retyped = move |selected: Option<DatabaseFieldType>| {
+        let Some(kind) = selected else {
             return;
         };
-        schema.operate(DatabaseSchema::set_field_type(id, FIELD_TYPES[index].0));
+        schema.operate(DatabaseSchema::set_field_type(id, kind));
     };
     let remove = move || {
         schema.operate(DatabaseSchema::remove_field(id));
@@ -225,13 +235,11 @@ fn FieldRow(
                         </Frame>
                         <Select
                             options={view! {
-                                <ForEach
-                                    value={FIELD_TYPES.map(|(_, label, _)| label).to_vec()}
-                                >|label: &'static str|
-                                    <ChoiceOption label={label} />
+                                <ForEach value={FIELD_TYPES.map(|(kind, _, _)| kind).to_vec()}>|kind: DatabaseFieldType|
+                                    <ChoiceOption value=kind label={field_type_label(kind)} />
                                 </ForEach>
                             }}
-                            selected={Binding::new(selected, retyped)}
+                            selected={Binding::new(kind, retyped)}
                             label="Field type"
                             disabled={read_only}
                             @test_id={format!("database-schema.type.{id}")}
@@ -335,17 +343,13 @@ fn NumberOptions(
                 .unwrap_or_default()
         })
     });
-    let scale = create_memo(move || {
-        NUMBER_SCALES
-            .iter()
-            .position(|(value, _)| *value == options.get().scale)
-    });
-    let rescaled = move |selected: Option<usize>| {
-        let Some(index) = selected else {
+    let scale = create_memo(move || Some(options.get().scale));
+    let rescaled = move |selected: Option<DatabaseNumberScale>| {
+        let Some(scale) = selected else {
             return;
         };
         let mut next = options.get_untracked();
-        next.scale = NUMBER_SCALES[index].0;
+        next.scale = scale;
         schema.operate(DatabaseSchema::set_number_options(id, next));
     };
     view! {
@@ -377,10 +381,8 @@ fn NumberOptions(
                         <Text>"Scale"</Text>
                         <Select
                             options={view! {
-                                <ForEach
-                                    value={NUMBER_SCALES.map(|(_, label)| label).to_vec()}
-                                >|label: &'static str|
-                                    <ChoiceOption label={label} />
+                                <ForEach value={NUMBER_SCALES.map(|(scale, _)| scale).to_vec()}>|scale: DatabaseNumberScale|
+                                    <ChoiceOption value=scale label={number_scale_label(scale)} />
                                 </ForEach>
                             }}
                             selected={Binding::new(scale, rescaled)}
@@ -744,17 +746,9 @@ fn BlockOptions(
         }
         entries
     });
-    let selected = create_memo(move || {
-        let wanted = wanted.get();
-        entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
-    });
-    let picked = move |selected: Option<usize>| {
-        let Some(index) = selected else {
-            return;
-        };
-        let Some(block_type) =
-            entries.with_untracked(|entries| entries.get(index).map(|(block_type, _)| *block_type))
-        else {
+    let selected = create_memo(move || Some(wanted.get()));
+    let picked = move |selected: Option<Option<Uuid>>| {
+        let Some(block_type) = selected else {
             return;
         };
         schema.operate(DatabaseSchema::set_block_options(
@@ -773,8 +767,9 @@ fn BlockOptions(
                             key={|(block_type, _): &(Option<Uuid>, String)| *block_type}
                         >|entry: ReadSignal<(Option<Uuid>, String)>| {
                             let label = create_memo(move || entry.with(|(_, name)| name.clone()));
+                            let block_type = entry.with_untracked(|(block_type, _)| *block_type);
                             view! {
-                                <ChoiceOption label={label} />
+                                <ChoiceOption value=block_type label={label} />
                             }
                         }</ForEach>
                     }}

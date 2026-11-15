@@ -57,7 +57,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   a clock two hours fast sends them once it connects, and a host test with the
   block open shows its text once.
 
-## 10. Search
+## 11. Search
 
 - **Idle compaction on the device's idle and power.** The search index's idle
   compaction (guides/blocks/host.md, Search) waits only for the stack's own
@@ -68,7 +68,7 @@ Depends on #686 (session catch-ups replaced by server ordering).
   is capped at `IDLE_MERGE_BYTES` (128 MiB); with both signals it could merge
   larger tiers, once a merge no longer reads its segments whole into memory.
 
-## 11. Large folders
+## 12. Large folders
 
 - **The rest of a large folder's change.** A change of a folder now reaches a
   watcher as what it did to the references, but each end still does O(N) work
@@ -81,3 +81,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   without references for a change it tells as `moved`, and a client test
   adding thousands of entries to a watched folder writes refs bytes linear in
   them.
+
+## 13. Settings
+
+- **Typed organization policies.** Each row of the organization's and the
+  offline policies (be-app-settings `src/root/organization.rs`) is a `Policy`
+  whose select binds a position into a fixed table of labels, read and written
+  through `get` and `set` closures that index parallel arrays of values. Done:
+  a policy's select binds the policy's own value (`Allowance`, `WhoMay`, days,
+  a quota and so on), each option naming its value beside its label, with no
+  position or parallel array left, and the organization's settings tests still
+  pass.

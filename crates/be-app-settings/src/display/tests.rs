@@ -18,6 +18,7 @@ use crate::display::DisplaySettingsRoot;
 mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_display_turned_off_or_made_main_is_kept_on_this_device;
 mod a_profile_shows_the_theme_it_inherits;
+mod a_scale_no_option_holds_is_shown_as_custom;
 mod a_screen_known_by_its_connector_is_this_devices_alone;
 mod choosing_a_display_scale_stores_it_and_the_default_suits_the_display;
 mod choosing_a_keyboard_height_keeps_it_on_this_device;

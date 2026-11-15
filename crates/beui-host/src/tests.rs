@@ -541,6 +541,7 @@ mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod a_value_child_that_watches_its_placement_panics_when_built;
+mod a_value_keyed_choice_keeps_its_value_when_options_reorder_and_shows_none_once_it_is_removed;
 mod a_value_wrapped_in_a_list_item_takes_its_sizing;
 mod a_vertical_separator_rules_down_the_row_it_sits_in;
 mod a_vertical_wheel_scrolls_a_horizontal_scroll_unless_something_around_it_scrolls_vertically;
@@ -631,6 +632,7 @@ mod an_isolated_span_marks_its_bytes_for_the_bidi_step;
 mod an_occluded_window_shows_itself_for_a_shot_once_the_program_has_drawn;
 mod an_off_switch_shows_its_track_on_any_fill_in_every_theme;
 mod an_offset_leaves_the_wheel_to_the_scroll_around_it;
+mod an_open_select_chooses_the_option_a_row_shows_after_its_options_reorder;
 mod an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it;
 mod an_optional_child_slot_takes_no_children_or_exactly_one;
 mod an_overflowing_scroll_of_plain_text_is_a_tab_stop;
@@ -1518,22 +1520,26 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
+    pub(crate) fn choose_in_simulation<T: Clone + PartialEq + 'static>(
+        &mut self,
+        control: &str,
+        value: T,
+    ) {
         let select = self
             .inspector()
             .find(&format!("inspector.simulation.{control}"));
         let trigger = self
             .inspector()
             .document
-            .api::<crate::unstyled::SelectApi>(select)
+            .api::<crate::unstyled::SelectApi<T>>(select)
             .trigger();
         self.click_in_inspector(trigger);
         self.frame(Vec::new());
         let option = self
             .inspector()
             .document
-            .api::<crate::unstyled::SelectApi>(select)
-            .option_button(index)
+            .api::<crate::unstyled::SelectApi<T>>(select)
+            .option_button(&value)
             .expect("the option is shown");
         self.click(self.node_center(option));
         self.frame(Vec::new());

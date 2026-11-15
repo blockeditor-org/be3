@@ -16,7 +16,7 @@ use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use beui_components_unstyled::{
-    ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
+    ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePage,
     DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
     DateTimeTriggerHandle, PopoverPlacement, PopupTriggerHandle, TimeOptionHandle, grid_columns,
     narrower_than,
@@ -287,8 +287,8 @@ fn PanelBody(
     shape: DateTimePanelLayout,
     calendar: DateTimeCalendarHandle,
     times: DateTimeTimesHandle,
-    page: ReadSignal<usize>,
-    show_page: Callback<usize>,
+    page: ReadSignal<DateTimePage>,
+    show_page: Callback<DateTimePage>,
     width: Memo<f32>,
     first_weekday: Weekday,
     step_minutes: u32,
@@ -323,13 +323,13 @@ fn PanelBody(
             <List spacing=PANEL_SPACING>
                 <Tabs
                     options={view! {
-                        <ChoiceOption label="Date" />
-                        <ChoiceOption label="Time" />
+                        <ChoiceOption value=DateTimePage::Date label="Date" />
+                        <ChoiceOption value=DateTimePage::Time label="Time" />
                     }}
                     selected={Binding::new(page, show_page)}
                 />
                 <Show
-                    value={move || page.get() == 0}
+                    value={move || page.get() == DateTimePage::Date}
                     fallback={move || view! {
                         <TimePane
                             handle={times}

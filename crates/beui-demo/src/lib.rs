@@ -318,19 +318,17 @@ impl Page {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
-const WINDOW_BACKGROUNDS: [ColorRole; 2] = [ColorRole::Background, ColorRole::Surface];
-
 #[derive(Clone, Copy)]
 struct DemoWindow {
     title: Signal<String>,
-    background: Signal<Option<usize>>,
+    background: Signal<Option<ColorRole>>,
 }
 
 impl DemoWindow {
     fn provide() -> Self {
         let window = Self {
             title: create_signal("beui demo".to_owned()),
-            background: create_signal(Some(0)),
+            background: create_signal(Some(ColorRole::Background)),
         };
         provide_context(window);
         window
@@ -338,7 +336,7 @@ impl DemoWindow {
 
     fn clear_color(self) -> Memo<ColorRole> {
         let background = self.background;
-        create_memo(move || WINDOW_BACKGROUNDS[background.get().unwrap_or_default()])
+        create_memo(move || background.get().unwrap_or(ColorRole::Background))
     }
 }
 
@@ -763,14 +761,7 @@ fn PageView(page: Page) -> NodeId {
 #[component]
 fn DemoToolbar(pages: Pages) -> NodeId {
     let program_layer = use_preference_layer(PreferenceSource::Program);
-    let selected_theme = create_memo(move || {
-        let theme = program_layer.get().theme;
-        Some(
-            theme
-                .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
-                .map_or(0, |index| index + 1),
-        )
-    });
+    let selected_theme = create_memo(move || Some(program_layer.get().theme));
     let narrow = narrower_than(NARROW_WIDTH);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
@@ -782,15 +773,13 @@ fn DemoToolbar(pages: Pages) -> NodeId {
             <Select
                 label="Theme"
                 options={view! {
-                    <ChoiceOption label="System" />
+                    <ChoiceOption value=None label="System" />
                     <ForEach value={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
-                        <ChoiceOption label={kind.name()} />
+                        <ChoiceOption value={Some(kind)} label={kind.name()} />
                     </ForEach>
                 }}
-                selected={Binding::new(selected_theme, move |index: Option<usize>| {
-                    let theme = index
-                        .and_then(|index| index.checked_sub(1))
-                        .and_then(|index| ThemeKind::ALL.get(index).copied());
+                selected={Binding::new(selected_theme, move |theme: Option<Option<ThemeKind>>| {
+                    let theme = theme.flatten();
                     program_layer.set(PreferenceLayer { theme, ..program_layer.get_untracked() });
                 })}
             />

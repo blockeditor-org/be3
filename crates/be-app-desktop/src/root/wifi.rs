@@ -17,11 +17,6 @@ const SPACING: Space = Space::Md;
 const ROW_SPACING: Space = Space::Xs2;
 const PASSPHRASE_LENGTHS: std::ops::RangeInclusive<usize> = 8..=64;
 const WEP_KEY_LENGTHS: [usize; 4] = [5, 10, 13, 26];
-const HIDDEN_SECURITIES: [WifiSecurity; 3] = [
-    WifiSecurity::Password,
-    WifiSecurity::Wep,
-    WifiSecurity::Open,
-];
 
 fn bars(strength: u8) -> Glyph {
     match strength {
@@ -372,15 +367,9 @@ fn OtherNetwork(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -
 #[component]
 fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) -> NodeId {
     let name = create_signal(String::new());
-    let chosen = create_signal(0usize);
+    let security = create_signal(WifiSecurity::Password);
     let password = create_signal(String::new());
     let joining = create_signal(None::<String>);
-    let security = create_memo(move || {
-        HIDDEN_SECURITIES
-            .get(chosen.get())
-            .copied()
-            .unwrap_or(WifiSecurity::Open)
-    });
     let keyed = create_memo(move || security.get() != WifiSecurity::Open);
     let secret = create_memo(move || secret_name(security.get()).to_owned());
     let ready = create_memo(move || {
@@ -440,11 +429,11 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 @test_id={"desktop.wifi.hidden.security"}
                 label="Security"
                 options={view! {
-                    <ChoiceOption label="Password" />
-                    <ChoiceOption label="WEP" />
-                    <ChoiceOption label="None" />
+                    <ChoiceOption value=WifiSecurity::Password label="Password" />
+                    <ChoiceOption value=WifiSecurity::Wep label="WEP" />
+                    <ChoiceOption value=WifiSecurity::Open label="None" />
                 }}
-                selected={chosen}
+                selected={security}
             />
             <Show value={keyed}>
                 <TextInput

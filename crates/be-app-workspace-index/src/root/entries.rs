@@ -18,8 +18,6 @@ pub(crate) enum FolderSort {
 }
 
 impl FolderSort {
-    pub(crate) const ALL: [Self; 3] = [Self::Intrinsic, Self::Name, Self::Type];
-
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Intrinsic => "Intrinsic",

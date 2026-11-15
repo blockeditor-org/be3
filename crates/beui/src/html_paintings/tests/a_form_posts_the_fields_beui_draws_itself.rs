@@ -4,7 +4,7 @@ use beui_macros::view;
 fn preferences() -> crate::primitives::Root {
     let remember = create_signal(true);
     let newsletter = create_signal(false);
-    let region = create_signal(Some(1_usize));
+    let region = create_signal(Some("south"));
     let locked = create_signal(true);
     view! {
         <Root>
@@ -17,8 +17,8 @@ fn preferences() -> crate::primitives::Root {
                         label="Region"
                         name="region"
                         options={view! {
-                            <ChoiceOption label="North" />
-                            <ChoiceOption label="South" value="south" />
+                            <ChoiceOption value="north" label="North" />
+                            <ChoiceOption value="south" label="South" posted="south" />
                         }}
                         selected={region}
                     />

@@ -282,17 +282,7 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
             .collect::<Vec<_>>()
     });
     let does = create_memo(move || outline.with(|outline| outline.does));
-    let does_index = create_memo(move || match does.get() {
-        Does::Send => 0,
-        Does::Tap => 1,
-        Does::Steps => 2,
-    });
-    let set_does = move |index: usize| {
-        let chosen = match index {
-            1 => Does::Tap,
-            2 => Does::Steps,
-            _ => Does::Send,
-        };
+    let set_does = move |chosen: Does| {
         if chosen != outline.get_untracked().does {
             edit(RuleEdit::Does(chosen));
         }
@@ -401,11 +391,11 @@ fn RuleEditor(edits: Edits, group: usize, rule: usize, outline: Memo<RuleOutline
                 <Part title="It" description={explained}>
                     <SegmentedControl
                         options={view! {
-                            <ChoiceOption label="Acts as another key" />
-                            <ChoiceOption label="Taps a key" />
-                            <ChoiceOption label="Plays a sequence" />
+                            <ChoiceOption value={Does::Send} label="Acts as another key" />
+                            <ChoiceOption value={Does::Tap} label="Taps a key" />
+                            <ChoiceOption value={Does::Steps} label="Plays a sequence" />
                         }}
-                        selected={Binding::new(does_index, set_does)}
+                        selected={Binding::new(does, set_does)}
                         label="What it does"
                         @test_id={id("does")}
                     />

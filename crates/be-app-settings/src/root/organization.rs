@@ -35,12 +35,13 @@ struct Policy<R> {
     label: &'static str,
     description: &'static str,
     options: &'static [&'static str],
-    get: fn(&R) -> usize,
+    /// The option the stored value is, or `None` for a value none of them is.
+    get: fn(&R) -> Option<usize>,
     set: fn(usize) -> Edit,
 }
 
-fn index_of<T: PartialEq>(all: &[T], value: &T) -> usize {
-    all.iter().position(|held| held == value).unwrap_or(0)
+fn index_of<T: PartialEq>(all: &[T], value: &T) -> Option<usize> {
+    all.iter().position(|held| held == value)
 }
 
 const POLICIES: [Policy<OrganizationPolicies>; 4] = [
@@ -286,7 +287,7 @@ where
                     .ok()
             })
             .unwrap_or_default();
-        Some(get(&held))
+        get(&held)
     });
     let choose = Callback::new(move |chosen: Option<usize>| {
         if let (Some(chosen), Some(settings)) = (chosen, settings.get_untracked()) {
@@ -314,7 +315,7 @@ fn PolicyRow(
     locked: Memo<bool>,
     separated: bool,
 ) -> NodeId {
-    let options: Vec<String> = options.iter().map(|label| (*label).to_owned()).collect();
+    let numbers: Vec<usize> = (0..options.len()).collect();
     view! {
         <SettingsRow
             label={label.to_owned()}
@@ -326,8 +327,8 @@ fn PolicyRow(
                 <Select
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach value={options}>|label: String|
-                            <ChoiceOption label={label} />
+                        <ForEach value={numbers}>|option: usize|
+                            <ChoiceOption value=option label={options[option].to_owned()} />
                         </ForEach>
                     }}
                     selected={Binding::new(selected, move |chosen: Option<usize>| choose.call(chosen))}

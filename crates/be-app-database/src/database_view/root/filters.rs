@@ -355,14 +355,9 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let kinds =
         create_memo(move || field.with(|field| field.as_ref().map(kinds_for).unwrap_or_default()));
     let kind = create_memo(move || filter.with(|filter| Kind::of(&filter.condition)));
-    let selected = create_memo(move || {
-        let kind = kind.get();
-        kinds.with(|kinds| kinds.iter().position(|held| *held == kind))
-    });
-    let recondition = move |index: Option<usize>| {
-        let Some(kind) =
-            index.and_then(|index| kinds.with_untracked(|kinds| kinds.get(index).copied()))
-        else {
+    let selected = create_memo(move || Some(kind.get()));
+    let recondition = move |chosen: Option<Kind>| {
+        let Some(kind) = chosen else {
             return;
         };
         let Some(field) = field.get_untracked() else {
@@ -416,7 +411,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                             <Select
                                 options={view! {
                                     <ForEach value={kinds}>|kind: Kind|
-                                        <ChoiceOption label={kind.label().to_owned()} />
+                                        <ChoiceOption value=kind label={kind.label()} />
                                     </ForEach>
                                 }}
                                 selected={Binding::new(selected, recondition)}
@@ -634,10 +629,10 @@ pub fn FilterList(data: Data) -> NodeId {
             .with(|items| items.iter().map(|(id, _)| *id).collect::<Vec<ObjectId>>())
     });
     let names = data.fields;
-    let add = move |index: Option<usize>| {
-        let Some(field) = index.and_then(|index| {
+    let add = move |chosen: Option<Uuid>| {
+        let Some(field) = chosen.and_then(|chosen| {
             data.fields
-                .with_untracked(|fields| fields.get(index).cloned())
+                .with_untracked(|fields| fields.iter().find(|field| field.id == chosen).cloned())
         }) else {
             return;
         };
@@ -684,6 +679,7 @@ pub fn FilterList(data: Data) -> NodeId {
                                     key={|field: &DatabaseField| field.id}
                                 >|field: ReadSignal<DatabaseField>|
                                     <ChoiceOption
+                                        value={field.with_untracked(|field| field.id)}
                                         label={move || field.with(|field| field.name.clone())}
                                     />
                                 </ForEach>

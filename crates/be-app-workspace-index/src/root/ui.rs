@@ -35,8 +35,6 @@ enum FolderView {
 }
 
 impl FolderView {
-    const ALL: [Self; 3] = [Self::LargeGrid, Self::SmallGrid, Self::List];
-
     fn label(self) -> &'static str {
         match self {
             Self::LargeGrid => "Large grid",
@@ -104,16 +102,8 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     });
 
     let empty = create_memo(move || entries.with(Vec::is_empty));
-    let mode_index = create_memo(move || {
-        FolderView::ALL
-            .iter()
-            .position(|shown| *shown == mode.get())
-    });
-    let sort_index = create_memo(move || {
-        FolderSort::ALL
-            .iter()
-            .position(|order| *order == sort.get())
-    });
+    let shown_mode = create_memo(move || Some(mode.get()));
+    let shown_sort = create_memo(move || Some(sort.get()));
     let flip = move || {
         descending.set(!descending.get_untracked());
     };
@@ -195,14 +185,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption label={FolderView::LargeGrid.label()} />
-                                    <ChoiceOption label={FolderView::SmallGrid.label()} />
-                                    <ChoiceOption label={FolderView::List.label()} />
+                                    <ChoiceOption value=FolderView::LargeGrid label={FolderView::LargeGrid.label()} />
+                                    <ChoiceOption value=FolderView::SmallGrid label={FolderView::SmallGrid.label()} />
+                                    <ChoiceOption value=FolderView::List label={FolderView::List.label()} />
                                 }}
-                                selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                                    if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                                    {
-                                        mode.set(*shown);
+                                selected={Binding::new(shown_mode, move |chosen: Option<FolderView>| {
+                                    if let Some(shown) = chosen {
+                                        mode.set(shown);
                                     }
                                 })}
                                 label="Layout"
@@ -212,14 +201,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         <ListItem shrink=1.0>
                             <Select
                                 options={view! {
-                                    <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                                    <ChoiceOption label={FolderSort::Name.label()} />
-                                    <ChoiceOption label={FolderSort::Type.label()} />
+                                    <ChoiceOption value=FolderSort::Intrinsic label={FolderSort::Intrinsic.label()} />
+                                    <ChoiceOption value=FolderSort::Name label={FolderSort::Name.label()} />
+                                    <ChoiceOption value=FolderSort::Type label={FolderSort::Type.label()} />
                                 }}
-                                selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                                    if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                                    {
-                                        sort.set(*order);
+                                selected={Binding::new(shown_sort, move |chosen: Option<FolderSort>| {
+                                    if let Some(order) = chosen {
+                                        sort.set(order);
                                     }
                                 })}
                                 label="Sort"

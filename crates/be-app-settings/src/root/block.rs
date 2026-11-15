@@ -160,18 +160,12 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Uuid>, manages: Memo<bool>) 
             });
         }
     });
-    let selected = create_memo(move || {
-        open_inside.get().map(|open| match open {
-            true => 0,
-            false => 1,
-        })
-    });
-    let choose = move |index: Option<usize>| {
-        let Some(index) = index else {
+    let selected = create_memo(move || open_inside.get());
+    let choose = move |chosen: Option<bool>| {
+        let Some(open) = chosen else {
             return;
         };
         let block = block.get_untracked();
-        let open = index == 0;
         let before = open_inside.get_untracked();
         open_inside.set(Some(open));
         refused.set(String::new());
@@ -201,8 +195,8 @@ fn KindHere(editor: Editor, kind: Uuid, block: Memo<Uuid>, manages: Memo<bool>) 
                 <Select
                     label="Who can read it"
                     options={view! {
-                        <ChoiceOption label={ANYONE_INSIDE_LABEL.to_owned()} />
-                        <ChoiceOption label={MEMBERS_ONLY_LABEL.to_owned()} />
+                        <ChoiceOption value=true label={ANYONE_INSIDE_LABEL.to_owned()} />
+                        <ChoiceOption value=false label={MEMBERS_ONLY_LABEL.to_owned()} />
                     }}
                     selected={Binding::new(selected, choose)}
                     disabled={move || !manages.get() || open_inside.get().is_none()}

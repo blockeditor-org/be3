@@ -6,8 +6,8 @@ use crate::styled::*;
 fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
-            <unstyled::ChoiceOption label="Apple" />
-            <unstyled::ChoiceOption label="Banana" />
+            <unstyled::ChoiceOption value="Apple" label="Apple" />
+            <unstyled::ChoiceOption value="Banana" label="Banana" />
         };
         [view! {
             <Select options selected=None />
@@ -17,7 +17,7 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
     harness.frame(Vec::new());
     let trigger = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .trigger();
     harness.click(harness.center(trigger));
     harness.frame(Vec::new());
@@ -26,7 +26,7 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
 
     let search = harness
         .document()
-        .api::<unstyled::SelectApi>(select)
+        .api::<unstyled::SelectApi<&str>>(select)
         .search();
     let text = harness.rect(
         harness
@@ -50,7 +50,12 @@ fn tapping_inside_a_selection_in_a_select_search_box_shows_its_toolbar() {
         .toolbar(harness.document())
         .expect("tapping the selection shows the search box's toolbar");
     assert!(text_within(harness.document(), toolbar, "Copy").is_some());
-    assert!(harness.document().api::<unstyled::SelectApi>(select).open());
+    assert!(
+        harness
+            .document()
+            .api::<unstyled::SelectApi<&str>>(select)
+            .open()
+    );
     assert!(
         harness
             .document()

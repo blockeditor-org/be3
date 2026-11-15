@@ -463,32 +463,24 @@ pub fn FieldPicker(
     picker_id: String,
     on_change: Callback<Option<Uuid>>,
 ) -> NodeId {
-    let selected = create_memo(move || match chosen.get() {
-        None => Some(0),
-        Some(chosen) => options
-            .with(|options| options.iter().position(|field| field.id == chosen))
-            .map(|index| index + 1),
-    });
-    let picked = move |index: Option<usize>| {
-        let field = match index {
-            None | Some(0) => None,
-            Some(index) => {
-                options.with_untracked(|options| options.get(index - 1).map(|field| field.id))
-            }
-        };
-        on_change.call(field);
+    let selected = create_memo(move || Some(chosen.get()));
+    let picked = move |field: Option<Option<Uuid>>| {
+        if let Some(field) = field {
+            on_change.call(field);
+        }
     };
     view! {
         <Select
             options={view! {
-                <ChoiceOption label={none} />
+                <ChoiceOption value=None label=none />
                 <ForEach
                     value={options}
                     key={|field: &DatabaseField| field.id}
                 >|field: ReadSignal<DatabaseField>| {
                     let name = create_memo(move || field.with(|field| field.name.clone()));
+                    let id = field.with_untracked(|field| field.id);
                     view! {
-                        <ChoiceOption label={name} />
+                        <ChoiceOption value={Some(id)} label={name} />
                     }
                 }</ForEach>
             }}

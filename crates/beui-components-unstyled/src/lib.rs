@@ -95,7 +95,7 @@ pub use date_time_field::{
     DateDraft, DateSegment, DateSegmentHandle, DateTimeField, DateTimeFieldApi, DateTimeParts,
 };
 pub use date_time_picker::{
-    DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePanelHandle, DateTimePanelLayout,
+    DateTimeBoxHandle, DateTimeCalendarHandle, DateTimePage, DateTimePanelHandle, DateTimePanelLayout,
     DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use dialog::{

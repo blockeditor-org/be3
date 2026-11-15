@@ -17,8 +17,8 @@ pub enum ChoiceKind {
     Radio,
 }
 
-pub struct ChoiceOptionHandle {
-    pub index: ReadSignal<usize>,
+pub struct ChoiceOptionHandle<T> {
+    pub value: T,
     pub label: Prop<String>,
     pub selected: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -26,65 +26,138 @@ pub struct ChoiceOptionHandle {
     pub focused: ReadSignal<bool>,
 }
 
-pub struct ChoiceOption {
+/// One option of a `Choice` or `Select`: the `value` it stands for, which the
+/// control's binding holds when it is chosen, and the label it shows.
+pub struct ChoiceOption<T> {
+    key: u64,
+    value: T,
     label: Memo<String>,
-    value: Memo<String>,
+    posted: Memo<String>,
 }
 
-impl ChoiceOption {
+impl<T> ChoiceOption<T> {
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
     pub fn label(&self) -> Memo<String> {
         self.label
     }
 
-    /// What a `Form` posts for the option: its `value`, or its label without one, as
-    /// `<option>` does.
-    pub fn value(&self) -> Memo<String> {
-        self.value
+    /// What a `Form` posts for the option: its `posted`, or its label without one, as
+    /// `<option>`'s `value` does.
+    pub fn posted(&self) -> Memo<String> {
+        self.posted
     }
 }
 
-beui_view::value_child_type!(ChoiceOption);
+beui_view::value_child_type!(<T> ChoiceOption<T>);
 
 #[component]
-pub fn ChoiceOption(
+pub fn ChoiceOption<T>(
+    value: T,
     label: Prop<String>,
-    #[prop(default = String::new())] value: Prop<String>,
-) -> ChoiceOption {
+    #[prop(default = String::new())] posted: Prop<String>,
+) -> ChoiceOption<T>
+where
+    T: 'static,
+{
     let label = create_memo(move || label.get());
     ChoiceOption {
+        key: next_key(),
+        value,
         label,
-        value: create_memo(move || {
-            Some(value.get())
-                .filter(|value| !value.is_empty())
+        posted: create_memo(move || {
+            Some(posted.get())
+                .filter(|posted| !posted.is_empty())
                 .unwrap_or_else(|| label.get())
         }),
     }
 }
 
-pub struct ChoiceItem {
-    pub index: ReadSignal<usize>,
+thread_local! {
+    static NEXT_KEY: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn next_key() -> u64 {
+    NEXT_KEY.with(|next| {
+        let key = next.get();
+        next.set(key + 1);
+        key
+    })
+}
+
+/// Names one option for as long as it lives, wherever it moves among its siblings, so
+/// rows, focus and highlights follow it rather than a position.
+pub(crate) fn option_key<T>(option: &ChoiceOption<T>) -> u64 {
+    option.key
+}
+
+/// The option `key` names among `options`, read tracked.
+pub(crate) fn keyed<T: 'static>(
+    options: &Run<ChoiceOption<T>>,
+    key: u64,
+) -> Option<std::rc::Rc<ChoiceOption<T>>> {
+    options.items().into_iter().find(|option| option.key == key)
+}
+
+/// Where the option holding `value` sits among `options`, read tracked.
+pub(crate) fn position<T: PartialEq + 'static>(
+    options: &Run<ChoiceOption<T>>,
+    value: &T,
+) -> Option<usize> {
+    options
+        .items()
+        .iter()
+        .position(|option| option.value == *value)
+}
+
+pub(crate) fn value_at<T: Clone + 'static>(
+    options: &Run<ChoiceOption<T>>,
+    index: usize,
+) -> Option<T> {
+    options
+        .get_untracked()
+        .get(index)
+        .map(|option| option.value.clone())
+}
+
+pub struct ChoiceItem<T> {
+    pub value: T,
     pub button: NodeId,
 }
 
-#[derive(Clone, Copy)]
-struct State {
-    options: Stored<Run<ChoiceOption>>,
-    focus: Signal<Option<usize>>,
-    selected: Binding<Option<usize>>,
+struct State<T: 'static> {
+    options: Stored<Run<ChoiceOption<T>>>,
+    focus: Signal<Option<u64>>,
+    selected: Binding<Option<T>>,
+    shown: Memo<Option<usize>>,
     kind: ChoiceKind,
     direction: Direction,
 }
+
+impl<T> Clone for State<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for State<T> {}
 
 /// Tabs or a radio group, by `kind`.
 ///
 /// One Tab stop, at the selected option or the first. Moving selects. Radio
 /// arrows go either way and wrap. Tabs wrap along their `direction` and ignore
 /// the other arrows. Home/End select the first and last option.
+///
+/// `selected` holds the chosen option's value. A value no option holds shows
+/// nothing selected, so a list that changes between a frame and a click never
+/// selects whatever moved into a position.
 #[component]
-pub fn Choice(
-    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi>,
-    options: Children<ChoiceOption>,
-    #[prop(default = None)] selected: Binding<Option<usize>>,
+pub fn Choice<T>(
+    #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi<T>>,
+    options: Children<ChoiceOption<T>>,
+    #[prop(default = None)] selected: Binding<Option<T>>,
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
@@ -92,23 +165,24 @@ pub fn Choice(
     #[prop(default = CursorIcon::PointingHand)] cursor: CursorIcon,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = None)] item: Option<RenderFn<ChoiceItem>>,
-    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle>>,
-) -> NodeId {
+    #[prop(default = None)] item: Option<RenderFn<ChoiceItem<T>>>,
+    #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>>>,
+) -> NodeId
+where
+    T: Clone + PartialEq + 'static,
+{
     let option = option.expect("choice requires an `option` builder");
     let options = options.into_run();
     let direction = direction.unwrap_or(match kind {
         ChoiceKind::Tabs => Direction::Horizontal,
         ChoiceKind::Radio => Direction::Vertical,
     });
-    let selection = create_selector(move || selected.get());
-    let counted = options.clone();
-    let tab_stop_owner = create_selector(move || {
-        selected
-            .get()
-            .filter(|index| *index < counted.len())
-            .unwrap_or(0)
+    let among = options.clone();
+    let shown = create_memo(move || {
+        selected.with(|selected| selected.as_ref().and_then(|value| position(&among, value)))
     });
+    let selection = create_selector(move || shown.get());
+    let tab_stop_owner = create_selector(move || shown.get().unwrap_or(0));
     let focus = create_signal(None);
     let focused = create_selector(move || focus.get());
 
@@ -125,14 +199,16 @@ pub fn Choice(
         options: store(options.clone()),
         focus,
         selected,
+        shown,
         kind,
         direction,
     };
     api.fill(ChoiceApi(state));
-    let buttons = options.build_keyed(move |built: Rc<ChoiceOption>, index: ReadSignal<usize>| {
+    let buttons = options.build_keyed(move |built: Rc<ChoiceOption<T>>, index: ReadSignal<usize>| {
         let label = built.label;
+        let value = built.value.clone();
         let is_selected = create_memo(move || selection.is_selected(&Some(index.get())));
-        let id = option_id(&built);
+        let id = option_key(&built);
         let tab_stop = create_memo(move || tab_stop_owner.is_selected(&index.get()));
         let focus_here = focused.memo(Some(id));
         let button = view! {
@@ -156,11 +232,11 @@ pub fn Choice(
                     node
                 }}
                 on_focus_change={move |has_focus: bool| track_focus(state, id, has_focus)}
-                on_click={move || select(state, Some(index.get_untracked()))}
+                on_click={move || select(state, index.get_untracked())}
                 on_key={move |press: KeyPress| key(state, index.get_untracked(), press)}
             >|button: ButtonHandle| {
                 option.call(ChoiceOptionHandle {
-                    index,
+                    value: value.clone(),
                     label: label.into_prop(),
                     selected: is_selected,
                     hovered: button.hovered,
@@ -170,7 +246,10 @@ pub fn Choice(
             }</unstyled::Button>
         };
         let node = match item {
-            Some(item) => item.call(ChoiceItem { index, button }),
+            Some(item) => item.call(ChoiceItem {
+                value: built.value.clone(),
+                button,
+            }),
             None => button,
         };
         view! {
@@ -190,20 +269,16 @@ pub fn Choice(
     }
 }
 
-fn option_id(option: &Rc<ChoiceOption>) -> usize {
-    Rc::as_ptr(option) as usize
-}
-
-fn id_at(state: State, index: usize) -> Option<usize> {
+fn id_at<T: 'static>(state: State<T>, index: usize) -> Option<u64> {
     state
         .options
         .value()
         .get_untracked()
         .get(index)
-        .map(option_id)
+        .map(|option| option_key(option))
 }
 
-fn track_focus(state: State, id: usize, has_focus: bool) {
+fn track_focus<T>(state: State<T>, id: u64, has_focus: bool) {
     if has_focus {
         state.focus.set(Some(id));
     } else if state.focus.get_untracked() == Some(id) {
@@ -211,24 +286,25 @@ fn track_focus(state: State, id: usize, has_focus: bool) {
     }
 }
 
-fn option_count(state: State) -> usize {
+fn option_count<T>(state: State<T>) -> usize {
     state.options.value().get_untracked().len()
 }
 
-fn select(state: State, selected: Option<usize>) {
-    if selected.is_some_and(|index| index >= option_count(state))
-        || state.selected.get_untracked() == selected
-    {
+fn select<T: Clone + PartialEq + 'static>(state: State<T>, index: usize) {
+    let Some(value) = value_at(&state.options.value(), index) else {
+        return;
+    };
+    if state.shown.get_untracked() == Some(index) {
         return;
     }
     let focused = state.focus.get_untracked().is_some();
-    state.selected.set(selected);
-    if focused && selected.unwrap_or(0) < option_count(state) {
-        state.focus.set(id_at(state, selected.unwrap_or(0)));
+    state.selected.set(Some(value));
+    if focused {
+        state.focus.set(id_at(state, index));
     }
 }
 
-fn key(state: State, index: usize, press: KeyPress) -> bool {
+fn key<T: Clone + PartialEq + 'static>(state: State<T>, index: usize, press: KeyPress) -> bool {
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
@@ -251,20 +327,26 @@ fn key(state: State, index: usize, press: KeyPress) -> bool {
     };
     if press.pressed {
         state.focus.set(id_at(state, next));
-        select(state, Some(next));
+        select(state, next);
     }
     true
 }
 
-#[derive(Clone, Copy)]
-pub struct ChoiceApi(State);
+pub struct ChoiceApi<T: 'static>(State<T>);
 
-impl ChoiceApi {
-    pub fn selected(&self) -> Option<usize> {
+impl<T> Clone for ChoiceApi<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ChoiceApi<T> {}
+
+impl<T: Clone + 'static> ChoiceApi<T> {
+    /// The selected option's value, or `None` while no option holds the bound value.
+    pub fn selected(&self) -> Option<T> {
         let state = self.0;
-        state
-            .selected
-            .get_untracked()
-            .filter(|index| *index < option_count(state))
+        let index = state.shown.get_untracked()?;
+        value_at(&state.options.value(), index)
     }
 }

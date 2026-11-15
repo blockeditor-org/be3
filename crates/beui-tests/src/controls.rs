@@ -50,13 +50,13 @@ pub fn TogglesFixture() -> NodeId {
 
 #[component]
 pub fn ChoicesFixture() -> NodeId {
-    let mode = create_signal(Some(0_usize));
-    let period = create_signal(1_usize);
-    let tab = create_signal(0_usize);
+    let mode = create_signal(Some("Automatic"));
+    let period = create_signal("Week");
+    let tab = create_signal("Overview");
     let report = create_memo(move || {
         format!(
-            "Mode {:?} period {} tab {}",
-            mode.get(),
+            "Mode {} period {} tab {}",
+            mode.get().unwrap_or("none"),
             period.get(),
             tab.get()
         )
@@ -65,26 +65,26 @@ pub fn ChoicesFixture() -> NodeId {
         <List spacing=Space::Md>
             <RadioGroup
                 options={view! {
-                    <ChoiceOption label="Automatic" />
-                    <ChoiceOption label="Manual" />
-                    <ChoiceOption label="Scheduled" />
+                    <ChoiceOption value="Automatic" label="Automatic" />
+                    <ChoiceOption value="Manual" label="Manual" />
+                    <ChoiceOption value="Scheduled" label="Scheduled" />
                 }}
                 selected={mode}
             />
             <SegmentedControl
                 label="Period"
                 options={view! {
-                    <ChoiceOption label="Day" />
-                    <ChoiceOption label="Week" />
-                    <ChoiceOption label="Month" />
+                    <ChoiceOption value="Day" label="Day" />
+                    <ChoiceOption value="Week" label="Week" />
+                    <ChoiceOption value="Month" label="Month" />
                 }}
                 selected={period}
             />
             <Tabs
                 label="Section"
                 options={view! {
-                    <ChoiceOption label="Overview" />
-                    <ChoiceOption label="Details" />
+                    <ChoiceOption value="Overview" label="Overview" />
+                    <ChoiceOption value="Details" label="Details" />
                 }}
                 selected={tab}
             />
@@ -96,8 +96,14 @@ pub fn ChoicesFixture() -> NodeId {
 #[component]
 pub fn MenusFixture() -> NodeId {
     let chosen = create_signal(String::from("nothing"));
-    let fruit = create_signal(Some(0_usize));
-    let report = create_memo(move || format!("Chose {} fruit {:?}", chosen.get(), fruit.get()));
+    let fruit = create_signal(Some("Apple"));
+    let report = create_memo(move || {
+        format!(
+            "Chose {} fruit {}",
+            chosen.get(),
+            fruit.get().unwrap_or("none")
+        )
+    });
     let choose = move |what: &str| chosen.set(what.to_owned());
     view! {
         <List spacing=Space::Md>
@@ -119,9 +125,9 @@ pub fn MenusFixture() -> NodeId {
                 />
                 <Select
                     options={view! {
-                        <ChoiceOption label="Apple" />
-                        <ChoiceOption label="Banana" />
-                        <ChoiceOption label="Cherry" />
+                        <ChoiceOption value="Apple" label="Apple" />
+                        <ChoiceOption value="Banana" label="Banana" />
+                        <ChoiceOption value="Cherry" label="Cherry" />
                     }}
                     selected={fruit}
                     label="Fruit"

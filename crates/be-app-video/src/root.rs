@@ -164,11 +164,7 @@ fn EffectsColumn(state: VideoState) -> NodeId {
 #[component]
 fn FrameRateBar(state: VideoState) -> NodeId {
     let rate = state.frame_rate;
-    let chosen = create_memo(move || {
-        FRAME_RATES
-            .into_iter()
-            .position(|option| option == rate.get())
-    });
+    let chosen = create_memo(move || Some(rate.get()));
     let options = (0..FRAME_RATES.len()).collect::<Vec<usize>>();
     view! {
         <DockBarSurface spacing=Space::Sm @test_id={"video.frame-rate-bar"}>
@@ -178,15 +174,16 @@ fn FrameRateBar(state: VideoState) -> NodeId {
             <Select
                 options={view! {
                     <ForEach value={options}>|index: usize|
-                        <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
+                        <ChoiceOption
+                            value={FRAME_RATES[index]}
+                            label={frame_rate_label(FRAME_RATES[index])}
+                        />
                     </ForEach>
                 }}
-                selected={Binding::new(chosen, move |index: Option<usize>| {
-                    let Some(frame_rate) = index.and_then(|index| FRAME_RATES.get(index).copied())
-                    else {
-                        return;
-                    };
-                    state.operate(VideoOperation::SetFrameRate { frame_rate });
+                selected={Binding::new(chosen, move |frame_rate: Option<_>| {
+                    if let Some(frame_rate) = frame_rate {
+                        state.operate(VideoOperation::SetFrameRate { frame_rate });
+                    }
                 })}
                 label="Frames per second"
                 @test_id={"video.frame-rate"}
