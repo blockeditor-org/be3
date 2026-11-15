@@ -173,8 +173,10 @@ readers see real content. beui keeps text editing its own in the first
 version, the same code on both cores (the browser's EditContext and password
 inputs may follow), and owns drawing, the escape hatch (`Drawing`) on both.
 Apps stay on canvas on the web for now, and later become iframes that could
-run the HTML core themselves. be-host itself is still drawn on the web until
-it moves to that core.
+run the HTML core themselves. be-host's own UI is still drawn on the web, and
+stays drawn when it moves into the root guest
+(`plans/host_as_platform_adapter.md`); moving it to the HTML core is left to a
+later plan.
 
 **Why a session owner instead of a CRDT.** A single order makes merging, undo
 and the wire protocol simple, and lets an editor use plain data. Offline edits
