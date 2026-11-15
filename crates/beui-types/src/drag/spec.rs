@@ -264,6 +264,7 @@ pub struct Carry {
     pub payload: Rc<dyn std::any::Any>,
     pub item: Option<Rect>,
     pub preview: Option<Rc<dyn Fn() -> NodeId>>,
+    pub outside: Option<Rc<dyn Fn(DragPoint)>>,
 }
 
 impl Carry {
@@ -272,6 +273,16 @@ impl Carry {
             payload: Rc::new(payload),
             item: None,
             preview: None,
+            outside: None,
+        }
+    }
+
+    /// Heard when the carry is let go outside every window, where no place is: the source
+    /// decides what that means (a dock floats the tab in a window of its own there).
+    pub fn outside(self, outside: impl Fn(DragPoint) + 'static) -> Self {
+        Self {
+            outside: Some(Rc::new(outside)),
+            ..self
         }
     }
 
