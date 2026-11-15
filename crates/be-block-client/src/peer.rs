@@ -1048,19 +1048,12 @@ impl<S: ObjectStore> Peer<S> {
         Ok(self.commits.is_ancestor(ancestor, descendant)?)
     }
 
-    /// Where `ours` and `theirs` meet within `depth` levels of parents on each side, fetching
-    /// only the commits the walk reaches (`MergeBaseWalk`).
-    pub async fn merge_base(
-        &self,
-        ours: CommitId,
-        theirs: CommitId,
-        depth: usize,
-    ) -> Result<MergeBase, ClientError> {
-        let mut walk = MergeBaseWalk::new(ours, theirs, depth);
+    /// Takes `walk` (`MergeBaseWalk`) to where its two heads meet, fetching only the commits it
+    /// reaches, a level of both sides in one round of requests.
+    pub async fn merge_base(&self, walk: &mut MergeBaseWalk) -> Result<MergeBase, ClientError> {
         loop {
-            for id in walk.frontier().collect::<Vec<_>>() {
-                self.try_fetch(id.hash()).await?;
-            }
+            let frontier: Vec<_> = walk.frontier().map(CommitId::hash).collect();
+            self.try_fetch_all(&frontier).await?;
             if let Some(found) = walk.step(&self.commits)? {
                 return Ok(found);
             }

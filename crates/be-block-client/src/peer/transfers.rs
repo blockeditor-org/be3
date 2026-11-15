@@ -20,6 +20,22 @@ impl<S: ObjectStore> Peer<S> {
     /// the hash asked for: the server is not trusted with content, and this is what stops it
     /// substituting any.
     pub async fn fetch(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.fetch_lacking(hashes, true).await
+    }
+
+    /// Fetches what it can of the objects among `hashes` this device lacks, in one round of
+    /// requests, leaving out those the server or the store does not have.
+    pub async fn try_fetch_all(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.fetch_lacking(hashes, false).await
+    }
+
+    /// Fetches one object unless this device has it; answers whether it has it now.
+    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
+        self.try_fetch_all(&[hash]).await?;
+        Ok(self.commits.vault().store().has(hash)?)
+    }
+
+    async fn fetch_lacking(&self, hashes: &[Hash], all: bool) -> Result<(), ClientError> {
         let store = self.commits.vault().store();
         let mut seen = HashSet::new();
         let mut missing = Vec::new();
@@ -32,33 +48,21 @@ impl<S: ObjectStore> Peer<S> {
             let urls = self.download_urls(batch).await?;
             let mut downloads =
                 futures_util::stream::iter(batch.iter().zip(urls).map(|(hash, url)| async move {
-                    let url = url.ok_or(ClientError::MissingObject(*hash))?;
-                    download(*hash, &url)
-                        .await?
-                        .ok_or(ClientError::MissingObject(*hash))
+                    match url {
+                        Some(url) => download(*hash, &url).await.map(|bytes| (*hash, bytes)),
+                        None => Ok((*hash, None)),
+                    }
                 }))
                 .buffer_unordered(TRANSFERS);
-            while let Some(bytes) = downloads.next().await {
-                store.put(&bytes?)?;
+            while let Some(downloaded) = downloads.next().await {
+                match downloaded? {
+                    (_, Some(bytes)) => store.put(&bytes)?,
+                    (hash, None) if all => return Err(ClientError::MissingObject(hash)),
+                    (_, None) => continue,
+                };
             }
         }
         Ok(())
-    }
-
-    /// Fetches one object unless this device has it; answers whether it has it now.
-    pub async fn try_fetch(&self, hash: Hash) -> Result<bool, ClientError> {
-        let store = self.commits.vault().store();
-        if store.has(hash)? {
-            return Ok(true);
-        }
-        let Some(Some(url)) = self.download_urls(&[hash]).await?.pop() else {
-            return Ok(false);
-        };
-        let Some(bytes) = download(hash, &url).await? else {
-            return Ok(false);
-        };
-        store.put(&bytes)?;
-        Ok(true)
     }
 
     /// Uploads the objects among `hashes` the server lacks.

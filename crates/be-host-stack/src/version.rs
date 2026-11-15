@@ -9,7 +9,9 @@ use be_wasm_threads::Mutex;
 use be_block_repository::{Action, Kept, Operation, View, masked, scope_mask};
 
 use be_block_client::{ClientError, Peer, Saved, Write};
-use be_block_commit::{ChangeId, Commit, CommitId, CommitKind, MergeBase, now_milliseconds};
+use be_block_commit::{
+    ChangeId, Commit, CommitId, CommitKind, MergeBase, MergeBaseWalk, now_milliseconds,
+};
 use be_block_content::{
     BlockContent, BlockMetadata, Root,
     be_block_model::{Document, Model},
@@ -36,6 +38,12 @@ const LOG_LENGTH: usize = 100;
 /// find the two heads' common ancestor (`merge_over`), before it takes the head it read as the
 /// base.
 pub(crate) const MERGE_BASE_DEPTH: usize = 64;
+
+/// What each walk to a merge base found and how many commits it reached (`merge_over`), for a
+/// test to tell that it stopped. Each test file runs as a process of its own.
+#[cfg(test)]
+pub(crate) static WALKED: std::sync::Mutex<Vec<(MergeBase, usize)>> =
+    std::sync::Mutex::new(Vec::new());
 
 #[derive(Default)]
 pub struct VersionState {
@@ -2568,12 +2576,18 @@ async fn merge_over(
         .ok_or("Version control does not know a block it writes.")?;
     let base = match made_from {
         Some(made_from) => {
-            let base = match context
+            let mut walk = MergeBaseWalk::new(made_from, theirs, MERGE_BASE_DEPTH);
+            let found = context
                 .peer
-                .merge_base(made_from, theirs, MERGE_BASE_DEPTH)
+                .merge_base(&mut walk)
                 .await
-                .map_err(failed)?
-            {
+                .map_err(failed)?;
+            #[cfg(test)]
+            WALKED
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push((found, walk.reached()));
+            let base = match found {
                 MergeBase::Behind => return Ok(None),
                 MergeBase::Base(base) => Some(base),
                 // Edits made while the command ran reach this deep only on top of the head it
