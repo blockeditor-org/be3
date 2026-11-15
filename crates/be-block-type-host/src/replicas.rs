@@ -4176,7 +4176,9 @@ async fn fetched_for_join<S: be_block_store::ObjectStore>(
     head: CommitId,
 ) -> Result<(), ClientError> {
     match peer.fetch_history(head).await {
-        Ok(()) | Err(ClientError::Locked(_)) => Ok(()),
+        Ok(())
+        | Err(ClientError::Locked(_))
+        | Err(ClientError::Store(be_block_store::StoreError::MissingKey(_))) => Ok(()),
         Err(error) => Err(error),
     }
 }
