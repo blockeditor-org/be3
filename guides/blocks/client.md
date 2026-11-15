@@ -296,7 +296,11 @@ sends it. `Peer::write` does both.
   moves, definitions and holds are final as they are kept, and a publish is the
   block's head when it goes on the head the block has (`publish_locally`, the
   server's compare-and-swap), else `Saved::Rejected`, or `Drained::Diverged` to
-  merge. Listings answer from every summary it holds (`Refs::local_listing`),
+  merge. A settled commit or hold grows the block's `size` by the bytes of the
+  objects it did not hold yet, and the `tree_size` of it and every block above
+  it, and a settled move carries its `tree_size` along (`Refs::grow`,
+  `carry_tree`), as a server counts them. Listings answer from every summary it
+  holds (`Refs::local_listing`),
   history from its store (`history_held`), and what needs a server is refused as
   offline. be-host-stack runs it when its `Config` says `local` (set outright,
   never read from an empty `server_url`): the line never goes up (`Line::Local`), the stack starts

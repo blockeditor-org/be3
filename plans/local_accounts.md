@@ -67,10 +67,8 @@ Each says whether a server account offline has the same gap.
    never start offline; a local account has one member and nothing to rotate. Local accounts
    only.
 5. **The graph.** The server works out access and the `size` and `tree_size` it lists. A local
-   account's one member has everything (`Refs::local_listing`). Sizes are not counted on the
-   device yet: a local account's blocks list a size of 0, so the files show none. Fill it by
-   counting the bytes of the objects each block holds as its commits settle, and each tree's
-   from its children's.
+   account's one member has everything (`Refs::local_listing`), and sizes are counted on the
+   device as commits and holds settle (`Refs::grow`, `carry_tree`).
 6. **History and reclaiming storage.** `fetch_history` reads history from the server, and holds,
    retention and reclamation run there (guides/blocks/server.md, Liveness and reclamation). A
    local account holds all its history, and reclaims with the same storage crates on the device.
@@ -94,8 +92,7 @@ offline. The app sandbox is the host's own (guides/apps/host_services.md), so it
 
 ## Steps
 
-1. Sizes on the device (gap 5).
-2. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
+1. Delete `embedded_server.rs` and be-server from be-host-stack's dependencies; tests keep
    be-server as a test dependency. Update guides/hosting.md (Local profiles and the default
    server), guides/blocks/server.md (Running it, Tests), guides/blocks/host.md and
    guides/running/native.md.

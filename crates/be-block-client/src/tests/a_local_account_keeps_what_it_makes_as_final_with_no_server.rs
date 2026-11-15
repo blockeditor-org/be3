@@ -53,11 +53,33 @@ async fn a_local_account_keeps_what_it_makes_as_final_with_no_server() {
     assert_eq!(peer.local_head(note), Some(two));
     assert_eq!(peer.known_remote_head(note), Some(two));
 
+    // Sizes are counted on the device, as a server counts them: a block's own objects, and
+    // under each block what is in its tree.
+    let size = |block| peer.known_summary(block).unwrap();
+    let written = size(note).size;
+    assert!(written > 0, "the note's size counts what it holds");
+    assert_eq!(size(note).tree_size, written);
+    assert!(size(team).tree_size >= written + size(team).size);
+
     let folder = peer
         .create::<TextContent>(BlockParent::Block(team))
         .await
         .unwrap();
+    let Ok(Saved::Published(_)) = peer
+        .save(folder, &TextBlock::of("a folder's worth of words"), None)
+        .await
+    else {
+        panic!("a local commit was not final");
+    };
+    let before = size(team).tree_size;
+    let moved = size(folder).tree_size;
+    assert!(moved > 0);
     peer.set_parent(folder, BlockParent::Root).await.unwrap();
+    assert_eq!(
+        size(team).tree_size,
+        before - moved,
+        "a block moved out takes its size with it"
+    );
     assert_eq!(peer.pending(), refs::PendingCounts::default());
     let roots: Vec<Uuid> = peer
         .children(BlockParent::Root)

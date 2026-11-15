@@ -1681,6 +1681,23 @@ impl Session<'_> {
                     if !index {
                         held.search.sealed(block);
                     }
+                    // Its size and the tree sizes above it moved (`Refs::grow`), which no
+                    // listing will tell the graph: it reads them from the summaries.
+                    let mut at = Some(block);
+                    let mut seen = std::collections::HashSet::new();
+                    while let Some(current) = at.filter(|current| seen.insert(*current)) {
+                        let Some(summary) = peer.known_summary(current) else {
+                            break;
+                        };
+                        at = summary.parent.and_then(BlockParent::block);
+                        let sizes = (summary.size, summary.tree_size);
+                        if held.graph.get(current).is_some_and(|node| (node.size, node.tree_size) != sizes) {
+                            held.graph.update(current, |node| {
+                                (node.size, node.tree_size) = sizes;
+                            });
+                            held.graph.settle(current);
+                        }
+                    }
                 }
             }
             moved |= super::search::step(
