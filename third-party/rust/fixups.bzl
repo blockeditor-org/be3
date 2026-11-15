@@ -52,12 +52,6 @@ FIXUPS = {
             "LIBCLANG_PATH": "$(location //buck/tools:llvm)/lib",
         },
     },
-    # The arm64 backend beside the host's own. The apps beside an arm64 host
-    # (Android's APK, the Macs, Windows and Linux on arm64) are compiled for its
-    # wasmtime ahead of time, on the workers - crates/be-host's app and
-    # android-assets - with the one wasmtime built for them, so it is this one
-    # that has to know arm64.
-    "cranelift-codegen": {"features": {"linux-x86_64": ["arm64"]}},
     # The overlay's build script always compiles the FreeType the crate vendors,
     # which an app paints with too, and compiles libpng and zlib beside it
     # for FreeType to load the colour glyphs emoji fonts keep as PNG images.
@@ -127,12 +121,6 @@ FIXUPS = {
         "overlay": {"src/xwayland/xwm/mod.rs": "overlays/smithay/xwm.rs"},
     },
     "soup3-sys": _PKG_CONFIG,
-    # bindgen! adds an include_bytes! of every WIT file it reads, by absolute
-    # path, so that cargo rebuilds when one changes; buck2 knows the files
-    # already. An included file's path is part of the crate's hash, and that path
-    # is in the directory each compile runs in, which made the -Zno-codegen
-    # metadata wasmtime-wasi's dependents compile against and the rlib they link
-    # disagree. The overlay leaves the includes out.
     # V8, prebuilt and pinned per platform in third-party/v8, where cargo's
     # build script downloads it or builds it from source.
     "v8": {
@@ -148,7 +136,6 @@ FIXUPS = {
             "src/binding.rs": "overlays/v8/src/binding.rs",
         },
     },
-    "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
     "webkit2gtk-sys": _PKG_CONFIG,
     # What the app GPU API needs of wgpu 29. It cannot finish a custom backend's
     # render bundle encoder: `finish` takes the encoder by value, which a `dyn`
@@ -178,12 +165,4 @@ FIXUPS = {
         "deps": [":windows-link-0.2.1"],
         "rustc_flags": ["--cfg=windows_raw_dylib"],
     },
-    # The snapshot lookup, which nothing here calls, starts from
-    # env!("CARGO_MANIFEST_DIR"): an absolute path into the directory each
-    # compile runs in. That made the -Zno-codegen metadata a dependent compiles
-    # against and the rlib it links disagree about the crate's hash, failing
-    # the link of wiggle's proc macro. The overlay starts from no directory, so
-    # the lookup needs WASI_REPO, as it does wherever the WASI repository is not
-    # two directories up.
-    "witx": {"overlay": {"src/phases.rs": "overlays/witx/phases.rs"}},
 }

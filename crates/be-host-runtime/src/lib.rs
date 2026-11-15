@@ -82,11 +82,6 @@ pub use runtime::{
 };
 pub use windows::{forget_windows, request_windows, take_window_requests};
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn cache_in(directory: std::path::PathBuf) {
-    wasm::cache_in(directory);
-}
-
 pub fn exiting() {
     runtime::exiting();
     #[cfg(not(target_arch = "wasm32"))]

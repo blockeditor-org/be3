@@ -9,9 +9,8 @@ load(
     "cargo_wasm_facts",
 )
 load("@root//buck/dev:test.bzl", "be_test")
-load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "RUST_LOCAL", "SYMBOL_FLAGS", "keep_profile", "opt_flags")
-load("@root//buck/program:defs.bzl", "PrecompiledInfo", "app_data", "app_types", "program")
+load("@root//buck/program:defs.bzl", "app_data", "app_types", "program")
 load("@root//buck/wasm:libraries.bzl", "WasmLibrariesInfo")
 
 # rustc links a cdylib with --no-entry, which strips the symbols a host needs to
@@ -438,7 +437,6 @@ def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
         name = "test-harness",
         libraries = libraries,
         module = ":test-module",
-        precompile = per_cross_platform(True, lambda _: False),
         runner = "//crates/be-sdk-test-runner:bin",
     )
     be_test(
@@ -461,42 +459,6 @@ def app_tests(exports = [], env = {}, extra_deps = [], libraries = None):
 # rather than a staged copy, and app-test-runner opens that directory, and
 # MADE_PAINTINGS' when it is set, to it and nothing else.
 #
-# The module is compiled for wasmtime once, in an action, rather than by every
-# test process. It is compiled for the x86_64 baseline, since the compile runs
-# on a worker and the test here, and only for the host: elsewhere the runner
-# compiles it when the test runs. --quick compiles it without Cranelift's
-# optimizations, which took a quarter off the compile and left the tests'
-# running time as it was; Cranelift's single-pass register allocator, which
-# would take off more, ran a deep paint out of stack.
-#
-# The libraries it is linked against are the ones be-host's :precompiled
-# compiles for every app, so every test and the host share one compile of
-# each; a library no app links is compiled here.
-def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
-    if not ctx.attrs.precompile:
-        return cmd_args(module)
-    artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
-    ctx.actions.run(
-        cmd_args(ctx.attrs._precompiler[RunInfo], "--precompile-to", "--target", "x86_64-unknown-linux-gnu", "--quick", artifact.as_output(), module),
-        category = "wasm_precompile",
-        identifier = module.basename,
-    )
-    return cmd_args("--precompiled", artifact, module)
-
-def _library(ctx: AnalysisContext, library: Artifact) -> Artifact:
-    if not ctx.attrs.precompile:
-        return library
-    compiled = ctx.attrs._precompiled[PrecompiledInfo].artifacts
-    if library in compiled:
-        return compiled[library]
-    artifact = ctx.actions.declare_output(library.basename.removesuffix(".wasm") + ".cwasm")
-    ctx.actions.run(
-        cmd_args(ctx.attrs._precompiler[RunInfo], "--precompile-to", "--target", "x86_64-unknown-linux-gnu", artifact.as_output(), library),
-        category = "wasm_precompile",
-        identifier = library.basename,
-    )
-    return artifact
-
 # The app test's command: app-test-runner, each library in the module's
 # closure in order, and the module, which draws through the sysroot's
 # lavapipe, as the renderer's tests do (the env app_tests gives its be_test).
@@ -507,22 +469,17 @@ def _wasm_test_harness_impl(ctx: AnalysisContext) -> list[Provider]:
         for wasm in library[WasmLibrariesInfo].closure + [library[DefaultInfo].default_outputs[0]]:
             if wasm not in closure:
                 closure.append(wasm)
-    libraries = [cmd_args("--library", _library(ctx, wasm)) for wasm in closure]
+    libraries = [cmd_args("--library", wasm) for wasm in closure]
     return [
         DefaultInfo(default_output = module),
-        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], libraries, _precompiled(ctx, module))),
+        RunInfo(args = cmd_args(ctx.attrs.runner[RunInfo], libraries, module)),
     ]
 
 wasm_test_harness = rule(
     attrs = {
         "libraries": attrs.list(attrs.dep(providers = [WasmLibrariesInfo]), default = []),
         "module": attrs.transition_dep(cfg = wasi_transition),
-        "precompile": attrs.bool(default = True),
         "runner": attrs.dep(providers = [RunInfo]),
-        "_precompiled": attrs.default_only(attrs.dep(default = "root//crates/be-host:precompiled", providers = [PrecompiledInfo])),
-        # The runner as the workers run it, which be-host's :precompiled
-        # compiles with too.
-        "_precompiler": attrs.default_only(attrs.dep(default = "root//crates/be-sdk-test-runner:precompiler", providers = [RunInfo])),
     },
     impl = _wasm_test_harness_impl,
 )

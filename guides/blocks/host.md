@@ -37,8 +37,7 @@ another schema's; no stamp is not stale. A stale block's frame shows
 type's default content), Delete, and Try anyway (`try_anyway`, for the
 session). A block the host holds itself is reset without asking, with a notice.
 
-The host deletes `app-cache/` when its build id changes and keeps `be-objects/`
-and the refs database.
+The host keeps `be-objects/` and the refs database across builds.
 
 ## The worker and its replicas
 

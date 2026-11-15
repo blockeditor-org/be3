@@ -1,7 +1,6 @@
 use std::{
     cell::RefCell,
     convert::Infallible,
-    path::PathBuf,
     sync::{Arc, Condvar, Mutex, PoisonError, atomic::AtomicBool},
     time::Duration,
 };
@@ -33,7 +32,6 @@ pub(super) type Mailbox = be_wasm_host::Imports;
 type Gpu = Result<(wgpu::Device, wgpu::Queue), String>;
 
 thread_local! {
-    static CACHE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
     static PREPARED: RefCell<Vec<Prepared>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -77,14 +75,6 @@ pub(super) fn wait_for_workers(within: Duration) {
     thread::wait_for_workers(within);
 }
 
-pub fn cache_in(directory: PathBuf) {
-    CACHE.with(|cache| *cache.borrow_mut() = Some(directory));
-}
-
-fn cache() -> Option<PathBuf> {
-    CACHE.with(|cache| cache.borrow().clone())
-}
-
 impl Presented for PresentedTexture {
     fn surface(&self) -> u32 {
         self.surface
@@ -102,7 +92,7 @@ pub(super) fn frame(textures: Vec<PresentedTexture>, presents: u64) -> SurfaceFr
 pub(super) fn prepare(app: &AppManifest, module: String) {
     let device = Arc::<Handover>::default();
     let handover = Arc::clone(&device);
-    let started = Host::awaiting(move || handover.wait(), cache().as_deref())
+    let started = Host::awaiting(move || handover.wait())
         .and_then(|host| start(app, &module, host));
     PREPARED.with(|prepared| {
         prepared.borrow_mut().push(Prepared {
@@ -143,8 +133,8 @@ pub(super) fn spawn(
         return std::mem::replace(&mut prepared.started, Err(NO_GPU.to_owned()));
     }
     let host = match gpu() {
-        Some((device, queue)) => Host::new(device, queue, cache().as_deref())?,
-        None => Host::on_demand(|| Err(NO_GPU.to_owned()), cache().as_deref())?,
+        Some((device, queue)) => Host::new(device, queue)?,
+        None => Host::on_demand(|| Err(NO_GPU.to_owned()))?,
     };
     start(app, &module, host)
 }
