@@ -254,7 +254,7 @@ pub fn explain(error: ClientError) -> String {
     match error {
         ClientError::Refused(_, message) => message,
         ClientError::Incompatible { ours, theirs } => format!(
-            "this be is build {ours} and the server is build {theirs}; ./scripts/be runs the release pinned in scripts/internal/pins, which must be the server's build"
+            "this be is build {ours} and the server is build {theirs}; ./scripts/be runs the build https://be3.pfg.pw/live/be-release names, which each deploy points at the server's build (guides/tracker.md)"
         ),
         other => other.to_string(),
     }
