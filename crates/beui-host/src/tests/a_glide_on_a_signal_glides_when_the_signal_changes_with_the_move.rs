@@ -22,7 +22,11 @@ fn a_glide_on_a_signal_glides_when_the_signal_changes_with_the_move() {
 
     above.set(40.0);
     harness.frame(Vec::new());
-    assert_eq!(top_of(&harness, "slot"), 40.0, "the glide rests in its new place");
+    assert_eq!(
+        top_of(&harness, "slot"),
+        40.0,
+        "the glide rests in its new place"
+    );
     assert_eq!(
         top_of(&harness, "row"),
         0.0,
@@ -31,7 +35,10 @@ fn a_glide_on_a_signal_glides_when_the_signal_changes_with_the_move() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let moving = top_of(&harness, "row");
-    assert!(moving > 0.0 && moving < 40.0, "it is on its way, at {moving}");
+    assert!(
+        moving > 0.0 && moving < 40.0,
+        "it is on its way, at {moving}"
+    );
     harness.settle();
     assert_eq!(top_of(&harness, "row"), 40.0);
 }

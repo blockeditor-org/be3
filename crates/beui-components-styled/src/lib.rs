@@ -20,8 +20,8 @@ pub mod date_time_field;
 pub mod dialog;
 pub mod focus_ring;
 pub mod frame;
-pub mod glide;
 pub mod fullscreen;
+pub mod glide;
 pub mod key_cap;
 pub mod link;
 pub mod list;
@@ -80,10 +80,9 @@ pub use beui_components_unstyled::{
     TextAreaState, TextWidget, TreeDragOver, TreeDrop, TreeItem, container_size, narrower_than,
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
+pub use beui_components_unstyled::{GlideApi, GlideHold};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
-pub use beui_components_unstyled::{
-    ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove,
-};
+pub use beui_components_unstyled::{ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove};
 pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile, TreemapTileKey};
 pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
@@ -109,9 +108,8 @@ pub use dialog::{
 };
 pub use focus_ring::FocusRing;
 pub use frame::{Border, ColorRole, Frame, Radius};
-pub use beui_components_unstyled::{GlideApi, GlideHold};
-pub use glide::Glide;
 pub use fullscreen::Fullscreen;
+pub use glide::Glide;
 pub use key_cap::KeyCap;
 pub use link::Link;
 pub use list::{Grid, List, Spacer};

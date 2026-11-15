@@ -35,7 +35,11 @@ fn a_press_on_a_window_tab_still_gliding_in_carries_the_tab_not_the_window() {
         "the tab is still gliding, drawn above its place in the strip: {drawn:?} against {row:?}"
     );
 
-    let placed = harness.document().api::<DockApi>(dock).state().window_rect(window);
+    let placed = harness
+        .document()
+        .api::<DockApi>(dock)
+        .state()
+        .window_rect(window);
     harness.drag(
         pos2(drawn.center().x, drawn.top() + 1.0),
         pos2(WIDE_VIEWPORT.x - 20.0, WIDE_VIEWPORT.y - 40.0),

@@ -27,7 +27,11 @@ fn a_trackable_follows_a_trigger_or_a_value_alike() {
 
     number.set(1);
     flush();
-    assert_eq!(runs.get(), 3, "a signal and the memo over it wake it once together");
+    assert_eq!(
+        runs.get(),
+        3,
+        "a signal and the memo over it wake it once together"
+    );
     number.set(1);
     flush();
     assert_eq!(runs.get(), 3, "a signal set to what it holds wakes nothing");

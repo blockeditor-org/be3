@@ -30,9 +30,9 @@ use beui_components_unstyled::DropHandle;
 use beui_components_unstyled::DropTarget;
 use beui_components_unstyled::Scroll;
 use beui_components_unstyled::ScrollStyle;
-use beui_components_unstyled::drawn_child;
 use beui_components_unstyled::back_slide::{BackSlide, SlideCurves};
 use beui_components_unstyled::context_menu::ContextMenu;
+use beui_components_unstyled::drawn_child;
 use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
@@ -823,7 +823,13 @@ impl State {
         // rect, which then shows nothing.
         node.children()
             .into_iter()
-            .filter_map(|tab| Some(measure(drawn_child(tab).unwrap_or(tab)).get_untracked()?.rect))
+            .filter_map(|tab| {
+                Some(
+                    measure(drawn_child(tab).unwrap_or(tab))
+                        .get_untracked()?
+                        .rect,
+                )
+            })
             .collect()
     }
 

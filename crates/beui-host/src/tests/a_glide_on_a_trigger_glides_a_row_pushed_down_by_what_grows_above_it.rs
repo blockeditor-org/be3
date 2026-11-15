@@ -32,7 +32,11 @@ fn a_glide_on_a_trigger_glides_a_row_pushed_down_by_what_grows_above_it() {
     above.set(80.0);
     grown.notify();
     harness.frame(Vec::new());
-    assert_eq!(top_of(&harness, "slot"), 80.0, "the glide rests in its new place");
+    assert_eq!(
+        top_of(&harness, "slot"),
+        80.0,
+        "the glide rests in its new place"
+    );
     assert_eq!(
         top_of(&harness, "row"),
         40.0,
@@ -41,7 +45,10 @@ fn a_glide_on_a_trigger_glides_a_row_pushed_down_by_what_grows_above_it() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let moving = top_of(&harness, "row");
-    assert!(moving > 40.0 && moving < 80.0, "it is on its way, at {moving}");
+    assert!(
+        moving > 40.0 && moving < 80.0,
+        "it is on its way, at {moving}"
+    );
     harness.settle();
     assert_eq!(top_of(&harness, "row"), 80.0);
 }

@@ -20,14 +20,7 @@ pub fn Glide(
     children: NodeId,
 ) -> NodeId {
     view! {
-        <unstyled::Glide
-            api
-            spring={Movement::Settle.spring()}
-            on
-            from
-            raised
-            within
-        >
+        <unstyled::Glide api spring={Movement::Settle.spring()} on from raised within>
             {children}
         </unstyled::Glide>
     }

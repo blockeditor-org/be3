@@ -2,7 +2,7 @@ use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
 use crate::styled::Reorder;
-    use crate::unstyled::{ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
+use crate::unstyled::{ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
 
 #[test]
 fn a_virtual_list_reorders_its_rows_by_key() {

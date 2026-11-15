@@ -2,10 +2,8 @@ use super::*;
 use crate::geometry::Rect;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::{
-    DragPoint, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove,
-};
 use crate::styled::Reorder;
+use crate::unstyled::{DragPoint, ReorderHandle, ReorderItem, ReorderItemHandle, ReorderMove};
 
 #[test]
 fn a_drag_the_board_does_not_carry_can_still_part_a_reorder_list() {
