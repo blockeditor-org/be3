@@ -104,15 +104,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     });
 
     let empty = create_memo(move || entries.with(Vec::is_empty));
-    let unordered = create_memo(move || sort.get() == FolderSort::Intrinsic);
-    let direction_glyph = create_memo(move || match descending.get() {
-        true => ICON_ARROW_DOWN,
-        false => ICON_ARROW_UP,
-    });
-    let direction_label = create_memo(move || match descending.get() {
-        true => "Descending".to_owned(),
-        false => "Ascending".to_owned(),
-    });
     let mode_index = create_memo(move || {
         FolderView::ALL
             .iter()
@@ -135,11 +126,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
-    let hovering = create_memo(move || drop.get().is_some());
-    let outline = create_memo(move || match drop.get() {
-        Some(true) => ColorRole::Accent,
-        _ => ColorRole::Danger,
-    });
     let layout = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout focus={Some(STAGE)}>
@@ -147,7 +133,13 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                 <DockTab id=STAGE title="Folder">
                     <Frame
                         @node_ref={&content}
-                        border={create_memo(move || hovering.get().then(|| Border::new(outline.get()).width(DROP_OUTLINE)))}
+                        border={move || drop.get().map(|welcome| {
+                            let outline = match welcome {
+                                true => ColorRole::Accent,
+                                false => ColorRole::Danger,
+                            };
+                            Border::new(outline).width(DROP_OUTLINE)
+                        })}
                     >
                         <List spacing=Space::None>
                             <Show condition={empty}>
@@ -164,7 +156,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             <ListItem grow=1.0>
                                 <Scroll>
                                     <Frame padding=PADDING>
-                                        <List spacing=Space::None>
                                             <Dynamic value={mode}>|shown: FolderView| {
                                                 match shown {
                                                     FolderView::List => view! {
@@ -186,7 +177,6 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                                                     },
                                                 }
                                             }</Dynamic>
-                                        </List>
                                     </Frame>
                                 </Scroll>
                             </ListItem>
@@ -238,9 +228,15 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         </ListItem>
                         <Button
                             icon_only=true
-                            glyph={direction_glyph}
-                            label={direction_label}
-                            disabled={unordered}
+                            glyph={move || match descending.get() {
+                                true => ICON_ARROW_DOWN,
+                                false => ICON_ARROW_UP,
+                            }}
+                            label={move || match descending.get() {
+                                true => "Descending".to_owned(),
+                                false => "Ascending".to_owned(),
+                            }}
+                            disabled={move || sort.get() == FolderSort::Intrinsic}
                             @test_id={"folder.direction"}
                             on_click={flip}
                         />
