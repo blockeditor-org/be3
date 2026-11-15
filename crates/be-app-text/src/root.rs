@@ -83,7 +83,7 @@ pub fn TextEditor(editor: Editor) -> NodeId {
                         <EditorMenu state={state} />
                         <ListItem grow=1.0>
                             <Loaded label="Loading the text">|| {
-                                let _ = untrack(|| editor.block_content::<TextContent>().ready());
+                                editor.block_content::<TextContent>();
                                 view! {
                                     <Show value={state.hex_view} fallback={text_surface}>
                                         <HexView state={state} />

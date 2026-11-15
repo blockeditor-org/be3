@@ -231,7 +231,11 @@ Traps:
   its root, or it holds the boundary for ever.
 - A boundary waits only for what is read under it, never for what was made or
   called there: a body that must hold its `<Loaded>` until a value arrives
-  reads it, through the node that uses it.
+  reads it, through the node that uses it. The one exception is an editor's
+  own content: `editor.block_content()` reads whether it arrived where it is
+  called, so asked for in a body under a `<Loaded>`, it holds that boundary
+  however the editor reads it afterwards (in effects, callbacks, paintings).
+  `content_of` another block does not.
 - A callback (`on_touched`, a button's `on_click`) is no read: it runs later,
   outside the scope, so what it reads holds nothing back.
 

@@ -422,7 +422,12 @@ impl Editor {
     where
         C: be_block_content::LiveEdit + Clone + Default,
     {
-        self.projection_of(None)
+        let projection = self.projection_of(None);
+        // Read where it is asked for: an editor shows its own content, so a `Loaded` it is
+        // asked for under holds until the content arrives, however the editor reads it later
+        // (in an effect, a callback, a painting).
+        let _ = untrack(|| projection.ready());
+        projection
     }
 
     /// The content of `block`, which reads as loading until it arrives. A block this viewer
