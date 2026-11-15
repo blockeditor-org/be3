@@ -37,9 +37,17 @@ fn another_pointer_neither_moves_nor_drops_a_carry() {
         "a finger's move leaves a carry the mouse holds"
     );
     Driver::release(&*fixture.board, finger, false, &order);
-    assert_eq!(fixture.carried(), Some(1), "and its release does not put it down");
+    assert_eq!(
+        fixture.carried(),
+        Some(1),
+        "and its release does not put it down"
+    );
 
     fixture.track(pos2(550.0, 50.0));
     fixture.release();
-    assert_eq!(*dropped.borrow(), vec!["right"], "the mouse moves and drops it");
+    assert_eq!(
+        *dropped.borrow(),
+        vec!["right"],
+        "the mouse moves and drops it"
+    );
 }

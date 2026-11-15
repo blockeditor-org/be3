@@ -53,7 +53,11 @@ fn a_finger_pressed_while_the_mouse_carries_neither_moves_nor_drops_its_carry() 
         harness.frame(vec![Input::PointerMoved(at)]);
     }
     harness.settle();
-    assert_eq!(over.get_untracked(), (Some(()), None), "the mouse carries it over the left");
+    assert_eq!(
+        over.get_untracked(),
+        (Some(()), None),
+        "the mouse carries it over the left"
+    );
 
     harness.touch(TouchPhase::Start, right + vec2(0.0, 30.0));
     harness.touch(TouchPhase::Move, right);
@@ -65,7 +69,11 @@ fn a_finger_pressed_while_the_mouse_carries_neither_moves_nor_drops_its_carry() 
     );
     harness.touch(TouchPhase::End, right);
     harness.settle();
-    assert_eq!(carried.get_untracked(), Some(7), "and its release does not put it down");
+    assert_eq!(
+        carried.get_untracked(),
+        Some(7),
+        "and its release does not put it down"
+    );
 
     for step in 1..=4 {
         let at = left + (right - left) * (step as f32 / 4.0);
@@ -73,5 +81,9 @@ fn a_finger_pressed_while_the_mouse_carries_neither_moves_nor_drops_its_carry() 
     }
     harness.up(right, PointerButton::Primary);
     harness.settle();
-    assert_eq!(dropped.get_untracked(), ["right"], "the mouse moves and drops it");
+    assert_eq!(
+        dropped.get_untracked(),
+        ["right"],
+        "the mouse moves and drops it"
+    );
 }

@@ -42,7 +42,11 @@ fn a_source_given_drag_lays_out_as_it_would_without() {
     let mut harness = Harness::new(document);
     harness.settle();
     let size = |id: &str| harness.rect(harness.find(id)).size();
-    assert_eq!(size("drag.stretched"), size("plain.stretched"), "a stretched child");
+    assert_eq!(
+        size("drag.stretched"),
+        size("plain.stretched"),
+        "a stretched child"
+    );
     assert_eq!(size("drag.grown"), size("plain.grown"), "a grown child");
     assert_eq!(
         top_of(&harness, "drag.stretched") - top_of(&harness, "plain.stretched"),

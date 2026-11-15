@@ -22,7 +22,11 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
             Func::new(|_: u32| true),
             Func::new(move |_: u32| {
                 closest(baskets.iter().zip(names).map(|(basket, name)| {
-                    Candidate::new(name, Rect::from_min_size(Pos2::ZERO, vec2(60.0, 40.0)), *basket)
+                    Candidate::new(
+                        name,
+                        Rect::from_min_size(Pos2::ZERO, vec2(60.0, 40.0)),
+                        *basket,
+                    )
                 }))
             }),
             Callback::new(move |(_, name): (u32, &'static str)| {
@@ -37,7 +41,10 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
             KeyReveal::Focus,
             move |event: KeyEvent| {
                 let wanted = event.press().is_some_and(|press| {
-                    press.pressed && press.key == Key::P && press.modifiers.ctrl && press.modifiers.shift
+                    press.pressed
+                        && press.key == Key::P
+                        && press.modifiers.ctrl
+                        && press.modifiers.shift
                 });
                 if wanted {
                     open.set(true);
@@ -69,8 +76,16 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
 
     harness.key(Key::Space, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
-    assert_eq!(carried.get_untracked(), None, "Space does not lift a source that activates");
-    assert_eq!(activated.get_untracked(), 2, "Space and Enter activate it, as a button");
+    assert_eq!(
+        carried.get_untracked(),
+        None,
+        "Space does not lift a source that activates"
+    );
+    assert_eq!(
+        activated.get_untracked(),
+        2,
+        "Space and Enter activate it, as a button"
+    );
 
     let ctrl_shift = Modifiers {
         ctrl: true,
@@ -94,16 +109,27 @@ fn a_source_that_activates_keeps_its_keys_and_moves_with_ctrl_shift_or_the_palet
     harness.key(Key::P, ctrl_shift);
     harness.type_text("Move");
     assert_eq!(
-        harness.document().api::<CommandPaletteApi>(palette.get()).shown(),
+        harness
+            .document()
+            .api::<CommandPaletteApi>(palette.get())
+            .shown(),
         vec!["drag.move"],
         "the palette offers Move while the source has the focus"
     );
     harness.key(Key::Enter, Modifiers::NONE);
     harness.settle();
-    assert_eq!(carried.get_untracked(), Some(7), "Move lifts it with the keyboard");
+    assert_eq!(
+        carried.get_untracked(),
+        Some(7),
+        "Move lifts it with the keyboard"
+    );
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
     assert_eq!(dropped.get_untracked(), ["middle", "right"]);
-    assert_eq!(activated.get_untracked(), 2, "and carrying activates nothing");
+    assert_eq!(
+        activated.get_untracked(),
+        2,
+        "and carrying activates nothing"
+    );
 }

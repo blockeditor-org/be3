@@ -21,7 +21,12 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
     let _root = RootScope::new();
     let dropped = create_signal(Vec::<&'static str>::new());
     let document = build_node(move || {
-        let baskets = [NodeRef::new(), NodeRef::new(), NodeRef::new(), NodeRef::new()];
+        let baskets = [
+            NodeRef::new(),
+            NodeRef::new(),
+            NodeRef::new(),
+            NodeRef::new(),
+        ];
         let names = ["left", "middle", "right", "far"];
         use_drop_site(
             Func::new(|_: u32| true),
@@ -34,7 +39,9 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
                     )
                     .labelled(format!("the {name} basket"));
                     match name {
-                        "far" => place.zoned(Rect::from_min_size(pos2(70.0, 0.0), vec2(60.0, 40.0))),
+                        "far" => {
+                            place.zoned(Rect::from_min_size(pos2(70.0, 0.0), vec2(60.0, 40.0)))
+                        }
                         _ => place,
                     }
                 }))
@@ -70,7 +77,10 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
     // read, and Enter at once after it.
     harness.frame(Vec::new());
     harness.key(Key::ArrowRight, Modifiers::NONE);
-    assert_eq!(said(&harness).as_deref(), Some("Over the middle basket, place 2 of 4"));
+    assert_eq!(
+        said(&harness).as_deref(),
+        Some("Over the middle basket, place 2 of 4")
+    );
     harness.key(Key::Enter, Modifiers::NONE);
     assert_eq!(
         dropped.get_untracked(),
@@ -82,7 +92,10 @@ fn a_keyboard_carry_drops_on_the_place_it_said_thrown_or_zoned() {
     for _ in 0..3 {
         harness.key(Key::ArrowRight, Modifiers::NONE);
     }
-    assert_eq!(said(&harness).as_deref(), Some("Over the far basket, place 4 of 4"));
+    assert_eq!(
+        said(&harness).as_deref(),
+        Some("Over the far basket, place 4 of 4")
+    );
     harness.key(Key::Space, Modifiers::NONE);
     assert_eq!(
         dropped.get_untracked(),

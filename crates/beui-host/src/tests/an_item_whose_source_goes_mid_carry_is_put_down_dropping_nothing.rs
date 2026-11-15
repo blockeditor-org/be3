@@ -40,14 +40,20 @@ fn an_item_whose_source_goes_mid_carry_is_put_down_dropping_nothing() {
     let grab = harness.center(harness.find("item"));
     harness.down(grab, PointerButton::Primary);
     for step in 1..=4 {
-        harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 12.5 * step as f32))]);
+        harness.frame(vec![Input::PointerMoved(
+            grab + vec2(0.0, 12.5 * step as f32),
+        )]);
     }
     harness.settle();
     assert_eq!(carried.get_untracked(), Some(7));
 
     shown.set(false);
     harness.settle();
-    assert_eq!(carried.get_untracked(), None, "the source gone, the carry is put down");
+    assert_eq!(
+        carried.get_untracked(),
+        None,
+        "the source gone, the carry is put down"
+    );
     harness.up(grab + vec2(0.0, 50.0), PointerButton::Primary);
     harness.settle();
     assert_eq!(dropped.get_untracked(), 0, "and nothing is dropped");

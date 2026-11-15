@@ -35,7 +35,10 @@ fn a_preview_floats_in_the_window_its_source_was_pressed_in() {
         button: PointerButton::Primary,
         pressed,
     };
-    harness.frame_in(window, vec![Input::PointerMoved(pos2(20.0, 20.0)), button(true)]);
+    harness.frame_in(
+        window,
+        vec![Input::PointerMoved(pos2(20.0, 20.0)), button(true)],
+    );
     harness.frame_in(window, vec![Input::PointerMoved(pos2(30.0, 40.0))]);
     harness.frame_in(window, vec![Input::PointerMoved(pos2(40.0, 60.0))]);
     harness.frame_in(window, Vec::new());

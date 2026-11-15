@@ -85,8 +85,8 @@ mod web {
 
     use beui_types::clipboard::formats;
     use beui_types::input::{
-        ImeEvent, Input, KeyPress, PointerButton, PointerInput, PointerPhase,
-        PointerPress, PointerStage, ScrollGesture, WheelInput, ZoomGesture, scrolled,
+        ImeEvent, Input, KeyPress, PointerButton, PointerInput, PointerPhase, PointerPress,
+        PointerStage, ScrollGesture, WheelInput, ZoomGesture, scrolled,
     };
     use beui_types::{ClipItem, Pos2, Rect, Vec2, WindowId, pos2, vec2};
     use wasm_bindgen::JsCast;

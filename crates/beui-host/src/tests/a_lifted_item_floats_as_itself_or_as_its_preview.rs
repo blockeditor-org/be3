@@ -49,7 +49,11 @@ fn a_lifted_item_floats_as_itself_or_as_its_preview() {
     );
     harness.up(grab + vec2(30.0, 60.0), PointerButton::Primary);
     harness.settle();
-    assert_eq!(harness.rect(harness.find("item")), home, "put down, it is drawn home again");
+    assert_eq!(
+        harness.rect(harness.find("item")),
+        home,
+        "put down, it is drawn home again"
+    );
 
     previewed.set(true);
     carry_to(&mut harness, vec2(30.0, 60.0));
@@ -59,7 +63,11 @@ fn a_lifted_item_floats_as_itself_or_as_its_preview() {
         "with a preview, the item stays home"
     );
     let preview = harness.rect(harness.find("preview"));
-    assert_eq!(preview.min, home.min + vec2(30.0, 60.0), "and the preview floats instead");
+    assert_eq!(
+        preview.min,
+        home.min + vec2(30.0, 60.0),
+        "and the preview floats instead"
+    );
     harness.up(grab + vec2(30.0, 60.0), PointerButton::Primary);
     harness.settle();
     assert!(
