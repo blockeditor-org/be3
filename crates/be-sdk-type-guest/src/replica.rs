@@ -2844,9 +2844,12 @@ where
             FromEditor::Operate(bytes) => {
                 // Counted taken or refused, as the host counts what it relays (`attach`).
                 *self.acknowledged.entry(editor).or_default() += 1;
+                // The host's own edits are no one's to undo (`HOST_EDITOR`).
                 let took = editable
-                    && C::decode_operation(&bytes)
-                        .is_ok_and(|operation| self.record_and_edit(operation, Some(editor)));
+                    && C::decode_operation(&bytes).is_ok_and(|operation| match editor {
+                        be_sdk_type_api::HOST_EDITOR => self.edit(operation, Some(editor)),
+                        _ => self.record_and_edit(operation, Some(editor)),
+                    });
                 // A refused operation never lands as the editor's, so it is told what holds
                 // now: otherwise it would take a later one landing as its own for this one.
                 if !took && !self.holding.contains(&editor) {
