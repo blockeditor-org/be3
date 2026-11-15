@@ -11,7 +11,7 @@ crate's tests are in `crates/beui-reactive/src/tests/`.
 
 ## Handles and ownership
 
-Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Effect`, `Selector`,
+Every handle - `Signal`, `ReadSignal`, `Memo`, `Reader`, `Trigger`, `Effect`, `Selector`,
 `Stored`, `StoredCell`, `KeyedStore`, a `#[derive(Store)]` store, and beui's
 `Callback`, `Binding` and `NodeRef` - is a `Copy` key into a thread-local arena,
 not a reference count (decisions/reactive_handles_are_copy_arena_keys.md), and
@@ -55,6 +55,7 @@ disposed later in the same flush; one still alive that reads it panics.
 | Need | Use |
 | --- | --- |
 | State that changes | `create_signal`; `.read_only()` to hand out a `ReadSignal` |
+| An event with no value, or a change the graph cannot see (a buffer filled in place) | `create_trigger`: `notify` wakes what `track`ed it; never a `Signal<u64>` counter. Where the change is to state, make that state a signal |
 | A value derived from others | `create_memo`: lazy, cached, and an equal output wakes nothing |
 | Keep an existing node's property in step | `create_binding`: runs now, costs nothing if it reads nothing |
 | A side effect, or work that needs the tree built around it (moving focus) | `create_effect`: queued, runs at the end of the entry |
