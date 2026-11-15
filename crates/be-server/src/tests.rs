@@ -286,10 +286,10 @@ impl Harness {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
 /// The build of a block's type the test clients run.
-const BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
+const TYPE_BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
 
+#[derive(Clone, Debug, PartialEq)]
 enum Notice {
     BlockChanged {
         block: BlockSummary,
@@ -538,7 +538,7 @@ impl TestClient {
     }
 
     async fn try_join(&mut self, block: Uuid) -> Result<(ClientId, SessionState), Error> {
-        self.try_join_as(block, BUILD).await
+        self.try_join_as(block, TYPE_BUILD).await
     }
 
     /// Joins `block`'s session running the build `tag` of its type.

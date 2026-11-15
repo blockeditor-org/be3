@@ -450,7 +450,7 @@ impl TestClient {
             };
             answers.push((name, answer));
         }
-        let session = client::sessions::Session::new(peer, block, BUILD);
+        let session = client::sessions::Session::new(peer, block, TYPE_BUILD);
         let mut events = session.join();
         let joined = match events.recv().await {
             Some(SessionEvent::Joined { .. }) => Answered::Allowed,
