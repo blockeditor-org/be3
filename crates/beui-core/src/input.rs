@@ -461,6 +461,9 @@ impl InputState {
     }
 }
 
+/// Where the pointer is. With fingers down, `pos` and `window` follow the first finger
+/// of all, whichever window it touched; a finger in another window counts its own presses
+/// there but does not move them.
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Pointer {
     pub pos: Option<Pos2>,
