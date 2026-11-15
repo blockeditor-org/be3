@@ -137,7 +137,10 @@ def _crate(key, crate, fixup):
         mapped_srcs = overlay,
         platform = _platforms(crate, fixup),
         proc_macro = library["proc_macro"],
-        rustc_flags = dev_only(crate.get("profile_flags", [])) + SYMBOL_FLAGS + THIRD_PARTY_OPT + rustc_flags + _plan_flags(fixup),
+        # A crate's own [profile.dev.package] flags come after THIRD_PARTY_OPT: rustc takes the
+        # last of each -C option, so in the other order every override (wasmtime, Cranelift, the
+        # ciphers) was built at THIRD_PARTY_OPT's level with debug assertions on.
+        rustc_flags = SYMBOL_FLAGS + THIRD_PARTY_OPT + dev_only(crate.get("profile_flags", [])) + rustc_flags + _plan_flags(fixup),
         srcs = [":" + unpacked],
         **(proc_macro_visibility(library["proc_macro"], {}) | RUST_LOCAL),
     )
