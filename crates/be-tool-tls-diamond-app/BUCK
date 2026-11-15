@@ -7,8 +7,8 @@ cargo_package()
 
 # The app at the top of the thread-local diamond (guides/app_libraries.md,
 # "Thread-locals"): its generics reach the thread-locals of base, left and
-# right, which be-wasm-host's tests and :web-test below check on wasmtime and
-# in Chromium.
+# right, which be-wasm-host's tests and :web-test below check natively on V8
+# and in Chromium.
 linked_app(
     libraries = [
         "//crates/be-tool-tls-diamond-base:module",

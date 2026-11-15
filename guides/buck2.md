@@ -296,18 +296,17 @@ the execution platform, so it is always checked.
 
 ## Shipping
 
-- `:native` stages `be-host` and every app's manifest, data, module and `.cwasm`, and every
-  library in their closures as `lib-<SHA-256>.wasm`; `apps.json` lists the manifests, which is
-  how every platform finds its apps. Precompiles are one action per module in `:precompiled`,
-  shared by every bundle, since an action's output path names its target and the same compile in
-  two targets would be two cache entries.
+- `:native` stages `be-host` and every app's manifest, data and module, and every library in
+  their closures as `lib-<SHA-256>.wasm`; `apps.json` lists the manifests, which is how every
+  platform finds its apps. Nothing is compiled ahead: V8 compiles each module as it loads.
 - Every `program()` also has `[archive]`, its directory as one zstd file (crates/be-host-archive);
   `buck2 run` and `:dev` download only that and unpack it into `target/programs/<name>-<hash>/`.
 - `:web` is be-host for `wasi` and the gpu shim for `wasm32` through wasm-bindgen, with the page
   from crates/be-host/web; `buck2 run` serves it with Caddy and be-server
   (guides/running/web.md, guides/hosting.md).
-- The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with apps only as arm64
-  `.cwasm`s, and signed afterwards on the requesting machine (guides/running/android.md).
+- The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with the apps' `.wasm` as
+  assets, and signed afterwards on the requesting machine (guides/running/android.md). Android
+  builds are broken until a rusty_v8 built for Android is hosted (plans/wasm_on_v8.md).
 - CI ships nothing built for a device: the build helper builds APKs and native builds on request
   for crates/be-tool-launcher (guides/build_server.md).
 

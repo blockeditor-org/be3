@@ -13,8 +13,8 @@ Why:
 - An app written once behaves the same everywhere only if the host does. With the compositor and
   shell in wasm, the host's own UI is identical on every platform.
 - beui is compiled twice today: natively into be-host, and to wasm in the beui app library
-  (guides/app_libraries.md), whose `.cwasm` is already built per platform. Afterwards only the wasm
-  copy is left.
+  (guides/app_libraries.md), which already runs on every platform. Afterwards only the wasm copy
+  is left.
 - A small native host is less code to port and check per platform.
 
 In November 2026, be-host's native Linux dependency tree was 674 crates, 83 of them first-party,
@@ -100,7 +100,7 @@ drawn in its new place in the same frame. The root guest keeps that, without blo
 thread: its frame export is resumable. Inside, the compositor writes ordinary async Rust that
 awaits its children's commits; the export returns `Pending` naming what it waits for, and the
 host, which owns the children's channels, calls it again when they answer or the deadline
-passes. The engine needs no async support of its own, so this works on wasmtime and on the web's
+passes. The engine needs no async support of its own, so this works on V8 natively and on the web's
 main thread alike. If that proves awkward, the fallback is two exports, `layout` and `present`,
 with the host waiting between them.
 
@@ -226,8 +226,8 @@ A new WIT interface the host serves to the root guest, and later to apps
   for a module only that worker runs, never with a synchronous `new WebAssembly.Module` on the
   page's thread. On the web the `module` it returns is the `WebAssembly.Module`, which the page
   posts to each worker it spawns.
-- `spawn(module, config, imports) -> instance and channel`. The config sets the memory limit, fuel
-  or epochs, threads, determinism (canonical NaNs, no threads) and libraries.
+- `spawn(module, config, imports) -> instance and channel`. The config sets the memory limit,
+  threads and libraries.
 - There are two ways to spawn:
   - **A staged app**, by app id. The host loads it with its manifest and binds the imports it
     serves to that app, as it does today.
@@ -235,8 +235,9 @@ A new WIT interface the host serves to the root guest, and later to apps
 - The channel speaks the existing app protocol (`be_wasm_guest_host::Channel`), with the spawner
   as the other end.
 - On the web, spawning makes a Web Worker from the page.
-- The config assumes wasmtime natively: epochs or fuel, and canonical NaNs. Running guests on V8
-  instead (plans/wasm_on_v8.md) would have to answer for both.
+- Guests run on V8 natively and in the browser, neither of which offers fuel or canonical NaNs
+  (plans/wasm_on_v8.md), so a guest that must be deterministic stays on wasmi; a hung guest is
+  stopped by terminating its isolate.
 - It is one async interface for every caller, its calls async ops like every other guest call
   (decisions/guest_calls_are_async_ops_except_local_ones.md). The root guest awaits them from its
   resumable frame, which returns `Pending` until they complete. The root's frame entry is an
@@ -249,11 +250,10 @@ Other users:
 
 - The block stack spawns type modules itself: the root guest grants it the sandbox API for
   modules from bytes. Each type module is an instance of its own, natively on a thread of its own
-  and on the web in a worker, as be-block-type-host's wasmtime and web worker sources run them
+  and on the web in a worker, as be-block-type-host's V8 and web worker sources run them
   today (guides/type_modules.md).
-- Once apps may use it, the Games app can run game modules on wasmtime natively, instead of on
-  wasmi inside its own module (tabletop-host). The web has no canonical NaNs, so it may keep
-  wasmi.
+- The Games app keeps running game modules on wasmi inside its own module (tabletop-host), since
+  neither V8 nor the web has canonical NaNs.
 - The input remapper (`be-host-remap-host`, on wasmi today) runs through it.
 
 ## The GPU
@@ -342,7 +342,7 @@ the native tokio, rustls and tungstenite path, so each has one transport.
 Costs:
 
 - **Build time:** `./scripts/verify` gets slower, since the block stack and SQLite are compiled to
-  wasm and precompiled on top of the native builds the tests need.
+  wasm on top of the native builds the tests need.
 - **Run time:** wasm runs roughly 30% slower, which native guests could later win back.
 
 ## Other moves
@@ -388,7 +388,7 @@ Decisions to rewrite when this lands:
   resumable frame, not the host)
 - decisions/beui_space_keeps_one_renderer_per_texture.md (the host composites Space's panels)
 - decisions/host_startup_overlaps_app_loading.md (the root guest starts apps, so it starts before
-  the window; the mapped `.cwasm` stays while wasmtime does)
+  the window)
 
 ## Steps
 

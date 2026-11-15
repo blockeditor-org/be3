@@ -5,12 +5,9 @@
 The build stages every `be-app-*` crate beside be-host: its module built for
 `wasm32-wasip1-threads` with the app profile (apps link wgpu with real
 backends, pure guests only with the custom one), its manifest as
-`<app id>.app.json`, its type module, the shared libraries
-(guides/app_libraries.md) and a precompiled `.cwasm` of each, which the host
-maps instead of waiting seconds for Cranelift. A `.cwasm` made by another
-wasmtime or engine configuration (`configuration()` in be-wasm-host, shared
-by the precompiler and the host) is ignored and the `.wasm` compiled instead,
-which is how a cross-compiled build runs. `apps.json` lists the manifests.
+`<app id>.app.json`, its type module and the shared libraries
+(guides/app_libraries.md), only as `.wasm`: the host compiles each module as
+it loads. `apps.json` lists the manifests.
 They sit beside the executable natively, in the APK's assets on Android and
 at the bundle root in the browser; native and Android share one loader
 (`editors/app/discovery/bundle.rs`).
@@ -19,11 +16,39 @@ at the bundle root in the browser; native and Android share one loader
 
 Every platform runs the same host: `be-host-runtime/src/runtime.rs` owns the
 runtimes, their instances, input, errors and restarts, and a platform only
-implements a `Backend`: `wasm.rs` (wasmtime, everywhere but the browser) or
+implements a `Backend`: `wasm.rs` (V8, everywhere but the browser) or
 `web.rs` (a worker). Both are a `be_wasm_guest_host::Channel` under a
 `Worker`, which queues frames, steps the guest when it is ready and finds a
 hung step. Neither side polls: everything an app says wakes the host, in
 order, and the reverse.
+
+`wasm.rs` runs the guest through `crates/be-wasm-host`, which embeds V8 (the
+rusty_v8 `v8` crate) and runs every wasm guest outside the browser: apps and
+their threads, type modules and the wasm app tests. V8 compiles a module when
+it loads (Liftoff, then TurboFan on hot code), with no code cache on disk;
+each library is compiled once per process and shared between isolates as a
+`v8::CompiledWasmModule`. Each guest thread has an isolate of its own (a
+`v8::SharedIsolate`, locked by the thread that runs it):
+
+- **Imports.** The gpu and transport imports are generated from
+  `gpu_local_imports!` and `transport_functions!`. Where the guest's memory
+  is shared they are V8 fast-API calls, reached from wasm code with no
+  JavaScript between (`--wasm-unsafe-fast-api-wrapper`); where the guest has
+  its own memory they are ordinary V8 function calls.
+- **WASI.** Preview1 is implemented in Rust (`src/wasi.rs`). An app gets no
+  files, arguments or environment, as `wasi.js` gives it in the browser; the
+  test harness also gets arguments, environment, stdout and its preopened
+  directories.
+- **Threads.** `thread-spawn` starts an OS thread with a new isolate, handed
+  the shared memory as a serialized `WebAssembly.Memory`.
+- **Linking.** The be-wasm-dylink `Plan` is carried out over the JavaScript
+  WebAssembly API, called from Rust, as `crates/be-host/web/dylink.js` does
+  in the browser.
+- **Pure guests.** A type module is validated without threads, shared memory
+  or relaxed SIMD, and its memory's maximum is capped (`MEMORY_LIMIT`). The
+  app host has no fuel and no canonical NaNs.
+- **Traps.** A trap's backtrace is V8's stack (`--stack-trace-limit=100`);
+  `BE3_PERF_MAP` turns on `--perf-basic-prof` (guides/performance.md).
 
 On the host, each view of an instance is a retained beui component, `AppView`
 (`crates/be-host/src/compositor/app_view.rs`), which mounts the screen, places
@@ -176,9 +201,9 @@ button, and the host shows a toast. A panic in host code working for one app
 (inside `Runtime::contain`), a wasm trap, a failed session, and a step not
 finished within `STEP_TIMEOUT` stop that app the same way.
 
-Stopping drops the backend, which interrupts the guest: apps run with
-wasmtime's epoch interruption, so every thread traps at its next loop or call,
-including one blocked in `memory.atomic.wait`; in the browser the worker and
+Stopping drops the backend, which interrupts the guest: the host terminates
+its isolates (`terminate_execution`), so every thread stops at its next loop
+or call, including one blocked in `memory.atomic.wait`; in the browser the worker and
 its threads' workers are terminated. Every such stop goes through
 `Runtime::crashed` then `Runtime::stopped`; the Apps debug window's Crash and
 Kill buttons try both paths.

@@ -1,7 +1,7 @@
 # Adding an app
 
 Every editor in be-host is an app: a wasm module that runs beside the host (a
-thread under wasmtime, a worker in the browser), speaks the app protocol, and
+thread on V8, a worker in the browser), speaks the app protocol, and
 hands back the surfaces it painted (guides/blocks/apps.md covers blocks on the
 app protocol). The host signs the user in, hosts apps,
 draws the host menu and owns the dialogs an app cannot draw for itself.
