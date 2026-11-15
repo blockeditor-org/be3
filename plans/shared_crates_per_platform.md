@@ -23,9 +23,7 @@ and what those tests depend on:
 
 It does not build the web (`wasi` / `wasi_html`: `//crates/be-host:web` and
 its program modules): no test depends on them, so a web build break
-passes verify. Adding `//crates/be-host:web` (or one target that depends on
-it) to verify catches one, at the cost of every web
-crate's wasm build; whether that is worth it is the user's call.
+passes verify, and stays out of it (Ruled out, below).
 
 ## Which shared crates build where, and why
 
@@ -71,7 +69,13 @@ the icu crates are, through beui.
    be-lib-sequence. That is a design change, not a split: worth it only if
    it measurably shrinks the modules (`similar` was ~190 KB of a dev
    checklist; release drops most of it).
-3. Build the web in verify (above), if the user wants it.
+
+## Ruled out
+
+- **Building the web in verify** (`//crates/be-host:web`, or one target that depends on it): it
+  would catch a web build break, at the cost of every web crate's wasm build on each verify. The
+  user decided against it (November 2026); `./scripts/buck build //crates/be-host:web` checks a
+  web-specific change by hand.
 
 ## Size levers for type modules
 
