@@ -385,10 +385,13 @@ index and search it locally.
   (`Searching::caught`, a type's module started for them), the blocks that left
   are masked (`Batch::removed_blocks`, at the time of the catch-up; a block that
   comes back is stamped after the mask), and the watermark moves with that batch
-  once everything the catch-up queued is indexed. A block whose commit cannot be
-  read holds the watermark back; after `MAX_READ_FAILURES` reads in a row it is let
-  go, so the catch-up ends, and read again when the next catch-up starts
-  (`Searching::let_go`), until it is read. A block listed before its
+  once everything the catch-up queued is indexed. A block a catch-up listed whose
+  commit cannot be read holds the watermark back; after `MAX_READ_FAILURES` reads in
+  a row it is let go, so the watermark moves past it, and kept in the refs database
+  (`Peer::let_go`, this device's own state, never in the index) to be read again when
+  each later catch-up starts, after a restart too, until it is read or is no longer
+  indexed. A block sealed here whose read fails is not retried at once: it waits
+  for its next change or a catch-up that lists it. A block listed before its
   content was published is caught by the next catch-up, which is after the next
   connection. The host is busy while one is due or running. A search that is
   shown is shown again whenever the mirror moves, so a hit whose block left what

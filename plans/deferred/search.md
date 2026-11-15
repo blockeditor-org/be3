@@ -17,7 +17,8 @@ aside until the user picks it up. The limits below are accepted for now.
   in the type module reads far fewer real PDFs.
 - **No host test for a second device.** be-host-tests start one host with its own
   dev server, so catching up what another device wrote, and a host restart, are
-  only tested in be-host-stack: a harness for a second device and a host restart. Set aside: be-host-stack's tests cover both.
+  only tested in be-host-stack, whose tests cover both. Set aside: be-host-tests
+  would need a harness for a second device and a host restart.
 
 ## Limits accepted
 
@@ -41,6 +42,10 @@ aside until the user picks it up. The limits below are accepted for now.
   indexed up to 1 MiB (`MAX_TEXT`); a word past that finds nothing, and nothing
   in the interface says why. It is capped after the body is loaded, so it does
   not bound memory, and the number of documents per block is not capped.
+- **A read that fails outside a catch-up waits.** A block sealed here whose
+  commit cannot be read is held back, not retried at once: it is read again
+  when it next changes or a catch-up lists it. Only a block a catch-up let go
+  (`MAX_READ_FAILURES`) is kept and read again by every later catch-up.
 - **A trashed index is not restored.** From Detached it can only return to
   where it was, which the server refuses for an index; a new one is made.
 - **A forged index.** Any editor of a root is enough to write forged entries

@@ -259,6 +259,9 @@ interface blocks {
     /// first match (a phrase's words in a row), which is where the document's text
     /// first matches the query. The editor that shows the block selects the
     /// first place they occur, where it supports a location (`editor-event.reveal`).
+    /// The words alone are enough: the first match is the first place in the
+    /// text the query matches, so no earlier place holds the same words in text
+    /// the editor shows as the index read it.
     record search-location {
         key: string,
         text: string,

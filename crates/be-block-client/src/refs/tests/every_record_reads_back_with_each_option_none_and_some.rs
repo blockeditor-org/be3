@@ -87,6 +87,11 @@ fn every_record_reads_back_with_each_option_none_and_some() {
             ops: vec![Op::Publish(pending)],
             refused: some.then_some(ErrorCode::OverQuota),
         });
+        reads_back(&some.then_some(ListedBlock {
+            root: Uuid::new_v4(),
+            content_type: Uuid::new_v4(),
+            head: some.then_some(commit(b"listed")),
+        }));
         reads_back(&vec![KnownSigner {
             key: [5; 32],
             verified: some,

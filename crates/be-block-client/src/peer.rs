@@ -24,7 +24,7 @@ use crate::{
     ClientError,
     connection::{Answer, Connection},
     keys::KeyBook,
-    refs::{Creation, Op, Pending, Refs, RefsDb, Scope, Session},
+    refs::{Creation, ListedBlock, Op, Pending, Refs, RefsDb, Scope, Session},
 };
 
 /// A block as `Peer::read_contents` read it.
@@ -1070,6 +1070,22 @@ impl<S: ObjectStore> Peer<S> {
     /// sequence it holds: noted with the seal's commit in one write.
     pub fn sealing(&self, block: Uuid) -> Option<(CommitId, u64)> {
         self.refs.sealing(block)
+    }
+
+    /// The blocks the search indexer let go after their commit could not be read, kept on this
+    /// device across restarts (guides/blocks/host.md, "Catching up").
+    pub fn let_go_blocks(&self) -> Vec<(Uuid, Option<ListedBlock>)> {
+        self.refs.let_go_blocks()
+    }
+
+    /// Keeps `block` as one the search indexer let go, with what a catch-up listed of it.
+    pub fn let_go(&self, block: Uuid, listed: Option<ListedBlock>) -> Result<(), ClientError> {
+        Ok(self.refs.let_go(block, listed)?)
+    }
+
+    /// Forgets `block` as one the search indexer let go: it was read, or is no longer indexed.
+    pub fn forget_let_go(&self, block: Uuid) -> Result<(), ClientError> {
+        Ok(self.refs.forget_let_go(block)?)
     }
 
     pub fn known_remote_head(&self, block: Uuid) -> Option<CommitId> {

@@ -3,6 +3,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use super::*;
 
 mod every_record_reads_back_with_each_option_none_and_some;
+mod what_search_let_go_is_kept_across_a_reopen;
 
 /// Writes `value` as a refs row holds it and reads it back, failing unless it reads back to the
 /// same bytes.

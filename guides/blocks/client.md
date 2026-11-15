@@ -183,7 +183,8 @@ every platform, in the origin private file system on the web), keyed by server,
 account and organization: local and last-known remote heads, the newest head
 whose content it has read whole, raw `BlockSummary`s (metadata stays sealed),
 key rows and wraps, verified contacts and escrow chain, the workspace list, the
-outbox, the unsent area and each block's journal. A sealed commit and its local
+outbox, the unsent area, each block's journal and the blocks the search indexer let
+go (`Peer::let_go`). A sealed commit and its local
 head are written in one transaction (`Refs::push_publish`), and so is a publish
 settling: its outbox entries leave as the remote and local heads move on
 (`Refs::settle`), so no reader sees an empty outbox beside the old heads. The
