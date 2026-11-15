@@ -285,7 +285,7 @@ pub struct Peer<S: ObjectStore> {
     account: Uuid,
     organization: Uuid,
     session: Mutex<(OrganizationRole, OrganizationKind)>,
-    refs: Refs,
+    refs: Arc<Refs>,
     resolver: Mutex<Option<Resolver>>,
     keys: KeyBook,
     current: Mutex<HashMap<Uuid, Uuid>>,
@@ -414,7 +414,7 @@ impl<S: ObjectStore> Peer<S> {
                 (OrganizationRole::Editor, OrganizationKind::default()),
                 |session| (session.role, session.kind),
             )),
-            refs,
+            refs: Arc::new(refs),
             resolver: Mutex::new(None),
             keys,
             current: Mutex::new(HashMap::new()),
@@ -547,6 +547,7 @@ impl<S: ObjectStore> Peer<S> {
             ..
         } = client::organizations::open_organization(&connection, organization).await??;
         connection.opened(opened);
+        connection.hold_with(Arc::clone(&self.refs) as Arc<dyn crate::connection::Held>);
         self.measured_server(time, connection.clock());
         *self.session.lock().unwrap() = (role, kind);
         self.keys
