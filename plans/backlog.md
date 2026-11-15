@@ -5,6 +5,16 @@ Depends on: none.
 The running to-do list, grouped. Every item says what "done" looks like.
 Fixed items are removed as they land.
 
+## 1. Text
+
+- **A long text's first row heights.** Opening a long Markdown text far from
+  its top (a restored scroll), the rows around a fenced code block above the
+  view are first placed tens of points apart from where they settle a layout
+  later, so the scrollbar's thumb jumps as they are measured (the line at the
+  top now stays put: `VirtualList`'s `anchor`). Find whether the list places
+  them by its estimate before measuring them or a row measures short at first.
+  Done: the first layout places them where they settle, shown by a beui test.
+
 ## 2. Docking
 
 - **Bar drops across layers.** A joined dock bar (guides/beui/docking.md,
