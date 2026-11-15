@@ -57,7 +57,7 @@ impl Fallbacks {
             let Some((path, index)) = candidates.into_iter().next() else {
                 continue;
             };
-            let Ok(data) = std::fs::read(&path) else {
+            let Some(data) = read(&path) else {
                 continue;
             };
             self.sent.push((path, index));
@@ -87,7 +87,19 @@ fn candidates(character: char) -> Vec<(PathBuf, u32)> {
     })
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+fn read(path: &std::path::Path) -> Option<Vec<u8>> {
+    std::fs::read(path).ok()
+}
+
+/// The web has no system fonts to fall back on.
 #[cfg(target_arch = "wasm32")]
 fn candidates(_character: char) -> Vec<(PathBuf, u32)> {
     Vec::new()
+}
+
+/// The web's page reads no files (plans/web_page_never_waits.md), and has no candidates to.
+#[cfg(target_arch = "wasm32")]
+fn read(_path: &std::path::Path) -> Option<Vec<u8>> {
+    None
 }

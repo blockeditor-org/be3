@@ -392,7 +392,17 @@ pub fn stop() {
         .unwrap_or_else(PoisonError::into_inner)
         .take();
     let stopped = stack.is_some();
-    drop(stack);
+    if let Some(mut stack) = stack {
+        stack.catch_up();
+        let mut kept = OWN_INVITATIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for own in stack.view.own_invitations.iter() {
+            if !kept.contains(own) {
+                kept.push(own.clone());
+            }
+        }
+    }
     if stopped {
         changes::everything();
     }
@@ -1752,22 +1762,21 @@ pub fn create_invitation(reply: Box<dyn FnOnce(Result<String, String>) + Send>) 
     )));
 }
 
-/// Invitation codes this device made or listed, each with the server and account whose own it
-/// is. Opening one of these links as that account reads nothing from the server, so the inviter
-/// checking their own link never marks it opened; another account on the device opens it as
-/// anyone would.
-type OwnInvitation = (String, Uuid, be_block_keys::InviteCode);
+/// Invitation codes earlier stacks made or listed (`Seen::own_invitations`), kept by the page
+/// as each stack stops: only the page reads and writes it. Opening one of these links as the
+/// account whose own it is reads nothing from the server, so the inviter checking their own link
+/// never marks it opened; another account on the device opens it as anyone would.
+static OWN_INVITATIONS: std::sync::Mutex<Vec<seen::OwnInvitation>> =
+    std::sync::Mutex::new(Vec::new());
 
-static OWN_INVITATIONS: std::sync::Mutex<Vec<OwnInvitation>> = std::sync::Mutex::new(Vec::new());
-
+/// On the worker thread, notes an invitation code its account made or listed.
 fn own_invitation(server_url: &str, account: Uuid, code: &be_block_keys::InviteCode) {
     let own = (server_url.to_owned(), account, code.clone());
-    let mut held = OWN_INVITATIONS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if !held.contains(&own) {
-        held.push(own);
-    }
+    seen::here_mut(|shared| {
+        if !shared.own_invitations.contains(&own) {
+            shared.own_invitations.push(own);
+        }
+    });
 }
 
 /// Whether `code` is an invitation `account` on `server_url` made or listed as its own here.
@@ -1776,11 +1785,15 @@ pub fn is_own_invitation(
     account: Uuid,
     code: &be_block_keys::InviteCode,
 ) -> bool {
-    OWN_INVITATIONS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .iter()
-        .any(|(server, owner, own)| server == server_url && *owner == account && own == code)
+    let own = |invitations: &[seen::OwnInvitation]| {
+        invitations
+            .iter()
+            .any(|(server, owner, own)| server == server_url && *owner == account && own == code)
+    };
+    with_seen(|seen| own(&seen.own_invitations)).unwrap_or(false)
+        || own(&OWN_INVITATIONS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner))
 }
 
 /// An invitation in the organization's invite list.
