@@ -187,7 +187,8 @@ import { bindMemory, bindFiles, CONTROL } from "./wasi.js";
                 }
                 started.resolve();
 
-                status.hidden = true;
+                // The start-up look stays until the host's worker has read the host's files:
+                // run_web hides it as it shows the host's first screen.
                 await run_web("host");
             } catch (error) {
                 console.error(error);

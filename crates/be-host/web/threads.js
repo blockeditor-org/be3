@@ -99,9 +99,10 @@ function threadSpawn(startArgument) {
 
 export { threadSpawn as "thread-spawn" };
 
-// The worker the host's block stack runs in (be-worker.js), started with the
-// first stack and kept for the page's life: what the stack opened there, such
-// as its sockets, belongs to that worker's JavaScript.
+// The host's worker (be-worker.js), which keeps the host's files and runs its
+// block stacks, started with the first work handed to it and kept for the
+// page's life: what a stack opened there, such as its sockets, belongs to that
+// worker's JavaScript.
 /** @type {Worker | null} */
 let stackWorker = null;
 
