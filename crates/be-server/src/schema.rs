@@ -59,13 +59,12 @@ const SCHEMA: &str = "
 
     CREATE TABLE account_mail (
         token_hash TEXT PRIMARY KEY,
-        purpose TEXT NOT NULL,
         account_id TEXT NOT NULL DEFAULT '',
         email TEXT NOT NULL,
         expires INTEGER NOT NULL,
         address TEXT NOT NULL DEFAULT ''
     );
-    CREATE INDEX account_mail_email ON account_mail(email, purpose);
+    CREATE INDEX account_mail_email ON account_mail(email);
     CREATE INDEX account_mail_address ON account_mail(address);
 
     CREATE TABLE organizations (

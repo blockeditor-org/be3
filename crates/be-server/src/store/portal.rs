@@ -212,21 +212,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn mail_purpose(&self, token: &str) -> Result<String, ServerError> {
-        let token = token.to_owned();
-        self.with_database(move |_, database| {
-            database
-                .query_row(
-                    "SELECT purpose FROM account_mail WHERE token_hash = ?1 AND expires > ?2",
-                    params![hash_token(&token), now()],
-                    |row| row.get(0),
-                )
-                .optional()?
-                .ok_or_else(|| refused("This link is invalid, expired, or already used."))
-        })
-        .await
-    }
-
     /// Verifies a new email from the link mailed to it, and answers the address it replaced.
     pub async fn confirm_mail(&self, token: &str) -> Result<String, ServerError> {
         let token = token.to_owned();
@@ -234,7 +219,7 @@ impl ServerStore {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let row: Option<(String, String)> = transaction
                 .query_row(
-                    "SELECT account_id, email FROM account_mail WHERE token_hash = ?1 AND expires > ?2 AND purpose = 'email'",
+                    "SELECT account_id, email FROM account_mail WHERE token_hash = ?1 AND expires > ?2",
                     params![hash_token(&token), now()],
                     |row| Ok((row.get(0)?, row.get(1)?)),
                 )
@@ -313,7 +298,7 @@ fn mail_link(
     unregistered(database, email)?;
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
     database.execute(
-        "INSERT INTO account_mail (token_hash, purpose, account_id, email, expires, address) VALUES (?1, 'email', ?2, ?3, ?4, ?5)",
+        "INSERT INTO account_mail (token_hash, account_id, email, expires, address) VALUES (?1, ?2, ?3, ?4, ?5)",
         params![hash_token(&token), account, email, now() + EMAIL_LINK_LIFETIME, address],
     )?;
     Ok(MailLink {
