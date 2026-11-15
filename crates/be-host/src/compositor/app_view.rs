@@ -1197,9 +1197,9 @@ pub(crate) fn AppView(
                 <Notices loading failure id={crash_id.clone()} />
                 <ViewChildren state rect nodes={children} below=false />
                 <Drawing draw={marks} />
-                <Show value={shows_desktop}>||
+                {shows_desktop.then(|| view! {
                     <DesktopWindows editor={desktop_editor.with(Clone::clone)} state rect />
-                </Show>
+                })}
                 <Scrims state />
                 <Drawing draw={floating} />
                 <Show value={blocked}>||
