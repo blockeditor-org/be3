@@ -882,18 +882,43 @@ fn DockBarBody(
     shown: (ChildId, DockTabPath),
 ) -> NodeId {
     let (child, path) = shown.clone();
-    let size = create_memo(move || {
+    // The bar's size as it measured, and whether it runs across (along a top or bottom edge) where
+    // it docks at an edge.
+    let declared = create_memo(move || {
         pushed.track();
-        untrack(|| host.child_dock(child))
-            .and_then(|declaration| declaration.bar(&path).map(|bar| bar.size))
+        let bar = untrack(|| host.child_dock(child))
+            .and_then(|declaration| declaration.bar(&path).cloned());
+        let size = bar
+            .as_ref()
+            .map(|bar| bar.size)
             .filter(|size| size.x > 0.0 && size.y > 0.0)
-            .unwrap_or(EMPTY_BAR)
+            .unwrap_or(EMPTY_BAR);
+        let across = bar.and_then(|bar| match bar.placement {
+            api::DockBarPlacement::Over(at) | api::DockBarPlacement::Beside(at) => {
+                Some(matches!(at.edge, api::DockEdge::Top | api::DockEdge::Bottom))
+            }
+            api::DockBarPlacement::Window(_) => None,
+        });
+        (size, across)
     });
     let shown = Some(shown);
+    // Along the edge it docks at, the bar is at most as long as it measured, so a band shorter
+    // than the bar (a phone's) squeezes it and its surface scrolls, rather than cutting it off;
+    // across, and in a window of its own, it is the size it measured.
+    let length = move |extent: f32, squeezed: bool| match squeezed {
+        true => beui::styled::Length::Extent(beui::Extent::at_most(extent)),
+        false => beui::styled::Length::Size(beui::styled::Size::Custom(extent)),
+    };
     view! {
         <beui::styled::Frame
-            width={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().x))}
-            height={move || beui::styled::Length::Size(beui::styled::Size::Custom(size.get().y))}
+            width={move || {
+                let (size, across) = declared.get();
+                length(size.x, across == Some(true))
+            }}
+            height={move || {
+                let (size, across) = declared.get();
+                length(size.y, across == Some(false))
+            }}
         >
             <DockTabBody editor shown />
         </beui::styled::Frame>

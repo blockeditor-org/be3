@@ -1,4 +1,5 @@
 use be_sdk_beui::BlockParent;
+use be_sdk_beui::beui::dock::styled::{DockBarGrip, DockBarSurface};
 use be_sdk_beui::beui::icons::Glyph;
 use be_sdk_beui::{BlockFilter, be_sdk_ui::BlockLabel};
 use beui::Key;
@@ -19,7 +20,6 @@ const TOOLBAR_SPACING: Space = Space::Sm;
 const SETTINGS_SPACING: Space = Space::Md;
 const SELECT_WIDTH: Size = Size::Custom(120.0);
 const NUMBER_WIDTH: Size = Size::Custom(70.0);
-const FORMAT_PADDING: Space = Space::Sm;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
@@ -173,72 +173,17 @@ pub(crate) fn format_actions(state: State) -> Vec<Action> {
         .collect()
 }
 
+/// The format bar: a tool bar of the editor's dock, beside the text's bottom edge until it is moved
+/// (`DockBar`, guides/beui/docking.md). It stays while the text shows, rather than hiding when
+/// the text loses the keyboard. A press on it leaves the keyboard in the text.
 #[component]
-pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> DynamicSegment<ListItem> {
-    let typing = state.typing;
-    let hex = state.hex_view;
-    let row = NodeRef::new();
-    let held = holds_focus(row);
-    arrow_focus(row, Direction::Horizontal);
-    let shown = create_memo(move || (typing.get() || held.get()) && !hex.get());
+pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     let keyboard = state.text.touch_mode();
-    let content = state.text.content();
-    let markdown = create_memo(move || {
-        content.track();
-        state.text.language() == TextLanguage::Markdown
-    });
+    let markdown = markdown_shown(state);
     let controls = move || {
         let formats = formats.clone();
+        let count = formats.len();
         view! {
-            <MarkdownControls formats />
-        }
-    };
-    let bar = move || {
-        let controls = controls.clone();
-        view! {
-            <Interactive press_focus=false @node_ref=&row @test_id={"text.format"}>
-                <Frame fill=ColorRole::Surface>
-                    <List spacing=Space::None>
-                        <Separator />
-                        <List
-                            direction=Direction::Horizontal
-                            align=Align::Center
-                            spacing=Space::None
-                        >
-                            <ListItem grow=1.0>
-                                <Scroll direction=Direction::Horizontal>
-                                    <Frame padding=FORMAT_PADDING>
-                                        <Show value={markdown} then={move |_| controls()} />
-                                    </Frame>
-                                </Scroll>
-                            </ListItem>
-                            <Show value={keyboard}>
-                                <Frame padding=FORMAT_PADDING>
-                                    <Button
-                                        icon_only=true
-                                        glyph=ICON_KEYBOARD_OFF
-                                        label="Done"
-                                        @test_id={"text.format.done"}
-                                        on_click={|| set_focus(None)}
-                                    />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </List>
-                </Frame>
-            </Interactive>
-        }
-    };
-    view! {
-        <Show value={shown} then={move |_| bar()} />
-    }
-}
-
-#[component]
-fn MarkdownControls(formats: Vec<Action>) -> NodeId {
-    let count = formats.len();
-    view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
             <ForEach value={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                 let action = formats[index].clone();
                 let id = action.id().to_owned();
@@ -246,8 +191,45 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
                     <Button icon_only=true @test_id={id} action />
                 }
             }</ForEach>
-        </List>
+        }
+    };
+    view! {
+        <Interactive press_focus=false @test_id={"text.format"}>
+            <DockBarSurface spacing=TOOLBAR_SPACING>
+                <Frame @test_id={"text.format.grip"}>
+                    <DockBarGrip />
+                </Frame>
+                <Show value={keyboard}>
+                    <Button
+                        icon_only=true
+                        glyph=ICON_KEYBOARD_OFF
+                        label="Done"
+                        @test_id={"text.format.done"}
+                        on_click={|| set_focus(None)}
+                    />
+                </Show>
+                <Show value={markdown} then={move |_| controls()} />
+            </DockBarSurface>
+        </Interactive>
     }
+}
+
+/// Whether the format bar has anything to offer: the Markdown formats, or Done to put away an
+/// on-screen keyboard.
+pub(crate) fn format_bar_shown(state: State) -> Memo<bool> {
+    let chrome = state.editor.chrome_shown();
+    let hex = state.hex_view;
+    let touch = state.text.touch_mode();
+    let markdown = markdown_shown(state);
+    create_memo(move || chrome.get() && !hex.get() && (markdown.get() || touch.get()))
+}
+
+fn markdown_shown(state: State) -> Memo<bool> {
+    let content = state.text.content();
+    create_memo(move || {
+        content.track();
+        state.text.language() == TextLanguage::Markdown
+    })
 }
 
 #[component]

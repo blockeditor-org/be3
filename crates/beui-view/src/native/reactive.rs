@@ -41,7 +41,7 @@ pub(crate) fn touched_by_finger() -> bool {
     try_with_document(|document| document.touched_by_finger()).unwrap_or(false)
 }
 
-pub(crate) fn use_keyboard() -> ReadSignal<bool> {
+pub(crate) fn use_document_keyboard() -> ReadSignal<bool> {
     with_document(|document| document.watch_keyboard())
 }
 

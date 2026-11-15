@@ -1549,7 +1549,7 @@ pub fn TextArea(
         view_width,
         view_height: create_memo(move || view_size.get().y),
         focused,
-        keyboard: use_keyboard(),
+        keyboard: use_document_keyboard(),
         autoscroll,
         viewport,
         list: NodeRef::new(),

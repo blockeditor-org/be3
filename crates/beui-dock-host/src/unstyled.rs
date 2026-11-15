@@ -1155,7 +1155,7 @@ impl State {
 
     fn cycle(&self, backwards: bool) {
         let state = self.state.get_untracked();
-        let Some(leaf) = state.focused_leaf() else {
+        let Some(leaf) = state.focused_leaf().map(|leaf| state.standing_leaf(leaf)) else {
             return;
         };
         let count = state.entries(leaf).len();
@@ -1170,10 +1170,12 @@ impl State {
         self.edit(|state| state.set_active_index(leaf, next));
     }
 
-    /// The focused pane, when it holds more than one entry, and the one it shows.
+    /// The focused pane and the entry it shows: for a joined editor's stage, the pane its group
+    /// stands in and the group (`DockState::standing_leaf`), so Close tab and Split act on the
+    /// document, as Next tab walks the documents.
     fn shown_entry(&self) -> Option<(LeafId, Entry)> {
         self.state.with(|state| {
-            let leaf = state.focused_leaf()?;
+            let leaf = state.standing_leaf(state.focused_leaf()?);
             Some((leaf, state.active_entry(leaf)?))
         })
     }
@@ -1902,7 +1904,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         remembered: store(RefCell::default()),
         content_keyboard: StoredCell::new(None),
         focused_windows: create_signal(Vec::new()),
-        keyboard: use_keyboard(),
+        keyboard: use_document_keyboard(),
         bar_panels: store(RefCell::default()),
         bodies: store(RefCell::default()),
         bar_windows: store(RefCell::default()),
@@ -4339,7 +4341,7 @@ fn tab_actions(dock: State, keys: Prop<DockTabKeys>, area: NodeRef) {
         dock.state.with(|state| {
             state
                 .focused_leaf()
-                .is_some_and(|leaf| state.entries(leaf).len() > 1)
+                .is_some_and(|leaf| state.entries(state.standing_leaf(leaf)).len() > 1)
         })
     });
     let cycles = create_memo(move || several.get() && focused_here.get());

@@ -220,7 +220,7 @@ An app has a `Replay` per view but its runner keeps one set of modifiers, so
 the app's replays share one `Heard`: modifiers go out with a press or key only
 when they differ from what the app last heard through any view, and always
 after a view lost the keyboard, since the runner lets go of them then.
-An app's document starts without the keyboard (`use_keyboard()` false) and
+An app's document starts without the keyboard (`use_document_keyboard()` false) and
 has it while any of its views does; a focused view that closes takes it away.
 `Editor::has_keyboard` says whether one of that editor's own views has it
 (be-sdk-beui-platform's runner tells `Views::keyboard`), so of two chats shown

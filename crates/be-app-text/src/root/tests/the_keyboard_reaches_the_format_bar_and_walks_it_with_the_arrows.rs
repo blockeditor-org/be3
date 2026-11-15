@@ -14,14 +14,12 @@ fn the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows() {
     editor.key(Key::Escape, Modifiers::NONE);
     editor.key(Key::Tab, Modifiers::NONE);
     assert!(
-        focused(&editor, "text.format.heading"),
-        "Tab out of the text lands on the bar's first button"
-    );
-    assert!(
-        editor.shown("text.format.bold"),
-        "the bar stays while the focus is in it"
+        focused(&editor, "text.format.grip"),
+        "Tab out of the text lands on the bar's grip, its first control"
     );
 
+    editor.key(Key::ArrowRight, Modifiers::NONE);
+    assert!(focused(&editor, "text.format.heading"));
     editor.key(Key::ArrowRight, Modifiers::NONE);
     assert!(focused(&editor, "text.format.bold"));
     editor.key(Key::End, Modifiers::NONE);
@@ -32,7 +30,7 @@ fn the_keyboard_reaches_the_format_bar_and_walks_it_with_the_arrows() {
         "the arrows stop at the ends"
     );
     editor.key(Key::Home, Modifiers::NONE);
-    assert!(focused(&editor, "text.format.heading"));
+    assert!(focused(&editor, "text.format.grip"));
 
     editor.key(Key::Tab, Modifiers::SHIFT);
     assert!(focused(&editor, "text.surface"));

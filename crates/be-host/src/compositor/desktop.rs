@@ -533,6 +533,23 @@ pub(crate) fn catchers_of(app: &str, instance: EditorInstanceId) -> Vec<NodeId> 
     })
 }
 
+/// The catcher of the instance's view `region`, while it is built.
+pub(crate) fn catcher_of_view(
+    app: &str,
+    instance: EditorInstanceId,
+    region: ViewId,
+) -> Option<NodeId> {
+    CATCHERS.with(|catchers| {
+        catchers
+            .borrow()
+            .iter()
+            .find(|(_, catcher)| {
+                catcher.instance == instance && catcher.region == region && catcher.app == app
+            })
+            .map(|(node, _)| *node)
+    })
+}
+
 pub(crate) fn shown_within(node: NodeId, within: impl Fn(NodeId, &Catcher) -> bool) -> bool {
     let mut at = Some(node);
     let mut seen = Vec::new();

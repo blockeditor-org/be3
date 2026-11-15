@@ -129,7 +129,7 @@ pub(crate) fn on_back(enabled: Prop<bool>, handler: impl Fn(crate::types::BackGe
     on_cleanup(move || beui_core_html::back::remove(id));
 }
 
-pub(crate) fn use_keyboard() -> ReadSignal<bool> {
+pub(crate) fn use_document_keyboard() -> ReadSignal<bool> {
     create_signal(true).read_only()
 }
 

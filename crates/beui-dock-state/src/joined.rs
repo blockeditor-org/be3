@@ -255,9 +255,8 @@ impl DockState {
     }
 
     /// The tab `tab` stands in for: itself, or, while it shows in the bare stage of a joined group
-    /// (its only bare pane, or the bare pane beside its side panes, `stage_of`), the tab that group
-    /// took the place of, followed outwards. What a stacked dock names and counts, so a document
-    /// reads as itself, not as its editor's stage.
+    /// (`joined_stage`), the tab that group took the place of, followed outwards. What a stacked
+    /// dock names and counts, so a document reads as itself, not as its editor's stage.
     pub fn standing_in(&self, tab: TabId) -> TabId {
         let mut standing = tab;
         let mut entry = Entry::Tab(tab);
@@ -265,29 +264,48 @@ impl DockState {
             let Some((leaf, _)) = self.locate(entry) else {
                 break;
             };
-            let Some(Tree::Group(group)) = self.tree_of(leaf) else {
+            let Some((group, host)) = self.joined_stage(leaf) else {
                 break;
             };
-            let Some(host) = self
-                .group(group)
-                .and_then(|group| joined_host(group.key.as_deref()?))
-            else {
-                break;
-            };
-            let tree = Tree::Group(group);
-            let stage = match self.tree_leaves(tree)[..] {
-                [only] => self.is_bare(only).then_some(only),
-                _ => self.stage_of(tree),
-            };
-            if stage != Some(leaf) {
-                break;
-            }
             // The host tab gave way to the group, so the group is what stands in the dock
             // around it: go on outwards from where the group is.
             standing = host;
             entry = Entry::Group(group);
         }
         standing
+    }
+
+    /// The pane whose tabs `leaf`'s tab commands (next, previous) walk: itself, or, while it is the
+    /// bare stage of a joined group (`joined_stage`), the pane that group sits in as the tab it took
+    /// the place of, followed outwards. So with a joined editor's stage focused, the keys walk the
+    /// documents beside it, not the stage's one tab.
+    pub fn standing_leaf(&self, leaf: LeafId) -> LeafId {
+        let mut standing = leaf;
+        for _ in 0..MAX_STANDING_DEPTH {
+            let Some((outer, _)) = self
+                .joined_stage(standing)
+                .and_then(|(group, _)| self.locate(Entry::Group(group)))
+            else {
+                break;
+            };
+            standing = outer;
+        }
+        standing
+    }
+
+    /// The joined group `leaf` is the bare stage of, and the tab the group took the place of: its
+    /// only bare pane, or the bare pane beside its side panes (`stage_of`).
+    fn joined_stage(&self, leaf: LeafId) -> Option<(GroupId, TabId)> {
+        let Some(Tree::Group(group)) = self.tree_of(leaf) else {
+            return None;
+        };
+        let host = joined_host(self.group(group)?.key.as_deref()?)?;
+        let tree = Tree::Group(group);
+        let stage = match self.tree_leaves(tree)[..] {
+            [only] => self.is_bare(only).then_some(only),
+            _ => self.stage_of(tree),
+        };
+        (stage == Some(leaf)).then_some((group, host))
     }
 
     /// A group of one bare pane stands for its hosting tab: its tab wears the host's title, icon and

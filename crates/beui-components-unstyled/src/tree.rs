@@ -655,7 +655,7 @@ pub fn TreeRowEditor(
             escaped
         },
     );
-    let keyboard = use_keyboard();
+    let keyboard = use_document_keyboard();
     let held = Cell::new(keyboard.get_untracked());
     let (away, left) = (once.clone(), typed.clone());
     create_effect(move || {

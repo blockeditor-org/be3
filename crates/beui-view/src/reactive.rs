@@ -294,8 +294,10 @@ pub fn touched_by_finger() -> bool {
     core::touched_by_finger()
 }
 
-pub fn use_keyboard() -> ReadSignal<bool> {
-    core::use_keyboard()
+/// Whether the document has the keyboard; in an app, true while any of the app's views has it.
+/// An editor asks `Editor::has_keyboard` whether one of its own views has it.
+pub fn use_document_keyboard() -> ReadSignal<bool> {
+    core::use_document_keyboard()
 }
 
 pub fn use_fullscreen() -> ReadSignal<bool> {
