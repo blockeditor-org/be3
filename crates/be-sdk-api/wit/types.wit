@@ -929,6 +929,9 @@ interface types {
         key: string,
         pinned: bool,
         child: option<child-id>,
+        /// What the group is called in its pane's bar: for a child's dock spliced in place of
+        /// a tab, that tab's title. Empty names it after the tabs inside.
+        title: string,
     }
 
     /// A floating window of the dock, in the points of the view that
