@@ -57,6 +57,11 @@ pub(crate) fn focus_visible() -> bool {
     })
 }
 
+pub(crate) fn focus_held() -> Memo<bool> {
+    let focused = with_document(|document| document.watch_focused());
+    create_memo(move || focused.get().is_some())
+}
+
 pub(crate) fn holds_focus(node: NodeRef) -> Memo<bool> {
     let focused = with_document(|document| document.watch_focused());
     create_memo(move || {
