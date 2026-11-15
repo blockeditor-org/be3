@@ -102,7 +102,8 @@ leave this way.
 Whatever an overlay is opened from can hear whether any is open beneath it:
 provide an `OverlaysWithin` and read `any()`. Every `Overlay` built under it
 counts while it is open and not `Inert`, and stops counting when it closes or
-goes away with its opener. A dock bar's hidden band stays out this way while a
+goes away with its opener. One made inside another's reach counts as one
+open overlay in it while any of its own is open, so they nest. A dock bar's hidden band stays out this way while a
 menu or panel from the bar is up (guides/beui/docking.md, hidden bands).
 
 ## Policies
