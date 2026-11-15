@@ -591,6 +591,10 @@ impl Driver for Board {
     fn stop_edge(&self) {
         Board::stop_edge(self);
     }
+
+    fn lift(&self, carry: beui_view::drag::Carry, point: DragPoint) {
+        Board::lift(self, carry, point);
+    }
 }
 
 #[cfg(test)]

@@ -175,4 +175,7 @@ pub trait Driver {
     fn release(&self, cancelled: bool, order: Order);
     fn cancel(&self) -> bool;
     fn stop_edge(&self);
+    /// Lifts `carry` at `point`, a drag an `Interactive`'s `drag` began: from here the
+    /// carried item chooses among the places the drop sites that accept it give.
+    fn lift(&self, carry: Carry, point: DragPoint);
 }

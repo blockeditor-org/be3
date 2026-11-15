@@ -17,3 +17,8 @@ pub fn space() -> Rc<dyn Space> {
 pub fn drive(driver: Rc<dyn Driver>) {
     crate::core::drag::drive(driver);
 }
+
+/// The driver the tree's drags go to, if one was given to `drive`.
+pub fn driver() -> Option<Rc<dyn Driver>> {
+    crate::core::drag::driver()
+}
