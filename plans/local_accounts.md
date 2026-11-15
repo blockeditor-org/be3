@@ -81,6 +81,11 @@ Each says whether a server account offline has the same gap.
    and approving a device already are offline. A local account's menus still offer Share and
    Access, which it refuses; they should not be offered.
 
+On the web a local account lives only in the origin's browser storage: clearing site data, a
+private window or the browser evicting it under pressure loses the account and everything in it,
+with no phrase to recover it. Making one there says so; asking the browser to keep it
+(`navigator.storage.persist()`) is not done yet.
+
 What the server enforces that a local account goes without, its one member holding every
 block: `may_create`'s reserved My files and Unfiled ids and who may make workspaces (the host
 makes those roots under their reserved ids itself), and access and visibility. A block agent's
