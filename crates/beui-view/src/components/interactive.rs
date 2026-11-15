@@ -83,9 +83,15 @@ pub fn Interactive(
     // beui_activating_drag_sources_keep_their_keys.md).
     let activates = !on_activate.is_empty() || !on_activate_change.is_empty();
     let source = crate::reactive::NodeRef::new();
-    let (on_press, on_drag, on_key, children) = match drag {
+    let (on_press, on_drag, on_long_press_drag, on_key, children) = match drag {
         Some(drag) => {
-            let carry = carrying(drag, (focusable, activates, source), on_press, on_drag);
+            let carry = carrying(
+                drag,
+                (focusable, activates, source),
+                on_press,
+                on_drag,
+                on_long_press_drag,
+            );
             let Face {
                 raised,
                 offset,
@@ -98,9 +104,15 @@ pub fn Interactive(
                 <CarriedFace raised offset said anchor open preview children />
             };
             let on_key = (carry.finish)(face, on_key);
-            (carry.pressed, carry.dragged, on_key, Some(face.into()))
+            (
+                carry.pressed,
+                carry.dragged,
+                carry.long_pressed,
+                on_key,
+                Some(face.into()),
+            )
         }
-        None => (on_press, on_drag, on_key, children),
+        None => (on_press, on_drag, on_long_press_drag, on_key, children),
     };
     let node = crate::core::interactive(
         focusable,
@@ -179,6 +191,7 @@ struct Face {
 struct Carrying {
     pressed: Callback<PointerPress>,
     dragged: Callback<PointerPress>,
+    long_pressed: Callback<PointerPress>,
     face: Face,
     finish: Box<dyn FnOnce(NodeId, Callback<KeyPress, bool>) -> Callback<KeyPress, bool>>,
 }
@@ -197,6 +210,7 @@ fn carrying(
     (focusable, activates, source): (bool, bool, crate::reactive::NodeRef),
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
+    on_long_press_drag: Callback<PointerPress>,
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use crate::types::Rect;
@@ -221,38 +235,51 @@ fn carrying(
             on_press.call(press);
         })
     };
+    // Asks `drag` for a carry at `press` and lifts it; whether `drag` gave one.
+    let lift_at = {
+        let (origin, preview, lifted) = (Rc::clone(&origin), Rc::clone(&preview), Rc::clone(&lifted));
+        Rc::new(move |press: PointerPress| -> bool {
+            let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
+                return false;
+            };
+            let Some(mut carry) = drag.call(press) else {
+                return false;
+            };
+            // Unless the carry says otherwise, the item is this node, held where it was
+            // pressed.
+            if carry.item.is_none() {
+                let at = origin.get().unwrap_or(press);
+                carry.item = Some(Rect::from_min_size(Pos2::ZERO - at.local.to_vec2(), at.size));
+            }
+            let floats = carry.preview.clone();
+            if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
+                lifted.set(true);
+                previewed.set(floats.is_some());
+                *preview.borrow_mut() = floats;
+                mine.set(Some(id));
+            }
+            true
+        })
+    };
     let dragged = {
-        let (origin, preview) = (Rc::clone(&origin), Rc::clone(&preview));
+        let (lift_at, lifted) = (Rc::clone(&lift_at), Rc::clone(&lifted));
         Callback::new(move |press: PointerPress| {
             if lifted.get() {
                 return;
             }
-            if !asked.replace(true)
-                && let Some(driver) = crate::drag::driver()
-                && !driver.carrying()
-                && let Some(mut carry) = drag.call(press)
-            {
-                // Unless the carry says otherwise, the item is this node, held where it was
-                // pressed.
-                if carry.item.is_none() {
-                    let at = origin.get().unwrap_or(press);
-                    carry.item = Some(Rect::from_min_size(
-                        Pos2::ZERO - at.local.to_vec2(),
-                        at.size,
-                    ));
-                }
-                let floats = carry.preview.clone();
-                if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {
-                    lifted.set(true);
-                    previewed.set(floats.is_some());
-                    *preview.borrow_mut() = floats;
-                    mine.set(Some(id));
-                }
+            if !asked.replace(true) && lift_at(press) {
                 return;
             }
             on_drag.call(press);
         })
     };
+    // A finger's long press lifts too, as a drag does for the mouse; a long press `drag`
+    // declines goes on as the source's own.
+    let long_pressed = Callback::new(move |press: PointerPress| {
+        if !lift_at(press) {
+            on_long_press_drag.call(press);
+        }
+    });
     on_cleanup(move || {
         let id = mine.is_alive().then(|| mine.get_untracked()).flatten();
         if let (Some(id), Some(driver)) = (id, crate::drag::driver()) {
@@ -345,6 +372,7 @@ fn carrying(
     Carrying {
         pressed,
         dragged,
+        long_pressed,
         face,
         finish,
     }
