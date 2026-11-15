@@ -197,6 +197,8 @@ pub(crate) struct UnsentRow {
     pub(crate) offerable: bool,
     /// Why the server refused it, in words, when it did rather than access being lost.
     pub(crate) refused: Option<&'static str>,
+    /// Edits kept on this device that never became a commit.
+    pub(crate) kept_edits: usize,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]

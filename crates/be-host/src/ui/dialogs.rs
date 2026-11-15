@@ -671,10 +671,15 @@ fn UnsentPanel(view: HostUiStore) -> NodeId {
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || {
                         let row = row.get();
-                        match (row.refused, row.offerable) {
+                        let why = match (row.refused, row.offerable) {
                             (Some(why), _) => format!("The server refused it: {why}"),
                             (None, true) => "You can edit it again".to_owned(),
                             (None, false) => "You cannot edit it now".to_owned(),
+                        };
+                        match row.kept_edits {
+                            0 => why,
+                            1 => format!("{why}. 1 unsaved edit"),
+                            kept => format!("{why}. {kept} unsaved edits"),
                         }
                     });
                     view! {
