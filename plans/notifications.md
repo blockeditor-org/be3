@@ -29,11 +29,21 @@ the app closed is tested on Linux (be-host-stack's
 1. Android on a device. Written without an emulator to run it (no KVM where it
    was built), so only its compiling is checked. Done: on the emulator, with a
    test distributor app (ntfy, with the server's `--push-host`) and the app
-   closed, turning notifications on asks for the permission and registers an
-   endpoint, a push shows the decrypted notification once, pressing it opens
-   the block, and signing out of the last account unregisters the endpoint and
-   the server forgets it. Fix what that finds in `android_push.rs` and the Java
-   beside `MainActivity`.
+   closed:
+   - turning notifications on asks for the permission and registers an
+     endpoint; with two distributors installed it asks which, once;
+   - a push shows the decrypted notification once, a garbled one shows nothing,
+     and pressing one opens the block;
+   - `adb shell am start -n com.be3.host.dev/com.be3.host.MainActivity --es
+     com.be3.host.organization ORG --es com.be3.host.block BLOCK` opens
+     nothing (only the unexported alias carries a block);
+   - turning notifications off stops pushes, and nothing registers the
+     endpoint again on reopening the organization;
+   - signing out of the last account unregisters the endpoint and the server
+     forgets it;
+   - `adb shell bmgr backupnow com.be3.host.dev` backs up none of the files
+     directory.
+   Fix what that finds in `android_push.rs` and the Java beside `MainActivity`.
 
 ## Not planned here
 

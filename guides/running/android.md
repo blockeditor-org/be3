@@ -96,7 +96,10 @@ the Java is `crates/be-host/android/java/com/be3/host/`, the Rust `crates/be-hos
   (one whose receiver takes `org.unifiedpush.android.distributor.REGISTER`, listed under
   `<queries>` in the manifest), denied once the person refused `POST_NOTIFICATIONS` (Android
   13+). Turning it on asks for that permission, then sends `REGISTER` with a token kept in the
-  app's preferences and the server's VAPID key.
+  app's preferences and the server's VAPID key, to the distributor chosen before, or the only
+  one installed; with several and none chosen it asks in a plain Android chooser and keeps the
+  answer. Turning it off sends `UNREGISTER`, forgets the endpoint (`device_push::turn_off`), so
+  nothing registers it again, and has the server forget it for the open organization.
 - *Registering.* The distributor answers `NEW_ENDPOINT` to `PushReceiver`, which keeps the
   endpoint in the host state beside this device's RFC 8291 keys (`push_receiver`, made once,
   `be_host_stack::device_push::keys`); the host registers it as `PushService::WebPush` for each
@@ -105,19 +108,30 @@ the Java is `crates/be-host/android/java/com/be3/host/`, the Rust `crates/be-hos
   it loads `libbe_host` itself and, on a thread while the broadcast is held (`goAsync`), calls
   `nativeMessage`, which runs `device_push::receive` on the files directory: decrypt, drop a push
   already shown (`shown_pushes`, by a hash of the sealed bytes, for
-  `MAX_NOTIFICATION_AGE_MILLISECONDS`), then open it through the stack when it runs in this
+  `MAX_NOTIFICATION_AGE_MILLISECONDS`; one that does not decrypt is dropped too, as a browser
+  drops it), then open it through the stack when it runs in this
   process in that organization, or else through a `Peer::cached` built from the refs database
   (`refs_in`, the handle the process shares, so an activity starting meanwhile uses the same one)
   for each saved account that kept that organization, naming the sender from the contact names
-  and the block from the summaries kept there. Anything missing shows "New message" naming
-  nothing. It shows on the "Messages" channel, tagged by block, and acknowledges the message
+  and the block from the summaries kept there. A push that decrypts but that nothing here
+  can open or name shows "New message" naming nothing. It shows on the "Messages" channel, tagged by block, and acknowledges the message
   (`MESSAGE_ACK`).
-- *Pressing* starts `MainActivity` (or brings it back, `onNewIntent`) with the organization and
-  block, which `nativeOpen` holds for the host to open (`pressed_notifications`), as on the web.
+- *Pressing* starts `MainActivity` (or brings it back, `onNewIntent`) through the activity-alias
+  `com.be3.host.OpenNotification`, with the organization and block, which `nativeOpen` holds
+  for the host to open (`pressed_notifications`), as on the web. The alias is not exported and
+  `MainActivity` takes a block only from an intent naming it, since `MainActivity` itself is
+  exported for the launcher and any app could send it extras.
+- *Backups.* `allowBackup="false"`, and `res/xml/data_extraction_rules.xml` excludes every
+  domain from cloud backup and device transfer (Android 12+, where `allowBackup` no longer
+  covers transfers): the host state holds identity secrets and push keys, and the refs
+  database every block's keys.
 - *Signing out* the last saved account sends `UNREGISTER`; every sign-out names the endpoint to
   `logout`, so the server forgets it (`android_push::sign_out`).
 
-Nothing of this has run on a device or the emulator yet (plans/notifications.md).
+Nothing of this has run on a device or the emulator yet; plans/notifications.md lists what to
+check there, including that
+`adb shell am start -n com.be3.host.dev/com.be3.host.MainActivity --es com.be3.host.organization ORG --es com.be3.host.block BLOCK`
+opens nothing.
 
 ## Signing the APK
 
