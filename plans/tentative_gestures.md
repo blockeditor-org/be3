@@ -23,9 +23,13 @@ they happen.
   `landed`), kept with `lacking.add`, then sequenced by an owner (or pushed onto its `held` FIFO
   while a seal is out or a part is being put, and later sequenced by `sequence_held`), or by a
   follower submitted, or queued on `unsent`, where `C::absorb_operation` folds it into the last
-  queued edit, and sent by `flush`. What survives a crash is what was sequenced and appended to
-  the device's journal, and the local edits the host keeps to give the replica again on reopen
-  (`Open::replay`, be-block-type-host `replicas.rs`; guides/blocks/host.md, Opening again).
+  queued edit, and sent by `flush`. What survives the host crashing is what was sequenced and
+  appended to the device's journal. While the host stays alive, a module restart or a reopen is
+  also given again the local edits the host keeps in memory (`Open::replay`, a `Vec<Replayed>` in
+  be-block-type-host `replicas.rs`; guides/blocks/host.md, Opening again), cut by the counts
+  `reported_clean(taken)`, `sealed-taken`, `journaled-taken`, `untaken` and `acknowledged`. Those
+  cuts assume that the edits sequenced or journaled are a prefix of the edits taken, in the order
+  they arrived.
 - `rebuild_visible` rebuilds `visible` as `confirmed`, then a follower's pending submissions,
   then `unsent`, then `held`. Most paths do not rebuild, though: the owner's `Submit` and an
   ordinary edit apply on top of `visible`, so while `held` is non-empty during a seal, a peer's
@@ -49,9 +53,15 @@ they happen.
   `lacking.add` and never enters `held` or `unsent`, so `sequence_held` and `flush` never see it
   and it is never appended to the device's journal; `absorb_operation` never folds an ordinary
   edit into it or it into one. Consecutive edits of one gesture to the same item may be folded
-  with each other, since only the last position matters. The host keeps the gesture's operations
-  marked by gesture, and leaves those of a gesture with no commit out of `Open::replay`, so a crash
-  replays none of them; how they count towards `taken` and the status cuts is settled in step 2.
+  with each other, since only the last position matters.
+- **Counting and replay.** A host crash loses the layer with nothing more to do, since replay
+  lives in memory. A module restart or a reopen while the host is alive keeps an open gesture's
+  messages (its begin, its operations, a cancel) in replay, so the new replica rebuilds the layer
+  and the drag carries on. Because the cuts assume a prefix in arrival order, a tentative edit is
+  not a local edit (`Replayed::local_edit`) for `sent`, `taken`, `sealed-taken`,
+  `journaled-taken` or what was forwarded until its gesture commits; from then on its edits count
+  in commit order, after every edit taken before the commit. The exact accounting is settled in
+  step 2.
 - **The invariant.** At all times `visible` = `confirmed` + pending + `unsent` + `held` +
   `tentative`, in that order. While `held` or `tentative` is non-empty, each path keeps it by
   applying beneath them (`C::apply_beneath`, telling editors through `Journaled::Beneath`) or by
@@ -59,7 +69,8 @@ they happen.
   - the owner's `Submit` applies a peer's edit with `apply_beneath`, `local` being `held` and
     `tentative`;
   - `edit`, for an ordinary edit: an owner sequencing it at once applies it with `apply_beneath`
-    the same way; one that pushes it onto `held`, and a follower queuing or submitting it, rebuild;
+    the same way, which applies it to `confirmed` too, so the separate `confirmed.apply` after
+    `sequencer.accept` goes; one that pushes it onto `held`, and a follower queuing or submitting it, rebuild;
   - the follower's `apply_accepted` takes its fast path (apply on top) only when the layer is
     empty too; otherwise its `apply_beneath` `local` is pending, `unsent` and `tentative`, so the
     held edits stay on top;
@@ -77,7 +88,8 @@ they happen.
 - **Undo and redo** while the layer is held cancel the whole layer first, as Escape would, and that
   is the whole step: the undo stack is left alone. Redo is refused (`Changed(false)`) while the
   layer is held. Undo groups keep today's behaviour.
-- **Ending without a commit.** The instance closing or a crash drops the layer.
+- **Ending without a commit.** The instance closing or the host crashing drops the layer; a module
+  restart rebuilds it from replay (above).
 - **Peers** see a tentative edit through presence only (the drag board publishes its frames).
   Shipping the held edits in presence, so peers' derived views follow too, is left for later.
 
@@ -103,7 +115,8 @@ a carry whose gesture ended, so the item glides home and the site stops previewi
    cancel. Unit tests.
 2. The replica (`be-sdk-type-guest`): the `tentative` layer, its commit and cancel, and each
    session event in the table. `be-host-runtime` tracks open gestures per link and cancels them all
-   when the instance closes. Tests: a crash with a held drag saves nothing; two drags in one block
+   when the instance closes. Tests: a host crash with a held drag saves nothing; a module restart mid-drag keeps the drag;
+   status cuts stay right with edits taken during a held drag; two drags in one block
    commit as one step when the second ends; cancelling one of two keeps the other; a typed edit
    during a held drag reaches peers at once; a peer's move of an item held mid-drag shows beneath
    the held move, and every replica ends the same after the commit; the same for `held` during a
