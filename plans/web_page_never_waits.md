@@ -30,9 +30,6 @@ found one held past std's short spin:
 - be-host-base `host.rs`'s `UNSENT_SAVES`, which `save_file` pushes to and the host's frame
   takes from. Only be-host-runtime's instances call `save_file` today, answering an app's
   `save-file` on the page, so no worker takes it yet; a worker that saves a file would.
-- be-host-stack `replies.rs`'s `WAITING`, what each reply's number calls back: the page adds
-  to it and the worker takes from it as it answers. It becomes the page's alone once answers
-  travel to the page in the message that hands it the `Seen` (step 1).
 - The channels' insides: a tokio `mpsc` receiver can park while a send is half done.
 - wasi-libc's `malloc`, which locks the one heap the page and the worker share.
 
@@ -66,13 +63,12 @@ a thread that runs beside it.
    lists, become messages too. The stack's commands are bytes already, and replies numbers
    answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
    changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
-   bytes to travel by `postMessage` rather than through the shared heap. A
+   bytes to travel by `postMessage` rather than through the shared heap. An update carries the
+   change notices and the replies' answers with it, and the page takes the updates once a
+   frame, as be-host's frame starts. A
    worker's letter to a page mailbox already travels by `postMessage` (`be_host_base::host`'s
    `letters_web.rs`), but as the address of a value in the shared heap, which the page takes
-   and frees: with a memory of its own, the worker sends the letter's bytes instead. The page
-   then applies the messages once, at the start of a frame (be-host's frame and each app
-   runtime's), rather than taking the newest `Seen` on every read as it does now, so every
-   read in a frame reads one snapshot.
+   and frees: with a memory of its own, the worker sends the letter's bytes instead.
    An update sends whole what is not a persistent map, and a map's changed entry whole: an open
    block's `Content` on each of its edits, the outbox and the owing lists on each change, and
    an editor's queued frames. Send content as its edit (the block's own operations or a byte

@@ -10,7 +10,7 @@
 //!
 //! The worker publishes at the end of each pass of its loop, and before the page hears of
 //! anything from the worker thread: a change notice (`changes::post`), a wake, or a reply to a
-//! page call (`after_publish`) is held until the update that has it is handed over. So a read
+//! page call (`hold_answer`) is held until the update that has it is handed over. So a read
 //! changes when the update lands, as a signal does, and the page never hears of a change it
 //! cannot read yet.
 //!
@@ -840,10 +840,16 @@ pub(crate) enum Update {
     Changed(SeenDelta),
 }
 
-/// An update as it is handed over.
+/// An update as it is handed over: what changed in the `Seen`, with what the worker tells the
+/// page of it, which the page hears once it has applied the change.
 #[derive(serde::Deserialize, serde::Serialize)]
 pub(crate) struct Handed {
-    pub(crate) update: Update,
+    pub(crate) update: Option<Update>,
+    /// What changed, for the page's watchers (`changes::post`).
+    pub(crate) changes: crate::Changes,
+    /// Answers to the page's commands by reply number, `None` for a reply dropped unanswered
+    /// (`replies::Reply`).
+    pub(crate) answers: Vec<(u64, Option<Vec<u8>>)>,
     /// In a debug build, now and then (every time in this crate's tests) the worker's whole
     /// `Seen` as well, which the page checks what it made of the updates against: a field the
     /// diff left out cannot drift apart unnoticed.
@@ -869,6 +875,10 @@ pub(crate) struct Handover {
     /// How many updates, and how many bytes of them, were put since the last take.
     held: AtomicUsize,
     held_bytes: AtomicUsize,
+    /// Natively, how many updates were put and whether the page closed the handover, for a
+    /// thread that waits on an answer to wait on (`wait_past`). The web's page never waits.
+    #[cfg(not(target_arch = "wasm32"))]
+    put: (std::sync::Mutex<(u64, bool)>, std::sync::Condvar),
 }
 
 /// How many updates the handover holds before the worker gathers them into one (`Handover`).
@@ -899,16 +909,65 @@ impl Handover {
                 .head
                 .compare_exchange_weak(head, link, Ordering::AcqRel, Ordering::Acquire)
             {
-                Ok(_) => return,
+                Ok(_) => break,
                 Err(now) => head = now,
             }
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (count, put) = &self.put;
+            count.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
+            put.notify_all();
+        }
+    }
+
+    /// How many updates were put so far, to wait past (`wait_past`).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn puts(&self) -> u64 {
+        self.put.0.lock().unwrap_or_else(PoisonError::into_inner).0
+    }
+
+    /// Waits until more than `puts` updates were put, the handover is closed or `until` passes,
+    /// and answers whether one was put.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn wait_past(&self, puts: u64, until: Option<std::time::Instant>) -> bool {
+        let (count, put) = &self.put;
+        let mut held = count.lock().unwrap_or_else(PoisonError::into_inner);
+        loop {
+            if held.0 > puts {
+                return true;
+            }
+            if held.1 {
+                return false;
+            }
+            held = match until {
+                None => put.wait(held).unwrap_or_else(PoisonError::into_inner),
+                Some(until) => {
+                    let left = until.saturating_duration_since(std::time::Instant::now());
+                    if left.is_zero() {
+                        return false;
+                    }
+                    put.wait_timeout(held, left)
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .0
+                }
+            };
+        }
+    }
+
+    /// Ends every wait on the handover: the stack stopped.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn close(&self) {
+        let (count, put) = &self.put;
+        count.lock().unwrap_or_else(PoisonError::into_inner).1 = true;
+        put.notify_all();
     }
 
     /// Puts `bytes`, a whole `Seen`, in place of every update the page has not taken, in one
     /// swap: the page takes either those or this, never neither. Only one thread puts at a time
     /// (`publish` holds the lock on `Shared`), so no put lands in between.
-    fn replace(&self, bytes: Vec<u8>) {
+    /// Answers the updates it put `bytes` in place of, oldest first.
+    fn replace(&self, bytes: Vec<u8>) -> Vec<Vec<u8>> {
         self.held.store(1, Ordering::Release);
         self.held_bytes.store(bytes.len(), Ordering::Release);
         let link = Box::into_raw(Box::new(Link {
@@ -916,13 +975,23 @@ impl Handover {
             next: std::ptr::null_mut(),
         }));
         let mut old = self.head.swap(link, Ordering::AcqRel);
+        let mut replaced = Vec::new();
         while !old.is_null() {
             // As in `take`: each link came from `Box::into_raw` in `put`, and the swap took the
             // whole stack out, so nothing else reaches it.
             // unsafe(memory)
             let held = unsafe { Box::from_raw(old) };
             old = held.next;
+            replaced.push(held.bytes);
         }
+        replaced.reverse();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let (count, put) = &self.put;
+            count.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
+            put.notify_all();
+        }
+        replaced
     }
 
     /// Whether the updates not taken are past what the handover holds (`HELD_UPDATES`).
@@ -970,22 +1039,30 @@ impl Drop for Handover {
     }
 }
 
-/// Hands over what changed in the worker's `Seen` since the last one it handed over: the whole
-/// `Seen` the first time, nothing when nothing changed. Called with the lock on `Shared` held,
-/// so updates land in the order the state they copy changed.
-pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
+/// What the worker tells the page with an update (`Handed`).
+#[derive(Default)]
+pub(crate) struct Told {
+    pub(crate) changes: crate::Changes,
+    pub(crate) answers: Vec<(u64, Option<Vec<u8>>)>,
+}
+
+/// Hands over what changed in the worker's `Seen` since the last one it handed over (the whole
+/// `Seen` the first time) with what it tells the page of it, and answers whether it put an
+/// update: nothing goes when nothing changed and there is nothing to tell. Called with the lock
+/// on `Shared` held, so updates land in the order the state they copy changed.
+pub(crate) fn publish(shared: &mut Shared, handover: &Handover, told: Told) -> bool {
     shared.refresh_seen();
     // The page has not taken what the handover holds: the worker hands over the whole `Seen` in
     // its place.
     let crowded = handover.crowded();
     let update = match &shared.handed {
-        None => Update::Whole(shared.seen.clone()),
-        Some(_) if crowded => Update::Whole(shared.seen.clone()),
-        Some(last) => match crate::diff::Diff::diff(last, &shared.seen) {
-            Some(delta) => Update::Changed(delta),
-            None => return,
-        },
+        None => Some(Update::Whole(shared.seen.clone())),
+        Some(_) if crowded => Some(Update::Whole(shared.seen.clone())),
+        Some(last) => crate::diff::Diff::diff(last, &shared.seen).map(Update::Changed),
     };
+    if update.is_none() && told.changes.is_empty() && told.answers.is_empty() {
+        return false;
+    }
     #[cfg(debug_assertions)]
     let check = shared
         .updates
@@ -994,15 +1071,36 @@ pub(crate) fn publish(shared: &mut Shared, handover: &Handover) {
     shared.updates += 1;
     let handed = Handed {
         update,
+        changes: told.changes,
+        answers: told.answers,
         #[cfg(debug_assertions)]
         check,
     };
     let bytes = postcard::to_stdvec(&handed).expect("an update encodes");
-    match crowded {
-        true => handover.replace(bytes),
-        false => handover.put(bytes),
-    }
     shared.handed = Some(shared.seen.clone());
+    if !crowded {
+        handover.put(bytes);
+        return true;
+    }
+    // What the replaced updates told the page still has to reach it: in an update of its own
+    // after the whole `Seen`, which has what they changed.
+    let mut told = Told::default();
+    for replaced in handover.replace(bytes) {
+        let replaced: Handed = postcard::from_bytes(&replaced).expect("an update decodes");
+        told.changes.merge(replaced.changes);
+        told.answers.extend(replaced.answers);
+    }
+    if !told.changes.is_empty() || !told.answers.is_empty() {
+        let handed = Handed {
+            update: None,
+            changes: told.changes,
+            answers: told.answers,
+            #[cfg(debug_assertions)]
+            check: None,
+        };
+        handover.put(postcard::to_stdvec(&handed).expect("an update encodes"));
+    }
+    true
 }
 
 /// The worker thread's way to its stack, and what it holds back from the page until the next
@@ -1012,7 +1110,7 @@ struct Here {
     handover: Arc<Handover>,
     changes: crate::Changes,
     wake: bool,
-    calls: Vec<Box<dyn FnOnce()>>,
+    answers: Vec<(u64, Option<Vec<u8>>)>,
     /// A task to publish is spawned and has not run yet.
     scheduled: bool,
 }
@@ -1032,7 +1130,7 @@ impl Worker {
                 handover: Arc::clone(handover),
                 changes: crate::Changes::default(),
                 wake: false,
-                calls: Vec::new(),
+                answers: Vec::new(),
                 scheduled: false,
             });
         });
@@ -1042,19 +1140,9 @@ impl Worker {
 
 impl Drop for Worker {
     /// The worker's last `Seen`, and what it held back for it: a task to publish would not run
-    /// once the worker ends. A reply it runs may hold back more, which goes out the same way.
+    /// once the worker ends.
     fn drop(&mut self) {
-        loop {
-            publish_now();
-            let held = HERE.with(|here| {
-                here.borrow().as_ref().is_some_and(|here| {
-                    here.wake || !here.calls.is_empty() || !here.changes.is_empty()
-                })
-            });
-            if !held {
-                break;
-            }
-        }
+        publish_now();
         HERE.with(|here| here.borrow_mut().take());
     }
 }
@@ -1091,26 +1179,21 @@ pub(crate) fn hold_wake() -> bool {
     held
 }
 
-/// Wraps a reply to a page call so that, run on the worker thread, it runs once the `Seen`
-/// with what the worker did before it is handed over: what the page reads after hearing the
-/// reply has it.
-pub(crate) fn after_publish<T: 'static>(
-    reply: impl FnOnce(T) + Send + 'static,
-) -> Box<dyn FnOnce(T) + Send> {
-    Box::new(move |value| {
-        let call: Box<dyn FnOnce()> = Box::new(move || reply(value));
-        let call = HERE.with(|here| match here.borrow_mut().as_mut() {
-            Some(here) => {
-                here.calls.push(call);
-                None
-            }
-            None => Some(call),
-        });
-        match call {
-            Some(call) => call(),
-            None => schedule(),
+/// On the worker thread, holds an answer to the page's reply `id` back until the next update,
+/// which carries it, so what the page reads as it hears the answer has what the worker did
+/// before it; elsewhere, hands it back.
+pub(crate) fn hold_answer(id: u64, answer: Option<Vec<u8>>) -> Option<Option<Vec<u8>>> {
+    let held = HERE.with(|here| match here.borrow_mut().as_mut() {
+        Some(here) => {
+            here.answers.push((id, answer));
+            None
         }
-    })
+        None => Some(answer),
+    });
+    if held.is_none() {
+        schedule();
+    }
+    held
 }
 
 /// Has a task on the worker publish once the worker yields, unless one is due already: the
@@ -1133,38 +1216,32 @@ fn schedule() {
     }
 }
 
-/// Hands the worker's `Seen` over now, then posts the changes, wake and replies held back for
-/// it. Only the worker calls it, and never while it holds the lock on `Shared`: it may wait a
-/// moment for another thread to let go of it, as a worker may.
+/// Hands the worker's update over now, with the changes and answers held back for it, and
+/// wakes the host to take it in its next frame. Only the worker calls it, and never while it
+/// holds the lock on `Shared`: it may wait a moment for another thread to let go of it, as a
+/// worker may.
 pub(crate) fn publish_now() {
-    let Some((shared, handover)) = HERE.with(|here| {
-        here.borrow()
-            .as_ref()
-            .map(|here| (Arc::clone(&here.shared), Arc::clone(&here.handover)))
+    let Some((shared, handover, told, wake)) = HERE.with(|here| {
+        here.borrow_mut().as_mut().map(|here| {
+            (
+                Arc::clone(&here.shared),
+                Arc::clone(&here.handover),
+                Told {
+                    changes: std::mem::take(&mut here.changes),
+                    answers: std::mem::take(&mut here.answers),
+                },
+                std::mem::take(&mut here.wake),
+            )
+        })
     }) else {
         return;
     };
-    publish(
+    let put = publish(
         &mut shared.lock().unwrap_or_else(PoisonError::into_inner),
         &handover,
+        told,
     );
-    let (changes, wake, calls) = HERE.with(|here| {
-        here.borrow_mut().as_mut().map_or_else(
-            || (crate::Changes::default(), false, Vec::new()),
-            |here| {
-                (
-                    std::mem::take(&mut here.changes),
-                    std::mem::take(&mut here.wake),
-                    std::mem::take(&mut here.calls),
-                )
-            },
-        )
-    });
-    crate::changes::deliver(changes);
-    for call in calls {
-        call();
-    }
-    if wake {
+    if put || wake {
         be_host_base::host::wake();
     }
 }
@@ -1174,10 +1251,10 @@ pub(crate) fn on_worker() -> bool {
     HERE.with(|here| here.borrow().is_some())
 }
 
-/// On the worker thread, runs `change` on its `Shared` and hands the result over at once, so a
-/// reply that changed what the page reads (`import_file`'s, which makes a block) reaches the
-/// page after the change does, and answers true. Elsewhere answers false without running it.
-/// The worker calls it only from replies, never while it holds the lock on `Shared`.
+/// On the worker thread, runs `change` on its `Shared` and hands the result over at once, and
+/// answers true: an `Edit` the worker makes itself, or the invitations it notes. Elsewhere
+/// answers false without running it. The worker never calls it while it holds the lock on
+/// `Shared`.
 pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
     let Some((shared, handover)) = HERE.with(|here| {
         here.borrow()
@@ -1188,7 +1265,9 @@ pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
     };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     change(&mut held);
-    publish(&mut held, &handover);
+    if publish(&mut held, &handover, Told::default()) {
+        be_host_base::host::wake();
+    }
     true
 }
 

@@ -1,30 +1,23 @@
 //! Replies to the page's commands, as data: a command carries a `Reply`, which is only a
 //! number, and the worker answers it with the answer's bytes. The page keeps what each number
-//! calls back (`expect`) and runs it with the decoded answer.
-//!
-//! While the page and the worker share a memory, the table of what each number calls back is
-//! one both reach, and the worker runs the call once the `Seen` with what it did before it is
-//! handed over (`seen::after_publish`). Once the worker has a memory of its own
-//! (plans/web_page_never_waits.md), the answers travel to the page in the message that hands it
-//! that `Seen`, and the table is the page's alone.
+//! calls back (`expect`, in its stack's `waiting`), and runs it with the decoded answer as it
+//! takes the update that carries it (`take_updates`), so what it reads then has what the worker
+//! did before answering.
 
 use std::cell::Cell;
-use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, PoisonError};
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-type Waiting = Box<dyn FnOnce(Option<&[u8]>) + Send>;
+/// What a reply calls back with its answer's bytes, or `None` for a reply dropped unanswered.
+pub(crate) type Waiting = Box<dyn FnOnce(Option<&[u8]>) + Send>;
 
 static NEXT: AtomicU64 = AtomicU64::new(1);
 
-static WAITING: Mutex<Option<HashMap<u64, Waiting>>> = Mutex::new(None);
-
 /// Where the answer to a command goes. Encoding it hands the waiting over to whoever decodes it;
-/// dropping it unanswered drops what waits on it, as dropping a callback would.
+/// dropping it unanswered on the worker drops what waits on it, as dropping a callback would.
 pub(crate) struct Reply<T> {
     id: u64,
     /// Answered, or encoded: either way this copy no longer stands for the waiting.
@@ -32,7 +25,8 @@ pub(crate) struct Reply<T> {
     kind: PhantomData<fn(T)>,
 }
 
-/// A reply whose answer runs `reply` on the page.
+/// A reply whose answer runs `reply` on the page. With no stack running, `reply` is dropped at
+/// once, as the command it goes with is.
 pub(crate) fn expect<T: DeserializeOwned + 'static>(
     reply: impl FnOnce(T) + Send + 'static,
 ) -> Reply<T> {
@@ -44,11 +38,7 @@ pub(crate) fn expect<T: DeserializeOwned + 'static>(
         // The worker encoded it from a `T`: one that does not decode is a bug.
         reply(postcard::from_bytes(answer).expect("an answer decodes as what it answers"));
     });
-    WAITING
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .get_or_insert_default()
-        .insert(id, waiting);
+    crate::with_stack(|stack| stack.waiting.insert(id, waiting));
     Reply {
         id,
         done: Cell::new(false),
@@ -72,19 +62,20 @@ impl<T> Drop for Reply<T> {
     }
 }
 
-/// Runs what waits on `id` with `answer`, or drops it for none, once the worker's `Seen` with
-/// what it did before is handed over.
+/// On the worker, holds the answer to `id` for the next update. Elsewhere only a test answers
+/// (the worker's own copy of a reply is the one it decodes), so the answer is told at once; a
+/// reply the page drops before sending its command leaves its waiting for the stack to drop
+/// as it stops.
 fn deliver(id: u64, answer: Option<Vec<u8>>) {
-    crate::seen::after_publish(move |()| {
-        let waiting = WAITING
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .as_mut()
-            .and_then(|waiting| waiting.remove(&id));
-        if let Some(waiting) = waiting {
-            waiting(answer.as_deref());
-        }
-    })(());
+    let Some(answer) = crate::seen::hold_answer(id, answer) else {
+        return;
+    };
+    if answer.is_none() {
+        return;
+    }
+    if let Some(waiting) = crate::with_stack(|stack| stack.waiting.remove(&id)).flatten() {
+        waiting(answer.as_deref());
+    }
 }
 
 impl<T> Serialize for Reply<T> {

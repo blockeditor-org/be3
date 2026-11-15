@@ -86,5 +86,5 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
 pub(super) fn first() {}
 
 pub(super) fn await_flush(sealed: std::sync::mpsc::Receiver<usize>) -> Option<usize> {
-    sealed.recv_timeout(FLUSH_TIMEOUT).ok()
+    crate::wait_for_answer(&sealed, FLUSH_TIMEOUT)
 }

@@ -156,7 +156,7 @@ mod receiving {
         crate::open_push(message.clone(), now, move |opened| {
             let _ = reply.send(opened);
         });
-        let opened = answer.recv_timeout(STACK_PATIENCE).ok()?.ok()?;
+        let opened = crate::wait_for_answer(&answer, STACK_PATIENCE)?.ok()?;
         let sender = crate::contacts()
             .into_iter()
             .find(|contact| contact.account == opened.sender)
