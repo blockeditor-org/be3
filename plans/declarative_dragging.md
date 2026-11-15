@@ -136,11 +136,14 @@ clamped or quantised, so there is no optimiser until a drag needs one.
   which is how the game board drags pieces and pans with one `Interactive`. `Carry::new(payload)`
   previews the source's own face unless given `.preview(..)`. Being declarative lets the board lift
   the same item from the keyboard, glide it home on Escape, and hear when its node is torn down.
-- **A site:** `DropSite<P, D> { accepts, spec: Func<P, DragSpec<D>>, commit: Callback<(P, D)> }`,
-  a prop on the container that takes the drop (`<List drop={site}>`), which gives it its node.
-  Its handle has `over: Memo<Option<D>>`, the chosen place in it; that is all a site draws from.
-- **The board:** `board().carrying::<P>()` and `board().is_carried(&key)`.
-- **List slots:** `slots_in(rows: ForEachRef<K, NodeId>, carried: &K) -> Vec<Candidate<After<K>>>` reads
+- **A site:** `use_drop_site(accepts: Func<P, bool>, spec: Func<P, DragSpec<D>>, commit:
+  Callback<(P, D)>)`, a hook in the component that takes the drop, a site for as long as its scope
+  lives. It is a hook, not a `drop` prop on containers (provisional, until the step 1 review): a
+  place names its own node through its `Candidate`, so a site needs no node, and no container
+  grows a prop. Its handle has `over: ReadSignal<Option<D>>`, the chosen place in it; that is all a
+  site draws from.
+- **The board:** `carrying::<P>()` and `is_carried(key)`.
+- **List slots:** `slots_in(list: NodeRef, rows: ForEachRef<K, NodeId>, carried: &K, direction) -> Vec<Candidate<After<K>>>` reads
   the rests from the rows' laid-out rects (`measure`, with the scroll around them taken out by
   `measure::scrolled_by`, as `Glide` does), so a list's layout is written once, by the list. Rows
   of any height, wrapped text included, are exact; a row of several children rests where its run
@@ -170,23 +173,24 @@ What a list site looks like, and what step 2 measures `Reorder` against:
 #[component]
 fn TodoList(todos: Signal<Vec<Todo>>) -> NodeId {
     let rows = ForEachRef::<TodoId, NodeId>::new();
-    let site = DropSite {
-        accepts: Func::new(|_: TodoId| true),
-        spec: Func::new(move |carried: TodoId| closest(slots_in(rows, &carried)).when_far(floating())),
-        commit: Callback::new(move |(carried, After(after))| todos.update(|t| move_after(t, carried, after))),
-    };
+    let list = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|_: TodoId| true),
+        Func::new(move |carried: TodoId| closest(slots_in(list, rows, &carried, Direction::Vertical)).when_far(floating())),
+        Callback::new(move |(carried, After(after))| todos.update(|t| move_after(t, carried, after))),
+    );
     let order = create_memo(move || {
         let mut ids: Vec<TodoId> = todos.with(|t| t.iter().map(|t| t.id).collect());
-        if let (Some(carried), Some(After(after))) = (board().carrying::<TodoId>(), site.over.get()) {
+        if let (Some(carried), Some(After(after))) = (carrying::<TodoId>(), site.over.get()) {
             move_after(&mut ids, carried, after);
         }
         ids
     });
     view! {
-        <List drop={site} spacing=0.0>
+        <List @node_ref=&list spacing=0.0>
             <ForEach value={order} handle={rows}>|id: TodoId, index: ReadSignal<usize>| {
                 let title = create_memo(move || todos.with(|t| t.iter().find(|t| t.id == id).map(|t| t.title.clone())));
-                let carried = board().is_carried(&id);
+                let carried = is_carried(id);
                 view! {
                     <Glide on={index}>
                         <Interactive drag={move |_| Some(Carry::new(id))}>
@@ -207,13 +211,18 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
 
 ## Steps
 
-1. **The engine.** The types and pure evaluation; `Interactive`'s `drag` on both cores (it reaches
-   the board through `beui-types`' `Space`/`Driver`, no new dependency); `DropSite` on `List`; keys
-   on a lifted item; publishing frames as presence; tests on the fake `Space` (`drag_board/tests`)
-   and plain asserts on spec evaluation. beui-demo pages: the list above, free positioning that
-   snaps into slots (`closest(slots).when_far(free(area))`), and a switch dragged between its two
-   states. An inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector),
-   that draws every candidate, its zone and the chosen one.
+1. **The engine**, in slices, with the old API beside it until step 2:
+   - **1a (done):** the types and pure evaluation, with plain asserts on spec evaluation.
+   - **1b (done):** drop sites, the board's carry choosing among them, `carrying`/`is_carried`,
+     `slots_in`, and `Interactive`'s `drag` on both cores (it reaches the board through
+     `beui-types`' `Space`/`Driver`, no new dependency); tests on the fake `Space` and a
+     beui-tests screen both cores drive.
+   - **1c:** the floating preview (`Carry::preview`, and the source's own face by default), a
+     `Driver` per pointer, keys on a lifted item, and publishing frames as presence.
+   - **1d:** beui-demo pages: the list above, free positioning that snaps into slots
+     (`closest(slots).when_far(free(area))`), and a switch dragged between its two states. An
+     inspector tool, a dock tab like the others (guides/beui/programs.md, The inspector), that
+     draws every candidate, its zone and the chosen one.
 2. **Lists and trees.** `slots_in`; `Reorder` rewritten on the primitives, or removed if callers are
    as short without it (decide by the line counts). `styled::Tree`'s `reorder`, database lists and
    kanban (each column a site, nothing kanban-specific), the canvas's layers panel and the files
