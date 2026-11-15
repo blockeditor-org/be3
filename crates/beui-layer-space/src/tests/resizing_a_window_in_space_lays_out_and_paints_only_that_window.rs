@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn resizing_a_window_in_space_lays_out_and_paints_only_that_window() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = beui_host::reactive::RootScope::new();
     let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();
@@ -22,9 +22,9 @@ fn resizing_a_window_in_space_lays_out_and_paints_only_that_window() {
         },
     ]);
     space.space.borrow_mut().begin_resize(
-        beui_layer_space::Pointer::Mouse,
+        crate::Pointer::Mouse,
         window,
-        crate::WindowEdge::BottomRight,
+        beui_host::WindowEdge::BottomRight,
     );
     space.frame([Input::PointerMoved(grip + vec2(4.0, 4.0))]);
     let main_nodes = {

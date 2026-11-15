@@ -207,8 +207,8 @@ Windows; elsewhere the `Link` fails at once and space stays the simulator.
   panels by depth as the GPU does). Behaviour tests check what reaches the
   program and what space reports.
 - `drive --into=space ...` and `drive xr HAND ...` drive space and the lasers
-  (guides/running/drive.md); placement through a real `Runner` is tested by
-  `InSpace` in crates/beui-host/src/tests.rs.
+  (guides/running/drive.md); placement through a real `Runner` and beui-host's documents is tested by
+  `InSpace` in crates/beui-layer-space/src/tests.rs.
 - beui-layer-xr's tests run Monado's service with its null compositor on
   lavapipe (`//buck/sysroot:amd64-xr`) and check frames are shown, including a
   headset that appears after the `Link` started and a service restart. They

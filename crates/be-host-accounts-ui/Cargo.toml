@@ -9,7 +9,7 @@ license.workspace = true
 beui = { path = "../beui" }
 
 [target.'cfg(not(beui_html))'.dev-dependencies]
-beui-host = { path = "../beui-host", default-features = false }
+beui-host = { path = "../beui-host" }
 
 [lints]
 workspace = true

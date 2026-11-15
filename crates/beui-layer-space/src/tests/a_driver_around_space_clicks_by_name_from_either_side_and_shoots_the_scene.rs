@@ -1,9 +1,9 @@
 use super::*;
-use crate::native::drive::{Drive, Inbox, Reply, ask};
-use crate::primitives::Text;
-use crate::reactive::*;
-use crate::styled::*;
 use beui_core::program::SafeArea;
+use beui_host::native::drive::{Drive, Inbox, Reply, ask};
+use beui_host::primitives::Text;
+use beui_host::reactive::*;
+use beui_host::styled::*;
 use beui_runner::renderer::Loaded;
 use beui_runner::{Launch, RunOptions, Runner};
 use std::future::Future;
@@ -18,7 +18,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
         let pressed = create_signal(false);
         let then = create_signal(false);
         view! {
-            <styled::List spacing=Space::Md>
+            <styled::List spacing=styled::Space::Md>
                 <Button
                     label="Press me"
                     variant=ButtonVariant::Primary
@@ -45,10 +45,10 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context(),
-        program: Box::new(crate::native::testing::Showing(document)),
+        program: Box::new(beui_host::native::testing::Showing(document)),
         layers: vec![
             Box::new(screen),
-            Box::new(beui_layer_space::Space::new()),
+            Box::new(crate::Space::new()),
             Box::new(program),
         ],
     });
@@ -140,7 +140,7 @@ fn a_driver_around_space_clicks_by_name_from_either_side_and_shoots_the_scene() 
         (WIDTH, HEIGHT),
         "the platform window, whole"
     );
-    let sky = beui_layer_space::SKY;
+    let sky = crate::SKY;
     let corner = &rgba[..3];
     assert!(
         corner

@@ -1,11 +1,11 @@
 use beui_runner::Hand;
 
 use super::*;
-use crate::keyboard::styled::key_center;
-use crate::keyboard::unstyled::{Layer, Value};
-use crate::reactive::*;
-use crate::styled::List;
-use crate::styled::*;
+use beui_host::keyboard::styled::key_center;
+use beui_host::keyboard::unstyled::{Layer, Value};
+use beui_host::reactive::*;
+use beui_host::styled::List;
+use beui_host::styled::*;
 
 #[test]
 fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_controllers_are_active() {
@@ -15,7 +15,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
     let document = build_node(move || {
         let name = create_signal(String::new());
         view! {
-            <List spacing=Space::None>
+            <List spacing=styled::Space::None>
                 <TextInput
                     @test_id="field"
                     value={Binding::new(name, move |next: String| {
@@ -34,7 +34,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
         document.node_rect(field).expect("the field is laid out")
     };
 
-    let clicked = space.on_screen(crate::WindowId::MAIN, field.center());
+    let clicked = space.on_screen(beui_host::WindowId::MAIN, field.center());
     space.frame([Input::PointerMoved(clicked)]);
     for pressed in [true, false] {
         space.frame([Input::PointerButton {
@@ -54,7 +54,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
         "with only a mouse and keyboard the physical keyboard types and no panel opens"
     );
 
-    space.aim(Hand::Right, crate::WindowId::MAIN, field.center());
+    space.aim(Hand::Right, beui_host::WindowId::MAIN, field.center());
     assert_eq!(
         space.space.borrow().keyboard_attached(),
         Some(false),
@@ -75,10 +75,10 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
         let shell = space.space.borrow();
         assert_eq!(
             shell.focused(),
-            Some(crate::WindowId::MAIN),
+            Some(beui_host::WindowId::MAIN),
             "the keyboard's panel does not take the focus"
         );
-        let main = shell.panel(crate::WindowId::MAIN).unwrap();
+        let main = shell.panel(beui_host::WindowId::MAIN).unwrap();
         let panel = shell.panel(keyboard).unwrap();
         let top = panel.world(pos2(panel.size.x / 2.0, 0.0));
         let under = main.world(pos2(field.center().x, field.bottom()));
@@ -94,7 +94,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
     let focused = space.document.borrow().focused_node();
     assert!(focused.is_some());
 
-    let keys = Rect::from_min_size(Pos2::ZERO, crate::keyboard_host::WINDOW_SIZE);
+    let keys = Rect::from_min_size(Pos2::ZERO, beui_host::native::KEYBOARD_WINDOW_SIZE);
     for letter in ['h', 'i'] {
         let key = key_center(keys, Layer::Text, Value::Char(letter)).expect("a letter key");
         space.aim(Hand::Right, keyboard, key);
@@ -104,7 +104,7 @@ fn the_space_host_opens_the_keyboard_as_a_panel_lasers_type_on_only_while_contro
     assert_eq!(*typed.borrow(), "hi", "the laser types on its keys");
     assert_eq!(
         space.space.borrow().focused(),
-        Some(crate::WindowId::MAIN),
+        Some(beui_host::WindowId::MAIN),
         "and the focus stays on the field's panel"
     );
     assert_eq!(space.document.borrow().focused_node(), focused);

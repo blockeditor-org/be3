@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 beui = { path = "../beui" }
-beui-host = { path = "../beui-host", default-features = false }
+beui-host = { path = "../beui-host" }
 be-tool-paint-review-manifest = { path = "../be-tool-paint-review-manifest" }
 
 [dev-dependencies]

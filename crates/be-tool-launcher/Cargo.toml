@@ -15,6 +15,7 @@ path = "src/main.rs"
 be-block-content = { path = "../be-block-content" }
 beui = { path = "../beui" }
 beui-host = { path = "../beui-host" }
+beui-host-window = { path = "../beui-host-window" }
 comrak = { version = "0.55", default-features = false }
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
 serde = { version = "1", features = ["derive"] }

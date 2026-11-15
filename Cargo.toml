@@ -37,6 +37,7 @@ members = [
     "crates/be-tool-bench",
     "crates/beui",
     "crates/beui-host",
+    "crates/beui-host-window",
     "crates/beui-platform-android",
     "crates/beui-platform-drm",
     "crates/beui-platform-headless",

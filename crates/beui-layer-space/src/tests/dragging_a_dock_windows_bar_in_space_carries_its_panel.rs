@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn dragging_a_dock_windows_bar_in_space_carries_its_panel() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = beui_host::reactive::RootScope::new();
     let (document, dock) = windowed_dock(None);
     let mut space = InSpace::new(document);
     space.settle();

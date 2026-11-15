@@ -1,7 +1,7 @@
 use super::*;
-use crate::{Window, WindowHandle};
-use crate::{WindowId, WindowReport};
 use beui_core::program::SafeArea;
+use beui_host::{Window, WindowHandle};
+use beui_host::{WindowId, WindowReport};
 use beui_runner::renderer::{Loaded, Renderer};
 use beui_runner::{Launch, RunOptions, Runner};
 
@@ -20,7 +20,7 @@ impl Renderer for Screen {
 
     fn prepare(
         &mut self,
-        _output: &crate::native::WindowOutput,
+        _output: &beui_host::native::WindowOutput,
         _scale: f32,
         _background: Color32,
     ) -> bool {
@@ -38,7 +38,7 @@ impl beui_runner::PlatformServices for Nowhere {}
 
 #[test]
 fn the_space_host_opens_a_programs_window_as_a_panel_at_the_pointer_and_clicks_reach_it() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = beui_host::reactive::RootScope::new();
     let window = WindowId::next();
     let heard = create_signal(Vec::<WindowReport>::new());
     let clicks = create_signal(0);
@@ -59,8 +59,8 @@ fn the_space_host_opens_a_programs_window_as_a_panel_at_the_pointer_and_clicks_r
     let mut runner = Runner::new(Launch {
         options: RunOptions::default(),
         context: context.clone(),
-        program: Box::new(crate::native::testing::Showing(document)),
-        layers: vec![Box::new(beui_layer_space::Space::new())],
+        program: Box::new(beui_host::native::testing::Showing(document)),
+        layers: vec![Box::new(crate::Space::new())],
     });
     runner
         .start(

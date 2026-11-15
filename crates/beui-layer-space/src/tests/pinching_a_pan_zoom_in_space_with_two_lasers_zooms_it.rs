@@ -1,11 +1,11 @@
 use beui_runner::{Controller, Hand};
 
 use super::*;
-use crate::unstyled::PanZoomApi;
+use beui_host::unstyled::PanZoomApi;
 
 #[test]
 fn pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it() {
-    let _root = crate::reactive::RootScope::new();
+    let _root = beui_host::reactive::RootScope::new();
     let document = build_node(move || {
         view! {
             <PanZoomStage />
@@ -15,7 +15,7 @@ fn pinching_a_pan_zoom_in_space_with_two_lasers_zooms_it() {
     space.settle();
     let toward = |hand, x: f32| Controller::Toward {
         hand,
-        window: crate::WindowId::MAIN,
+        window: beui_host::WindowId::MAIN,
         at: pos2(x, 300.0),
     };
     space.controllers([toward(Hand::Left, 300.0), toward(Hand::Right, 500.0)]);

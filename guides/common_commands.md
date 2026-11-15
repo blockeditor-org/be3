@@ -92,7 +92,7 @@ An agent shows a visual change with a painting (guides/testing_a_gui.md).
 | `./scripts/buck run //crates/be-host:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
 | `./scripts/buck run //crates/be-host:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is the build helper's unsigned template, which it signs with CI's key) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
-| `./scripts/buck run //crates/beui-host:example-survey` | a crate example; every example is `example-<name>` |
+| `./scripts/buck run //crates/beui-host-window:example-survey` | a crate example; every example is `example-<name>` |
 | `./scripts/buck run //crates/be-tool-bench:suite -- run [NAME]` | every benchmark, built in release (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
 | `./scripts/buck run //crates/be-tool-paint-review-web:web -- DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.webp` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |

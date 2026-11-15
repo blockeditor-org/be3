@@ -22,11 +22,13 @@ write_package_value("be3.cargo", {
         "android-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -41,11 +43,13 @@ write_package_value("be3.cargo", {
         "linux-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -60,11 +64,13 @@ write_package_value("be3.cargo", {
         "linux-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -79,11 +85,13 @@ write_package_value("be3.cargo", {
         "macos-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -98,11 +106,13 @@ write_package_value("be3.cargo", {
         "macos-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -132,11 +142,13 @@ write_package_value("be3.cargo", {
         "windows-arm64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],
@@ -151,11 +163,13 @@ write_package_value("be3.cargo", {
         "windows-x86_64": {
             "binaries": {
                 "beui-shared-tests": [
+                    "//crates/beui-host-window:beui-host-window",
                     "//crates/beui-host:beui-host",
                     "//crates/beui:beui",
                 ],
             },
             "deps": [
+                "//crates/beui-host-window:beui-host-window",
                 "//crates/beui-host:beui-host",
                 "//crates/beui:beui",
             ],

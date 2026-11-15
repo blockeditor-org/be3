@@ -9,8 +9,9 @@ platform. How a program uses them is in guides/beui/programs.md.
 - crates/beui-runner: `Platform`, `PlatformServices`, `Runner`, `Layer`, the
   input intake (`intake.rs`), the `Renderer` trait and `environment`
   (`BEUI_PLATFORM`, `BEUI_RENDERER`, `BEUI_LAYERS`).
-- crates/beui-host: picks a platform (`native_platform`, `web_platform`), loads
-  the renderer and stacks layers (`src/runner.rs`).
+- crates/beui-host-window: picks a native platform (`native_platform`), loads
+  the renderer and stacks layers (`src/runner.rs`); crates/beui-host does the
+  same for the web (`web_platform`).
 - crates/beui-platform-winit (desktop), beui-platform-web (+ beui-web-input,
   the browser's event mapping), beui-platform-android (with its Java in
   `android/`), beui-platform-drm (displays and libinput with no display

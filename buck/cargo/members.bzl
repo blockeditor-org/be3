@@ -180,6 +180,7 @@ members = [
     "crates/beui-font-freetype",
     "crates/beui-fonts",
     "crates/beui-host",
+    "crates/beui-host-window",
     "crates/beui-html",
     "crates/beui-inspector",
     "crates/beui-keyboard",
