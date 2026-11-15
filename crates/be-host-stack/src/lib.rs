@@ -834,12 +834,14 @@ pub fn redo(block: Uuid) {
     send(Command::History { block, redo: true });
 }
 
-pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
+/// Copies `from` into a new block `to` (a fresh id, `Uuid::now_v7`), detached, and answers its
+/// type; none when the source is not in the graph or its type is not known. The caller picks
+/// `to`, so it can name the copy before making it (Unlink asks its container first).
+pub fn duplicate(from: Uuid, to: Uuid) -> Option<Uuid> {
     let source = node(from)?;
     if !is_known(source.content_type) {
         return None;
     }
-    let to = Uuid::now_v7();
     let mut metadata = source.metadata.clone();
     metadata.remove(&be_block_content::ARTIFACT);
     let references = source.contents();
@@ -865,7 +867,7 @@ pub fn duplicate(from: Uuid) -> Option<(Uuid, Uuid)> {
         content_type: source.content_type,
         metadata,
     });
-    Some((to, source.content_type))
+    Some(source.content_type)
 }
 
 pub fn replace(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {

@@ -4,10 +4,10 @@ use be_type_text::{TextBlock, TextContent};
 use super::*;
 
 /// A container whose manifest takes a replaced child can still refuse one at its type: a text
-/// that no longer names the block unlinked. The copy made for it is placed nowhere, and the
-/// person is told the text still links to the original.
+/// that no longer names the block unlinked. It is asked before the copy is made, so no copy is
+/// left behind, and the person is told the text still links to the original.
 #[test]
-fn an_unlink_the_containers_type_refuses_places_the_copy_nowhere() {
+fn an_unlink_the_containers_type_refuses_makes_no_copy() {
     let harness = be_host_testing::Harness::start();
     harness.connect();
     let (source, notes) = (Uuid::new_v4(), Uuid::new_v4());
@@ -41,9 +41,8 @@ fn an_unlink_the_containers_type_refuses_places_the_copy_nowhere() {
     settle(&mut core);
 
     assert!(refused("Unlinked notes can't take its own copy"));
-    assert_ne!(
-        be_host_stack::node(copy).and_then(|node| node.parent),
-        Some(BlockParent::Block(notes)),
-        "the copy is not placed in the text"
+    assert!(
+        be_host_stack::node(copy).is_none(),
+        "no copy is made, so none is left in Recently Deleted"
     );
 }

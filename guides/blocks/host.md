@@ -529,10 +529,12 @@ answers (`Replicas::change_answered`, awaited beside the worker's loop), and
 be-host's moves, reorders and copies each wait on it on their frames: a
 refusal puts the block back where it was and says why (`refuse_transfer`,
 `refuse_reorder`, `refuse_copy` in its main.rs). Unlink
-(`BlockCommand::Unlink`) duplicates the block (`HostCore::queue_copy`) and then
-replaces it in the container this way, only for a type whose manifest says
-`children.replace`, placing the copy once the type made the change; an editor
-of the container never takes part. An editor asks for a reorder with
+(`BlockCommand::Unlink`, `HostCore::queue_copy`) asks the container's type to
+put a new id in the block's place first, only for a type whose manifest says
+`children.replace`, and duplicates the block into that id
+(`be_host_stack::duplicate(from, to)`) and places it once the type made the
+change, so a refusal leaves no copy behind; an editor of the container never
+takes part. An editor asks for a reorder with
 `EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`);
 be-host queues it behind any move of the same block still under way
 (`queue_reorder` in its main.rs) and sends it only to a type whose manifest
