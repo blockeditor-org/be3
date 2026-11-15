@@ -21,7 +21,9 @@ A component whose whole view is a `Show` returns `DynamicSegment<ListItem>`.
 
 **Modifiers.** `@test_id` (a one-word `Prop<String>`, carried on the node's
 accessibility node as AccessKit's `author_id`, so it reaches `drive` and tests
-only where the tree shows the node) and `@node_ref`. Any `@path=value` expands to
+only where the tree shows the node) and `@node_ref`. `@test_id` also names a
+value child that implements `TakesTestId` (`ChoiceOption`, `MenuItem`): its
+parent binds the id on the row it builds for it. Any `@path=value` expands to
 `path(built, value)` after the component is built, in source order, and may
 change the output type. A modifier works on the node itself; how a parent places
 a child is a tag around it that builds the child that parent takes:

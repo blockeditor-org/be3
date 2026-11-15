@@ -127,7 +127,7 @@ fn HostMenu(
     let warned = create_memo(move || !escrow_warning.get().is_empty());
     let items = view! {
         <MenuItem
-            row_test_id={"host.menu.status".to_owned()}
+            @test_id={"host.menu.status".to_owned()}
             label={sync_label}
             glyph={sync_glyph}
             detail={sync_detail}
@@ -135,7 +135,7 @@ fn HostMenu(
         />
         <Show condition={has_unsent}>
             <MenuItem
-                row_test_id={"host.menu.unsent".to_owned()}
+                @test_id={"host.menu.unsent".to_owned()}
                 label="Unsent edits"
                 glyph=ICON_ARCHIVE_RESTORE
                 detail={unsent_detail}
@@ -144,7 +144,7 @@ fn HostMenu(
         </Show>
         <Show condition={warned}>
             <MenuItem
-                row_test_id={"host.menu.escrow-warning".to_owned()}
+                @test_id={"host.menu.escrow-warning".to_owned()}
                 label="Escrow key not verified"
                 glyph=ICON_SHIELD_ALERT
                 detail={escrow_warning}
@@ -152,7 +152,7 @@ fn HostMenu(
             />
         </Show>
         <MenuItem
-            row_test_id={"host.menu.contacts".to_owned()}
+            @test_id={"host.menu.contacts".to_owned()}
             label="Contacts"
             glyph=ICON_CONTACT
             separated=true
@@ -160,7 +160,7 @@ fn HostMenu(
         />
         <Show condition={company}>
             <MenuItem
-                row_test_id={"host.menu.invite".to_owned()}
+                @test_id={"host.menu.invite".to_owned()}
                 label="Invite member"
                 glyph=ICON_USER_PLUS
                 detail={organization}
@@ -169,38 +169,38 @@ fn HostMenu(
         </Show>
         <Show condition={administrator}>
             <MenuItem
-                row_test_id={"host.menu.members".to_owned()}
+                @test_id={"host.menu.members".to_owned()}
                 label="Members"
                 glyph=ICON_USERS
                 on_click={move || pick(UiCommand::OpenMembers)}
             />
         </Show>
         <MenuItem
-            row_test_id={"host.menu.agents".to_owned()}
+            @test_id={"host.menu.agents".to_owned()}
             label="Agents"
             glyph=ICON_BOT
             on_click={move || pick(UiCommand::OpenAgents)}
         />
         <MenuItem
-            row_test_id={"host.menu.switch-session".to_owned()}
+            @test_id={"host.menu.switch-session".to_owned()}
             label="Sessions and profiles"
             glyph=ICON_LAYOUT_PANEL_LEFT
             on_click={move || pick(UiCommand::SwitchSession)}
         />
         <MenuItem
-            row_test_id={"host.menu.switch-organization".to_owned()}
+            @test_id={"host.menu.switch-organization".to_owned()}
             label="Switch organization"
             glyph=ICON_ARROW_LEFT_RIGHT
             on_click={move || pick(UiCommand::SwitchOrganization)}
         />
         <MenuItem
-            row_test_id={"host.menu.recovery-phrase".to_owned()}
+            @test_id={"host.menu.recovery-phrase".to_owned()}
             label="New recovery phrase"
             glyph=ICON_KEY
             on_click={move || pick(UiCommand::NewRecoveryPhrase)}
         />
         <MenuItem
-            row_test_id={"host.menu.accounts".to_owned()}
+            @test_id={"host.menu.accounts".to_owned()}
             label="Manage accounts"
             glyph=ICON_USER_COG
             detail={signed_in_as}
@@ -208,14 +208,14 @@ fn HostMenu(
             on_click={move || pick(UiCommand::ManageAccounts)}
         />
         <MenuItem
-            row_test_id={"host.menu.about".to_owned()}
+            @test_id={"host.menu.about".to_owned()}
             label="About"
             glyph=ICON_INFO
             on_click={move || pick(UiCommand::About(true))}
         />
         <Show condition={can_close}>
             <MenuItem
-                row_test_id={"host.menu.close".to_owned()}
+                @test_id={"host.menu.close".to_owned()}
                 label="Close be-host"
                 glyph=ICON_POWER
                 on_click={move || pick(UiCommand::CloseApp)}
@@ -223,7 +223,7 @@ fn HostMenu(
         </Show>
         <ForEach keys={HostPanel::ALL.to_vec()}>|shown: HostPanel|
             <MenuItem
-                row_test_id={format!("host.menu.panel.{shown:?}")}
+                @test_id={format!("host.menu.panel.{shown:?}")}
                 label={shown.title().to_owned()}
                 glyph={panel_icon(shown).to_owned()}
                 separated={shown == HostPanel::ALL[0]}
@@ -231,7 +231,7 @@ fn HostMenu(
             />
         </ForEach>
         <MenuItem
-            row_test_id={"host.menu.inspector".to_owned()}
+            @test_id={"host.menu.inspector".to_owned()}
             label="Inspector"
             glyph=ICON_BUG
             on_click={move || pick(UiCommand::OpenInspector)}

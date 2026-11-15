@@ -514,7 +514,7 @@ pub fn LayeredSettingsRow(
                         glyph=ICON_PIN
                         checked={checked}
                         disabled={unkeepable}
-                        row_test_id={format!("{id}.keep")}
+                        @test_id={format!("{id}.keep")}
                         on_click={move || keep.call(!kept.get_untracked())}
                     />
                 }
@@ -524,7 +524,7 @@ pub fn LayeredSettingsRow(
                     label="Reset to default"
                     glyph=ICON_ROTATE_CCW
                     disabled={unresettable}
-                    row_test_id={format!("{id}.reset")}
+                    @test_id={format!("{id}.reset")}
                     on_click={move || reset.call(())}
                 />
             };
@@ -535,7 +535,7 @@ pub fn LayeredSettingsRow(
                 label="Stop keeping in this profile"
                 glyph=ICON_PIN_OFF
                 disabled={unresettable}
-                row_test_id={format!("{id}.reset")}
+                @test_id={format!("{id}.reset")}
                 on_click={move || reset.call(())}
             />
         }]

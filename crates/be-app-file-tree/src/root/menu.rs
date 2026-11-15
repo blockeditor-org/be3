@@ -66,7 +66,7 @@ fn ZoomIn(on_click: Callback<()>) -> MenuItem {
         <MenuItem
             label="Zoom in"
             glyph=ICON_ZOOM_IN
-            row_test_id={"file-tree.zoom-in".to_owned()}
+            @test_id={"file-tree.zoom-in".to_owned()}
             on_click
         />
     }
@@ -101,7 +101,7 @@ fn UnfiledMenu<F: Fn() + 'static>(tools: RowTools, zoom_in: F) -> TreeMenu {
                 label="Move unused to Recently Deleted"
                 glyph=ICON_TRASH
                 disabled={none}
-                row_test_id={"file-tree.unfiled.move-unused".to_owned()}
+                @test_id={"file-tree.unfiled.move-unused".to_owned()}
                 on_click={move_unused}
             />
         },
@@ -160,21 +160,21 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                 label="Add"
                 glyph=ICON_FILE_PLUS
                 disabled={unaddable}
-                row_test_id={"file-tree.section.add".to_owned()}
+                @test_id={"file-tree.section.add".to_owned()}
                 on_click={add}
             />
             <MenuItem
                 label="Rename"
                 glyph=ICON_PENCIL_LINE
                 disabled={edit}
-                row_test_id={"file-tree.section.rename".to_owned()}
+                @test_id={"file-tree.section.rename".to_owned()}
                 on_click={rename}
             />
             <MenuItem
                 label="Share"
                 glyph=ICON_SHARE_2
                 disabled={unshareable}
-                row_test_id={"file-tree.section.share".to_owned()}
+                @test_id={"file-tree.section.share".to_owned()}
                 on_click={share}
             />
             <Show condition={offers_delete}>
@@ -183,7 +183,7 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                     glyph=ICON_TRASH
                     disabled={deletable}
                     danger=true
-                    row_test_id={"file-tree.section.delete".to_owned()}
+                    @test_id={"file-tree.section.delete".to_owned()}
                     on_click={delete}
                 />
             </Show>
@@ -194,7 +194,7 @@ fn SectionMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_
                     label="Leave"
                     glyph=ICON_LOG_OUT
                     danger=true
-                    row_test_id={"file-tree.section.leave".to_owned()}
+                    @test_id={"file-tree.section.leave".to_owned()}
                     on_click={leave}
                 />
             </Show>
@@ -352,7 +352,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 label="Move to"
                 glyph=ICON_MOVE_UP
                 disabled={rooted}
-                row_test_id={"file-tree.move-to".to_owned()}
+                @test_id={"file-tree.move-to".to_owned()}
             >
                 <ForEach keys={destination_keys}>|target: Uuid| {
                     let label = create_memo(move || {
@@ -367,7 +367,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                     view! {
                         <MenuItem
                             label={label}
-                            row_test_id={format!("file-tree.move-to.{target}")}
+                            @test_id={format!("file-tree.move-to.{target}")}
                             on_click={move || {
                                 if let Some(shown) = row.get_untracked()
                                     && let Some(id) = shown.id
@@ -389,21 +389,21 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
             <MenuItem
                 label="Copy"
                 glyph=ICON_COPY
-                row_test_id={"file-tree.copy".to_owned()}
+                @test_id={"file-tree.copy".to_owned()}
                 on_click={copy_row}
             />
             <MenuItem
                 label="Cut"
                 glyph=ICON_SCISSORS
                 disabled={rooted}
-                row_test_id={"file-tree.cut".to_owned()}
+                @test_id={"file-tree.cut".to_owned()}
                 on_click={cut}
             />
             <MenuItem
                 label="Paste"
                 glyph=ICON_CLIPBOARD_PASTE
                 disabled={add}
-                row_test_id={"file-tree.paste".to_owned()}
+                @test_id={"file-tree.paste".to_owned()}
                 on_click={paste}
             />
             <MenuItem label="Share" glyph=ICON_SHARE_2 disabled={unshareable} on_click={share} />
@@ -426,7 +426,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                 <MenuItem
                     label="Restore"
                     glyph=ICON_ROTATE_CCW_CLOCK
-                    row_test_id={"file-tree.restore".to_owned()}
+                    @test_id={"file-tree.restore".to_owned()}
                     on_click={restore}
                 />
             </Show>
@@ -446,7 +446,7 @@ fn BlockMenu<F: Fn() + 'static>(tools: RowTools, row: Memo<Option<Row>>, zoom_in
                     label="Leave"
                     glyph=ICON_LOG_OUT
                     danger=true
-                    row_test_id={"file-tree.leave".to_owned()}
+                    @test_id={"file-tree.leave".to_owned()}
                     on_click={leave}
                 />
             </Show>
@@ -469,7 +469,7 @@ fn Appearance(editor: Editor, picker: Picker, row: Memo<Option<Row>>) -> MenuIte
             label="Icon and color…"
             glyph=ICON_PALETTE
             disabled
-            row_test_id="file-tree.appearance"
+            @test_id="file-tree.appearance"
             on_click={open}
         />
     }
@@ -492,7 +492,7 @@ fn BlockSettings(editor: Editor, row: Memo<Option<Row>>, row_test_id: String) ->
         }
     };
     view! {
-        <MenuItem label="Settings" glyph=ICON_SETTINGS disabled row_test_id on_click={open} />
+        <MenuItem label="Settings" glyph=ICON_SETTINGS disabled @test_id={row_test_id} on_click={open} />
     }
 }
 

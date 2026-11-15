@@ -631,13 +631,13 @@ fn SlideTile(
                             items={view! {
                                 <MenuItem
                                     action={duplicate}
-                                    row_test_id={format!("presentation.slide.{id}.duplicate")}
+                                    @test_id={format!("presentation.slide.{id}.duplicate")}
                                 />
                                 <MenuItem
                                     label="Detach slide"
                                     glyph=ICON_UNLINK
                                     disabled={read_only}
-                                    row_test_id={format!("presentation.slide.{id}.remove")}
+                                    @test_id={format!("presentation.slide.{id}.remove")}
                                     on_click={remove}
                                 />
                             }}

@@ -995,13 +995,13 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                         <MenuItem
                             label="Hide"
                             glyph=ICON_EYE_OFF
-                            row_test_id="workspace.window.menu.hide"
+                            @test_id="workspace.window.menu.hide"
                             on_click={move || workspace.hide(tab)}
                         />
                         <MenuItem
                             label={fullscreen_label}
                             glyph=ICON_FULLSCREEN
-                            row_test_id="workspace.window.menu.fullscreen"
+                            @test_id="workspace.window.menu.fullscreen"
                             on_click={move || {
                                 workspace.on_dock_host(tab, |host, tab| {
                                     host.toggle_window_fullscreen(tab);
@@ -1012,7 +1012,7 @@ fn WindowBody(workspace: Workspace, tab: TabId, window: HostWindowId, floating: 
                     <MenuItem
                         label="Close"
                         glyph=ICON_X
-                        row_test_id="workspace.window.menu.close"
+                        @test_id="workspace.window.menu.close"
                         on_click={move || workspace.close(tab)}
                     />
                 }}

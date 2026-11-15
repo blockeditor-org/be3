@@ -120,8 +120,8 @@ impl From<NodeId> for Children<NodeId> {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "a `{Self}` is no node, so `@test_id` and `@node_ref` have nothing to name",
-    label = "put `@test_id` or `@node_ref` on a tag that builds a node, inside this one or around it"
+    message = "a `{Self}` is no node, so `@node_ref` has nothing to name",
+    label = "put `@node_ref` on a tag that builds a node, inside this one or around it"
 )]
 pub trait BuildsNode {
     fn built_node(&self) -> NodeId;

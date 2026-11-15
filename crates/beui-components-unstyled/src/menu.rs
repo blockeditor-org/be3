@@ -80,13 +80,20 @@ pub struct MenuItem {
     expanded: Binding<Option<bool>>,
     page: bool,
     then: MenuThen,
-    test_id: Option<String>,
+    test_id: Option<Prop<String>>,
     pub(crate) action: Option<Action>,
     pub(crate) on_click: Callback<()>,
     pub(crate) children: Run<MenuItem>,
 }
 
 beui_view::value_child_type!(MenuItem);
+
+impl TakesTestId for MenuItem {
+    fn take_test_id(mut self, test_id: Prop<String>) -> Self {
+        self.test_id = Some(test_id);
+        self
+    }
+}
 
 impl MenuItem {
     fn is_row(&self) -> bool {
@@ -132,7 +139,6 @@ pub fn MenuItem(
     #[prop(default = None)] expanded: Binding<Option<bool>>,
     #[prop(default = false)] page: bool,
     #[prop(default = MenuThen::Close)] then: MenuThen,
-    row_test_id: Option<String>,
     action: Option<Action>,
     on_click: Callback<()>,
     children: Children<MenuItem>,
@@ -163,7 +169,7 @@ pub fn MenuItem(
         expanded,
         page,
         then,
-        test_id: row_test_id,
+        test_id: None,
         action,
         on_click,
         children: children.into_run(),
@@ -186,13 +192,11 @@ pub fn MenuCaption(
 pub fn MenuGrid(
     #[prop(default = 2)] columns: usize,
     #[prop(default = false)] separated: Prop<bool>,
-    row_test_id: Option<String>,
     children: Children<MenuItem>,
 ) -> MenuItem {
     MenuItem {
         kind: Kind::Grid(columns.max(1)),
         separated: create_memo(move || separated.get()),
-        test_id: row_test_id,
         ..plain(Prop::Static(String::new()), children.into_run())
     }
 }
@@ -312,7 +316,7 @@ pub(crate) fn MenuList(
     spacing: f32,
     #[prop(default = MenuParent::default())] parent: MenuParent,
     #[prop(default = None)] title: Option<Memo<String>>,
-    #[prop(default = String::new())] title_test_id: String,
+    #[prop(default = String::new())] title_test_id: Prop<String>,
     active: Prop<bool>,
     #[prop(default = false)] focus_first: bool,
     #[prop(default = false)] pages: bool,
@@ -450,10 +454,11 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
         state.page.set(None);
         state.focus.set(Focus::Row(index));
     })));
-    let title_test_id = item
-        .test_id
-        .as_ref()
-        .map_or_else(String::new, |id| format!("{id}.back"));
+    let title_test_id = match item.test_id.clone() {
+        None => Prop::Static(String::new()),
+        Some(Prop::Static(id)) => Prop::Static(format!("{id}.back")),
+        Some(id) => Prop::dynamic(move || format!("{}.back", id.get())),
+    };
     view! {
         <MenuList
             @node_ref={&state.page_content}
@@ -481,7 +486,7 @@ fn quiet() -> ReadSignal<bool> {
 fn MenuBackRow(
     state: State,
     title: Memo<String>,
-    test_id: String,
+    test_id: Prop<String>,
     focused: Selector<Focus>,
     row: RenderFn<MenuRowHandle>,
 ) -> NodeId {
@@ -508,8 +513,8 @@ fn MenuBackRow(
             on_key={move |press: KeyPress| key(state, Focus::Back, press)}
         />
     };
-    if !test_id.is_empty() {
-        bind_test_id(built, Prop::Static(test_id));
+    if !matches!(&test_id, Prop::Static(id) if id.is_empty()) {
+        bind_test_id(built, test_id);
     }
     built
 }
@@ -638,7 +643,7 @@ fn MenuGridRow(
         </List>
     };
     if let Some(test_id) = item.test_id.clone() {
-        bind_test_id(built, Prop::Static(test_id));
+        bind_test_id(built, test_id);
     }
     built
 }
@@ -683,7 +688,7 @@ fn MenuTile(
         />
     };
     if let Some(test_id) = test_id {
-        bind_test_id(built, Prop::Static(test_id));
+        bind_test_id(built, test_id);
     }
     built
 }
@@ -786,7 +791,7 @@ fn MenuRow(
         </List>
     };
     if let Some(test_id) = test_id {
-        bind_test_id(button.get(), Prop::Static(test_id));
+        bind_test_id(button.get(), test_id);
     }
     built
 }
@@ -1178,7 +1183,7 @@ fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> Me
         .as_ref()
         .and_then(MenuNode::id)
         .filter(|_| !test_prefix.is_empty())
-        .map(|id| format!("{test_prefix}.{id}"));
+        .map(|id| Prop::Static(format!("{test_prefix}.{id}")));
     let mut item = match node {
         Some(MenuNode::Action { action, label }) => {
             let label = label.unwrap_or_default();

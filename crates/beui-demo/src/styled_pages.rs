@@ -2290,7 +2290,7 @@ fn FolderRow(folder: usize, location: Signal<usize>, expanded: Signal<Vec<usize>
             expanded={open}
             checked
             then=MenuThen::Back
-            row_test_id={format!("demo.new.folder.{folder}")}
+            @test_id={format!("demo.new.folder.{folder}")}
             on_click={move || location.set(folder)}
         />
     }
@@ -2325,7 +2325,7 @@ fn NewBlockMenu() -> NodeId {
                             label={place}
                             glyph=ICON_FOLDER
                             page=true
-                            row_test_id="demo.new.location"
+                            @test_id="demo.new.location"
                         >
                             <ForEach keys={shown}>|folder: usize|
                                 <FolderRow folder location expanded />
@@ -2358,7 +2358,7 @@ fn NewBlockMenu() -> NodeId {
                             glyph=ICON_BLOCKS
                             separated=true
                             page=true
-                            row_test_id="demo.new.more"
+                            @test_id="demo.new.more"
                         >
                             <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
                                 <MenuItem
@@ -2497,7 +2497,7 @@ fn NewSlideMenu() -> NodeId {
                                     glyph={SLIDE_LAYOUTS[layout].1}
                                     checked={create_memo(move || Some(chosen.get() == Some(layout)))}
                                     radio=true
-                                    row_test_id={format!("demo.slide.{layout}")}
+                                    @test_id={format!("demo.slide.{layout}")}
                                     on_click={move || {
                                         chosen.set(Some(layout));
                                         added.set(format!("Added {}", SLIDE_LAYOUTS[layout].0));
@@ -3668,7 +3668,7 @@ fn ProjectTree() -> NodeId {
                             <MenuItem
                                 label="Rename"
                                 glyph=ICON_PENCIL
-                                row_test_id={"demo.tree.rename".to_owned()}
+                                @test_id={"demo.tree.rename".to_owned()}
                                 on_click={move || editing.set(Some(row))}
                             />
                             <MenuItem

@@ -169,12 +169,16 @@ where
                 <Frame />
             };
         };
-        option.call(SelectOptionHandle {
+        let built = option.call(SelectOptionHandle {
             value: shown.value().clone(),
             label: shown.label().into_prop(),
             highlighted: handle.highlighted,
             hovered: handle.hovered,
-        })
+        });
+        if let Some(test_id) = shown.test_id() {
+            bind_test_id(built, test_id);
+        }
+        built
     };
 
     let valued = options.clone();

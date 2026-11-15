@@ -253,7 +253,7 @@ fn MoreItem(act: Act, label: &'static str) -> MenuItem {
             glyph=ICON_BLOCKS
             separated=true
             then=MenuThen::Stay
-            row_test_id="picker.more"
+            @test_id="picker.more"
             on_click={move || act.call(PickAction::Stage(Stage::More))}
         />
     }
@@ -275,7 +275,7 @@ fn SlideItems(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> Children<Me
     });
     view! {
         <MenuCaption label={caption} />
-        <MenuGrid columns=2 row_test_id="picker.slides">
+        <MenuGrid columns=2 @test_id="picker.slides">
             <ForEach keys>|key: String| {
                 let entry = create_memo({ let key = key.clone(); move || {
                     slides.get().into_iter().find(|entry| tile_key(entry) == key)
@@ -312,7 +312,7 @@ fn TypeItem(
             glyph_color
             separated
             then=MenuThen::Stay
-            row_test_id={format!("picker.menu.{key}")}
+            @test_id={format!("picker.menu.{key}")}
             on_click={move || {
                 if let Some(entry) = entry.get_untracked() {
                     act.call(PickAction::Make(entry));
@@ -340,7 +340,7 @@ fn TemplatesItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem
             glyph=ICON_LAYOUT_TEMPLATE
             page=true
             disabled
-            row_test_id="picker.templates"
+            @test_id="picker.templates"
         >
             <ForEach keys={templates}>|template: Uuid| {
                 let label = create_memo(move || {
@@ -354,7 +354,7 @@ fn TemplatesItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem
                     <MenuItem
                         label
                         then=MenuThen::Stay
-                        row_test_id={format!("picker.template.{template}")}
+                        @test_id={format!("picker.template.{template}")}
                         on_click={move || act.call(PickAction::CopyTemplate(template))}
                     />
                 }
@@ -370,7 +370,7 @@ fn LinkItem(act: Act) -> MenuItem {
             label="Link existing…"
             glyph=ICON_LINK
             then=MenuThen::Stay
-            row_test_id="picker.link-existing"
+            @test_id="picker.link-existing"
             on_click={move || act.call(PickAction::Stage(Stage::Link))}
         />
     }
@@ -391,7 +391,7 @@ fn ImportItem(held: Memo<Option<Pick>>, act: Act) -> MenuItem {
             glyph=ICON_FILE_UP
             disabled={importing}
             then=MenuThen::Stay
-            row_test_id="picker.import"
+            @test_id="picker.import"
             on_click={move || act.call(PickAction::Import)}
         />
     }
@@ -439,7 +439,7 @@ fn LocationItem(picker: Picker, held: Memo<Option<Pick>>, act: Act) -> MenuItem 
             .collect::<Vec<_>>()
     });
     view! {
-        <MenuItem lead="New in" label glyph page=true row_test_id="picker.location">
+        <MenuItem lead="New in" label glyph page=true @test_id="picker.location">
             <ForEach keys>|key: TreeKey| {
                 let row = create_memo({ let key = key.clone(); move || {
                     rows.get().into_iter().find(|row| row.key == key)
@@ -488,7 +488,7 @@ fn PlaceItem(
             expanded
             checked
             then=MenuThen::Back
-            row_test_id={named}
+            @test_id={named}
             on_click={move || {
                 if let Some(id) = id {
                     act.call(PickAction::Place(BlockParent::Block(id)));

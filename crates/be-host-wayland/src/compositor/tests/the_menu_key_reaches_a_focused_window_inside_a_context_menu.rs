@@ -8,7 +8,7 @@ const KEY_COMPOSE: u32 = 127;
 fn InMenu(windows: Windows) -> NodeId {
     let ids = create_memo(clone_list(&windows));
     let items = view! {
-        <beui::unstyled::MenuItem row_test_id={"test.menu.hide".to_owned()} label="Hide" />
+        <beui::unstyled::MenuItem @test_id={"test.menu.hide".to_owned()} label="Hide" />
     };
     view! {
         <ContextMenu items>

@@ -635,7 +635,7 @@ fn EnumOptionRow(
                             <MenuItem
                                 label={choice_icon_label(icon)}
                                 glyph={choice_glyph(icon)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
+                                @test_id={format!("database-schema.enum.{id}.{option_id}.icon.{}", icon.name())}
                                 on_click={move || schema.operate(DatabaseSchema::set_option_icon(option_id, icon))}
                             />
                         }
@@ -667,7 +667,7 @@ fn EnumOptionRow(
                         view! {
                             <MenuItem
                                 label={choice_color_label(color)}
-                                row_test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
+                                @test_id={format!("database-schema.enum.{id}.{option_id}.color.{}", color.name())}
                                 on_click={move || schema.operate(DatabaseSchema::set_option_color(option_id, color))}
                             />
                         }
