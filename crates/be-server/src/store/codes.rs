@@ -1,5 +1,5 @@
 //! Signing in, registering and proving it is you with a code mailed to the account's email
-//! (plans/accounts.md, "Rules every method follows").
+//! (guides/blocks/server.md, "Accounts").
 //!
 //! A code belongs to one pending attempt, named by a secret the requesting browser keeps in a
 //! cookie (`be3-attempt`), never to the email alone: entering it anywhere else does nothing, and
