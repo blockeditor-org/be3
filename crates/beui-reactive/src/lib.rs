@@ -24,10 +24,13 @@ mod stored;
 mod trigger;
 
 pub use beui_reactive_macros::Store;
-pub use computation::{Effect, create_binding, create_effect, create_linked_signal};
+pub use computation::{
+    Effect, create_binding, create_effect, create_effect_on, create_effect_on_change,
+    create_linked_signal,
+};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
 pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
-pub use memo::{Memo, create_memo};
+pub use memo::{Compute, Fresh, FromPrevious, Memo, create_memo};
 pub use reader::Reader;
 pub use runtime::{
     ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, untrack,

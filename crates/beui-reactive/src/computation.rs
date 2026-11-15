@@ -5,6 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 use crate::runtime::{
     Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
+    untrack,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::{Signal, Set, Tracked, create_signal};
@@ -467,6 +468,50 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) -> Effect {
         false
     });
     computation.binding.set(true);
+    computation.watch(probed.read, probed.owner);
+    Effect::of(&computation)
+}
+
+/// An effect over explicit dependencies, like SolidJS's `on`: `deps` is read tracked, and
+/// `run` gets its value and the one before it (`None` on the first run) with nothing
+/// tracked, so what `run` reads does not wake it. Queued like `create_effect`.
+///
+/// `deps` returns the values `run` needs, or `()` after `track`ing what should wake it:
+/// `create_effect_on(move || (pointer.get(), caret.get()), move |_, _| publish())`.
+pub fn create_effect_on<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, Option<&D>) + 'static,
+) -> Effect {
+    let mut previous = None;
+    create_effect(move || {
+        let value = deps();
+        untrack(|| run(&value, previous.as_ref()));
+        previous = Some(value);
+    })
+}
+
+/// `create_effect_on` without its first run (SolidJS's `defer`): `deps` is read now, and
+/// `run` runs only after what it read changes, with the value before. For acting on a
+/// change rather than on the state: begin a move each time the count of asked moves goes
+/// up.
+pub fn create_effect_on_change<D: 'static>(
+    mut deps: impl FnMut() -> D + 'static,
+    mut run: impl FnMut(&D, &D) + 'static,
+) -> Effect {
+    let probed = probe(false, &mut deps);
+    if probed.constant() {
+        if let Some(owner) = probed.owner {
+            owner.dispose();
+        }
+        return Effect::none();
+    }
+    let mut previous = probed.value;
+    let computation = Computation::new(None, move || {
+        let value = deps();
+        untrack(|| run(&value, &previous));
+        previous = value;
+        false
+    });
     computation.watch(probed.read, probed.owner);
     Effect::of(&computation)
 }
