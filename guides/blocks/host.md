@@ -482,10 +482,16 @@ Moving a block into a container, deleting a child, replacing it or moving it
 among its siblings asks the container's content to change: `be_host_stack::change_child` sends the
 container's replica `Change::Child`, and the type's `Root::child_edit` (or
 `child_edit_in`, given the document and the replica's client) turns a
-`be_block_content::ChildChange` into an ordinary edit. Unlink
+`be_block_content::ChildChange` into an ordinary edit, or answers that it takes
+none. `change_child` hands back a `ChildChanged` that says so once the replica
+answers (`Replicas::change_answered`, awaited beside the worker's loop), and
+be-host's moves, reorders and copies each wait on it on their frames: a
+refusal puts the block back where it was and says why (`refuse_transfer`,
+`refuse_reorder`, `refuse_copy` in its main.rs). Unlink
 (`BlockCommand::Unlink`) duplicates the block (`HostCore::queue_copy`) and then
 replaces it in the container this way, only for a type whose manifest says
-`children.replace`; an editor of the container never takes part. An editor asks for a reorder with
+`children.replace`, placing the copy once the type made the change; an editor
+of the container never takes part. An editor asks for a reorder with
 `EditorHost::reorder_block(block, parent, after)` (`BlockCommand::Reorder`);
 be-host queues it behind any move of the same block still under way
 (`queue_reorder` in its main.rs) and sends it only to a type whose manifest
