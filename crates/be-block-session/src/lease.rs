@@ -9,17 +9,20 @@ pub enum Claim {
     Stale,
 }
 
-/// Session ownership. A claim succeeds only against the generation the claimant last saw, and
-/// only when the lease expired or the owner left, so a stale claim cannot stomp a newer owner.
-/// The owner renews it with `ReportClean` after every seal and every half lease on its
-/// replica's timer. `clean_at` outlives the session going empty, so a peer taking over an
-/// abandoned session can tell whether anything was unpublished. Only a participant that may
-/// edit the block is granted it: what only the owner says, the server relays only from it.
+/// Who seals a session. A claim succeeds only against the generation the claimant last saw, and
+/// only when the lease expired or the holder left, so a stale claim cannot stomp a newer holder.
+/// The holder renews it with `ReportClean` after every seal and every half lease on its
+/// replica's timer. The lease orders nothing: the server's order is every participant's, so
+/// who holds it changes only who seals. Only a participant that may edit the block is granted
+/// it. The first participant names the build of the block's type the session speaks
+/// (`SessionState::tag`); when it leaves, the next one does.
 #[derive(Clone, Debug)]
 pub struct Lease {
     state: SessionState,
     /// The participants that may own the lease.
     editors: Vec<ClientId>,
+    /// The build each participant runs.
+    tags: Vec<(ClientId, be_block_store::Hash)>,
     expires: i64,
     length: i64,
 }
@@ -39,6 +42,7 @@ impl Lease {
         Self {
             state: SessionState::default(),
             editors: Vec::new(),
+            tags: Vec::new(),
             expires: 0,
             length,
         }
@@ -60,11 +64,15 @@ impl Lease {
         self.expires
     }
 
-    /// `client` joins, and is granted the lease if no one holds it and it `may_edit`.
-    pub fn join(&mut self, client: ClientId, may_edit: bool, now: i64) {
+    /// `client`, running the build `tag`, joins, and is granted the lease if no one holds it
+    /// and it `may_edit`.
+    pub fn join(&mut self, client: ClientId, may_edit: bool, tag: be_block_store::Hash, now: i64) {
         if !self.state.participants.contains(&client) {
             self.state.participants.push(client);
         }
+        self.tags.retain(|(held, _)| *held != client);
+        self.tags.push((client, tag));
+        self.name_tag();
         if may_edit && !self.editors.contains(&client) {
             self.editors.push(client);
         }
@@ -75,7 +83,29 @@ impl Lease {
 
     pub fn leave(&mut self, client: ClientId, now: i64) {
         self.state.participants.retain(|held| *held != client);
+        self.tags.retain(|(held, _)| *held != client);
+        self.name_tag();
         self.demote(client, now);
+    }
+
+    /// Whether `client` runs the build the session speaks.
+    pub fn speaks(&self, client: ClientId) -> bool {
+        self.state.tag.is_some()
+            && self
+                .tags
+                .iter()
+                .any(|(held, tag)| *held == client && Some(*tag) == self.state.tag)
+    }
+
+    /// The session speaks its first participant's build.
+    fn name_tag(&mut self) {
+        let first = self.state.participants.iter().find_map(|participant| {
+            self.tags
+                .iter()
+                .find(|(held, _)| held == participant)
+                .map(|(_, tag)| *tag)
+        });
+        self.state.tag = first;
     }
 
     /// `client` may no longer edit: it stays a participant, and the lease, if it held it, goes

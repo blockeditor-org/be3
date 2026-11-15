@@ -338,8 +338,10 @@ struct State {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct JournalHead {
     tag: Hash,
-    generation: u64,
     base: JournalBase,
+    /// Where the order stands: what this device heard the server number, or numbered itself
+    /// offline.
+    order: be_block_session::Sequencer,
     /// A seal this device made of the journal, with the last sequence it holds, written with
     /// the seal's commit in one write and dropped by the next rebase: while it stands, the
     /// seal's commit holds the journal through that sequence (`Peer::sealing`).
@@ -485,12 +487,12 @@ impl State {
                     .or_insert_with(|| Journaled {
                         head: JournalHead {
                             tag: Hash::from_bytes([0; 32]),
-                            generation: 0,
                             base: JournalBase {
                                 commit: None,
                                 sequence: 0,
                                 state: Vec::new(),
                             },
+                            order: be_block_session::Sequencer::starting(0),
                             sealing: None,
                         },
                         entries: BTreeMap::new(),
@@ -1143,31 +1145,34 @@ impl Refs {
         })
     }
 
-    /// Appends sealed entries past the journal's last, starting the journal over for another
-    /// `tag`, as the server does.
+    fn journaled(state: &mut State, block: Uuid, tag: Hash) -> &mut Journaled {
+        state.journals.entry(block).or_insert_with(|| Journaled {
+            head: JournalHead {
+                tag,
+                base: JournalBase {
+                    commit: None,
+                    sequence: 0,
+                    state: Vec::new(),
+                },
+                order: be_block_session::Sequencer::starting(0),
+                sealing: None,
+            },
+            entries: BTreeMap::new(),
+        })
+    }
+
+    /// Keeps entries the order numbered (sealed) past the journal's last, starting the journal
+    /// over for another `tag`, as the server does.
     pub fn append_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            let journal = state.journals.entry(block).or_insert_with(|| Journaled {
-                head: JournalHead {
-                    tag,
-                    generation,
-                    base: JournalBase {
-                        commit: None,
-                        sequence: 0,
-                        state: Vec::new(),
-                    },
-                    sealing: None,
-                },
-                entries: BTreeMap::new(),
-            });
+            let journal = Self::journaled(&mut state, block, tag);
             if journal.head.tag != tag {
                 for sequence in std::mem::take(&mut journal.entries).into_keys() {
                     rows.push(Row {
@@ -1178,21 +1183,12 @@ impl Refs {
                 }
                 journal.head.tag = tag;
             }
-            journal.head.generation = generation;
-            rows.push(row(
-                Table::JournalBase,
-                block.as_bytes().to_vec(),
-                &journal.head,
-            ));
-            let mut last = journal
-                .entries
-                .last_key_value()
-                .map_or(journal.head.base.sequence, |(sequence, _)| *sequence);
             for entry in entries {
-                if entry.sequence <= last {
+                if entry.sequence <= journal.head.order.sequence {
                     continue;
                 }
-                last = entry.sequence;
+                journal.head.order.sequence = entry.sequence;
+                journal.head.order.barrier = journal.head.order.barrier.max(entry.floor);
                 rows.push(row(
                     Table::JournalEntry,
                     journal_entry_key(block, entry.sequence),
@@ -1200,59 +1196,95 @@ impl Refs {
                 ));
                 journal.entries.insert(entry.sequence, entry);
             }
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
         }
         self.write(rows)
     }
 
-    /// Starts the journal over from `base` (sealed), dropping every entry, as the server does,
-    /// and keeps `entries` past it (sealed) in the same write.
+    /// Numbers `submission` (its payload sealed) in this device's own order, as the server
+    /// would, for a session kept offline, and keeps it: the entry every replica of the block on
+    /// this device is to hear.
+    pub fn number_offline(
+        &self,
+        block: Uuid,
+        tag: Hash,
+        submission: be_block_session::Submission,
+    ) -> Result<JournalEntry, StoreError> {
+        let entry = {
+            let mut state = self.state.lock().unwrap();
+            let journal = Self::journaled(&mut state, block, tag);
+            let be_block_session::OpId { origin, counter } = submission.id;
+            let op = journal.head.order.number(submission, None);
+            JournalEntry {
+                sequence: op.sequence,
+                origin,
+                counter,
+                base: op.base,
+                floor: op.floor,
+                received: None,
+                payload: op.payload,
+            }
+        };
+        self.append_journal(block, tag, vec![entry.clone()])?;
+        Ok(entry)
+    }
+
+    /// Starts the journal from `base` (sealed), as the server does: keeps the entries after it
+    /// and those they were based on (`Sequencer::sealed`), drops the rest, and for another
+    /// `tag` drops every entry. A base that goes back while everything is sealed starts the
+    /// order afresh from it.
     pub fn rebase_journal(
         &self,
         block: Uuid,
         tag: Hash,
-        generation: u64,
         base: JournalBase,
-        entries: Vec<JournalEntry>,
     ) -> Result<(), StoreError> {
         let mut rows = Vec::new();
         {
             let mut state = self.state.lock().unwrap();
-            // A rebase starts the journal over from a commit: no seal of the old one stands.
-            let head = JournalHead {
-                tag,
-                generation,
-                base,
-                sealing: None,
+            let journal = Self::journaled(&mut state, block, tag);
+            let other = journal.head.tag != tag;
+            let sealed = journal.head.base.sequence.max(journal.head.order.cut);
+            let fresh = other
+                || (base.sequence < sealed
+                    && journal.head.order.sequence <= sealed
+                    && journal.entries.keys().all(|sequence| *sequence <= sealed));
+            let cut = match fresh {
+                true => {
+                    journal.head.order = be_block_session::Sequencer::starting(base.sequence);
+                    u64::MAX
+                }
+                false => {
+                    let bases: Vec<u64> = journal
+                        .entries
+                        .range(base.sequence + 1..)
+                        .map(|(_, entry)| entry.base)
+                        .collect();
+                    journal.head.order.sealed(base.sequence, bases)
+                }
             };
-            if let Some(journal) = state.journals.get(&block) {
-                for sequence in journal.entries.keys() {
-                    rows.push(Row {
-                        table: Table::JournalEntry,
-                        key: journal_entry_key(block, *sequence),
-                        value: None,
-                    });
-                }
+            let dropped: Vec<u64> = journal.entries.range(..=cut).map(|(at, _)| *at).collect();
+            for sequence in dropped {
+                journal.entries.remove(&sequence);
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
             }
-            rows.push(row(Table::JournalBase, block.as_bytes().to_vec(), &head));
-            let mut kept = BTreeMap::new();
-            for entry in entries {
-                if entry.sequence <= head.base.sequence {
-                    continue;
-                }
-                rows.push(row(
-                    Table::JournalEntry,
-                    journal_entry_key(block, entry.sequence),
-                    &entry,
-                ));
-                kept.insert(entry.sequence, entry);
-            }
-            state.journals.insert(
-                block,
-                Journaled {
-                    head,
-                    entries: kept,
-                },
-            );
+            // A rebase starts the journal from a commit: no seal of the old one stands.
+            journal.head.tag = tag;
+            journal.head.base = base;
+            journal.head.sealing = None;
+            rows.push(row(
+                Table::JournalBase,
+                block.as_bytes().to_vec(),
+                &journal.head,
+            ));
         }
         self.write(rows)
     }
