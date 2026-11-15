@@ -165,9 +165,10 @@ only Web Push.
 
 Browser sessions last 30 days in an HttpOnly cookie scoped to `/auth` and can't be used as
 be-host credentials. Email goes through `mail::Delivery`, which is `LogDelivery`: the server log
-contains every verification and reset link, so the log gives access to those accounts. A
-password reset doesn't unlock encrypted data; that needs the recovery phrase or another unlocked
-device.
+holds every verification and reset link, and every live sign-in, recovery and confirmation code
+with its link, so whoever reads the journal can sign in as any account with an email and take it
+over by recovering it. Keep it to the people who run the server. Neither a reset nor a recovery
+unlocks encrypted data; that needs the recovery phrase or another unlocked device.
 
 ### The portal's code
 

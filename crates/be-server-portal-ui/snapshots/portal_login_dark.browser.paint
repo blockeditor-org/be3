@@ -188,7 +188,7 @@ BE3BROWSER 1
     "</button>",
     "</div>",
     "</form>",
-    "<div style=\"display: flex; flex-direction: row; align-items: stretch; justify-content: space-between; gap: 8px; flex: 0 0 auto;\">",
+    "<div style=\"display: flex; flex-direction: row; align-items: stretch; justify-content: space-between; flex-wrap: wrap; gap: 8px; flex: 0 0 auto;\">",
     "<a href=\"/auth/recover\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); pointer-events: auto; cursor: pointer; flex: 0 0 auto;\" tabindex=\"0\" aria-label=\"I can’t sign in\">",
     "<div style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); justify-items: stretch; align-items: stretch; border-radius: 4px 4px 4px 4px;\">",
     "<div style=\"font: 14px Inter, NotoEmoji, system-ui, sans-serif; line-height: 16px; color: var(--v-17dfe159); white-space: pre-wrap; overflow-wrap: break-word;\">",

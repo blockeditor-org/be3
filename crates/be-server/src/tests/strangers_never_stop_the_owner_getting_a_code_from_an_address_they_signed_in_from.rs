@@ -28,7 +28,14 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
         .unwrap()
         .unwrap();
     store
-        .enter_code(&attempt, &mailed.code, "", home)
+        .enter_code(
+            &attempt,
+            &mailed.code,
+            "",
+            home,
+            |_, _| true,
+            ServerConfig::OPEN,
+        )
         .await
         .unwrap();
     // Strangers, each from a network of their own, spend the account's budget.
@@ -45,8 +52,7 @@ async fn strangers_never_stop_the_owner_getting_a_code_from_an_address_they_sign
         }
     }
     assert!(refused, "strangers are held to the account's budget");
-    // The owner still gets one from home, and from another /64 of the same network the
-    // strangers' share doesn't reach.
+    // The owner still gets one from home.
     let attempt = codes::new_attempt();
     let mailed = store
         .request_code(sign_in("owner@example.com", &attempt, home))

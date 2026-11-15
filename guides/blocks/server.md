@@ -598,16 +598,23 @@ belonging to one attempt whose secret the asking browser holds in the
 ends its older code. The mail's link (`/auth/enter?attempt=&email_code=`) fills
 the code in only in that browser, and elsewhere shows it and signs nothing in.
 Requests are capped per address (an IPv6 /64) and per network (a /48), and an
-account's budget counts only those from addresses that never signed in to it,
-so strangers can't stop its owner; a request for an email with no account
-leaves a row that costs the same and sends nothing. Registering by code refuses
+email's budget counts only those from addresses that never signed in to its
+account, whether or not it has one, so strangers can't stop its owner nor learn
+which emails have accounts by running it out; a request for an email with no
+account leaves a row that costs the same and sends nothing. The remembered
+addresses live in the server's memory (`Passwords::known`), so a restart forgets
+them and the owner's first request after one counts against the budget like a
+stranger's. The `be3-attempt` cookie is sent again with every request that uses
+it, so it lasts as long as its latest code. Registering by code refuses
 an email that has an account, which tells a stranger it is registered: behind
 an invite code that leak is small, and mailing "you already have an account"
 is the alternative if registration opens. Changing the email, removing an
 identity and ending other sessions need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email in the last few minutes
 (`sessions.proved`), which signing in by code or recovering also gives; a
-password sign-in does not. Removing an identity mails a notice.
+password sign-in does not. So does changing the password and signing out any
+session but the browser's own. Recovering also clears the password, since the
+account may be in someone else's hands. Removing an identity mails a notice.
 
 Remote accounts also still register and sign in with a password through the `/auth` portal, which
 verifies the email before creating the account; the protocol has the browser

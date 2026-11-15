@@ -151,7 +151,11 @@ pub(crate) async fn handle(
                 response.location = Some("/auth/enter".into());
             },
             "/auth/enter" => {
-                let entered = services.store.enter_code(attempt, value("email_code"), token, address).await?;
+                let entered = services.store.enter_code(attempt, value("email_code"), token, address, |purpose, config| match purpose {
+                    CodePurpose::Register => config.allow_login && config.allow_registration,
+                    CodePurpose::Proof => true,
+                    _ => config.allow_login,
+                }, services.config.clone()).await?;
                 response.attempt = Some(String::new());
                 match entered.session {
                     Some(session) => {
@@ -243,7 +247,7 @@ pub(crate) async fn handle(
                 response.location = Some("/auth/settings?saved=1".into());
             },
             "/auth/sessions/revoke" => {
-                services.store.revoke_session(account()?, value("session")).await?;
+                services.store.revoke_session(account()?, value("session"), token).await?;
                 if services.store.browser_profile(token).await.is_err() { response.cookie = Some(String::new()); }
                 response.location = Some("/auth/sessions".into());
             },
@@ -263,6 +267,10 @@ pub(crate) async fn handle(
             error.to_string()
         }
     };
+    // Keep the attempt's cookie for as long as its code, counted from now, while it is used.
+    if response.attempt.is_none() && !attempt.is_empty() {
+        response.attempt = Some(attempt.to_owned());
+    }
     if response.location.is_some() {
         response.status = 303;
         return Ok(response);
@@ -304,7 +312,8 @@ pub(crate) async fn handle(
     // A code from the mail's link: filled in where its attempt began, only shown anywhere else.
     let linked_code = query
         .get("email_code")
-        .map(|code| codes::normalize_code(code));
+        .map(|code| codes::normalize_code(code))
+        .filter(|code| codes::is_well_formed(code));
     let linked_here = query
         .get("attempt")
         .is_some_and(|public| ServerStore::is_attempt(attempt, public));

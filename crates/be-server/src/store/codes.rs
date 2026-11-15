@@ -29,9 +29,9 @@ pub const CODES_PER_ADDRESS: i64 = 10;
 /// Requests one network (an IPv6 /48) may make in a window, so one allocation can't spread
 /// across many /64s.
 pub const CODES_PER_NETWORK: i64 = 40;
-/// Requests for one account in a window from addresses that never signed in to it. Large and
-/// quick to refill, since a stranger spending it only delays the owner's codes from addresses
-/// the owner never used.
+/// Requests for one email in a window from addresses that never signed in to its account,
+/// counted whether or not it has one. Large and quick to refill, since a stranger spending it
+/// only delays the owner's codes from addresses the owner never used.
 pub const CODES_PER_ACCOUNT: i64 = 20;
 /// Registration codes outstanding at once, apart from every per-address cap, with the
 /// registration and email-change links (`portal::MAX_MAIL_LINKS`): only holders of an invite
@@ -149,13 +149,25 @@ fn network_key(address: &str) -> String {
 
 fn new_code() -> String {
     let mut bytes = [0u8; CODE_LENGTH];
-    rand::rngs::OsRng
-        .try_fill_bytes(&mut bytes)
-        .expect("the operating system has entropy");
-    bytes
-        .iter()
-        .map(|byte| CODE_ALPHABET[*byte as usize % CODE_ALPHABET.len()] as char)
-        .collect()
+    // Only bytes below a multiple of the alphabet's length, so every letter is as likely.
+    let limit = (256 / CODE_ALPHABET.len() * CODE_ALPHABET.len()) as u8;
+    let mut code = String::with_capacity(CODE_LENGTH);
+    while code.len() < CODE_LENGTH {
+        rand::rngs::OsRng
+            .try_fill_bytes(&mut bytes)
+            .expect("the operating system has entropy");
+        for byte in bytes.iter().filter(|byte| **byte < limit) {
+            if code.len() < CODE_LENGTH {
+                code.push(CODE_ALPHABET[*byte as usize % CODE_ALPHABET.len()] as char);
+            }
+        }
+    }
+    code
+}
+
+/// Whether `code` could be a code: `CODE_LENGTH` letters of `CODE_ALPHABET`.
+pub fn is_well_formed(code: &str) -> bool {
+    code.len() == CODE_LENGTH && code.bytes().all(|byte| CODE_ALPHABET.contains(&byte))
 }
 
 /// A code as typed: spaces and dashes go, letters are upper case.
@@ -273,10 +285,12 @@ impl ServerStore {
                 CodePurpose::Register => true,
                 _ => account.is_some(),
             };
-            if let Some(account) = account.as_deref().filter(|_| !known_email) {
+            // The email's budget counts strangers' requests whether or not it has an account, so
+            // running it out tells nobody which emails do.
+            if purpose != CodePurpose::Register && !known_email {
                 let asked: i64 = transaction.query_row(
-                    "SELECT count(*) FROM sign_in_codes WHERE account_id = ?1 AND remembered = 0 AND created > ?2",
-                    params![account, now - CODE_WINDOW],
+                    "SELECT count(*) FROM sign_in_codes WHERE email = ?1 AND remembered = 0 AND purpose != 'register' AND created > ?2",
+                    params![email, now - CODE_WINDOW],
                     |row| row.get(0),
                 )?;
                 if asked >= CODES_PER_ACCOUNT {
@@ -342,12 +356,15 @@ impl ServerStore {
 
     /// Enters a code for the browser's attempt. A wrong code counts a try; the code dies at
     /// the last. `browser` is the browser's session, which a proof is for.
+    /// `allowed` says whether the server takes the purpose now: signing in, or registering.
     pub async fn enter_code(
         &self,
         attempt: &str,
         code: &str,
         browser: &str,
         address: &str,
+        allowed: fn(CodePurpose, &crate::ServerConfig) -> bool,
+        config: crate::ServerConfig,
     ) -> Result<EnteredCode, ServerError> {
         let attempt_hash = hash_token(attempt);
         let entered = code_hash(&attempt_hash, code);
@@ -366,6 +383,14 @@ impl ServerStore {
                 let Some((hash, purpose, account, email, name, invite, device_code, tries)) = row else {
                     return Err(refused("Code: this code has expired or was replaced. Ask for a new one."));
                 };
+                if let Some(purpose) = CodePurpose::of(&purpose)
+                    && !allowed(purpose, &config)
+                {
+                    return Err(refused(match purpose {
+                        CodePurpose::Register => "This server is not accepting new accounts.",
+                        _ => "This server is not accepting sign-ins.",
+                    }));
+                }
                 let purpose = CodePurpose::of(&purpose).filter(|_| hash == entered);
                 let Some(purpose) = purpose else {
                     let tries = tries + 1;
@@ -417,6 +442,8 @@ impl ServerStore {
                     }
                     _ => {
                         if purpose == CodePurpose::Recover {
+                            // The account may be in someone else's hands: its password goes too.
+                            transaction.execute("UPDATE accounts SET password_hash = '' WHERE id = ?1", [account.to_string()])?;
                             transaction.execute("DELETE FROM sessions WHERE account_id = ?1", [account.to_string()])?;
                             transaction.execute("DELETE FROM account_mail WHERE account_id = ?1", [account.to_string()])?;
                         }

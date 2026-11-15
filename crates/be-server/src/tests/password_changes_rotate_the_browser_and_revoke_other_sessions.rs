@@ -8,6 +8,25 @@ async fn password_changes_rotate_the_browser_and_revoke_other_sessions() {
     browser
         .login(&harness, "change@example.com", "correct horse battery")
         .await;
+    let change = [
+        ("current_password", "correct horse battery"),
+        ("password", "a new password"),
+        ("confirmation", "a new password"),
+    ];
+    // Until passwords go, changing one needs a fresh proof too.
+    assert_eq!(
+        browser
+            .submit(
+                &harness,
+                "/auth/settings",
+                "/auth/settings/password",
+                &change
+            )
+            .await
+            .0,
+        400
+    );
+    browser.prove(&harness, "change@example.com").await;
     let previous = browser.cookie.clone();
     assert_eq!(
         browser

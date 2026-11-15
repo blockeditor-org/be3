@@ -23,6 +23,8 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
         .iter()
         .find(|session| session.kind == "app")
         .unwrap();
+    // Even proved, the stranger's revoking reaches only its own sessions.
+    stranger.prove(&harness, "stranger@example.com").await;
     assert_eq!(
         stranger
             .submit(
@@ -49,6 +51,7 @@ async fn sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser() {
             .0,
         400
     );
+    browser.prove(&harness, "owner@example.com").await;
     assert_eq!(
         browser
             .submit(

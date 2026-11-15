@@ -97,6 +97,7 @@ mod a_session_hands_ownership_over_without_a_merge;
 mod a_settings_block_changes_only_with_manage_on_its_parent;
 mod a_settings_kind_opens_to_anyone_who_views_a_block_inside;
 mod a_slow_store_call_does_not_delay_another_connections_ping;
+mod a_stale_proof_and_another_sessions_revocation_without_one_are_refused;
 mod a_stale_publish_is_rejected_with_the_current_head;
 mod a_stored_key_is_told_only_to_who_may_open_it;
 mod a_trashed_block_reaches_its_reader_as_detached;
@@ -124,6 +125,7 @@ mod an_owner_that_loses_edit_access_hands_the_lease_on;
 mod an_s3_upload_that_is_not_its_key_stores_nothing;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod an_unauthenticated_connection_is_closed_unless_it_signs_in;
+mod an_unknown_emails_budget_runs_out_as_a_known_ones_does;
 mod an_upload_is_used_once_and_its_object_goes_once_collected;
 mod anonymous_mail_requests_never_fill_the_global_cap;
 mod another_account_cannot_reach_a_block_by_its_id_or_its_objects_by_their_hashes;
@@ -1404,7 +1406,14 @@ async fn prove(store: &ServerStore, account: Uuid, email: &str, browser: &str) {
         .unwrap()
         .unwrap();
     store
-        .enter_code(&attempt, &mailed.code, browser, "127.0.0.1")
+        .enter_code(
+            &attempt,
+            &mailed.code,
+            browser,
+            "127.0.0.1",
+            |_, _| true,
+            ServerConfig::OPEN,
+        )
         .await
         .unwrap();
 }

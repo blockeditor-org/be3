@@ -479,6 +479,7 @@ fn SignIn(page: Shown) -> NodeId {
                     <List
                         direction=Direction::Horizontal
                         justify=Justify::SpaceBetween
+                        wrap=true
                         spacing=Space::Md
                     >
                         <PageLink label="I can’t sign in" href={page.here("/auth/recover")} />

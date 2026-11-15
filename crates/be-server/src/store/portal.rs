@@ -139,7 +139,28 @@ impl ServerStore {
         .await
     }
 
-    pub async fn revoke_session(&self, account: Uuid, id: &str) -> Result<(), ServerError> {
+    /// Ends one of the account's sessions. Ending any but `browser`'s own needs a fresh proof
+    /// from it.
+    pub async fn revoke_session(
+        &self,
+        account: Uuid,
+        id: &str,
+        browser: &str,
+    ) -> Result<(), ServerError> {
+        let own = {
+            let (id, browser) = (id.to_owned(), hash_token(browser));
+            self.with_database(move |_, database| {
+                Ok(database.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sessions WHERE account_id = ?1 AND public_id = ?2 AND token_hash = ?3)",
+                    params![account.to_string(), id, browser],
+                    |row| row.get::<_, bool>(0),
+                )?)
+            })
+            .await?
+        };
+        if !own {
+            self.require_fresh(browser).await?;
+        }
         let id = id.to_owned();
         let deleted = self
             .with_database(move |_, database| {
@@ -234,6 +255,7 @@ impl ServerStore {
         address: &str,
     ) -> Result<String, ServerError> {
         validate_password(password)?;
+        self.require_fresh(browser_token).await?;
         let previous_hash = self.check_password(account, current, address).await?;
         let hash = self.hash(password.into(), address).await?;
         let browser_token = browser_token.to_owned();

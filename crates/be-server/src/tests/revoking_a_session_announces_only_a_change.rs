@@ -25,7 +25,7 @@ async fn revoking_a_session_announces_only_a_change() {
         .unwrap();
     let changes = store.session_changes.subscribe();
     store
-        .revoke_session(profile.account, "no-such-session")
+        .revoke_session(profile.account, "no-such-session", &browser)
         .await
         .unwrap();
     store
@@ -38,7 +38,7 @@ async fn revoking_a_session_announces_only_a_change() {
         .await
         .unwrap();
     store
-        .revoke_session(profile.account, &sessions[0].id)
+        .revoke_session(profile.account, &sessions[0].id, &browser)
         .await
         .unwrap();
     assert!(changes.has_changed().unwrap());
