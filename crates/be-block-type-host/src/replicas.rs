@@ -589,7 +589,7 @@ pub struct Owing {
     pub publish_error: Option<String>,
     pub journaled: bool,
     /// What its module says keeps its edits out of the journal (`Status::unjournaled`).
-    pub unjournaled: Option<String>,
+    pub unjournaled: Option<be_sdk_type_api::Unjournaled>,
     /// The modules' clock as the host last counted (`Modules::now`), which the timers in
     /// `unjournaled` read on.
     pub now: u64,
@@ -618,16 +618,55 @@ impl Owing {
     }
 }
 
+/// What keeps a replica's edits out of the journal (`Unjournaled`), in words, with each timer
+/// read against the modules' clock `now`.
+fn unjournaled(held: &be_sdk_type_api::Unjournaled, now: u64) -> String {
+    let mut what = Vec::new();
+    if !held.loaded {
+        what.push("not loaded".to_owned());
+    }
+    if held.unappended > 0 {
+        what.push(format!("{} sequenced, not appended", held.unappended));
+    }
+    if held.held > 0 {
+        what.push(format!("{} held back", held.held));
+    }
+    if held.putting {
+        what.push("a part being put".to_owned());
+    }
+    if held.unsettled {
+        what.push("edits its owner has not accepted".to_owned());
+    }
+    for (timer, at) in [
+        ("append", held.append_at),
+        ("put retry", held.put_retry_at),
+        ("merge retry", held.merge_retry_at),
+        ("seal retry", held.seal_retry_at),
+    ] {
+        if let Some(at) = at {
+            what.push(match at.checked_sub(now) {
+                Some(left) => format!("{timer} in {left} ms"),
+                None => format!("{timer} due {} ms ago", now - at),
+            });
+        }
+    }
+    if held.merge_failures > 0 {
+        what.push(format!("{} merge failure(s)", held.merge_failures));
+    }
+    format!("out of the journal: {}", what.join(", "))
+}
+
 impl std::fmt::Display for Owing {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             formatter,
-            "{} of type {} (journaled: {}, unjournaled: {:?} at {}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
+            "{} of type {} (journaled: {}{}, unreported: {}, publishes unanswered: {}, joining: {}, closing: {}, last publish failed: {:?})",
             self.block,
             self.content_type,
             self.journaled,
-            self.unjournaled,
-            self.now,
+            self.unjournaled
+                .as_ref()
+                .map_or_else(String::new, |held| format!(", {}", unjournaled(held, self.now))),
             self.unreported,
             self.publishing,
             self.joining,
