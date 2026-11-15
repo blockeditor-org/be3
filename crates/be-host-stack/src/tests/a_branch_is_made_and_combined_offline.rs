@@ -2,7 +2,6 @@ use super::*;
 
 /// Every version command runs against the device's store offline (plans/local_accounts.md, gap
 /// 2): a branch made, saved on, switched from and combined with no server.
-
 use be_sdk_api::VersionCommand;
 
 #[test]
@@ -19,7 +18,9 @@ fn a_branch_is_made_and_combined_offline() {
         text_of(shared, versioned.note).is_some()
     });
 
-    wait_until("read the status", |shared| settled(shared, versioned.checkout));
+    wait_until("read the status", |shared| {
+        settled(shared, versioned.checkout)
+    });
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);
 

@@ -940,8 +940,7 @@ impl HostCore {
         be_host_runtime::cache_in(data_dir.join("app-cache"));
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut core = Self::with_state(host_state)?;
-        core.workspaces =
-            host_files::WorkspaceCache::open(&data_dir, &core.accounts);
+        core.workspaces = host_files::WorkspaceCache::open(&data_dir, &core.accounts);
         core.programs.keep_files_in(data_dir.join("files"));
         core.data_dir = data_dir;
         Ok(core)
@@ -1589,7 +1588,9 @@ impl HostCore {
             last_organization_id: None,
             authorization: None,
         };
-        let identity = be_block_keys::RecoveryPhrase::generate().secret().to_bytes();
+        let identity = be_block_keys::RecoveryPhrase::generate()
+            .secret()
+            .to_bytes();
         let kept = self
             .host_state
             .save_account(&saved)
@@ -1723,6 +1724,7 @@ impl HostCore {
                 }),
                 sealed: Vec::new(),
                 own: Vec::new(),
+                logs: Vec::new(),
             };
             let organization = Organization {
                 id: account,
@@ -4483,7 +4485,6 @@ impl HostCore {
         }
         self.restart();
     }
-
 }
 
 fn sync_state(status: &be_host_stack::Status) -> ui::SyncState {

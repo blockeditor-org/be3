@@ -36,15 +36,11 @@ async fn a_local_account_keeps_what_it_makes_as_final_with_no_server() {
         .create::<TextContent>(BlockParent::Block(team))
         .await
         .unwrap();
-    let one = peer
-        .save(note, &TextBlock::of("one"), None)
-        .await
-        .unwrap();
+    let one = peer.save(note, &TextBlock::of("one"), None).await.unwrap();
     let Saved::Published(one) = one else {
         panic!("a local commit was not final: {one:?}");
     };
-    let Ok(Saved::Published(two)) = peer.save(note, &TextBlock::of("two"), Some(one)).await
-    else {
+    let Ok(Saved::Published(two)) = peer.save(note, &TextBlock::of("two"), Some(one)).await else {
         panic!("a local commit was not final");
     };
     assert!(

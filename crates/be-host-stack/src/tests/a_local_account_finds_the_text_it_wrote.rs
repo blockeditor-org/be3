@@ -57,7 +57,9 @@ fn a_local_account_finds_the_text_it_wrote() {
         .flatten()
         .and_then(|answer| answer.hits.first().map(|hit| hit.snippet.clone()));
     assert!(
-        snippet.as_deref().is_some_and(|snippet| snippet.contains("ripen late")),
+        snippet
+            .as_deref()
+            .is_some_and(|snippet| snippet.contains("ripen late")),
         "the hit shows the text it matched: {snippet:?}"
     );
     // Indexing settles: what it writes of the index is not queued to be indexed again.

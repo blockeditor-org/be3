@@ -36,9 +36,15 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert!(histories(&mut instances, watch).is_empty());
 
     be_host_stack::open(block, ChecklistContent::CONTENT_TYPE);
-    be_host_stack::operate(
+    // As an editor edits: the host's own edits (`operate`) are no one's to undo.
+    let editor = 1;
+    be_host_stack::attach(block, ChecklistContent::CONTENT_TYPE, editor, true);
+    be_host_stack::from_editor(
         block,
-        ChecklistContent::encode_operation(&Checklist::add("Standup").1),
+        editor,
+        &be_sdk_type_api::encode_frame(&be_sdk_type_guest::editor::FromEditor::Operate(
+            ChecklistContent::encode_operation(&Checklist::add("Standup").1),
+        )),
     );
     be_host_stack::wait_until("can undo the edit", |shared| {
         shared

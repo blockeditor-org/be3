@@ -19,7 +19,9 @@ async fn a_workspace_made_offline_reaches_the_server_with_its_keys() {
         .await
         .unwrap();
     assert!(matches!(
-        offline.save(note, &TextBlock::of("written offline"), None).await,
+        offline
+            .save(note, &TextBlock::of("written offline"), None)
+            .await,
         Ok(Saved::Kept(_))
     ));
     let roots = offline.children(BlockParent::Root).await.unwrap();

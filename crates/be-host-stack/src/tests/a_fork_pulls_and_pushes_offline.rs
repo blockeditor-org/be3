@@ -120,5 +120,9 @@ fn a_fork_pulls_and_pushes_offline() {
         peer.load_commit(head).await.unwrap();
         head
     });
-    assert_eq!(Some(*upstream.hash().as_bytes()), pushed, "the push reached the server");
+    assert_eq!(
+        Some(*upstream.hash().as_bytes()),
+        pushed,
+        "the push reached the server"
+    );
 }

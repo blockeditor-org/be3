@@ -20,7 +20,9 @@ fn a_change_saved_offline_moves_its_branch_once_the_device_reconnects() {
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
-    wait_until("read the status", |shared| settled(shared, versioned.checkout));
+    wait_until("read the status", |shared| {
+        settled(shared, versioned.checkout)
+    });
 
     harness.stop_server();
     wait_until("noticed the server was gone", |shared| !shared.connected);

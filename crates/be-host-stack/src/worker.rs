@@ -1130,8 +1130,13 @@ fn local<S: Fn() -> Result<Store, String>>(
 ) -> Option<Arc<Peer<Store>>> {
     let made = make_store().and_then(|store| {
         let refs = super::refs(config)?;
-        Peer::local(peer_config(config, refs), config.account, config.organization, store)
-            .map_err(|error| error.to_string())
+        Peer::local(
+            peer_config(config, refs),
+            config.account,
+            config.organization,
+            store,
+        )
+        .map_err(|error| error.to_string())
     });
     match made {
         Ok(peer) => Some(Arc::new(peer)),

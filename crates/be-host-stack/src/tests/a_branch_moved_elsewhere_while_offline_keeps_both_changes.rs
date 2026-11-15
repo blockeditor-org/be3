@@ -23,7 +23,9 @@ fn a_branch_moved_elsewhere_while_offline_keeps_both_changes() {
     wait_until("opened the note", |shared| {
         text_of(shared, versioned.note).is_some()
     });
-    wait_until("read the status", |shared| settled(shared, versioned.checkout));
+    wait_until("read the status", |shared| {
+        settled(shared, versioned.checkout)
+    });
     let other = Device::online(&harness);
     let peer = std::sync::Arc::clone(&other.peer.borrow());
     let repository = |peer: &be_block_client::Peer<be_block_store::MemoryStore>| {
@@ -82,10 +84,6 @@ fn a_branch_moved_elsewhere_while_offline_keeps_both_changes() {
         .branch("main-2")
         .expect("this device's change was kept beside main");
     assert_ne!(kept, started);
-    let kind = other
-        .runtime
-        .block_on(peer.load_commit(kept))
-        .unwrap()
-        .kind;
+    let kind = other.runtime.block_on(peer.load_commit(kept)).unwrap().kind;
     assert_eq!(kind, CommitKind::Snapshot("There".into()));
 }

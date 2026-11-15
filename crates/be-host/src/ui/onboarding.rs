@@ -19,8 +19,10 @@ use beui::{Align, Direction};
 /// storage, which clearing the site's data or a private window loses with no phrase to recover
 /// it (plans/local_accounts.md).
 const LOCAL_ACCOUNT_NOTE: &str = match cfg!(target_arch = "wasm32") {
-    true => "Your data stays in this browser only. Clearing this site's data, or a private \
-             window, deletes the account and everything in it. You only need a display name.",
+    true => {
+        "Your data stays in this browser only. Clearing this site's data, or a private \
+             window, deletes the account and everything in it. You only need a display name."
+    }
     false => "Your data stays on this device. You only need a display name.",
 };
 
@@ -33,19 +35,20 @@ pub(super) fn ErrorScreen(view: HostUiStore) -> NodeId {
         None => String::new(),
     });
     let unsaved = create_memo(move || view.error.get().unsaved);
-    let confirmation = create_memo(move || {
-        match pending.get() {
+    let confirmation = create_memo(move || match pending.get() {
         Some(ErrorAction::DeleteClientDatabase) => {
-            let accounts =
-                "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
+            let accounts = "This removes every saved account and its key on this device. You will need to sign in again, and unlock each account with its recovery phrase or another device.";
             match unsaved.get() {
                 0 => accounts.to_owned(),
-                1 => format!("{accounts} One block has changes that have not reached the server yet, and they will be lost."),
-                count => format!("{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."),
+                1 => format!(
+                    "{accounts} One block has changes that have not reached the server yet, and they will be lost."
+                ),
+                count => format!(
+                    "{accounts} {count} blocks have changes that have not reached the server yet, and they will be lost."
+                ),
             }
         }
         None => String::new(),
-    }
     });
     view! {
         <Column>
@@ -353,9 +356,7 @@ pub(super) fn AddAccountDialog(
                         <Match value={selection}>
                             <Case is={Some(1)}>
                                 <List spacing=Space::Xl>
-                                    <Text style=TextStyle::PARAGRAPH>
-                                        {LOCAL_ACCOUNT_NOTE}
-                                    </Text>
+                                    <Text style=TextStyle::PARAGRAPH>{LOCAL_ACCOUNT_NOTE}</Text>
                                     <List spacing=Space::Sm>
                                         <Text style=TextStyle::CAPTION>"Display name"</Text>
                                         <TextInput
