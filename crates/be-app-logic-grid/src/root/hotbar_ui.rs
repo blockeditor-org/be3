@@ -201,7 +201,6 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
     let shown = create_memo(move || session.read(|model| model.column_view(column)));
     let title = create_memo(move || shown.get().title);
     let entries = create_memo(move || shown.get().entries);
-    let empty = create_memo(move || entries.get().is_empty());
     let fill = create_memo(move || match shown.get().active {
         true => ColorRole::AccentSoft,
         false => ColorRole::Control,
@@ -217,10 +216,12 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
             >
                 <List align=Align::Center spacing=Space::Xs>
                     <Text style=TextStyle::CAPTION align=TextAlign::Center>{title}</Text>
-                    <Show value={empty}>
-                        <Frame width={Size::Custom(SLOT_SIZE)} height={Size::Custom(SLOT_SIZE)} />
-                    </Show>
-                    <ForEach value={entries}>|path: Vec<usize>|
+                    <ForEach
+                        value={entries}
+                        fallback={|| view! {
+                            <Frame width={Size::Custom(SLOT_SIZE)} height={Size::Custom(SLOT_SIZE)} />
+                        }}
+                    >|path: Vec<usize>|
                         <HotbarSlotButton session={session} path={path} />
                     </ForEach>
                 </List>
