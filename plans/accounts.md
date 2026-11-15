@@ -137,7 +137,9 @@ authentication through a gateway (`Be3-Gateway-Authorization`) stays as it is.
    The portal's two cookies (`be3-account`, `be3-attempt`) are scoped to
    `/auth` without a prefix, so a sibling subdomain could set or shadow them;
    move both to `__Host-` names with `Path=/` once development serves HTTPS or
-   the plain-HTTP setup uses a cookie name of its own.
+   the plain-HTTP setup uses a cookie name of its own. An account with no
+   email is told nothing when an identity is added or removed: give it the
+   notice in the app, on its other sessions, as the rules above say.
 2. **Passkeys.** Register and use WebAuthn credentials in the portal with
    `webauthn-rs` on the server and `web-sys`'s credentials API from the portal's
    wasm, which the CSP already allows (`script-src 'self'

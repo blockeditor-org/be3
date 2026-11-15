@@ -4,6 +4,7 @@
 //! it as the provider would, with the grant the test describes.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
@@ -91,6 +92,14 @@ pub struct Grant {
     pub nonce: Option<String>,
     /// Signed with a key the provider doesn't publish.
     pub stranger_signs: bool,
+    /// Not signed at all: `alg` is `none`.
+    pub unsigned: bool,
+    /// Expired before it was sent.
+    pub expired: bool,
+    /// How long ago the person signed in at the provider (`auth_time`).
+    pub signed_in_ago: i64,
+    /// The PKCE challenge the provider holds the code to, if not the request's.
+    pub challenge: Option<String>,
 }
 
 impl Grant {
@@ -103,6 +112,10 @@ impl Grant {
             audience: None,
             nonce: None,
             stranger_signs: false,
+            unsigned: false,
+            expired: false,
+            signed_in_ago: 0,
+            challenge: None,
         }
     }
 
@@ -122,6 +135,10 @@ struct Issued {
 pub struct FakeProvider {
     pub issuer: String,
     codes: Arc<Mutex<HashMap<String, Issued>>>,
+    /// How many times its discovery document was read.
+    pub discoveries: Arc<AtomicUsize>,
+    /// While set, discovery answers an error.
+    pub discovery_fails: Arc<AtomicBool>,
 }
 
 impl FakeProvider {
@@ -129,15 +146,28 @@ impl FakeProvider {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let issuer = format!("http://{}", listener.local_addr().unwrap());
         let codes: Arc<Mutex<HashMap<String, Issued>>> = Arc::default();
+        let discoveries: Arc<AtomicUsize> = Arc::default();
+        let discovery_fails: Arc<AtomicBool> = Arc::default();
         let (serving, held) = (issuer.clone(), codes.clone());
+        let (counting, failing) = (discoveries.clone(), discovery_fails.clone());
         tokio::spawn(async move {
             while let Ok((mut stream, _)) = listener.accept().await {
                 let (issuer, codes) = (serving.clone(), held.clone());
+                let (counting, failing) = (counting.clone(), failing.clone());
                 tokio::spawn(async move {
                     let Some((path, body)) = read(&mut stream).await else {
                         return;
                     };
-                    let (status, answer) = answer(&issuer, &codes, &path, &body);
+                    let (status, answer) = match path.as_str() {
+                        "/.well-known/openid-configuration" => {
+                            counting.fetch_add(1, Ordering::SeqCst);
+                            match failing.load(Ordering::SeqCst) {
+                                true => (500, "{}".to_owned()),
+                                false => answer(&issuer, &codes, &path, &body),
+                            }
+                        }
+                        _ => answer(&issuer, &codes, &path, &body),
+                    };
                     let response = format!(
                         "HTTP/1.1 {status} Answered\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}",
                         answer.len()
@@ -147,7 +177,12 @@ impl FakeProvider {
                 });
             }
         });
-        Self { issuer, codes }
+        Self {
+            issuer,
+            codes,
+            discoveries,
+            discovery_fails,
+        }
     }
 
     /// The provider as the operator would configure it.
@@ -174,9 +209,12 @@ impl FakeProvider {
         self.codes.lock().unwrap().insert(
             code.clone(),
             Issued {
-                grant,
                 nonce: query["nonce"].clone(),
-                challenge: query["code_challenge"].clone(),
+                challenge: grant
+                    .challenge
+                    .clone()
+                    .unwrap_or_else(|| query["code_challenge"].clone()),
+                grant,
             },
         );
         let redirect = url::Url::parse(&query["redirect_uri"]).unwrap();
@@ -239,11 +277,16 @@ fn answer(
             }
             let grant = issued.grant;
             let now = crate::store::portal::now();
+            let issued_at = match grant.expired {
+                true => now - 1200,
+                false => now,
+            };
             let claims: CoreIdTokenClaims = serde_json::from_value(serde_json::json!({
                 "iss": issuer,
                 "aud": [grant.audience.clone().unwrap_or_else(|| CLIENT_ID.into())],
-                "exp": now + 600,
-                "iat": now,
+                "exp": issued_at + 600,
+                "iat": issued_at,
+                "auth_time": now - grant.signed_in_ago,
                 "sub": grant.sub,
                 "nonce": grant.nonce.clone().unwrap_or(issued.nonce),
                 "email": grant.email,
@@ -255,21 +298,34 @@ fn answer(
                 true => STRANGER_KEY,
                 false => PROVIDER_KEY,
             });
-            let token = CoreIdToken::new(
-                claims,
-                &signer,
-                CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
-                None,
-                None,
-            )
-            .unwrap();
+            let token = match grant.unsigned {
+                true => {
+                    let part = |json: String| {
+                        base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(json)
+                    };
+                    format!(
+                        "{}.{}.",
+                        part(r#"{"alg":"none","typ":"JWT"}"#.into()),
+                        part(serde_json::to_string(&claims).unwrap())
+                    )
+                }
+                false => CoreIdToken::new(
+                    claims,
+                    &signer,
+                    CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256,
+                    None,
+                    None,
+                )
+                .unwrap()
+                .to_string(),
+            };
             (
                 200,
                 serde_json::json!({
                     "access_token": "unused",
                     "token_type": "Bearer",
                     "expires_in": 600,
-                    "id_token": token.to_string(),
+                    "id_token": token,
                 })
                 .to_string(),
             )

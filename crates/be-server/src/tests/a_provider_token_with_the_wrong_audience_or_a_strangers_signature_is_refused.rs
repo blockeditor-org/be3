@@ -13,6 +13,19 @@ async fn a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_re
             stranger_signs: true,
             ..Grant::new("ada")
         },
+        Grant {
+            unsigned: true,
+            ..Grant::new("ada")
+        },
+        Grant {
+            expired: true,
+            ..Grant::new("ada")
+        },
+        // The code is redeemed only with the verifier behind its PKCE challenge.
+        Grant {
+            challenge: Some("another-challenge".into()),
+            ..Grant::new("ada")
+        },
     ] {
         let mut browser = Browser::default();
         let (status, response) = browser

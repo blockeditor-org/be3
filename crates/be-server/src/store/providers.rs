@@ -51,11 +51,12 @@ impl Intent {
         }
     }
 
-    fn of(name: &str) -> Self {
+    fn of(name: &str) -> Result<Self, ServerError> {
         match name {
-            "link" => Intent::Link,
-            "proof" => Intent::Proof,
-            _ => Intent::SignIn,
+            "sign-in" => Ok(Intent::SignIn),
+            "link" => Ok(Intent::Link),
+            "proof" => Ok(Intent::Proof),
+            _ => Err(ServerError::Corrupt),
         }
     }
 }
@@ -73,9 +74,12 @@ pub(crate) struct Begun {
 /// What a checked provider sign-in did.
 pub(crate) enum Outcome {
     /// A browser session for the account; `device_code` is the browser sign-in to return to.
+    /// `moved_from` is the account's email before the provider's changed email replaced it,
+    /// which is told.
     SignedIn {
         session: String,
         device_code: String,
+        moved_from: Option<String>,
     },
     /// The provider was added to the signed-in account.
     Linked,
@@ -87,6 +91,18 @@ pub(crate) enum Outcome {
     NeedsInvite,
 }
 
+/// What the settings page's links to begin a link or a proof carry: only the browser's own
+/// session makes it, so a page elsewhere can't begin one for it.
+pub(crate) fn start_check(browser: &str) -> String {
+    hash_token(&format!("be3 provider start {browser}"))
+}
+
+/// Whether `given` is the browser's `start_check`. It compares their hashes, so how long the
+/// comparison takes says nothing about the check itself.
+pub(crate) fn is_start_check(browser: &str, given: &str) -> bool {
+    hash_token(given) == hash_token(&start_check(browser))
+}
+
 /// A provider identity's subject: the configured issuer and the token's `sub`.
 pub fn subject(issuer: &str, sub: &str) -> String {
     format!("{issuer} {sub}")
@@ -94,7 +110,8 @@ pub fn subject(issuer: &str, sub: &str) -> String {
 
 /// Adds a provider identity to an account, refusing one another account holds. `email` is
 /// the verified email it gave, if the provider is authoritative for email: an account with no
-/// email takes it when no other account holds it.
+/// email takes it when no other account holds it. The identity keeps the email only when its
+/// account holds it.
 pub(crate) fn add_provider_identity(
     database: &Connection,
     account: Uuid,
@@ -117,16 +134,25 @@ pub(crate) fn add_provider_identity(
         }
         None => {}
     }
-    database.execute(
-        "INSERT INTO identities (id, account_id, kind, subject, created, email) VALUES (?1, ?2, 'oidc', ?3, ?4, ?5)",
-        params![Uuid::new_v4().to_string(), account.to_string(), subject, now(), email],
-    )?;
-    let has_email: bool = database.query_row(
-        "SELECT email IS NOT NULL FROM accounts WHERE id = ?1",
+    let account_email: Option<String> = database.query_row(
+        "SELECT email FROM accounts WHERE id = ?1",
         [account.to_string()],
         |row| row.get(0),
     )?;
-    if !email.is_empty() && !has_email && unregistered(database, email).is_ok() {
+    let takes =
+        !email.is_empty() && account_email.is_none() && unregistered(database, email).is_ok();
+    let holds = !email.is_empty() && account_email.as_deref() == Some(email);
+    database.execute(
+        "INSERT INTO identities (id, account_id, kind, subject, created, email) VALUES (?1, ?2, 'oidc', ?3, ?4, ?5)",
+        params![
+            Uuid::new_v4().to_string(),
+            account.to_string(),
+            subject,
+            now(),
+            if takes || holds { email } else { "" }
+        ],
+    )?;
+    if takes {
         database.execute(
             "UPDATE accounts SET email = ?2 WHERE id = ?1",
             params![account.to_string(), email],
@@ -136,61 +162,95 @@ pub(crate) fn add_provider_identity(
     Ok(())
 }
 
-/// Follows a provider's changed verified email: the identity, and the account's email where it
-/// was the provider's, take the new one only when no other account holds it.
+/// Follows a provider's changed verified email. Where the account's email was the provider's
+/// old one and no other account holds the new one, the account's email, and the email it signs
+/// in with, move to the new one; an account with no email never gains one this way, since
+/// its owner may have removed it. The identity keeps the email only while its account holds
+/// it. Answers the address the account's email moved from, which is told.
 fn follow_email(
     database: &Connection,
     account: &str,
     subject: &str,
     stored: &str,
     email: &str,
-) -> Result<(), ServerError> {
+) -> Result<Option<String>, ServerError> {
     if email == stored {
-        return Ok(());
+        return Ok(None);
     }
     let account_email: Option<String> = database.query_row(
         "SELECT email FROM accounts WHERE id = ?1",
         [account],
         |row| row.get(0),
     )?;
-    if account_email.as_deref() == Some(email) {
+    let mut moved_from = None;
+    let kept = if account_email.as_deref() == Some(email) {
+        email
+    } else if !stored.is_empty()
+        && account_email.as_deref() == Some(stored)
+        && unregistered(database, email).is_ok()
+    {
         database.execute(
-            "UPDATE identities SET email = ?2 WHERE kind = 'oidc' AND subject = ?1",
-            params![subject, email],
+            "UPDATE accounts SET email = ?2 WHERE id = ?1",
+            params![account, email],
         )?;
-        return Ok(());
-    }
-    if unregistered(database, email).is_err() {
-        return Ok(());
-    }
-    match account_email.as_deref() {
-        None => {
-            database.execute(
-                "UPDATE accounts SET email = ?2 WHERE id = ?1",
-                params![account, email],
-            )?;
-            add_email_identity(database, account, email)?;
-        }
-        Some(current) if !stored.is_empty() && current == stored => {
-            database.execute(
-                "UPDATE accounts SET email = ?2 WHERE id = ?1",
-                params![account, email],
-            )?;
-            database.execute(
-                "UPDATE identities SET subject = ?3 WHERE account_id = ?1 AND kind = 'email' AND subject = ?2",
-                params![account, stored, email],
-            )?;
-        }
-        Some(_) => {}
-    }
+        database.execute(
+            "UPDATE identities SET subject = ?3 WHERE account_id = ?1 AND kind = 'email' AND subject = ?2",
+            params![account, stored, email],
+        )?;
+        moved_from = Some(stored.to_owned());
+        email
+    } else if !stored.is_empty() && account_email.as_deref() == Some(stored) {
+        // Another account holds the new one: the identity keeps the email its account holds,
+        // so a later free one still moves it.
+        stored
+    } else {
+        ""
+    };
     database.execute(
         "UPDATE identities SET email = ?2 WHERE kind = 'oidc' AND subject = ?1",
-        params![subject, email],
+        params![subject, kept],
     )?;
+    Ok(moved_from)
+}
+
+/// Clears expired begun sign-ins and refuses a new one past the caps: per address (an IPv6
+/// /64) and overall.
+fn room_for_sign_in(database: &Connection, address: &str) -> Result<(), ServerError> {
+    let now = now();
+    database.execute("DELETE FROM oidc_states WHERE expires <= ?1", [now])?;
+    database.execute("DELETE FROM oidc_pending WHERE expires <= ?1", [now])?;
+    let from_address: i64 = database.query_row(
+        "SELECT count(*) FROM oidc_states WHERE address = ?1",
+        [address],
+        |row| row.get(0),
+    )?;
+    let waiting: i64 = database.query_row(
+        "SELECT (SELECT count(*) FROM oidc_states) + (SELECT count(*) FROM oidc_pending)",
+        [],
+        |row| row.get(0),
+    )?;
+    if from_address >= PROVIDER_SIGN_INS_PER_ADDRESS || waiting >= MAX_PROVIDER_SIGN_INS {
+        return Err(refused(
+            "Too many sign-ins are waiting on a provider. Try again in a while.",
+        ));
+    }
     Ok(())
 }
 
 impl ServerStore {
+    /// Refuses a sign-in past the caps before it calls the provider, so strangers can't make
+    /// the server call providers beyond them.
+    pub(crate) async fn provider_room(&self, address: &str) -> Result<(), ServerError> {
+        let address = crate::address::address_key_text(address);
+        self.with_database(move |_, database| {
+            let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            room_for_sign_in(&transaction, &address)?;
+            transaction.commit()?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Keeps a begun sign-in's secrets until its callback, bound to the browser's attempt.
     #[allow(clippy::too_many_arguments)]
     pub(crate) async fn begin_provider(
@@ -216,25 +276,8 @@ impl ServerStore {
         let address = crate::address::address_key_text(address);
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            room_for_sign_in(&transaction, &address)?;
             let now = now();
-            transaction.execute("DELETE FROM oidc_states WHERE expires <= ?1", [now])?;
-            transaction.execute("DELETE FROM oidc_pending WHERE expires <= ?1", [now])?;
-            let from_address: i64 = transaction.query_row(
-                "SELECT count(*) FROM oidc_states WHERE address = ?1",
-                [&address],
-                |row| row.get(0),
-            )?;
-            let waiting: i64 = transaction.query_row(
-                "SELECT (SELECT count(*) FROM oidc_states) + (SELECT count(*) FROM oidc_pending)",
-                [],
-                |row| row.get(0),
-            )?;
-            if from_address >= PROVIDER_SIGN_INS_PER_ADDRESS || waiting >= MAX_PROVIDER_SIGN_INS
-            {
-                return Err(refused(
-                    "Too many sign-ins are waiting on a provider. Try again in a while.",
-                ));
-            }
             transaction.execute(
                 "INSERT INTO oidc_states (state_hash, provider, verifier, nonce, attempt_hash, device_code, intent, link_account, address, expires) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
@@ -289,7 +332,7 @@ impl ServerStore {
                 verifier,
                 nonce,
                 device_code,
-                intent: Intent::of(&intent),
+                intent: Intent::of(&intent)?,
                 account: match account.is_empty() {
                     true => None,
                     false => Some(parse_uuid(&account)?),
@@ -385,13 +428,14 @@ impl ServerStore {
                             )
                             .optional()?;
                         if let Some((account, stored)) = held {
-                            if !email.is_empty() {
-                                follow_email(&transaction, &account, &subject, &stored, &email)?;
-                            }
+                            let moved_from = match email.is_empty() {
+                                true => None,
+                                false => follow_email(&transaction, &account, &subject, &stored, &email)?,
+                            };
                             let session =
                                 open_browser_session(&transaction, parse_uuid(&account)?, false)?;
                             transaction.commit()?;
-                            return Ok(Ok(Outcome::SignedIn { session, device_code }));
+                            return Ok(Ok(Outcome::SignedIn { session, device_code, moved_from }));
                         }
                         // Its verified email has an account: link only after a code to it.
                         if !email.is_empty() && unregistered(&transaction, &email).is_err() {

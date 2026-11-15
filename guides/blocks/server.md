@@ -636,7 +636,11 @@ identity and ending any session but the browser's own need a **fresh proof**
 (`codes::FRESH_PROOF`): a code to the account's email, or a sign-in with one of
 its providers, in the last few minutes (`sessions.proved`), which signing in by
 code or provider, or recovering, also gives.
-Removing an identity mails a notice. An operator's login link
+Removing an identity, adding a provider (from the settings page or by a link
+code) and a provider moving the account's email each mail the account's email,
+the old one for a move. Removing the email identity also clears
+`accounts.email`, and an account with no email never gains one from a
+provider it already has, since its owner may have removed it. An operator's login link
 (`store/login_links.rs`, `be-server login-link`) signs in once within
 `LOGIN_LINK_LIFETIME` as recovering does, and for an email with no account
 makes it, with no invite code; `/auth/link` shows it with a button, so a
@@ -650,13 +654,15 @@ confirms an email change (`/auth/verify`) and signs out.
 `oidc::parse_providers`): one tenant's issuer each, and only those marked
 `authoritative_email` (Google's preset) have their verified emails trusted.
 `oidc.rs` does the network half with the `openidconnect` crate: discovery,
-read when first needed and kept an hour; `/auth/oidc/{id}/start`, a GET link
-since the portal's CSP has `form-action 'self'`, which keeps the request's
-PKCE verifier, `state` and nonce in `oidc_states` bound to the browser's
-`be3-attempt` and redirects; and `/auth/oidc/{id}/callback`, which takes that
-row back once, in that browser only, exchanges the code and checks the ID token
-in full (signature against the provider's keys, read again once when a token
-fails, `iss`, `aud`, `azp`, expiry, nonce). `store/providers.rs` does the rest.
+read when first needed and kept an hour, one read per provider at a time, and a
+failed read held for half a minute; `/auth/oidc/{id}/start`, a GET link since
+the portal's CSP has `form-action 'self'`, which checks the caps on begun
+sign-ins before it calls the provider, gives the browser a fresh `be3-attempt`,
+keeps the request's PKCE verifier, `state` and nonce in `oidc_states` bound to
+it and redirects; and `/auth/oidc/{id}/callback`, which takes that row back
+once, in that browser only, exchanges the code and checks the ID token in full
+(signature against the provider's keys, read again at most once a minute when
+a token's key is unknown, `iss`, `aud`, `azp`, expiry, nonce). `store/providers.rs` does the rest.
 An identity's subject is `"{issuer} {sub}"`, never an email. A sign-in with a
 linked identity signs in, and its provider's verified email follows a change
 when no other account holds the new one. One with none whose verified email an
@@ -665,8 +671,13 @@ the same browser signs that account in and links the provider: nothing links
 or makes a second account on its own. Otherwise it waits in `oidc_pending`
 for the operator's invite code (`/auth/oidc/register`) and makes an account,
 whose email is the provider's verified one if it has one. A signed-in browser
-adds a provider (`?intent=link`, with a fresh proof checked at both ends) or
-proves with one it has (`?intent=proof`). Begun sign-ins are capped per address
+adds a provider (`?intent=link`, with a fresh proof checked at both ends, the
+second time for the same account) or proves with one it has (`?intent=proof`).
+Both need the settings page's `check`, a hash of the browser's session
+(`providers::start_check`), so another site can't begin one, and ask the
+provider for a sign-in just now (`max_age=0`), refusing a token whose
+`auth_time` is older than the begun sign-in. A provider identity keeps the
+email it gave only while its account holds that email. Begun sign-ins are capped per address
 and overall. At start the server warns how many accounts sign in only with
 providers it no longer has (`stranded_by_providers`); `login-link --account`
 lets one in.

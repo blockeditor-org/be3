@@ -40,6 +40,7 @@ mod a_changed_provider_email_held_by_another_account_is_not_taken;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
+mod a_code_from_another_provider_or_sent_to_its_callback_is_refused;
 mod a_code_is_refused_after_five_wrong_tries_once_expired_and_once_replaced;
 mod a_code_signs_in_only_the_browser_that_asked_for_it;
 mod a_codes_link_opened_in_another_browser_shows_the_code_and_signs_nothing_in;
@@ -59,6 +60,8 @@ mod a_head_moves_only_to_a_commit_that_descends_from_it;
 mod a_head_published_while_its_block_is_being_read_reaches_the_reader;
 mod a_key_work_stream_starts_with_the_current_value;
 mod a_kind_open_inside_passes_from_one_viewer_inside_to_another;
+mod a_link_or_a_proof_begins_only_with_the_settings_pages_check;
+mod a_link_or_a_proof_needs_a_sign_in_at_the_provider_just_now;
 mod a_listing_answers_the_revision_it_was_read_at_and_later_changes_come_after_it;
 mod a_listing_pages_in_id_order_without_skipping_a_block_that_stays;
 mod a_login_link_for_a_new_email_makes_its_account;
@@ -79,6 +82,7 @@ mod a_page_that_reads_on_through_another_trees_change_stops_at_its_own_next_bloc
 mod a_part_held_until_committed_lasts_until_a_commit_takes_it_or_its_grace_passes;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
 mod a_provider_email_matching_an_account_links_only_after_the_emailed_code;
+mod a_provider_is_called_only_so_often_whatever_strangers_send;
 mod a_provider_sign_in_with_no_account_waits_for_an_invite_code;
 mod a_provider_token_with_the_wrong_audience_or_a_strangers_signature_is_refused;
 mod a_publish_adding_a_reference_the_block_already_holds_moves_it;
@@ -113,6 +117,7 @@ mod a_viewers_session_state_reaches_no_participant_and_an_editors_does;
 mod a_watched_folder_hears_each_entry_added_in_bytes_that_do_not_grow_with_it;
 mod accepting_either_kind_of_link_makes_two_contacts;
 mod accounts_stranded_by_a_removed_provider_are_counted;
+mod adding_a_provider_or_moving_its_email_tells_the_account;
 mod an_account_creates_a_bounded_number_of_agents;
 mod an_account_quota_refuses_what_would_pass_it_but_not_a_big_file_within;
 mod an_administrator_creates_lists_and_revokes_an_invitation;
@@ -187,6 +192,7 @@ mod registration_codes_are_capped_per_invite_and_overall;
 mod registration_needs_an_invite_code_spent_when_the_account_is_made;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
+mod removing_the_email_it_signs_in_with_clears_the_accounts_email;
 mod requests_sent_before_a_close_are_still_carried_out;
 mod revisions_keep_counting_up_across_a_restart;
 mod revoking_a_session_announces_only_a_change;
@@ -1484,6 +1490,17 @@ impl Harness {
             .unwrap();
     }
 
+    /// How many messages went to `email` with `subject`.
+    fn mailed(&self, email: &str, subject: &str) -> usize {
+        self.mail
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|message| message.recipient == email && message.subject == subject)
+            .count()
+    }
+
     /// How many messages went to `email`.
     fn mails_to(&self, email: &str) -> usize {
         self.mail
@@ -1590,9 +1607,22 @@ impl Browser {
     }
     /// Begins signing in with the fake provider `id` (`query` adds `?intent=` or `?code=`) and
     /// answers where the server sends the browser: the provider's authorization URL.
+    /// A link or a proof carries the check the settings page's link does.
     async fn start_provider(&mut self, harness: &Harness, id: &str, query: &str) -> String {
+        let check = match query.contains("intent=") && !query.contains("check=") {
+            true => format!(
+                "&check={}",
+                crate::store::providers::start_check(&self.cookie)
+            ),
+            false => String::new(),
+        };
         let (status, response) = self
-            .request(harness, "GET", &format!("/auth/oidc/{id}/start{query}"), "")
+            .request(
+                harness,
+                "GET",
+                &format!("/auth/oidc/{id}/start{query}{check}"),
+                "",
+            )
             .await;
         assert_eq!(status, 303, "{response}");
         location(&response)

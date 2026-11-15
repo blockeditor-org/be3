@@ -4,7 +4,7 @@ use crate::{
     store::{
         AccountSession, MailLink, Profile, ServerStore,
         codes::{self, CodePurpose, CodeRequest, MailedCode},
-        providers::{Intent, Outcome},
+        providers::{self, Intent, Outcome},
     },
 };
 use base64::Engine;
@@ -62,6 +62,37 @@ fn identity_notice(services: &Services, email: &str, removed: &str) {
         subject: "A way to sign in to your be3 account was removed".into(),
         body: format!("{removed} can no longer sign in to your account. If this was not you, sign in and check your account, or contact your server operator."),
     });
+}
+
+/// Tells the account's email that a way to sign in was added.
+fn identity_added_notice(services: &Services, email: &str, added: &str) {
+    services.mail.send(Email {
+        recipient: email.into(),
+        subject: "A way to sign in to your be3 account was added".into(),
+        body: format!("{added} can now sign in to your account. If this was not you, sign in and remove it, or contact your server operator."),
+    });
+}
+
+/// Tells an account's old email that the account's email changed.
+fn email_moved_notice(services: &Services, old: String) {
+    services.mail.send(Email {
+        recipient: old,
+        subject: "Your be3 email address changed".into(),
+        body: "Your account email address was changed. If this was not you, contact your server operator.".into(),
+    });
+}
+
+/// How a notice names a provider identity by its subject.
+fn provider_identity_label(config: &crate::ServerConfig, subject: &str) -> String {
+    identity_label(
+        config,
+        &codes::Identity {
+            id: String::new(),
+            kind: "oidc".into(),
+            subject: subject.into(),
+            email: String::new(),
+        },
+    )
 }
 
 /// Mails the link that verifies a new email for the account.
@@ -181,6 +212,7 @@ pub(crate) async fn handle(
                     _ => config.allow_login,
                 }, services.config.clone()).await?;
                 response.attempt = Some(String::new());
+                if let Some(linked) = &entered.linked { identity_added_notice(services, &entered.email, &provider_identity_label(&services.config, linked)); }
                 match entered.session {
                     Some(session) => {
                         if !token.is_empty() { services.store.logout(token).await?; }
@@ -204,7 +236,7 @@ pub(crate) async fn handle(
             },
             "/auth/verify" => {
                 let old_email = services.store.confirm_mail(value("token")).await?;
-                if !old_email.is_empty() { services.mail.send(Email { recipient: old_email, subject: "Your be3 email address changed".into(), body: "Your account email address was changed. If this was not you, contact your server operator.".into() }); }
+                if !old_email.is_empty() { email_moved_notice(services, old_email); }
                 response.location = Some("/auth/email-updated".into());
             },
             "/auth/code" => {
@@ -443,7 +475,11 @@ pub(crate) async fn handle(
                 .filter(|provider| !linked(&identities, provider))
                 .map(|provider| ProviderLink {
                     name: provider.name.clone(),
-                    href: format!("/auth/oidc/{}/start?intent=link", provider.id),
+                    href: format!(
+                        "/auth/oidc/{}/start?intent=link&check={}",
+                        provider.id,
+                        providers::start_check(token)
+                    ),
                 })
                 .collect(),
             _ => Vec::new(),
@@ -454,7 +490,11 @@ pub(crate) async fn handle(
             .filter(|provider| linked(&identities, provider))
             .map(|provider| ProviderLink {
                 name: provider.name.clone(),
-                href: format!("/auth/oidc/{}/start?intent=proof", provider.id),
+                href: format!(
+                    "/auth/oidc/{}/start?intent=proof&check={}",
+                    provider.id,
+                    providers::start_check(token)
+                ),
             })
             .collect(),
         provider: match display_path.as_str() {
@@ -479,13 +519,14 @@ pub(crate) async fn handle(
     Ok(response)
 }
 
-/// The configured provider whose id is `id`, by its name; the id itself if there is none.
+/// The configured provider whose id is `id`, by its name; nothing if there is none.
 fn provider_name(config: &crate::ServerConfig, id: &str) -> String {
     config
         .providers
         .iter()
         .find(|provider| provider.id == id)
-        .map_or_else(|| id.to_owned(), |provider| provider.name.clone())
+        .map(|provider| provider.name.clone())
+        .unwrap_or_default()
 }
 
 /// Whether one of the account's identities is the provider's.
@@ -550,9 +591,10 @@ async fn provider_step(
     match step {
         "start" => {
             let intent = match value("intent") {
+                "" => Intent::SignIn,
                 "link" => Intent::Link,
                 "proof" => Intent::Proof,
-                _ => Intent::SignIn,
+                _ => return Err(invalid("Open the account portal and try again.")),
             };
             let account = match intent {
                 Intent::SignIn if !services.config.allow_login => {
@@ -565,19 +607,23 @@ async fn provider_step(
                         .account,
                 ),
             };
+            // A link or a proof begins only from the settings page's own link, which carries a
+            // check only this browser's session makes, so another site can't begin one.
+            if intent != Intent::SignIn && !providers::is_start_check(token, value("check")) {
+                return Err(invalid("Open your account settings and try again."));
+            }
             if intent == Intent::Link {
                 services.store.require_fresh(token).await?;
             }
-            // The browser's attempt binds the provider's answer to this browser.
-            let attempt = match attempt.is_empty() {
-                true => {
-                    let fresh = codes::new_attempt();
-                    response.attempt = Some(fresh.clone());
-                    fresh
-                }
-                false => attempt.to_owned(),
-            };
-            let started = services.discovery.start(configured, &redirect).await?;
+            // Before the provider is called, so strangers can't make the server call it more.
+            services.store.provider_room(address).await?;
+            // A fresh attempt binds the provider's answer to this browser, and to this sign-in.
+            let attempt = codes::new_attempt();
+            response.attempt = Some(attempt.clone());
+            let started = services
+                .discovery
+                .start(configured, &redirect, intent != Intent::SignIn)
+                .await?;
             services
                 .store
                 .begin_provider(
@@ -613,6 +659,7 @@ async fn provider_step(
                     value("code"),
                     &begun.verifier,
                     &begun.nonce,
+                    begun.intent != Intent::SignIn,
                 )
                 .await?;
             let outcome = services
@@ -631,14 +678,29 @@ async fn provider_step(
                 Outcome::SignedIn {
                     session,
                     device_code,
+                    moved_from,
                 } => {
+                    if let Some(old) = moved_from {
+                        email_moved_notice(services, old);
+                    }
                     if !token.is_empty() {
                         services.store.logout(token).await?;
                     }
                     response.cookie = Some(session);
                     link("/auth", &device_code)
                 }
-                Outcome::Linked => "/auth/settings?saved=1".into(),
+                Outcome::Linked => {
+                    if let Ok(profile) = services.store.browser_profile(token).await
+                        && !profile.email.is_empty()
+                    {
+                        let added = provider_identity_label(
+                            &services.config,
+                            &format!("{} ", configured.issuer),
+                        );
+                        identity_added_notice(services, &profile.email, &added);
+                    }
+                    "/auth/settings?saved=1".into()
+                }
                 Outcome::Proved => "/auth/settings?proved=1".into(),
                 Outcome::LinkByCode(mailed) => {
                     deliver_code(services, origin, mailed);

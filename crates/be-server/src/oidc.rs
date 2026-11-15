@@ -10,8 +10,9 @@ use std::time::{Duration, Instant};
 
 use openidconnect::core::{CoreClient, CoreProviderMetadata, CoreResponseType};
 use openidconnect::{
-    AuthenticationFlow, AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl, Nonce,
-    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope, TokenResponse,
+    AuthenticationFlow, AuthorizationCode, ClaimsVerificationError, ClientId, ClientSecret,
+    CsrfToken, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
+    SignatureVerificationError, TokenResponse,
 };
 use serde::Deserialize;
 
@@ -23,6 +24,13 @@ pub const GOOGLE_ISSUER: &str = "https://accounts.google.com";
 const DISCOVERY_LIFETIME: Duration = Duration::from_secs(3600);
 /// How long a call to a provider may take.
 const PROVIDER_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a provider whose discovery failed is left alone before it is asked again.
+const FAILED_DISCOVERY_HOLD: Duration = Duration::from_secs(30);
+/// How often a token signed by a key the server doesn't hold may make it read the keys again.
+const KEY_REFRESH_INTERVAL: Duration = Duration::from_secs(60);
+/// How long before the callback a link's or a proof's sign-in at the provider may have been:
+/// the begun sign-in's lifetime, and a minute for the clocks.
+const REAUTHENTICATED_WITHIN: i64 = crate::store::providers::PROVIDER_SIGN_IN_LIFETIME + 60;
 
 /// A provider the operator configured.
 #[derive(Clone)]
@@ -170,10 +178,18 @@ pub fn callback_path(provider: &str) -> String {
     format!("/auth/oidc/{provider}/callback")
 }
 
-/// The providers' discovery documents, read when first needed and kept for a while.
+/// The providers' discovery documents, read when first needed and kept for a while. One read
+/// per provider runs at a time, and a failed one holds off the next for a while, so sign-ins
+/// begun by strangers can't make the server call a provider over and over.
 #[derive(Default)]
 pub(crate) struct Discovery {
-    documents: Mutex<HashMap<String, (Instant, Arc<CoreProviderMetadata>)>>,
+    documents: Mutex<HashMap<String, Read>>,
+    reading: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+}
+
+enum Read {
+    Held(Instant, Arc<CoreProviderMetadata>),
+    Failed(Instant),
 }
 
 /// The secrets of one sign-in begun with a provider, kept until its callback.
@@ -204,6 +220,10 @@ fn agent() -> ureq::Agent {
 
 fn failed(provider: &Provider, what: &str, error: impl std::fmt::Display) -> ServerError {
     tracing::warn!(provider = provider.id, "{what}: {error}");
+    could_not(provider)
+}
+
+fn could_not(provider: &Provider) -> ServerError {
     ServerError::Refused(
         be_block_protocol::ErrorCode::InvalidRequest,
         format!(
@@ -213,39 +233,86 @@ fn failed(provider: &Provider, what: &str, error: impl std::fmt::Display) -> Ser
     )
 }
 
+/// Whether a token's signature failed in a way the provider's newer keys might fix.
+fn unknown_key(error: &ClaimsVerificationError) -> bool {
+    matches!(
+        error,
+        ClaimsVerificationError::SignatureVerification(
+            SignatureVerificationError::NoMatchingKey | SignatureVerificationError::CryptoError(_)
+        )
+    )
+}
+
 impl Discovery {
+    /// The provider's discovery document. `refresh` reads it again, for keys the held one
+    /// lacks, unless it was read within `KEY_REFRESH_INTERVAL`.
     async fn document(
         &self,
         provider: &Provider,
-        fresh: bool,
+        refresh: bool,
     ) -> Result<Arc<CoreProviderMetadata>, ServerError> {
-        if !fresh
-            && let Some((read, document)) = self.documents.lock().unwrap().get(&provider.id)
-            && read.elapsed() < DISCOVERY_LIFETIME
-        {
-            return Ok(document.clone());
+        let held = || -> Option<Result<Arc<CoreProviderMetadata>, ServerError>> {
+            match self.documents.lock().unwrap().get(&provider.id)? {
+                Read::Held(read, document) => {
+                    let kept = match refresh {
+                        true => KEY_REFRESH_INTERVAL,
+                        false => DISCOVERY_LIFETIME,
+                    };
+                    (read.elapsed() < kept).then(|| Ok(document.clone()))
+                }
+                Read::Failed(at) => {
+                    (at.elapsed() < FAILED_DISCOVERY_HOLD).then(|| Err(could_not(provider)))
+                }
+            }
+        };
+        if let Some(answer) = held() {
+            return answer;
         }
-        let issuer = IssuerUrl::new(provider.issuer.clone())
-            .map_err(|error| failed(provider, "its issuer", error))?;
-        let document = tokio::task::spawn_blocking(move || {
-            CoreProviderMetadata::discover(&issuer, &agent()).map_err(|error| error.to_string())
-        })
-        .await
-        .map_err(|error| failed(provider, "discovery", error))?
-        .map_err(|error| failed(provider, "discovery", error))?;
-        let document = Arc::new(document);
+        let reading = self
+            .reading
+            .lock()
+            .unwrap()
+            .entry(provider.id.clone())
+            .or_default()
+            .clone();
+        let _reading = reading.lock().await;
+        // Another sign-in may have read it while this one waited.
+        if let Some(answer) = held() {
+            return answer;
+        }
+        let read = async {
+            let issuer = IssuerUrl::new(provider.issuer.clone())
+                .map_err(|error| failed(provider, "its issuer", error))?;
+            tokio::task::spawn_blocking(move || {
+                CoreProviderMetadata::discover(&issuer, &agent()).map_err(|error| error.to_string())
+            })
+            .await
+            .map_err(|error| failed(provider, "discovery", error))?
+            .map_err(|error| failed(provider, "discovery", error))
+        }
+        .await;
+        let (kept, answer) = match read {
+            Ok(document) => {
+                let document = Arc::new(document);
+                (Read::Held(Instant::now(), document.clone()), Ok(document))
+            }
+            Err(error) => (Read::Failed(Instant::now()), Err(error)),
+        };
         self.documents
             .lock()
             .unwrap()
-            .insert(provider.id.clone(), (Instant::now(), document.clone()));
-        Ok(document)
+            .insert(provider.id.clone(), kept);
+        answer
     }
 
     /// Begins a sign-in: the URL to send the browser to, and the secrets its callback needs.
+    /// `reauthenticate` asks the provider to sign the person in again, whatever session it
+    /// holds, for a link or a proof.
     pub(crate) async fn start(
         &self,
         provider: &Provider,
         redirect: &str,
+        reauthenticate: bool,
     ) -> Result<Started, ServerError> {
         let document = self.document(provider, false).await?;
         let client = CoreClient::from_provider_metadata(
@@ -258,7 +325,7 @@ impl Discovery {
                 .map_err(|error| failed(provider, "redirect", error))?,
         );
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
-        let (url, state, nonce) = client
+        let mut request = client
             .authorize_url(
                 AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
                 CsrfToken::new_random,
@@ -266,8 +333,11 @@ impl Discovery {
             )
             .add_scope(Scope::new("email".into()))
             .add_scope(Scope::new("profile".into()))
-            .set_pkce_challenge(challenge)
-            .url();
+            .set_pkce_challenge(challenge);
+        if reauthenticate {
+            request = request.set_max_age(Duration::ZERO);
+        }
+        let (url, state, nonce) = request.url();
         Ok(Started {
             url: url.to_string(),
             state: state.secret().clone(),
@@ -277,6 +347,9 @@ impl Discovery {
     }
 
     /// Exchanges the code the provider sent back for an ID token, and checks it.
+    /// `reauthenticated` requires the token to say the person signed in at the provider just
+    /// now, as `start`'s `reauthenticate` asked.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn finish(
         &self,
         provider: &Provider,
@@ -284,6 +357,7 @@ impl Discovery {
         code: &str,
         verifier: &str,
         nonce: &str,
+        reauthenticated: bool,
     ) -> Result<Verified, ServerError> {
         let document = self.document(provider, false).await?;
         let client = |document: &CoreProviderMetadata| {
@@ -314,14 +388,29 @@ impl Discovery {
         let claims = match token.claims(&client(&document).id_token_verifier(), &nonce) {
             Ok(claims) => claims.clone(),
             // The provider may have rotated its keys since the document was read.
-            Err(_) => {
-                let document = self.document(provider, true).await?;
+            Err(error) if unknown_key(&error) => {
+                let refreshed = self.document(provider, true).await?;
+                if Arc::ptr_eq(&refreshed, &document) {
+                    return Err(failed(provider, "the ID token", error));
+                }
                 token
-                    .claims(&client(&document).id_token_verifier(), &nonce)
+                    .claims(&client(&refreshed).id_token_verifier(), &nonce)
                     .map_err(|error| failed(provider, "the ID token", error))?
                     .clone()
             }
+            Err(error) => return Err(failed(provider, "the ID token", error)),
         };
+        if reauthenticated {
+            let signed_in = claims.auth_time().map(|time| time.timestamp());
+            let since = crate::store::portal::now() - REAUTHENTICATED_WITHIN;
+            if !signed_in.is_some_and(|time| time >= since) {
+                return Err(failed(
+                    provider,
+                    "the ID token",
+                    "it shows no sign-in just now, which a link or a proof needs",
+                ));
+            }
+        }
         let email = match (provider.authoritative_email, claims.email_verified()) {
             (true, Some(true)) => claims
                 .email()

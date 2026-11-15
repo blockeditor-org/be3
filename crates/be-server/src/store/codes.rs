@@ -116,6 +116,10 @@ pub struct EnteredCode {
     /// A new browser session, for every purpose but a proof.
     pub session: Option<String>,
     pub device_code: String,
+    /// The address the code was sent to.
+    pub email: String,
+    /// For a link, the provider identity it added, which the address is told of.
+    pub linked: Option<String>,
 }
 
 /// An identity an account signs in with.
@@ -530,7 +534,8 @@ impl ServerStore {
                 if purpose == CodePurpose::Recover {
                     store.sessions_changed();
                 }
-                Ok((EnteredCode { purpose, account, session, device_code }, email))
+                let linked = (purpose == CodePurpose::Link).then_some(identity);
+                Ok((EnteredCode { purpose, account, session, device_code, email: email.clone(), linked }, email))
             })
             .await;
         let (entered, email) = entered_code?;
@@ -645,6 +650,17 @@ impl ServerStore {
                 ));
             }
             transaction.execute("DELETE FROM identities WHERE id = ?1", [&id])?;
+            // An email it no longer signs in with is no longer its email, nor its providers'.
+            if identity.kind == "email" {
+                transaction.execute(
+                    "UPDATE accounts SET email = NULL WHERE id = ?1 AND email = ?2",
+                    params![account.to_string(), identity.subject],
+                )?;
+                transaction.execute(
+                    "UPDATE identities SET email = '' WHERE account_id = ?1 AND kind = 'oidc' AND email = ?2",
+                    params![account.to_string(), identity.subject],
+                )?;
+            }
             transaction.commit()?;
             Ok(identity)
         })
