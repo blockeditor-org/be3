@@ -1,5 +1,5 @@
 use super::*;
-use crate::dock::{DockPane, DockTab, DockingLayout, TabId};
+use crate::dock::{DockPane, DockTab, DockingLayout};
 use crate::dock_host::styled::DockTabKeys;
 use crate::dock_host::unstyled::DockApi;
 use crate::reactive::*;
@@ -16,7 +16,11 @@ fn the_dock_hands_its_tab_keys_to_a_host_to_take_over_an_embedded_view() {
                 <dock::Docking layout>
                     <DockPane id="tabs">
                         <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
-                            <DockTab id title={format!("Tab {id}")} />
+                            <DockTab
+                                id
+                                title={format!("Tab {id}")}
+                                content={|| view! { <Frame /> }}
+                            />
                         </ForEach>
                     </DockPane>
                 </dock::Docking>

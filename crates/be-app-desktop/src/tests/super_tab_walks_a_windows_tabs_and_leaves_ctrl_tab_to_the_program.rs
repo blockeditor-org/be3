@@ -28,9 +28,10 @@ fn super_tab_walks_a_windows_tabs_and_leaves_ctrl_tab_to_the_program() {
     let mut fixture = Fixture::with_windows(&[1, 2]);
     let first = tab_rect(&fixture, "todo-1.txt");
     let second = tab_rect(&fixture, "todo-2.txt");
-    fixture
-        .test
-        .drag(second.center(), Pos2::new(first.max.x + 60.0, first.center().y));
+    fixture.test.drag(
+        second.center(),
+        Pos2::new(first.max.x + 60.0, first.center().y),
+    );
     fixture.settle();
 
     let intercepted = fixture.test.intercepted_keys();
