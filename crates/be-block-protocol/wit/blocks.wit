@@ -237,7 +237,14 @@ interface blocks {
         /// key is sealed only to the author and never escrowed, which no one
         /// else may open, move or grant, administrators included.
         owner-only: bool,
+        /// The root of the block's access log (`be_block_keys::Entry::root`),
+        /// signed by the caller with its current keys (plans/signed_access.md).
+        root: list<u8>,
     ) -> result<block-summary, error>;
+
+    /// The block's access log, root first, each entry as
+    /// `be_block_keys::Entry::encode` wrote it.
+    get-access-log: async func(block: block-id) -> result<list<list<u8>>, error>;
 
     set-metadata: async func(block: block-id, metadata: list<u8>, references: list<block-id>) -> result<block-summary, error>;
 

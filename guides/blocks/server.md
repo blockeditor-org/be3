@@ -395,6 +395,12 @@ exactly its parent's access and takes no grants (guides/blocks/host.md, "Search"
 - `SetAccess` needs `Manage`, and a grant above `None` must name a member who
   is a contact of the granter (guides/blocks/keys.md). Anyone may revoke their
   own grant. `ListAccess` never lists the rest of the membership.
+- Each block has an access log (plans/signed_access.md; table `access_log`,
+  `be-server/src/access.rs`), served to its viewers by `get-access-log`. So far
+  it holds the root: `CreateBlock` carries it, and the server takes it only
+  signed by the caller with the keys `recovery_keys` holds for it now, so a
+  good server and a device never disagree (guides/blocks/keys.md, "Access
+  logs").
 
 No check maps the whole graph. `BlockGraph` indexes children by parent and
 blocks by the accounts that authored or were granted them; `inherited` walks

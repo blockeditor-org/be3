@@ -15,6 +15,12 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   derived from key and plaintext, then ChaCha20Poly1305 ciphertext. This covers
   chunks, commits, manifests, metadata, session traffic and wrapped keys. An
   unknown id is `StoreError::MissingKey`.
+- **Keys travel with their block and root**: what is sealed or wrapped is
+  `be_block_keys::CarriedKey`, the key, the block it is a key of and the hash
+  of that block's access log root, so whoever opens it knows which block it is
+  for whatever the server's row says (`KeyBook::opened` drops a key whose
+  block differs) and pins the root (below). An escrow key travels bare: its
+  own signed chain pins it.
 - **Data keys (DEKs)**: one per block, made at creation (`CreateBlock` carries
   it; `BlockSummary::key` is the current one). A block keeps every epoch, so its
   history stays readable.
@@ -67,6 +73,24 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   fresh DEK and rewraps scope roots inside, all in one `SetParent`. A move
   within a scope or to Recently Deleted changes no keys. `Peer::share` grants
   and makes the block a scope root sealed to the grantee's verified key.
+
+### Access logs
+
+Who may do what is moving from server rows to records members sign
+(plans/signed_access.md, decisions/the_server_never_vouches_for_an_identity.md).
+Each block has a log of `be_block_keys::Entry`s, each signed with the
+signer's account signing key in a domain of its own (`be3.access.v1`) and
+naming the hash of the entry before it. The first is the root: the block's
+creator and their keys, made by `Peer::creation` (and `import`) and sent with
+`CreateBlock`, also through the outbox. A device takes a root's hash only from
+somewhere the server cannot write: making the block (`KeyBook::pin_root`,
+before its keys are made, which carry it) or a trusted key of the block
+(`KeyBook::opened`). Keys of one block that carry different roots leave it
+with none (`Roots::conflicting`). `Peer::access_log` refuses a log whose root
+is not the pinned one (`ClientError::Forged`). A key opened only through
+escrow or the server's seal pins nothing: its root is only carried on into
+keys an administrator makes for that block (`Roots::escrowed`), since anyone
+who knows the escrow's public key can seal to it.
 
 ### Rotation
 

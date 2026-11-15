@@ -143,6 +143,7 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             blocks::Call::SetAccess { block: of, .. } => block(*of, Access::KnowExists),
             blocks::Call::ReadContents { blocks, .. } => Rule::Blocks(blocks.clone(), Access::View),
             blocks::Call::ListHistory { block: of, .. }
+            | blocks::Call::GetAccessLog { block: of, .. }
             | blocks::Call::ChangedSince { root: of, .. } => block(*of, Access::View),
             blocks::Call::ListAccess { block: of, .. } => block(*of, Access::Manage),
             // Reading a block is listing it (`Connection::list`): the listing is registered
@@ -273,6 +274,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | blocks::Call::ListBlocks { .. }
             | blocks::Call::Unlist { .. }
             | blocks::Call::ListHistory { .. }
+            | blocks::Call::GetAccessLog { .. }
             | blocks::Call::ChangedSince { .. }
             | blocks::Call::Changes { .. } => true,
             blocks::Call::SetAccess { .. }
@@ -1570,6 +1572,7 @@ impl Client {
                 key,
                 keys,
                 owner_only,
+                root,
             } => {
                 let created = async {
                     prelude?;
@@ -1586,6 +1589,7 @@ impl Client {
                             key,
                             keys,
                             owner_only,
+                            root,
                         )
                         .await?;
                     let mut announced = vec![block.id];
@@ -1596,6 +1600,15 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, created);
+            }
+            Call::GetAccessLog { reply, block } => {
+                let log = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.store.access_log(identity, block).await
+                }
+                .await;
+                self.reply(reply, log);
             }
             Call::SetMetadata {
                 reply,

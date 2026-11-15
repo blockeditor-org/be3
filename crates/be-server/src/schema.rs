@@ -189,6 +189,18 @@ const SCHEMA: &str = "
         PRIMARY KEY (organization_id, id)
     );
 
+    -- Each block's access log (plans/signed_access.md), in order: entries as
+    -- be_block_keys::Entry::encode wrote them, each checked as devices check it.
+    CREATE TABLE access_log (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        position        INTEGER NOT NULL,
+        entry           BLOB NOT NULL,
+        PRIMARY KEY (organization_id, block_id, position),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);
 

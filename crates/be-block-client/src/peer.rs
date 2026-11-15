@@ -1191,6 +1191,7 @@ impl<S: ObjectStore> Peer<S> {
             creation.key,
             creation.keys.clone(),
             owner_only,
+            creation.root.clone(),
         ))
         .await;
         let response = match response {
@@ -1227,6 +1228,7 @@ impl<S: ObjectStore> Peer<S> {
         metadata: &BlockMetadata,
         owner_only: bool,
     ) -> Result<Creation, ClientError> {
+        let root = self.new_root(block);
         let (key, keys) = self.new_keys(block, parent, owner_only).await?;
         let references = bounded(deduplicated(self.resolve(block, metadata.references())))?;
         let metadata = self.commits.vault().seal(key, &metadata.encode())?;
@@ -1239,7 +1241,38 @@ impl<S: ObjectStore> Peer<S> {
             key,
             keys,
             owner_only,
+            root,
         })
+    }
+
+    /// The root of a new block's access log, signed by this account and pinned here before the
+    /// block's keys are made, which carry it.
+    pub(crate) fn new_root(&self, block: Uuid) -> Vec<u8> {
+        let root = be_block_keys::Entry::root(
+            self.keys.identity(),
+            self.keys.account().into_bytes(),
+            block.into_bytes(),
+        );
+        self.keys.pin_root(block, root.hash());
+        root.encode()
+    }
+
+    /// The block's access log, root first, once its root checks against the one this device
+    /// pinned (`KeyBook::root`): from making the block, or carried by a trusted key of it. A log
+    /// rooted anywhere else is the server's, and refused (`ClientError::Forged`).
+    pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+        let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
+        let pinned = self.keys.root(block).ok_or(ClientError::Locked(block))?;
+        let entries = served
+            .iter()
+            .map(|entry| be_block_keys::Entry::decode(entry))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ClientError::Forged(block))?;
+        let root = entries.first().ok_or(ClientError::Forged(block))?;
+        if root.hash() != pinned || root.checked_root(block.into_bytes()).is_err() {
+            return Err(ClientError::Forged(block));
+        }
+        Ok(entries)
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -2472,14 +2505,14 @@ impl<S: ObjectStore> Peer<S> {
             .ok_or(ClientError::Locked(block))?;
         let secret = self
             .keys
-            .trusted_plain(key)
+            .carried_plain(key)
             .map_err(|_| ClientError::Locked(block))?;
         Ok(crate::GrantOffer {
             organization: self.organization,
             block,
             access,
             key,
-            secret: *secret.as_bytes(),
+            secret,
         })
     }
 

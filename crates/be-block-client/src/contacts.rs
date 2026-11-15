@@ -33,7 +33,8 @@ pub struct GrantOffer {
     pub block: Uuid,
     pub access: Access,
     pub key: Uuid,
-    pub secret: [u8; 32],
+    /// The scope key as it travels (`be_block_keys::CarriedKey`), with the block and its root.
+    pub secret: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]

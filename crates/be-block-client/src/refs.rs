@@ -233,6 +233,9 @@ pub struct Creation {
     pub key: Uuid,
     pub keys: KeySet,
     pub owner_only: bool,
+    /// The root of the block's access log, made with it (`be_block_keys::Entry::root`).
+    #[serde(with = "serde_bytes")]
+    pub root: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
