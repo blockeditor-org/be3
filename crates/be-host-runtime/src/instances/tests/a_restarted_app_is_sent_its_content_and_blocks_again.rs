@@ -14,7 +14,7 @@ enum Sent {
 
 fn sent(instances: &mut Instances, block: Uuid, watch: OpId) -> Vec<Sent> {
     next_screens(instances);
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("held the block with nothing busy", |shared| {
         (shared.blocks.contains_key(&block) && shared.busy(true).is_empty()).then_some(())
     });
     next_screens(instances);

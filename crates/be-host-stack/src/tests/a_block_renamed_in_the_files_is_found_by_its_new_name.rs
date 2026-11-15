@@ -12,7 +12,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -55,7 +55,7 @@ fn a_block_renamed_in_the_files_is_found_by_its_new_name() {
     flush();
     // The files list the workspace's children, as the files pane shows the note to rename.
     want(Owner::Host, vec![Query::Children(workspace)]);
-    crate::wait_until(|shared| shared.graph.get(note).map(|_| ()));
+    crate::wait_until("listed the note", |shared| shared.graph.get(note).map(|_| ()));
     finds("Pantry", &[note]);
 
     // Renamed in the files, never opened, and without reconnecting: found by its new name.

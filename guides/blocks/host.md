@@ -70,9 +70,9 @@ wakes. The tasks beside the loop run only while it waits, so a pass whose wait w
 over before it began yields once; a wait that fails reports how many such
 passes came in a row.
 
-Tests wait on the stack with `be_host_stack::wait_until`, which fails at the
-caller after `WAIT_LIMIT` without the stack saying anything (or `WAIT_CAP` in
-all) instead of waiting forever: tests share one stack in turn, so one endless
+Tests wait on the stack with `be_host_stack::wait_until(what, read)`, which
+fails at the caller, naming `what` ("opened the note"), after `WAIT_LIMIT`
+without the stack saying anything (or `WAIT_CAP` in all) instead of waiting forever: tests share one stack in turn, so one endless
 wait would hang the whole target. A busy machine slows the stack without
 silencing it, so the limit counts silence, not time. A stack on a driven
 clock (`Clock::driven`, which be-host-testing's harness uses) also has its

@@ -223,7 +223,7 @@ fn saved_counter() -> (Uuid, [u8; 32]) {
     );
     be_host_stack::flush_and_send();
     let head =
-        be_host_stack::wait_until(|shared| shared.graph.get(block).and_then(|node| node.head));
+        be_host_stack::wait_until("saved the block", |shared| shared.graph.get(block).and_then(|node| node.head));
     (block, *head.hash().as_bytes())
 }
 
@@ -259,7 +259,7 @@ fn preview_revision(
 /// The previews the stack opened of `block`, each with whether it was let go (1) or not (0):
 /// the stack records only a preview's first release.
 fn previews_of(block: Uuid) -> Vec<(Uuid, usize)> {
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("read the previews", |shared| {
         Some(
             shared
                 .revision_previews
@@ -393,7 +393,7 @@ fn replica_sent_until(
         if done(&sent) {
             return sent;
         }
-        be_host_stack::wait_until(|shared| {
+        be_host_stack::wait_until("another frame for the editor", |shared| {
             shared.editor_frames.contains_key(&INSTANCE.0).then_some(())
         });
     }

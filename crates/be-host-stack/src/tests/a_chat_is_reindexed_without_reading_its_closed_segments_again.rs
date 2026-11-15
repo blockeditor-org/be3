@@ -12,7 +12,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
         within: None,
     };
     want_searches(Owner::Host, vec![ask.clone()]);
-    crate::wait_until(|shared| {
+    crate::wait_until(&format!("found {text:?} in what it should"), |shared| {
         let answer = shared.search.answer(&ask)?;
         let found: Vec<Uuid> = answer.hits.iter().map(|hit| hit.block).collect();
         (answer.complete && found == blocks).then_some(())
@@ -20,7 +20,7 @@ fn finds(text: &str, blocks: &[Uuid]) {
 }
 
 fn parts_read() -> u64 {
-    crate::wait_until(|shared| Some(shared.search.parts_read))
+    crate::wait_until("read how many parts search read", |shared| Some(shared.search.parts_read))
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
     // meanwhile and finishes what it was writing: a batch of its own between the two writes
     // would put the segment's text back, or seal over one of them.
     crate::with_shared_mut(|shared| shared.search.off = true);
-    crate::wait_until(|shared| {
+    crate::wait_until("finished writing the search index", |shared| {
         shared
             .search
             .busy_with(crate::search::wants_index(shared))
@@ -158,7 +158,7 @@ fn a_chat_is_reindexed_without_reading_its_closed_segments_again() {
             .iter()
             .filter_map(|doc| Uuid::from_slice(&doc.block).ok()),
     );
-    crate::wait_until(|shared| (shared.search.parts_read > read).then_some(()));
+    crate::wait_until("read another part for search", |shared| (shared.search.parts_read > read).then_some(()));
     // In the race the chat's head is newer than the removal; here the removal was stamped
     // after the head, so the chat moves on once more and its segment is back.
     let (_, send) = editor

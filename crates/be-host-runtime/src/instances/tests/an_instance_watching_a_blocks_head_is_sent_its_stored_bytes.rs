@@ -8,7 +8,7 @@ use be_sdk_api::{
 use be_type_example_counter::{Counter, CounterContent};
 
 fn saved_head(block: Uuid, after: Option<be_block_commit::CommitId>) -> be_block_commit::CommitId {
-    be_host_stack::wait_until(|shared| {
+    be_host_stack::wait_until("saved a new head", |shared| {
         shared
             .graph
             .get(block)
