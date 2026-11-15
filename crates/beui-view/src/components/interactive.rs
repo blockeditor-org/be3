@@ -80,7 +80,7 @@ pub fn Interactive(
     children: Option<Child>,
 ) -> NodeId {
     let (on_press, on_drag, on_key, children) = match drag {
-        Some(drag) => carrying(drag, on_press, on_drag, on_key, children),
+        Some(drag) => carrying(drag, focusable, on_press, on_drag, on_key, children),
         None => (on_press, on_drag, on_key, children),
     };
     crate::core::interactive(
@@ -146,10 +146,14 @@ type Preview = std::rc::Rc<dyn Fn() -> NodeId>;
 /// lifts it onto the tree's drag driver; once lifted, the driver follows the pointer and the
 /// press hears no more drags. While the carry floats, the children are drawn where the item
 /// floats, raised above their siblings (a scroll around them still clips them), unless the
-/// carry gives a `preview`, which floats in a layer of its own instead. If this node goes
+/// carry gives a `preview`, which floats in a layer of its own instead, pinned by its top left
+/// corner and in this node's window (a carry crossing windows waits for the frame to name
+/// one, plans/declarative_dragging.md step 6). Only a focusable source hears the carry keys
+/// (`carry_keys`). If this node goes
 /// while its carry is held, the carry is put down, dropping nothing.
 fn carrying(
     drag: Func<PointerPress, Option<crate::drag::Carry>>,
+    focusable: bool,
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     on_key: Callback<KeyPress, bool>,
@@ -246,7 +250,6 @@ fn carrying(
     let anchor = create_memo(move || {
         crate::reactive::OverlayAnchor::Point(frame.get().map_or(Pos2::ZERO, |frame| frame.item.min))
     });
-    let window = create_memo(move || origin_window(&origin));
     let open = create_memo(move || floating.get() && previewed.get());
     // What this node's carry last said, for a screen reader.
     let said = create_memo(move || {
@@ -269,11 +272,10 @@ fn carrying(
                 <Frame translate={offset} children={children} />
                 <Overlay
                     anchor={anchor}
-                    placement=Placement::BelowStart
+                    placement=Placement::At
                     policy=LayerPolicy::Inert
                     level=LayerLevel::Top
                     traps_focus=false
-                    shown_in={window}
                     open={open}
                 >
                     || {
@@ -289,15 +291,16 @@ fn carrying(
     };
     let laid_out = crate::measure::measure(wrapped);
     measured.set(Some(laid_out));
-    let keyed = Callback::new(move |press: KeyPress| {
-        carry_keys(press, drag, mine, laid_out, &keyboard_lift) || on_key.call(press)
-    });
+    // Only a source that takes focus hears keys.
+    let keyed = match focusable {
+        true => Callback::new(move |press: KeyPress| {
+            carry_keys(press, drag, mine, laid_out, &keyboard_lift) || on_key.call(press)
+        }),
+        false => on_key,
+    };
     (pressed, dragged, keyed, Some(wrapped.into()))
 }
 
-fn origin_window(origin: &std::rc::Rc<std::cell::Cell<Option<PointerPress>>>) -> Option<crate::types::WindowId> {
-    origin.get().map(|press| press.window)
-}
 
 /// Keys on a source given `drag`, while it has focus: Space lifts its carry with the keyboard,
 /// and while the keyboard holds it the arrows step it between the places it can land, Space
