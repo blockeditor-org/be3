@@ -65,7 +65,10 @@ under the checkout), resolve, undo, fork, pull and push. It answers a
 `block-watch` of the `version` subject with each shown repository's and checkout's `version-status`,
 recomputed when the mirror changes, and holds followed checkouts' trees in the
 mirror (`Query::Subtree` under `Owner::Version`), re-listing before each
-operation so every head is current.
+operation so every head is current. The statuses, computed in the worker's
+loop, and the commands, run in its lane (guides/blocks/host.md), share one
+cache of the trees and commits either read or wrote (`version::Objects`), so
+neither reads again what the other holds.
 
 A checkout replaces content someone has open through the replica's reconcile
 on `head-moved` (a head another connection published, which `changes` tells as
