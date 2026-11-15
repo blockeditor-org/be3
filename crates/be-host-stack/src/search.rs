@@ -75,7 +75,9 @@ const TEXTS: usize = 256;
 
 /// A search an owner shows: words, `"quoted phrases"`, the last word a prefix
 /// (`be_lib_search::Query::parse`), within a block's tree or everything the account views.
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, serde::Deserialize, serde::Serialize,
+)]
 pub struct SearchAsk {
     pub text: String,
     pub within: Option<Uuid>,

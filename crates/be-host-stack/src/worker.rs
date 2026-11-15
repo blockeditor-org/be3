@@ -2128,7 +2128,10 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
         held.unsent = crate::Part::new(
-            peer.unsent().iter().map(crate::seen::Unsent::from).collect(),
+            peer.unsent()
+                .iter()
+                .map(crate::seen::Unsent::from)
+                .collect(),
         );
         changed = true;
     }
@@ -3318,8 +3321,11 @@ async fn apply(
                 }
             }
             held.unsent = crate::Part::new(
-            peer.unsent().iter().map(crate::seen::Unsent::from).collect(),
-        );
+                peer.unsent()
+                    .iter()
+                    .map(crate::seen::Unsent::from)
+                    .collect(),
+            );
             crate::changes::stale();
             held.progressed += 1;
             drop(held);

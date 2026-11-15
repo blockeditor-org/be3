@@ -72,5 +72,11 @@ a thread that runs beside it.
    then applies the messages once, at the start of a frame (be-host's frame and each app
    runtime's), rather than taking the newest `Seen` on every read as it does now, so every
    read in a frame reads one snapshot.
+   `Seen` holds three stand-ins for what it carries of the worker's, kept apart only while
+   another change (#686) rewrites the files they come from: `Owed` for be-block-type-host
+   `replicas.rs`'s `Owing`, `Unsent` for be-block-client `refs.rs`'s `UnsentBlock`, and
+   `Words` for the `&'static str` reasons and steps the worker writes. They are temporary:
+   once #686 lands, give `Owing` and `UnsentBlock` serde and use them in `Seen`, and make each
+   reason an owned string or an enum where it is made, so each concept has one type.
 2. Drop `be_wasm_threads::Mutex` for `std::sync::Mutex` across crates/, and the page's spin in
    `web/wasi.js`.
