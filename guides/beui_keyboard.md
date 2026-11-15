@@ -196,7 +196,9 @@ focus and each action's label, enabled and checked state), and runs one asked
 for by id (`Context::request_action_in`) whether or not a driver is attached. It, `styled::SearchList` (inline, no overlay) and
 `Select` are stylings of `unstyled::SearchList`. A menu is described once as
 `MenuNode`s; `<MenuNodes nodes />` renders it, and `add_to_menu` adds to the
-document's own `document_menu()`, which an editor frame hands its host.
+enclosing `menu_scope()`, which an editor frame opens around its editor's view and
+hands its host. A scope, not the document: one document holds every editor an app
+shows, and each frame offers only its own editor's commands.
 
 ## One input path
 

@@ -96,6 +96,9 @@ pub(crate) fn FrameChrome(
     let content_slot_writer = chrome.content.clone();
     let phone = create_memo(move || bar.get().on_phone);
     provide_context(PhoneLayout(phone));
+    // The editor's own commands: only what its view adds, not another editor's in the same
+    // document.
+    let items = menu_scope();
     let anchor = editor.frame_anchor();
     beui::unstyled::provide_frame_anchor(create_memo(move || anchor.get()));
     let placed = editor.placed_content();
@@ -164,6 +167,7 @@ pub(crate) fn FrameChrome(
                     editor
                     bar={bar.read_only()}
                     palette={opener}
+                    items
                     published
                     listed
                     notices
@@ -464,6 +468,7 @@ pub(crate) fn FrameMenu(
     editor: Editor,
     bar: ReadSignal<FrameBar>,
     palette: Action,
+    items: Memo<Vec<MenuNode>>,
     published: Rc<RefCell<Vec<MenuNode>>>,
     listed: Signal<Vec<MenuNode>>,
     notices: Signal<Vec<Toast>>,
@@ -518,7 +523,6 @@ pub(crate) fn FrameMenu(
             state.set(watched.with(Watched::read));
         }
     });
-    let items = document_menu();
     let FrameActions {
         undo,
         redo,
