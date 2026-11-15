@@ -6130,6 +6130,12 @@ third_party = {
         },
         "name": "calendrical_calculations",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":core_maths-0.1.1",
+                    ":displaydoc-0.2.6",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":core_maths-0.1.1",
@@ -9468,6 +9474,11 @@ third_party = {
         },
         "name": "core_maths",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":libm-0.2.16",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":libm-0.2.16",
@@ -14816,6 +14827,7 @@ third_party = {
         },
         "name": "diplomat-runtime",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -25720,6 +25732,21 @@ third_party = {
         },
         "name": "icu_calendar",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":displaydoc-0.2.6",
+                    ":icu_calendar_data-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":calendrical_calculations-0.2.4",
@@ -25838,6 +25865,7 @@ third_party = {
         },
         "name": "icu_calendar_data",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -26013,6 +26041,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "zerovec",
                 ],
             },
@@ -26167,6 +26196,19 @@ third_party = {
         },
         "name": "icu_locale_fallback",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":icu_locale_core-2.4.0",
+                    ":icu_locale_fallback_data-2.4.0",
+                    ":icu_provider-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":tinystr-0.8.5",
+                    ":zerovec-0.11.9",
+                ],
+                "features": [
+                    "compiled_data",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":icu_locale_core-2.4.0",
@@ -26273,6 +26315,7 @@ third_party = {
         },
         "name": "icu_locale_fallback_data",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -26694,6 +26737,7 @@ third_party = {
                 "deps": [
                     ":displaydoc-0.2.6",
                     ":icu_locale_core-2.4.0",
+                    ":stable_deref_trait-1.2.1",
                     ":writeable-0.6.4",
                     ":yoke-0.8.4",
                     ":zerofrom-0.1.8",
@@ -26701,6 +26745,7 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
                     "baked",
                 ],
             },
@@ -29442,6 +29487,12 @@ third_party = {
         },
         "name": "ixdtf",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                    "duration",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "default",
@@ -31723,7 +31774,11 @@ third_party = {
         },
         "name": "litemap",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "alloc",
@@ -42070,9 +42125,12 @@ third_party = {
         "platforms": {
             "android-arm64": {
                 "deps": [
+                    ":writeable-0.6.4",
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "writeable",
                     "zerovec",
                 ],
             },
@@ -46711,6 +46769,12 @@ third_party = {
         },
         "name": "resb",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":potential_utf-0.1.5",
+                    ":serde_core-1.0.228",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":potential_utf-0.1.5",
@@ -56319,7 +56383,11 @@ third_party = {
         },
         "name": "stable_deref_trait",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "alloc",
@@ -57834,6 +57902,22 @@ third_party = {
         },
         "name": "temporal_capi",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":diplomat-0.16.1",
+                    ":diplomat-runtime-0.16.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":num-traits-0.2.19",
+                    ":temporal_rs-0.2.6",
+                    ":timezone_provider-0.2.6",
+                    ":writeable-0.6.4",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":diplomat-0.16.1",
@@ -57954,6 +58038,19 @@ third_party = {
         },
         "name": "temporal_rs",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":core_maths-0.1.1",
+                    ":icu_calendar-2.4.0",
+                    ":icu_locale_core-2.4.0",
+                    ":ixdtf-0.6.7",
+                    ":num-traits-0.2.19",
+                    ":timezone_provider-0.2.6",
+                    ":tinystr-0.8.5",
+                    ":writeable-0.6.4",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":calendrical_calculations-0.2.4",
@@ -58891,6 +58988,17 @@ third_party = {
         },
         "name": "timezone_provider",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":tinystr-0.8.5",
+                    ":zerotrie-0.2.5",
+                    ":zerovec-0.11.9",
+                    ":zoneinfo64-0.3.0",
+                ],
+                "features": [
+                    "zoneinfo64",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":tinystr-0.8.5",
@@ -59229,6 +59337,8 @@ third_party = {
                     ":zerovec-0.11.9",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "zerovec",
                 ],
             },
@@ -64849,6 +64959,17 @@ third_party = {
         },
         "name": "v8",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":paste-1.0.15",
+                    ":temporal_capi-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "use_custom_libcxx",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
@@ -74734,7 +74855,12 @@ third_party = {
         },
         "name": "writeable",
         "platforms": {
-            "android-arm64": {},
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "alloc",
@@ -76143,6 +76269,7 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "zerofrom",
                 ],
@@ -76776,6 +76903,7 @@ third_party = {
                     ":zerofrom-derive-0.1.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                 ],
             },
@@ -77090,6 +77218,8 @@ third_party = {
                     ":zerofrom-0.1.8",
                 ],
                 "features": [
+                    "alloc",
+                    "default",
                     "yoke",
                     "zerofrom",
                 ],
@@ -77247,6 +77377,7 @@ third_party = {
                     ":zerovec-derive-0.11.7",
                 ],
                 "features": [
+                    "alloc",
                     "derive",
                     "yoke",
                 ],
@@ -77671,6 +77802,15 @@ third_party = {
         },
         "name": "zoneinfo64",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":calendrical_calculations-0.2.4",
+                    ":icu_locale_core-2.4.0",
+                    ":potential_utf-0.1.5",
+                    ":resb-0.1.2",
+                    ":serde-1.0.228",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":calendrical_calculations-0.2.4",
