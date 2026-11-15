@@ -1910,24 +1910,7 @@ impl<H: Host> Replicas<H> {
             if !std::mem::take(&mut open.edits_changed) {
                 continue;
             }
-            let edits = open
-                .replay
-                .iter()
-                .filter_map(|replayed| match replayed {
-                    Replayed::Message {
-                        from: Endpoint::Editor(editor),
-                        bytes,
-                        ..
-                    } => Some((*editor, bytes.clone())),
-                    _ => None,
-                })
-                .collect();
-            let kept = be_block_client::OpenEdits {
-                origin: open.origin,
-                given_up: open.given_up,
-                submitted_through: open.submitted_through,
-                edits,
-            };
+            let kept = kept_edits(open);
             // Kept at the next pass: this one could not seal them (no key yet) or write.
             if peer.keep_open_edits(open.block, kept).await.is_err() {
                 open.edits_changed = true;
@@ -1935,15 +1918,20 @@ impl<H: Host> Replicas<H> {
         }
     }
 
-    /// Whether a replica in a live session waits for the server to order edits it submitted: a
-    /// seal now would leave them out.
+    /// Whether a replica in a live session waits for the server to order edits it submitted, or
+    /// one rejoining its session has local edits to submit once it has: a seal now would leave
+    /// them out.
     pub fn ordering(&self) -> bool {
         self.open.values().any(|open| {
-            !open.made_up
-                && !open.joining
-                && !open.status.journaled
-                && !open.status.incompatible
-                && !open.status.diverged
+            let edits_to_give = open.joining
+                && open.rejoining.is_some()
+                && open.replay.iter().any(Replayed::local_edit);
+            edits_to_give
+                || (!open.made_up
+                    && !open.joining
+                    && !open.status.journaled
+                    && !open.status.incompatible
+                    && !open.status.diverged)
         })
     }
 
@@ -3299,7 +3287,7 @@ impl<H: Host> Replicas<H> {
         let Some(replica) = self.handles.remove(&(module, op)) else {
             return false;
         };
-        let Some(open) = self.open.remove(&replica) else {
+        let Some(mut open) = self.open.remove(&replica) else {
             return false;
         };
         // What opens after it holds the local edits the order holds, as a reopen counts them
@@ -3311,6 +3299,9 @@ impl<H: Host> Replicas<H> {
             (open.sent, held),
             &open.replay,
         );
+        // Kept on the device only as far as nothing holds them: none, once it ended clean.
+        open.reported_clean(held);
+        let _ = peer.keep_open_edits(open.block, kept_edits(&open)).await;
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
@@ -4114,6 +4105,28 @@ async fn started_from_mirror<S: be_block_store::ObjectStore>(
     let mut sealed = peer.sealed_journal(block)?;
     sealed.entries.clear();
     Some(sealed)
+}
+
+/// What the device keeps of `open`'s local edits no journal holds yet (`refs::OpenEdits`).
+fn kept_edits(open: &Open) -> be_block_client::OpenEdits {
+    let edits = open
+        .replay
+        .iter()
+        .filter_map(|replayed| match replayed {
+            Replayed::Message {
+                from: Endpoint::Editor(editor),
+                bytes,
+                ..
+            } => Some((*editor, bytes.clone())),
+            _ => None,
+        })
+        .collect();
+    be_block_client::OpenEdits {
+        origin: open.origin,
+        given_up: open.given_up,
+        submitted_through: open.submitted_through,
+        edits,
+    }
 }
 
 /// Opens the server's journal as joining answered it, keeping it sealed too.
