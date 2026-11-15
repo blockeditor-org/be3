@@ -2910,13 +2910,15 @@ async fn list_invitations(
     .await?;
     let base = crate::accounts::link_base(&config.server_url);
     let identity = peer.keys().identity();
-    Ok(rows
+    let mut own = Vec::new();
+    let listed = rows
         .into_iter()
         .map(|row| crate::Invite {
             link: be_block_client::contacts::invitation_link_code(identity, &row.code).map(
                 |code| {
-                    crate::own_invitation(&config.server_url, peer.account(), &code);
-                    crate::invite_link::link(&base, &code)
+                    let link = crate::invite_link::link(&base, &code);
+                    own.push(code);
+                    link
                 },
             ),
             id: row.id,
@@ -2928,7 +2930,9 @@ async fn list_invitations(
             opened: row.opened,
             ended: row.ended,
         })
-        .collect())
+        .collect();
+    crate::own_invitations(&config.server_url, peer.account(), own);
+    Ok(listed)
 }
 
 async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientError> {
@@ -2950,7 +2954,7 @@ async fn invite(peer: &Peer<Store>, config: &Config) -> Result<String, ClientErr
         },
     )
     .await?;
-    crate::own_invitation(&config.server_url, peer.account(), &code);
+    crate::own_invitations(&config.server_url, peer.account(), vec![code.clone()]);
     Ok(crate::invite_link::link(
         &crate::accounts::link_base(&config.server_url),
         &code,
