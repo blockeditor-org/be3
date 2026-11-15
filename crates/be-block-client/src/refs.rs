@@ -363,7 +363,6 @@ struct JournalHead {
     order: be_block_session::Sequencer,
 }
 
-#[derive(Clone, Debug)]
 /// An open block's local edits no journal holds yet, as the host gave them its replica: kept so
 /// a replica opened after the host stopped is given them again, as one opened again in the same
 /// run is (guides/blocks/host.md, "Opening again").
@@ -379,6 +378,7 @@ pub struct OpenEdits {
     pub edits: Vec<(u64, Vec<u8>)>,
 }
 
+#[derive(Clone, Debug)]
 struct Journaled {
     head: JournalHead,
     entries: BTreeMap<u64, JournalEntry>,

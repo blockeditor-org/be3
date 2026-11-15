@@ -487,7 +487,6 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
                     client: index as ClientId + 1,
                     origin: 0,
                     taken_before: 0,
-                    doubtful_through: 0,
                     may_edit: true,
                     module: None,
                     executor: None,
