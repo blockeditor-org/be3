@@ -38,3 +38,6 @@ bases, floors and times, never content.
   participants, which would leave their copies different. It cannot read or forge one.
 - Offline there is no server: the device numbers in its own order over its own journal, and
   what it orders reaches the others as a commit that merges, not as operations.
+- An edit is durable once the server numbered it, or once the device numbered it offline. While
+  a connection is up but the server does not answer, an edit waits on its replica, shown
+  unsaved, and a crash loses it.

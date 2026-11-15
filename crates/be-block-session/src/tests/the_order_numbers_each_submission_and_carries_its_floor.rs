@@ -9,13 +9,13 @@ fn submission(counter: u64, base: u64, barrier: bool) -> Submission {
     }
 }
 
-/// Each submission takes the next number and the floor of the order as it stands: the start of
-/// the order, or the last barrier once one is numbered.
+/// Each submission takes the next number and the floor of the order as it stands: none until a
+/// barrier is numbered, then the last barrier.
 #[test]
 fn the_order_numbers_each_submission_and_carries_its_floor() {
     let mut order = Sequencer::starting(4);
     let first = order.number(submission(1, 4, false), Some(10));
-    assert_eq!((first.sequence, first.base, first.floor), (5, 4, 4));
+    assert_eq!((first.sequence, first.base, first.floor), (5, 4, 0));
     assert_eq!(first.received, Some(10));
 
     let barrier = order.number(submission(2, 5, true), None);
