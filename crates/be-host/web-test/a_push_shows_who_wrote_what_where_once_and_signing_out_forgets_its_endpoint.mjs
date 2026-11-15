@@ -3,7 +3,8 @@
 // it to Dev's endpoint, and Dev's service worker shows it under the block's name and Ada's, as
 // Dev's device names them, with what she wrote, opened with the block's key. Without a tab to
 // open it, or without the key, it shows "New message"; a push delivered again shows nothing new;
-// and signing out has the server forget the endpoint.
+// a tab that runs no frames (a hidden one) still opens one; and signing out has the server
+// forget the endpoint.
 export default async function (test) {
     const ada = await test.account("Ada");
 
@@ -88,6 +89,7 @@ export default async function (test) {
     await test.page.close();
     const lunch = await says("lunch?");
     const noon = await says("see you at noon");
+    const onMyWay = await says("on my way");
 
     const expect = (condition, what, shown) => {
         if (!condition) throw new Error(`${what}: ${JSON.stringify(shown, null, 1)}`);
@@ -111,11 +113,31 @@ export default async function (test) {
     shown = await test.notifications();
     expect(shown.length === 2, "the same push delivered again shows once", shown);
 
+    // A hidden tab runs no animation frames, and so takes no update in one: the page still opens
+    // the push. The frames it asked for meanwhile run once it has them again.
+    await test.page.evaluate(() => {
+        window.heldFrames = [];
+        window.frameRequester = window.requestAnimationFrame;
+        window.requestAnimationFrame = (frame) => window.heldFrames.push(frame);
+    });
+    await test.deliverPush(onMyWay);
+    shown = await test.notifications();
+    await test.page.evaluate(() => {
+        window.requestAnimationFrame = window.frameRequester;
+        for (const frame of window.heldFrames) window.requestAnimationFrame(frame);
+    });
+    expect(shown.length === 3, "a push to a hidden tab shows one notification", shown);
+    expect(
+        shown[2].title === "Roadmap" && shown[2].body === "Ada: on my way",
+        "a hidden tab names the block and its sender",
+        shown,
+    );
+
     // Sealed under a key this device does not hold: it names nothing.
     const foreign = Uint8Array.from(lunch, (byte, at) => (at < 48 ? byte : byte ^ 0x5a));
     await test.deliverPush(foreign);
     shown = await test.notifications();
-    expect(shown.length === 3 && generic(shown[2]), "without the key, a push shows New message", shown);
+    expect(shown.length === 4 && generic(shown[3]), "without the key, a push shows New message", shown);
 
     // Signing out has the server forget the endpoint, and drops the browser's subscription.
     await test.drive("click", "#file-tree.host-menu");

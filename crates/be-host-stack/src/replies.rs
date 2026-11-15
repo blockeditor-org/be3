@@ -63,9 +63,11 @@ impl<T> Drop for Reply<T> {
 }
 
 /// On the worker, holds the answer to `id` for the next update. Elsewhere only a test answers
-/// (the worker's own copy of a reply is the one it decodes), so the answer is told at once; a
-/// reply the page drops before sending its command leaves its waiting for the stack to drop
-/// as it stops.
+/// (the worker's own copy of a reply is the one it decodes), so the answer is told at once. A
+/// reply the page drops before sending its command (no stack took it) leaves its waiting for
+/// the stack to drop as it stops: forgetting it here would take the lock on the stack, which
+/// the page may hold as it drops it (`send`), and what is left is bounded by the commands sent
+/// to a stack that is going away.
 fn deliver(id: u64, answer: Option<Vec<u8>>) {
     let Some(answer) = crate::seen::hold_answer(id, answer) else {
         return;

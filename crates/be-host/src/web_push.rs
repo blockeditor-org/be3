@@ -19,7 +19,8 @@ where
     ask(Box::new(move |result| {
         let _ = reply.send(result);
     }));
-    answer
+    // The page may run no frames to take the answer in (a hidden tab).
+    be_host_stack::taking_updates(answer)
         .await
         .map_err(|_| JsValue::from_str("be-host stopped"))?
         .map_err(|error| JsValue::from_str(&error))
