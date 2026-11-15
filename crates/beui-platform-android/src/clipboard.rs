@@ -2,10 +2,21 @@ use beui_core::clipboard::{Clip, HeldClip, PasteAnswer};
 use beui_types::ClipItem;
 use beui_types::clipboard::formats;
 
-/// How much base64 the be3 formats may take in a clip's extras: a Parcel holds
+/// How many UTF-16 code units a clip may take on the system clipboard, its
+/// text and the be3 formats' base64 in its extras together: a Parcel holds
 /// strings as UTF-16, and a clip crosses Binder, whose transactions stop near
-/// 1 MB. Formats beyond it stay in the held clip, for pastes in this program.
-const EXTRAS_BUDGET: usize = 256 * 1024;
+/// 1 MB, past which `setPrimaryClip` throws.
+const PARCEL_UNITS: usize = 400 * 1024;
+
+/// How much of that the plain text may take; what it leaves is the be3
+/// formats'. Text beyond it goes there cut short, with `CUT_SHORT` after it,
+/// and formats beyond what is left stay in the held clip, for pastes in this
+/// program.
+const TEXT_UNITS: usize = 192 * 1024;
+
+/// What ends text cut short to fit the clipboard.
+const CUT_SHORT: &str = "\n\n[Cut short: this copy was too large for the clipboard. \
+Paste it in the program it was copied from for all of it.]";
 
 /// The extras key of the copy's nonce, which tells this program's clip from
 /// another's.
@@ -40,28 +51,24 @@ impl Clipboard {
                     base64::Engine::encode(&base64::engine::general_purpose::STANDARD, stored);
                 (item.format, encoded)
             });
-        let fitting =
-            beui_types::clip::fitting(encoded, EXTRAS_BUDGET, |(_, encoded)| encoded.len());
         let text = clip.plain_text().unwrap_or_default();
+        let text = beui_types::clip::cut_short(&text, TEXT_UNITS, CUT_SHORT);
+        let left = PARCEL_UNITS - beui_types::clip::utf16_units(&text);
+        let fitting = beui_types::clip::fitting(encoded, left, |(_, encoded)| encoded.len());
         let nonce = fresh_nonce();
-        self.nonce = match android::set(&text, &fitting, Some(nonce)) {
-            Ok(()) => Some(nonce),
-            Err(_) => {
-                let _ = android::set(&text, &[], None);
-                None
-            }
-        };
+        // The nonce goes in either way, so a paste here still knows the
+        // clipboard is this copy's when its text there was cut short.
+        let set = android::set(&text, &fitting, nonce)
+            .or_else(|_| android::set(&text, &[], nonce));
+        self.nonce = set.ok().map(|()| nonce);
         self.held.copy(clip);
     }
 
     pub fn paste(&mut self, wanted: &[String], answer: PasteAnswer) {
         let now = android::get().ok().flatten();
-        let ours = match self.nonce {
-            Some(nonce) => now.as_ref().is_some_and(|now| now.nonce == Some(nonce)),
-            None => self
-                .held
-                .wrote(now.as_ref().and_then(|now| now.text.as_deref())),
-        };
+        let ours = self
+            .nonce
+            .is_some_and(|nonce| now.as_ref().is_some_and(|now| now.nonce == Some(nonce)));
         if let Some(clip) = self.held.current(ours) {
             return clip.resolve(wanted, move |item| answer.send(item));
         }
@@ -138,13 +145,10 @@ mod android {
         })
     }
 
-    /// Puts `text` on the clipboard, and with a `nonce`, the be3 formats as
-    /// (format id, base64 of its stored bytes) in the description's extras.
-    pub(super) fn set(
-        text: &str,
-        be3: &[(String, String)],
-        nonce: Option<i64>,
-    ) -> Result<(), Error> {
+    /// Puts `text` on the clipboard, and the copy's `nonce` and the be3
+    /// formats as (format id, base64 of its stored bytes) in the description's
+    /// extras.
+    pub(super) fn set(text: &str, be3: &[(String, String)], nonce: i64) -> Result<(), Error> {
         with_manager(|env, _activity, manager| {
             let label = env.new_string("")?;
             let string_class = env.find_class(jni_str!("java/lang/String"))?;
@@ -168,28 +172,24 @@ mod android {
                     &[JValue::Object(&format), JValue::Object(&encoded)],
                 )?;
             }
-            if let Some(nonce) = nonce {
-                let key = env.new_string(super::NONCE)?;
-                env.call_method(
-                    &extras,
-                    jni_str!("putLong"),
-                    jni_sig!("(Ljava/lang/String;J)V"),
-                    &[JValue::Object(&key), JValue::Long(nonce)],
-                )?;
-            }
+            let key = env.new_string(super::NONCE)?;
+            env.call_method(
+                &extras,
+                jni_str!("putLong"),
+                jni_sig!("(Ljava/lang/String;J)V"),
+                &[JValue::Object(&key), JValue::Long(nonce)],
+            )?;
             let description = env.new_object(
                 jni_str!("android/content/ClipDescription"),
                 jni_sig!("(Ljava/lang/CharSequence;[Ljava/lang/String;)V"),
                 &[JValue::Object(&label), JValue::Object(&kinds)],
             )?;
-            if nonce.is_some() {
-                env.call_method(
-                    &description,
-                    jni_str!("setExtras"),
-                    jni_sig!("(Landroid/os/PersistableBundle;)V"),
-                    &[JValue::Object(&extras)],
-                )?;
-            }
+            env.call_method(
+                &description,
+                jni_str!("setExtras"),
+                jni_sig!("(Landroid/os/PersistableBundle;)V"),
+                &[JValue::Object(&extras)],
+            )?;
             let text = env.new_string(text)?;
             let item = env.new_object(
                 jni_str!("android/content/ClipData$Item"),

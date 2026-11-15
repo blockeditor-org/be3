@@ -219,6 +219,32 @@ pub fn fitting<T>(
         .collect()
 }
 
+/// `text` as a system clipboard with a size limit carries it: whole when it is
+/// at most `units` UTF-16 code units (what an Android Parcel counts), otherwise
+/// cut at a character boundary and ended with `notice`, the two together
+/// within `units`. The whole text stays in the held clip for pastes in the
+/// program.
+pub fn cut_short<'a>(text: &'a str, units: usize, notice: &str) -> std::borrow::Cow<'a, str> {
+    if utf16_units(text) <= units {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut left = units.saturating_sub(utf16_units(notice));
+    let end = text
+        .char_indices()
+        .find(|(_, char)| {
+            let fits = char.len_utf16() <= left;
+            left = left.saturating_sub(char.len_utf16());
+            !fits
+        })
+        .map_or(text.len(), |(at, _)| at);
+    std::borrow::Cow::Owned(format!("{}{notice}", &text[..end]))
+}
+
+/// How many UTF-16 code units `text` takes.
+pub fn utf16_units(text: &str) -> usize {
+    text.chars().map(char::len_utf16).sum()
+}
+
 /// Plain text read from a system clipboard, with its line breaks as beui keeps
 /// them: `\n`. Windows programs write `\r\n`, and a `\r` alone ends a line
 /// too (old Mac programs), so each becomes one `\n`. Every platform passes the
