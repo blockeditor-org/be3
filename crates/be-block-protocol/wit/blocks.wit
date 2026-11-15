@@ -191,19 +191,26 @@ interface blocks {
     /// publishes from those of others. A block moved to the trash, or made
     /// for one, has parent `detached`; once collected it is `removed`.
     record block-changed {
-        /// With `moved`, its `references` are empty: they are those the
-        /// connection was told last, changed by `moved`.
+        /// Its `references` are always empty: a change tells them in
+        /// `references`.
         block: block-summary,
-        moved: option<moved-references>,
+        references: changed-references,
         %from: client-id,
     }
 
-    /// What a change did to a block's references, announced in their place
-    /// to a connection already told them, so a large folder's change sends
-    /// what changed rather than every entry. A connection applies `change`
-    /// to the references it holds, which must then hash to `digest`
-    /// (`references_digest`); if they do not, it heard a change out of order
-    /// or never held them, and reads the block again.
+    /// A changed block's references, as its announcement tells them.
+    variant changed-references {
+        /// Every one, to a connection not yet told them.
+        whole(list<block-id>),
+        /// What the change did to them, to a connection already told them,
+        /// so a large folder's change sends what changed rather than every
+        /// entry.
+        moved(moved-references),
+    }
+
+    /// A connection applies `change` to the references it holds, which must
+    /// then hash to `digest` (`references_digest`); if they do not, it heard
+    /// a change out of order or never held them, and reads the block again.
     record moved-references {
         change: reference-change,
         digest: hash,

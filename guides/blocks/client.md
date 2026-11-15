@@ -32,7 +32,10 @@ listeners with every reference all the same: the pump applies it to what this
 device holds (`Connection::hold_with`, a `Held`: `Peer` gives its refs as it
 opens the organization) and keeps the result there, so the next change resolves
 against it; when the result's `references_digest` is not the server's (a change
-heard out of order, or references never held) it reads the block again. Key work arrives as
+heard out of order, or references never held) it reads the block again, unless
+what it holds is already as new as the change (a read for an earlier change of
+a burst), which makes the change no news (`whole`). A connection with no `Held`
+reads the block again for every such change. Key work arrives as
 `Event::KeyWork`; `Peer::key_work` reads the first value of a stream of it. A receiver that falls behind re-lists
 what it wants and rejoins its sessions, as after a reconnect.
 

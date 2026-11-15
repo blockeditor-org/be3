@@ -32314,6 +32314,7 @@ third_party = {
             "wasi": {
                 "features": [
                     "alloc",
+                    "default",
                     "race",
                     "std",
                 ],
@@ -52511,6 +52512,19 @@ third_party = {
                     "tracing-attributes",
                 ],
             },
+            "wasi": {
+                "deps": [
+                    ":pin-project-lite-0.2.17",
+                    ":tracing-attributes-0.1.31",
+                    ":tracing-core-0.1.36",
+                ],
+                "features": [
+                    "attributes",
+                    "default",
+                    "std",
+                    "tracing-attributes",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":log-0.4.31",
@@ -52654,6 +52668,15 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "once_cell",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":once_cell-1.21.4",
+                ],
+                "features": [
                     "once_cell",
                     "std",
                 ],
