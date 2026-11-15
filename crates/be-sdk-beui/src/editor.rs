@@ -510,8 +510,9 @@ impl Editor {
         create_memo(move || read.get().unwrap_or(Ok(None)))
     }
 
-    /// The results of the full-text search `search` holds (plans/search.md): none while it
-    /// holds none or until the host answers, which it does again whenever an index changes.
+    /// The results of the full-text search `search` holds (guides/blocks/host.md, "Search"): none
+    /// while it holds none or until the host answers, which it does again whenever an index
+    /// changes.
     pub fn search(
         &self,
         search: Memo<Option<be_sdk::Search>>,

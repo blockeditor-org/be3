@@ -1,6 +1,6 @@
 /*
 A full-text index kept as bytes: the library the search index block type
-(plans/search.md) writes and merges, and the host queries. It does no IO: every
+(guides/blocks/host.md, "Search") writes and merges, and the host queries. It does no IO: every
 part it reads comes through `Parts::read`, by part name and byte range, and
 every part it writes comes back in `Written`, so the block type keeps them as
 the block's parts and the host reads them with `read-part`.

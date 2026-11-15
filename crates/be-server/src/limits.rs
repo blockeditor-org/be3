@@ -68,7 +68,7 @@ pub const MAX_PAIRING_BYTES: usize = 64 * 1024;
 pub const MAX_RELAY_BYTES: usize = MAX_FRAME_BYTES / 2;
 /// The objects one commit of a search index may hold. Every viewer's search reads the index,
 /// and any editor of its root may write it, so it is bounded well above an index of a gigabyte
-/// of text (plans/search.md, "Scale").
+/// of text (plans/deferred/search.md, "Scale").
 pub const MAX_INDEX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub use be_block_commit::MAX_COMMIT_AHEAD;
 

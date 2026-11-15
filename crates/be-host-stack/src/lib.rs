@@ -1184,8 +1184,8 @@ pub fn want(owner: Owner, queries: Vec<Query>) {
     }
 }
 
-/// Names the full-text searches an owner shows (plans/search.md); `searched` answers each once
-/// it ran, and again after an index it read changed (`Changes::search`).
+/// Names the full-text searches an owner shows (guides/blocks/host.md, "Search"); `searched`
+/// answers each once it ran, and again after an index it read changed (`Changes::search`).
 pub fn want_searches(owner: Owner, searches: Vec<SearchAsk>) {
     let changed = with_shared_mut(|shared| shared.search.want(owner, searches)).unwrap_or_default();
     if changed {

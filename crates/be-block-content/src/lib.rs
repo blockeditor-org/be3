@@ -131,15 +131,15 @@ pub trait BlockContent: Sized + Send + Sync + 'static {
         let _ = metadata;
     }
 
-    /// The searchable text of the content, one `SearchDocument` per key, which the search
-    /// index holds (plans/search.md); none for a type that is not content-searchable. Content
-    /// that loads only its first part reads the others with `parts`. `keys` (none for every
-    /// document) and `indexed` (the parts the index already holds text from) only spare work:
-    /// a type need not answer documents outside `keys`, nor read a part in `indexed`, so a
-    /// snippet reads one part of a large block and reindexing it reads only its changed
-    /// parts. The host drops documents outside `keys` and the bodies of documents whose source
-    /// is in `indexed` whatever the type answers. Boxed, as a future returned from a trait
-    /// method in another crate must be (guides/type_modules.md, "The generator").
+    /// The searchable text of the content, one `SearchDocument` per key, which the search index
+    /// holds (guides/blocks/host.md, "Search"); none for a type that is not content-searchable.
+    /// Content that loads only its first part reads the others with `parts`. `keys` (none for every
+    /// document) and `indexed` (the parts the index already holds text from) only spare work: a
+    /// type need not answer documents outside `keys`, nor read a part in `indexed`, so a snippet
+    /// reads one part of a large block and reindexing it reads only its changed parts. The host
+    /// drops documents outside `keys` and the bodies of documents whose source is in `indexed`
+    /// whatever the type answers. Boxed, as a future returned from a trait method in another crate
+    /// must be (guides/type_modules.md, "The generator").
     fn search_text(
         &self,
         keys: Option<&HashSet<String>>,

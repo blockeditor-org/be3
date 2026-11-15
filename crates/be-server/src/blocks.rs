@@ -244,9 +244,10 @@ fn require_descends(expected: Option<CommitId>, parents: &[CommitId]) -> Result<
     }
 }
 
-/// A search index lies under the block whose tree it indexes, one held per block: the server
-/// cannot read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
-/// (plans/search.md). `index` is the index being placed, which may already be the one held.
+/// A search index lies under the block whose tree it indexes, one held per block: the server cannot
+/// read the `SEARCH_INDEX` metadata that names it, so it holds to the type and parent
+/// (guides/blocks/host.md, "Search"). `index` is the index being placed, which may already be the
+/// one held.
 fn require_index_place(
     graph: &BlockGraph,
     index: Uuid,

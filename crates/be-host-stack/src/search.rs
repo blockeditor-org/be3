@@ -1,5 +1,5 @@
-//! Full-text search (plans/search.md): each root block's search index, which the devices that
-//! edit its tree write, and the searches the host and its apps ask for.
+//! Full-text search (guides/blocks/host.md, "Search"): each root block's search index, which the
+//! devices that edit its tree write, and the searches the host and its apps ask for.
 //!
 //! **Indexing.** A head this device's session moved (`Host::status` while it owns the session)
 //! queues its block (`Searching::dirty`). Each round of the worker's loop (`step`) takes the
@@ -43,8 +43,9 @@ use crate::{
     worker::{Shared, Store, Tasks},
 };
 
-/// How often a commit that cannot be read holds a catch-up's watermark back before it is let
-/// go (a history collected under the head it was listed at never reads).
+/// How often in a row a commit that cannot be read holds a catch-up's watermark back before it
+/// is let go (a history collected under the head it was listed at never reads): read again when
+/// the next catch-up starts (`Searching::let_go`).
 const MAX_READ_FAILURES: u8 = 3;
 /// Writes to an index that may fail in a row (`Unwritten::Failed`) before its batches and
 /// settles are set aside (`Searching::failing`).
@@ -198,6 +199,9 @@ pub struct Searching {
     /// How often a block's commit could not be read: held back a few times, then counted as
     /// put, since a catch-up that lists it again would otherwise never end.
     failures: HashMap<Uuid, u8>,
+    /// Blocks let go after `MAX_READ_FAILURES`, with what a catch-up said of them: queued again
+    /// when the next catch-up starts, until one is read, so their entry is never left stale.
+    let_go: HashMap<Uuid, Option<Caught>>,
     /// How many parts the types read to answer `search-text` for indexing, since the start: a
     /// part whose text an index holds is not read again.
     pub(crate) parts_read: u64,
@@ -274,6 +278,38 @@ impl Searching {
     /// The new connection lists nothing yet.
     pub(crate) fn reconnected(&mut self) {
         self.release_failing(None);
+    }
+
+    /// Records that a block was read for a batch: its failures start again from none.
+    pub(crate) fn read(&mut self, block: Uuid) {
+        self.failures.remove(&block);
+        self.let_go.remove(&block);
+    }
+
+    /// Counts a read of `block` that failed, and whether it is let go now: after
+    /// `MAX_READ_FAILURES` in a row it is counted as put, so a catch-up that lists it ends, and
+    /// kept to be read again when the next catch-up starts (`retry_let_go`).
+    pub(crate) fn read_failed(&mut self, block: Uuid) -> bool {
+        let failures = self.failures.entry(block).or_default();
+        *failures += 1;
+        if *failures < MAX_READ_FAILURES {
+            return false;
+        }
+        self.failures.remove(&block);
+        let caught = self.caught.get(&block).cloned();
+        self.let_go.insert(block, caught);
+        true
+    }
+
+    /// Queues again the blocks let go (`read_failed`), as a catch-up starts: read at the head a
+    /// catch-up listed them at where the mirror does not hold them.
+    pub(crate) fn retry_let_go(&mut self) {
+        for (block, caught) in &self.let_go {
+            if let Some(caught) = caught {
+                self.caught.entry(*block).or_insert_with(|| caught.clone());
+            }
+            self.dirty.insert(*block);
+        }
     }
 
     /// Queues a block whose head this device's session moved.
@@ -1022,8 +1058,7 @@ async fn index(
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
                         .search
-                        .failures
-                        .remove(block);
+                        .read(*block);
                     put_blocks.push(*block);
                     if whole {
                         read_whole.push(*block);
@@ -1035,10 +1070,7 @@ async fn index(
                     if whole {
                         held.search.whole.insert(*block);
                     }
-                    let failures = held.search.failures.entry(*block).or_default();
-                    *failures += 1;
-                    if *failures >= MAX_READ_FAILURES {
-                        held.search.failures.remove(block);
+                    if held.search.read_failed(*block) {
                         put_blocks.push(*block);
                     }
                 }
@@ -1627,6 +1659,9 @@ fn start_catch_ups(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, tasks: 
         return;
     }
     let due = catch_ups_due(&held, true);
+    if !due.is_empty() {
+        held.search.retry_let_go();
+    }
     for (root, index) in due {
         held.search.catching.insert(root);
         let (peer, shared, tasks_held) = (Arc::clone(peer), Arc::clone(shared), tasks.clone());

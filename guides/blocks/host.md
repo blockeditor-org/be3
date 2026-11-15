@@ -326,7 +326,7 @@ is saved.
 ## Search
 
 Full-text search over names and content (`be-host-stack/src/search.rs`; what is
-left: plans/search.md). The server never reads content, so clients build the
+set aside: plans/deferred/search.md). The server never reads content, so clients build the
 index and search it locally.
 
 - **One index per root block** (a workspace, My files): a block of
@@ -385,7 +385,10 @@ index and search it locally.
   (`Searching::caught`, a type's module started for them), the blocks that left
   are masked (`Batch::removed_blocks`, at the time of the catch-up; a block that
   comes back is stamped after the mask), and the watermark moves with that batch
-  once everything the catch-up queued is indexed. A block listed before its
+  once everything the catch-up queued is indexed. A block whose commit cannot be
+  read holds the watermark back; after `MAX_READ_FAILURES` reads in a row it is let
+  go, so the catch-up ends, and read again when the next catch-up starts
+  (`Searching::let_go`), until it is read. A block listed before its
   content was published is caught by the next catch-up, which is after the next
   connection. The host is busy while one is due or running. A search that is
   shown is shown again whenever the mirror moves, so a hit whose block left what

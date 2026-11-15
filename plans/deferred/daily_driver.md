@@ -1,6 +1,6 @@
 # Daily driver
 
-Depends on: plans/search.md.
+Depends on: none.
 
 A plan to get the host to the point where the user keeps their own notes in it.
 Each item says what "done" looks like.
@@ -100,7 +100,7 @@ Needed before daily use:
   only top-level workspaces (`be-app-file-tree/src/root/menu.rs`). Add a folder
   picker sheet, and a Duplicate command (`be_host_stack::duplicate` exists;
   only copy and paste use it).
-- **Search**: what is left of it is in plans/search.md.
+- **Search**: what is left of it is set aside in plans/deferred/search.md.
 - **Trash.** Add "Delete forever" and "Empty trash". Restore already goes back
   to the original parent (`DELETED_FROM`).
 - **Export and import.** Export a folder or the whole workspace to a directory

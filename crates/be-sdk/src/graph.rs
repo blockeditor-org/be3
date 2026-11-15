@@ -594,9 +594,9 @@ impl BlockGraph {
     }
 }
 
-/// A full-text search over names and content (plans/search.md): words, `"quoted phrases"`, the
-/// last word a prefix, over everything the account views or within a block's tree. Watched
-/// with `EditorHost::watch_search`, it is answered again whenever an index it read changes.
+/// A full-text search over names and content (guides/blocks/host.md, "Search"): words, `"quoted
+/// phrases"`, the last word a prefix, over everything the account views or within a block's tree.
+/// Watched with `EditorHost::watch_search`, it is answered again whenever an index it read changes.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct Search {
     pub text: String,

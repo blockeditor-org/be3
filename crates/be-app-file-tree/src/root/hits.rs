@@ -1,5 +1,6 @@
-//! What the filter finds in content (plans/search.md): the search index's hits for the filter's
-//! words, above the rows whose names match, each with its name and the text around the match.
+//! What the filter finds in content (guides/blocks/host.md, "Search"): the search index's hits for
+//! the filter's words, above the rows whose names match, each with its name and the text around the
+//! match.
 
 use be_sdk_beui::beui::NodeId;
 use be_sdk_beui::beui::icons::ICON_FILE_TEXT;

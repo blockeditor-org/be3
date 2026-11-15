@@ -357,7 +357,7 @@ interface blocks {
         next: async func() -> block-value;
     }
 
-    /// A document full-text search found (plans/search.md).
+    /// A document full-text search found (guides/blocks/host.md, "Search").
     record search-hit {
         block-id: block-id,
         /// The document within the block; empty for a block that is one document.

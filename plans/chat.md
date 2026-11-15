@@ -37,7 +37,7 @@ counts are built (guides/chat.md). What is left:
 ## Not planned here
 
 - Direct messages: a chat is made and shared like any block.
-- Search: plans/search.md.
+- Search: guides/blocks/host.md, "Search".
 - Signing deletions and reactions: plans/authorship.md.
 - Rewriting a segment: plans/deferred/chat_segment_rewrite.md.
 - Message keys for deleting and a "post" access level:
