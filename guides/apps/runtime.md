@@ -101,7 +101,11 @@ the placer's old painting. The commit's dock messages wait with its children
 (`Laid::docks`): which tabs a root shows decides which of the tab bodies it
 places are drawn (`docks::resolve`), so the body of a tab switched away from
 and the body of the tab switched to change in the same frame. Answers held
-after it wait with it, in order.
+after it wait with it, in order. The frame that present brings waits too when
+it arrives between polls (`Runtime::received`): shown at once, its painting
+(a stacked dock's bar showing the document opened from the files) would sit a
+frame over the children it replaces. It is shown at that poll, in the same
+host frame as its children.
 
 A view its app has not reported a frame of yet (a dock tab's body, mounted
 again each time its tab is shown) is filled with the backdrop its instance
