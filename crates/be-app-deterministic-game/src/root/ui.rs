@@ -329,20 +329,18 @@ fn GamePlay(
     let chrome = editor.chrome_shown();
     view! {
         <List spacing=Space::None>
-            <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
-                match chrome.get_untracked() {
-                    true => view! {
-                        <ListItem grow=1.0>
-                            <GameDock editor stage play drawn layout hand panel />
-                        </ListItem>
-                    },
-                    false => view! {
-                        <ListItem grow=1.0>
-                            <Stage content={stage} editor play drawn layout hand steps />
-                        </ListItem>
-                    },
-                }
-            }</Keyed>
+            <Show
+                condition={chrome}
+                fallback={move || view! {
+                    <ListItem grow=1.0>
+                        <Stage content={stage} editor play drawn layout hand steps />
+                    </ListItem>
+                }}
+            >
+                <ListItem grow=1.0>
+                    <GameDock editor stage play drawn layout hand panel />
+                </ListItem>
+            </Show>
             <Banner anchor={stage} table />
         </List>
     }
@@ -360,7 +358,6 @@ fn GameDock(
 ) -> NodeId {
     let steps = panel.steps;
     let Panel { table, shown, .. } = panel;
-    let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
     let dock = DockingLayout::<&'static str>::new();
     view! {
         <Docking layout={dock} focus={Some(STAGE)}>
@@ -383,7 +380,7 @@ fn GameDock(
             >
                 <ActionBar panel />
             </DockBar>
-            <Show condition={choosing}>
+            <Show condition={move || !play.choices.with(Vec::is_empty)}>
                 <DockBar
                     id=CHOICES
                     parent=STAGE
@@ -493,7 +490,6 @@ fn Controls(
 fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
     let confirming = create_signal(false);
-    let asking = create_memo(move || !confirming.get());
     let glyph = match action.gesture {
         Some(Gesture::Control(Control::Resign)) => ICON_FLAG,
         _ => ICON_CHECK,
@@ -505,17 +501,19 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     let effect = action.effect;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
-            <Show condition={asking}>
-                <Button
-                    icon_only=true
-                    glyph={glyph}
-                    label={label.clone()}
-                    disabled={disabled}
-                    @test_id={format!("game.control.{index}")}
-                    on_click={move || confirming.set(true)}
-                />
-            </Show>
-            <Show condition={confirming}>|| {
+            <Show
+                condition={confirming}
+                fallback={move || view! {
+                    <Button
+                        icon_only=true
+                        glyph={glyph}
+                        label={label.clone()}
+                        disabled={disabled}
+                        @test_id={format!("game.control.{index}")}
+                        on_click={move || confirming.set(true)}
+                    />
+                }}
+            >|| {
                 let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=Space::Xs>
                         <Text style=TextStyle::CAPTION>{question}</Text>
@@ -550,7 +548,6 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
             dismissed.set(false);
         }
     });
-    let open = create_memo(move || ending.with(Option::is_some) && !dismissed.get());
     let text = create_memo(move || {
         ending.with(|ending| {
             ending
@@ -564,7 +561,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
     });
     let color = TextColor::Default;
     view! {
-        <Floating anchor open={open}>
+        <Floating anchor open={move || ending.with(Option::is_some) && !dismissed.get()}>
             <Frame padding=BANNER_MARGIN>
                 <Frame
                     fill=ColorRole::Surface
@@ -594,13 +591,11 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
 #[component]
 fn ChoiceButtons(play: Play) -> NodeId {
     let choices = play.choices;
-    let keys = create_memo(move || choices.get());
     let cancel = move || play.cancel();
     let bar = use_dock_bar();
-    let direction = create_memo(move || bar.map_or(Direction::Vertical, |bar| bar.direction()));
     view! {
-        <List direction={direction} align=Align::Center spacing=Space::Sm>
-            <ForEach keys={keys}>|action: Action| {
+        <List direction={move || bar.map_or(Direction::Vertical, |bar| bar.direction())} align=Align::Center spacing=Space::Sm>
+            <ForEach keys={choices}>|action: Action| {
                 let index = action.index;
                 view! {
                     <Button
@@ -673,7 +668,6 @@ pub(crate) fn GameCreation(
         }
         String::new()
     });
-    let has_status = create_memo(move || !status.get().is_empty());
     let status_color = create_memo(move || match snapshot.get().error.is_some() {
         true => TextColor::Danger,
         false => TextColor::Muted,
@@ -734,7 +728,7 @@ pub(crate) fn GameCreation(
                     @test_id={"game.choose"}
                     on_click={move || creation.value().choose_module()}
                 />
-                <Show condition={has_status}>
+                <Show condition={move || !status.with(String::is_empty)}>
                     <Text style=TextStyle::CAPTION color={status_color} @test_id={"game.selection"}>
                         {status}
                     </Text>

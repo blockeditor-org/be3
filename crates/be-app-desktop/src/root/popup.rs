@@ -35,10 +35,6 @@ pub(crate) fn BarPopup(
             .get()
             .map(|bounds| Size::Custom((bounds.height() - inset).max(0.0)))
     });
-    let placement = create_memo(move || match direction.get() {
-        Direction::Horizontal => PopoverPlacement::Below,
-        Direction::Vertical => PopoverPlacement::Beside,
-    });
     view! {
         <Popover
             label
@@ -47,7 +43,10 @@ pub(crate) fn BarPopup(
             variant=ButtonVariant::Ghost
             max_width=width
             open
-            placement
+            placement={move || match direction.get() {
+                Direction::Horizontal => PopoverPlacement::Below,
+                Direction::Vertical => PopoverPlacement::Beside,
+            }}
             band
             bounds
             leading

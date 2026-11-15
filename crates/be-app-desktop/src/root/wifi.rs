@@ -142,7 +142,6 @@ pub(crate) fn scan(editor: Editor) {
 #[component]
 pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callback<()>) -> NodeId {
     let enabled = create_memo(move || status.with(|status| status.enabled));
-    let off = create_memo(move || !enabled.get());
     let ssids = create_memo(move || status.with(ordered));
     let none = create_memo(move || enabled.get() && ssids.with(Vec::is_empty));
     let asking = create_signal(None::<String>);
@@ -162,7 +161,7 @@ pub(crate) fn WifiPanel(editor: Editor, status: Memo<WifiStatus>, on_back: Callb
             </List>
             <Frame height={Length::Size(LIST_HEIGHT)}>
                 <Scroll bleed={Bleed::POPOVER.top(false)}>
-                    <Show condition={off}>
+                    <Show condition={move || !enabled.get()}>
                         <Text style=TextStyle::CAPTION>"Wi-Fi is off."</Text>
                     </Show>
                     <Show condition={none}>
@@ -309,8 +308,6 @@ fn PasswordEntry(
     let unusable = create_memo(move || !password.with(|password| usable(security.get(), password)));
     let id = format!("desktop.wifi.network.{ssid}");
     let named = ssid.clone();
-    let label = create_memo(move || format!("{} for {named}", secret_name(security.get())));
-    let placeholder = create_memo(move || secret_name(security.get()).to_owned());
     let connect = move || {
         let typed = password.get_untracked();
         if !usable(security.get_untracked(), &typed) {
@@ -333,8 +330,8 @@ fn PasswordEntry(
                     value={password}
                     kind={InputKind::Password}
                     focused=true
-                    placeholder
-                    label
+                    placeholder={move || secret_name(security.get()).to_owned()}
+                    label={move || format!("{} for {named}", secret_name(security.get()))}
                     @test_id={password_test_id}
                     on_submit={move |_: String| submitted()}
                 />
@@ -390,7 +387,6 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
         name.with(|name| !name.is_empty())
             && password.with(|password| usable(security.get(), password))
     });
-    let unready = create_memo(move || !ready.get());
     let said = create_memo(move || {
         let Some(joined) = joining.get() else {
             return String::new();
@@ -467,7 +463,7 @@ fn HiddenEntry(editor: Editor, status: Memo<WifiStatus>, other: Signal<bool>) ->
                 <Button
                     label="Connect"
                     variant=ButtonVariant::Primary
-                    disabled={unready}
+                    disabled={move || !ready.get()}
                     @test_id={"desktop.wifi.hidden.connect"}
                     on_click={join}
                 />

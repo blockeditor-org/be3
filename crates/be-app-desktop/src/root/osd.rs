@@ -93,17 +93,16 @@ pub(crate) fn LevelOsd(
     // The margin goes on the anchor, not around the card: an overlay's whole content
     // rect takes the presses over the program windows under it, so transparent padding
     // would keep them from the windows.
-    let anchor = create_memo(move || {
-        let area = area.get();
-        let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
-        OverlayAnchor::Rect(Rect::from_min_max(
-            area.min + vec2(MARGIN, MARGIN),
-            area.max - vec2(MARGIN, below),
-        ))
-    });
     view! {
         <Overlay
-            anchor={anchor}
+            anchor={move || {
+                let area = area.get();
+                let below = area.height() * (1.0 - SCREEN_HEIGHT_FRACTION);
+                OverlayAnchor::Rect(Rect::from_min_max(
+                    area.min + vec2(MARGIN, MARGIN),
+                    area.max - vec2(MARGIN, below),
+                ))
+            }}
             placement=Placement::InsideBottom
             policy=LayerPolicy::Inert
             level=LayerLevel::Top
@@ -120,10 +119,6 @@ pub(crate) fn LevelOsd(
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let muted =
         create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
-    let glyph_ink = create_memo(move || match muted.get() {
-        true => TextColor::Muted,
-        false => TextColor::Default,
-    });
     let fill = create_memo(move || match muted.get() {
         true => ColorRole::TextMuted,
         false => ColorRole::Accent,
@@ -132,7 +127,6 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let value =
         create_memo(move || level.with(|level| level.as_ref().and_then(|level| level.level)));
     let present = create_memo(move || value.get().is_some());
-    let absent = create_memo(move || !present.get());
     let label = create_memo(move || {
         level.with(|level| {
             level
@@ -151,16 +145,21 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
             @test_id={id}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text size=TextSize::Xl color={glyph_ink} align=TextAlign::Center>
+                <Text size=TextSize::Xl color={move || match muted.get() {
+                    true => TextColor::Muted,
+                    false => TextColor::Default,
+                }} align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Show condition={present}>
+                <Show
+                    condition={present}
+                    fallback={move || view! {
+                        <Frame width=BAR_WIDTH>
+                            <Text color=TextColor::Muted>{label}</Text>
+                        </Frame>
+                    }}
+                >
                     <LevelBar value label fill />
-                </Show>
-                <Show condition={absent}>
-                    <Frame width=BAR_WIDTH>
-                        <Text color=TextColor::Muted>{label}</Text>
-                    </Frame>
                 </Show>
             </List>
         </Frame>

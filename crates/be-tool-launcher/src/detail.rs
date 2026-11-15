@@ -78,7 +78,6 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
     });
     let labels = create_memo(move || pull_request.get().labels);
     let checked_out = create_memo(move || model.current(&pull_request.get()));
-    let tagged = create_memo(move || !labels.get().is_empty() || checked_out.get());
     let timeline = model.timeline(&pull_request.get_untracked());
     let loading = create_memo(move || timeline.get() == Loaded::Loading);
     let error = create_memo(move || match timeline.get() {
@@ -105,7 +104,7 @@ fn PullRequestView(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
                                 <Text style=TextStyle::CAPTION>{summary}</Text>
                             </ListItem>
                         </List>
-                        <Show condition={tagged}>
+                        <Show condition={move || labels.with(|labels| !labels.is_empty()) || checked_out.get()}>
                             <Labels labels={labels} checked_out={checked_out} />
                         </Show>
                         <List direction=Direction::Horizontal align=Align::Center spacing=Space::Md>
@@ -175,8 +174,6 @@ fn StateBadge(state: Memo<State>) -> NodeId {
         State::Merged => MERGED.into(),
         State::Closed => theme.danger.get(),
     });
-    let ink = create_memo(move || TextColor::Custom(readable_on(resolve_color(fill.get())).into()));
-    let glyph = create_memo(move || state_glyph(state.get()).to_owned());
     let label = create_memo(move || {
         match state.get() {
             State::Open => "Open",
@@ -192,8 +189,8 @@ fn StateBadge(state: Memo<State>) -> NodeId {
             radius=Radius::Full
             padding={Padding::symmetric(Space::Md, Space::Xs)}
         >
-            <Text color={ink}>
-                <Icon glyph={glyph} />
+            <Text color={move || TextColor::Custom(readable_on(resolve_color(fill.get())).into())}>
+                <Icon glyph={move || state_glyph(state.get()).to_owned()} />
                 {label}
             </Text>
         </Frame>
@@ -204,19 +201,16 @@ fn StateBadge(state: Memo<State>) -> NodeId {
 fn TimelineEntry(model: Model, entry: Memo<Option<Entry>>) -> NodeId {
     view! {
         <List spacing=Space::None>
-            <Dynamic value={entry}>|entry: Option<Entry>| {
+            <Dynamic value={entry} fallback={|| view! { <Frame /> }}>|entry: Entry| {
                 match entry {
-                    Some(Entry::Comment { author, verb, tone, when, url, body, inline }) => view! {
+                    Entry::Comment { author, verb, tone, when, url, body, inline } => view! {
                         <CommentCard model={model} author verb tone when url body inline />
                     },
-                    Some(Entry::Commit { sha, message }) => view! {
+                    Entry::Commit { sha, message } => view! {
                         <CommitRow sha message />
                     },
-                    Some(Entry::Event { actor, text, when }) => view! {
+                    Entry::Event { actor, text, when } => view! {
                         <EventRow actor text when />
-                    },
-                    None => view! {
-                        <Frame />
                     },
                 }
             }</Dynamic>
@@ -249,7 +243,7 @@ fn CommentCard(
         <Frame padding={Padding::vertical(Space::Sm)}>
             <Frame
                 fill=ColorRole::Surface
-                border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get().into())).width(Stroke::Hairline)))}
+                border={move || Border::new(ColorRole::Custom(outline.get().into())).width(Stroke::Hairline)}
                 radius=Radius::Lg
             >
                 <List spacing=Space::None>
@@ -340,13 +334,15 @@ fn EventRow(actor: String, text: String, when: i64) -> NodeId {
 fn Avatar(model: Model, url: String) -> NodeId {
     let separator = if url.contains('?') { '&' } else { '?' };
     let image = model.image(&format!("{url}{separator}s={AVATAR_PIXELS}"));
-    let picture = create_memo(move || match image.get() {
-        Loaded::Ready(image) => Some(image),
-        _ => None,
-    });
     view! {
         <Frame width=AVATAR height=AVATAR radius=Radius::Full fill=ColorRole::Border>
-            <Picture image={picture} radius=Radius::Full />
+            <Picture
+                image={move || match image.get() {
+                    Loaded::Ready(image) => Some(image),
+                    _ => None,
+                }}
+                radius=Radius::Full
+            />
         </Frame>
     }
 }
@@ -368,37 +364,31 @@ fn Blocks(model: Model, blocks: Vec<Block>) -> NodeId {
 
 #[component]
 fn BlockView(model: Model, block: Block) -> NodeId {
-    view! {
-        <List spacing=Space::None>
-            <Dynamic value={block}>|block: Block| {
-                match block {
-                    Block::Heading(text) => view! {
-                        <Text size=TextSize::Lg weight=Weight::Bold>{text}</Text>
-                    },
-                    Block::Paragraph(text) => view! {
-                        <Prose text />
-                    },
-                    Block::Code(text) => view! {
-                        <CodeBlock text />
-                    },
-                    Block::Quote(text) => view! {
-                        <Quote text />
-                    },
-                    Block::Item(text) => view! {
-                        <Item text />
-                    },
-                    Block::Image { url, alt } => view! {
-                        <WebImage model={model} url alt />
-                    },
-                    Block::Table(rows) => view! {
-                        <Table model={model} rows />
-                    },
-                    Block::Rule => view! {
-                        <Separator />
-                    },
-                }
-            }</Dynamic>
-        </List>
+    match block {
+        Block::Heading(text) => view! {
+            <Text size=TextSize::Lg weight=Weight::Bold>{text}</Text>
+        },
+        Block::Paragraph(text) => view! {
+            <Prose text />
+        },
+        Block::Code(text) => view! {
+            <CodeBlock text />
+        },
+        Block::Quote(text) => view! {
+            <Quote text />
+        },
+        Block::Item(text) => view! {
+            <Item text />
+        },
+        Block::Image { url, alt } => view! {
+            <WebImage model={model} url alt />
+        },
+        Block::Table(rows) => view! {
+            <Table model={model} rows />
+        },
+        Block::Rule => view! {
+            <Separator />
+        },
     }
 }
 
@@ -481,10 +471,6 @@ fn Item(text: String) -> NodeId {
 #[component]
 fn WebImage(model: Model, url: String, alt: String) -> NodeId {
     let image = model.image(&url);
-    let picture = create_memo(move || match image.get() {
-        Loaded::Ready(image) => Some(image),
-        _ => None,
-    });
     let waiting = create_memo(move || image.get() == Loaded::Loading);
     let failed = create_memo(move || matches!(image.get(), Loaded::Failed(_)));
     let described = if alt.is_empty() {
@@ -519,7 +505,13 @@ fn WebImage(model: Model, url: String, alt: String) -> NodeId {
                 <Link label={missing.clone()} on_click={open.clone()} />
             </Show>
             <Pressable on_click={enlarge} accessibility>
-                <Picture image={picture} radius=Radius::Md />
+                <Picture
+                    image={move || match image.get() {
+                        Loaded::Ready(image) => Some(image),
+                        _ => None,
+                    }}
+                    radius=Radius::Md
+                />
             </Pressable>
         </List>
     }

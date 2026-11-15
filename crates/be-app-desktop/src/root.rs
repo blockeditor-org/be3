@@ -64,10 +64,9 @@ impl be_sdk_beui::BeuiRoot for DesktopRoot {
     #[component]
     fn Display(editor: Editor, display: u32) -> NodeId {
         let shared = shared(editor.block_id());
-        let ready = create_memo(move || shared.with(Option::is_some));
         view! {
             <Layers>
-                <Show condition={ready}>|| {
+                <Show condition={move || shared.with(Option::is_some)}>|| {
                     let Some(desktop) = shared.get_untracked() else {
                         return view! {
                             <Frame />

@@ -32,7 +32,6 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     let editable = create_memo(move || {
         available && child.get().interaction == Some(InteractionMode::Preview) && !focused.get()
     });
-    let unavailable = !available;
     let has_icon = embed.icon.is_some();
     let icon = embed.icon;
     let label = embed.label.clone();
@@ -93,8 +92,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                         </Show>
                     </List>
                 </Frame>
-                <Show condition={unavailable} then={unavailable_row} />
-                <Show condition={available}>
+                <Show condition={available} fallback={unavailable_row}>
                     <ListItem grow=1.0>
                         <ChildBlock
                             editor={state.editor}

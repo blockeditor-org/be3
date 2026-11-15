@@ -79,7 +79,6 @@ pub(crate) fn StatusButton(
     let wifi_glyph = create_memo(move || wifi.with(wifi::glyph).to_owned());
     let volume_glyph =
         create_memo(move || volume::glyph(levels.with(|levels| levels.output)).to_owned());
-    let bare = create_memo(move || !wireless.get() && !audible.get() && !powered.get());
     let page = create_signal(Page::Main);
     let shown = create_signal(false);
     let open = Binding::new(shown, move |next: bool| {
@@ -113,7 +112,7 @@ pub(crate) fn StatusButton(
                                 <Icon glyph=ICON_POWER />
                             </Text>
                         </Show>
-                        <Show condition={bare}>
+                        <Show condition={move || !wireless.get() && !audible.get() && !powered.get()}>
                             <Text>
                                 <Icon glyph=ICON_SLIDERS_HORIZONTAL />
                             </Text>
@@ -135,9 +134,6 @@ fn QuickSettings(
     page: Signal<Page>,
     popover: PopoverHandle,
 ) -> NodeId {
-    let main = create_memo(move || page.get() == Page::Main);
-    let networks = create_memo(move || page.get() == Page::Wifi);
-    let rotating = create_memo(move || page.get() == Page::Rotate);
     let back = Callback::new(move |()| page.set(Page::Main));
     let close = Callback::new(move |()| popover.close.call(()));
     let Status {
@@ -148,13 +144,13 @@ fn QuickSettings(
     } = status;
     view! {
         <List spacing=SPACING @test_id={"desktop.quick"}>
-            <Show condition={main}>
+            <Show condition={move || page.get() == Page::Main}>
                 <QuickMain status={status} power={power} page={page} close={close} />
             </Show>
-            <Show condition={networks}>
+            <Show condition={move || page.get() == Page::Wifi}>
                 <WifiPanel editor={editor} status={wifi} on_back={back} />
             </Show>
-            <Show condition={rotating}>
+            <Show condition={move || page.get() == Page::Rotate}>
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <BackButton on_click={back} />
@@ -197,7 +193,6 @@ fn QuickMain(
     });
     let wifi_on = create_memo(move || wifi.with(|wifi| wifi.enabled));
     let wifi_glyph = create_memo(move || wifi.with(wifi::glyph).to_owned());
-    let rotatable = create_memo(move || screen.with(Option::is_some));
     let networks = move || {
         page.set(Page::Wifi);
         wifi::scan(editor);
@@ -229,7 +224,7 @@ fn QuickMain(
                     glyph=ICON_KEYBOARD
                     on_click={keyboard}
                 />
-                <Show condition={rotatable}>
+                <Show condition={move || screen.with(Option::is_some)}>
                     <QuickTile
                         id="desktop.quick.rotate"
                         label="Rotate"
