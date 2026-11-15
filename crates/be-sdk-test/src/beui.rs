@@ -1149,16 +1149,21 @@ impl<A: BeuiRoot> BeuiTest<A> {
     /// and sends them back marked as its own, painting again until nothing changes.
     pub fn run(&mut self) {
         let frames = std::mem::take(&mut self.frames);
+        let mut seen = self.wakes.count();
         if frames.is_empty() {
             self.step(Vec::new());
         }
         for events in frames {
             self.step(events);
         }
+        // Another frame for what the host queued, and for the editor waking itself (a future
+        // an async memo ran answered), as be-host draws one when it is woken.
         for _ in 0..HOST_ROUNDS {
-            if self.inbox.is_empty() && !self.store.pending() {
+            let woken = self.wakes.count();
+            if self.inbox.is_empty() && !self.store.pending() && woken == seen {
                 break;
             }
+            seen = woken;
             self.step(Vec::new());
         }
     }
