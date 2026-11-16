@@ -8,16 +8,18 @@ Every drag in beui becomes a description of where the dragged thing can end up, 
 Each place that takes an item says where it could land and where it would rest there; the board
 does the rest: which place the pointer is choosing, the floating item, snapping, the preview,
 the animation, keyboard moves, Escape, edge scrolling and showing the drag to peers. It replaces
-`Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, `Reorder`'s hit logic, the dock's tab
+`Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, `Reorder`'s own hit logic, the dock's tab
 and tool bar drag geometry and the hand-written drop targets in apps. Nothing keeps the old API.
 
 ## Done means
 
-The final PR deletes `Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, `ReorderGap` and
-`Reorder`'s `hover`/`drop_at`, and replaces the geometry at each site: `bars.rs`'s band logic
+The final PR deletes `Draggable`, `DropTarget`, `Take`, `Target`, `DragSource`, the dock's private
+`TabStrip`, and `Reorder`'s tree-only `hover`/`part`/`shut`/`resting` with the `visit` and
+`slot_at` only they use (step 6), and replaces the geometry at each site: `bars.rs`'s band logic
 (`resolve_bar`, `dock_reach`, `thrown`, `float_near`, `lift_goal`, `step_lift`), the dock's
-`resolve`/`resolve_in`/`judged`/`takes`, `reorder.rs`'s `slot_at`/`spans` and gap animation, the
-video timeline's `drop_target_at`, and the game board's press state machine. Each step's PR
+`resolve`/`resolve_in`/`judged`/`takes`, the video timeline's `drop_target_at`, and the game
+board's press state machine. `Reorder` stays, built on the primitives, with its gap spring and
+`ReorderGap` (decisions/beui_reorder_stays_over_drop_sites.md). Each step's PR
 reports the lines each site had before and has after. A drag that ends up longer than it was is
 a sign the spec language is missing something; fix the language, not the site.
 
