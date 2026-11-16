@@ -18,10 +18,10 @@ graphics. One runtime, not a second one for `be`.
   that need a person or a screen (pickers, dialogs) refused.
 - An app that asks for the gpu there gets an error it can handle; a host
   component never needs one.
-- `be` carries app wasm in its executable, so a `be` hosts with the build it
-  was made with. This is new: today it carries only each app's manifest and
-  type module (`apps.rs`, the `type_bundle` in its BUCK). It carries only the
-  apps that declare a host component, not every app.
+- `be` hosts with the build it was made with, but carries no app wasm: it
+  downloads the app it runs from its own release, checked against the hashes
+  the release lists and cached by them (guides/apps/runtime.md, "Headless"),
+  so `be` stays one small download.
 - Whatever be-host's headless `:dev` needs that this provides, it shares
   rather than keeping its own.
 - plans/host_as_platform_adapter.md moves be-host-runtime's orchestration into
@@ -37,10 +37,11 @@ graphics. One runtime, not a second one for `be`.
    - b. A headless driver for be-host-runtime, with no beui setup, no
      presenter and no gpu (guides/apps/runtime.md, "Headless"), and a host
      component kept to its own block (guides/apps/host_services.md): done.
-   - c. `be` wiring (be-host-stack and be-host-runtime, the apps that declare
-     `hosts` bundled) and a small example app with a host component.
-   Done: `be` runs a test app's host component
-   against a block and the test reads what it wrote, with no display.
+   - c. `be` wiring (be-host-stack and be-host-runtime, the host app
+     downloaded from `be`'s release) and a small example app with a host
+     component: done (guides/apps/runtime.md, "Headless"; be-tool-cli's
+     `be_runs_an_apps_host_component_with_no_display`). A deployed `be` finds
+     its apps only in releases deployed with `app-hashes.json`.
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md
