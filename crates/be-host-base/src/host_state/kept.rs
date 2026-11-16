@@ -55,7 +55,7 @@ const SCHEMA: &str = "
 ";
 
 /// A change to the host state, made to the store's copy at once and kept by its `Keeper`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub enum Write {
     SaveAccount(SavedAccount),
     /// Also forgets its identity and last organization, and stops it being the active one.

@@ -18,7 +18,7 @@ use super::{
 /// What `host.sqlite3` holds that the host reads: its saved accounts (in the order they are
 /// listed: by name, ignoring ASCII case, then id), its settings, identity secrets and the
 /// input, display and remapper settings.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct Held {
     pub(super) accounts: Vec<SavedAccount>,
     pub(super) settings: BTreeMap<String, String>,

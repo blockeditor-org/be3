@@ -1553,6 +1553,7 @@ dependencies = [
  "jni 0.22.4",
  "libc",
  "ndk-context",
+ "postcard",
  "qrcodegen",
  "serde",
  "serde_json",

@@ -23,7 +23,7 @@ enum Keep {
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     Here(Option<be_block_client::RefsDb>),
     #[cfg(target_arch = "wasm32")]
-    Elsewhere(tokio::sync::mpsc::UnboundedSender<web::Job>),
+    Elsewhere(web::Jobs),
 }
 
 /// The organizations each saved account last listed, for the screens shown while no stack runs
@@ -128,10 +128,9 @@ mod web {
         pub(crate) error: String,
     }
 
-    /// A change the page sends the host's worker to keep.
+    /// A change the page sends the host's worker to keep, as its bytes (`Jobs`).
+    #[derive(serde::Deserialize, serde::Serialize)]
     pub(crate) enum Job {
-        /// Where to tell the page of a change that could not be kept.
-        ReportTo(be_host_base::host::Across<Unkept>),
         State(Write),
         /// Deletes `host.sqlite3` and keeps the changes after in a fresh one.
         ForgetState,
@@ -150,8 +149,21 @@ mod web {
                 Job::State(write) => write.what(),
                 Job::ForgetState => "deleting this device's saved data".to_owned(),
                 Job::Workspaces { .. } => "the organizations you last listed".to_owned(),
-                Job::ReportTo(_) => String::new(),
             }
+        }
+    }
+
+    /// Where the page sends the host's worker its jobs, each as its bytes, as a page whose
+    /// memory the worker does not share sends them.
+    #[derive(Clone)]
+    pub(crate) struct Jobs(mpsc::UnboundedSender<Vec<u8>>);
+
+    impl Jobs {
+        /// Fails once the worker stopped taking them.
+        pub(crate) fn send(&self, job: Job) -> Result<(), ()> {
+            self.0
+                .send(postcard::to_stdvec(&job).expect("a host job encodes"))
+                .map_err(|_| ())
         }
     }
 
@@ -162,13 +174,18 @@ mod web {
         data_dir: PathBuf,
         report: be_host_base::host::Post<Unkept>,
     ) -> Result<(HostStateStore, WorkspaceCache), String> {
-        let (answer, answered) = oneshot::channel::<Opened>();
+        // The worker answers what the files hold in bytes, as it will to a page whose memory it
+        // does not share.
+        let (answer, answered) = oneshot::channel::<Vec<u8>>();
         let (jobs, taken) = mpsc::unbounded_channel();
-        let _ = jobs.send(Job::ReportTo(report.across()));
-        be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken)));
-        let (held, listed) = answered.await.map_err(|_| {
-            "the host's worker stopped before it read the host's files".to_owned()
-        })??;
+        let jobs = Jobs(jobs);
+        let report = report.across();
+        be_host_stack::run_in_worker(move || Box::pin(keep(data_dir, answer, taken, report)));
+        let answered = answered
+            .await
+            .map_err(|_| "the host's worker stopped before it read the host's files".to_owned())?;
+        let (held, listed) = postcard::from_bytes::<Opened>(&answered)
+            .expect("what the host's worker answers decodes")?;
         let host_state = store(jobs.clone(), held);
         Ok((
             host_state,
@@ -180,7 +197,7 @@ mod web {
     }
 
     /// The page's store of `held`, whose changes go to the host's worker.
-    pub(super) fn store(jobs: mpsc::UnboundedSender<Job>, held: Held) -> HostStateStore {
+    pub(super) fn store(jobs: Jobs, held: Held) -> HostStateStore {
         HostStateStore::kept_elsewhere(held, move |write| {
             let _ = jobs.send(Job::State(write));
         })
@@ -191,18 +208,14 @@ mod web {
         path: PathBuf,
         keeper: Option<Keeper>,
         refs: Option<be_block_client::RefsDb>,
-        taken: mpsc::UnboundedReceiver<Job>,
-        report: Option<be_host_base::host::Across<Unkept>>,
+        taken: mpsc::UnboundedReceiver<Vec<u8>>,
+        report: be_host_base::host::Across<Unkept>,
     }
 
     impl Kept {
         fn run(&mut self, job: Job) {
             let what = job.what();
             let kept = match job {
-                Job::ReportTo(post) => {
-                    self.report = Some(post);
-                    Ok(())
-                }
                 Job::State(write) => match &self.keeper {
                     Some(keeper) => keeper.keep(&write).map_err(|error| error.to_string()),
                     None => Err("the host's state could not be opened again".to_owned()),
@@ -228,17 +241,14 @@ mod web {
                 },
             };
             if let Err(error) = kept {
-                match &self.report {
-                    Some(report) => report.send(Unkept { what, error }),
-                    None => eprintln!("be-host: {what} was not kept: {error}"),
-                }
+                self.report.send(Unkept { what, error });
             }
         }
 
         /// Keeps every change sent so far.
         fn run_sent(&mut self) {
             while let Ok(job) = self.taken.try_recv() {
-                self.run(job);
+                self.run(decode(&job));
             }
         }
     }
@@ -246,10 +256,16 @@ mod web {
     /// In the host's worker: opens the files, answers what they hold, then keeps each change
     /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
     /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
+    /// The page encoded it from a `Job`: bytes that do not decode are a bug.
+    fn decode(job: &[u8]) -> Job {
+        postcard::from_bytes(job).expect("a host job decodes")
+    }
+
     async fn keep(
         data_dir: PathBuf,
-        answer: oneshot::Sender<Opened>,
-        taken: mpsc::UnboundedReceiver<Job>,
+        answer: oneshot::Sender<Vec<u8>>,
+        taken: mpsc::UnboundedReceiver<Vec<u8>>,
+        report: be_host_base::host::Across<Unkept>,
     ) {
         let opened = (|| {
             std::fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
@@ -263,19 +279,21 @@ mod web {
                 .unwrap_or_default();
             Ok::<_, String>((keeper, refs, held, listed))
         })();
+        let encoded =
+            |opened: Opened| postcard::to_stdvec(&opened).expect("the host's files encode");
         let kept = match opened {
             Ok((keeper, refs, held, listed)) => {
-                let _ = answer.send(Ok((held, listed)));
+                let _ = answer.send(encoded(Ok((held, listed))));
                 Kept {
                     path: data_dir.join("host.sqlite3"),
                     keeper: Some(keeper),
                     refs,
                     taken,
-                    report: None,
+                    report,
                 }
             }
             Err(error) => {
-                let _ = answer.send(Err(error));
+                let _ = answer.send(encoded(Err(error)));
                 return;
             }
         };
@@ -287,7 +305,7 @@ mod web {
         loop {
             let job = std::future::poll_fn(|context| kept.borrow_mut().taken.poll_recv(context));
             match job.await {
-                Some(job) => kept.borrow_mut().run(job),
+                Some(job) => kept.borrow_mut().run(decode(&job)),
                 None => return,
             }
         }

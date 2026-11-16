@@ -59,8 +59,13 @@ a thread that runs beside it.
    files, be-host's `host_files`) its own memory, serialize `Seen` and commands (the protocol
    crates' own encodings), and stop binding the page's files channel: a file call on the page
    then fails loudly. be-host-runtime's two file reads on the page, `input.rs`'s `read_path`
-   and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer and its `Write`s, and the organization
-   lists, become messages too. The stack's commands are bytes already, and replies numbers
+   and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer,
+   its `Write`s and the organization lists are bytes already (be-host `host_files.rs`'s
+   `Jobs`), but the host's worker and each stack still start from a closure the page hands
+   over (`be_host_stack::run_in_worker`, the stacks' `platform::spawn`), and what it captures
+   (the channels, the report's `Across`) is values in the shared heap: with a memory of its
+   own, a worker starts from a named entry and is sent what it needs as bytes. The stack's
+   commands are bytes already, and replies numbers
    answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
    changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
    bytes to travel by `postMessage` rather than through the shared heap. An update carries the
