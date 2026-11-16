@@ -307,6 +307,16 @@ web_host_test(
     test = "web-test/a_child_placed_in_a_popover_shows_above_it.mjs",
 )
 
+# Two pages share a chat with no memory shared between a page and its host's worker, and the
+# page makes no file call (plans/web_page_never_waits.md).
+web_host_test(
+    name = "own-memory-web-host-test",
+    bundle = ":web",
+    caddyfile = ":Caddyfile",
+    server = "//crates/be-server-bin:bin",
+    test = "web-test/two_pages_write_in_one_chat_and_neither_makes_a_file_call.mjs",
+)
+
 web_host_test(
     name = "push-web-host-test",
     bundle = ":web",
