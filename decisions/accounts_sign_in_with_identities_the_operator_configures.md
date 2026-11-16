@@ -15,7 +15,8 @@ is configured per server, one tenant's issuer each.
   phrase), so taking one over gets metadata and memberships, never plaintext
   nor a signature, though it can act as the account on the server (delete,
   remove members, invite) until its owner recovers it, and recovery ends every
-  other session. So an email-based factor is strong enough as the baseline.
+  other session and removes every way in but the recovered email, and every
+  agent the account made. So an email-based factor is strong enough as the baseline.
 - Single-tenant providers keep the issuer the server checks one the operator
   chose; Microsoft's `common` or `organizations` would accept any tenant's
   tokens and need a tenant allowlist of their own.

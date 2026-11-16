@@ -839,6 +839,55 @@ impl ServerStore {
         .await
     }
 
+    /// Deletes every agent `creator` made, in every organization, as taking an account back
+    /// does (plans/crypto_audit.md, 9): any of them may be an intruder's. Answers their names,
+    /// for the notice. Grants signed to them (signed_access step 3b) are left for a device of
+    /// someone who manages the block to revoke, as for any grantee whose account is gone.
+    pub(crate) async fn delete_agents_created_by(
+        &self,
+        creator: Uuid,
+    ) -> Result<Vec<String>, ServerError> {
+        let made: Vec<(Uuid, Uuid, String)> = self
+            .with_database(move |_, database| {
+                let mut statement = database.prepare(
+                    "SELECT agents.account_id, agents.organization_id, accounts.display_name
+                     FROM agents JOIN accounts ON accounts.id = agents.account_id
+                     WHERE agents.created_by = ?1 ORDER BY accounts.display_name, agents.account_id",
+                )?;
+                let rows = statement.query_map([creator.to_string()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                })?;
+                let mut made = Vec::new();
+                for row in rows {
+                    let (agent, organization, name) = row?;
+                    made.push((parse_uuid(&agent)?, parse_uuid(&organization)?, name));
+                }
+                Ok(made)
+            })
+            .await?;
+        let organizations: std::collections::BTreeSet<Uuid> =
+            made.iter().map(|(_, organization, _)| *organization).collect();
+        for organization in organizations {
+            let agents: Vec<Uuid> = made
+                .iter()
+                .filter(|(_, of, _)| *of == organization)
+                .map(|(agent, _, _)| *agent)
+                .collect();
+            self.with_graph(organization, move |store, graph, database| {
+                let transaction = be_block_sqlite_schema::write_transaction(database)?;
+                for agent in agents {
+                    delete_agent(graph, &transaction, organization, agent)?;
+                }
+                forget_orphaned_block_agents(graph, &transaction, organization)?;
+                transaction.commit()?;
+                store.sessions_changed();
+                Ok(())
+            })
+            .await?;
+        }
+        Ok(made.into_iter().map(|(_, _, name)| name).collect())
+    }
+
     pub async fn opened(
         &self,
         account: Uuid,

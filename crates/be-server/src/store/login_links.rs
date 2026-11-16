@@ -14,7 +14,9 @@ use std::time::Instant;
 use rusqlite::{OptionalExtension, params};
 use uuid::Uuid;
 
-use super::codes::{account_of, make_account, open_browser_session, unregistered};
+use super::codes::{
+    Identity, account_of, make_account, open_browser_session, recover_account, unregistered,
+};
 use super::{ServerStore, hash_token, invite_codes, normalize_email, parse_uuid, portal::now};
 use crate::ServerError;
 
@@ -91,12 +93,21 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
     })
 }
 
+/// A login link used: the browser session it opened, and what taking the account back removed.
+pub struct UsedLink {
+    pub session: String,
+    pub account: Uuid,
+    pub email: String,
+    /// The ways to sign in it removed (`recover_account`), which the account is told of.
+    pub removed: Vec<Identity>,
+}
+
 impl ServerStore {
-    /// Uses a login link, once: answers a new browser session for its account, making the
-    /// account first for a link made for a new email.
-    pub async fn use_login_link(&self, token: &str, address: &str) -> Result<String, ServerError> {
+    /// Uses a login link, once: makes the account first for a link made for a new email, then
+    /// takes it back as a recovery does (`recover_account`) and answers a new browser session.
+    pub async fn use_login_link(&self, token: &str, address: &str) -> Result<UsedLink, ServerError> {
         let token_hash = hash_token(token);
-        let (session, email) = self
+        let used = self
             .with_database(move |store, database| {
                 let transaction = be_block_sqlite_schema::write_transaction(database)?;
                 let row: Option<(String, String)> = transaction
@@ -123,13 +134,14 @@ impl ServerStore {
                     },
                 };
                 let account = parse_uuid(&account)?;
-                let session = open_browser_session(&transaction, account, true)?;
+                let removed = recover_account(&transaction, account)?;
+                let session = open_browser_session(&transaction, account)?;
                 transaction.commit()?;
                 store.sessions_changed();
-                Ok((session, email))
+                Ok(UsedLink { session, account, email, removed })
             })
             .await?;
-        self.remembered.remember(&email, address, Instant::now());
-        Ok(session)
+        self.remembered.remember(&used.email, address, Instant::now());
+        Ok(used)
     }
 }

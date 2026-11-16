@@ -109,21 +109,21 @@ impl ServerStore {
         .await
     }
 
-    /// Records a change to the account's ways to sign in, unless `claim_identity_add` already
-    /// did (`recorded`), and a notice of it for the account's devices; the caller tells its
-    /// connections (`Push::AccountNoticesChanged`).
+    /// Records changes of one kind to the account's ways to sign in, one per label, unless
+    /// `claim_identity_add` already did (`recorded`), and one notice of them for the account's
+    /// devices; the caller tells its connections (`Push::AccountNoticesChanged`).
     pub(crate) async fn identity_changed(
         &self,
         account: Uuid,
         kind: ChangeKind,
-        label: String,
+        labels: Vec<String>,
         text: String,
         recorded: bool,
     ) -> Result<(), ServerError> {
         self.with_database(move |_, database| {
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             let (account, now) = (account.to_string(), now());
-            if !recorded {
+            for label in labels.iter().filter(|_| !recorded) {
                 transaction.execute(
                     "INSERT INTO identity_changes (account_id, kind, label, created) VALUES (?1, ?2, ?3, ?4)",
                     params![account, kind.stored(), label, now],

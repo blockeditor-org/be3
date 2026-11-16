@@ -222,7 +222,7 @@ impl ServerStore {
                     [found.account.to_string()],
                     |row| row.get(0),
                 )?;
-                let session = open_browser_session(&transaction, found.account, false)?;
+                let session = open_browser_session(&transaction, found.account)?;
                 transaction.commit()?;
                 Ok((session, email.unwrap_or_default()))
             })

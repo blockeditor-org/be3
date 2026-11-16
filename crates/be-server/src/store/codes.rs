@@ -120,6 +120,8 @@ pub struct EnteredCode {
     pub email: String,
     /// For a link, the provider identity it added, which the address is told of.
     pub linked: Option<String>,
+    /// For a recovery, the ways to sign in it removed (`recover_account`).
+    pub removed: Vec<Identity>,
 }
 
 /// An identity an account signs in with.
@@ -257,24 +259,45 @@ pub(crate) fn make_account(
     Ok(account)
 }
 
-/// Starts a browser session for the account that counts as fresh proof. `recover` first ends
-/// every other session and pending email change, since the account may be in someone else's
-/// hands; the caller then calls `sessions_changed`.
+/// Takes back an account that may be in someone else's hands, before the recovering browser's
+/// session opens: ends every session and pending email change, and removes every way to sign
+/// in but the email the recovery just proved, since any of them may be an intruder's
+/// (plans/crypto_audit.md, 9). Answers the ways it removed, for the notice. The caller then
+/// calls `sessions_changed`.
+pub(crate) fn recover_account(
+    database: &Connection,
+    account: Uuid,
+) -> Result<Vec<Identity>, ServerError> {
+    let account = account.to_string();
+    database.execute("DELETE FROM sessions WHERE account_id = ?1", [&account])?;
+    database.execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
+    let removed = database
+        .prepare(
+            "SELECT id, kind, subject, email, created FROM identities
+             WHERE account_id = ?1 AND kind != 'email' ORDER BY created, id",
+        )?
+        .query_map([&account], |row| {
+            Ok(Identity {
+                id: row.get(0)?,
+                kind: row.get(1)?,
+                subject: row.get(2)?,
+                email: row.get(3)?,
+                created: row.get(4)?,
+            })
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    database.execute(
+        "DELETE FROM identities WHERE account_id = ?1 AND kind != 'email'",
+        [&account],
+    )?;
+    Ok(removed)
+}
+
+/// Starts a browser session for the account that counts as fresh proof.
 pub(crate) fn open_browser_session(
     database: &Connection,
     account: Uuid,
-    recover: bool,
 ) -> Result<String, ServerError> {
-    if recover {
-        database.execute(
-            "DELETE FROM sessions WHERE account_id = ?1",
-            [account.to_string()],
-        )?;
-        database.execute(
-            "DELETE FROM account_mail WHERE account_id = ?1",
-            [account.to_string()],
-        )?;
-    }
     let now = now();
     let token = issue_token(database, account)?;
     database.execute(
@@ -519,6 +542,10 @@ impl ServerStore {
                     }
                     _ => parse_uuid(&account)?,
                 };
+                let removed = match purpose {
+                    CodePurpose::Recover => recover_account(&transaction, account)?,
+                    _ => Vec::new(),
+                };
                 let session = match purpose {
                     CodePurpose::Proof => {
                         let proved = transaction.execute(
@@ -530,14 +557,14 @@ impl ServerStore {
                         }
                         None
                     }
-                    _ => Some(open_browser_session(&transaction, account, purpose == CodePurpose::Recover)?),
+                    _ => Some(open_browser_session(&transaction, account)?),
                 };
                 transaction.commit()?;
                 if purpose == CodePurpose::Recover {
                     store.sessions_changed();
                 }
                 let linked = (purpose == CodePurpose::Link).then_some(identity);
-                Ok((EnteredCode { purpose, account, session, device_code, email: email.clone(), linked }, email))
+                Ok((EnteredCode { purpose, account, session, device_code, email: email.clone(), linked, removed }, email))
             })
             .await;
         let (entered, email) = entered_code?;

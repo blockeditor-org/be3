@@ -451,7 +451,7 @@ impl ServerStore {
                                 false => follow_email(&transaction, &account, &subject, &stored, &email)?,
                             };
                             let session =
-                                open_browser_session(&transaction, parse_uuid(&account)?, false)?;
+                                open_browser_session(&transaction, parse_uuid(&account)?)?;
                             transaction.commit()?;
                             return Ok(Ok(Outcome::SignedIn { session, device_code, moved_from }));
                         }
@@ -551,7 +551,7 @@ impl ServerStore {
             let account = make_account(&transaction, None, &name)?;
             add_provider_identity(&transaction, account, &subject, &email)?;
             transaction.execute("DELETE FROM oidc_pending WHERE attempt_hash = ?1", [&attempt])?;
-            let session = open_browser_session(&transaction, account, false)?;
+            let session = open_browser_session(&transaction, account)?;
             transaction.commit()?;
             Ok((session, device_code))
         })
