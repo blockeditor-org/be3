@@ -788,7 +788,7 @@ impl<S: ObjectStore> Peer<S> {
         self.refs.add_keys(&keys)?;
         let unknown = keys.wrapped.iter().any(|wrap| {
             wrap.wrapped_by == WrappedBy::Account(self.account)
-                && self.keys.contact(wrap.sender).is_none()
+                && self.keys.sender(wrap.sender).is_none()
         });
         if unknown {
             self.refresh_contacts().await?;

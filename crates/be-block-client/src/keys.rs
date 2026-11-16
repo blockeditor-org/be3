@@ -191,19 +191,49 @@ impl KeyBook {
         *self.contacts.lock().unwrap() = verified.into_iter().collect();
     }
 
+    /// The public key this device seals to `account` with: its own, or a verified contact's.
+    /// Never the server's, whatever account it names itself as: a key goes to the server only
+    /// as the settings scope key (`recipient`, `Peer::share_with_server`).
     pub fn contact(&self, account: Uuid) -> Option<RecoveryPublic> {
-        if let Some((server, public)) = self.server()
-            && server == account
-        {
-            return Some(public);
-        }
         match account == self.account {
             true => Some(self.identity.public()),
             false => self.contacts.lock().unwrap().get(&account).copied(),
         }
     }
 
+    /// The public key `key` is sealed to `account` with: `contact`'s, or the server's when
+    /// `key` is a scope key of the organization's settings, which the server reads to enforce
+    /// policies (a new epoch of it after a rotation reaches the server this way). Which block a
+    /// key is of is what this device minted or opened it as, never the server's row.
+    pub fn recipient(&self, account: Uuid, key: Uuid) -> Option<RecoveryPublic> {
+        self.contact(account).or_else(|| {
+            let settings = be_block::organization_settings(self.organization);
+            let of_settings = self.roots.lock().unwrap().blocks.get(&key) == Some(&settings);
+            let scope = self.row(key).is_some_and(|row| row.kind == KeyKind::Scope);
+            self.server()
+                .filter(|(server, _)| *server == account && of_settings && scope)
+                .map(|(_, public)| public)
+        })
+    }
+
+    /// The public key a key sealed by `account` opens with: this device's or a verified
+    /// contact's (`contact`), else the server's, whose seals `accepts` limits to the settings
+    /// key.
+    pub fn sender(&self, account: Uuid) -> Option<RecoveryPublic> {
+        self.contact(account).or_else(|| {
+            self.server()
+                .filter(|(server, _)| *server == account)
+                .map(|(_, public)| public)
+        })
+    }
+
+    /// Whether a key `sender` sealed to this account may open, for `block`: the server's seal
+    /// only of the settings key, and only untrusted. This account and its verified contacts are
+    /// themselves, whatever account the server names itself as.
     fn accepts(&self, sender: Uuid, block: Option<Uuid>, vouched: bool) -> bool {
+        if self.contact(sender).is_some() {
+            return true;
+        }
         match self.server() {
             Some((server, _)) if server == sender => {
                 !vouched && block == Some(be_block::organization_settings(self.organization))
@@ -565,7 +595,7 @@ impl KeyBook {
                 }
                 let sender = Party {
                     account: wrap.sender.into_bytes(),
-                    public: self.contact(wrap.sender)?,
+                    public: self.sender(wrap.sender)?,
                 };
                 self.identity
                     .open_from(

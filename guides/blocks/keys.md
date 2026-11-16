@@ -34,7 +34,11 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   (`RecoverySecret::seal_for`/`open_from`, binding both public keys, both
   account ids and the key id). A device takes such a key only from itself or a
   contact it verified (`KeyBook::contact`) and silently ignores any other row,
-  including one the server sealed to its public key. Keys made here, sealed by a
+  including one the server sealed to its public key. It seals a key only to
+  itself or a verified contact (`KeyBook::contact`), whatever account key work
+  or the member list names, the server's own included; the one key it seals to
+  the server is the settings block's scope key, by the block it knows that key
+  is of (`KeyBook::recipient`, `Peer::share_with_server`). Keys made here, sealed by a
   verified sender, or wrapped under such keys are *trusted*
   (`KeyBook::trusted`); keys opened only through escrow, or the server's seal
   of the organization settings key, are not. A device reads with any key it
