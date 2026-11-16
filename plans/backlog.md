@@ -264,6 +264,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   suspect: after `refetch`, `loaded` finds the graph's query ready before the refetch has
   marked it loading, so the test reads the app's answers before the new listing is sent.
   Done: the test waits on the refetched listing itself, and passes 100 runs under load.
+- **A restarted app's editor that is never sent its snapshot.** When an app restarts,
+  be-host-runtime marks each content link undelivered (`instances.rs`, where it reopens), but
+  if the host attaches the editor again (`attaching`) it does not forward the app's `Resend`
+  (`!(resend && attaching)`), and the replica's `attach` returns early for an editor it has
+  already. Then nothing sends the snapshot, and what waits for the content (a keyboard gift's
+  `Given` stage) waits for good. Done: a restarted app's editor is sent its snapshot in every
+  case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
+  the content counts as delivered.
 
 ## 16. Host test tools
 
