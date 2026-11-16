@@ -23,13 +23,27 @@ broken until a V8 for it is pinned (plans/wasm_on_v8.md).
 
 ## What it costs
 
+- A code cache entry carries what was left of each function's tiering budget, which V8 restores
+  as it loads; left as the session spent it, every later start optimised what that session found
+  hot (the host tests took 1,000 s of CPU), so entries are written with fresh budgets.
 - be-host is larger: the release binary went from 123 MB to 176 MB of loaded sections
   (162 MB to 232 MB on disk), most of it V8.
-- Cold code runs slower until TurboFan reaches it, and there is no code cache on disk, so each
-  start compiles again, function by function as each first runs (a module itself compiles in
-  milliseconds: the 22 MB base library in 33 ms). The host tests show it: all 139 took 831 s of
-  CPU against 397 s on wasmtime's precompiled modules, and the median test's host ran 5.9 s
-  against 2.6 (November 2026). Where that time goes is not profiled yet.
+- Starts cost more. V8 compiles each function as it first runs, with Liftoff, and optimises hot
+  ones with TurboFan behind it (a module itself compiles in milliseconds: the 22 MB base library
+  in 33 ms). The user accepted these numbers (November 2026, the 141 host tests on the build
+  server; start is the host's launch to the Files pane, the median of 151 starts):
+
+  | | wasmtime, precompiled | V8 | V8, exports trimmed | V8, trimmed, code cache |
+  |---|---|---|---|---|
+  | Host tests' CPU | 397 s | 831 s | 748 s | 756 s |
+  | Start to the Files | 0.56 s | 2.23 s | 1.77 s | 1.67 s |
+
+  Trimming: each library keeps only the exports the staged apps import (plus `__` names and the
+  host's entry points), since V8 makes a wrapper for every export as it instantiates, and the
+  libraries export about 130,000 names. The code cache keeps V8's TurboFan code on the device
+  (crates/be-wasm-host/src/cache.rs), and the host tests read one their build makes by running
+  each host; it saves the start little because V8 serializes only TurboFan code, and most of a
+  start runs code that never reached it.
 - The app host has no fuel and no canonical NaNs; a guest that must be deterministic stays on
   wasmi (plans/host_as_platform_adapter.md).
 - `--wasm-unsafe-fast-api-wrapper`, which the fast imports need (crates/be-wasm-host/src/engine.rs
@@ -46,7 +60,8 @@ broken until a V8 for it is pinned (plans/wasm_on_v8.md).
 - `--liftoff-only` or `--no-wasm-dynamic-tiering`, under which V8 does deliver a termination at
   the heap limit: either changes what every app costs to compile or run, where refusing what can
   fill the heap costs no app anything.
-- A code cache on disk: V8 compiles fast enough that the cache's invalidation and its files were
-  not worth having back.
+- Filling the code cache ahead of time with `--no-liftoff`: V8 refuses an entry written under
+  other flags, and compiling everything with TurboFan costs 15 s of CPU at start.
+- Trimming each app's libraries to that app's own imports: the libraries are then no longer
+  shared between apps, and starts cost more than with nothing trimmed.
 
-Not measured yet: host start to the Files pane on its own.
