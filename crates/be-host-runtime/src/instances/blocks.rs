@@ -177,6 +177,22 @@ impl Instances {
             self.services.answers.push(call.refuse(OpError::Denied));
             return false;
         }
+        if let Some(own) = self.hosting(instance) {
+            // A host component runs unattended: it reaches only its own block and the blocks
+            // below it, and shows nothing (guides/apps/host_services.md, "Host components").
+            let mut outside = call.reaches_past_blocks();
+            call.visit_block_ids(&mut |role, id| {
+                let block = Uuid::from_bytes(*id);
+                outside |= role == BlockIdRole::Existing
+                    && block != own
+                    && !be_host_stack::with_graph(|graph| graph.is_within(block, own))
+                        .unwrap_or(false);
+            });
+            if outside {
+                self.services.answers.push(call.refuse(OpError::Denied));
+                return false;
+            }
+        }
         match call {
             Call::OpenBlock { reply, request } => {
                 let Some(entry) = self.entries.get_mut(&instance) else {
