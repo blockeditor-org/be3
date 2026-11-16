@@ -18,10 +18,6 @@ pub(crate) const PAGE: u64 = 65536;
 /// functions whose addresses are taken, far fewer.
 const TABLE_ENTRIES: u32 = 1 << 20;
 
-/// Starts V8 once for the process. `--wasm-unsafe-fast-api-wrapper` lets a wasm import call a
-/// fast-API function directly, which is how every gpu and transport call reaches the host without
-/// JavaScript in between (gpu.rs). With `BE3_PERF_MAP` set, V8 writes the perf map that names the
-/// guests' compiled functions for `perf` (guides/performance.md).
 static PLATFORM: OnceLock<v8::SharedRef<v8::Platform>> = OnceLock::new();
 static FLAGS: OnceLock<String> = OnceLock::new();
 
@@ -37,6 +33,10 @@ pub(crate) fn flags_hash() -> String {
     be_wasm_dylink::identity(FLAGS.get().map_or("", String::as_str).as_bytes())[..16].to_owned()
 }
 
+/// Starts V8 once for the process. `--wasm-unsafe-fast-api-wrapper` lets a wasm import call a
+/// fast-API function directly, which is how every gpu and transport call reaches the host without
+/// JavaScript in between (gpu.rs). With `BE3_PERF_MAP` set, V8 writes the perf map that names the
+/// guests' compiled functions for `perf` (guides/performance.md).
 pub(crate) fn initialize() {
     static STARTED: OnceLock<()> = OnceLock::new();
     STARTED.get_or_init(|| {
@@ -312,28 +312,31 @@ pub(crate) fn compile(scope: &mut v8::PinScope<'_, '_>, bytes: &[u8]) -> Result<
     let shape = Shape::read(bytes)?;
     shape.bounded()?;
     let entry = crate::cache::entry(bytes);
+    let _compiling = entry.as_ref().and_then(|_| crate::cache::compiling());
     if let Some(module) = entry.as_deref().and_then(crate::cache::compiled) {
         return Ok(module);
     }
-    let cached = entry.as_ref().and_then(|path| std::fs::read(path).ok());
-    let found = cached.as_ref().map_or(0, Vec::len);
+    let cached = entry.as_deref().and_then(crate::cache::read);
+    let offered = cached.as_ref().map_or(0, Vec::len);
     v8::tc_scope!(let caught, scope);
     let module = match cached {
         Some(cached) => crate::cache::compile_with(caught, bytes, cached),
-        None => v8::WasmModuleObject::compile(caught, bytes),
+        None => match v8::WasmModuleObject::compile(caught, bytes) {
+            Some(module) => Ok(module),
+            None => Err(thrown!(caught)),
+        },
     };
-    let Some(module) = module else {
-        return Err(format!(
-            "the app module could not be compiled: {}",
-            thrown!(caught)
-        ));
-    };
+    let module =
+        module.map_err(|error| format!("the app module could not be compiled: {error}"))?;
     let compiled = Arc::new(Compiled {
         module: module.get_compiled_module(),
         shape,
     });
     if let Some(path) = entry {
-        crate::cache::remember(&compiled, path, found);
+        // What V8 took holds optimised code; an entry it refused (another CPU's) holds none of
+        // this module's, and a later write replaces it whatever its size.
+        let took = offered > 0 && crate::cache::serialized(&compiled.module).is_some();
+        crate::cache::remember(&compiled, path, if took { offered } else { 0 });
     }
     Ok(compiled)
 }

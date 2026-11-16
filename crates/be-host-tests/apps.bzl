@@ -40,7 +40,7 @@ def _code_cache(name):
             "XKB_CONFIG_ROOT=$here/$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
             # Stopped with SIGINT, the host writes what it optimised as it exits.
             "timeout -s INT 25 $here/$(location //crates/be-host:bin) --dev-workspace < /dev/null > $TMP/log 2>&1 || echo exit $? >> $TMP/log;",
-            "find $cache -type f | grep -q . || { tail -60 $TMP/log >&2; exit 1; }",
+            "find $cache -name '*.v8' | grep -q . || { tail -60 $TMP/log >&2; exit 1; }",
         ]),
     )
 
