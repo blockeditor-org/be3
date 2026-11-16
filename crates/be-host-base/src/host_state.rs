@@ -40,7 +40,7 @@ pub enum ServerLocation {
 
 impl ServerLocation {
     /// The server's address: none for a local account, which has no server
-    /// (plans/local_accounts.md).
+    /// (guides/hosting.md, Local accounts and the default server).
     pub fn url(&self) -> String {
         match self {
             Self::Local => String::new(),

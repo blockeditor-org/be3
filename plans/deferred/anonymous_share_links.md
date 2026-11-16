@@ -6,7 +6,7 @@ Set aside until the user picks it up.
 
 A third choice of who may open a share link: anyone at all, without an
 account. Opening one makes an account on the server on the spot (not a local
-account, which has no server; plans/local_accounts.md), kept on that device
+account, which has no server; guides/hosting.md, Local accounts and the default server), kept on that device
 alone with no recovery phrase shown, which signs its grant like any other
 opener's and is a guest of the block's organization
 (plans/share_links.md, "Organization membership").

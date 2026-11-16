@@ -1,7 +1,6 @@
 use super::*;
 
-/// Every version command runs against the device's store offline (plans/local_accounts.md, gap
-/// 2): a branch made, saved on, switched from and combined with no server.
+/// Every version command runs against the device's store offline (guides/blocks/version_control.md, Operations): a branch made, saved on, switched from and combined with no server.
 use be_sdk_api::VersionCommand;
 
 #[test]

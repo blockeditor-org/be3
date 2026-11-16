@@ -252,13 +252,18 @@ registering with a code from `be-server invite-code create`; mailed codes and li
 
 ### Local accounts and the default server
 
-A local account has no server (plans/local_accounts.md): be-host makes its id, its identity
+A local account has no server: be-host makes its id, its identity
 (kept in plaintext in the host's state, so no phrase is asked for) and its one organization,
 under the account's own id, on the device (`create_local_account`), and its stack runs on a
 peer of its own (guides/blocks/client.md, Saving and the outbox). It is offered on every
 platform, the web too. Having nothing to sign out of, the account picker offers "Remove
 account…" instead of "Log out", and what needs a server (sharing, members, contacts, agents,
-invitations) answers that a local account has none.
+invitations) answers that a local account has none. On the web it lives only in that origin's
+browser storage, which clearing site data or a private window loses with no phrase to recover
+it; making one there says so. With one member it holds every block, so it goes without what
+the server enforces between members: `may_create`'s reserved ids and who makes workspaces,
+access and visibility, and a block agent's scoping (`bound_may`; it makes no agents). The
+app sandbox is the host's own and holds the same.
 
 `./scripts/deploy` writes `default_server` (`name`, `api_url`, `auth_url`, `gateway_required`)
 into every bundle's `build-info.json`; ordinary builds omit it and offer local or custom servers.

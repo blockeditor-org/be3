@@ -1,7 +1,6 @@
 # The host as a platform adapter
 
-Depends on: plans/local_accounts.md (step 1 only) and plans/web_page_never_waits.md (step 2
-only).
+Depends on: plans/web_page_never_waits.md (step 2 only).
 
 be-host shrinks to what is the platform: windows and input, the GPU, the wasm engine and OS
 services. Everything with a UI moves into wasm guests: a root guest the host calls synchronously,
@@ -333,7 +332,7 @@ the native tokio, rustls and tungstenite path, so each has one transport.
 - **Apps' block calls** reach the root guest, which passes them to the block stack as messages,
   so a slow query never holds up a frame. The block stack keeps the per-app rules the host
   enforces now.
-- **Local accounts** need no server (plans/local_accounts.md), so be-server leaves be-host.
+- **Local accounts** need no server (guides/hosting.md, Local accounts and the default server), so be-server leaves be-host.
 - **Without a UI:** for Android push and background sync the host starts the root guest through
   an entry point that spawns only the block stack and starts no UI. Measure its memory.
 - **Native builds:** the crates stay portable, so their native tests, be-server and the CLIs keep

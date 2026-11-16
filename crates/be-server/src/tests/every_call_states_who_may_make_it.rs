@@ -72,10 +72,6 @@ impl TestClient {
                 ),
             ),
             (
-                "create-local-profile",
-                answered(client::account::create_local_profile(peer, "someone".into()).await),
-            ),
-            (
                 "authenticate",
                 answered(client::account::authenticate(peer, Some("not a token".into())).await),
             ),

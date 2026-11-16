@@ -17,7 +17,7 @@ use beui::{Align, Direction};
 
 /// What making a local account says of where it lives: on the web, only in this browser's
 /// storage, which clearing the site's data or a private window loses with no phrase to recover
-/// it (plans/local_accounts.md).
+/// it (guides/hosting.md, Local accounts and the default server).
 const LOCAL_ACCOUNT_NOTE: &str = match cfg!(target_arch = "wasm32") {
     true => {
         "Your data stays in this browser only. Clearing this site's data, or a private \

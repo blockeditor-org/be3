@@ -79,22 +79,6 @@ pub enum LoginEvent {
     Finished(Result<Session, String>),
 }
 
-pub async fn create_local_profile(
-    server_url: String,
-    display_name: String,
-) -> Result<Session, AccountError> {
-    let connection = crate::link::connect(&server_url).await?;
-    let session = session_of(
-        ask(client::account::create_local_profile(
-            &connection,
-            display_name,
-        ))
-        .await?,
-    );
-    crate::link::adopt(&server_url, &session.token, session.account, connection).await;
-    Ok(session)
-}
-
 /// Signs in with a token the server issued another way: a test's server hands one to each
 /// device of an account (crates/be-host-tests).
 pub async fn token_login(server_url: String, token: String) -> Result<Session, AccountError> {

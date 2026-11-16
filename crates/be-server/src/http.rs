@@ -320,15 +320,6 @@ pub(crate) async fn route(
         serve_auth(stream, buffer, client, services).await?;
         return Ok(None);
     }
-    if services.config.local_profiles && head.origin.is_some() {
-        refuse(
-            &mut stream,
-            403,
-            "browser access to local profiles is unavailable",
-        )
-        .await?;
-        return Ok(None);
-    }
     if head.method == "POST" && path.ends_with(CALL_SUFFIX) {
         one_shot(stream, buffer, client, (anonymous, eviction), services).await?;
         return Ok(None);
@@ -840,9 +831,7 @@ async fn one_shot(
     };
     let allowed = method == be_block_protocol::__args::ACCOUNT_BEGIN_BROWSER_LOGIN
         || method == be_block_protocol::__args::ACCOUNT_POLL_BROWSER_LOGIN
-        || method == be_block_protocol::__args::CONTACTS_READ_INVITATION
-        || (method == be_block_protocol::__args::ACCOUNT_CREATE_LOCAL_PROFILE
-            && services.config.local_profiles);
+        || method == be_block_protocol::__args::CONTACTS_READ_INVITATION;
     if !allowed {
         return refuse(
             &mut stream,

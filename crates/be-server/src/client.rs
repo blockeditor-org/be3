@@ -81,7 +81,6 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         Call::Account(call) => match call {
             account::Call::BeginBrowserLogin { .. }
             | account::Call::PollBrowserLogin { .. }
-            | account::Call::CreateLocalProfile { .. }
             | account::Call::Authenticate { .. } => Rule::Anyone,
             account::Call::StorageChanged { .. } => Rule::Organization,
             account::Call::Logout { .. }
@@ -225,7 +224,6 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             account::Call::Authenticate { .. } | account::Call::Logout { .. } => true,
             account::Call::BeginBrowserLogin { .. }
             | account::Call::PollBrowserLogin { .. }
-            | account::Call::CreateLocalProfile { .. }
             | account::Call::StorageChanged { .. }
             | account::Call::Pair { .. }
             | account::Call::Paired { .. }
@@ -325,10 +323,9 @@ fn bound_refused() -> ServerError {
 
 /// Whether a session's connection may make `call` first: only a call that signs it in. Signing
 /// in through the browser is one-shot calls (`http.rs`, `one_shot`), so no connection waits on it.
-pub(crate) fn signs_in(call: &embed::Call, local_profiles: bool) -> bool {
+pub(crate) fn signs_in(call: &embed::Call) -> bool {
     match call {
         embed::Call::Account(embed::account::Call::Authenticate { .. }) => true,
-        embed::Call::Account(embed::account::Call::CreateLocalProfile { .. }) => local_profiles,
         _ => false,
     }
 }
@@ -847,7 +844,7 @@ impl Client {
         };
         if self.connection.account.is_none()
             && !self.connection.one_shot
-            && !signs_in(&call, self.connection.config.local_profiles)
+            && !signs_in(&call)
         {
             tracing::debug!("closing a connection whose first call does not sign it in");
             self.connection.closing = true;
@@ -1015,28 +1012,6 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, polled);
-            }
-            Call::CreateLocalProfile {
-                reply,
-                display_name,
-            } => {
-                let created = async {
-                    prelude?;
-                    if !self.connection.config.local_profiles {
-                        return Err(ServerError::Refused(
-                            ErrorCode::InvalidRequest,
-                            "local profiles are unavailable on this server".into(),
-                        ));
-                    }
-                    let (profile, token) = self
-                        .connection
-                        .store
-                        .create_local_profile(&display_name)
-                        .await?;
-                    self.connection.authenticated(profile, token).await
-                }
-                .await;
-                self.reply(reply, created);
             }
             Call::Authenticate { reply, token } => {
                 let authenticated = async {

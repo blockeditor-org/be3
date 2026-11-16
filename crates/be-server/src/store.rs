@@ -254,41 +254,6 @@ impl ServerStore {
         })))
     }
 
-    pub async fn create_local_profile(
-        &self,
-        display_name: &str,
-    ) -> Result<(Profile, String), ServerError> {
-        let display_name = crate::limits::name("a display name", display_name)?.to_owned();
-        let account = Uuid::new_v4();
-        self.with_database(move |_, database| {
-            let transaction = be_block_sqlite_schema::write_transaction(database)?;
-            transaction.execute(
-                "INSERT INTO accounts (id, email, display_name, local_profile) VALUES (?1, ?2, ?3, 1)",
-                params![
-                    account.to_string(),
-                    format!("{account}@local.invalid"),
-                    display_name
-                ],
-            )?;
-            let personal = personal_organization(&transaction)?;
-            transaction.execute(
-                "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
-                params![personal.to_string(), account.to_string()],
-            )?;
-            let token = issue_token(&transaction, account)?;
-            transaction.commit()?;
-            Ok((
-                Profile {
-                    account,
-                    email: String::new(),
-                    display_name: display_name.to_owned(),
-                },
-                token,
-            ))
-        })
-        .await
-    }
-
     /// Makes an account for `email` directly, with its email identity and an app session,
     /// as the operator's tools and tests do; people register through the portal.
     pub async fn register(

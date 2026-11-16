@@ -6,7 +6,6 @@ use be_block_graph::Access;
 const REACHING_PAST: &[&str] = &[
     "begin-browser-login",
     "poll-browser-login",
-    "create-local-profile",
     "storage-changed",
     "pair",
     "paired",

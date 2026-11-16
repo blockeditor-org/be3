@@ -5,7 +5,7 @@ use be_type_workspace::WorkspaceContent;
 
 use crate::search::SearchAsk;
 
-/// A local account's search indexes what it writes on the device (plans/local_accounts.md),
+/// A local account's search indexes what it writes on the device (guides/blocks/client.md, Saving and the outbox),
 /// with no server to catch up from.
 #[test]
 fn a_local_account_finds_the_text_it_wrote() {

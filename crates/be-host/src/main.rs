@@ -1573,7 +1573,7 @@ impl HostCore {
         });
     }
 
-    /// A local account, which has no server (plans/local_accounts.md): its id, its identity and
+    /// A local account, which has no server (guides/hosting.md, Local accounts and the default server): its id, its identity and
     /// its one organization are made on this device, the organization under the account's own
     /// id, and it signs in at once. Its key is kept in plaintext beside its data, as a device
     /// that holds everything it has has nothing a phrase would protect.

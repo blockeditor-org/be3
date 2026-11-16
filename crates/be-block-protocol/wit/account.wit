@@ -79,9 +79,6 @@ interface account {
     /// grows by five seconds (RFC 8628).
     poll-browser-login: async func(code: string, secret: string) -> result<browser-login-state, error>;
 
-    /// Makes a profile on this device's own server and signs in to it.
-    create-local-profile: async func(display-name: string) -> result<authenticated, error>;
-
     /// Signs this connection in with an account token, or with none, the token
     /// of the request's Authorization header.
     authenticate: async func(token: option<string>) -> result<authenticated, error>;

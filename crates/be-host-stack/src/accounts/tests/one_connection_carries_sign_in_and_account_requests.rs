@@ -3,6 +3,11 @@ use super::*;
 async fn one_connection_carries_sign_in_and_account_requests() {
     be_lib_build_id::install("test");
     let directory = std::env::temp_dir().join(format!("be-host-one-link-{}", Uuid::new_v4()));
+    let (_, token) = be_server::ServerStore::open(&directory)
+        .unwrap()
+        .register("local@example.com", "Local")
+        .await
+        .unwrap();
     let server = be_host_server::start_embedded_server(directory.clone()).unwrap();
     let target = server.url.split_once("://").unwrap().1.to_owned();
     let relay = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -18,9 +23,7 @@ async fn one_connection_carries_sign_in_and_account_requests() {
             });
         }
     });
-    let session = create_local_profile(url.clone(), "Local".to_owned())
-        .await
-        .unwrap();
+    let session = token_login(url.clone(), token).await.unwrap();
     organizations(url.clone(), session.token.clone())
         .await
         .unwrap();
@@ -31,7 +34,7 @@ async fn one_connection_carries_sign_in_and_account_requests() {
             .secret()
             .to_bytes(),
         display_name: "Local".to_owned(),
-        email: String::new(),
+        email: "local@example.com".to_owned(),
     };
     create_organization(url.clone(), session.token.clone(), me, "Shared".to_owned())
         .await
