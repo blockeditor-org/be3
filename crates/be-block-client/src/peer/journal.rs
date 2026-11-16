@@ -114,23 +114,30 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         kept: crate::OpenEdits,
         edits: Vec<crate::KeptEdit>,
+        submissions: Vec<crate::KeptSubmission>,
     ) -> Result<(), ClientError> {
         // Refused before anything is sealed, which may ask the server for the block's key.
         if self.refs.discarded(block) {
             return Err(ClientError::Discarded(block));
         }
         let mut sealed = Vec::with_capacity(edits.len());
-        if !edits.is_empty() {
+        let mut sealed_submissions = Vec::with_capacity(submissions.len());
+        if !edits.is_empty() || !submissions.is_empty() {
             let key = self.sealing_key(block).await?;
             for edit in &edits {
                 let encoded = be_block_store::encode_value(edit)?;
                 sealed.push(self.commits.vault().seal(key, &encoded)?);
+            }
+            for submission in &submissions {
+                let encoded = be_block_store::encode_value(submission)?;
+                sealed_submissions.push(self.commits.vault().seal(key, &encoded)?);
             }
         }
         let kept = self.refs.keep_open_edits(
             block,
             crate::OpenEdits {
                 edits: sealed,
+                submissions: sealed_submissions,
                 ..kept
             },
         )?;
@@ -141,23 +148,36 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// What the host kept of `block`'s replica before it last stopped: its origin and counts,
-    /// and its local edits, opened. The edits fail to open while their key is not on this
-    /// device (`ClientError::Locked`), and stay kept as they are.
+    /// and its local edits and the submissions holding them, opened. They fail to open while
+    /// their key is not on this device (`ClientError::Locked`), and stay kept as they are.
     #[allow(clippy::type_complexity)]
     pub fn open_edits(
         &self,
         block: Uuid,
-    ) -> Option<(crate::OpenEdits, Result<Vec<crate::KeptEdit>, ClientError>)> {
+    ) -> Option<(
+        crate::OpenEdits,
+        Result<(Vec<crate::KeptEdit>, Vec<crate::KeptSubmission>), ClientError>,
+    )> {
         let kept = self.refs.open_edits(block)?;
-        let edits = kept
-            .edits
+        let opened = self.open_kept(block, &kept.edits).and_then(|edits| {
+            Ok((edits, self.open_kept(block, &kept.submissions)?))
+        });
+        Some((kept, opened))
+    }
+
+    /// Opens each of `sealed`, kept sealed with one of `block`'s keys.
+    fn open_kept<T: serde::de::DeserializeOwned>(
+        &self,
+        block: Uuid,
+        sealed: &[Vec<u8>],
+    ) -> Result<Vec<T>, ClientError> {
+        sealed
             .iter()
             .map(|sealed| {
                 let plain = self.open_for(block, sealed).map_err(locked)?;
                 Ok(be_block_store::decode_value(&plain)?)
             })
-            .collect();
-        Some((kept, edits))
+            .collect()
     }
 
     /// Moves `block`'s kept edits aside, unread and never sent, so a replica opens it under a
@@ -175,14 +195,9 @@ impl<S: ObjectStore> Peer<S> {
                 let Some(kept) = &entry.kept else {
                     continue;
                 };
-                let opened: Result<Vec<crate::KeptEdit>, ClientError> = kept
-                    .edits
-                    .iter()
-                    .map(|sealed| {
-                        let plain = self.open_for(block, sealed).map_err(locked)?;
-                        Ok(be_block_store::decode_value(&plain)?)
-                    })
-                    .collect();
+                let opened = self
+                    .open_kept::<crate::KeptEdit>(block, &kept.edits)
+                    .and_then(|_| self.open_kept::<crate::KeptSubmission>(block, &kept.submissions));
                 if opened.is_ok() && self.refs.tombstone_set_aside(block, entry.id).is_ok() {
                     recovered.push((block, entry.count));
                 }

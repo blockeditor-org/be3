@@ -6,7 +6,7 @@ fn kept_edits(shared: &Shared, block: Uuid) -> usize {
         .peer
         .as_ref()
         .and_then(|peer| peer.open_edits(block))
-        .map_or(0, |(_, edits)| edits.map_or(0, |edits| edits.len()))
+        .map_or(0, |(_, edits)| edits.map_or(0, |(edits, _)| edits.len()))
 }
 
 /// Edits made while the server takes submissions and says nothing are kept on the device as
