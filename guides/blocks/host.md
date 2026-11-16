@@ -273,8 +273,10 @@ the connection a stopping stack closed.
   given again (`Open::departed`), or the replica would drop them. A seal asked of a
   joining replica with unconfirmed edits first gives it a made-up session whose
   lease it holds, so flush and stop never wait for a join.
-- **Opening offline.** A block opened while down gets `OFFLINE_CLIENT` holding
-  the lease of a made-up session (`Open::made_up`): `Submit` is numbered in this
+- **Opening offline.** A block opened while down gets a client of its own,
+  made for that open with the top bit set (`unjoined_client`: never the sequence
+  library's `LOADED`, whose edits `Sequence::replace` refuses, and never another
+  device's), holding the lease of a made-up session (`Open::made_up`): `Submit` is numbered in this
   device's own order (`Peer::submit` offline) and heard by the replica at once,
   `Publish` becomes `Peer::seal` (a local commit in the outbox), `Resume` treats
   the local head as remote, and heartbeats, claims and relays are skipped. It opens on the newest head whose content the device holds

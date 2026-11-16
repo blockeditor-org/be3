@@ -27,10 +27,6 @@ fn a_copy_whose_source_is_gone_puts_the_source_back() {
         Some(TextBlock::of(&link).encode()),
         false,
     );
-    // A text not yet on the server takes no replaced child (plans/replace_reports_its_outcome.md).
-    wait_until("the text reached the server", |shared| {
-        shared.busy(true).is_empty() && shared.unsynced().is_empty()
-    });
 
     assert!(
         !crate::copied_in_place(notes, TextContent::CONTENT_TYPE, missing, copy),
