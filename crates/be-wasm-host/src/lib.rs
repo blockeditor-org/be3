@@ -47,8 +47,8 @@ use wake::Wake;
 use wasi::Wasi;
 
 pub use be_wasm_dylink::library_file_name;
-pub use cache::{cache_code_in, persist};
 pub use be_wasm_gpu_host::Imports;
+pub use cache::{cache_code_in, persist};
 pub use gauge::memories;
 pub use interrupt::Interrupter;
 pub use state::{Connect, State};
@@ -231,7 +231,13 @@ impl Host {
         for index in (0..identities.len()).rev() {
             // A library's own imports too: dylink resolves its GOT.func and GOT.mem entries
             // against its own exports first.
-            kept.extend(sources[index].1.imports.iter().map(|import| import.name.clone()));
+            kept.extend(
+                sources[index]
+                    .1
+                    .imports
+                    .iter()
+                    .map(|import| import.name.clone()),
+            );
             let mut names: Vec<&str> = kept.iter().map(String::as_str).collect();
             names.sort_unstable();
             let key = format!(
@@ -283,7 +289,8 @@ impl Host {
         identity: &str,
         library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
     ) -> Result<Arc<(Vec<u8>, engine::Shape)>, String> {
-        static SOURCES: Mutex<Vec<(String, Arc<(Vec<u8>, engine::Shape)>)>> = Mutex::new(Vec::new());
+        static SOURCES: Mutex<Vec<(String, Arc<(Vec<u8>, engine::Shape)>)>> =
+            Mutex::new(Vec::new());
         let mut sources = SOURCES.lock().unwrap_or_else(|held| held.into_inner());
         if let Some((_, found)) = sources.iter().find(|(known, _)| known == identity) {
             return Ok(Arc::clone(found));

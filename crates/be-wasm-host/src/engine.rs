@@ -24,7 +24,10 @@ static FLAGS: OnceLock<String> = OnceLock::new();
 /// The platform V8 runs on, whose message loop a compilation that finishes later is pumped on.
 pub(crate) fn platform() -> v8::SharedRef<v8::Platform> {
     initialize();
-    PLATFORM.get().cloned().unwrap_or_else(|| unreachable!("V8 is initialized"))
+    PLATFORM
+        .get()
+        .cloned()
+        .unwrap_or_else(|| unreachable!("V8 is initialized"))
 }
 
 /// A hash of the flags V8 runs with, which code cached under other flags is kept apart by.
@@ -482,7 +485,8 @@ const HOST_ENTRIES: [&str; 6] = [
 /// what an app will use, and instantiating makes a function object and a property for each: in
 /// beui's, a hundred thousand of them, which was most of what instantiating an app cost.
 pub(crate) fn trimmed(bytes: &[u8], kept: impl Fn(&str) -> bool) -> Result<Vec<u8>, String> {
-    let invalid = |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+    let invalid =
+        |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
     let mut module = wasm_encoder::Module::new();
     for payload in Parser::new(0).parse_all(bytes) {
         let payload = payload.map_err(invalid)?;
@@ -497,7 +501,10 @@ pub(crate) fn trimmed(bytes: &[u8], kept: impl Fn(&str) -> bool) -> Result<Vec<u
                     ExternalKind::Global => wasm_encoder::ExportKind::Global,
                     ExternalKind::Tag => wasm_encoder::ExportKind::Tag,
                 };
-                let named = matches!(kind, wasm_encoder::ExportKind::Func | wasm_encoder::ExportKind::Global);
+                let named = matches!(
+                    kind,
+                    wasm_encoder::ExportKind::Func | wasm_encoder::ExportKind::Global
+                );
                 if !named
                     || export.name.starts_with("__")
                     || HOST_ENTRIES.contains(&export.name)
