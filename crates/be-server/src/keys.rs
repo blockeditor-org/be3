@@ -349,10 +349,20 @@ pub(crate) fn store_keys(
                         "account {account} is not a member of this organization"
                     )));
                 }
-                if account != caller && !crate::contacts::is_contact(connection, caller, account)? {
+                // To a contact, or to a grantee the block's log names (signed access 3c), with
+                // the keys its grant names, which a device checks as the server does.
+                let granted = row.kind == KeyKind::Scope
+                    && crate::access::granted_level(connection, graph, organization, row.block, account)?
+                        .is_some_and(|level| level >= be_block_keys::Level::View);
+                if account != caller
+                    && !granted
+                    && !crate::contacts::is_contact(connection, caller, account)?
+                {
                     return Err(ServerError::Refused(
                         ErrorCode::NotAContact,
-                        format!("a key may be sealed only to a contact, and {account} is not one"),
+                        format!(
+                            "a key is sealed only to a contact or a grantee its block's log names, and {account} is neither"
+                        ),
                     ));
                 }
                 if row.kind == KeyKind::Escrow
