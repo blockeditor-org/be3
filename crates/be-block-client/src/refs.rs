@@ -387,7 +387,7 @@ struct State {
     objects: HashMap<Uuid, HashSet<Hash>>,
     open_edits: HashMap<Uuid, OpenEdits>,
     set_aside: HashMap<Uuid, Vec<SetAside>>,
-    /// Blocks whose local edits were discarded with their unsent edits (`drop_local_edits`):
+    /// Blocks whose local edits were discarded with their unsent edits (`discard_unsent`):
     /// none are kept for them until this account may edit them again or they are forgotten.
     dropped: HashSet<Uuid>,
     next: u64,
@@ -1389,9 +1389,10 @@ impl Refs {
     }
 
     /// The server answered that this account may edit `block` (a join's `may-edit`): its edits
-    /// are kept again where they were discarded (`drop_local_edits`). A listing that says so is
+    /// are kept again where they were discarded (`discard_unsent`). A listing that says so is
     /// not enough, as it may be older than the access that lost it.
     pub fn may_edit_again(&self, block: Uuid) -> Result<(), StoreError> {
+        eprintln!("SCRATCH may_edit_again");
         if !self.state.lock().unwrap().dropped.remove(&block) {
             return Ok(());
         }
@@ -1403,7 +1404,7 @@ impl Refs {
     }
 
     /// Keeps `edits` as `block`'s, answering whether it did: not for a block whose local edits
-    /// were discarded (`drop_local_edits`) until the server says this account may edit it again
+    /// were discarded (`discard_unsent`) until the server says this account may edit it again
     /// (`may_edit_again`), as kept they would keep it from being forgotten.
     pub fn keep_open_edits(&self, block: Uuid, edits: OpenEdits) -> Result<bool, StoreError> {
         let mut state = self.state.lock().unwrap();
@@ -1995,7 +1996,23 @@ impl Refs {
                 .filter(|(_, op)| op.block() == block)
                 .map(|(sequence, _)| *sequence)
                 .collect();
+            eprintln!("SCRATCH move_to_unsent dropped={} moved={}", state.dropped.contains(&block), moved.len());
             if moved.is_empty() {
+                return Ok(false);
+            }
+            // Its local edits were discarded: what it sealed before that and the server refused
+            // since goes with them, rather than being set aside to be discarded again.
+            if state.dropped.contains(&block) {
+                for sequence in moved {
+                    state.outbox.remove(&sequence);
+                    rows.push(Row {
+                        table: Table::Outbox,
+                        key: sequence.to_be_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+                drop(state);
+                self.write(rows)?;
                 return Ok(false);
             }
             let head = state.heads.get(&block).copied();
@@ -2074,49 +2091,79 @@ impl Refs {
         Ok(true)
     }
 
-    /// Drops the local edits this device keeps of `block` beside its outbox: its kept edits
-    /// (`OpenEdits`) and its journal. For a block this account lost access to, which they can
-    /// never reach and which `forget` would otherwise keep for them.
+    /// Drops the local edits this device keeps of `block`: its kept edits (`OpenEdits`), its
+    /// journal, the commits it sealed that wait in the outbox, and its local head, which falls
+    /// back to the server's. For a block this account lost access to, which they can never
+    /// reach and which `forget` would otherwise keep for them.
+    #[cfg(test)]
     pub fn drop_local_edits(&self, block: Uuid) -> Result<(), StoreError> {
         let mut rows = Vec::new();
-        {
-            let mut state = self.state.lock().unwrap();
-            state.dropped.insert(block);
-            rows.push(row(Table::Dropped, block.as_bytes().to_vec(), &()));
-            if state.open_edits.remove(&block).is_some() {
-                rows.push(Row {
-                    table: Table::OpenEdits,
-                    key: block.as_bytes().to_vec(),
-                    value: None,
-                });
-            }
-            if let Some(journal) = state.journals.remove(&block) {
-                for sequence in journal.entries.into_keys() {
-                    rows.push(Row {
-                        table: Table::JournalEntry,
-                        key: journal_entry_key(block, sequence),
-                        value: None,
-                    });
-                }
-                rows.push(Row {
-                    table: Table::JournalBase,
-                    key: block.as_bytes().to_vec(),
-                    value: None,
-                });
-            }
-        }
+        Self::dropping_local_edits(&mut self.state.lock().unwrap(), block, &mut rows);
         self.write(rows)
     }
 
-    pub fn take_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {
-        let Some(unsent) = self.state.lock().unwrap().unsent.remove(&block) else {
-            return Ok(None);
+    fn dropping_local_edits(state: &mut State, block: Uuid, rows: &mut Vec<Row>) {
+        state.dropped.insert(block);
+        rows.push(row(Table::Dropped, block.as_bytes().to_vec(), &()));
+        let sealed: Vec<u64> = state
+            .outbox
+            .iter()
+            .filter(|(_, op)| op.block() == block && matches!(op, Op::Publish(_)))
+            .map(|(sequence, _)| *sequence)
+            .collect();
+        for sequence in sealed {
+            state.outbox.remove(&sequence);
+            rows.push(Row {
+                table: Table::Outbox,
+                key: sequence.to_be_bytes().to_vec(),
+                value: None,
+            });
+        }
+        if state.open_edits.remove(&block).is_some() {
+            rows.push(Row {
+                table: Table::OpenEdits,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+        }
+        if let Some(journal) = state.journals.remove(&block) {
+            for sequence in journal.entries.into_keys() {
+                rows.push(Row {
+                    table: Table::JournalEntry,
+                    key: journal_entry_key(block, sequence),
+                    value: None,
+                });
+            }
+            rows.push(Row {
+                table: Table::JournalBase,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+        }
+    }
+
+    /// Takes `block`'s unsent edits away, discarding them. Set aside as this account lost access
+    /// to it, its local edits go with them (`discard_unsent`), in the same step: a commit the
+    /// server refuses meanwhile is not set aside again.
+    pub fn discard_unsent(&self, block: Uuid) -> Result<Option<Unsent>, StoreError> {
+        let mut rows = Vec::new();
+        let unsent = {
+            let mut state = self.state.lock().unwrap();
+            let Some(unsent) = state.unsent.remove(&block) else {
+                return Ok(None);
+            };
+            rows.push(Row {
+                table: Table::Unsent,
+                key: block.as_bytes().to_vec(),
+                value: None,
+            });
+            eprintln!("SCRATCH discard_unsent refused={:?}", unsent.refused);
+            if unsent.refused.is_none() {
+                Self::dropping_local_edits(&mut state, block, &mut rows);
+            }
+            unsent
         };
-        self.write(vec![Row {
-            table: Table::Unsent,
-            key: block.as_bytes().to_vec(),
-            value: None,
-        }])?;
+        self.write(rows)?;
         Ok(Some(unsent))
     }
 }

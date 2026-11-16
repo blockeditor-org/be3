@@ -57,15 +57,9 @@ fn a_block_this_account_lost_is_forgotten_once_what_was_set_aside_is_discarded()
     let gone: HashSet<Uuid> = [block].into();
     assert_eq!(refs.forget(&gone).unwrap(), 0, "kept for what it holds");
 
-    let unsent = refs.take_unsent(block).unwrap().expect("set aside");
+    let unsent = refs.discard_unsent(block).unwrap().expect("set aside");
     assert_eq!(unsent.refused, None, "for lost access");
-    assert_eq!(
-        refs.forget(&gone).unwrap(),
-        0,
-        "its local edits still keep it"
-    );
-    refs.drop_local_edits(block).unwrap();
-    assert!(refs.discarded(block));
+    assert!(refs.discarded(block), "its local edits went with them");
     assert!(
         !refs.keep_open_edits(block, OpenEdits::default()).unwrap(),
         "none are kept while it may not edit it"
