@@ -3,7 +3,9 @@ use std::{
     sync::Mutex,
 };
 
-use be_block_keys::{CarriedKey, EntryHash, EscrowSecret, Party, RecoveryPublic, RecoverySecret};
+use be_block_keys::{
+    CarriedKey, EntryHash, EscrowSecret, Party, RecoveryPublic, RecoverySecret, SigningPublic,
+};
 use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKey};
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
@@ -80,6 +82,9 @@ struct Escrow {
     chain: Vec<EscrowKey>,
     pinned: Option<EscrowKey>,
     verified: Option<EscrowKey>,
+    /// The organization's administrators as its log checked names them, with their keys:
+    /// those an epoch is taken from (`verify_escrow`). `None` until the log is read.
+    administrators: Option<HashMap<Uuid, SigningPublic>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -131,10 +136,16 @@ impl Rows {
     }
 }
 
+/// The latest escrow key this device trusts: the one it pinned, or a newer one it holds the
+/// secret of, or, epoch by epoch, a newer one signed by its maker chained to the one before,
+/// where the maker is one of `administrators` (the organization's log, checked to its head as
+/// this device holds it). A demoted administrator, still holding the escrow keys of their time,
+/// signs no epoch a device takes, nor does the server.
 pub fn verify_escrow(
     organization: Uuid,
     pinned: Option<&EscrowKey>,
     chain: &[EscrowKey],
+    administrators: Option<&HashMap<Uuid, SigningPublic>>,
     held: impl Fn(&EscrowKey) -> bool,
 ) -> Option<EscrowKey> {
     let mut sorted: Vec<&EscrowKey> = chain.iter().collect();
@@ -148,10 +159,13 @@ pub fn verify_escrow(
             verified = Some(next.clone());
             continue;
         }
+        let maker = administrators.and_then(|administrators| administrators.get(&next.maker));
         if let Some(known) = &verified
             && newer
+            && next.epoch == known.epoch + 1
+            && let Some(maker) = maker
             && be_block_keys::verify_signature(
-                &known.signing,
+                &maker.0,
                 &next.chained(organization, known.id),
                 &next.signature,
             )
@@ -260,6 +274,12 @@ impl KeyBook {
         self.settle_escrow();
     }
 
+    /// The organization's administrators, with the signing keys its checked log names for them.
+    pub fn set_administrators(&self, administrators: Option<HashMap<Uuid, SigningPublic>>) {
+        self.escrow.lock().unwrap().administrators = administrators;
+        self.settle_escrow();
+    }
+
     /// What this account pinned for the organization: the escrow key, and the root of the
     /// organization's access log.
     pub fn set_pinned(&self, pinned: Option<crate::contacts::Pinned>) {
@@ -308,13 +328,21 @@ impl KeyBook {
     }
 
     fn settle_escrow(&self) {
-        let (pinned, chain) = {
+        let (pinned, chain, administrators) = {
             let escrow = self.escrow.lock().unwrap();
-            (escrow.pinned.clone(), escrow.chain.clone())
+            (
+                escrow.pinned.clone(),
+                escrow.chain.clone(),
+                escrow.administrators.clone(),
+            )
         };
-        let verified = verify_escrow(self.organization, pinned.as_ref(), &chain, |escrow| {
-            self.holds_escrow(escrow)
-        });
+        let verified = verify_escrow(
+            self.organization,
+            pinned.as_ref(),
+            &chain,
+            administrators.as_ref(),
+            |escrow| self.holds_escrow(escrow),
+        );
         self.escrow.lock().unwrap().verified = verified;
     }
 
@@ -383,31 +411,26 @@ impl KeyBook {
                 .max_by_key(|escrow| escrow.epoch)
                 .cloned()
         };
-        let signer = match &previous {
-            Some(previous) if self.holds_escrow(previous) => Some((
-                previous.clone(),
-                EscrowSecret::from_bytes(
-                    *self
-                        .ring
-                        .get(previous.id)
-                        .ok_or(StoreError::MissingKey(previous.id))?
-                        .as_bytes(),
-                ),
-            )),
-            Some(previous) => return Err(StoreError::MissingKey(previous.id)),
-            None => None,
-        };
+        // Only a device holding the latest escrow moves the chain on, so no administrator's
+        // device makes an epoch that leaves out keys escrowed under one it never opened.
+        if let Some(previous) = &previous
+            && !self.holds_escrow(previous)
+        {
+            return Err(StoreError::MissingKey(previous.id));
+        }
         let secret = EscrowSecret::generate();
         let mut escrow = EscrowKey {
             id: Uuid::new_v4(),
             epoch: previous.as_ref().map_or(1, |previous| previous.epoch + 1),
             public: secret.public().0,
             signing: secret.signing(),
+            maker: self.account,
             signature: Vec::new(),
         };
-        if let Some((previous, signer)) = signer {
-            escrow.signature = signer.sign(&escrow.chained(self.organization, previous.id));
-        }
+        let previous = previous.map_or(Uuid::nil(), |previous| previous.id);
+        escrow.signature = self
+            .identity
+            .sign_escrow(&escrow.chained(self.organization, previous));
         self.ring
             .insert(escrow.id, ContentKey::from_bytes(secret.to_bytes()));
         self.trusted.lock().unwrap().insert(escrow.id);

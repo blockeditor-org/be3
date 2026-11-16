@@ -98,7 +98,11 @@ interface members {
     /// administrator; to anyone else, the agents it made.
     list-members: async func() -> result<list<member>, error>;
 
-    set-role: async func(account: account-id, role: organization-role) -> result<_, error>;
+    /// Sets a member's role. Making or unmaking an administrator of a company
+    /// organization takes `signed`, the administrator record
+    /// (be_block_keys::Administrator) the caller signed, which the server
+    /// appends to the organization's log once it checks there.
+    set-role: async func(account: account-id, role: organization-role, signed: option<list<u8>>) -> result<_, error>;
 
     /// Removes a member of the organization open: any, by an administrator;
     /// an agent, by the account that made it (a block's agent, only while it

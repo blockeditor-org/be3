@@ -329,6 +329,8 @@ const SCHEMA: &str = "
         created         INTEGER NOT NULL,
         public          BLOB NOT NULL DEFAULT x'',
         signing         BLOB NOT NULL DEFAULT x'',
+        -- An escrow key's maker, whose identity key made `signature`.
+        maker           TEXT NOT NULL DEFAULT '',
         signature       BLOB NOT NULL DEFAULT x'',
         PRIMARY KEY (organization_id, id)
     );
