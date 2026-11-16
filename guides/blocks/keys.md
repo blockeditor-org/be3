@@ -109,11 +109,25 @@ before its keys are made, which carry it) or a trusted key of the block
 (`KeyBook::opened`). Keys of one block that carry different roots leave it
 with none (`RootPin::Conflicting`). `Peer::access_log` refuses a log whose
 root is not the pinned one, or a block whose root conflicts
-(`ClientError::Forged`). A key opened only through escrow or the server's
-seal pins nothing, since anyone who knows the escrow's public key can seal to
-it; and a device hands a key on with a root only when it holds that root
-pinned (`KeyBook::carried_plain`), so an administrator rotating a block it
-reaches only through escrow passes on no root at all.
+(`ClientError::Forged`). A key the server seals pins nothing. An escrow wrap,
+and a key sealed by a member who is not a contact, open only from a sender the
+organization's log names, with the keys it names, and are taken only once the
+block's log names that sender with Edit or above (`Peer::settle_escrowed`); a
+root taken that way from a member, for a block the device pinned nothing else
+for, is weak (`RootPin::Weak`): shown unverified, never passed on, its key
+untrusted. A device hands a key on with a root only when it holds that root
+pinned in full (`KeyBook::carried_plain`).
+
+Records after the root: grants (`Record::Grant`, a revocation is a grant to
+`None`) in a block's log, each naming where its signer's Manage comes from
+(`Authority`); administrators and members (`Record::Administrator`,
+`Record::Member`) in the organization's. `set-access`, `set-role`,
+`create-agent`, `sign-member`, `remove-member` and `remove-contact` carry them,
+and the server appends each once it checks at the log's head as devices check
+it. An agent's account id is derived from its maker and its keys
+(`agent_account`). Revocations the server makes on its own wait in key work
+(`unsigned-revocations`) for a manager's device to sign them; members no
+record signed in wait in `unsigned-members`.
 
 A company organization has a log too, rooted at its creator:
 `contacts::create_organization` picks the organization id, signs the root and
@@ -372,7 +386,8 @@ It stores and relays everything, so it can withhold, delay, replay or delete
 rows, refuse requests, and see who shares with whom, block shapes, sizes and
 timing. It cannot read content or metadata, and it cannot choose a key a device
 will seal with: keys sealed to an account are sender-authenticated and taken
-only from verified contacts; a contact's key changes only by a change sealed
+only from verified contacts, or from members the organization's log names
+(their keys as it names them) whom the block's log grants Edit or above; a contact's key changes only by a change sealed
 with the verified key or a newer record of the account's own, never back to
 an older one, and a contact's name is the one it verified; cards, codes, pending grants and invitation escrow keys
 are sealed with codes it never sees; a device wraps only under keys it trusts;
@@ -383,9 +398,15 @@ change.
 It still decides, and devices trust it for: which held key is a block's current
 data key and which epoch is newest (so a server colluding with someone who lost
 access, or a demoted administrator, can keep a device writing under a key that
-person knows); grants, membership and roles (a device seals to any verified
-contact the server lists as granted, and the escrow secret to any verified
-contact it lists as an administrator); which blocks an account knows exist;
+person knows); which block is under which (a grant resting on Manage inherited
+from above is sealed by no one until parents are signed, and a block's own log
+alone decides who its key is sealed to); the log's head (a server that
+withholds a signed revocation can have the next epoch sealed to the revoked
+member, until epochs name the head they were made under,
+plans/signed_access.md 3d); what an escrow-only administrator, or a grantee
+who is no contact of the sender, sees of a block whose root only a member's
+wrap carried (a member and the server together can show it a made-up log and
+content, shown unverified: `RootPin::Weak`); which blocks an account knows exist;
 the graph's shape, sizes and timings; and the signing key of a member who is
 not a contact, taken on first use (a later change shows as `Changed`).
 

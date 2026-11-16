@@ -395,7 +395,21 @@ instead.
      but its author (crypto audit 6, the `unsealed` part); a pin is taken only
      from a sender holding Edit or above as of the log's head, and a key from
      any such sender. It never seals by a log checked from a weak root
-     (3a). Done: a test where a grantee who is not a contact gets
+     (3a). Built: a scope key is sealed only by its block's own log (grants
+     on an ancestor reach a child through the ancestor's scope wrap, so
+     nothing is lost before step 4 signs parents), never on a grant resting
+     on `Authority::Inherited` directly or through its granters
+     (`Checked::tainted`); the escrow and settings keys go to
+     administrators the organization's log names. A key sealed by a member
+     who is no contact opens with the keys the organization's log names,
+     weakly and untrusted (3a's rules). Removals made from a device
+     (`remove-member`, `remove-contact`, revoking in the share dialog) carry
+     their signed revocations, refused without them; only the server's own
+     (agents collected or deleted, `remove-contact` in another organization)
+     wait in key work for a manager's `tend`. Left to 3d: sealing against an
+     epoch's head (until then a server that withholds a signed revocation
+     can have the next epoch sealed to the revoked member), and checking a
+     contact sender's Edit as of that head. Done: a test where a grantee who is not a contact gets
      the key and a contact with no grant does not; one where the server lists
      a contact as granted with no record and no key reaches them.
    - **3d. Key epochs bound to log heads.** Each new epoch names the log head
