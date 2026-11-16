@@ -174,6 +174,32 @@ covered against a fork. plans/authorship.md has the same gap for what an
 account signs inside blocks ("A replaced key still verifies what it
 signed").
 
+## Grants the server changes first
+
+Deliberate: the server may withhold at once, but never adds access a device
+did not sign.
+
+- **A contact link's grant.** The maker does not know who will accept, so no
+  grant can name them. Accepting applies the server row at once and the scope
+  key reaches the accepter sealed with the link's code; the maker's device
+  signs the grant when it finishes the link (`finish_links`, once it opens the
+  accepter's card). Window: until then the log does not name the accepter, so
+  no other device seals them a later epoch, and they read only the epochs the
+  link carried.
+- **`remove-contact` and `remove-member`** revoke the server rows at once,
+  inside the server's transaction. The signed revocations follow from a device
+  (the remover's, or an administrator's), listed in key work as grants the
+  log names that the server revoked. Window: until then the log still names
+  the grant; a device sealing by the log also checks the server's row, so
+  nobody seals them a new epoch meanwhile, and the rotation key work asks for
+  goes ahead.
+- **Standing grants**: to anyone inside (a kind of settings a viewer inside
+  offers its contacts) and to the server's own account (the settings scope,
+  crypto audit HIGH 1) are rows with no record. Neither is ever a sealing
+  target by grant: a device seals only to grantees a log names, and no record
+  can name the server, which only ever holds the organization settings'
+  scope key. Window: none beyond those two rows.
+
 ## Accepted limits
 
 - What a revoked member already held stays readable to them: the keys of
@@ -281,9 +307,9 @@ instead.
      demoted administrator cannot sign the next one (crypto audit 10). Done: a
      test where a forged administrator record is refused; one where a
      demoted administrator's escrow epoch is refused. Grant changes the server
-     makes on its own (a contact link's grant on accepting, `remove-contact`,
-     `remove-member`) are still unsigned rows: a device signs them after,
-     decided with 3c, which is what seals by the records.
+     makes on its own stay server rows, signed after by a device (built with
+     3c, which is what seals by the records); see "Grants the server changes
+     first".
    - **3a. Authenticated escrow wraps**, after 3b, whose records name the
      keys an administrator checks a sender by: an escrow wrap is sealed by its
      sender to the escrow key, as `seal_for` seals to an account, not
