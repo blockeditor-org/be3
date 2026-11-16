@@ -16,7 +16,7 @@ fn search_text_reads_only_the_parts_asked_for_and_not_yet_indexed() {
             saved => panic!("the base publishes: {saved:?}"),
         };
         let manifest = peer
-            .load_commit(head)
+            .load_reached(head)
             .await
             .expect("the commit loads")
             .manifest;
