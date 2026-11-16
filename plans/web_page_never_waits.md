@@ -12,7 +12,8 @@ remain on the page (guides/running/web.md, "Files and offline"):
 - `be_wasm_threads::Mutex::lock` spins on the page. The locks it covers are the ones the page
   and the stack's worker both take: be-host-stack's statics (`changes::WATCHERS` and each
   watch's changes, `offline_choice::CHOICES`, `link::held`, and `stack()`, which the worker
-  takes only when a reply to the page calls back into `lib.rs`, as `import_file`'s does), the
+  takes only when a reply to the page calls back into `lib.rs`, as `import_file`'s does, and
+  `web::LEFT`, the table the page leaves a worker entry's `Transports` in), the
   `RefsDb` connection (`be-block-client/src/refs/sqlite.rs`), be-block-type-host's
   `REGISTRY` and `DECLARED`, and be-host-base's `notices`. The stack's own state is not among
   them: the page reads the `Seen` the worker hands over in bytes through a lock-free stack,
@@ -68,7 +69,7 @@ a thread that runs beside it.
    values in the shared heap: a stack's `Inbox` (the command channel, the nudges, the
    `Handover`, the stopped oneshot), its `Shared` and `Condvar` (which only tests read) and the
    oneshot it waits on the stack before it with; `host_files`' jobs channel and its answer.
-   Each becomes a message port the entry's bytes name. The stack's
+   Each becomes a message port sent beside the entry's bytes. The stack's
    commands are bytes already, and replies numbers
    answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
    changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
