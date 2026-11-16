@@ -374,7 +374,7 @@ impl LogicGridEditor {
             .map(|path| followed(path, &source, &placed));
     }
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum HotbarDropTarget {
     Slot(Vec<usize>),
     Folder(Vec<usize>),
