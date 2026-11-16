@@ -42,7 +42,9 @@ impl Headless {
     pub fn step(&mut self) -> Option<Duration> {
         begin_host_frame(Frame {
             now: Some(Instant::now()),
-            wall: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).ok(),
+            wall: SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .ok(),
             seen: false,
             ..Frame::default()
         });

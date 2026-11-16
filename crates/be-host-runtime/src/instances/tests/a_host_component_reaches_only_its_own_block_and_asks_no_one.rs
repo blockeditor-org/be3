@@ -36,7 +36,11 @@ fn a_host_component_reaches_only_its_own_block_and_asks_no_one() {
             source: be_sdk_api::BlockLocation::Block(source.into_bytes()),
         },
     };
-    assert_eq!(graph(&mut instances, delete(elsewhere)), denied, "a block outside its own");
+    assert_eq!(
+        graph(&mut instances, delete(elsewhere)),
+        denied,
+        "a block outside its own"
+    );
     assert_eq!(
         graph(
             &mut instances,
@@ -66,7 +70,9 @@ fn a_host_component_reaches_only_its_own_block_and_asks_no_one() {
     assert_eq!(
         graph(
             &mut instances,
-            act(be_sdk_api::BlockCommand::Version(be_sdk_api::VersionCommand::Fork)),
+            act(be_sdk_api::BlockCommand::Version(
+                be_sdk_api::VersionCommand::Fork
+            )),
         ),
         denied,
         "a fork, placed where the service picks"
@@ -85,5 +91,9 @@ fn a_host_component_reaches_only_its_own_block_and_asks_no_one() {
             filter: Default::default(),
         },
     });
-    assert_eq!(instances.take_answers(), denied, "a file picked by a person");
+    assert_eq!(
+        instances.take_answers(),
+        denied,
+        "a file picked by a person"
+    );
 }
