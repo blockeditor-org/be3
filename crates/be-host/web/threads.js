@@ -108,7 +108,7 @@ export { threadSpawn as "thread-spawn" };
 /** @type {Worker | null} */
 let stackWorker = null;
 
-function stackWorkerStart(entryPointer, entryLength, pointer, length) {
+function stackWorkerStart(entryPointer, entryLength, transports, pointer, length) {
     if (context === null) {
         console.error("the block stack was started before bindThreads was called");
         return;
@@ -129,6 +129,7 @@ function stackWorkerStart(entryPointer, entryLength, pointer, length) {
         new Uint8Array(context.memory.buffer).slice(at >>> 0, (at >>> 0) + (length >>> 0));
     stackWorker.postMessage({
         entry: new TextDecoder().decode(copy(entryPointer, entryLength)),
+        transports,
         bytes: copy(pointer, length),
     });
 }
