@@ -109,8 +109,9 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   page's, with its own sockets and timers. A first instance makes that memory and stays idle as
   its main thread; a second on it runs the work on an 8 MiB stack, since wasm-bindgen's main
   thread gets the linker's 1 MiB and the stack runs SQLite and deep futures. Each stack it
-  starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it, and reads
-  the app list itself (`discovery::load`).
+  starts waits for the previous one's end (a oneshot, `web.rs`), never polls for it, and takes
+  the app list the page read (`discovery::load`) with its start rather than reading it again
+  (`discovery::adopt`).
   The same worker keeps the host's own files from start-up (be-host's `host_files`):
   `host.sqlite3` and the organizations each account last listed. The page starts each work
   there by a name, the bytes it starts from and a `MessagePort` (`be_host_stack::start_in_worker`,

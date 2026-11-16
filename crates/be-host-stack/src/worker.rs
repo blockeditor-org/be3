@@ -79,6 +79,9 @@ pub(super) struct Start {
     /// What the settings choose to keep offline as the stack started, then each change as a
     /// command (`offline_choice::publish`).
     pub(super) offline_choices: Option<crate::offline_choice::Choices>,
+    /// The app list the page read, so its host's worker does not read it again (`discovery`).
+    #[cfg(target_arch = "wasm32")]
+    pub(super) apps: Option<crate::discovery::Read>,
 }
 
 /// How a stack's worker and the page talk: on the web these stay in the shared heap for now,
@@ -1050,6 +1053,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
         config,
         held_clock,
         offline_choices,
+        ..
     }: Start,
     make_store: S,
     Inbox {

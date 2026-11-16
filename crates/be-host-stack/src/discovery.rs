@@ -20,6 +20,8 @@ pub use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};
 #[cfg(target_arch = "wasm32")]
+pub(crate) use web::{adopt, fetched};
+#[cfg(target_arch = "wasm32")]
 pub use web::load;
 #[cfg(target_arch = "wasm32")]
 use web::{fetch, scan};
@@ -230,7 +232,17 @@ pub fn exported_whole(content_type: Uuid) -> bool {
         })
 }
 
-async fn discover<F>(read: impl Fn(String) -> F) -> Apps
+/// What a start read to find its apps: the build's id, and each manifest the index names with
+/// what reading it gave, or why the index could not be read. On the web the page reads it once
+/// and hands it to its host's worker as a stack starts there (`web::fetched`), since the two
+/// share no memory.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Read {
+    build_id: Option<String>,
+    manifests: Result<Vec<(String, Result<String, String>)>, String>,
+}
+
+async fn fetch_all<F>(read: impl Fn(String) -> F) -> Read
 where
     F: Future<Output = Result<Vec<u8>, String>>,
 {
@@ -238,24 +250,45 @@ where
         read(be_lib_build_id::FILE.to_owned()),
         read(INDEX.to_owned())
     );
-    if let Ok(id) = id {
-        let _ = be_lib_build_id::install_metadata(&String::from_utf8_lossy(&id));
-    }
-    let mut apps = Apps::default();
-    let manifests = index.and_then(|document| {
+    let index = index.and_then(|document| {
         serde_json::from_slice::<Vec<String>>(&document).map_err(|error| error.to_string())
     });
-    match manifests {
+    let manifests = match index {
         Ok(manifests) => {
             let documents = futures_util::future::join_all(
                 manifests.iter().map(|manifest| read(manifest.clone())),
             )
             .await;
-            for (manifest, read) in manifests.iter().zip(documents) {
-                match read
-                    .and_then(|bytes| String::from_utf8(bytes).map_err(|error| error.to_string()))
-                {
-                    Ok(document) => apps.add(manifest, &document),
+            Ok(manifests
+                .into_iter()
+                .zip(documents)
+                .map(|(manifest, read)| {
+                    let document = read.and_then(|bytes| {
+                        String::from_utf8(bytes).map_err(|error| error.to_string())
+                    });
+                    (manifest, document)
+                })
+                .collect())
+        }
+        Err(error) => Err(error),
+    };
+    Read {
+        build_id: id.ok().map(|id| String::from_utf8_lossy(&id).into_owned()),
+        manifests,
+    }
+}
+
+/// The apps `read` found, and the build's id installed.
+fn settle(read: &Read) -> Apps {
+    if let Some(id) = &read.build_id {
+        let _ = be_lib_build_id::install_metadata(id);
+    }
+    let mut apps = Apps::default();
+    match &read.manifests {
+        Ok(manifests) => {
+            for (manifest, document) in manifests {
+                match document {
+                    Ok(document) => apps.add(manifest, document),
                     Err(error) => apps.error(manifest, error),
                 }
             }
