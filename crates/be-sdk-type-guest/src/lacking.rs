@@ -5,7 +5,7 @@
 //! the replica: a replica reopened, or opened again after its editors closed, carries on with what
 //! the last one lacked.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use be_block_commit::CommitId;
 use be_block_content::Announcement;
@@ -59,6 +59,8 @@ pub(crate) struct Carried {
     pub(crate) refused: BTreeSet<CommitId>,
     /// The commits kept in the outbox, oldest first.
     pub(crate) kept: Vec<CommitId>,
+    /// The snapshot the replica told each editor last (`Replica::snapshots_shown`).
+    pub(crate) snapshots_shown: BTreeMap<EditorId, Vec<u8>>,
 }
 
 #[derive(Default)]
@@ -380,6 +382,7 @@ impl Lacking {
             followers: std::mem::take(&mut self.followers),
             refused: std::mem::take(&mut self.refused),
             kept: std::mem::take(&mut self.kept),
+            snapshots_shown: BTreeMap::new(),
         }
     }
 
