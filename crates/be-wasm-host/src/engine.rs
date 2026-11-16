@@ -168,7 +168,8 @@ pub(crate) struct Shape {
 
 impl Shape {
     pub(crate) fn read(bytes: &[u8]) -> Result<Self, String> {
-        let invalid = |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+        let invalid =
+            |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
         let mut shape = Self::default();
         let mut memories = Vec::new();
         for payload in Parser::new(0).parse_all(bytes) {
@@ -176,7 +177,10 @@ impl Shape {
                 Payload::TypeSection(reader) => {
                     for group in reader {
                         shape.collected |= group.map_err(invalid)?.into_types().any(|kind| {
-                            !matches!(kind.composite_type.inner, wasmparser::CompositeInnerType::Func(_))
+                            !matches!(
+                                kind.composite_type.inner,
+                                wasmparser::CompositeInnerType::Func(_)
+                            )
                         });
                     }
                 }
@@ -224,11 +228,14 @@ impl Shape {
                             ExternalKind::Func | ExternalKind::FuncExact => Kind::Function,
                             ExternalKind::Table => Kind::Table,
                             ExternalKind::Memory => Kind::Memory(
-                                memories.get(export.index as usize).cloned().unwrap_or(Memory {
-                                    initial: 0,
-                                    maximum: None,
-                                    shared: false,
-                                }),
+                                memories
+                                    .get(export.index as usize)
+                                    .cloned()
+                                    .unwrap_or(Memory {
+                                        initial: 0,
+                                        maximum: None,
+                                        shared: false,
+                                    }),
                             ),
                             ExternalKind::Global => Kind::Global,
                             ExternalKind::Tag => Kind::Tag,
@@ -250,7 +257,9 @@ impl Shape {
     /// and tables past one (whose size `--wasm-max-table-size` bounds).
     pub(crate) fn bounded(&self) -> Result<(), String> {
         if self.collected {
-            return Err("the module declares garbage-collected types, which no guest may".to_owned());
+            return Err(
+                "the module declares garbage-collected types, which no guest may".to_owned(),
+            );
         }
         let imported = self
             .imports
@@ -278,10 +287,7 @@ pub(crate) struct Compiled {
 
 pub(crate) type Module = Arc<Compiled>;
 
-pub(crate) fn compile(
-    scope: &mut v8::PinScope<'_, '_>,
-    bytes: &[u8],
-) -> Result<Module, String> {
+pub(crate) fn compile(scope: &mut v8::PinScope<'_, '_>, bytes: &[u8]) -> Result<Module, String> {
     let shape = Shape::read(bytes)?;
     shape.bounded()?;
     v8::tc_scope!(let caught, scope);
@@ -335,7 +341,8 @@ pub(crate) fn capped_maximum(memory: &Memory, cap: u64) -> Result<u64, String> {
 }
 
 fn capped(bytes: &[u8], cap: u64) -> Result<Vec<u8>, String> {
-    let invalid = |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+    let invalid =
+        |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
     let mut module = wasm_encoder::Module::new();
     for payload in Parser::new(0).parse_all(bytes) {
         let payload = payload.map_err(invalid)?;
@@ -415,7 +422,9 @@ pub(crate) fn get<'s>(
     name: &str,
 ) -> Option<v8::Local<'s, v8::Value>> {
     let name = key(scope, name);
-    object.get(scope, name).filter(|value| !value.is_undefined())
+    object
+        .get(scope, name)
+        .filter(|value| !value.is_undefined())
 }
 
 pub(crate) fn set(

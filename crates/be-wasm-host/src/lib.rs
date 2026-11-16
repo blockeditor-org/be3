@@ -5,9 +5,9 @@
 
 mod dylink;
 pub(crate) mod engine;
-mod harness;
 mod gauge;
 mod gpu;
+mod harness;
 mod instance;
 mod interrupt;
 mod panic;
@@ -356,7 +356,12 @@ impl Running {
                     Some(cap) => Some(engine::capped_maximum(declared, cap)?),
                     None => declared.maximum,
                 };
-                Some(engine::memory(scope, declared.initial, maximum, declared.shared)?)
+                Some(engine::memory(
+                    scope,
+                    declared.initial,
+                    maximum,
+                    declared.shared,
+                )?)
             }
             None => None,
         };
@@ -453,8 +458,8 @@ impl Running {
                 // unsafe(memory)
                 let state = unsafe { &mut *state.as_ptr() };
                 if let Memory::None = state.memory
-                    && let Some(own) = engine::get(scope, first, MEMORY)
-                        .and_then(|memory| memory.to_object(scope))
+                    && let Some(own) =
+                        engine::get(scope, first, MEMORY).and_then(|memory| memory.to_object(scope))
                 {
                     state.memory = Memory::Own(v8::Global::new(scope, own));
                 }
@@ -534,7 +539,9 @@ impl Running {
         let state = unsafe { &mut *state };
         let terminated = caught.has_terminated();
         if self.exhausted.reached() {
-            state.fatal.get_or_insert_with(|| engine::OUT_OF_MEMORY.to_owned());
+            state
+                .fatal
+                .get_or_insert_with(|| engine::OUT_OF_MEMORY.to_owned());
         }
         let outcome = match ran {
             Some(value) if state.fatal.is_none() => Ok(value.int32_value(caught)),

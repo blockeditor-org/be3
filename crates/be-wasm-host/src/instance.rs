@@ -28,21 +28,36 @@ pub(crate) fn host_functions<'s>(
     let mut defined = Defined::default();
     crate::panic::define(scope, &mut defined, data)?;
     crate::wake::define(scope, &mut defined, data)?;
-    let imports = || modules.iter().flat_map(|module| module.shape.imports.iter());
+    let imports = || {
+        modules
+            .iter()
+            .flat_map(|module| module.shape.imports.iter())
+    };
     match role {
         Role::Pure => crate::gpu::define_transport(scope, &mut defined, data, false)?,
         Role::App { fast } => {
             crate::gpu::define_app(scope, &mut defined, data, fast)?;
-            crate::wasi::define(scope, &mut defined, data, &imports().cloned().collect::<Vec<_>>())?;
+            crate::wasi::define(
+                scope,
+                &mut defined,
+                data,
+                &imports().cloned().collect::<Vec<_>>(),
+            )?;
             crate::threads::define(scope, &mut defined, data)?;
         }
         Role::Thread => {
-            crate::wasi::define(scope, &mut defined, data, &imports().cloned().collect::<Vec<_>>())?;
+            crate::wasi::define(
+                scope,
+                &mut defined,
+                data,
+                &imports().cloned().collect::<Vec<_>>(),
+            )?;
             crate::threads::define(scope, &mut defined, data)?;
             for import in imports() {
                 let host = import.module == guest::HOST_MODULE;
                 if !(import.module == gpu_abi::MODULE || host)
-                    || (host && matches!(import.name.as_str(), guest::HOST_WAKE | guest::HOST_PANIC))
+                    || (host
+                        && matches!(import.name.as_str(), guest::HOST_WAKE | guest::HOST_PANIC))
                 {
                     continue;
                 }
@@ -98,10 +113,9 @@ impl<'s> Answers<'s> {
     ) -> Result<v8::Local<'s, v8::Value>, String> {
         let (module, name) = (&import.module, &import.name);
         if let Kind::Memory(_) = import.kind {
-            return self
-                .memory
-                .map(Into::into)
-                .ok_or_else(|| format!("the app imports the memory {module}.{name}, and has none"));
+            return self.memory.map(Into::into).ok_or_else(|| {
+                format!("the app imports the memory {module}.{name}, and has none")
+            });
         }
         if let Some(defined) = self.defined.get(module, name) {
             return Ok(defined);
