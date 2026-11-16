@@ -32,25 +32,25 @@ _PREBUILT = {
     for platform, (triple, sha256, size_bytes) in _PREBUILT.items()
 ]
 
-# TODO(maintainer): rusty_v8 publishes no Android build. Until this names one
-# built by scripts/internal/build-rusty-v8-android.sh and hosted by us, with its
-# hash and size, every Android build that runs guests fails here: Android
-# cannot run apps until then (plans/wasm_on_v8.md).
-# The crate ships no bindings for Android either, so the same build makes them.
+# rusty_v8 publishes no Android build, nor bindings for it: these are ours,
+# built by scripts/internal/build-rusty-v8-android.sh for the same version and
+# hosted on lfs.pfg.pw. Moving to another `v8` version builds them again.
+_OURS = "https://lfs.pfg.pw/by-name/be3/v8/"
+
 configured_once(
     http_file,
     name = "android_arm64",
-    sha256 = "0000000000000000000000000000000000000000000000000000000000000000",
-    size_bytes = 0,
-    urls = ["https://TODO.invalid/librusty_v8_release_aarch64-linux-android.a.gz"],
+    sha256 = "2466ff4ff9b39adf5ce1db1088511eda46c229ae6fd3a4a8bf5c7284316986b6",
+    size_bytes = 36359953,
+    urls = [_OURS + "librusty_v8_release_aarch64-linux-android.a.gz"],
 )
 
 configured_once(
     http_file,
     name = "android_arm64_binding",
-    sha256 = "0000000000000000000000000000000000000000000000000000000000000000",
-    size_bytes = 0,
-    urls = ["https://TODO.invalid/src_binding_release_aarch64-linux-android.rs"],
+    sha256 = "3e4d5fecdbe0f98a6017e69d7ca82519a77fb032c5eb5e4cdbecdd3e2ec519d5",
+    size_bytes = 40045,
+    urls = [_OURS + "src_binding_release_aarch64-linux-android.rs"],
     visibility = ["//third-party/rust:"],
 )
 

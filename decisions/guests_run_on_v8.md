@@ -3,8 +3,8 @@
 Apps, their threads, type modules, libraries and the wasm app tests run on V8 through rusty_v8
 (`crates/be-wasm-host`), each guest thread on an isolate of its own, with the gpu and transport
 imports as fast-API calls. V8 compiles a module when it loads (Liftoff, then TurboFan behind it on
-hot code), so no module is precompiled and nothing but `.wasm` is staged. Android stays on it too,
-broken until a V8 for it is pinned (plans/wasm_on_v8.md).
+hot code), so no module is precompiled and nothing but `.wasm` is staged. Android runs it too, on
+a V8 we build (third-party/v8/BUCK).
 
 ## Why
 
