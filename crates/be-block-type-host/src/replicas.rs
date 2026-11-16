@@ -1343,7 +1343,10 @@ impl<H: Host> Replicas<H> {
         let kept_restart = recovered.as_ref().map_or(0, |recovered| recovered.restarts);
         // Made up while joining or offline: not yet in the server's order.
         let made_up = joining || offline;
-        let opening_journal = journal.clone().filter(|_| !made_up);
+        // Before a join that will settle them: a local account's peer never joins, so what it
+        // submitted is in its own order and nothing it holds is doubtful.
+        let before_join = joining || (offline && !peer.is_local());
+        let opening_journal = journal.clone().filter(|_| !before_join);
         let replay: Vec<Replayed> = recovered_edits
             .unwrap_or_default()
             .into_iter()
@@ -1379,7 +1382,7 @@ impl<H: Host> Replicas<H> {
             tag,
             origin,
             taken_before: given_up,
-            doubtful_through: match made_up {
+            doubtful_through: match before_join {
                 true => submitted_through,
                 false => 0,
             },
