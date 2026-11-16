@@ -185,7 +185,8 @@ nodes or effects in its scope.
 Three ways to take a subtree out of view. A `Frame` given `collapsed` stays built and
 running in place, but is laid out at no size, draws nothing and takes no spacing in a
 `List` (the HTML core gives it `display: none`): for something hidden for a moment that
-must keep running where it is, as a `Reorder` row carried off its list keeps its carry. A
+must keep running where it is, as a `Reorder` row carried off its list keeps its carry.
+What it holds in a layer of its own still shows natively (the row's floating preview). A
 `Show` removes it. A `Kept` keeps it elsewhere, paused, to show again or move.
 
 A `Show`, `Match` or `Dynamic` disposes the branch it hides. To keep one, with
