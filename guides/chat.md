@@ -221,11 +221,19 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   author, whoever it names). Its history is altered when an edit or reaction
   chain was cut or its deletion removed outright (written, now empty): a
   removal is signed by nobody, so anyone with Edit can fake one, and it says
-  nothing against the records shown (`Trust::Altered`). A deletion is asked
-  about once when it appears (`forged_deletions`);
-  a forged one keeps a muted, italic "Message deleted" row in the message's
-  place (after `Deletion::after` among the recent messages, where it was in a
-  closed segment read back), while a signed one leaves none. A recent message
+  nothing against the records shown (`Trust::Altered`). Only a message's
+  author deletes it. A deletion of a recent message keeps what its author
+  signed of it (`Deletion::message`, a `Sent`: its signed fields with the body
+  by its hash), and signs that message's hash, so the message is gone yet its
+  author is proven; a closed message's keeps nothing, the segment still holding
+  it. A deletion is forged when its own signature is, when it keeps a message
+  by someone else or one its author did not sign, when it keeps nothing of a
+  recent message, or, once the segment is read, when it is not by the closed
+  message's author (`Deletion::by_author`). It is asked about once when it
+  appears (`forged_deletions`); a forged one keeps a muted, italic "Message
+  deleted" row in the message's place (after `Deletion::after` among the
+  recent messages, where it was in a closed segment read back), checked
+  against the message's author, while one by the author leaves none. A recent message
   removed outright, which no deletion records, is told by the later messages
   that name it (`seen`, `own_previous`; `ChatContent::gaps`): a muted, italic
   "A message that was here is no longer in the chat" row takes its place,

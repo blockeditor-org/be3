@@ -1,5 +1,4 @@
-//! The bytes a member's signature will cover (plans/authorship.md), defined now so signing
-//! later changes no format. Each starts with a domain naming what it is, so the bytes of one
+//! The bytes a member's signature covers (plans/authorship.md). Each starts with a domain naming what it is, so the bytes of one
 //! kind of record can never be read as another's, and then holds fixed-width fields and
 //! length-prefixed strings in a fixed order: the same record always gives the same bytes,
 //! whichever build writes them.
@@ -28,6 +27,11 @@ impl MessageHash {
 pub struct Prior {
     pub id: ObjectId,
     pub hash: MessageHash,
+}
+
+/// What a signature covers of a body: its SHA-256.
+pub(crate) fn body_hash(body: &str) -> [u8; 32] {
+    Sha256::digest(body.as_bytes()).into()
 }
 
 pub(crate) struct Signed(Vec<u8>);
@@ -60,8 +64,12 @@ impl Signed {
     /// A body is signed by its hash, so a signature over a long message stays small to check
     /// against a body read elsewhere.
     pub(crate) fn body(&mut self, body: &str) -> &mut Self {
-        let hash: [u8; 32] = Sha256::digest(body.as_bytes()).into();
-        self.0.extend_from_slice(&hash);
+        self.body_hash(&body_hash(body))
+    }
+
+    /// A body by its hash (`body_hash`), as `body` signs it.
+    pub(crate) fn body_hash(&mut self, hash: &[u8; 32]) -> &mut Self {
+        self.0.extend_from_slice(hash);
         self
     }
 

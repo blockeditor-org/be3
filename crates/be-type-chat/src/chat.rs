@@ -129,6 +129,46 @@ pub struct Deletion {
     /// someone read up to) is found by order once it is gone, and a forged deletion's row is
     /// placed. Signed.
     pub after: Option<ObjectId>,
+    /// What the deleted message's author signed of it, when it was recent: the message is gone
+    /// from the header with its deletion, and this proves who wrote it, so a deletion by
+    /// anyone else shows (only a message's author deletes it). Signed by its hash. None for a
+    /// message in a closed segment, which still holds it.
+    pub message: Option<Sent>,
+}
+
+/// What a message's author signed of it (`Message::signed_bytes`), its body by its hash: what
+/// a deletion keeps of the message it removed.
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
+pub struct Sent {
+    pub author: Uuid,
+    pub time: i64,
+    #[serde(with = "serde_bytes")]
+    pub body: [u8; 32],
+    pub reply_to: Option<ObjectId>,
+    pub attachments: Vec<BlockRef>,
+    pub seen: Option<Prior>,
+    pub own_previous: Option<Prior>,
+    pub signature: Signature,
+}
+
+impl Sent {
+    /// The bytes its author signed, the same as `Message::signed_bytes` of the message.
+    pub fn signed_bytes(&self, chat: Uuid, id: ObjectId) -> Vec<u8> {
+        Signed::new("be3.chat.message", chat, id)
+            .uuid(self.author)
+            .time(self.time)
+            .body_hash(&self.body)
+            .reply(self.reply_to)
+            .blocks(&self.attachments)
+            .prior(self.seen)
+            .prior(self.own_previous)
+            .finish()
+    }
+
+    pub fn hash(&self, chat: Uuid, id: ObjectId) -> MessageHash {
+        MessageHash::of(&self.signed_bytes(chat, id))
+    }
 }
 
 /// One person's reaction to a message, kept or taken back (`Reaction::kept`). `reaction` names
@@ -208,15 +248,21 @@ impl Message {
     /// body's hash, what it replies to, its attachments, the last message its author saw and
     /// its author's own message before it.
     pub fn signed_bytes(&self, chat: Uuid, id: ObjectId) -> Vec<u8> {
-        Signed::new("be3.chat.message", chat, id)
-            .uuid(self.author)
-            .time(self.time)
-            .body(&self.body)
-            .reply(self.reply_to)
-            .blocks(&self.attachments)
-            .prior(self.seen)
-            .prior(self.own_previous)
-            .finish()
+        self.sent().signed_bytes(chat, id)
+    }
+
+    /// What its author signed of it (`Sent`).
+    pub fn sent(&self) -> Sent {
+        Sent {
+            author: self.author,
+            time: self.time,
+            body: crate::signed::body_hash(&self.body),
+            reply_to: self.reply_to,
+            attachments: self.attachments.clone(),
+            seen: self.seen,
+            own_previous: self.own_previous,
+            signature: self.signature.clone(),
+        }
     }
 
     pub fn hash(&self, chat: Uuid, id: ObjectId) -> MessageHash {
@@ -264,12 +310,28 @@ impl MessageEdit {
 }
 
 impl Deletion {
+    /// What a deletion's signature covers: the chat, the message, author, claimed time, the
+    /// message before it and the deleted message's hash, when it keeps the message.
     pub fn signed_bytes(&self, chat: Uuid, message: ObjectId) -> Vec<u8> {
         Signed::new("be3.chat.deletion", chat, message)
             .uuid(self.author)
             .time(self.time)
             .reply(self.after)
+            .seen(self.message.as_ref().map(|sent| sent.hash(chat, message)))
             .finish()
+    }
+
+    /// Whether its author may have deleted `message`, which `deleted` is (none when this
+    /// replica holds nothing of it): only a message's author deletes it. A deletion that keeps
+    /// the message (`Deletion::message`) is checked against what it kept, whose own signature
+    /// a reader checks too; one that keeps none is of a closed message, checked against the
+    /// segment's copy once it is read.
+    pub fn by_author(&self, deleted: Option<&Message>) -> bool {
+        match (&self.message, deleted) {
+            (Some(sent), _) => sent.author == self.author,
+            (None, Some(message)) => message.author == self.author,
+            (None, None) => true,
+        }
     }
 }
 
@@ -880,6 +942,7 @@ impl ChatContent {
             time,
             signature: Signature::default(),
             after,
+            message: self.message(message).map(|message| message.sent()),
         }
     }
 
