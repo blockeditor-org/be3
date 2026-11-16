@@ -2024,7 +2024,7 @@ impl EditorHost {
     /// Whether `account` signed `bytes` in the block the editor shows, and how far its key is
     /// trusted. `arrived` is when the server took the record, for one that keeps that stamp: a
     /// record signed with a replaced key that arrived after this device learned of the new one
-    /// is `Bad`.
+    /// is `Replaced`.
     pub fn verify(
         &self,
         account: Uuid,

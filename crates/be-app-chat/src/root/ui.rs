@@ -1564,6 +1564,9 @@ enum Trust {
     Verified,
     Unverified,
     Changed,
+    /// Signed with a contact's key it had replaced before the record arrived
+    /// (`Signer::Replaced`).
+    Replaced,
     /// A record was removed or a chain's latest cut (`Record::Removed`): someone changed the
     /// history around the author's records, which says nothing against any record shown (a
     /// removal is signed by nobody, so anyone with Edit can fake one).
@@ -1578,6 +1581,7 @@ impl From<Signer> for Trust {
             Signer::Verified => Self::Verified,
             Signer::Unverified => Self::Unverified,
             Signer::Changed => Self::Changed,
+            Signer::Replaced => Self::Replaced,
             Signer::Bad => Self::Forged,
         }
     }
@@ -1683,6 +1687,7 @@ fn MessageRow(
     });
     let unverified = create_memo(move || signer.get() == Ok(Trust::Unverified));
     let changed = create_memo(move || signer.get() == Ok(Trust::Changed));
+    let replaced = create_memo(move || signer.get() == Ok(Trust::Replaced));
     let altered = create_memo(move || signer.get() == Ok(Trust::Altered));
     let forged = create_memo(move || signer.get() == Ok(Trust::Forged));
     let author = create_memo(move || row.with(|row| row.author.clone()));
@@ -1886,6 +1891,11 @@ fn MessageRow(
                             <Show value={changed}>
                                 <Text style=TextStyle::CAPTION color=TextColor::Warning>
                                     "key changed"
+                                </Text>
+                            </Show>
+                            <Show value={replaced}>
+                                <Text style=TextStyle::CAPTION color=TextColor::Warning>
+                                    "sent with an old key"
                                 </Text>
                             </Show>
                             <Show value={altered}>
