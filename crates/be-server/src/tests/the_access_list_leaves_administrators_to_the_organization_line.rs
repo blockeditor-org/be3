@@ -48,7 +48,7 @@ pub(super) async fn join(
             .expect("the member joined")
             .account;
         let response = owner
-            .call(|peer| client::members::set_role(peer, account, role))
+            .set_role(account, role)
             .await;
         assert!(matches!(response, Ok(())), "{response:?}");
     }

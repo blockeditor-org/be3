@@ -128,7 +128,7 @@ impl TestClient {
             (
                 "set-role",
                 answered(
-                    client::members::set_role(peer, other, OrganizationRole::Administrator).await,
+                    client::members::set_role(peer, other, OrganizationRole::Administrator, None).await,
                 ),
             ),
             (
@@ -443,6 +443,7 @@ impl TestClient {
             epoch: 1,
             public: [1; 32],
             signing: [2; 32],
+            maker: Uuid::nil(),
             signature: Vec::new(),
         };
         answers.push((

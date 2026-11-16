@@ -417,3 +417,79 @@ pub(crate) fn append_grant(
     )?;
     Ok(())
 }
+
+/// `account`'s signing key, if the organization's log, checked to its head, names it an
+/// administrator.
+pub(crate) fn administrator_signing(
+    connection: &Connection,
+    organization: Uuid,
+    account: Uuid,
+) -> Result<Option<SigningPublic>, ServerError> {
+    let entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let Some(pinned) = entries.first().map(Entry::hash) else {
+        return Ok(None);
+    };
+    let checked = be_block_keys::check_log(
+        LogKind::Organization,
+        organization.into_bytes(),
+        pinned,
+        &entries,
+        &|_, _| None,
+    )
+    .map_err(|_| ServerError::Corrupt)?;
+    Ok(checked.manager(LogKind::Organization, account.into_bytes()))
+}
+
+/// Appends `record`, signed by `signer`, to the organization's log once it checks at its head:
+/// an administrator record making `account` one or not, as `administrator` says, naming the
+/// keys the server holds for them.
+pub(crate) fn append_administrator(
+    connection: &Connection,
+    organization: Uuid,
+    signer: Uuid,
+    account: Uuid,
+    administrator: bool,
+    record: &[u8],
+) -> Result<(), ServerError> {
+    let entry = Entry::decode(record).map_err(|_| refused("the record does not read"))?;
+    let Record::Administrator(made) = &entry.record else {
+        return Err(refused("a role is set by an administrator record"));
+    };
+    if entry.signer != signer.into_bytes()
+        || made.account != account.into_bytes()
+        || made.administrator != administrator
+    {
+        return Err(refused(
+            "the administrator record is signed by its caller and makes what the call sets",
+        ));
+    }
+    if identity_of(connection, account)? != Some(made.identity) {
+        return Err(refused("an administrator record names the keys its account holds now"));
+    }
+    let mut entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let pinned = entries
+        .first()
+        .map(Entry::hash)
+        .ok_or_else(|| refused("the organization has no access log"))?;
+    let position = entries.len();
+    entries.push(entry.clone());
+    be_block_keys::check_log(
+        LogKind::Organization,
+        organization.into_bytes(),
+        pinned,
+        &entries,
+        &|_, _| None,
+    )
+    .map_err(|_| refused("the record does not follow the log it goes in"))?;
+    connection.execute(
+        "INSERT INTO organization_log (organization_id, position, entry, signer)
+         VALUES (?1, ?2, ?3, ?4)",
+        params![
+            organization.to_string(),
+            position,
+            entry.encode(),
+            signer.to_string()
+        ],
+    )?;
+    Ok(())
+}

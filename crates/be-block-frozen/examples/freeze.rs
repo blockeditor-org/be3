@@ -385,13 +385,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
     owner.refresh_contacts().await.map_err(text)?;
     // An invitation joins as an editor; the owner then makes the contact an administrator.
-    ask(client::members::set_role(
-        &owner.connection(),
-        editor.account(),
-        OrganizationRole::Administrator,
-    ))
-    .await
-    .map_err(text)?;
+    owner
+        .set_role(editor.account(), OrganizationRole::Administrator)
+        .await
+        .map_err(text)?;
     let editor = reopen(&socket, &editor, organization, ChunkerConfig::DEFAULT).await?;
     owner.tend().await.map_err(text)?;
     let editor_public = owner.verified_identity(editor.account())

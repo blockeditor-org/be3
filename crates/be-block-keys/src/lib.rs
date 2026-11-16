@@ -235,6 +235,13 @@ impl RecoverySecret {
             .to_vec()
     }
 
+    /// Signs an escrow key its organization's administrator makes (`EscrowKey::chained`, which
+    /// carries a domain of its own).
+    pub fn sign_escrow(&self, chained: &[u8]) -> Vec<u8> {
+        use ed25519_dalek::Signer;
+        self.signing_key().sign(chained).to_bytes().to_vec()
+    }
+
     pub fn open_anonymous(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
         let (ephemeral, rest) = sealed.split_at_checked(32).ok_or(KeyError::Corrupt)?;
         let ephemeral: [u8; 32] = ephemeral.try_into().map_err(|_| KeyError::Corrupt)?;

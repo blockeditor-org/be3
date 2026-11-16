@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
 use be_block_graph::{Access, BlockParent};
-use be_block_protocol::{BlockSummary, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client};
+use be_block_protocol::{
+    BlockSummary, ErrorCode, KeyKind, KeySet, KeyWork, Member, OrganizationRole, client,
+};
 use be_block_store::ObjectStore;
 use uuid::Uuid;
 
@@ -30,6 +32,10 @@ impl<S: ObjectStore> Peer<S> {
     /// `tend` from key work already read, such as a value of the connection's
     /// `key-work-changed` stream (`Event::KeyWork`).
     pub async fn tend_with(&self, mut work: KeyWork) -> Result<(), ClientError> {
+        // A new escrow key is taken only from an administrator its organization's log names.
+        if work.escrows != self.keys.escrows() {
+            self.learn_administrators().await;
+        }
         self.adopt_escrows(work.escrows.clone());
         let mut failed = None;
         let escrow_rotation = work.escrow_rotation && self.keys.can_make_escrow();
@@ -43,6 +49,9 @@ impl<S: ObjectStore> Peer<S> {
         }
         if escrow_rotation || !work.rotations.is_empty() {
             work = self.key_work().await?;
+            if work.escrows != self.keys.escrows() {
+                self.learn_administrators().await;
+            }
             self.adopt_escrows(work.escrows.clone());
         }
         let mut keys = KeySet::default();
@@ -204,9 +213,61 @@ impl<S: ObjectStore> Peer<S> {
         Ok(client::members::list_members(&self.connection()).await??)
     }
 
+    /// Sets a member's role. Making or unmaking an administrator of a company organization is a
+    /// record in its log, signed here, naming the keys this device verified for them (or, to
+    /// unmake one, those the log names).
     pub async fn set_role(&self, account: Uuid, role: OrganizationRole) -> Result<(), ClientError> {
-        client::members::set_role(&self.connection(), account, role).await??;
+        let signed = self.administrator_record(account, role).await?;
+        client::members::set_role(&self.connection(), account, role, signed).await??;
         Ok(())
+    }
+
+    async fn administrator_record(
+        &self,
+        account: Uuid,
+        role: OrganizationRole,
+    ) -> Result<Option<Vec<u8>>, ClientError> {
+        use be_block_keys::{Administrator, Entry, LogKind, Record};
+        let Some(pinned) = self.keys.organization_root() else {
+            return Ok(None);
+        };
+        let entries = self.organization_log().await?;
+        let checked = be_block_keys::check_log(
+            LogKind::Organization,
+            self.organization.into_bytes(),
+            pinned,
+            &entries,
+            &|_, _| None,
+        )
+        .map_err(|_| ClientError::Forged(self.organization))?;
+        let administrator = role == OrganizationRole::Administrator;
+        let named = checked.administrators.get(&account.into_bytes()).copied();
+        if administrator == named.is_some() {
+            return Ok(None);
+        }
+        let identity = self
+            .verified_identity(account)
+            .or(named)
+            .or_else(|| (account == self.account).then(|| self.keys.identity().identity()))
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::NotAContact,
+                    "make an administrator only of a contact: send them a contact link first"
+                        .into(),
+                )
+            })?;
+        let entry = Entry::sign(
+            self.keys.identity(),
+            self.account.into_bytes(),
+            self.organization.into_bytes(),
+            entries.last().map(Entry::hash),
+            Record::Administrator(Administrator {
+                account: account.into_bytes(),
+                identity,
+                administrator,
+            }),
+        );
+        Ok(Some(entry.encode()))
     }
 
     pub async fn remove_member(&self, account: Uuid) -> Result<(), ClientError> {
