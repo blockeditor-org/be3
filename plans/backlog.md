@@ -335,3 +335,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `From`, so a hand-written `children={[..]}` fails (`view!` never writes one).
   Done: `Children<T>` takes an array of segments again, shown by a beui-tree
   test, or the guide says to build `Children` from the array.
+
+## 22. Headless runtime
+
+- **be-host-runtime without its gpu and presenter.** `be` links
+  be-host-runtime to run host components headless (plans/headless_apps.md),
+  which brings beui-documents, wgpu and the font stack into its binary though
+  it never starts them. Done when `be`'s build time or size hurts: the runtime
+  split so `be` links no gpu or presenter crate, which also cuts a caching
+  edge between them and `be`.

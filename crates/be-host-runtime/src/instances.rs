@@ -4,7 +4,7 @@ use be_sdk_api::{
     AnchorSpace, AnchoredPlacement, ArtifactDescription, AudioCommand, BlockPick, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildStatus, DialogStatus,
     EditorInstanceId, FrameReport, FrameSpec, MenuEntry, Occluder, OpenArtifact, OpenBlock,
-    OpenCreation, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
+    OpenCreation, OpenHost, OpenPicker, OpenRename, Opening, OpeningKind, PerformanceMeasurement, ScreenId,
     ScreenLayout, ScreenRequest, ScreenWindow, Stopped, View, ViewAnchor, ViewId, ViewPlacement,
     ViewSize, ViewportMetrics, WebViewEvent, WebViewId,
 };
@@ -330,7 +330,10 @@ impl Instance {
             version_sent: None,
             stale: true,
             content: match role {
-                InstanceRole::Editor(_, block) => own_content_type(block).map(ContentLink::new),
+                // A host component is attached to its block's replica as an editor is.
+                InstanceRole::Editor(_, block) | InstanceRole::Host(_, block) => {
+                    own_content_type(block).map(ContentLink::new)
+                }
                 InstanceRole::Creation(..)
                 | InstanceRole::Artifact(..)
                 | InstanceRole::Picker(..)
@@ -2137,6 +2140,18 @@ impl Instances {
                             host_palette: crate::host_draws_palette(),
                         }),
                     ),
+                    InstanceRole::Host(host, block) => (
+                        host,
+                        OpeningKind::Host(OpenHost {
+                            block_id: block.id.into_bytes(),
+                            block_type: block.block_type.into_bytes(),
+                            editable: {
+                                let editable = be_host_stack::access(block.id).can_edit();
+                                entry.reported_editable = Some(editable);
+                                editable
+                            },
+                        }),
+                    ),
                     InstanceRole::Picker(editor) => {
                         let picker = super::picker_request(instance).unwrap_or_default();
                         (
@@ -3016,6 +3031,7 @@ impl Instances {
                         InstanceRole::Picker(..) => "picker",
                         InstanceRole::Rename(..) => "rename",
                         InstanceRole::Artifact(..) => "artifact",
+                        InstanceRole::Host(..) => "host",
                     },
                     opened: entry.opened,
                     intrinsic: entry.intrinsic,
@@ -3599,15 +3615,27 @@ impl Instances {
                     .role
                     .block()
                     .is_some_and(|block| be_host_stack::revisions::source(block.id).is_some());
+                let host = matches!(entry.role, InstanceRole::Host(..));
                 self.services.answers.push(reply.answer(&()));
                 let mut changed = false;
                 for message in messages {
                     if preview && !preview_may_tell(&message) {
                         continue;
                     }
+                    // A host component has no frame or view, and no person before it: what it
+                    // tells the shell of either is dropped, all but a failure it reports.
+                    if host && !matches!(message, ShellMessage::ReportFailure(_)) {
+                        continue;
+                    }
                     changed |= self.shell_message(instance, message);
                 }
                 changed
+            }
+            ShellCall::WebViewNew { .. } if matches!(entry.role, InstanceRole::Host(..)) => {
+                self.services
+                    .answers
+                    .push(call.refuse(OpError::Unsupported));
+                false
             }
             ShellCall::WebViewNew { id, .. } => {
                 entry.unshown_web_views.push(id);

@@ -839,14 +839,26 @@ interface types {
         sheet: bool,
     }
 
+    /// A host component opening on a block (the manifest's `hosts`): no frame,
+    /// no view and no input, attached to the block's replica as an editor is.
+    /// Host services that need a person or a screen (a picker, a dialog, a
+    /// web view, the clipboard) refuse it, and it gets no gpu.
+    record open-host {
+        block-id: block-id,
+        block-type: block-type-id,
+        editable: bool,
+    }
+
     /// How an editor instance opens: on a block, as a creation dialog, on an
-    /// artifact's settings, as a picker, or as a form renaming a block.
+    /// artifact's settings, as a picker, as a form renaming a block, or as a
+    /// host component, which has no frame.
     variant opening-kind {
         block(open-block),
         creation(open-creation),
         artifact(open-artifact),
         picker(open-picker),
         rename(open-rename),
+        host(open-host),
     }
 
     /// An editor instance opening: which instance, which editor, who opens it

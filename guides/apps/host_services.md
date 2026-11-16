@@ -274,6 +274,23 @@ function, a `publish` or `take_calls` on the host, and `watch` or `act` in the
 editor; nothing else lists them. Tests use `BeuiTest::set_watched::<W>`,
 `host_calls` and `take_host_calls`.
 
+## Host components
+
+A host component is a component of the app's wasm with no frame: the manifest
+names it under `hosts` (an id, and `edits`, the one block type it runs on),
+and the app's `beui_app!` map pairs the name with a root as it does an
+editor's; the framework refuses to start unless the roots cover the editors
+and hosts together. The host opens it with `opening-kind.host` (block, type,
+whether it may edit) through `be_host_runtime::host` and stops it with
+`close`, and it never gets a screen: no frame, no view, no input, so it lays
+out and paints nothing. It is attached to its block's replica as an editor is
+and calls host services the same way. What needs a person or a screen is
+refused or dropped: the runtime drops every shell message it sends but a
+failure report, and refuses it a web view. It gets no gpu. It is how a
+hosted block's host runs (plans/hosted_blocks.md), in be-host or headless in
+`be` (plans/headless_apps.md); members, the channel and the lease are
+hosted_blocks' to add.
+
 ## Extending the protocol
 
 If an editor needs something the host has, add it to the `be3:app` world in

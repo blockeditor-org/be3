@@ -31,7 +31,14 @@ graphics. One runtime, not a second one for `be`.
 ## Order of work
 
 1. **The runtime in `be`**, and bundling the apps that declare a host
-   component. Done: `be` runs a test app's host component
+   component, landed in three reviewed pieces:
+   - a. Host components in the manifest and the app protocol: done
+     (guides/apps/host_services.md, "Host components").
+   - b. A headless driver for be-host-runtime, with no beui setup, no
+     presenter and no gpu, which be-host's headless `:dev` shares.
+   - c. `be` wiring (be-host-stack and be-host-runtime, the apps that declare
+     `hosts` bundled) and a small example app with a host component.
+   Done: `be` runs a test app's host component
    against a block and the test reads what it wrote, with no display.
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component

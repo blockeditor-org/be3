@@ -46,7 +46,9 @@ learns about the type except through the manifest.
   dev-dependency). `be_sdk_beui` re-exports `be_block` and the core, so the
   editor depends on nothing else of the framework.
 - `src/lib.rs`: `be_sdk_beui::beui_app!("../manifest.json", { foo => root::FooRoot });`
-  pairs each editor the manifest names with the `BeuiRoot` that draws it. The
+  pairs each editor the manifest names, and each host component (its `hosts`,
+  guides/apps/host_services.md, "Host components"), with the `BeuiRoot` that
+  runs it. The
   framework refuses to start unless the roots cover exactly the manifest's
   editors.
 - `src/root.rs`: `impl be_sdk_beui::BeuiRoot`.
