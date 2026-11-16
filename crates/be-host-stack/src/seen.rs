@@ -1129,10 +1129,10 @@ impl Handover {
 /// `Seen` the first time) with what it tells the page of it, and answers whether it put an
 /// update: nothing goes when nothing changed and there is nothing to tell. Called with the lock
 /// on `Shared` held, so updates land in the order the state they copy changed.
-pub(crate) fn publish(shared: &mut Shared, handover: &Handover, mut told: Told) -> bool {
+pub(crate) fn publish(shared: &mut Shared, handover: &Handover) -> bool {
     shared.refresh_seen();
     // Taken under the lock on `Shared`, as what it tells of was done under it.
-    told.merge(handover.take_told());
+    let told = handover.take_told();
     // The page has not taken what the handover holds: the worker hands over the whole `Seen` in
     // its place.
     let crowded = handover.crowded();
@@ -1318,7 +1318,6 @@ pub(crate) fn publish_now() {
     let put = publish(
         &mut shared.lock().unwrap_or_else(PoisonError::into_inner),
         &handover,
-        Told::default(),
     );
     if put || wake {
         be_host_base::host::wake();
@@ -1344,7 +1343,7 @@ pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
     };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     change(&mut held);
-    if publish(&mut held, &handover, Told::default()) {
+    if publish(&mut held, &handover) {
         be_host_base::host::wake();
     }
     true

@@ -1557,7 +1557,7 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
         if let Some(value) = read(&held) {
             // What the page reads has what was waited for, though the worker has not handed
             // it over yet.
-            seen::publish(&mut held, &handover, seen::Told::default());
+            seen::publish(&mut held, &handover);
             drop(held);
             take_updates();
             return value;
@@ -1682,7 +1682,7 @@ fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
     let stack = held.as_ref()?;
     let mut shared = stack.shared.lock().unwrap_or_else(PoisonError::into_inner);
     let changed = change(&mut shared);
-    seen::publish(&mut shared, &stack.handover, seen::Told::default());
+    seen::publish(&mut shared, &stack.handover);
     drop(shared);
     drop(held);
     take_updates();
