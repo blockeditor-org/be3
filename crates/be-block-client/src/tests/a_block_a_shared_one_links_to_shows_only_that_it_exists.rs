@@ -46,7 +46,7 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         )
         .await
         .unwrap();
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(shared, guest.account(), Access::View, &public)
         .await

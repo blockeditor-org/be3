@@ -126,10 +126,27 @@ async fn agent(
     let public = phrase.secret().public();
     let peer = owner.peer();
     let organization = peer.organization();
+    let account = Uuid::new_v4();
+    let bound = match bound_to {
+        Some(block) => Some(be_block_protocol::BoundAgent {
+            block,
+            signed: peer
+                .grant_record(
+                    block,
+                    account,
+                    be_block_graph::Access::Edit,
+                    phrase.secret().identity(),
+                )
+                .await
+                .expect("signing the agent's grant failed"),
+        }),
+        None => None,
+    };
     let be_block_protocol::CreatedAgent { agent, token } =
         be_block_client::ask(be_block_protocol::client::members::create_agent(
             &peer.connection(),
             organization,
+            account,
             "Claude".into(),
             public.0,
             phrase.secret().signing().0,
@@ -145,7 +162,7 @@ async fn agent(
                 organization,
                 &peer.keys().pins(),
             ),
-            bound_to,
+            bound,
         ))
         .await
         .expect("creating the agent failed");

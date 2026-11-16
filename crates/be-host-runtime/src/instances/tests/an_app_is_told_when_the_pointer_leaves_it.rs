@@ -21,6 +21,6 @@ fn an_app_is_told_when_the_pointer_leaves_it() {
 
     let left = forwarded(vec![beui::Forwarded::Left], None, false);
     let (messages, _) =
-        instances.forward(INSTANCE, REGION, &left, &|_, _| beui::Aim::Own, &|_, _| None);
+        instances.forward(INSTANCE, REGION, &left, &|_, _| beui::Aim::Own, &|_| None);
     assert_eq!(input_events(&messages), [Input::PointerLeft]);
 }

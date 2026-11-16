@@ -1448,7 +1448,7 @@ impl SavedDockLayout {
 }
 
 fn spec_to_layout(spec: &DockSpec, path: PathOf<'_>) -> api::DockLayout {
-    let nodes = spec_nodes(spec, path, &|_, _| None);
+    let nodes = spec_nodes(spec, path, &|_| None);
     api::DockLayout {
         tree: api::DockTree::flatten(&nodes, spec.focus.and_then(path)),
         homes: spec

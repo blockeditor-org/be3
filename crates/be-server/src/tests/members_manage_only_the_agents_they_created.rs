@@ -23,6 +23,7 @@ async fn members_manage_only_the_agents_they_created() {
                 client::members::create_agent(
                     peer,
                     organization,
+                    Uuid::new_v4(),
                     "Helper".into(),
                     [7; 32],
                     [7; 32],

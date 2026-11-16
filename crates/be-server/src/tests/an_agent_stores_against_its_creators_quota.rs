@@ -13,6 +13,7 @@ async fn an_agent_stores_against_its_creators_quota() {
             client::members::create_agent(
                 peer,
                 personal,
+                Uuid::new_v4(),
                 "Helper".into(),
                 identity.public.0,
                 identity.signing.0,

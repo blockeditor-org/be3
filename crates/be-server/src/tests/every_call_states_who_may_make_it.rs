@@ -141,6 +141,7 @@ impl TestClient {
                     client::members::create_agent(
                         peer,
                         organization,
+                        Uuid::new_v4(),
                         "agent".into(),
                         [7; 32],
                         [7; 32],

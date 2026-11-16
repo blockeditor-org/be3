@@ -21,9 +21,7 @@ async fn a_reader_taken_off_a_workspace_cannot_read_what_is_written_after() {
         .published()
         .unwrap();
     for member in [&reader, &leaver] {
-        let public = owner
-            .keys()
-            .contact(member.account())
+        let public = owner.verified_identity(member.account())
             .expect("the invitation made them contacts");
         owner
             .share(team, member.account(), Access::Edit, &public)

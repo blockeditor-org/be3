@@ -46,7 +46,7 @@ async fn removing_a_member_rotates_a_workspaces_search_index_with_it() {
         .unwrap()
         .published();
     for member in [&reader, &removed] {
-        let public = admin.keys().contact(member.account()).unwrap();
+        let public = admin.verified_identity(member.account()).unwrap();
         admin
             .share(team, member.account(), Access::View, &public)
             .await

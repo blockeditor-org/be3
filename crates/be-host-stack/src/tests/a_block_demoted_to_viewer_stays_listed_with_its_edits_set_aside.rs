@@ -28,9 +28,7 @@ fn a_block_demoted_to_viewer_stays_listed_with_its_edits_set_aside() {
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
-    let public = peer
-        .keys()
-        .contact(harness.account)
+    let public = peer.verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
     let block = runtime.block_on(async {
         let block = peer

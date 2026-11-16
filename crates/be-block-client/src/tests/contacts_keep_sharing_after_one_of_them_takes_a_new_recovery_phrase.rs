@@ -42,14 +42,14 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
 
     let team = workspace(&owner, "Team").await;
     let from_owner = note_in(&owner, team, "from the owner").await;
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(team, guest.account(), Access::Edit, &public)
         .await
         .unwrap();
     let theirs = workspace(&guest, "Guest's").await;
     let from_guest = note_in(&guest, theirs, "from the guest").await;
-    let public = guest.keys().contact(owner.account()).unwrap();
+    let public = guest.verified_identity(owner.account()).unwrap();
     guest
         .share(theirs, owner.account(), Access::View, &public)
         .await
@@ -111,8 +111,8 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     let watcher = guest;
     let guest = harness.second(&watcher).await;
     assert_eq!(
-        guest.keys().contact(owner.account()),
-        Some(fresh.public()),
+        guest.verified_identity(owner.account()),
+        Some(fresh.identity()),
         "the guest took the owner's new key from the change it sealed with its old one"
     );
     assert_eq!(
@@ -147,7 +147,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
 
     let later = workspace(&owner, "Later").await;
     let from_new_owner = note_in(&owner, later, "after the new phrase").await;
-    let public = owner.keys().contact(guest.account()).unwrap();
+    let public = owner.verified_identity(guest.account()).unwrap();
     owner
         .share(later, guest.account(), Access::View, &public)
         .await
@@ -155,7 +155,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
     assert_eq!(text(&guest, from_new_owner).await, "after the new phrase");
     let back = workspace(&guest, "Back").await;
     let from_new_guest = note_in(&guest, back, "to the new key").await;
-    let public = guest.keys().contact(owner.account()).unwrap();
+    let public = guest.verified_identity(owner.account()).unwrap();
     guest
         .share(back, owner.account(), Access::View, &public)
         .await
