@@ -50,7 +50,7 @@ fn a_child_added_while_its_folder_is_renamed_stays_in_it() {
             .await
             .expect("the workspace's head is read");
         let metadata = peer
-            .metadata_of(head)
+            .metadata_of(workspace, head)
             .await
             .expect("the workspace's metadata is read");
         (commit.references, metadata.get(&be_block_content::NAME))

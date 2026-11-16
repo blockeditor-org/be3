@@ -45,7 +45,7 @@ impl<S: ObjectStore> Peer<S> {
             let entry = self.refs.number_offline(block, tag, submission)?;
             self.refs
                 .add_announcements(block, Until::Journal(entry.sequence), made)?;
-            return Ok(Submitted::Offline(self.open_entry(entry)?));
+            return Ok(Submitted::Offline(self.open_entry(block, entry)?));
         }
         self.refs.add_announcements(block, Until::Submitted, made)?;
         Ok(Submitted::Server(
@@ -153,7 +153,7 @@ impl<S: ObjectStore> Peer<S> {
             .edits
             .iter()
             .map(|sealed| {
-                let plain = self.commits.vault().open(sealed).map_err(locked)?;
+                let plain = self.open_for(block, sealed).map_err(locked)?;
                 Ok(be_block_store::decode_value(&plain)?)
             })
             .collect();
@@ -179,7 +179,7 @@ impl<S: ObjectStore> Peer<S> {
                     .edits
                     .iter()
                     .map(|sealed| {
-                        let plain = self.commits.vault().open(sealed).map_err(locked)?;
+                        let plain = self.open_for(block, sealed).map_err(locked)?;
                         Ok(be_block_store::decode_value(&plain)?)
                     })
                     .collect();
@@ -223,25 +223,25 @@ impl<S: ObjectStore> Peer<S> {
     pub fn local_journal(&self, block: Uuid) -> Result<Option<Journal>, ClientError> {
         self.refs
             .journal(block)
-            .map(|journal| self.open_journal(journal))
+            .map(|journal| self.open_journal(block, journal))
             .transpose()
     }
 
-    /// Opens a sealed entry's payload.
-    pub fn open_entry(&self, entry: JournalEntry) -> Result<JournalEntry, ClientError> {
+    /// Opens the payload of an entry of `block`, sealed under one of its keys (`open_for`).
+    pub fn open_entry(&self, block: Uuid, entry: JournalEntry) -> Result<JournalEntry, ClientError> {
         Ok(JournalEntry {
-            payload: self.commits.vault().open(&entry.payload).map_err(locked)?,
+            payload: self.open_for(block, &entry.payload).map_err(locked)?,
             ..entry
         })
     }
 
-    /// Opens a sealed journal: its base state and each entry's payload.
-    pub fn open_journal(&self, journal: Journal) -> Result<Journal, ClientError> {
-        let vault = self.commits.vault();
+    /// Opens `block`'s sealed journal: its base state and each entry's payload, each sealed
+    /// under one of `block`'s keys (`Peer::open_for`).
+    pub fn open_journal(&self, block: Uuid, journal: Journal) -> Result<Journal, ClientError> {
         let open = |sealed: &[u8]| -> Result<Vec<u8>, ClientError> {
             match sealed.is_empty() {
                 true => Ok(Vec::new()),
-                false => vault.open(sealed).map_err(locked),
+                false => self.open_for(block, sealed).map_err(locked),
             }
         };
         Ok(Journal {

@@ -9,7 +9,12 @@ use super::*;
 #[test]
 fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
     with_another_device(|peer, phone, shared, mut replicas| async move {
-        let block = block(&peer).await;
+        // A block of the account whose key this device has not fetched: another device made it.
+        let block = phone
+            .create::<Sections>(BlockParent::Root)
+            .await
+            .expect("the other device makes a block");
+        let key = phone.current_key(block).expect("the block has a key");
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
             .await;
@@ -18,12 +23,6 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
             replicas.pump((&peer, &shared)).await;
         }
 
-        // A key of the account this device has not fetched: another device made it.
-        let made = phone
-            .create::<Sections>(BlockParent::Root)
-            .await
-            .expect("the other device makes a block");
-        let key = phone.current_key(made).expect("the block has a key");
         let payload = phone
             .commits()
             .vault()
