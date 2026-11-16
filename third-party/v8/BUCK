@@ -1,7 +1,7 @@
 load("@root//buck/platforms:cross.bzl", "cross_setting")
 load("@root//buck/tools:defs.bzl", "configured_once")
 
-# V8 as rusty_v8 builds it, which every wasm guest runs on (plans/wasm_on_v8.md):
+# V8 as rusty_v8 builds it, which every wasm guest runs on (decisions/guests_run_on_v8.md):
 # the `v8` crate's static library, prebuilt per platform from the rusty_v8
 # release its version names and pinned here by hash and size, as cargo's build
 # script would download it. third-party/rust/overlays/v8/build.rs links the one

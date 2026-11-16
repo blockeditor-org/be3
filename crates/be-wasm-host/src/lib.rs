@@ -1,5 +1,6 @@
 //! The host every wasm guest runs on: apps (with the gpu, WASI and threads), pure guests (type
-//! modules: transport only, and a memory cap) and their libraries, on V8 (plans/wasm_on_v8.md).
+//! modules: transport only, and a memory cap) and their libraries, on V8
+//! (decisions/guests_run_on_v8.md).
 //! Each guest thread has an isolate of its own; modules are compiled once and shared between
 //! isolates; the gpu and transport imports are fast-API calls (gpu.rs).
 
