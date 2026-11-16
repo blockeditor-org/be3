@@ -410,6 +410,58 @@ pub(crate) fn function<'s>(
     Ok(())
 }
 
+/// The exports the host itself calls, which no module imports.
+const HOST_ENTRIES: [&str; 6] = [
+    "_initialize",
+    "_start",
+    "wasi_thread_start",
+    "app_start",
+    "app_step",
+    "app_shutdown",
+];
+
+/// A library's module with only the function and global exports `kept` names, and every export
+/// the loader reads itself (`__`-prefixed). A library exports every symbol, since it cannot know
+/// what an app will use, and instantiating makes a function object and a property for each: in
+/// beui's, a hundred thousand of them, which was most of what instantiating an app cost.
+pub(crate) fn trimmed(bytes: &[u8], kept: impl Fn(&str) -> bool) -> Result<Vec<u8>, String> {
+    let invalid = |error: wasmparser::BinaryReaderError| format!("the module is not valid: {error}");
+    let mut module = wasm_encoder::Module::new();
+    for payload in Parser::new(0).parse_all(bytes) {
+        let payload = payload.map_err(invalid)?;
+        if let Payload::ExportSection(reader) = &payload {
+            let mut section = wasm_encoder::ExportSection::new();
+            for export in reader.clone() {
+                let export = export.map_err(invalid)?;
+                let kind = match export.kind {
+                    ExternalKind::Func | ExternalKind::FuncExact => wasm_encoder::ExportKind::Func,
+                    ExternalKind::Table => wasm_encoder::ExportKind::Table,
+                    ExternalKind::Memory => wasm_encoder::ExportKind::Memory,
+                    ExternalKind::Global => wasm_encoder::ExportKind::Global,
+                    ExternalKind::Tag => wasm_encoder::ExportKind::Tag,
+                };
+                let named = matches!(kind, wasm_encoder::ExportKind::Func | wasm_encoder::ExportKind::Global);
+                if !named
+                    || export.name.starts_with("__")
+                    || HOST_ENTRIES.contains(&export.name)
+                    || kept(export.name)
+                {
+                    section.export(export.name, kind, export.index);
+                }
+            }
+            module.section(&section);
+            continue;
+        }
+        if let Some((id, range)) = payload.as_section() {
+            module.section(&wasm_encoder::RawSection {
+                id,
+                data: &bytes[range.start as usize..range.end as usize],
+            });
+        }
+    }
+    Ok(module.finish())
+}
+
 pub(crate) fn key<'s>(scope: &mut v8::PinScope<'s, '_>, name: &str) -> v8::Local<'s, v8::Value> {
     v8::String::new(scope, name)
         .unwrap_or_else(|| v8::String::empty(scope))

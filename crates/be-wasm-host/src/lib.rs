@@ -217,24 +217,54 @@ impl Host {
         if identities.is_empty() {
             return Ok((Program::Whole(app), identities));
         }
-        let mut modules = Vec::with_capacity(identities.len() + 1);
+        let mut sources = Vec::with_capacity(identities.len());
         for identity in &identities {
+            sources.push(self.source(identity, library)?);
+        }
+        // Each library keeps the exports a module above it imports (engine::trimmed).
+        let mut kept: std::collections::HashSet<String> =
+            app.shape.imports.iter().map(|import| import.name.clone()).collect();
+        if let Ok(list) = std::env::var("BE3_KEEP") {
+            kept = std::fs::read_to_string(list).unwrap_or_default().lines().map(str::to_owned).collect();
+        }
+        let shared = std::env::var_os("BE3_KEEP").is_some();
+        let mut trimmed = vec![None; identities.len()];
+        for index in (0..identities.len()).rev() {
+            let mut names: Vec<&String> = kept.iter().collect();
+            names.sort();
+            let key = format!("{}:{}", identities[index], be_wasm_dylink::identity(
+                names.iter().flat_map(|name| [name.as_bytes(), b"\0"]).flatten().copied().collect::<Vec<u8>>().as_slice(),
+            ));
+            let key = if shared { identities[index].clone() } else { key };
+            let cached = self
+                .libraries
+                .lock()
+                .map_err(|_| "the library cache was poisoned".to_owned())?
+                .contains_key(&key);
+            let bytes = match cached {
+                true => Ok(Vec::new()),
+                false => engine::trimmed(&sources[index].0, |name| kept.contains(name)),
+            };
+            trimmed[index] = Some((key, bytes));
+            if shared { continue; }
+            kept.extend(sources[index].1.imports.iter().map(|import| import.name.clone()));
+        }
+        let mut modules = Vec::with_capacity(identities.len() + 1);
+        for (identity, trimmed) in identities.iter().zip(trimmed) {
+            let (key, bytes) = trimmed.ok_or("a library was not trimmed")?;
             let mut libraries = self
                 .libraries
                 .lock()
                 .map_err(|_| "the library cache was poisoned".to_owned())?;
-            let module = match libraries.get(identity) {
+            let module = match libraries.get(&key) {
                 Some(module) => Arc::clone(module),
                 None => {
-                    let module = library(identity)
-                        .and_then(|bytes| {
-                            be_wasm_dylink::check_library(&bytes, identity)?;
-                            engine::compile(scope, &source(bytes)?)
-                        })
+                    let module = bytes
+                        .and_then(|bytes| engine::compile(scope, &bytes))
                         .map_err(|error| {
                             format!("the library {identity} could not be loaded: {error}")
                         })?;
-                    libraries.insert(identity.clone(), Arc::clone(&module));
+                    libraries.insert(key, Arc::clone(&module));
                     module
                 }
             };
@@ -242,6 +272,31 @@ impl Host {
         }
         modules.push(app);
         Ok((Program::Linked(modules.into()), identities))
+    }
+}
+
+impl Host {
+    /// A library's bytes, checked against its identity once, and what it imports and exports.
+    fn source(
+        &self,
+        identity: &str,
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Arc<(Vec<u8>, engine::Shape)>, String> {
+        static SOURCES: Mutex<Vec<(String, Arc<(Vec<u8>, engine::Shape)>)>> = Mutex::new(Vec::new());
+        let mut sources = SOURCES.lock().unwrap_or_else(|held| held.into_inner());
+        if let Some((_, found)) = sources.iter().find(|(known, _)| known == identity) {
+            return Ok(Arc::clone(found));
+        }
+        let loaded = library(identity)
+            .and_then(|bytes| {
+                be_wasm_dylink::check_library(&bytes, identity)?;
+                let bytes = source(bytes)?;
+                let shape = engine::Shape::read(&bytes)?;
+                Ok(Arc::new((bytes, shape)))
+            })
+            .map_err(|error| format!("the library {identity} could not be loaded: {error}"))?;
+        sources.push((identity.to_owned(), Arc::clone(&loaded)));
+        Ok(loaded)
     }
 }
 
