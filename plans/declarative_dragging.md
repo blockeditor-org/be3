@@ -263,6 +263,10 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
      panel could replace, since a `Kept` moves its subtree between parents under one
      `KeepAlive` (guides/beui/core.md).
 
+   - **Tabs carried by the keyboard between bars.** A focusable source carried off its list by
+     the keyboard must keep its focus: hide its row with opacity and close its slot with the gap,
+     rather than `collapsed`, which blurs it on HTML (`display: none`) and leaves it unplaced
+     natively. `Reorder` rows are not focusable today, so only Alt+arrow steps move them.
    - **`TabStrip` goes.** Step 2b moved the old `Reorder` unchanged into beui-dock-host as the
      private `TabStrip`, because the dock still splits panes from the old `DropTarget`, which
      only its drags reach. Tab bars become drop sites over `slots_in` like every other list,
