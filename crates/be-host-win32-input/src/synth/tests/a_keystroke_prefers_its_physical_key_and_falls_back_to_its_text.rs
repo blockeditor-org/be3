@@ -10,19 +10,19 @@ fn a_keystroke_prefers_its_physical_key_and_falls_back_to_its_text() {
         text: text.map(str::to_owned),
     };
     assert_eq!(
-        keystroke(&stroke(Some(Key::Q), Some(30), Some("a")), &|_| None),
+        keystroke(&stroke(Some(Key::Q), Some(30), Some("a")), &|_, _| None),
         [key(30, true).unwrap()]
     );
     assert_eq!(
-        keystroke(&stroke(Some(Key::F1), None, None), &|_| None),
+        keystroke(&stroke(Some(Key::F1), None, None), &|_, _| None),
         [key(59, true).unwrap()]
     );
     assert_eq!(
-        keystroke(&stroke(None, None, Some("é")), &|_| None),
+        keystroke(&stroke(None, None, Some("é")), &|_, _| None),
         text("é")
     );
     assert_eq!(
-        keystroke(&stroke(Some(Key::MicMute), None, None), &|_| None),
+        keystroke(&stroke(Some(Key::MicMute), None, None), &|_, _| None),
         []
     );
     assert_eq!(
