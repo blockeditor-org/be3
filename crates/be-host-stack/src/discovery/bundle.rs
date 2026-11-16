@@ -9,12 +9,12 @@ use be_wasm_host::Stored;
 use super::Apps;
 
 pub(super) fn scan() -> Apps {
-    let mut scanning = pin!(super::discover(|path| std::future::ready(read(&path))));
+    let mut scanning = pin!(super::fetch_all(|path| std::future::ready(read(&path))));
     match scanning
         .as_mut()
         .poll(&mut Context::from_waker(Waker::noop()))
     {
-        Poll::Ready(apps) => apps,
+        Poll::Ready(read) => super::settle(&read),
         Poll::Pending => unreachable!("reading the bundle never waits"),
     }
 }

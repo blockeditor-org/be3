@@ -234,7 +234,7 @@ thread_local! {
 /// `Shared`: what the page posts goes onto them, and what the stack hands over is posted to the
 /// page (`to_page`).
 pub async fn run_stack(port: Port, bytes: Vec<u8>) {
-    let start: Start = decode(&bytes);
+    let mut start: Start = decode(&bytes);
     let (ended, ending) = tokio::sync::oneshot::channel();
     let previous = LAST_ENDED.with_borrow_mut(|last| last.replace(ending));
     let (commands_post, commands) = super::worker::command_channel();
@@ -276,7 +276,10 @@ pub async fn run_stack(port: Port, bytes: Vec<u8>) {
         let _ = previous.await;
     }
     if !crate::discovery::loaded() {
-        crate::discovery::load().await;
+        match start.apps.take() {
+            Some(read) => crate::discovery::adopt(read),
+            None => crate::discovery::load().await,
+        }
     }
     let shared = Arc::new(Mutex::new(Shared {
         wall: super::worker::Wall::new(start.config.clock.clone()),

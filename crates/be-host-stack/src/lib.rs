@@ -617,6 +617,8 @@ pub fn start(config: Config) {
         config,
         held_clock: held_clock(),
         offline_choices: offline_choice::current(),
+        #[cfg(target_arch = "wasm32")]
+        apps: discovery::fetched(),
     };
     let inbox = worker::Inbox {
         commands: receiver,
