@@ -704,29 +704,59 @@ impl<S: ObjectStore> Peer<S> {
         let _ = self.persist_session();
     }
 
-    /// Reads the organization's administrators from its log, checked from the root this account
-    /// pinned, for the escrow keys they make (`verify_escrow`). None are known when the log does
-    /// not check, so no newer escrow key is taken.
+    /// Reads the organization from its log, checked from the root this account pinned: its
+    /// administrators, for the escrow keys they make (`verify_escrow`), and its members, whose
+    /// escrow wraps are opened. None are known when the log does not check, so no newer escrow
+    /// key is taken and no escrow wrap opened.
     pub(crate) async fn learn_administrators(&self) {
-        let administrators = self.organization_log().await.ok().and_then(|entries| {
-            let pinned = self.keys.organization_root()?;
-            let checked = be_block_keys::check_log(
-                be_block_keys::LogKind::Organization,
-                self.organization.into_bytes(),
-                pinned,
-                &entries,
-                &|_, _| None,
-            )
-            .ok()?;
-            Some(
-                checked
-                    .administrators
-                    .iter()
-                    .map(|(account, identity)| (Uuid::from_bytes(*account), identity.signing))
-                    .collect(),
-            )
-        });
-        self.keys.set_administrators(administrators);
+        let checked = self.checked_organization().await.ok().flatten();
+        self.keys.set_organization(checked.as_ref());
+        self.keys.absorb(KeySet::default());
+    }
+
+    /// Takes the keys opened from escrow wraps (`KeyBook::escrowed`) whose sender administers
+    /// the organization (holding the escrow key, they read everything it opens, and pass on a
+    /// root only one they pinned), or whom the block's log names with Edit or above: checked from the root this device pinned for the block, or,
+    /// for one it pinned none for (reached only through escrow), from the root the wrap carries,
+    /// which is then pinned. A member could so root a block id an administrator never pinned at
+    /// themselves (plans/signed_access.md, "Accepted limits"); the server, which is no member,
+    /// cannot. Others wait: a grant may come.
+    pub(crate) async fn settle_escrowed(&self) {
+        let mut taken = 0;
+        for escrowed in self.keys.escrowed() {
+            let pinned = match (self.keys.root_pin(escrowed.block), escrowed.root) {
+                (crate::keys::RootPin::Pinned(root), carried)
+                    if carried.is_none_or(|carried| carried == root) =>
+                {
+                    root
+                }
+                (crate::keys::RootPin::Unknown, Some(carried)) => carried,
+                _ => continue,
+            };
+            if self.keys.is_administrator(escrowed.sender) {
+                self.keys.take_escrowed(escrowed.key, pinned);
+                taken += 1;
+                continue;
+            }
+            let Ok(entries) = self.served_log(escrowed.block).await else {
+                continue;
+            };
+            let Ok(around) = self.logs_around(escrowed.block).await else {
+                continue;
+            };
+            let granted = around
+                .check(self.organization, escrowed.block, pinned, &entries)
+                .and_then(|checked| checked.grants.get(&escrowed.sender.into_bytes()).copied())
+                .is_some_and(|(level, _)| level >= be_block_keys::Level::Edit);
+            if granted {
+                self.keys.take_escrowed(escrowed.key, pinned);
+                taken += 1;
+            }
+        }
+        if taken > 0 {
+            self.keys.absorb(KeySet::default());
+            self.tried.lock().unwrap().clear();
+        }
     }
 
     pub(crate) fn adopt_pinned(&self, pinned: crate::contacts::Pinned) {
@@ -826,10 +856,14 @@ impl<S: ObjectStore> Peer<S> {
         if unknown {
             self.refresh_contacts().await?;
         }
+        if self.keys.escrow_senders_unknown(&keys) {
+            self.learn_administrators().await;
+        }
         let opened = self.keys.absorb(keys);
         if opened > 0 {
             self.tried.lock().unwrap().clear();
         }
+        self.settle_escrowed().await;
         Ok(opened)
     }
 
