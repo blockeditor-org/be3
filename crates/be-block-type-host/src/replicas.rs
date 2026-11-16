@@ -544,6 +544,9 @@ struct Open {
     joined_settled: bool,
     /// A seal its join's answer waits for, of what its made-up session took meanwhile.
     sealed_joining: bool,
+    /// Its local edits were discarded and no join has said since that this account may edit
+    /// it (`Peer::discarded`): its editors attach read-only, as nothing they made would be kept.
+    marked: bool,
     made_up: bool,
     early: Vec<Replayed>,
     /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
@@ -1453,6 +1456,7 @@ impl<H: Host> Replicas<H> {
                 joining,
                 rejoining: None,
                 joined_settled: false,
+                marked: peer.discarded(block),
                 sealed_joining: false,
                 made_up,
                 early: Vec::new(),
@@ -1572,6 +1576,7 @@ impl<H: Host> Replicas<H> {
             true => open.status.head,
             false => head,
         };
+        open.marked = peer.discarded(block);
         let loads = reopening(open, peer, journal, true, from);
         let from = loads.2;
         let commits_kept = match ahead.is_some() {
@@ -1647,7 +1652,7 @@ impl<H: Host> Replicas<H> {
             .iter()
             .map(|(editor, editable)| {
                 let held = acknowledged(&self.forwarded, open.block, &open.replay, *editor);
-                (*editor, *editable, held)
+                (*editor, *editable && !open.marked, held)
             })
             .collect();
         let mut asked = Vec::new();
@@ -1736,6 +1741,7 @@ impl<H: Host> Replicas<H> {
         open.departed.remove(&editor);
         let held = acknowledged(&self.forwarded, open.block, &open.replay, editor);
         let (module, handle) = (open.module, open.handle);
+        let editable = editable && !open.marked;
         self.modules.call(module, |connection| {
             handle.attach(connection, editor, editable, held);
             // This replica was given already whatever the host kept of the editor's edits, so
@@ -3236,6 +3242,8 @@ impl<H: Host> Replicas<H> {
                 _ => true,
             })
             .collect();
+        // The join answered whether this account may edit it (`Peer::join_session`).
+        open.marked = peer.discarded(block);
         let loads = reopening(open, peer, journal, true, open.status.head);
         let known = loads.2;
         self.reopen_joined(replica, client, session, head, loads, commits_kept);
@@ -3337,7 +3345,7 @@ impl<H: Host> Replicas<H> {
                 .iter()
                 .map(|(editor, editable)| {
                     let held = acknowledged(&self.forwarded, open.block, &open.replay, *editor);
-                    (*editor, *editable, held)
+                    (*editor, *editable && !open.marked, held)
                 })
                 .collect();
             let closing = open.closing && !open.joining;

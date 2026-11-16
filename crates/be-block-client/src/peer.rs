@@ -1191,6 +1191,12 @@ impl<S: ObjectStore> Peer<S> {
         self.connection.lock().unwrap().clone()
     }
 
+    /// Whether `block`'s local edits were discarded and no join has said since that this
+    /// account may edit it (`refs::Dropped`): nothing typed into it would be kept or sealed.
+    pub fn discarded(&self, block: Uuid) -> bool {
+        self.refs.discarded(block)
+    }
+
     /// Joins `block`'s session (`Connection::join_session`). The server answers whether this
     /// account may edit it: once it may, edits of it are kept again where they were discarded
     /// (`refs::Dropped`), since a listing this device holds may be older than its access.

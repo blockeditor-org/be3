@@ -246,15 +246,18 @@ the connection a stopping stack closed.
   block whose kept edits hold any is not forgotten, until this account lost
   access to it and its unsent edits are discarded (`Peer::discard_unsent`,
   which in the same step drops its kept edits, its journal and the commits it
-  sealed still in the outbox; the unsent list shows how many kept edits it holds,
+  sealed still in the outbox, and puts its local head back on the server's;
+  the unsent list shows how many kept edits it holds,
   `UnsentBlock::kept_edits`). Its open replica closes
   (`Replicas::stop_keeping`), and one opened next starts under a fresh origin.
   The discard marks the block (`refs::Dropped`), until a join's `may-edit`
   says this account may edit it again (`Peer::join_session`): a listing that
   says so may be older than the access that lost it, so it does not count,
   and forgetting the block keeps the mark, as its replica may still be open.
-  While marked, keeping its edits fails (`ClientError::Discarded`), so a
-  submission waits rather than going out unkept; a seal answers unchanged
+  While marked, its editors attach read-only (`Open::marked`, refreshed as
+  each join answers), so nothing is typed that would be lost unseen; keeping
+  its edits fails (`ClientError::Discarded`), so a submission waits rather
+  than going out unkept; a seal answers unchanged
   and its commit never reaches the outbox (`Refs::push_publish`, checked as
   the discard checks), so what the closing replica held is sealed into
   none; and a commit sealed before the discard that the server refuses after
