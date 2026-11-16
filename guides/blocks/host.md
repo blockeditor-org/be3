@@ -168,8 +168,13 @@ test pins with `pin_now` to step history a minute at a time (be-host pins it to
 its wall clock while that is pinned, so `drive pause` moves it).
 
 The host refuses an `Operate`, a replacing `write-content` and graph commands
-for a block the account may only read (`Instances::editable` asks the
-mirror's access); it does not rely on the app's `editable()`.
+for a block the account may only read (`Instances::editable` asks
+`be_host_stack::access`); it does not rely on the app's `editable()`.
+`be_host_stack::access` is the one answer to whether a block's content may be
+edited now: the mirror's access, but at most `View` while the block is marked
+(`Seen::marked`, below, "discarded"). Editors are attached with it and an app
+is opened with it (`OpenBlock::editable`) and told when it changes
+(`EditorEvent::SetEditable`).
 
 ## Connections
 
@@ -276,7 +281,13 @@ the connection a stopping stack closed.
   says so may be older than the access that lost it, so it does not count,
   and forgetting the block keeps the mark, as its replica may still be open.
   While marked, its editors attach read-only (`Open::marked`, refreshed as
-  each join answers), so nothing is typed that would be lost unseen; keeping
+  each join answers), so nothing is typed that would be lost unseen. The
+  replicas tell the worker as a replica opens and once the replica a join
+  opens has its editors attached as the join says (`Host::set_marked`), and
+  the discard tells it too; the page reads it as `Seen::marked`, which caps
+  `be_host_stack::access` at `View`, so app editors are told they are
+  read-only and then editable again (a test of the stack waits for `access`
+  rather than for a snapshot, which a reopened replica does not send again); keeping
   its edits fails (`ClientError::Discarded`), so a submission waits rather
   than going out unkept; a seal answers unchanged
   and its commit never reaches the outbox (`Refs::push_publish`, checked as

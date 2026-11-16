@@ -22,8 +22,10 @@ the instance and the replica.
 - App to host: `Operate`, `Gesture`, `ShowPresence`, `SendToPeers`, `Resend`,
   `Read` (below).
   An instance asks for content by sending `Resend` when it first follows a
-  block; the host attaches it then, with `editable` from the account's access
-  (sent again when that changes).
+  block; the host attaches it then, with `editable` from `be_host_stack::access`
+  (attached again when that changes, and the app is sent `SetEditable`): the
+  account's access, read-only too while a discard's mark holds
+  (guides/blocks/host.md).
 - Host to app: `Snapshot { content_type, bytes, length, session, unsettled,
   applied }`, where `length` is the whole stored form's,
   where `applied` counts operations *this instance* sent that the snapshot
