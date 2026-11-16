@@ -50,7 +50,7 @@ impl<S: ObjectStore> Peer<S> {
             if !self.keys.trusted(unsealed.key) {
                 continue;
             }
-            let Some(public) = self.keys.contact(unsealed.account) else {
+            let Some(public) = self.keys.recipient(unsealed.account, unsealed.key) else {
                 continue;
             };
             keys.wrapped
