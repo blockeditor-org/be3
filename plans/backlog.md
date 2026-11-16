@@ -59,18 +59,23 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **Discarded edits come back.** A replica that loses Edit takes edits still;
-  closing it seals them into a commit that becomes this device's local head,
-  and if that commit is not among the unsent edits discarded, reopening once
-  this account may edit again builds on it, so discarded edits land. Also, the
-  `refs::Dropped` mark clears when the block's summary can edit, not when the
-  server confirms it (a join answering `may_edit`, or an accepted submission).
-  Done: losing Edit closes the replica or reattaches its editors read-only,
-  discarding resets the local head to the remote one, and the mark clears only
-  on the server's word, shown by a be-host-stack test that types after the
-  demotion, discards, is made an editor again, reopens and counts only what
-  was sent.
-
+- **Discarded edits come back.** Edits made to a block while this account
+  is a viewer, and discarded with its unsent edits, reach the server once the
+  account may edit it again. A be-host-stack test that makes the account a
+  viewer, types into the still-open block, discards before anything seals
+  it, makes the account an editor again, reopens and adds 10 ends with the
+  server at 19 (1 + 2 + 6 + 10) instead of 11 in most runs at 8 runs at a
+  time. Ruled out as the only path, each tried alone and together: the
+  closing replica's seal (a seal of a `refs::Dropped` block answered
+  unchanged), the block's commits still in the outbox (dropped with the
+  discard), and a commit refused after the discard (dropped rather than set
+  aside, with taking the unsent row and marking the block made one step).
+  Each narrowed the races but the server still ended at 19. Dropping the
+  local head with the discard made it worse (21 locally), so a replica
+  reopening reads that head. Next: log what the server takes for the block
+  after the re-grant (commits and submissions, with their origins) to find
+  the path, then fix it there. Done: that test counts 11 on the device and
+  the server in 100 runs at 8 at a time.
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
