@@ -56,6 +56,25 @@ type_bundle = rule(
     impl = _type_bundle_impl,
 )
 
+# The SHA-256 of every file of a program's directory, as app-hashes.json
+# (crates/be-tool-buck's hashes): what a release publishes beside its apps, so
+# `be` can check each app file it downloads from it.
+def _bundle_hashes_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output("app-hashes.json")
+    ctx.actions.run(
+        cmd_args(ctx.attrs._tools[RunInfo], "hashes", out.as_output(), ctx.attrs.dir[DefaultInfo].default_outputs[0]),
+        category = "bundle_hashes",
+    )
+    return [DefaultInfo(default_output = out)]
+
+bundle_hashes = rule(
+    attrs = {
+        "dir": attrs.dep(),
+        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
+    },
+    impl = _bundle_hashes_impl,
+)
+
 # What `buck2 run` unpacks a program's archive with: built for the platform
 # the program is, as the machine that runs it is, but on beui's native core,
 # since a program on the HTML core, such as be-server's portal assets, is built

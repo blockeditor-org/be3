@@ -572,7 +572,7 @@ impl Screens {
             // screen, so it lays out and paints nothing.
             OpeningKind::Host(open) => {
                 session.set_editable(open.editable);
-                session.connect(
+                session.connect_host(
                     Uuid::from_bytes(open.block_id),
                     Uuid::from_bytes(open.block_type),
                 );
@@ -641,10 +641,19 @@ impl Screens {
             .clone();
         let everything = std::mem::take(&mut self.reporting_everything);
         let reporting = std::mem::take(&mut self.reporting);
+        let mut passed = Vec::new();
         for (instance, session) in &mut self.sessions {
             if everything || reporting.contains(instance) || woken.contains(instance) {
                 session.outbound();
+                if session.hosting() {
+                    passed.push(*instance);
+                }
             }
+        }
+        // A host component is never drawn, so no frame takes its mark: its pass just did.
+        let mut dirty = self.dirty.lock().unwrap_or_else(|held| held.into_inner());
+        for instance in passed {
+            dirty.remove(&instance);
         }
     }
 
