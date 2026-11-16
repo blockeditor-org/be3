@@ -147,7 +147,11 @@ Behind an HTTPS proxy, as in a cloud session, buck2 reaches nl.be3.pfg.pw throug
   `./scripts/buck build //crates/X:test --show-full-output` and run it here with a name filter
   and `CARGO_MANIFEST_DIR=$PWD/crates/X` (painting tests need it). A timing-dependent hang can
   take dozens of runs; run several copies at once in a loop, and
-  `gdb -p PID -batch -ex 'thread apply all bt'` shows what a hung one waits on.
+  `gdb -p PID -batch -ex 'thread apply all bt'` shows what a hung one waits on. A `run_apart`
+  crate's binary (guides/buck2.md) runs every test its filter matches in one process, one after
+  another, which buck never does: process-wide state (be-block-type-host's registry of types, a
+  test's counters) carries from one to the next, so a test that fails only there may read what
+  an earlier one left. Run it with `--exact` and the full name to run one alone.
 
 ## The build helper
 
