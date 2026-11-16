@@ -268,8 +268,9 @@ pub(crate) struct Running {
     state: NonNull<State>,
 }
 
-// unsafe(ffi): the State and the isolate's handles move with the guest, and only the thread that
+// the State and the isolate's handles move with the guest, and only the thread that
 // holds it reaches them.
+// unsafe(send-sync)
 unsafe impl Send for Running {}
 
 /// What a guest is given beside what its host gives every guest.
@@ -413,7 +414,8 @@ impl Running {
             Ok(exports) => Ok((state, v8::Global::new(scope, exports))),
             Err(error) => {
                 threads.release();
-                // unsafe(ffi): nothing the failed instance holds runs again.
+                // nothing the failed instance holds runs again.
+                // unsafe(memory)
                 drop(unsafe { Box::from_raw(state.as_ptr()) });
                 Err(error)
             }
@@ -430,7 +432,8 @@ impl Running {
         initialize_whole: bool,
     ) -> Result<v8::Local<'s, v8::Object>, String> {
         let pure = host.flavor == Flavor::Pure;
-        // unsafe(ffi): no guest runs yet, so nothing else reaches the State.
+        // no guest runs yet, so nothing else reaches the State.
+        // unsafe(memory)
         let fast = unsafe { state.as_ref() }.memory.shared().is_some();
         let role = match pure {
             true => Role::Pure,
@@ -445,8 +448,9 @@ impl Running {
         let first = instance::instantiate_answered(scope, program.first(), &answers)?;
         match program {
             Program::Whole(_) => {
-                // unsafe(ffi): as above; the instance's start function, which may run the guest,
+                // as above; the instance's start function, which may run the guest,
                 // has returned.
+                // unsafe(memory)
                 let state = unsafe { &mut *state.as_ptr() };
                 if let Memory::None = state.memory
                     && let Some(own) = engine::get(scope, first, MEMORY)
@@ -463,7 +467,8 @@ impl Running {
                 let memory = memory.ok_or("the root library does not import a shared memory")?;
                 initialize(scope, first)?;
                 let linked = dylink::plan(scope, modules, identities, first, memory)?;
-                // unsafe(ffi): as above.
+                // as above.
+                // unsafe(memory)
                 let threads = Arc::clone(&unsafe { state.as_ref() }.threads);
                 let store = &threads.share().ok_or("the app memory is not shared")?.store;
                 let mut grow = |pages| threads::grow(scope, memory, pages);
@@ -479,13 +484,15 @@ impl Running {
     }
 
     pub(crate) fn state(&self) -> &State {
-        // unsafe(ffi): the guest runs only inside Running's own calls, so nothing else reaches
+        // the guest runs only inside Running's own calls, so nothing else reaches
         // the State while it is borrowed.
+        // unsafe(memory)
         unsafe { self.state.as_ref() }
     }
 
     pub(crate) fn state_mut(&mut self) -> &mut State {
-        // unsafe(ffi): as in state.
+        // as in state.
+        // unsafe(memory)
         unsafe { self.state.as_mut() }
     }
 
@@ -522,7 +529,8 @@ impl Running {
         };
         let receiver = v8::undefined(caught).into();
         let ran = function.call(caught, receiver, &[]);
-        // unsafe(ffi): the guest has returned.
+        // the guest has returned.
+        // unsafe(memory)
         let state = unsafe { &mut *state };
         let terminated = caught.has_terminated();
         if self.exhausted.reached() {
@@ -550,8 +558,9 @@ impl Running {
 impl Drop for Running {
     fn drop(&mut self) {
         self.state().threads.release();
-        // unsafe(ffi): each is dropped once, here, the handles before their isolate and the
+        // each is dropped once, here, the handles before their isolate and the
         // State after it.
+        // unsafe(memory)
         unsafe {
             ManuallyDrop::drop(&mut self.exports);
             ManuallyDrop::drop(&mut self.context);

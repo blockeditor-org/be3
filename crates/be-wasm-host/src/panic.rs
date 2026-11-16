@@ -13,7 +13,8 @@ fn host_panic(
     arguments: v8::FunctionCallbackArguments,
     _: v8::ReturnValue<v8::Value>,
 ) {
-    // unsafe(ffi): the function's data is its State (state_of).
+    // the function's data is its State (state_of).
+    // unsafe(memory)
     let state = unsafe { state_of(arguments.data()) };
     let pointer = arguments.get(0).uint32_value(scope).unwrap_or(0);
     let length = arguments.get(1).uint32_value(scope).unwrap_or(0);
