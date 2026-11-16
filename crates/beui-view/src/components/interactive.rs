@@ -67,6 +67,10 @@ pub fn Interactive(
     on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     drag: Option<Func<PointerPress, Option<crate::drag::Carry>>>,
+    /// Whether a finger's long press lifts `drag`'s carry. Off for a source whose long press
+    /// is its menu (a file in a tree): the held finger is then a secondary press, and only
+    /// a finger dragged along `touch_drags` lifts it.
+    #[prop(default = true)] lifts_on_long_press: bool,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,
@@ -91,6 +95,7 @@ pub fn Interactive(
                 on_press,
                 on_drag,
                 on_long_press_drag,
+                lifts_on_long_press,
             );
             let Face {
                 raised,
@@ -211,6 +216,7 @@ fn carrying(
     on_press: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
+    lifts_on_long_press: bool,
 ) -> Carrying {
     use crate::reactive::{Get, Set, create_memo, create_signal, on_cleanup};
     use crate::types::Rect;
@@ -269,7 +275,8 @@ fn carrying(
     // drag of either kind, and every move of a press `drag` declined goes on as the source's
     // own.
     let dragged = {
-        let (lift_at, lifted, origin) = (Rc::clone(&lift_at), Rc::clone(&lifted), Rc::clone(&origin));
+        let (lift_at, lifted, origin) =
+            (Rc::clone(&lift_at), Rc::clone(&lifted), Rc::clone(&origin));
         Callback::new(move |press: PointerPress| {
             if lifted.get() {
                 return;
@@ -292,11 +299,14 @@ fn carrying(
     };
     // A finger's long press lifts too, as a drag does for the mouse; a long press `drag`
     // declines goes on as the source's own.
-    let long_pressed = Callback::new(move |press: PointerPress| {
-        if !lift_at(press) {
-            on_long_press_drag.call(press);
-        }
-    });
+    let long_pressed = match lifts_on_long_press {
+        true => Callback::new(move |press: PointerPress| {
+            if !lift_at(press) {
+                on_long_press_drag.call(press);
+            }
+        }),
+        false => on_long_press_drag,
+    };
     on_cleanup(move || {
         let id = mine.is_alive().then(|| mine.get_untracked()).flatten();
         if let (Some(id), Some(driver)) = (id, crate::drag::driver()) {

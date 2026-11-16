@@ -23,6 +23,7 @@ pub fn Reorder<K, P>(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
+    #[prop(default = false)] long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
@@ -43,6 +44,7 @@ where
             disabled
             fixed
             slot
+            long_press
             text={text}
             on_move={on_move}
             on_drag_change={on_drag_change}

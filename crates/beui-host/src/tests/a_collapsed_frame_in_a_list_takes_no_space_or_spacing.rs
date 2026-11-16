@@ -37,11 +37,14 @@ fn a_collapsed_frame_in_a_list_takes_no_space_or_spacing() {
         harness.document().node_rect(harness.find("b")).is_none(),
         "and what it holds is not laid out, so it draws nothing"
     );
-    let read = harness
-        .accessible()
-        .into_iter()
-        .any(|node| node.label().is_some_and(|label| label.contains("Folded away")));
-    assert!(!read, "nor is it read out, as on the web, where it is display: none");
+    let read = harness.accessible().into_iter().any(|node| {
+        node.label()
+            .is_some_and(|label| label.contains("Folded away"))
+    });
+    assert!(
+        !read,
+        "nor is it read out, as on the web, where it is display: none"
+    );
 
     first.set(true);
     middle.set(false);

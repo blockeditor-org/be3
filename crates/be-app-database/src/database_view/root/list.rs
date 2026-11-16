@@ -103,6 +103,7 @@ pub fn ListView(data: Data) -> NodeId {
                         Line::Header(_) => None,
                     })}
                     disabled={move || !data.reorderable.get()}
+                    long_press=true
                     text={name}
                     preview={preview}
                     on_move={moved}

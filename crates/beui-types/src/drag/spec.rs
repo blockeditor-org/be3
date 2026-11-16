@@ -597,7 +597,14 @@ fn walk<'s, D: Clone>(
                 released: true,
                 placed: evaluation.placed,
             };
-            walk(spec, &projected, last, carried.translate(ahead), next, along)
+            walk(
+                spec,
+                &projected,
+                last,
+                carried.translate(ahead),
+                next,
+                along,
+            )
         }
         DragSpec::Following { spec, along: axis } => {
             // Its own places are chosen by how far along the line they are, as a list's row
@@ -615,8 +622,12 @@ fn walk<'s, D: Clone>(
                 ..found
             };
             let item = match axis {
-                Direction::Vertical => found.item.translate(Vec2::new(0.0, carried.min.y - found.item.min.y)),
-                Direction::Horizontal => found.item.translate(Vec2::new(carried.min.x - found.item.min.x, 0.0)),
+                Direction::Vertical => found
+                    .item
+                    .translate(Vec2::new(0.0, carried.min.y - found.item.min.y)),
+                Direction::Horizontal => found
+                    .item
+                    .translate(Vec2::new(carried.min.x - found.item.min.x, 0.0)),
             };
             Some(Found { item, ..found })
         }
