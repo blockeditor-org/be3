@@ -254,6 +254,19 @@ impl Instances {
         let Some(entry) = self.entries.get_mut(&instance) else {
             return;
         };
+        // A child its last changes took away: the app asked before it heard of the child placed
+        // in its stead, and is told, to ask for that one. The gift it had stands meanwhile, so
+        // the keys it holds carry to the ask that follows.
+        if let GiftTo::Child(child) = to
+            && entry.departed.contains(&child)
+            && !placed(entry).iter().any(|(placed, _)| *placed == child)
+        {
+            self.mailed.push(crate::calls::Outbound::Event(
+                instance,
+                be_sdk_api::app::EditorEvent::GiftMissed(child),
+            ));
+            return;
+        }
         let gift = match entry.gift.take() {
             // Asked again for what it already gives (a dock giving the same tab the keyboard
             // again): its count goes on, as the child's view, already up, says so only once.

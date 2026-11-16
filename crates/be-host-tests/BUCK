@@ -28,6 +28,8 @@ APPS = {
     "a_checklist_on_a_canvas_works_in_place_and_zooms_with_it": ["checklist", "infinite-canvas"],
     "a_child_placed_in_a_popover_shows_above_it": ["example-block-debug", "infinite-canvas", "text"],
     "a_click_into_the_second_of_two_empty_texts_types_there": ["text"],
+    "ctrl_tab_between_two_texts_hands_the_caret_to_the_text_shown": ["text"],
+    "clicking_another_texts_tab_hands_it_the_caret": ["text"],
     "a_contact_link_asks_before_connecting_two_accounts": [],
     "a_control_focused_in_the_desktops_apps_panel_reads_as_focused": ["desktop"],
     "a_deleted_joined_block_says_so_on_each_of_its_tabs": ["example-beui-gallery"],

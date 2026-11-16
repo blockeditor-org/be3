@@ -233,3 +233,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
 - **A server for a local account.** Done: a local account can be given a
   server, sending everything it holds there as a push to a new remote, and goes
   on as that server's account.
+
+## 20. Keyboard
+
+- **A view given the keyboard before it is ready.** When the host gives a
+  view the keyboard before its content is up (a joined text's dock tab view
+  given it the moment its group is shown again, before the app's subregion
+  hears of the child placed in its stead), the view takes the host's focus but
+  its app does not focus the field it would otherwise: the document's focus is
+  already on another node inside that view's window, so neither the window's
+  kept focus nor `focus_into` (which waits one layout) puts it on the text
+  input. Found while fixing Ctrl+Tab between texts, which asks again only
+  once the app knows the new child (`gift-missed`) and so avoids it. Done: a
+  view given the keyboard early focuses its field once it is up, shown by a
+  host test that gives a text's view the keyboard before its content arrives.

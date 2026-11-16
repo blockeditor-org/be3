@@ -9,20 +9,35 @@ use beui_view::reactive::NodeId;
 use beui_view::reactive::*;
 use beui_view::types::Pos2;
 
-use super::{LeafId, State, TabId};
+use super::{DockState, Entry, LeafId, State, TabId};
 
 impl State {
     pub(super) fn chrome_pressed(&self, leaf: LeafId, pos: Option<Pos2>) {
         let (active, tab) = self
             .state
             .with_untracked(|state| (state.active_index(leaf), state.active_tab(leaf)));
-        let switching = pos.is_some_and(|pos| {
+        let switching_to = pos.and_then(|pos| {
             self.tab_rects(leaf)
                 .iter()
                 .enumerate()
-                .any(|(index, rect)| index != active && rect.contains(pos))
+                .find(|(index, rect)| *index != active && rect.contains(pos))
+                .map(|(index, _)| index)
         });
-        if let Some(tab) = tab.filter(|_| !switching) {
+        let Some(index) = switching_to else {
+            if let Some(tab) = tab {
+                self.give_keyboard(tab);
+            }
+            return;
+        };
+        // A tab pressed to switch to: a tab's own body hands the keyboard on as it switches
+        // (`DockShownBody`), but a joined editor's group shows a body built anew, which hands on
+        // nothing, so the group's shown tab is given it here.
+        let joined = self.state.with_untracked(|state| {
+            let entry = state.entries(leaf).get(index).copied()?;
+            entry.group()?;
+            super::entry_shown_tab(state, entry)
+        });
+        if let Some(tab) = joined {
             self.give_keyboard(tab);
         }
     }
@@ -60,6 +75,14 @@ impl State {
                 held.set(None);
             }
         });
+    }
+
+    /// Whether the keyboard is in a tab `entry` holds or stands for, remembering where for the
+    /// tab that has it (`remember_focus`).
+    pub(super) fn entry_holds_keyboard(&self, state: &DockState, entry: Entry) -> bool {
+        let mut tabs = state.entry_tabs(entry);
+        tabs.extend(state.standing_tabs(entry));
+        tabs.into_iter().any(|tab| self.remember_focus(tab))
     }
 
     pub(super) fn give_keyboard(&self, tab: TabId) {

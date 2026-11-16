@@ -580,6 +580,9 @@ pub struct EditorHost {
     presenting: Rc<Cell<bool>>,
     child_details: Rc<RefCell<HashSet<ChildId>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
+    /// The child the editor last gave the keyboard (`focus_child`), and whether the host said
+    /// that gift missed it (`EditorEvent::GiftMissed`).
+    gift: Rc<Cell<(Option<ChildId>, bool)>>,
     menus: Rc<RefCell<std::collections::BTreeMap<ViewId, Vec<MenuEntry>>>>,
     menu_picks: Rc<RefCell<Vec<(ViewId, String)>>>,
     child_anchors: Rc<RefCell<HashMap<ChildId, Rect>>>,
@@ -2513,8 +2516,26 @@ impl EditorHost {
     /// this editor's views or their children and no keyboard-taking popover is open, so it
     /// never takes the keyboard from elsewhere.
     pub fn focus_child(&self, child: ChildId) {
+        self.gift.set((Some(child), false));
         self.tell(ShellMessage::FocusChild(child));
         self.changed();
+    }
+
+    /// The child the latest `focus_child` asked for, when the host said the gift missed it:
+    /// the child was no longer placed (`EditorEvent::GiftMissed`).
+    pub(crate) fn missed_gift(&self) -> Option<ChildId> {
+        self.read();
+        match self.gift.get() {
+            (child, true) => child,
+            (_, false) => None,
+        }
+    }
+
+    pub(crate) fn push_gift_missed(&self, child: ChildId) {
+        if self.gift.get() == (Some(child), false) {
+            self.gift.set((Some(child), true));
+            self.changed();
+        }
     }
 
     /// As [`EditorHost::focus_child`], for the child that will show `block` once this editor
@@ -2698,6 +2719,10 @@ impl EditorHost {
     }
 
     pub(crate) fn push_child_focus(&self, child: ChildId) {
+        // The person put the keyboard in a child: a missed gift is not asked again over it.
+        if self.gift.get().1 {
+            self.gift.set((None, false));
+        }
         self.child_focuses.borrow_mut().insert(child);
         self.changed();
     }
