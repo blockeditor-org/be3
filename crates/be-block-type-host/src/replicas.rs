@@ -205,6 +205,20 @@ struct Unanswered {
     publishing: Arc<Publishing>,
 }
 
+/// A submission refused for a key this device does not hold yet (`ClientError::Locked`): its
+/// replica keeps waiting for the answer, and it is submitted again once keys arrive (`unlock`).
+/// A replica opened again since gives its edits again itself, so one held for an earlier
+/// opening is answered failed instead.
+struct Refused {
+    replica: ReplicaId,
+    module: usize,
+    generation: u64,
+    epoch: u64,
+    reply: Reply<be_sdk_type_api::host::Submitted>,
+    submission: be_block_session::Submission,
+    announcements: Vec<be_block_content::Announcement>,
+}
+
 pub enum Answered {
     Load(
         Reply<Result<be_sdk_type_api::Loaded, String>>,
@@ -791,8 +805,11 @@ pub struct Replicas<H: Host> {
     /// Keys a search answered for since a search last opened any or this device last
     /// reconnected or keys arrived (`unlock`): a message still sealed with one is let go.
     searched: HashSet<Uuid>,
-    /// Blocks a read here found locked (`H::set_locked`), until keys arrive (`unlock`).
+    /// Blocks a read or a submission here found locked (`H::set_locked`), until keys arrive
+    /// (`unlock`).
     locked: HashSet<Uuid>,
+    /// Submissions refused for a missing key, submitted again once keys arrive (`unlock`).
+    refused: Vec<Refused>,
     /// How many searches for keys relayed messages started.
     #[cfg(test)]
     key_searches: usize,
@@ -851,6 +868,7 @@ impl<H: Host> Replicas<H> {
             searching: HashSet::new(),
             searched: HashSet::new(),
             locked: HashSet::new(),
+            refused: Vec::new(),
             forwarded: HashMap::new(),
             #[cfg(test)]
             key_searches: 0,
@@ -1902,11 +1920,6 @@ impl<H: Host> Replicas<H> {
         H::set_locked(shared, block, true);
     }
 
-    /// Keys this account may open arrived (`Event::KeysChanged`, after `Peer::keys_changed`):
-    /// every block found locked is no longer, an open one reads again (`read_again`), and
-    /// relayed messages search for their keys again. Answers the locked blocks that are not
-    /// open, for the host to open again if it still wants them.
-
     /// Keys arrived: kept edits set aside that read now are told so, and that they were not
     /// sent (`Peer::read_set_aside`). They never are: what they were made on may be gone.
     pub fn read_set_aside(&self, peer: &Peer<H::Store>, shared: &Arc<Mutex<H>>) {
@@ -1927,7 +1940,12 @@ impl<H: Host> Replicas<H> {
         self.close(block);
     }
 
-    pub fn unlock(&mut self, shared: &Arc<Mutex<H>>) -> Vec<Uuid> {
+    /// Keys this account may open arrived (`Event::KeysChanged`, after `Peer::keys_changed`):
+    /// every block found locked is no longer, an open one reads again (`read_again`), a
+    /// submission refused for a missing key is submitted again (`resubmit`), and relayed
+    /// messages search for their keys again. Answers the locked blocks that are not open, for
+    /// the host to open again if it still wants them.
+    pub async fn unlock(&mut self, (peer, shared): Ctx<'_, H>) -> Vec<Uuid> {
         self.searched.clear();
         let mut closed = Vec::new();
         for block in std::mem::take(&mut self.locked) {
@@ -1937,6 +1955,7 @@ impl<H: Host> Replicas<H> {
                 false => closed.push(block),
             }
         }
+        self.resubmit((peer, shared)).await;
         closed
     }
 
@@ -3654,6 +3673,187 @@ impl<H: Host> Replicas<H> {
         });
     }
 
+    /// Hands a replica's submission to the block's order (`Peer::submit`), answering the replica
+    /// once the server numbered it, or at once when offline or when it fails. One refused for a
+    /// key this device does not hold yet (a share's grant reached it before the key, or before
+    /// the contact that sealed it) is held unanswered and the block taken for locked, until keys
+    /// arrive (`unlock`): the session is fine, so nothing would open the replica again to give
+    /// it again. Keys that arrived while it was refused submit it again at once.
+    #[allow(clippy::too_many_arguments)]
+    async fn submit(
+        &mut self,
+        (peer, shared): Ctx<'_, H>,
+        module: usize,
+        replica: ReplicaId,
+        reply: Reply<be_sdk_type_api::host::Submitted>,
+        submission: be_block_session::Submission,
+        announcements: Vec<be_block_content::Announcement>,
+    ) {
+        let Some((block, made_up)) = self
+            .open
+            .get(&replica)
+            .map(|open| (open.block, open.made_up))
+        else {
+            return;
+        };
+        let keys: std::collections::HashSet<String> = announcements
+            .iter()
+            .map(|announcement| announcement.key.clone())
+            .collect();
+        let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
+        let arrivals = peer.arrivals();
+        let online = !made_up && peer.is_attached();
+        if online
+            && let Some(submitted) =
+                be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
+            && let Some(open) = self.open.get_mut(&replica)
+            && submitted.through > open.submitted_through
+        {
+            open.submitted_through = submitted.through;
+            open.edits_changed = true;
+        }
+        // Written ahead: once the server may hold an edit, a crash must not lose that it was
+        // submitted, or the edits given again would be numbered anew.
+        let mut kept = Ok(());
+        if let Some(open) = self.open.get_mut(&replica)
+            && open.submitted_through > open.kept_submitted_through
+        {
+            let (held, edits) = kept_edits(open);
+            let through = held.submitted_through;
+            kept = peer.keep_open_edits(block, held, edits).await;
+            if kept.is_ok()
+                && let Some(open) = self.open.get_mut(&replica)
+            {
+                open.kept_submitted_through = through;
+                open.edits_changed = false;
+            }
+        }
+        let submitted = match kept {
+            Err(error) if !matches!(error, ClientError::Locked(_)) => {
+                let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
+                self.modules
+                    .call(module, |connection| reply.send(connection, &failed));
+                return;
+            }
+            Ok(()) => {
+                peer.submit(
+                    block,
+                    tag,
+                    submission.clone(),
+                    online,
+                    announcements.clone(),
+                )
+                .await
+            }
+            Err(error) => Err(error),
+        };
+        match submitted {
+            Ok(be_block_client::peer::Submitted::Server(answer)) => {
+                self.relaying += 1;
+                if let Some(open) = self.open.get_mut(&replica) {
+                    open.submitting += 1;
+                }
+                let (shared, io) = (Arc::clone(shared), self.io.clone());
+                let peer = Arc::clone(peer);
+                self.answer_later(replica, module, async move {
+                    let answered = match answer.await {
+                        Ok(()) => {
+                            if !keys.is_empty() {
+                                match peer.submitted_held(block, &keys) {
+                                    Ok(()) => send_announcements::<H>(&peer, &shared).await,
+                                    Err(error) => H::record(&shared, error),
+                                }
+                            }
+                            be_sdk_type_api::host::Submitted::Held
+                        }
+                        Err(error) => {
+                            let failed =
+                                be_sdk_type_api::host::Submitted::Failed(error.to_string());
+                            if !unreachable(&error) {
+                                H::record_sync(&shared, error);
+                            }
+                            failed
+                        }
+                    };
+                    let _ = io.send(Io::Relayed);
+                    (Answered::Submit(reply, answered), None)
+                });
+            }
+            // Numbered in this device's own order: the replica hears it at once.
+            Ok(be_block_client::peer::Submitted::Offline(entry)) => {
+                let entry = api_entry(entry);
+                self.replay(
+                    replica,
+                    Replayed::Sequenced {
+                        entries: vec![entry],
+                    },
+                );
+                self.modules.call(module, |connection| {
+                    reply.send(connection, &be_sdk_type_api::host::Submitted::Kept)
+                });
+            }
+            Err(ClientError::Locked(_)) => {
+                let Some(epoch) = self.open.get(&replica).map(|open| open.epoch) else {
+                    return;
+                };
+                self.refused.push(Refused {
+                    replica,
+                    module,
+                    generation: self.modules.generation(module),
+                    epoch,
+                    reply,
+                    submission,
+                    announcements,
+                });
+                match peer.arrivals() == arrivals {
+                    true => self.lock(shared, block),
+                    // Keys arrived while it was refused, after `unlock` ran: it goes again.
+                    false => Box::pin(self.resubmit((peer, shared))).await,
+                }
+            }
+            Err(error) => {
+                let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
+                if !unreachable(&error) {
+                    H::record(shared, error);
+                }
+                self.modules
+                    .call(module, |connection| reply.send(connection, &failed));
+            }
+        }
+    }
+
+    /// Submits again what was refused for a missing key (`Refused`), once keys arrived. One
+    /// whose replica opened again since is answered failed, as that opening gave its edits
+    /// again; one whose replica or module is gone is dropped with it.
+    async fn resubmit(&mut self, ctx: Ctx<'_, H>) {
+        for refused in std::mem::take(&mut self.refused) {
+            if self.modules.generation(refused.module) != refused.generation {
+                continue;
+            }
+            match self.open.get(&refused.replica).map(|open| open.epoch) {
+                Some(epoch) if epoch == refused.epoch => {
+                    self.submit(
+                        ctx,
+                        refused.module,
+                        refused.replica,
+                        refused.reply,
+                        refused.submission,
+                        refused.announcements,
+                    )
+                    .await;
+                }
+                Some(_) => {
+                    let failed = be_sdk_type_api::host::Submitted::Failed(
+                        "the replica opened again before the block's key arrived".to_owned(),
+                    );
+                    self.modules
+                        .call(refused.module, |connection| refused.reply.send(connection, &failed));
+                }
+                None => {}
+            }
+        }
+    }
+
     async fn act(
         &mut self,
         (peer, shared): Ctx<'_, H>,
@@ -3714,13 +3914,6 @@ impl<H: Host> Replicas<H> {
                 submission,
                 announcements,
             } => {
-                let announcements: Vec<be_block_content::Announcement> =
-                    announcements.into_iter().map(announcement).collect();
-                let keys: std::collections::HashSet<String> = announcements
-                    .iter()
-                    .map(|announcement| announcement.key.clone())
-                    .collect();
-                let tag = be_block_store::Hash::from_bytes(self.modules.tag(module).0);
                 let submission = be_block_session::Submission {
                     id: be_block_session::OpId {
                         origin: submission.origin,
@@ -3730,89 +3923,16 @@ impl<H: Host> Replicas<H> {
                     barrier: submission.barrier,
                     payload: submission.payload,
                 };
-                let online = !made_up && peer.is_attached();
-                if online
-                    && let Some(submitted) =
-                        be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
-                    && let Some(open) = self.open.get_mut(&replica)
-                    && submitted.through > open.submitted_through
-                {
-                    open.submitted_through = submitted.through;
-                    open.edits_changed = true;
-                }
-                // Written ahead: once the server may hold an edit, a crash must not lose that
-                // it was submitted, or the edits given again would be numbered anew.
-                if let Some(open) = self.open.get_mut(&replica)
-                    && open.submitted_through > open.kept_submitted_through
-                {
-                    let (kept, edits) = kept_edits(open);
-                    let through = kept.submitted_through;
-                    if let Err(error) = peer.keep_open_edits(block, kept, edits).await {
-                        let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
-                        self.modules
-                            .call(module, |connection| reply.send(connection, &failed));
-                        return false;
-                    }
-                    open.kept_submitted_through = through;
-                    open.edits_changed = false;
-                }
-                let submitted = peer
-                    .submit(block, tag, submission, online, announcements)
-                    .await;
-                match submitted {
-                    Ok(be_block_client::peer::Submitted::Server(answer)) => {
-                        self.relaying += 1;
-                        if let Some(open) = self.open.get_mut(&replica) {
-                            open.submitting += 1;
-                        }
-                        let (shared, io) = (Arc::clone(shared), self.io.clone());
-                        let peer = Arc::clone(peer);
-                        self.answer_later(replica, module, async move {
-                            let answered = match answer.await {
-                                Ok(()) => {
-                                    if !keys.is_empty() {
-                                        match peer.submitted_held(block, &keys) {
-                                            Ok(()) => send_announcements::<H>(&peer, &shared).await,
-                                            Err(error) => H::record(&shared, error),
-                                        }
-                                    }
-                                    be_sdk_type_api::host::Submitted::Held
-                                }
-                                Err(error) => {
-                                    let failed =
-                                        be_sdk_type_api::host::Submitted::Failed(error.to_string());
-                                    if !unreachable(&error) {
-                                        H::record_sync(&shared, error);
-                                    }
-                                    failed
-                                }
-                            };
-                            let _ = io.send(Io::Relayed);
-                            (Answered::Submit(reply, answered), None)
-                        });
-                    }
-                    // Numbered in this device's own order: the replica hears it at once.
-                    Ok(be_block_client::peer::Submitted::Offline(entry)) => {
-                        let entry = api_entry(entry);
-                        self.replay(
-                            replica,
-                            Replayed::Sequenced {
-                                entries: vec![entry],
-                            },
-                        );
-                        self.modules.call(module, |connection| {
-                            reply.send(connection, &be_sdk_type_api::host::Submitted::Kept)
-                        });
-                    }
-                    Err(error) => {
-                        let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
-                        if !unreachable(&error) {
-                            H::record(shared, error);
-                        }
-                        self.modules
-                            .call(module, |connection| reply.send(connection, &failed));
-                    }
-                }
+                let announcements = announcements.into_iter().map(announcement).collect();
+                self.submit(
+                    (peer, shared),
+                    module,
+                    replica,
+                    reply,
+                    submission,
+                    announcements,
+                )
+                .await;
                 false
             }
             Call::RebaseJournal {

@@ -1990,7 +1990,7 @@ impl Session<'_> {
     async fn unlock(&mut self, peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
         let wanted = self.wanted.blocks();
         self.replicas.read_set_aside(peer, shared);
-        for block in self.replicas.unlock(shared) {
+        for block in self.replicas.unlock((peer, shared)).await {
             if let Some(content_type) = wanted.get(&block) {
                 open_wanted(
                     peer,
