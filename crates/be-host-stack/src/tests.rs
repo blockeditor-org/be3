@@ -386,6 +386,9 @@ impl Harness {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         be_lib_build_id::install("test");
+        // The previous test's stack has stopped (`stop_and_wait`, unless that test failed), so
+        // nothing counts into these from here on but this test's.
+        crate::version::forget_counts();
         let directory = std::env::temp_dir().join(format!("be-host-be-test-{}", Uuid::new_v4()));
         let runtime = runtime();
         let (profile, token) = runtime.block_on(async {

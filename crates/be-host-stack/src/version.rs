@@ -40,7 +40,8 @@ const LOG_LENGTH: usize = 100;
 pub(crate) const MERGE_BASE_DEPTH: usize = 64;
 
 /// What each walk to a merge base found and how many commits it reached (`merge_over`), for a
-/// test to tell that it stopped. Each test file runs as a process of its own.
+/// test to tell that it stopped. A run of the whole test binary runs every test in one process,
+/// so each test's harness starts it empty (`forget_counts`).
 #[cfg(test)]
 pub(crate) static WALKED: std::sync::Mutex<Vec<(MergeBase, usize)>> =
     std::sync::Mutex::new(Vec::new());
@@ -124,7 +125,8 @@ impl<V: Clone> Recent<V> {
 }
 
 /// How many times each tree and commit was read from the peer, whichever `Objects` keeps it,
-/// for a test to tell that nothing was read twice. Each test file runs as a process of its own.
+/// for a test to tell that nothing was read twice. Like `WALKED`, each test's harness starts it
+/// empty.
 #[cfg(test)]
 static READS: std::sync::Mutex<Option<HashMap<(&'static str, CommitId), usize>>> =
     std::sync::Mutex::new(None);
@@ -165,6 +167,13 @@ fn count_read(what: &'static str, commit: CommitId) {
         .get_or_insert_default()
         .entry((what, commit))
         .or_default() += 1;
+}
+
+/// Forgets what earlier tests counted (`READS`, `WALKED`), as a test's harness starts.
+#[cfg(test)]
+pub(crate) fn forget_counts() {
+    *READS.lock().unwrap_or_else(PoisonError::into_inner) = None;
+    WALKED.lock().unwrap_or_else(PoisonError::into_inner).clear();
 }
 
 /// How many trees and commits version control read from the peer, and which more than once.
