@@ -27,18 +27,13 @@ fn read(path: &str) -> Result<Vec<u8>, String> {
     open(path)?.into_bytes()
 }
 
-#[cfg(not(target_os = "android"))]
-pub fn open(path: &str) -> Result<Stored, String> {
-    Stored::file(be_lib_build_id::bundle_file(path)?)
-}
-
-#[cfg(target_os = "android")]
 type Assets = Box<dyn Fn(&str) -> Result<Vec<u8>, String> + Send + Sync>;
 
-#[cfg(target_os = "android")]
 static ASSETS: std::sync::OnceLock<Assets> = std::sync::OnceLock::new();
 
-#[cfg(target_os = "android")]
+/// Reads the staged apps through `read_asset` rather than from the bundle beside the
+/// executable: Android's assets, or what an executable that is its whole release carries
+/// (`be`'s host apps). Called before anything discovers the apps.
 pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + Sync + 'static) {
     let _ = ASSETS.set(Box::new(read_asset));
     if let Ok(id) = read(be_lib_build_id::FILE) {
@@ -46,8 +41,12 @@ pub fn use_assets(read_asset: impl Fn(&str) -> Result<Vec<u8>, String> + Send + 
     }
 }
 
-#[cfg(target_os = "android")]
 pub fn open(path: &str) -> Result<Stored, String> {
-    let read_asset = ASSETS.get().ok_or("the host's assets were not given")?;
-    read_asset(path).map(Stored::Bytes)
+    match ASSETS.get() {
+        Some(read_asset) => read_asset(path).map(Stored::Bytes),
+        #[cfg(target_os = "android")]
+        None => Err("the host's assets were not given".to_owned()),
+        #[cfg(not(target_os = "android"))]
+        None => Stored::file(be_lib_build_id::bundle_file(path)?),
+    }
 }

@@ -10,6 +10,9 @@ use be_tool_cli::tracker::Tracker;
 #[tokio::main]
 async fn main() -> ExitCode {
     apps();
+    if let Err(error) = be_tool_cli::hosting::serve_apps(HOST_APPS) {
+        eprintln!("be: the host apps it carries do not read: {error}");
+    }
     match run().await {
         Ok(output) => {
             if !output.is_empty() {
@@ -104,6 +107,9 @@ async fn run() -> Result<String, String> {
 }
 
 const APP_TYPES: &[u8] = include_bytes!(env!("APP_TYPES"));
+
+/// The apps that declare `hosts`, staged and packed (be-tool-cli's BUCK, `host-apps`).
+const HOST_APPS: &[u8] = include_bytes!(env!("HOST_APPS"));
 
 fn apps() -> &'static [be_tool_cli::apps::App] {
     if be_tool_cli::apps::installed().is_empty() {

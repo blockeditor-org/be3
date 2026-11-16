@@ -15,7 +15,7 @@ mod web;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use bundle::open;
-#[cfg(target_os = "android")]
+#[cfg(not(target_arch = "wasm32"))]
 pub use bundle::use_assets;
 #[cfg(not(target_arch = "wasm32"))]
 use bundle::{fetch, scan};

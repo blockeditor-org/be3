@@ -3,7 +3,6 @@
 //! each app, its manifest's length as 8 hex digits and the manifest, then its
 //! type module's the same way (length 0 for an app with no module of its own).
 
-use std::io::Write;
 use std::process::ExitCode;
 
 pub fn run(arguments: &[String]) -> Result<ExitCode, String> {
@@ -29,7 +28,12 @@ pub fn record(bundle: &mut Vec<u8>, path: &str) -> Result<(), String> {
         return Ok(());
     }
     let contents = std::fs::read(path).map_err(|error| format!("cannot read {path}: {error}"))?;
-    write!(bundle, "{:08x}", contents.len()).map_err(|error| error.to_string())?;
-    bundle.extend_from_slice(&contents);
+    write_record(bundle, &contents);
     Ok(())
+}
+
+/// `contents`' length as 8 hex digits and `contents`.
+pub fn write_record(bundle: &mut Vec<u8>, contents: &[u8]) {
+    bundle.extend_from_slice(format!("{:08x}", contents.len()).as_bytes());
+    bundle.extend_from_slice(contents);
 }
