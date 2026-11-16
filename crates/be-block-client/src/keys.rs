@@ -11,7 +11,7 @@ use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKe
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
 
-/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `server_held`,
+/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `server_held` and `under_owner_only`,
 /// then `escrow` and `escrowed`, then `escrow_secrets`, then `ring`'s own: `absorb` holds `rows` while it opens keys, so nothing
 /// that holds a later lock takes an earlier one.
 pub struct KeyBook {
@@ -25,6 +25,8 @@ pub struct KeyBook {
     /// Keys opened only through a key the server holds (`server_held`), beside the settings
     /// block's own.
     server_held: Mutex<HashSet<Uuid>>,
+    /// Keys under an owner-only scope key, minted or opened through one (`owner_only_covers`).
+    under_owner_only: Mutex<HashSet<Uuid>>,
     rows: Mutex<Rows>,
     contacts: Mutex<HashMap<Uuid, RecoveryPublic>>,
     trusted: Mutex<HashSet<Uuid>>,
@@ -47,6 +49,8 @@ struct Opened {
     escrow: bool,
     /// Whether it opened only through a key the server holds.
     through_server: bool,
+    /// Whether it opened through an owner-only block's key (`owner_only_covers`).
+    under_owner_only: bool,
 }
 
 /// Which block each content key is a key of, and the access log root each block's keys carry
@@ -252,6 +256,7 @@ impl KeyBook {
             ring,
             escrow_secrets: Mutex::default(),
             server_held: Mutex::default(),
+            under_owner_only: Mutex::default(),
             rows: Mutex::new(Rows::default()),
             contacts: Mutex::new(HashMap::new()),
             trusted: Mutex::new(HashSet::new()),
@@ -747,6 +752,7 @@ impl KeyBook {
             // block is (its settings block has an id of its own).
             escrow: carried.block == self.organization.into_bytes(),
             through_server: false,
+            under_owner_only: false,
         })
     }
 
@@ -796,6 +802,9 @@ impl KeyBook {
     fn hold(&self, key: Uuid, opened: Opened) {
         if opened.through_server {
             self.server_held.lock().unwrap().insert(key);
+        }
+        if opened.under_owner_only {
+            self.under_owner_only.lock().unwrap().insert(key);
         }
         match opened.escrow {
             true => {
@@ -878,6 +887,7 @@ impl KeyBook {
                 let bytes = self.ring.open(&wrap.sealed).ok()?;
                 let mut opened = self.opened(row, &bytes, vouched)?;
                 opened.through_server = through_server;
+                opened.under_owner_only = self.owner_only_covers(by);
                 return Some(opened);
             }
         };
@@ -987,6 +997,9 @@ impl KeyBook {
     pub fn mint_data(&self, block: Uuid, under: Uuid) -> Result<(Uuid, KeySet), StoreError> {
         self.trusted_plain(under)?;
         let row = self.mint(block, KeyKind::Data, false);
+        if self.owner_only_covers(under) {
+            self.under_owner_only.lock().unwrap().insert(row.id);
+        }
         let wrapped = self.wrap(row.id, under)?;
         Ok((
             row.id,
@@ -1038,6 +1051,13 @@ impl KeyBook {
     /// the key's own id, which every seal of it binds, so the server cannot say otherwise.
     pub fn owner_only(&self, key: Uuid) -> bool {
         be_block_protocol::owner_only_key(key)
+    }
+
+    /// Whether an owner-only block's scope key covers `key`: it is one, or this device minted
+    /// or opened `key` under one, whatever the server's rows say. Such a key is its author's
+    /// alone, never escrowed, so never sealed to anyone else either.
+    pub fn owner_only_covers(&self, key: Uuid) -> bool {
+        self.owner_only(key) || self.under_owner_only.lock().unwrap().contains(&key)
     }
 
     /// Moves on each time keys are recorded (`record`).
