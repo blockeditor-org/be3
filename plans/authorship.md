@@ -29,6 +29,13 @@ or that is forged.
   stamp (numbered offline), an edit or reaction (which keep none), or one that
   arrived before this device learned of the change still shows as changed, and
   a member who seals as the lease holder can write any stamp (Timestamps).
+- **A deletion with an old key is silent.** A deletion keeps no arrival (only
+  a message keeps the stamp it was sent with), so one signed with a contact's
+  replaced key answers `Changed`, never `Replaced`, and chat shows a row only
+  for a deletion answered `Bad`. Whoever holds an old phrase can delete the
+  account's messages without a trace. Done: a deletion keeps the stamp the
+  server gave it, and one answered `Replaced` leaves a row ("deleted with an
+  old key").
 - **Timestamps.** A signed time is only what the author claims. A message sent
   in a live session carries when the server took it, stamped by every replica
   from the order (guides/chat.md, "Arrival time"), which its author cannot
