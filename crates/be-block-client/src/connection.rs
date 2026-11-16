@@ -135,7 +135,7 @@ pub enum Event {
     Paired(PairingMessage),
     ContactsChanged,
     /// Keys this account may open were stored through another connection (`keys-changed`), or
-    /// opened here once the contact who sealed them was verified (`Peer::refresh_contacts`):
+    /// opened here by any path (`KeyBook::on_opened`: a fetch, a contact verified since, escrow):
     /// `Peer::keys_changed`, then reading again what was locked, opens what they unlock.
     KeysChanged,
     /// The account's notification modes changed on another of its devices.
@@ -296,8 +296,9 @@ impl Connection {
         let _ = self.pumps.send(Box::pin(pump));
     }
 
-    /// Tells this connection's subscribers that keys this account may open arrived without the
-    /// server saying so: opened here once the contact who sealed them was verified.
+    /// Tells this connection's subscribers that keys this account may open arrived: a key opened
+    /// here (`KeyBook::on_opened`), from a fetch, a contact verified since it was sealed, or
+    /// escrow.
     pub(crate) fn keys_opened(&self) {
         let _ = self.events.send(Event::KeysChanged);
     }

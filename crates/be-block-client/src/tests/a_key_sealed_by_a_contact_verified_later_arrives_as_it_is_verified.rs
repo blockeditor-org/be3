@@ -1,10 +1,6 @@
 use super::*;
 
-use std::time::Duration;
-
 use be_block_graph::Access;
-
-use crate::Event;
 
 /// A contact who accepted this account's link shares a block, sealing its key, before this
 /// device finished the link: the key it fetched is not one it opens, so a submission's
@@ -72,12 +68,11 @@ async fn a_key_sealed_by_a_contact_verified_later_arrives_as_it_is_verified() {
         guest.arrivals() > arrivals,
         "the key opened by verifying its sealer was not counted as arriving"
     );
-    // A bound on a signal that comes, not a wait for time to pass: missing, it fails here.
-    tokio::time::timeout(Duration::from_secs(60), async {
-        while !matches!(events.recv().await.unwrap(), Event::KeysChanged) {}
-    })
-    .await
-    .expect("the key opened by verifying its sealer was never told");
+    // Told before `refresh_contacts` returned.
+    assert!(
+        told_keys_changed(&mut events),
+        "the key opened by verifying its sealer was never told"
+    );
     guest
         .sealing_key(block)
         .await
