@@ -48,7 +48,7 @@ fn modifiers_let_go_in_one_view_are_held_again_in_another() {
     let press_in_window = |instances: &mut Instances| {
         let input = forwarded(vec![pressed(at, logo)], Some(at), false);
         let (messages, _) =
-            instances.forward(INSTANCE, window, &input, &|_, _| beui::Aim::Own, &|_| None);
+            instances.forward(INSTANCE, window, &input, &|_, _| beui::Aim::Own, &|_, _| None);
         input_events(&messages)
     };
     let held = Input::Modifiers(Modifiers {
@@ -75,7 +75,7 @@ fn modifiers_let_go_in_one_view_are_held_again_in_another() {
 
     for focused in [true, false] {
         let focus = forwarded(vec![beui::Forwarded::Focus(focused)], None, false);
-        instances.forward(INSTANCE, window, &focus, &|_, _| beui::Aim::Own, &|_| None);
+        instances.forward(INSTANCE, window, &focus, &|_, _| beui::Aim::Own, &|_, _| None);
     }
     assert_eq!(
         press_in_window(&mut instances).first(),

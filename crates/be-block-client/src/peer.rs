@@ -2916,7 +2916,7 @@ fn checked_log(
         .map(|entry| be_block_keys::Entry::decode(entry))
         .collect::<Result<Vec<_>, _>>()
         .map_err(|_| ClientError::Forged(log))?;
-    be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries, &|_| None)
+    be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries, &|_, _| None)
         .map_err(|_| ClientError::Forged(log))?;
     Ok(entries)
 }
