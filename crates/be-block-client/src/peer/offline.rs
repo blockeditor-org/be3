@@ -1051,13 +1051,7 @@ impl<S: ObjectStore> Peer<S> {
     /// local edits kept beside it go too: they can never reach the block, and kept they would
     /// keep it from being forgotten.
     pub fn discard_unsent(&self, block: Uuid) -> Result<bool, ClientError> {
-        let Some(unsent) = self.refs.take_unsent(block)? else {
-            return Ok(false);
-        };
-        if unsent.refused.is_none() {
-            self.refs.drop_local_edits(block)?;
-        }
-        Ok(true)
+        Ok(self.refs.discard_unsent(block)?.is_some())
     }
 }
 

@@ -59,18 +59,6 @@ Fixed items are removed as they land.
 
 ## 7. Sessions
 
-- **Discarded edits come back.** A replica that loses Edit takes edits still;
-  closing it seals them into a commit that becomes this device's local head,
-  and if that commit is not among the unsent edits discarded, reopening once
-  this account may edit again builds on it, so discarded edits land. Also, the
-  `refs::Dropped` mark clears when the block's summary can edit, not when the
-  server confirms it (a join answering `may_edit`, or an accepted submission).
-  Done: losing Edit closes the replica or reattaches its editors read-only,
-  discarding resets the local head to the remote one, and the mark clears only
-  on the server's word, shown by a be-host-stack test that types after the
-  demotion, discards, is made an editor again, reopens and counts only what
-  was sent.
-
 - **A seal of its own during a join that holds kept edits.** `rejoined` seals
   and waits only for a join begun on a settled made-up session
   (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
