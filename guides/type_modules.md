@@ -307,7 +307,8 @@ another app's code, so a replica's `read-part`, and the parts its `publish` and
 `stash` reuse, are confined to its reach (`replicas::reach`): the parts of what
 it loaded and put, and any part sealed under a key of its block or of a block
 that content is sealed in (a checkout copy's repository), as a part a peer put
-and names in an edit is. A part of another block named by its ref alone is
+and names in an edit is: a block whose content the replica was handed is
+reachable whole. A part of another block named by its ref alone is
 refused with `OUTSIDE_REACH`, which a module serving both blocks, or a peer who
 reads both, could otherwise name to show or write one block's bytes as the
 other's (guides/blocks/keys.md, Keys are bound to blocks where the server

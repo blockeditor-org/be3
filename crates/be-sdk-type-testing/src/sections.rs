@@ -61,6 +61,9 @@ impl Default for Sections {
 pub struct SetSection {
     pub index: usize,
     pub bytes: Vec<u8>,
+    /// A saved part the section becomes instead of `bytes`, named by its ref, as an operation
+    /// names a part put before it (guides/type_modules.md, "Parts named by hash").
+    pub part: Option<PartRef>,
 }
 
 impl Sections {
@@ -80,6 +83,7 @@ impl Sections {
         self.apply(&SetSection {
             index,
             bytes: text.as_bytes().to_vec(),
+            part: None,
         });
     }
 
@@ -214,9 +218,12 @@ impl LiveEdit for Sections {
 
     fn apply(&mut self, operation: &SetSection) {
         if let Some(section) = self.sections.get_mut(operation.index) {
-            *section = Section::Held {
-                bytes: operation.bytes.clone(),
-                saved: None,
+            *section = match operation.part {
+                Some(part) => Section::Unloaded(part),
+                None => Section::Held {
+                    bytes: operation.bytes.clone(),
+                    saved: None,
+                },
             };
         }
     }

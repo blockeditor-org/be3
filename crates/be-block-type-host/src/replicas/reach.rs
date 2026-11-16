@@ -58,23 +58,35 @@ pub async fn reaches<S: ObjectStore>(
         return Ok(true);
     }
     // Only now: the blocks of what it was handed, which a part never reached before needs.
-    let unsourced = std::mem::take(&mut reach.lock().unwrap_or_else(PoisonError::into_inner).unsourced);
+    // They stay listed until resolved, so a check that runs meanwhile (a replica's reads run
+    // at once) resolves them too rather than find none.
+    let unsourced = reach
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .unsourced
+        .clone();
+    let mut resolved = HashSet::new();
     let mut sources = HashSet::new();
-    for (index, handed) in unsourced.iter().enumerate() {
-        match peer.block_of_part(*handed).await {
-            Ok(source) => sources.extend(source),
+    let mut failed = None;
+    for handed in unsourced {
+        match peer.block_of_part(handed).await {
+            Ok(source) => {
+                sources.extend(source);
+                resolved.insert(handed);
+            }
             Err(error) => {
-                // Asked again next time.
-                let mut reach = reach.lock().unwrap_or_else(PoisonError::into_inner);
-                reach.sources.extend(sources);
-                reach.unsourced.extend_from_slice(&unsourced[index..]);
-                return Err(error);
+                failed = Some(error);
+                break;
             }
         }
     }
     let mut reach = reach.lock().unwrap_or_else(PoisonError::into_inner);
     reach.sources.extend(sources);
-    Ok(reach.sources.contains(&of))
+    reach.unsourced.retain(|part| !resolved.contains(part));
+    match reach.sources.contains(&of) {
+        true => Ok(true),
+        false => failed.map_or(Ok(false), Err),
+    }
 }
 
 /// Whether every part `parts` reuses is within the reach of `block`'s replica.
