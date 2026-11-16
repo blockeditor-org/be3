@@ -13,7 +13,8 @@ fn news_of_a_block_whose_head_stayed_moves_no_replica() {
             .expect("the block is written");
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.pump((&peer, &shared)).await;
             tokio::task::yield_now().await;

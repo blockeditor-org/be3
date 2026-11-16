@@ -8,7 +8,8 @@ fn what_a_wait_on_a_module_handles_is_taken_as_a_change() {
         let block = block(&peer).await;
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, false)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.status(block).is_none() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

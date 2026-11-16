@@ -1369,6 +1369,11 @@ where
     fn job_while_unreadable(&mut self, job: Job<C>) {
         match job {
             Job::Input(Input::Close) | Job::Release => self.release(),
+            // Editors still come and go, and each is told the content will not open
+            // (`snapshot_to`).
+            Job::Input(
+                input @ (Input::Attach { .. } | Input::Resent { .. } | Input::Detach { .. }),
+            ) if !self.released => self.handle(input),
             Job::Input(Input::Change { id, .. }) => self.reply(id, Answer::Changed(false)),
             Job::Input(Input::Content { id }) | Job::Input(Input::Seal { id, .. }) => {
                 self.reply(id, Answer::Unknown);
@@ -1623,7 +1628,11 @@ where
                     return;
                 };
                 match then {
-                    Then::Load => self.unreadable = Some(error),
+                    Then::Load => {
+                        self.unreadable = Some(error);
+                        // Its editors are told it will not open rather than left loading.
+                        self.resnapshot = true;
+                    }
                     _ => self.error(error),
                 }
             }
@@ -3397,6 +3406,10 @@ where
 
     fn snapshot_to(&mut self, editor: EditorId) {
         self.holding.remove(&editor);
+        if let Some(reason) = &self.unreadable {
+            let failed = ToEditor::Failed(format!("The content could not be read: {reason}"));
+            return self.tell_editor(editor, &failed);
+        }
         let applied = self.acknowledged.get(&editor).copied().unwrap_or_default();
         let settled = self.projected.settled();
         let bytes = settled.encode();

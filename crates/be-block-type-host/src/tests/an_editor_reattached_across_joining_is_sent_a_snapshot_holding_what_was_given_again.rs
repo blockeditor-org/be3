@@ -34,7 +34,8 @@ fn an_editor_reattached_across_joining_is_sent_a_snapshot_holding_what_was_given
             .expect("the text is made");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         let mut mirror =

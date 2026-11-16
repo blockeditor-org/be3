@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::root::ChecklistRoot;
 
 mod a_checklist_drawn_at_a_finer_raster_is_sharper_where_it_was;
+mod a_checklist_this_build_cannot_read_says_so_rather_than_loading;
 mod adding_an_item_puts_it_on_the_list;
 mod an_edit_from_elsewhere_leaves_the_other_rows_alone;
 mod filtering_to_open_hides_the_items_that_are_done;

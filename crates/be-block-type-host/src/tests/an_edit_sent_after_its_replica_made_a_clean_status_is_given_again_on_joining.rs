@@ -17,7 +17,8 @@ fn an_edit_sent_after_its_replica_made_a_clean_status_is_given_again_on_joining(
             .expect("the text is made");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         let mut mirror =

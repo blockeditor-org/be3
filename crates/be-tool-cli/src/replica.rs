@@ -161,7 +161,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
         session
             .replicas
             .open((&session.peer, &session.shared), block, content_type, true)
-            .await;
+            .await?;
         if !session.replicas.is_open(block) {
             let errors = std::mem::take(&mut held(&session.shared).errors);
             return Err(match errors.is_empty() {
