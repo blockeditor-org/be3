@@ -253,14 +253,14 @@ mod web {
         }
     }
 
-    /// In the host's worker: opens the files, answers what they hold, then keeps each change
-    /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
-    /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
-    /// The page encoded it from a `Job`: bytes that do not decode are a bug.
+    /// A job the page encoded from a `Job`: bytes that do not decode are a bug.
     fn decode(job: &[u8]) -> Job {
         postcard::from_bytes(job).expect("a host job decodes")
     }
 
+    /// In the host's worker: opens the files, answers what they hold, then keeps each change
+    /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
+    /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
     async fn keep(
         data_dir: PathBuf,
         answer: oneshot::Sender<Vec<u8>>,
