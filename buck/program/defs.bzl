@@ -56,6 +56,25 @@ type_bundle = rule(
     impl = _type_bundle_impl,
 )
 
+# Every file of a staged directory (a program's, such as be's host apps) in one file
+# (crates/be-tool-buck's pack), which an executable that is its whole release carries with
+# include_bytes!.
+def _packed_dir_impl(ctx: AnalysisContext) -> list[Provider]:
+    out = ctx.actions.declare_output(ctx.label.name + ".pack")
+    ctx.actions.run(
+        cmd_args(ctx.attrs._tools[RunInfo], "pack", out.as_output(), ctx.attrs.dir[DefaultInfo].default_outputs[0]),
+        category = "packed_dir",
+    )
+    return [DefaultInfo(default_output = out)]
+
+packed_dir = rule(
+    attrs = {
+        "dir": attrs.dep(),
+        "_tools": attrs.default_only(attrs.exec_dep(default = "root//crates/be-tool-buck:bin", providers = [RunInfo])),
+    },
+    impl = _packed_dir_impl,
+)
+
 # What `buck2 run` unpacks a program's archive with: built for the platform
 # the program is, as the machine that runs it is, but on beui's native core,
 # since a program on the HTML core, such as be-server's portal assets, is built

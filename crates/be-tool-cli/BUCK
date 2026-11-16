@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
-load("@root//buck/program:defs.bzl", "program", "type_bundle")
+load("@root//buck/program:defs.bzl", "packed_dir", "program", "type_bundle")
 
 cargo_package()
 
@@ -7,8 +7,49 @@ cargo_library()
 
 # The tests name block types from the editors' manifests, as be does from the
 # bundle it carries.
+# The apps that declare host components, which be runs headless (plans/headless_apps.md):
+# staged as be-host stages its apps, with the libraries they link against, and packed into
+# one file be carries, so a release stays one file. Only product apps that host a type:
+# none does yet, so a release carries none.
+HOST_APPS = []
+
+# The tests' own host apps: the counter example, packed the same way.
+TEST_HOST_APPS = ["//crates/be-app-example-counter"]
+
+program(
+    name = "host-apps",
+    app_types = ["{}:types".format(app) for app in HOST_APPS],
+    index = True,
+    manifests = ["{}:manifest".format(app) for app in HOST_APPS],
+    modules = ["{}:module".format(app) for app in HOST_APPS],
+)
+
+packed_dir(
+    name = "host-apps-packed",
+    dir = ":host-apps",
+)
+
+program(
+    name = "test-host-apps",
+    app_types = ["{}:types".format(app) for app in TEST_HOST_APPS],
+    index = True,
+    manifests = ["{}:manifest".format(app) for app in TEST_HOST_APPS],
+    modules = ["{}:module".format(app) for app in TEST_HOST_APPS],
+)
+
+packed_dir(
+    name = "test-host-apps-packed",
+    dir = ":test-host-apps",
+)
+
 cargo_test(
-    env = {"EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)"},
+    env = {
+        "HOST_APPS": "$(location :test-host-apps-packed)",
+        "PRODUCT_HOST_APPS": "$(location :host-apps-packed)",
+        # be-host-runtime links ALSA for apps' audio, from the sysroot it was linked against.
+        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+        "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
+    },
 )
 
 # be carries every app's manifest and type module in its executable, so a
@@ -22,6 +63,7 @@ type_bundle(
 cargo_binary(
     env = {
         "APP_TYPES": "$(location :app-types)",
+        "HOST_APPS": "$(location :host-apps-packed)",
     },
 )
 

@@ -81,6 +81,12 @@ pub trait BeuiRoot: 'static {
     fn create_block(creation: &Creation) -> Result<uuid::Uuid, String> {
         creation.create_block()
     }
+    /// Runs a host component (the manifest's `hosts`, guides/apps/host_services.md, "Host
+    /// components"), once, as it opens on its block, in a scope that lives as long as it does:
+    /// it has no view, so what it does it starts here, with effects on the editor's content.
+    fn host(editor: Editor) {
+        let _ = editor;
+    }
     fn connect_artifact(_artifacts: &Artifacts) {}
     fn describe_artifact(_data: &[u8]) -> Result<String, String> {
         Err("this editor does not generate artifacts".into())

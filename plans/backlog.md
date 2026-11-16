@@ -369,3 +369,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   it never starts them. Done when `be`'s build time or size hurts: the runtime
   split so `be` links no gpu or presenter crate, which also cuts a caching
   edge between them and `be`.
+- **No audio in headless `be`.** be-host-runtime's apps' audio (`audio.rs`)
+  links rodio, and through cpal ALSA, so `be` and its tests need
+  libasound.so.2 at load time (be-tool-cli's BUCK sets `LD_LIBRARY_PATH` to
+  the sysroot for its test) though a host component plays nothing. A cargo
+  feature cannot split it, since buck builds one be-host-runtime per platform
+  for every crate. Done when `be` runs on a machine with no ALSA: audio behind
+  a crate edge `be` does not take, or loaded at run time on first play.

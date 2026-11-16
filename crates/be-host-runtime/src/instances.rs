@@ -1159,6 +1159,14 @@ impl Instances {
         })
     }
 
+    /// Whether a host component is open: it has no screen to mount, so it asks for no frame,
+    /// but runs, and is passed each step, for as long as it is open.
+    pub(super) fn has_hosts(&self) -> bool {
+        self.entries
+            .values()
+            .any(|entry| matches!(entry.role, InstanceRole::Host(..)))
+    }
+
     pub(super) fn has_mounted(&self) -> bool {
         self.entries.iter().any(|(instance, entry)| {
             entry.screens.values().any(|screen| screen.mounted > 0)

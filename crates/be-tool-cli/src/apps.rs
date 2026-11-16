@@ -22,7 +22,7 @@ static APPS: OnceLock<Vec<App>> = OnceLock::new();
 
 static NAMES: OnceLock<HashMap<Uuid, &'static str>> = OnceLock::new();
 
-fn take(rest: &mut &'static [u8]) -> Result<&'static [u8], String> {
+pub(crate) fn take(rest: &mut &'static [u8]) -> Result<&'static [u8], String> {
     let (length, after) = rest
         .split_at_checked(8)
         .ok_or("the app bundle ends inside a length")?;

@@ -38,9 +38,9 @@ graphics. One runtime, not a second one for `be`.
      presenter and no gpu (guides/apps/runtime.md, "Headless"), and a host
      component kept to its own block (guides/apps/host_services.md): done.
    - c. `be` wiring (be-host-stack and be-host-runtime, the apps that declare
-     `hosts` bundled) and a small example app with a host component.
-   Done: `be` runs a test app's host component
-   against a block and the test reads what it wrote, with no display.
+     `hosts` bundled) and a small example app with a host component: done
+     (guides/apps/runtime.md, "Headless"; be-tool-cli's
+     `be_runs_an_apps_host_component_with_no_display`).
 2. **`be BLOCK host`.** Signs in (as an agent, or a block's agent, as the
    terminal host does), opens the block and runs its type's host component
    while it holds the lease, standing by otherwise. Done: plans/hosted_blocks.md
