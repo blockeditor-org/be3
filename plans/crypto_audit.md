@@ -16,10 +16,13 @@ plans/signed_access.md's and is not repeated here.
 Each item is marked when it is taken and when it lands (the fixing commit).
 
 - 1: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/never-seal-to-the-server
-  (948703c94), in review.
+  (948703c94), ready to land.
 - 2, 3: session_01UbiTY1dyaLgrBaJHjjZcSE, designed in
-  plans/keys_bound_to_blocks.md.
-- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/chat-deletion-author (94c58f0e6), in review.
+  plans/keys_bound_to_blocks.md. Of 3, the current key (8f2ea3f9e) and the
+  pointer reads (46cb4c406) are on fix/keys-bound-to-blocks, in review; reused
+  parts, escrow out of the keyring, and 2 follow.
+- 7: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/chat-deletion-author
+  (46b45f634), ready to land.
 - 10, and the overlapping parts of 6 and 9: the signed access builder
   (session_01UbiTY168uiE6R7Qo8b581U).
 - 4, 5, 8, 9: to be assigned.
