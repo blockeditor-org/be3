@@ -163,7 +163,7 @@ fn Footer(page: Shown) -> NodeId {
 fn Heading(
     title: String,
     #[prop(default = String::new())] lead: String,
-    #[prop(default = None)] glyph: Option<Glyph>,
+    glyph: Option<Glyph>,
     #[prop(default = TextColor::Accent)] tone: TextColor,
 ) -> NodeId {
     let has_lead = !lead.is_empty();

@@ -10,7 +10,7 @@ pub fn RadioGroup<T>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<crate::ChoiceApi<T>>,
 
     options: Children<ChoiceOption<T>>,
-    #[prop(default = None)] selected: Binding<Option<T>>,
+    selected: Binding<Option<T>>,
 ) -> NodeId
 where
     T: Clone + PartialEq + 'static,

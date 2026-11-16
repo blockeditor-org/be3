@@ -250,10 +250,10 @@ pub fn BackSlide(
     #[prop(default = true)] enabled: Prop<bool>,
     #[prop(default = true)] enters: bool,
     #[prop(default = Callback::default())] on_back: Callback<()>,
-    #[prop(default = None)] open: Option<Prop<bool>>,
+    open: Option<Prop<bool>>,
     #[prop(default = Callback::default())] on_gone: Callback<()>,
     #[prop(default = Callback::default())] on_presence: Callback<f32>,
-    #[prop(default = None)] behind: Option<BuildFn<NodeId>>,
+    behind: Option<BuildFn<NodeId>>,
     #[prop(default = Color::TRANSPARENT)] shade: Prop<Color>,
     children: Child,
 ) -> NodeId {

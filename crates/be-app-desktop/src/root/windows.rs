@@ -247,7 +247,7 @@ impl DeskWindows {
 pub(crate) fn WindowChips(
     windows: DeskWindows,
     #[prop(default = Direction::Horizontal)] direction: Prop<Direction>,
-    #[prop(default = None)] display: Option<u32>,
+    display: Option<u32>,
 ) -> NodeId {
     let chips = windows.chips(display);
     let vertical = create_memo(move || direction.get() == Direction::Vertical);

@@ -24,7 +24,7 @@ pub fn Slider(
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
-    #[prop(default = None)] mark: Option<f32>,
+    mark: Option<f32>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     on_drag_change: Callback<bool>,

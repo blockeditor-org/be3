@@ -32,7 +32,7 @@ pub fn DockBarSurface(
 
 #[component]
 pub fn DockBarGrip(
-    #[prop(default = None)] control: Option<DockBarControl>,
+    control: Option<DockBarControl>,
     #[prop(default = None)] bounds: Prop<Option<Rect>>,
 ) -> NodeId {
     let Some(control) = control.or_else(use_dock_bar) else {

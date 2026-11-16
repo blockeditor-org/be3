@@ -277,6 +277,8 @@ fn deferred_renderer(call: &ast::CallExpr) -> bool {
                 name.text(),
                 "Render"
                     | "RenderFn"
+                    | "Build"
+                    | "BuildFn"
                     | "MenuStyle"
                     | "AnchoredStyle"
                     | "ScrollStyle"

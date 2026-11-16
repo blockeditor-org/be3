@@ -46,7 +46,7 @@ pub fn VirtualList<K, H>(
     #[prop(default = 0.0)] overscan: Prop<f32>,
     #[prop(default = None)] anchor: Prop<Option<K>>,
     text: Callback<K, String>,
-    #[prop(default = None)] handle: Option<ForEachRef<K, NodeId>>,
+    handle: Option<ForEachRef<K, NodeId>>,
     #[prop(children)] item: RenderFn<H, NodeId>,
 ) -> NodeId
 where

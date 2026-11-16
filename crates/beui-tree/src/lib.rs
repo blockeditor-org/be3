@@ -24,8 +24,7 @@ pub mod reactive {
     };
     pub use crate::component::{
         Build, BuildFn, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
-        ComponentRecord, MissingProp,
-        Render, RenderFn, component, current_component, try_current_component,
+        ComponentRecord, Render, RenderFn, component, current_component, try_current_component,
     };
     pub use crate::control::{
         Case, CaseIs, CaseOf, CaseWhen, Dynamic, ForEach, ForEachFill, ForEachRef, Keyed, Loading,
@@ -36,15 +35,9 @@ pub mod reactive {
     pub use crate::one_child_slot;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::keep::{kept_shown, provide_kept_shown};
-    pub use crate::prop::{
-        ByClosure, ByClosureLifted, ByLift, ByValue, Func, Given, IntoLiftedProp, IntoProp,
-        IntoPropFrom, IntoReadProp, Prop,
-    };
+    pub use crate::prop::{Func, IntoLiftedProp, IntoProp, IntoPropFrom, IntoReadProp, Prop};
     pub use crate::prop_value::{
-        AbsentProp, ByBlock, ByChildClosure, ByChildUnitClosure, ByChildWith, ByExact, ByInto,
-        ByProp, BySignal, ByUnitClosure, ChildBlock, ChildClosure, ChildUnitClosure, ChildWith, FnOnceSlot, FnSlot, NoHandedSlot, Slot,
-        Exact, IntoPropValue, Is, Itself, MarkedRequired, PropOr, PropTakes, ReadProp, ReadPropTakes, SameType, SetProp, TakesBlock, TakesClosure, TakesNoChildren, TakesOptionalBlock, TakesUnitClosure,
-        TakesWith, ChildShape, Val,
+        AbsentProp, IntoPropValue, MarkedRequired, Takes, TakesBlock, TakesOptionalBlock,
     };
     pub use beui_macros::{component, view};
     pub use beui_reactive::{
@@ -57,6 +50,21 @@ pub mod reactive {
         on_cleanup, owner_scope, provide_context, spawn_with, store, untrack, use_context,
         zone_pending,
     };
+
+    /// What the `#[component]` and `view!` macros name by absolute path: a module, so that
+    /// `reactive::*` does not bring these names in, and not hidden, so that messages name them
+    /// short.
+    pub mod macro_support {
+        pub use crate::component::MissingProp;
+        pub use crate::prop::{ByClosure, ByClosureLifted, ByLift, ByValue, Given};
+        pub use crate::prop_value::{
+            ByExact, ByInto, ByProp,
+            BySignal, BySome, ByTakes, ByUnitClosure, ChildBlock, ChildClosure, ChildShape,
+            ChildUnitClosure, ChildWith, Exact, ExactTakes, ExactWithin, ExactWithinTakes, IntoExactProp,
+            FnOnceSlot, FnSlot, Is, Itself, NoHandedSlot, OptionalPropTakes, OptionalTakes, PropOr, PropTakes, ReadProp, ReadPropTakes,
+            HandsAValue, SameType, SetProp, Slot, TakesChildren, TakesClosure, TakesNoChildren, TakesUnitClosure, TakesWith,
+        };
+    }
 }
 
 #[cfg(test)]

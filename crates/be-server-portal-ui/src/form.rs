@@ -10,7 +10,7 @@ pub fn fixed(text: String) -> Memo<String> {
 pub fn PortalForm(
     action: String,
     csrf: String,
-    #[prop(default = None)] code: Option<String>,
+    code: Option<String>,
     #[prop(default = Vec::new())] hidden: Vec<(&'static str, String)>,
     children: Children<ListItem>,
 ) -> NodeId {

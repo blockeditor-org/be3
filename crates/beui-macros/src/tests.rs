@@ -1,5 +1,7 @@
 use super::*;
 
+mod a_bare_children_prop_is_rejected;
+mod a_props_attributes_merge_and_reject_a_key_given_twice;
 mod a_render_with_no_handle_is_rejected;
 mod a_component_marking_two_children_props_is_rejected;
 mod a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike;

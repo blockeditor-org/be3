@@ -73,7 +73,7 @@ impl<T> Copy for State<T> {}
 pub fn Select<T>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<SelectApi<T>>,
     options: Children<ChoiceOption<T>>,
-    #[prop(default = None)] selected: Binding<Option<T>>,
+    selected: Binding<Option<T>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] name: Prop<String>,

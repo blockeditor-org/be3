@@ -126,10 +126,10 @@ impl GlideApi {
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
     spring: Spring,
-    #[prop(default = None)] on: Option<Trackable>,
+    on: Option<Trackable>,
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
-    #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
+    within: Option<ComponentRef<GlideApi>>,
     children: NodeId,
 ) -> NodeId {
     let stored = store(Motion::default());

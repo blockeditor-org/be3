@@ -209,10 +209,10 @@ where
 /// `on_drag_change(false)`, so the source can keep what it set up until then.
 #[component]
 pub fn DropTarget<P>(
-    #[prop(default = None)] accepts: Option<Func<P, bool>>,
-    #[prop(default = None)] takes: Option<Func<DragPoint, Take>>,
+    accepts: Option<Func<P, bool>>,
+    takes: Option<Func<DragPoint, Take>>,
     #[prop(default = false)] hides_preview: Prop<bool>,
-    #[prop(default = None)] holds: Option<Func<P, bool>>,
+    holds: Option<Func<P, bool>>,
     on_over: Callback<Option<(P, DragPoint)>>,
     on_drop: Callback<(P, DragPoint)>,
     #[prop(children)] content: Render<DropHandle, NodeId>,

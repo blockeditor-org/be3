@@ -89,9 +89,9 @@ pub struct ByClosureLifted;
 /// Marks an `Option<X>` prop given what `X` takes (`IntoPropValue`).
 pub struct Given<M>(std::marker::PhantomData<M>);
 
-/// How a prop typed by a type parameter of its own component (`Show`'s, `Dynamic`'s and
-/// `Keyed`'s `value`) takes what a tag passes it: a signal, memo or `Prop` of the value, or a
-/// closure computing it. The value's type comes from what is passed, so a plain value, which
+/// How a `Prop<V>` whose `V` is a type parameter of its own component (`Show`'s, `Dynamic`'s
+/// and `Keyed`'s `value`) takes what a tag passes it besides a `Prop<V>`, which every type
+/// takes as itself: a signal, memo or binding of the value, or a closure computing it. The value's type comes from what is passed, so a plain value, which
 /// every type would convert from, is not taken: a value fixed when the view is built is
 /// plain Rust (`shown.then(|| view! {..})`).
 #[diagnostic::on_unimplemented(
@@ -101,7 +101,6 @@ pub struct Given<M>(std::marker::PhantomData<M>);
 pub trait IntoReadProp<T, M> {
     fn into_read_prop(self) -> Prop<T>;
 }
-
 
 impl<T: Clone + 'static> IntoReadProp<T, ByValue> for ReadSignal<T> {
     fn into_read_prop(self) -> Prop<T> {

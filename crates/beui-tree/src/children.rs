@@ -912,9 +912,9 @@ macro_rules! child_type {
             }
         }
 
-        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::IntoPropValue<$crate::reactive::Children<$ty>, $crate::reactive::Val<$crate::reactive::ByInto>> for $ty {
-            fn into_prop_value(self) -> $crate::reactive::Children<$ty> {
-                $crate::reactive::Children::from($crate::reactive::ChildSegment::One(self))
+        impl<$($generic: 'static $(+ $bound)?),*> $crate::reactive::Takes<$ty, ()> for $crate::reactive::Children<$ty> {
+            fn take(child: $ty) -> Self {
+                Self::from($crate::reactive::ChildSegment::One(child))
             }
         }
     };
