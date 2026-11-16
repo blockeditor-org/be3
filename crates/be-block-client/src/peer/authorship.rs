@@ -205,7 +205,8 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(Signer::Bad);
         };
         if known.is_empty() {
-            self.refs.add_signer(account, served, false, self.server_now())?;
+            self.refs
+                .add_signer(account, served, false, self.server_now())?;
             return Ok(match made(served) {
                 true => Signer::Unverified,
                 false => Signer::Bad,

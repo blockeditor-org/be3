@@ -2032,9 +2032,9 @@ impl EditorHost {
         signature: Vec<u8>,
         arrived: Option<i64>,
     ) -> Asked<Result<Signer, Failure>> {
-        Asked::of(self.ask(|| {
-            host_services::verify(account.into_bytes(), bytes, signature, arrived)
-        }))
+        Asked::of(
+            self.ask(|| host_services::verify(account.into_bytes(), bytes, signature, arrived)),
+        )
     }
 
     /// Fails with the message to show where the person shared when the server could not take
