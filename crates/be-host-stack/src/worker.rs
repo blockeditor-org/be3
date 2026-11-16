@@ -2070,7 +2070,10 @@ impl Session<'_> {
 }
 
 fn step(shared: &Arc<Mutex<Shared>>, step: Option<&'static str>) {
-    shared.lock().unwrap_or_else(PoisonError::into_inner).step = step.map(str::to_owned);
+    let mut shared = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    if shared.step.as_deref() != step {
+        shared.step = step.map(str::to_owned);
+    }
 }
 
 /// The device has asked for everything it missed while away (`Shared::arriving`).
@@ -2375,7 +2378,7 @@ fn report(peer: &Peer<Store>, shared: &Arc<Mutex<Shared>>) -> bool {
         .collect();
     held.recounting = false;
     if held.unsent.len() != counts.unsent {
-        held.unsent = crate::Part::new(peer.unsent().to_vec());
+        held.unsent = crate::Part::new(peer.unsent());
         changed = true;
     }
     // What went wrong sending stops being news once the device is connected and in step: nothing
@@ -3587,7 +3590,7 @@ async fn apply(
                     held.graph.relist_around(block, parent);
                 }
             }
-            held.unsent = crate::Part::new(peer.unsent().to_vec());
+            held.unsent = crate::Part::new(peer.unsent());
             crate::changes::stale();
             held.progressed += 1;
             drop(held);
