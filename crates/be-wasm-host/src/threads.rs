@@ -276,7 +276,11 @@ impl Spawner {
         thread_locals: Option<dylink::Thread>,
     ) -> Result<(), String> {
         self.memory.as_ref().ok_or(UNSHARED)?;
-        let (isolate, context) = engine::isolate();
+        let engine::Isolate {
+            shared: isolate,
+            context,
+            exhausted,
+        } = engine::isolate();
         let handle = isolate.thread_safe_handle();
         if let Ok(mut isolates) = self.isolates.lock() {
             isolates.push((thread, handle.clone()));
@@ -290,7 +294,10 @@ impl Spawner {
         }
         drop(context);
         drop(isolate);
-        entered
+        match exhausted.reached() {
+            true => Err(format!("an app thread: {}", engine::OUT_OF_MEMORY)),
+            false => entered,
+        }
     }
 
     fn on(
@@ -448,7 +455,13 @@ fn thread_spawn(
         Some(memory) => grow(scope, memory, pages),
         None => Err(UNSHARED.to_owned()),
     };
-    returned.set_int32(spawner.spawn(argument, &mut grow));
+    match crate::gpu::contained(|| spawner.spawn(argument, &mut grow)) {
+        Ok(thread) => returned.set_int32(thread),
+        Err(panic) => {
+            crate::gpu::throw(scope, &panic);
+            state.fatal.get_or_insert(panic);
+        }
+    }
 }
 
 pub(crate) fn define<'s>(

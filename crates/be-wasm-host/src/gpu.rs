@@ -97,6 +97,19 @@ macro_rules! returns {
     ($result:ty) => { $result };
 }
 
+/// Runs a host call's body so that a panic in it (in the gpu glue, say) stops the one guest rather
+/// than unwinding into V8, which would abort the process.
+pub(crate) fn contained<R>(call: impl FnOnce() -> R) -> Result<R, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(call)).map_err(|panic| {
+        let message = panic
+            .downcast_ref::<&str>()
+            .map(|message| (*message).to_owned())
+            .or_else(|| panic.downcast_ref::<String>().cloned())
+            .unwrap_or_default();
+        format!("a host call panicked: {message}")
+    })
+}
+
 /// Throws an Error with `message` into the guest that called.
 pub(crate) fn throw(scope: &mut v8::PinScope<'_, '_>, message: &str) {
     let message = v8::String::new(scope, message).unwrap_or_else(|| v8::String::empty(scope));
@@ -158,7 +171,11 @@ macro_rules! bind_gpu {
                     // data is its State (state_of).
                     let state = unsafe { state_of(options.data) };
                     let view = state.view();
-                    let result = $glue(&mut Guest::new(state, view), $($argument),*);
+                    let result = contained(|| $glue(&mut Guest::new(&mut *state, view), $($argument),*));
+                    let result = result.unwrap_or_else(|panic| {
+                        state.fatal.get_or_insert(panic);
+                        Default::default()
+                    });
                     stop_fast(state);
                     result
                 }
@@ -177,7 +194,11 @@ macro_rules! bind_gpu {
                         index += 1;
                     )*
                     let view = state.view_in(scope);
-                    let result: returns!($($result)?) = $glue(&mut Guest::new(state, view), $($argument),*);
+                    let result = contained(|| $glue(&mut Guest::new(&mut *state, view), $($argument),*));
+                    let result: returns!($($result)?) = result.unwrap_or_else(|panic| {
+                        state.fatal.get_or_insert(panic);
+                        Default::default()
+                    });
                     stop_slow(scope, state);
                     result.give(scope, &mut returned);
                 }
@@ -215,7 +236,13 @@ macro_rules! bind_transport {
                     // unsafe(ffi): as in define_gpu.
                     let state = unsafe { state_of(options.data) };
                     let view = state.view();
-                    transport::$name(&mut Guest::new(state, view), $($argument),*)
+                    let result = contained(|| transport::$name(&mut Guest::new(&mut *state, view), $($argument),*));
+                    let result = result.unwrap_or_else(|panic| {
+                        state.fatal.get_or_insert(panic);
+                        Default::default()
+                    });
+                    stop_fast(state);
+                    result
                 }
                 #[allow(unused_assignments)]
                 fn slow_call(
@@ -232,7 +259,12 @@ macro_rules! bind_transport {
                         index += 1;
                     )*
                     let view = state.view_in(scope);
-                    let result: returns!($($result)?) = transport::$name(&mut Guest::new(state, view), $($argument),*);
+                    let result = contained(|| transport::$name(&mut Guest::new(&mut *state, view), $($argument),*));
+                    let result: returns!($($result)?) = result.unwrap_or_else(|panic| {
+                        state.fatal.get_or_insert(panic);
+                        Default::default()
+                    });
+                    stop_slow(scope, state);
                     result.give(scope, &mut returned);
                 }
                 const INFO: CFunctionInfo = CFunctionInfo::new(

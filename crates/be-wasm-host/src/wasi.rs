@@ -59,6 +59,7 @@ const RIGHT_READ: u64 = 1 << 1;
 const RIGHT_WRITE: u64 = 1 << 6;
 const FOLLOW: u32 = 1;
 const DIRENT: usize = 24;
+const SLEEP_SLICE: Duration = Duration::from_millis(10);
 
 /// Where a stream's bytes go.
 #[derive(Clone, Default)]
@@ -142,7 +143,8 @@ impl Wasi {
         })
     }
 
-    /// A test run's.
+    /// A test run's. Its directories confine `..` but not symbolic links, so it is only for guests
+    /// as trusted as the directories they are given (a crate's own tests), never an app's.
     pub(crate) fn run(
         arguments: &[String],
         stdout: Output,
@@ -247,6 +249,8 @@ struct Call<'a> {
     arguments: Vec<u64>,
     view: View,
     wasi: &'a Wasi,
+    /// The guest's threads, which say when it is stopping.
+    threads: &'a crate::threads::Spawner,
 }
 
 /// A call's outcome: an errno for the guest, or why the guest stops.
@@ -280,14 +284,25 @@ impl Call<'_> {
         Ok(u64::from_le_bytes(word))
     }
 
-    /// The buffers an iovec array at `at` of `count` names.
+    /// The buffers an iovec array at `at` of `count` names, each inside the memory, and no more
+    /// of them than add up to the memory's size: a guest may name a buffer more than once, and
+    /// what the host reads or writes for one call stays within what the guest holds.
     fn buffers(&self, at: u32, count: u32) -> Result<Vec<(u32, u32)>, String> {
-        (0..count)
-            .map(|index| {
-                let entry = at.wrapping_add(index.wrapping_mul(8));
-                Ok((self.read_u32(entry)?, self.read_u32(entry + 4)?))
-            })
-            .collect()
+        self.view.check(at, (count as usize).saturating_mul(8))?;
+        let mut left = self.view.size();
+        let mut buffers = Vec::new();
+        for index in 0..count {
+            let entry = at.wrapping_add(index.wrapping_mul(8));
+            let (pointer, length) = (self.read_u32(entry)?, self.read_u32(entry.wrapping_add(4))?);
+            self.view.check(pointer, length as usize)?;
+            let length = length.min(left as u32);
+            left -= length as usize;
+            buffers.push((pointer, length));
+            if left == 0 {
+                break;
+            }
+        }
+        Ok(buffers)
     }
 
     fn gathered(&self, at: u32, count: u32) -> Result<Vec<u8>, String> {
@@ -363,11 +378,13 @@ fn stream(fd: u32) -> bool {
 
 fn fd_write(call: &Call) -> Answer {
     let (fd, written) = (call.u32(0), call.u32(3));
+    if fd == STDIN || (!stream(fd) && !call.wasi.open().contains_key(&fd)) {
+        return Ok(EBADF);
+    }
     let bytes = call.gathered(call.u32(1), call.u32(2))?;
     match fd {
         STDOUT => call.wasi.stdout.write(true, &bytes),
         STDERR => call.wasi.stderr.write(false, &bytes),
-        STDIN => return Ok(EBADF),
         _ => {
             let mut open = call.wasi.open();
             match open.get_mut(&fd) {
@@ -387,6 +404,9 @@ fn fd_write(call: &Call) -> Answer {
 }
 
 fn fd_pwrite(call: &Call) -> Answer {
+    if !matches!(call.wasi.open().get(&call.u32(0)), Some(Open::File { .. })) {
+        return Ok(EBADF);
+    }
     let bytes = call.gathered(call.u32(1), call.u32(2))?;
     let mut open = call.wasi.open();
     let Some(Open::File { file, .. }) = open.get_mut(&call.u32(0)) else {
@@ -411,6 +431,11 @@ fn fd_read(call: &Call) -> Answer {
         call.write_u32(read, 0)?;
         return Ok(SUCCESS);
     }
+    match call.wasi.open().get(&fd) {
+        Some(Open::File { .. }) => {}
+        Some(Open::Directory(_)) => return Ok(EISDIR),
+        None => return Ok(EBADF),
+    }
     let mut bytes = vec![0; capacity(call, iovs, count)?];
     let got = {
         let mut open = call.wasi.open();
@@ -427,6 +452,9 @@ fn fd_read(call: &Call) -> Answer {
 
 fn fd_pread(call: &Call) -> Answer {
     let (iovs, count) = (call.u32(1), call.u32(2));
+    if !matches!(call.wasi.open().get(&call.u32(0)), Some(Open::File { .. })) {
+        return Ok(EBADF);
+    }
     let mut bytes = vec![0; capacity(call, iovs, count)?];
     let got = {
         let mut open = call.wasi.open();
@@ -594,7 +622,7 @@ fn fd_prestat_get(call: &Call) -> Answer {
     };
     let at = call.u32(1);
     call.write_u32(at, 0)?;
-    call.write_u32(at + 4, name.len() as u32)?;
+    call.write_u32(at.wrapping_add(4), name.len() as u32)?;
     Ok(SUCCESS)
 }
 
@@ -721,9 +749,9 @@ fn listed(call: &Call, items: &[String]) -> Answer {
     for item in items {
         call.write_u32(pointers, at)?;
         call.view.write(at, item.as_bytes())?;
-        call.view.write(at + item.len() as u32, &[0])?;
-        pointers += 4;
-        at += item.len() as u32 + 1;
+        call.view.write(at.wrapping_add(item.len() as u32), &[0])?;
+        pointers = pointers.wrapping_add(4);
+        at = at.wrapping_add(item.len() as u32 + 1);
     }
     Ok(SUCCESS)
 }
@@ -772,6 +800,7 @@ fn clock_res_get(call: &Call) -> Answer {
 }
 
 fn random_get(call: &Call) -> Answer {
+    call.view.check(call.u32(0), call.u32(1) as usize)?;
     let mut bytes = vec![0u8; call.u32(1) as usize];
     getrandom::fill(&mut bytes).map_err(|error| format!("no randomness for the app: {error}"))?;
     call.view.write(call.u32(0), &bytes)?;
@@ -792,27 +821,36 @@ fn poll_oneoff(call: &Call) -> Answer {
     let mut soonest: Option<u64> = None;
     for index in 0..count {
         let at = subscriptions.wrapping_add(index.wrapping_mul(SUBSCRIPTION));
-        if view.read(at + 8, 1)?[0] != CLOCK {
+        if view.read(at.wrapping_add(8), 1)?[0] != CLOCK {
             continue;
         }
-        let clock = call.read_u32(at + 16)?;
-        let timeout = call.read_u64(at + 24)?;
-        let flags = u16::from_le_bytes([view.read(at + 40, 1)?[0], view.read(at + 41, 1)?[0]]);
+        let clock = call.read_u32(at.wrapping_add(16))?;
+        let timeout = call.read_u64(at.wrapping_add(24))?;
+        let flags = u16::from_le_bytes([view.read(at.wrapping_add(40), 1)?[0], view.read(at.wrapping_add(41), 1)?[0]]);
         let wait = match flags & ABSOLUTE {
             0 => timeout,
             _ => timeout.saturating_sub(now(clock)),
         };
         soonest = Some(soonest.map_or(wait, |soonest| soonest.min(wait)));
     }
+    // In slices, since terminating the isolate does not reach the host's own sleep: an app that
+    // is stopped stops waiting within one.
     if let Some(wait) = soonest {
-        std::thread::sleep(Duration::from_nanos(wait));
+        let until = Instant::now() + Duration::from_nanos(wait);
+        while !call.threads.halts(false) {
+            let left = until.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                break;
+            }
+            std::thread::sleep(left.min(SLEEP_SLICE));
+        }
     }
     for index in 0..count {
         let from = subscriptions.wrapping_add(index.wrapping_mul(SUBSCRIPTION));
         let at = events.wrapping_add(index.wrapping_mul(EVENT));
         let mut event = [0u8; EVENT as usize];
         event[..8].copy_from_slice(&call.read_u64(from)?.to_le_bytes());
-        event[10] = view.read(from + 8, 1)?[0];
+        event[10] = view.read(from.wrapping_add(8), 1)?[0];
         view.write(at, &event)?;
     }
     call.write_u32(written, count)?;
@@ -844,12 +882,14 @@ fn answer(
         })
         .collect();
     let wasi = Arc::clone(&state.wasi);
+    let threads = Arc::clone(&state.threads);
     let call = Call {
         arguments: words,
         view: state.view_in(scope),
         wasi: &wasi,
+        threads: &threads,
     };
-    match function(&call) {
+    match crate::gpu::contained(|| function(&call)).and_then(|answer| answer) {
         Ok(errno) => returned.set_int32(errno),
         Err(stopped) => {
             throw(scope, &stopped);

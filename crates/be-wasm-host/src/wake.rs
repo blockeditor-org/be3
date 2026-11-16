@@ -38,7 +38,11 @@ fn host_wake(
 ) {
     // unsafe(ffi): the function's data is its State (state_of).
     let state = unsafe { state_of(arguments.data()) };
-    Arc::clone(&state.wake).wake();
+    let wake = Arc::clone(&state.wake);
+    if let Err(panic) = crate::gpu::contained(|| wake.wake()) {
+        state.fatal.get_or_insert(panic);
+        state.isolate.terminate_execution();
+    }
 }
 
 pub(crate) fn define<'s>(
