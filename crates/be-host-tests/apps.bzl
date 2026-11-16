@@ -22,6 +22,28 @@ def _host_with(name, apps, libraries = "exclude"):
         modules = [package + ":module" for package in packages],
     )
 
+# What `name`'s host optimised of its modules in its first 25 seconds, as the code cache its
+# tests read (BE3_CODE_CACHE, read-only; crates/be-wasm-host/src/cache.rs): an output of the
+# build like any other, so every test shares one run of each host rather than each compiling
+# alone. The shipped host fills its own cache as it runs; this one is only ever a test's.
+def _code_cache(name):
+    native.genrule(
+        name = name + "-code-cache",
+        out = "code-cache",
+        cmd = " ".join([
+            "mkdir -p $OUT $TMP/data && cache=`realpath $OUT` && here=$PWD &&",
+            "env BE_BUNDLE=$here/$(location :{}):$here/$(location :host-libraries)".format(name),
+            "BE3_CODE_CACHE=$cache XDG_DATA_HOME=$TMP/data PULSE_SERVER=unix:$TMP/no-audio",
+            "BEUI_PLATFORM=headless BEUI_RENDERER=none BEUI_HEADLESS_CLOCK=pinned TZ=UTC",
+            "BEUI_HEADLESS_WINDOW=1100x720 BEUI_HEADLESS_SCREEN=1440x900",
+            "LD_LIBRARY_PATH=$here/$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu:$here/$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu",
+            "XKB_CONFIG_ROOT=$here/$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+            # Stopped with SIGINT, the host writes what it optimised as it exits.
+            "timeout -s INT 25 $here/$(location //crates/be-host:bin) --dev-workspace < /dev/null > $TMP/log 2>&1 || echo exit $? >> $TMP/log;",
+            "find $cache -type f | grep -q . || { tail -60 $TMP/log >&2; exit 1; }",
+        ]),
+    )
+
 # Defines the apps each test's host stages, one :host-with-<apps> for each
 # distinct set of apps and :host-with-all with every app, and gives each test
 # named in `apps` its host as apart_env for cargo_test, with the apps it stages
@@ -43,10 +65,14 @@ def host_test_apps(apps):
         hosts[name] = sorted(BASE + extra)
         apart_env[test] = {
             "BE_BUNDLE": "$(location :{}):$(location :host-libraries)".format(name),
+            "BE3_CODE_CACHE": "$(location :{}-code-cache)".format(name),
+            "BE3_CODE_CACHE_READ_ONLY": "1",
             "HOST_TEST_APPS": ",".join(hosts[name]),
             "HOST_TEST_MANIFESTS": ":".join(["$(location //crates/be-app-{}:manifest)".format(app) for app in every]),
         }
     for name, staged in hosts.items():
         _host_with(name, staged, "include" if name == "host-with-all" else "exclude")
+        if name != "host-with-all":
+            _code_cache(name)
     _host_with("host-libraries", every, "only")
     return apart_env

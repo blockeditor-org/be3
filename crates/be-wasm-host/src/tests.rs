@@ -219,6 +219,7 @@ fn echo_frames(
     Ok(received)
 }
 
+mod a_code_cache_entry_v8_refuses_costs_only_the_compile;
 mod a_dropped_app_ends_its_threads;
 mod a_guest_creates_a_buffer_and_reports_its_handle;
 mod a_guest_pointer_past_its_memory_is_refused;
