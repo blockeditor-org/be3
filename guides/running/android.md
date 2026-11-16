@@ -1,7 +1,5 @@
 # Running be-host on Android
 
-Until third-party/v8/BUCK pins a V8 for Android, nothing that runs guests builds for Android (plans/wasm_on_v8.md).
-
 The Android emulator needs KVM. Check before anything else:
 
     test -r /dev/kvm && test -w /dev/kvm && echo ok
