@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use be_sdk_beui::beui::reactive::*;
 use be_sdk_beui::beui::styled::*;
-use be_sdk_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2};
+use be_sdk_beui::beui::{CursorIcon, NodeId, PointerPress, Pos2, Rect, ScrollGesture, Vec2, drag};
 use be_sdk_beui::{ChildBlock, ChildMode, Drag};
 use uuid::Uuid;
 
@@ -71,22 +71,52 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
         ));
     };
 
-    let pointer = create_signal(None::<Pos2>);
-    let on_hover = move |press: PointerPress| {
-        pointer.set(Some(press.local + offset.get_untracked()));
-    };
+    // A clip carried along the timeline lands where `drop_target_at` says for the point under
+    // the pointer; the marker draws what the site is over.
+    let area = NodeRef::new();
+    let site = use_drop_site(
+        Func::new(|_: Uuid| true),
+        Func::new(move |_: Uuid| {
+            drag::custom(area, move |at: Pos2| {
+                let dragged = state.drag.get_untracked()?;
+                untrack(|| {
+                    edit.with(|video| {
+                        let rows: Vec<ClipRow> = timeline::lane_rows(video);
+                        let at = at + offset.get();
+                        timeline::drop_target_at(
+                            video,
+                            &rows,
+                            content.get(),
+                            pixels_per_frame.get(),
+                            at,
+                            Some(&dragged),
+                        )
+                    })
+                })
+            })
+        }),
+        Callback::new(move |(_, target): (Uuid, TimelineDropTarget)| {
+            let (Some(drag), Some(video)) = (state.drag.get_untracked(), state.video()) else {
+                return;
+            };
+            let mut operations = Vec::new();
+            timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
+            for operation in operations {
+                state.operate(operation);
+            }
+        }),
+    );
 
     let target_drag = state.drag;
     let host_drag = state.editor().drag();
     let target = create_memo(move || {
+        if target_drag.with(Option::is_some) {
+            return site.over.get();
+        }
         edit.with(|video| {
             let rows: Vec<ClipRow> = timeline::lane_rows(video);
             let content = content.get();
             let scale = pixels_per_frame.get();
-            if let Some(drag) = target_drag.get() {
-                let at = pointer.get()?;
-                return timeline::drop_target_at(video, &rows, content, scale, at, Some(&drag));
-            }
             let dragged = host_drag
                 .get()
                 .filter(|drag| drag.block_id != state.block_id())?;
@@ -101,26 +131,6 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
         let dragged = landing_drag.get();
         untrack(|| land(state, target, dragged));
     });
-
-    let on_drop = move |_: (Uuid, DragPoint)| {
-        let Some(drag) = state.drag.get_untracked() else {
-            return;
-        };
-        let (Some(video), Some(target)) = (state.video(), target.get_untracked()) else {
-            return;
-        };
-        let mut operations = Vec::new();
-        timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
-        for operation in operations {
-            state.operate(operation);
-        }
-    };
-
-    let on_over = move |over: Option<(Uuid, DragPoint)>| {
-        if let Some((_, point)) = over {
-            pointer.set(Some(point.local + offset.get_untracked()));
-        }
-    };
 
     let on_press = move |press: PointerPress| {
         let x = press.local.x + offset.get_untracked().x;
@@ -150,12 +160,11 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let playhead_height = create_memo(move || content.get().height());
 
     let built = view! {
-        <DropTarget on_over={on_over} on_drop={on_drop}>|_: DropHandle|
-            <Interactive
+        <Interactive
+                @node_ref=&area
                 cursor=CursorIcon::Default
                 on_press={on_press}
                 on_wheel={beui::unstyled::gestures::scroll_wheel(None, on_scroll)}
-                on_hover_move={on_hover}
                 @test_id={"video.timeline"}
             >
                 <Canvas view={camera}>
@@ -186,7 +195,6 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                     </CanvasItem>
                 </Canvas>
             </Interactive>
-        </DropTarget>
     };
     let placed_measured = measure(built);
     create_effect(move || {
@@ -280,33 +288,39 @@ fn Clip(
     let element_test_id = format!("video.clip.{}", id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
     let grabbing = Rc::clone(&grabbed_at);
+    // Carried, the clip is moved by its own drag: how far into it it was grabbed sets where it
+    // starts when it lands.
+    let drag = Func::new(move |_: PointerPress| {
+        let scale = scale.get_untracked().max(f32::EPSILON);
+        let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
+        state.begin_drag(Some(ClipDrag {
+            clip: id,
+            grab: (pressed / scale).max(0.0) as u64,
+        }));
+        Some(drag::Carry::new(id).preview(move || view! {
+            <Frame fill=ColorRole::Pressed radius=CLIP_RADIUS padding=THUMBNAIL_MARGIN>
+                <Text>{name}</Text>
+            </Frame>
+        }))
+    });
+    let carried = is_carried(id);
+    create_effect_on_change(
+        move || carried.get(),
+        move |carried, _| {
+            if !*carried {
+                state.begin_drag(None);
+            }
+        },
+    );
 
     view! {
         <CanvasItem x={x} y={y} width={width} height=LANE_HEIGHT>
-            <Draggable
-                payload={id}
-                cursor=CursorIcon::Grab
-                preview={move |_: Uuid| view! {
-                    <Frame fill=ColorRole::Pressed radius=CLIP_RADIUS padding=THUMBNAIL_MARGIN>
-                        <Text>{name}</Text>
-                    </Frame>
-                }}
+            <Interactive
                 @test_id={element_test_id}
+                cursor=CursorIcon::Grab
+                drag={Some(drag)}
                 on_click={move || state.select(Some(id))}
-                on_drag_change={move |dragging: bool| {
-                    if !dragging {
-                        state.begin_drag(None);
-                        return;
-                    }
-                    let scale = scale.get_untracked().max(f32::EPSILON);
-                    let pressed = grabbed_at.get().map_or(0.0, |pos| pos.x);
-                    let offset = pressed / scale;
-                    state.begin_drag(Some(ClipDrag {
-                        clip: id,
-                        grab: offset.max(0.0) as u64,
-                    }));
-                }}
-            >|_: DragHandle|
+            >
                 <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
                     <Frame
                         fill={move || match attached.get() {
@@ -336,7 +350,7 @@ fn Clip(
                         </List>
                     </Frame>
                 </Interactive>
-            </Draggable>
+            </Interactive>
         </CanvasItem>
     }
 }

@@ -104,9 +104,14 @@ pub enum DragSpec<D> {
     },
     /// A nested site: chosen while the pointer is in `region`, which chooses from there on.
     Into { region: NodeRef, drop: D },
-    /// Anything else, from the point and the last frame. For now it only draws: it chooses
-    /// no drop, so a release on it commits nothing.
-    Custom(Rc<dyn Fn(DragPoint, &DragFrame) -> DragFrame>),
+    /// A site whose places are a function of the point (a timeline, where a clip lands at the
+    /// frame under the pointer): `place` takes the point in `node`'s own coordinates and gives
+    /// what dropping there means, or `None` where nothing is taken. Chosen wherever it answers;
+    /// the item floats under the pointer, and the site draws where it would land from `over`.
+    Custom {
+        node: NodeRef,
+        place: Rc<dyn Fn(Pos2) -> Option<D>>,
+    },
 }
 
 pub fn fixed<D>(candidate: Candidate<D>) -> DragSpec<D> {
@@ -135,8 +140,11 @@ pub fn into<D>(region: NodeRef, drop: D) -> DragSpec<D> {
     DragSpec::Into { region, drop }
 }
 
-pub fn custom<D>(frame: impl Fn(DragPoint, &DragFrame) -> DragFrame + 'static) -> DragSpec<D> {
-    DragSpec::Custom(Rc::new(frame))
+pub fn custom<D>(node: NodeRef, place: impl Fn(Pos2) -> Option<D> + 'static) -> DragSpec<D> {
+    DragSpec::Custom {
+        node,
+        place: Rc::new(place),
+    }
 }
 
 impl<D> From<Candidate<D>> for DragSpec<D> {
@@ -268,7 +276,10 @@ impl<D: 'static> DragSpec<D> {
                 region,
                 drop: drop(into),
             },
-            DragSpec::Custom(frame) => DragSpec::Custom(frame),
+            DragSpec::Custom { node, place } => DragSpec::Custom {
+                node,
+                place: Rc::new(move |point| place(point).map(|made| drop(made))),
+            },
         }
     }
 }
@@ -357,6 +368,9 @@ impl Default for DragFrame {
 pub struct Evaluated<D> {
     pub frame: DragFrame,
     pub drop: Option<D>,
+    /// Whether `drop` was worked out from the point (`free`, `custom`), so it can change while
+    /// the same place stays chosen.
+    pub made: bool,
 }
 
 /// What evaluating a spec reads: the point, how fast it moves (points a second), whether it
@@ -401,6 +415,7 @@ pub fn evaluate<D: Clone>(
                 floating: found.floating,
                 chain: found.chain,
             },
+            made: matches!(found.drop, Some(Dropped::Made(_))),
             drop: found.drop.map(Dropped::owned),
         },
         None => Evaluated {
@@ -411,6 +426,7 @@ pub fn evaluate<D: Clone>(
                 chain: false,
             },
             drop: None,
+            made: false,
         },
     }
 }
@@ -667,16 +683,18 @@ fn walk<'s, D: Clone>(
                 zoned: true,
             })
         }
-        DragSpec::Custom(frame) => {
-            let frame = frame(evaluation.point, last);
+        DragSpec::Custom { node, place } => {
+            let (at, scale) = (evaluation.placed)(node.try_get()?)?;
+            let local = Pos2::ZERO + (evaluation.point.pos - at.min) / scale;
+            let drop = place(local)?;
             Some(Found {
-                item: frame.item,
-                chosen: frame.chosen,
-                drop: None,
-                floating: frame.floating,
-                chain: frame.chain,
-                distance: distance(carried, frame.item),
-                zoned: false,
+                item: carried,
+                chosen: Some(id),
+                drop: Some(Dropped::Made(drop)),
+                floating: true,
+                chain: false,
+                distance: 0.0,
+                zoned: true,
             })
         }
     }
@@ -742,7 +760,7 @@ pub fn rests<D>(spec: &DragSpec<D>, placed: &dyn Fn(NodeId) -> Option<(Rect, f32
             DragSpec::Free { .. }
             | DragSpec::Floating
             | DragSpec::Into { .. }
-            | DragSpec::Custom(_) => {}
+            | DragSpec::Custom { .. } => {}
         }
     }
     let mut into = Vec::new();
