@@ -252,12 +252,20 @@ did not sign.
   whose granter's) rests on `Inherited` authority until step 4 lands.
 - **A member roots a block an administrator never pinned.** An escrow wrap
   pins the root it carries when its sender is a member with Edit or above in
-  the log rooted there, so a real member can root a block id the
-  administrator has not pinned (one only ever reached through escrow) at
-  themselves and show forged content as that block. Only a member can, never
-  the server; the block's own members, who pinned its real root, are not
-  fooled.
-- **An administrator roots a block other administrators never pinned.** An
+  the log rooted there, so a real member, with the server, can root a block
+  id the administrator has not pinned (one only ever reached through
+  escrow) at themselves and show a made-up log and content as that block.
+  An escrow-only administrator's view of a member's block is only as good
+  as the member who sent it, and is shown as such: the root is weak (3a),
+  passed on to no one and sealed by never, and a genuine wrap carrying the
+  real root then shows a conflict. The block's own members, who pinned its
+  real root, are not fooled. The full fix considered: anchor block roots in
+  the organization's log, a member's record of each block's root signed on
+  making it, the first claim winning, so a carried root must match the one
+  registered. It costs an organization-log entry per block made, and that
+  log is served whole to members with Edit or above.
+- **An administrator's carried root is taken for a block the device never
+  pinned.** An
   administrator's escrow wrap is taken without checking the block's log
   (administrators re-wrap every key under each new escrow epoch), so a
   malicious administrator can root a block id another administrator reaches
@@ -366,7 +374,13 @@ instead.
      administrator (who holds the escrow key, so reads all it opens anyway,
      and re-wraps under each new epoch), or a member the block's log (rooted
      at the root this device pinned, or else the one the wrap carries) names
-     with Edit or above; the root it carries is then pinned. Sealing it from
+     with Edit or above; the root it carries is then pinned. A root taken
+     only from a member's wrap, for a block this device pinned nothing else
+     for, is pinned weakly (`RootPin::Weak`): shown as unverified, never
+     passed on, its key untrusted (it vouches for nothing it opens), and
+     pinned in full only once a trusted key or an administrator carries the
+     same root. A wrap carrying any other root than the one held marks the
+     block's root conflicting, shown as forged, whichever came first. Sealing it from
      the sender sooner would prove nothing, as a sender who is not a contact
      has only keys the server names. Done: a test where a wrap the
      server seals to the escrow carries no root anyone trusts.
@@ -375,7 +389,8 @@ instead.
      names, contacts or not, and never an owner-only block's keys to anyone
      but its author (crypto audit 6, the `unsealed` part); a pin is taken only
      from a sender holding Edit or above as of the log's head, and a key from
-     any such sender. Done: a test where a grantee who is not a contact gets
+     any such sender. It never seals by a log checked from a weak root
+     (3a). Done: a test where a grantee who is not a contact gets
      the key and a contact with no grant does not; one where the server lists
      a contact as granted with no record and no key reaches them.
    - **3d. Key epochs bound to log heads.** Each new epoch names the log head

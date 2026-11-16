@@ -40,7 +40,7 @@ fn plant(
 
 /// An escrow wrap is sealed from its sender, and an administrator opens it only from a member
 /// the organization's log names, who the block's log names with Edit or above; the root it
-/// carries is pinned only then (signed access 3a). Neither the server, sealing anonymously to
+/// carries is pinned only then, and weakly (signed access 3a). Neither the server, sealing anonymously to
 /// the escrow key, nor a member who cannot edit the block makes a key, or a root, an
 /// administrator takes; the member's genuine wrap pins the real root, so an administrator who
 /// reaches the block only through escrow checks its log, and its members keep their pin.
@@ -139,8 +139,9 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
     }
     assert_eq!(
         laptop.keys().root_pin(team),
-        crate::keys::RootPin::Pinned(real),
-        "the member's genuine wrap pins the real root, and no other root was taken"
+        crate::keys::RootPin::Weak(real),
+        "the member's genuine wrap pins the real root, as good as the member (weakly), and no \
+         other root was taken"
     );
     assert!(
         laptop.access_log(team).await.is_ok(),
