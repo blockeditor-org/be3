@@ -21,6 +21,7 @@ async fn an_agents_creator_removes_it_as_a_member_and_key_work_is_told() {
             client::members::create_agent(
                 peer,
                 organization,
+                Uuid::new_v4(),
                 "Helper".into(),
                 [7; 32],
                 [7; 32],

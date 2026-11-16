@@ -17,9 +17,7 @@ async fn a_summary_read_before_a_rotation_never_brings_back_the_old_key() {
         .save(note, &TextBlock::of("before"), None)
         .await
         .unwrap();
-    let public = owner
-        .keys()
-        .contact(leaver.account())
+    let public = owner.verified_identity(leaver.account())
         .expect("the invitation made them contacts");
     owner
         .share(team, leaver.account(), Access::Edit, &public)

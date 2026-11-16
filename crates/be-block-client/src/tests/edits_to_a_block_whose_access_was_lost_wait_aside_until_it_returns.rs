@@ -19,7 +19,7 @@ async fn edits_to_a_block_whose_access_was_lost_wait_aside_until_it_returns() {
         .unwrap()
         .published()
         .unwrap();
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(team, member.account(), Access::Edit, &public)
         .await

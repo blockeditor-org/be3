@@ -106,19 +106,29 @@ interface members {
     /// granted and what was sealed to it.
     remove-member: async func(account: account-id) -> result<_, error>;
 
-    /// Makes an agent account in `organization` with the recovery key
+    /// A block's agent's block, and the grant of Edit on it to the agent
+    /// that its creator signed (be_block_keys::Grant).
+    record bound-agent {
+        block: block-id,
+        signed: list<u8>,
+    }
+
+    /// Makes the agent account `account`, an id the caller chose and no
+    /// account has, in `organization` with the recovery key
     /// `recovery` and the signing key `signing` derived with it, a contact card for the caller, and its escrow key sealed
     /// for it. With `bound-to`, which needs Manage on that block, the agent
-    /// is granted Edit on it and reaches nothing else: it is a block's agent
-    /// (`member.bound-to`), removed with its grant or its block.
+    /// is granted Edit on it by the signed grant and reaches nothing else: it
+    /// is a block's agent (`member.bound-to`), removed with its grant or its
+    /// block.
     create-agent: async func(
         organization: organization-id,
+        account: account-id,
         name: string,
         recovery: public-key,
         signing: public-key,
         contact: list<u8>,
         escrow: list<u8>,
-        bound-to: option<block-id>,
+        bound-to: option<bound-agent>,
     ) -> result<created-agent, error>;
 
     /// A new token for an agent the caller made; every older one stops

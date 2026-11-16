@@ -497,13 +497,15 @@ impl ServerStore {
         &self,
         caller: Uuid,
         organization: Uuid,
+        account: Uuid,
         name: &str,
         recovery: [u8; 32],
         signing: [u8; 32],
         contact: Vec<u8>,
         escrow: Vec<u8>,
-        bound_to: Option<Uuid>,
+        bound: Option<be_block_protocol::BoundAgent>,
     ) -> Result<(Agent, String, std::collections::BTreeSet<Uuid>), ServerError> {
+        let bound_to = bound.as_ref().map(|bound| bound.block);
         let role = self.membership(caller, organization).await?;
         let name = crate::limits::name("an agent's name", name)?.to_owned();
         crate::limits::at_most(
@@ -516,7 +518,6 @@ impl ServerStore {
             escrow.len(),
             crate::limits::MAX_SEALED_BYTES,
         )?;
-        let account = Uuid::new_v4();
         let email = format!("agent-{}@agents.invalid", account.simple());
         self.with_graph(organization, move |_, graph, database| {
             let mut before = std::collections::BTreeSet::new();
@@ -581,6 +582,20 @@ impl ServerStore {
                     ),
                 ));
             }
+            let taken = transaction
+                .query_row(
+                    "SELECT 1 FROM accounts WHERE id = ?1",
+                    [account.to_string()],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if taken {
+                return Err(ServerError::Refused(
+                    ErrorCode::InvalidRequest,
+                    "an agent is made with an account id no account has".into(),
+                ));
+            }
             transaction.execute(
                 "INSERT INTO accounts (id, email, display_name) VALUES (?1, ?2, ?3)",
                 params![account.to_string(), email, name],
@@ -609,12 +624,23 @@ impl ServerStore {
             )?;
             crate::contacts::befriend(&transaction, caller, &[], account, &contact)?;
             crate::keys::pin_escrow(&transaction, account, organization, &escrow)?;
-            if let Some(block) = bound_to {
+            // Its access comes only from the grant its creator signed.
+            if let Some(bound) = &bound {
+                crate::access::append_grant(
+                    &transaction,
+                    graph,
+                    organization,
+                    bound.block,
+                    caller,
+                    account,
+                    Access::Edit,
+                    &bound.signed,
+                )?;
                 crate::blocks::revoke_or_grant(
                     graph,
                     &transaction,
                     organization,
-                    block,
+                    bound.block,
                     account,
                     Access::Edit,
                 )?;

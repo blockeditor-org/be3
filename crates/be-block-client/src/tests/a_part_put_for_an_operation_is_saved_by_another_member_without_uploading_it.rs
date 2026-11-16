@@ -18,7 +18,7 @@ async fn a_part_put_for_an_operation_is_saved_by_another_member_without_uploadin
         .create::<TextContent>(BlockParent::Block(index))
         .await
         .unwrap();
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(index, member.account(), Access::Edit, &public)
         .await

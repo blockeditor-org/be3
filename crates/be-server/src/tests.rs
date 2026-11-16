@@ -1481,16 +1481,26 @@ impl TestClient {
     ) -> Result<(Uuid, String), Error> {
         let secret = be_block_keys::RecoveryPhrase::generate().secret();
         let identity = secret.identity();
+        let account = Uuid::new_v4();
+        remember_secret(account, secret.clone());
+        let signed = self
+            .signed_grant(block, account, be_block_graph::Access::Edit)
+            .await
+            .unwrap_or_default();
         self.call(|peer| {
             client::members::create_agent(
                 peer,
                 organization,
+                account,
                 "Terminal host".into(),
                 identity.public.0,
                 identity.signing.0,
                 Vec::new(),
                 Vec::new(),
-                Some(block),
+                Some(be_block_protocol::BoundAgent {
+                    block,
+                    signed: signed.clone(),
+                }),
             )
         })
         .await

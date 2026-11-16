@@ -619,8 +619,10 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn share_with_server(&self, block: Uuid) -> Result<(), ClientError> {
+        // A standing grant, which takes no record (`signed_grant`).
         let (account, public) = self.keys.server().ok_or(ClientError::Unexpected)?;
-        self.share(block, account, Access::View, &public).await
+        self.share_sealed(block, account, Access::View, &public, None)
+            .await
     }
 
     async fn ensure_organization_settings(&self) -> Result<(), ClientError> {
@@ -1427,7 +1429,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// `account`'s keys as this device verified them: from a contact card or a key change.
-    fn verified_identity(&self, account: Uuid) -> Option<be_block_keys::PublicIdentity> {
+    pub fn verified_identity(&self, account: Uuid) -> Option<be_block_keys::PublicIdentity> {
         let public = self.keys.contact(account)?;
         let signing = self
             .refs
@@ -1450,6 +1452,7 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
         account: Uuid,
         access: Access,
+        given: Option<be_block_keys::PublicIdentity>,
     ) -> Result<Option<Vec<u8>>, ClientError> {
         use be_block_keys::{Authority, Grant, LogKind, Record};
         let standing = account == be_block_graph::ANYONE_INSIDE
@@ -1465,8 +1468,8 @@ impl<S: ObjectStore> Peer<S> {
         {
             return Ok(None);
         }
-        let identity = self
-            .verified_identity(account)
+        let identity = given
+            .or_else(|| self.verified_identity(account))
             .or(named.map(|(_, identity)| identity))
             .ok_or_else(|| {
                 ClientError::Refused(
@@ -2715,15 +2718,30 @@ impl<S: ObjectStore> Peer<S> {
         }
     }
 
+    /// Shares `block` with `account`, whose keys this device verified as `identity`: seals it
+    /// the block's key and grants `access` by a signed record naming those keys.
     pub async fn share(
         &self,
         block: Uuid,
         account: Uuid,
         access: Access,
-        public: &be_block_keys::RecoveryPublic,
+        identity: &be_block_keys::PublicIdentity,
     ) -> Result<(), ClientError> {
+        self.share_sealed(block, account, access, &identity.public, Some(*identity))
+            .await
+    }
+
+    async fn share_sealed(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        public: &RecoveryPublic,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<(), ClientError> {
+        let grant = || self.grant_as(block, account, access, identity);
         if !access.can_view() {
-            return self.grant(block, account, access).await;
+            return grant().await;
         }
         // The key goes first: the grant tells the account's devices at once, and a device that
         // finds no key for the block then shows it locked until something else opens a key.
@@ -2733,10 +2751,10 @@ impl<S: ObjectStore> Peer<S> {
         match self.summary(block).await?.access.can_manage() {
             true => {
                 self.seal_share(block, account, public).await?;
-                self.grant(block, account, access).await
+                grant().await
             }
             false => {
-                self.grant(block, account, access).await?;
+                grant().await?;
                 self.seal_share(block, account, public).await
             }
         }
@@ -2945,9 +2963,33 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         access: Access,
     ) -> Result<(), ClientError> {
-        let signed = self.signed_grant(block, account, access).await?;
+        self.grant_as(block, account, access, None).await
+    }
+
+    async fn grant_as(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: Option<be_block_keys::PublicIdentity>,
+    ) -> Result<(), ClientError> {
+        let signed = self.signed_grant(block, account, access, identity).await?;
         client::blocks::set_access(&self.connection(), block, account, access, signed).await??;
         Ok(())
+    }
+
+    /// The record granting `access` to `account`, whose keys are `identity`, as `grant` signs
+    /// it: for an account this device made the keys of (an agent), sent with its making.
+    pub async fn grant_record(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+        identity: be_block_keys::PublicIdentity,
+    ) -> Result<Vec<u8>, ClientError> {
+        self.signed_grant(block, account, access, Some(identity))
+            .await?
+            .ok_or(ClientError::Unexpected)
     }
 
     pub async fn list_access(&self, block: Uuid) -> Result<AccessList, ClientError> {

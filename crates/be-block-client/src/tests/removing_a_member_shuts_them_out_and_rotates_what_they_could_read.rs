@@ -20,7 +20,7 @@ async fn removing_a_member_shuts_them_out_and_rotates_what_they_could_read() {
         .unwrap()
         .published();
     for member in [&reader, &removed] {
-        let public = admin.keys().contact(member.account()).unwrap();
+        let public = admin.verified_identity(member.account()).unwrap();
         admin
             .share(team, member.account(), Access::View, &public)
             .await

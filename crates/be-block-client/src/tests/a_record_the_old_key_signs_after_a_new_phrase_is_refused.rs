@@ -15,7 +15,7 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
     let member = harness.member(&owner, "member@example.com").await;
     let organization = owner.organization();
     let team = workspace(&owner, "Team").await;
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(team, member.account(), Access::Edit, &public)
         .await

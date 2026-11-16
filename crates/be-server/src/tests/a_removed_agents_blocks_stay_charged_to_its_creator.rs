@@ -13,6 +13,7 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
             client::members::create_agent(
                 peer,
                 organization,
+                Uuid::new_v4(),
                 "Helper".into(),
                 identity.public.0,
                 identity.signing.0,
