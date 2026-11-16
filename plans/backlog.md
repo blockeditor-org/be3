@@ -243,6 +243,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   fails, and fix the cause its output shows at its source, with a test that
   shows it.
 
+- **A take that returns before another's notices are told.** In a test that runs no frames,
+  be-host-stack's pump thread (`start`) applies an update under the stack's lock and tells the
+  watchers after it lets go (`take_updates`), so a `take_updates` on the test's thread meanwhile
+  (`wait_until`'s) finds nothing left and returns before the watchers heard what the state now
+  shows. be-host-runtime's passes take the updates as each starts, which stops the pump, but
+  be-host-stack's own tests still race it. Done: a take that finds another under way returns only
+  once that one has told its notices, shown by a stack test.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,

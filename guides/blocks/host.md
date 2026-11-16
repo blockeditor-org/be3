@@ -99,8 +99,11 @@ reaching a `Part` mutably copies it, so hot paths ask first (`Graph::reports`, `
 
 The worker publishes at the end of each pass and before the host hears anything from it:
 change notices (`changes::post`) and the answers to the host's replies (`seen::hold_answer`,
-a flush's too) are held thread-locally and go in the update a task publishes once the worker
-yields, which then wakes the host. The host takes the updates once a frame, as be-host's
+a flush's too) are held in the handover (`Handover::told`) and go in the next update that hands
+over the worker's `Seen`, whoever makes it: the one a task publishes once the worker yields,
+which then wakes the host, an edit the worker makes itself (`here_mut`), or a test's
+(`wait_until`, `with_shared_mut`), so the page never reads what the worker did without
+hearing of it. The host takes the updates once a frame, as be-host's
 frame starts (`take_updates_in_frame` in `frame.rs`), so every read in a frame, be-host's and
 the app runtimes', reads one snapshot; then its watchers hear the changes and the replies'
 callbacks run with their answers, reading what the worker did before answering. An editor's
@@ -109,7 +112,9 @@ next frame (`take_editor_frames` decodes what came since into `Stack::fetched`, 
 take applies). So within a frame an editor can hold a frame whose effects (a new child, a
 moved head) its host's reads don't show until the next frame's take: frames and reads agree
 only from the next frame. Answers that land after the stack stopped are lost with it. A test that runs
-no frames has a thread take each update as it lands under `testing` (`start`), until a frame takes them. What answers
+no frames has a thread take each update as it lands under `testing` (`start`), until a frame takes them;
+that thread tells the watchers only after it applied the update, so a test that runs passes
+takes the updates as each starts (be-host-runtime's `next_screens` does under `cfg(test)`). What answers
 outside a frame awaits its reply taking updates as they land (`taking_updates`): a hidden
 tab runs no frames, and a push the service worker asks the page to open must still be
 answered (`web_push.rs`). What must block on the worker natively (a flush as the window
