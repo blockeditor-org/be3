@@ -15,7 +15,9 @@ use crate::drag_board::drag_board;
 use crate::drop_site::{carrying, slots_in, use_drop_site};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
-use beui_view::drag::{After, Carry, DragPoint, DragSpec, closest, fixed, floating, move_after};
+use beui_view::drag::{
+    After, Carry, DragPoint, DragSpec, closest, fixed, floating, into, move_after,
+};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use beui_view::components::overlay::Overlay;
@@ -401,8 +403,14 @@ where
                     .following(direction),
             );
         }
+        // A fixed list sorts its rows itself: its own row floats at once, its slot kept
+        // open, and let go over this list it lands home.
+        if let Some(own) = &own {
+            let home = keys.iter().position(|key| key == own).unwrap_or(0);
+            return into(state.area, After(home.checked_sub(1).map(|at| keys[at].clone())));
+        }
         let index = match &own {
-            Some(own) => keys.iter().position(|key| key == own),
+            Some(_) => None,
             None => state
                 .slot
                 .and_then(|slot| slot.call(payload))
@@ -719,6 +727,7 @@ fn fold<K: 'static, P: 'static>(
     state: Stored<State<K, P>>,
     row: NodeRef,
     away: Memo<bool>,
+    hidden: Memo<bool>,
     direction: Prop<Direction>,
     from: Signal<Option<Pos2>>,
 ) -> Fold {
@@ -804,7 +813,7 @@ fn fold<K: 'static, P: 'static>(
     Fold {
         width: along(false),
         height: along(true),
-        opacity: create_memo(move || match away.get() {
+        opacity: create_memo(move || match away.get() || hidden.get() {
             true => 0.0,
             false => 1.0,
         }),
@@ -832,8 +841,11 @@ where
     let mine = create_memo(move || {
         carried.with(|carried| key.with(|key| carried.as_ref() == Some(key)))
     });
-    // Carried and on a place in this list: shown there, following the pointer along it.
+    let fixed = state.with(|state| state.fixed);
+    // Carried and on a place in this list: shown there, following the pointer along it; a
+    // fixed list keeps the row's slot open instead, empty, while its preview floats.
     let lifted = create_memo(move || mine.get() && over_here.get());
+    let held = create_memo(move || lifted.get() && !fixed.get());
     // Carried off this list (floating, or over another): the row folds away, and comes back
     // from where it was let go if it is not taken.
     let away = create_memo(move || mine.get() && !over_here.get());
@@ -934,7 +946,7 @@ where
     // to its slot.
     let holding = Cell::new(false);
     create_effect(move || {
-        let frame = lifted.get().then(|| drag_board().frame()).flatten();
+        let frame = held.get().then(|| drag_board().frame()).flatten();
         if frame.is_none() && !holding.get() {
             return;
         }
@@ -946,7 +958,8 @@ where
         });
     });
     let folded = NodeRef::new();
-    let fold = fold(state, folded, away, direction, from);
+    let hidden = create_memo(move || lifted.get() && fixed.get());
+    let fold = fold(state, folded, away, hidden, direction, from);
     let clicked = move |_: PointerPress| {
         if lifted.get_untracked() {
             return;
