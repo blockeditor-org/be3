@@ -67,7 +67,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
             let email = normalize_email(email)?;
             let account = account_of(&database, &email)?;
             if account.is_none() {
-                // An agent's or a local profile's address, which nobody signs in with.
+                // An agent's address, which nobody signs in with.
                 unregistered(&database, &email)?;
             }
             (account.unwrap_or_default(), email)

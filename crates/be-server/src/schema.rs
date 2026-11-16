@@ -15,8 +15,7 @@ const SCHEMA: &str = "
         -- The verified email, if the account has one: an email identity's, or an authoritative
         -- provider's. None for an account made through a provider that gave no verified email.
         email           TEXT UNIQUE,
-        display_name    TEXT NOT NULL,
-        local_profile   INTEGER NOT NULL DEFAULT 0
+        display_name    TEXT NOT NULL
     );
 
     CREATE TABLE sessions (

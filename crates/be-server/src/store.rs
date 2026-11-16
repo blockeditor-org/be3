@@ -317,7 +317,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let row: Option<(String, String, String)> = database
                 .query_row(
-                    "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE COALESCE(accounts.email, '') END, accounts.display_name FROM sessions
+                    "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name FROM sessions
                      JOIN accounts ON accounts.id = sessions.account_id
                      WHERE sessions.token_hash = ?1 AND sessions.kind = 'app'",
                     [hash_token(&token)],
@@ -342,7 +342,7 @@ impl ServerStore {
     pub async fn profile(&self, account: Uuid) -> Result<Profile, ServerError> {
         self.with_database(move |_, database| {
             let (email, display_name): (String, String) = database.query_row(
-                "SELECT CASE WHEN local_profile THEN '' ELSE COALESCE(email, '') END, display_name FROM accounts WHERE id = ?1",
+                "SELECT COALESCE(email, ''), display_name FROM accounts WHERE id = ?1",
                 [account.to_string()],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )?;
@@ -699,7 +699,7 @@ impl ServerStore {
         self.with_database(move |_, database| {
             let contacts = crate::contacts::contacts_of(&database, identity.account)?;
             let mut statement = database.prepare(
-                "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE COALESCE(accounts.email, '') END, accounts.display_name, memberships.role,
+                "SELECT accounts.id, COALESCE(accounts.email, ''), accounts.display_name, memberships.role,
                         agents.created_by, agents.bound_to
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id

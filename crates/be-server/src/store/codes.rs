@@ -219,8 +219,8 @@ pub(crate) fn account_of(
         .optional()?)
 }
 
-/// Refuses an email an account already has: as an identity, or as the address an agent or a
-/// local profile was made with, which no one signs in with.
+/// Refuses an email an account already has: as an identity, or as the address an agent was
+/// made with, which no one signs in with.
 pub(crate) fn unregistered(database: &Connection, email: &str) -> Result<(), ServerError> {
     let used: bool = database.query_row(
         "SELECT EXISTS(SELECT 1 FROM identities WHERE kind = 'email' AND subject = ?1)
