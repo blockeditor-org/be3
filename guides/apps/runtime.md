@@ -44,9 +44,17 @@ each library is compiled once per process and shared between isolates as a
 - **Linking.** The be-wasm-dylink `Plan` is carried out over the JavaScript
   WebAssembly API, called from Rust, as `crates/be-host/web/dylink.js` does
   in the browser.
-- **Pure guests.** A type module is validated without threads, shared memory
-  or relaxed SIMD, and its memory's maximum is capped (`MEMORY_LIMIT`). The
-  app host has no fuel and no canonical NaNs.
+- **Pure guests.** A type module is validated without threads, shared memory,
+  relaxed SIMD, garbage-collected types or a second memory, and its memory's
+  maximum is capped (`MEMORY_LIMIT`). The app host has no fuel and no
+  canonical NaNs.
+- **V8's heap.** No guest may declare garbage-collected types (structs,
+  arrays) or more than one table, and a table holds at most a million entries
+  (`engine::Shape::bounded`): V8 stops delivering a termination once an
+  isolate's heap is held at its limit, so a guest that could fill it could not
+  be stopped. Each isolate's heap is limited too (`HEAP_LIMIT`), as a
+  backstop. A toolchain that starts emitting wasm GC for an app meets this
+  first.
 - **Traps.** A trap's backtrace is V8's stack (`--stack-trace-limit=100`);
   `BE3_PERF_MAP` turns on `--perf-basic-prof` (guides/performance.md).
 
