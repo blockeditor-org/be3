@@ -221,6 +221,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   doesn't know yet as loaded. Done: the race found and fixed in the app, with
   frames delayed a frame in a test to show it.
 
+- **A note made offline, once under the render-props branch's tests.**
+  `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
+  failed once in a `./scripts/test //crates/be-host-tests:test` run and passed
+  on the rerun; its output was not kept. Done: run it under `stress` until it
+  fails, and fix the cause its output shows at its source, with a test that
+  shows it.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
@@ -283,3 +290,18 @@ Depends on #686 (session catch-ups replaced by server ordering).
   once the app knows the new child (`gift-missed`) and so avoids it. Done: a
   view given the keyboard early focuses its field once it is up, shown by a
   host test that gives a text's view the keyboard before its content arrives.
+
+## 21. Component macro
+
+- **Internal trait names in a prop's error notes.** A value a children slot or
+  an exact prop does not take is reported with the right headline and label,
+  but rustc's "required for ..." notes under it name `Exact`, `IntoExactProp`,
+  `TakesChildren` and `ChildShape` (`a_frame_takes_one_child`,
+  `a_loading_hands_its_content_no_value` in compile_fail/beui). Done: those
+  notes name only the declared prop type and the slot's own trait, or are
+  suppressed, shown by the compile_fail pins' full text.
+- **Children written as an array.** `Children<T>`'s `Takes` has no impl for
+  `[ChildSegment<T>; N]`, which the old `Into<Children>` setter took through
+  `From`, so a hand-written `children={[..]}` fails (`view!` never writes one).
+  Done: `Children<T>` takes an array of segments again, shown by a beui-tree
+  test, or the guide says to build `Children` from the array.
