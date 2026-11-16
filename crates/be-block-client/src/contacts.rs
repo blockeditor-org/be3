@@ -18,6 +18,9 @@ use crate::{ClientError, connection::Connection};
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Contact {
     pub account: Uuid,
+    /// The name and email on the card this account verified, never the server's row, which
+    /// could name one contact as another (plans/crypto_audit.md, 5). A contact whose card has
+    /// not opened keeps the row's, and has no key to seal to.
     pub email: String,
     pub display_name: String,
     /// The identity key verified through a contact link, or a key change sealed with the one
@@ -25,6 +28,61 @@ pub struct Contact {
     pub public: Option<RecoveryPublic>,
     /// The signing key verified with it.
     pub signing: Option<SigningPublic>,
+    /// When this account verified the card or last followed a key change (`OwnContact`); 0
+    /// while unverified.
+    pub verified: u64,
+    /// Whether the server served an older record of this contact than this device had seen,
+    /// as it would to bring back a key the contact replaced: the device kept its own.
+    pub rolled_back: bool,
+}
+
+impl Contact {
+    /// The record this device pins for the contact, when verified.
+    pub fn record(&self) -> Option<OwnContact> {
+        Some(OwnContact {
+            card: ContactCard {
+                account: self.account.into_bytes(),
+                public: self.public?,
+                signing: self.signing?,
+                display_name: self.display_name.clone(),
+                email: self.email.clone(),
+            },
+            verified: self.verified,
+        })
+    }
+}
+
+/// A contact as this account verified it, sealed to itself: the card, and when it was verified
+/// or its key last changed, a sequence that only grows. The server keeps it but cannot make one;
+/// what it can do is serve an older one, so each device pins the newest it has seen and refuses
+/// any older (plans/crypto_audit.md, 4).
+#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct OwnContact {
+    pub card: ContactCard,
+    pub verified: u64,
+}
+
+impl OwnContact {
+    /// A record of `card` verified now, after any record of it with `verified` `after`.
+    pub fn new(card: ContactCard, after: u64) -> Self {
+        let now = Uuid::now_v7()
+            .get_timestamp()
+            .map_or(0, |time| time.to_unix().0);
+        Self {
+            card,
+            verified: now.max(after.saturating_add(1)),
+        }
+    }
+
+    pub fn seal(&self, identity: &RecoverySecret) -> Vec<u8> {
+        identity.seal_own(&postcard::to_stdvec(self).expect("a contact record always encodes"))
+    }
+
+    /// The record sealed in `sealed`, if it opens and names `account`.
+    pub fn open(identity: &RecoverySecret, sealed: &[u8], account: Uuid) -> Option<Self> {
+        let record: Self = postcard::from_bytes(&identity.open_own(sealed).ok()?).ok()?;
+        (record.card.account == account.into_bytes()).then_some(record)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -161,20 +219,35 @@ fn tampered() -> ClientError {
     )
 }
 
+/// The account's contacts as the server lists them, each checked against `pinned`, the newest
+/// record of it this device has seen: an older record the server serves is refused for the
+/// pinned one, and the contact listed as rolled back for as long as the server serves it (only
+/// a server that misbehaves does, so writing the pinned one back would change nothing). Key
+/// changes are followed from the record kept.
 pub async fn contacts(
     connection: &Arc<Connection>,
     account: Uuid,
     identity: &RecoverySecret,
+    pinned: &HashMap<Uuid, OwnContact>,
 ) -> Result<Vec<Contact>, ClientError> {
     let contacts = client::contacts::list_contacts(connection).await??;
     let mut held = None;
     let mut listed = Vec::with_capacity(contacts.len());
     for row in contacts {
-        let mut card = ContactCard::open_own(identity, &row.sealed)
-            .ok()
-            .filter(|card| card.account == row.account.into_bytes());
-        if let Some(verified) = &mut card
-            && let Some(changed) = changed_key(account, identity, verified, &row.changes)
+        let served = OwnContact::open(identity, &row.sealed, row.account);
+        let pin = pinned.get(&row.account);
+        let rolled_back = pin.is_some_and(|pin| {
+            served
+                .as_ref()
+                .is_none_or(|served| served.verified < pin.verified)
+        });
+        let mut record = match rolled_back {
+            true => pin.cloned(),
+            false => served,
+        };
+        let mut put = false;
+        if let Some(record) = &mut record
+            && let Some(changed) = changed_key(account, identity, &record.card, &row.changes)
         {
             if held.is_none() {
                 held = Some(sealed_to_me(connection).await?);
@@ -183,21 +256,39 @@ pub async fn contacts(
                 connection,
                 account,
                 identity,
-                verified,
+                &record.card,
                 held.as_deref().unwrap_or_default(),
             )
             .await?;
-            verified.public = changed.public;
-            verified.signing = changed.signing;
-            client::contacts::put_contact(connection, row.account, verified.seal_own(identity))
+            let mut card = record.card.clone();
+            card.public = changed.public;
+            card.signing = changed.signing;
+            *record = OwnContact::new(card, record.verified);
+            put = true;
+        }
+        if let Some(record) = record.as_ref().filter(|_| put) {
+            client::contacts::put_contact(connection, row.account, record.seal(identity))
                 .await??;
         }
-        listed.push(Contact {
-            public: card.as_ref().map(|card| card.public),
-            signing: card.map(|card| card.signing),
-            account: row.account,
-            email: row.email,
-            display_name: row.display_name,
+        listed.push(match record {
+            Some(record) => Contact {
+                account: row.account,
+                email: record.card.email,
+                display_name: record.card.display_name,
+                public: Some(record.card.public),
+                signing: Some(record.card.signing),
+                verified: record.verified,
+                rolled_back,
+            },
+            None => Contact {
+                account: row.account,
+                email: row.email,
+                display_name: row.display_name,
+                public: None,
+                signing: None,
+                verified: 0,
+                rolled_back: false,
+            },
         });
     }
     Ok(listed)
@@ -290,8 +381,8 @@ pub fn new_identity(
         .iter()
         .filter(|held| held.kind == OwnKind::Contact)
         .filter_map(|held| {
-            let card = ContactCard::open_own(old, &held.sealed).ok()?;
-            (card.account == held.id.into_bytes()).then_some((
+            let card = OwnContact::open(old, &held.sealed, held.id)?.card;
+            Some((
                 held.id,
                 Party {
                     account: card.account,
@@ -477,7 +568,7 @@ pub async fn accept_link(
         connection,
         link.id,
         me.seal(code, CardRole::Accepter),
-        card.seal_own(identity),
+        OwnContact::new(card.clone(), 0).seal(identity),
         key,
     )
     .await??;
@@ -506,7 +597,7 @@ pub async fn finish_links(
             let put = crate::ask(client::contacts::put_contact(
                 connection,
                 accepter,
-                card.seal_own(identity),
+                OwnContact::new(card.clone(), 0).seal(identity),
             ))
             .await;
             match put {

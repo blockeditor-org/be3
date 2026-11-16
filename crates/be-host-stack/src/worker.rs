@@ -3156,7 +3156,7 @@ async fn create_agent(
         name,
         public.0,
         secret.signing().0,
-        me.seal_own(&secret),
+        be_block_client::contacts::OwnContact::new(me.clone(), 0).seal(&secret),
         be_block_client::contacts::seal_pin(
             &secret,
             organization,
@@ -3179,7 +3179,7 @@ async fn create_agent(
         ask(client::contacts::put_contact(
             &peer.connection(),
             agent.account,
-            card.seal_own(identity),
+            be_block_client::contacts::OwnContact::new(card.clone(), 0).seal(identity),
         ))
         .await?;
         if let Some(block) = bound_to {

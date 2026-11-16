@@ -62,7 +62,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
                 peer,
                 link,
                 other_card.seal(&code, CardRole::Accepter),
-                opened.seal_own(&other_secret),
+                other_secret.seal_own(&opened.encode()),
                 Vec::new(),
             )
         })
@@ -86,7 +86,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert_eq!(theirs.len(), 1);
     assert_eq!(theirs[0].account, owner_id);
     assert_eq!(
-        ContactCard::open_own(&other_secret, &theirs[0].sealed).unwrap(),
+        ContactCard::decode(&other_secret.open_own(&theirs[0].sealed).unwrap()).unwrap(),
         owner_card
     );
     let mine = owners_device.contacts().await;
@@ -109,7 +109,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert_eq!(accepted, other_card);
     let response = owners_device
         .call(|peer| {
-            client::contacts::put_contact(peer, other_id, accepted.seal_own(&owner_secret))
+            client::contacts::put_contact(peer, other_id, owner_secret.seal_own(&accepted.encode()))
         })
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
@@ -122,7 +122,7 @@ async fn contacts_are_made_by_a_link_and_finished_by_its_owner() {
     assert!(links.is_empty());
     let mine = owner.contacts().await;
     assert_eq!(
-        ContactCard::open_own(&owner_secret, &mine[0].sealed).unwrap(),
+        ContactCard::decode(&owner_secret.open_own(&mine[0].sealed).unwrap()).unwrap(),
         other_card
     );
 

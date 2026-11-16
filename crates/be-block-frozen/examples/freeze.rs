@@ -417,7 +417,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         scene::AGENT_NAME.into(),
         agent_public.0,
         agent_phrase.secret().signing().0,
-        owner_card.seal_own(&agent_phrase.secret()),
+        be_block_client::contacts::OwnContact::new(owner_card.clone(), 0)
+            .seal(&agent_phrase.secret()),
         be_block_client::contacts::seal_pin(
             &agent_phrase.secret(),
             organization,
@@ -436,7 +437,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     ask(client::contacts::put_contact(
         &owner.connection(),
         agent.account,
-        agent_card.seal_own(owner.keys().identity()),
+        be_block_client::contacts::OwnContact::new(agent_card, 0).seal(owner.keys().identity()),
     ))
     .await?;
     owner.refresh_contacts().await.map_err(text)?;

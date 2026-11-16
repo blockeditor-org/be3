@@ -500,13 +500,6 @@ impl ContactCard {
         Self::decode(&plain)
     }
 
-    pub fn seal_own(&self, secret: &RecoverySecret) -> Vec<u8> {
-        secret.seal_own(&self.encode())
-    }
-
-    pub fn open_own(secret: &RecoverySecret, sealed: &[u8]) -> Result<Self, KeyError> {
-        Self::decode(&secret.open_own(sealed)?)
-    }
 }
 
 impl fmt::Display for InviteCode {

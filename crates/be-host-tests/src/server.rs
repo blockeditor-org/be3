@@ -103,6 +103,16 @@ impl Server {
         }
     }
 
+    /// Has the server serve `of` a record of `contact` that does not open, as one rolling the
+    /// contact's key back would serve an older one: what a device that saw the newer one
+    /// refuses (plans/crypto_audit.md, 4).
+    pub fn spoil_contact(&self, of: &Account, contact: &Account) {
+        self.inner
+            .runtime
+            .block_on(self.inner.store.put_contact(of.id, contact.id, vec![7; 64]))
+            .unwrap_or_else(|error| panic!("the test server could not change the contact: {error}"));
+    }
+
     /// A network of its own for one device, carrying its connections to the server.
     pub(crate) fn relay(&self) -> Arc<Relay> {
         let relay = Arc::new(Relay::start(self.inner.running.address));
