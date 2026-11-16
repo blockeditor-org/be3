@@ -40,6 +40,8 @@ pub enum Record {
     Grant(Grant),
     /// Who administers the organization, in its log.
     Administrator(Administrator),
+    /// Who is a member of the organization, in its log.
+    Member(Member),
 }
 
 /// A member's access to a block, from least to most (`be_block_graph::Access`).
@@ -83,6 +85,24 @@ pub struct Administrator {
     pub account: [u8; 16],
     pub identity: PublicIdentity,
     pub administrator: bool,
+}
+
+/// Whether `account`, with the keys its signer verified, is a member of the organization: a
+/// person an administrator signed in (from the invitation they made), or an agent the member
+/// signing made (`agent`), whose maker may sign it out again.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Member {
+    pub account: [u8; 16],
+    pub identity: PublicIdentity,
+    pub member: bool,
+    pub agent: bool,
+}
+
+/// A member as the organization's log names them: their keys, and for an agent, its maker.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Named {
+    pub identity: PublicIdentity,
+    pub maker: Option<[u8; 16]>,
 }
 
 /// An account's move to new keys, endorsed by the key it retires and signed (as an entry) by
@@ -320,6 +340,8 @@ pub struct Checked {
     pub grants: HashMap<[u8; 16], (Level, PublicIdentity)>,
     /// For an organization's log: its administrators, with their keys.
     pub administrators: HashMap<[u8; 16], PublicIdentity>,
+    /// For an organization's log: its members other than through administering it.
+    pub members: HashMap<[u8; 16], Named>,
 }
 
 /// Checks the `kind` log of `log` from its root, which must be the one `pinned`, to its head:
@@ -385,6 +407,12 @@ pub fn check_log(
                     .iter_mut()
                     .map(|(account, (_, identity))| (account, identity))
                     .chain(state.administrators.iter_mut())
+                    .chain(
+                        state
+                            .members
+                            .iter_mut()
+                            .map(|(account, named)| (account, &mut named.identity)),
+                    )
                 {
                     if *account == entry.signer {
                         *identity = retirement.new;
@@ -443,6 +471,49 @@ pub fn check_log(
                     }
                 }
             }
+            Record::Member(member) => {
+                let signed = own.is_some_and(|signing| entry.signed_by(&signing));
+                let administrator = state.administrators.contains_key(&entry.signer);
+                // A person is signed in only by an administrator; an agent by a member who is
+                // no agent, its maker; a member out by an administrator, or an agent by its maker.
+                let maker = state
+                    .members
+                    .get(&member.account)
+                    .and_then(|named| named.maker);
+                let person = state
+                    .members
+                    .get(&entry.signer)
+                    .is_some_and(|named| named.maker.is_none());
+                let may = match (member.member, member.agent) {
+                    (true, false) => administrator,
+                    (true, true) => {
+                        (administrator || person)
+                            && !state.members.contains_key(&member.account)
+                            && !state.administrators.contains_key(&member.account)
+                    }
+                    (false, _) => administrator || maker == Some(entry.signer),
+                };
+                if kind != LogKind::Organization || !signed || !may {
+                    return Err(KeyError::Record);
+                }
+                state
+                    .signers
+                    .insert(member.account, member.identity.signing);
+                match member.member {
+                    true => {
+                        state.members.insert(
+                            member.account,
+                            Named {
+                                identity: member.identity,
+                                maker: member.agent.then_some(entry.signer),
+                            },
+                        );
+                    }
+                    false => {
+                        state.members.remove(&member.account);
+                    }
+                }
+            }
         }
         state.head = entry.hash();
     }
@@ -467,6 +538,15 @@ pub fn check_log_as_of(
 }
 
 impl Checked {
+    /// `account`'s keys, if the organization's log names them a member or an administrator:
+    /// those an escrow wrap from them is opened with.
+    pub fn member(&self, account: [u8; 16]) -> Option<PublicIdentity> {
+        self.administrators
+            .get(&account)
+            .copied()
+            .or_else(|| self.members.get(&account).map(|named| named.identity))
+    }
+
     /// `account`'s signing key, if it manages what the log is of: Manage on a block, or
     /// administering an organization.
     pub fn manager(&self, kind: LogKind, account: [u8; 16]) -> Option<SigningPublic> {
