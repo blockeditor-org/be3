@@ -20,14 +20,14 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
         .unwrap()
         .account;
     let promoted = owner
-        .call(|peer| client::members::set_role(peer, account, OrganizationRole::Administrator))
+        .set_role(account, OrganizationRole::Administrator)
         .await;
     assert!(matches!(promoted, Ok(())), "{promoted:?}");
     deputy.open(organization).await;
     let link = deputy.invite(organization).await.unwrap();
     // Demoted, the deputy's outstanding invitation is revoked with it.
     let demoted = owner
-        .call(|peer| client::members::set_role(peer, account, OrganizationRole::Editor))
+        .set_role(account, OrganizationRole::Editor)
         .await;
     assert!(matches!(demoted, Ok(())), "{demoted:?}");
     let mut invited = harness.member("invited@example.com").await;

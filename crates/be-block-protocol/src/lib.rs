@@ -315,6 +315,8 @@ pub struct EscrowKey {
     pub epoch: u64,
     pub public: [u8; 32],
     pub signing: [u8; 32],
+    /// The administrator who made it, whose identity key signs `chained`.
+    pub maker: Uuid,
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
 }
@@ -328,10 +330,13 @@ impl EscrowKey {
         postcard::from_bytes(bytes).ok()
     }
 
+    /// What its maker signs: the key, chained to the epoch before (`previous`, nil for the
+    /// first).
     pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
         [
-            b"be3.escrow.chain.v1".as_slice(),
+            b"be3.escrow.chain.v2".as_slice(),
             organization.as_bytes(),
+            self.maker.as_bytes(),
             previous.as_bytes(),
             self.id.as_bytes(),
             &self.epoch.to_be_bytes(),

@@ -5,31 +5,19 @@ use be_block_keys::EscrowSecret;
 use be_block_protocol::{EscrowKey, WrappedBy};
 
 fn substitute(harness: &Harness, organization: Uuid, epoch: u64, previous: Uuid) -> EscrowKey {
+    // Made by an account of the server's, which no organization's log names.
+    let maker = be_block_keys::RecoveryPhrase::generate().secret();
     let secret = EscrowSecret::generate();
     let mut escrow = EscrowKey {
         id: Uuid::new_v4(),
         epoch,
         public: secret.public().0,
         signing: secret.signing(),
+        maker: Uuid::new_v4(),
         signature: Vec::new(),
     };
-    escrow.signature = secret.sign(&escrow.chained(organization, previous));
-    harness
-        .database()
-        .execute(
-            "INSERT INTO keys
-                (organization_id, id, block_id, kind, epoch, created, public, signing, signature)
-             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6)",
-            rusqlite::params![
-                organization.to_string(),
-                escrow.id.to_string(),
-                i64::try_from(epoch).unwrap(),
-                escrow.public.to_vec(),
-                escrow.signing.to_vec(),
-                escrow.signature
-            ],
-        )
-        .unwrap();
+    escrow.signature = maker.sign_escrow(&escrow.chained(organization, previous));
+    put_escrow(harness, organization, &escrow);
     escrow
 }
 

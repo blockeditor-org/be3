@@ -785,6 +785,7 @@ impl ServerStore {
         identity: Identity,
         account: Uuid,
         role: OrganizationRole,
+        signed: Option<Vec<u8>>,
     ) -> Result<(), ServerError> {
         require_administrator(identity)?;
         let organization = identity.organization;
@@ -803,7 +804,34 @@ impl ServerStore {
             if current == OrganizationRole::Administrator {
                 refuse_last_administrator(database, organization)?;
             }
+            let administrator = role == OrganizationRole::Administrator;
+            let changes_administrators = administrator != (current == OrganizationRole::Administrator);
+            let logged = !crate::access::organization_log(database, organization)?.is_empty();
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            match (changes_administrators && logged, signed) {
+                (true, Some(signed)) => crate::access::append_administrator(
+                    &transaction,
+                    organization,
+                    identity.account,
+                    account,
+                    administrator,
+                    &signed,
+                )?,
+                (true, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "an administrator is made or unmade by the record an administrator signed"
+                            .into(),
+                    ));
+                }
+                (false, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "only making or unmaking an administrator takes a record".into(),
+                    ));
+                }
+                (false, None) => {}
+            }
             transaction.execute(
                 "UPDATE memberships SET role = ?3 WHERE organization_id = ?1 AND account_id = ?2",
                 params![

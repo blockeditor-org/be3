@@ -111,6 +111,7 @@ mod an_administrators_device_shares_the_settings_with_the_server_again_when_it_c
 mod an_artifact_is_a_backref_of_the_block_it_describes;
 mod an_edit_the_server_kept_without_answering_settles_once_another_device_builds_on_it;
 mod an_editor_rotates_a_workspace_a_reader_was_taken_off;
+mod an_escrow_key_a_demoted_administrator_makes_is_refused;
 mod an_escrow_key_the_server_puts_in_place_is_refused;
 mod an_exported_artifact_imports_pointing_to_its_imported_source;
 mod an_image_round_trips_without_being_re_encoded;
@@ -509,3 +510,25 @@ fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option
 
 /// The build of a block's type the test peers run.
 const BUILD: be_block_store::Hash = be_block_store::Hash::from_bytes([3; 32]);
+
+/// Puts `escrow` in the organization's chain straight into the server's database, as a server
+/// that makes one up would.
+fn put_escrow(harness: &Harness, organization: Uuid, escrow: &be_block_protocol::EscrowKey) {
+    harness
+        .database()
+        .execute(
+            "INSERT INTO keys
+                (organization_id, id, block_id, kind, epoch, created, public, signing, maker, signature)
+             VALUES (?1, ?2, ?1, 'escrow', ?3, 0, ?4, ?5, ?6, ?7)",
+            rusqlite::params![
+                organization.to_string(),
+                escrow.id.to_string(),
+                i64::try_from(escrow.epoch).unwrap(),
+                escrow.public.to_vec(),
+                escrow.signing.to_vec(),
+                escrow.maker.to_string(),
+                escrow.signature
+            ],
+        )
+        .unwrap();
+}

@@ -1257,11 +1257,15 @@ impl Client {
                 reply,
                 account,
                 role,
+                signed,
             } => {
                 let set = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    connection.store.set_role(identity, account, role).await?;
+                    connection
+                        .store
+                        .set_role(identity, account, role, signed)
+                        .await?;
                     if account != identity.account {
                         connection
                             .hub

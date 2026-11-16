@@ -1536,6 +1536,55 @@ impl TestClient {
             .await
     }
 
+    /// Sets `account`'s role as a device does (`Peer::set_role`): making or unmaking an
+    /// administrator of an organization with a log carries the record this client's test keys
+    /// sign, naming the account's.
+    async fn set_role(
+        &mut self,
+        account: Uuid,
+        role: be_block_protocol::OrganizationRole,
+    ) -> Result<(), Error> {
+        use be_block_keys::{Administrator, Entry, LogKind, Record};
+        let entries: Vec<Entry> = self
+            .call(client::organizations::get_organization_log)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|entry| Entry::decode(entry).ok())
+            .collect();
+        let administrator = role == be_block_protocol::OrganizationRole::Administrator;
+        let named = entries.first().and_then(|root| {
+            be_block_keys::check_log(
+                LogKind::Organization,
+                root.log,
+                root.hash(),
+                &entries,
+                &|_, _| None,
+            )
+            .ok()
+            .map(|checked| checked.administrators.contains_key(&account.into_bytes()))
+        });
+        let signed = match (named, self.account) {
+            (Some(named), Some(me)) if named != administrator => Some(
+                Entry::sign(
+                    &test_secret(me),
+                    me.into_bytes(),
+                    entries[0].log,
+                    entries.last().map(Entry::hash),
+                    Record::Administrator(Administrator {
+                        account: account.into_bytes(),
+                        identity: test_secret(account).identity(),
+                        administrator,
+                    }),
+                )
+                .encode(),
+            ),
+            _ => None,
+        };
+        self.call(|peer| client::members::set_role(peer, account, role, signed.clone()))
+            .await
+    }
+
     /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
     /// client's test keys and naming the grantee's: as the block's manager, else as an
     /// administrator of the organization. None for a standing grant, a revocation the log does

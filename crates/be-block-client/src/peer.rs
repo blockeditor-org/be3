@@ -593,6 +593,7 @@ impl<S: ObjectStore> Peer<S> {
             &pinned,
         ));
         let made = escrows.is_empty();
+        self.learn_administrators().await;
         self.keys.set_escrows(escrows);
         self.adopt_contacts(&verified);
         self.persist_session()?;
@@ -697,6 +698,31 @@ impl<S: ObjectStore> Peer<S> {
     pub(crate) fn adopt_escrows(&self, chain: Vec<EscrowKey>) {
         self.keys.set_escrows(chain);
         let _ = self.persist_session();
+    }
+
+    /// Reads the organization's administrators from its log, checked from the root this account
+    /// pinned, for the escrow keys they make (`verify_escrow`). None are known when the log does
+    /// not check, so no newer escrow key is taken.
+    pub(crate) async fn learn_administrators(&self) {
+        let administrators = self.organization_log().await.ok().and_then(|entries| {
+            let pinned = self.keys.organization_root()?;
+            let checked = be_block_keys::check_log(
+                be_block_keys::LogKind::Organization,
+                self.organization.into_bytes(),
+                pinned,
+                &entries,
+                &|_, _| None,
+            )
+            .ok()?;
+            Some(
+                checked
+                    .administrators
+                    .iter()
+                    .map(|(account, identity)| (Uuid::from_bytes(*account), identity.signing))
+                    .collect(),
+            )
+        });
+        self.keys.set_administrators(administrators);
     }
 
     pub(crate) fn adopt_pinned(&self, pinned: crate::contacts::Pinned) {
