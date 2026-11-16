@@ -361,6 +361,14 @@ impl EditorSession {
         self.editor.connect(block_id);
     }
 
+    /// A host component's session: its block, with no screen ever given it.
+    pub(crate) fn connect_host(&mut self, block_id: Uuid, block_type: Uuid) {
+        self.host.set_block_type(block_type);
+        self.own_block = Some(block_id);
+        self.link.connect(block_id, block_type);
+        self.editor.connect_host(block_id);
+    }
+
     pub(crate) fn connect_picker(&mut self, picker: crate::host::PickerRequest) {
         self.host.set_editable(true);
         self.host.set_picker(picker);

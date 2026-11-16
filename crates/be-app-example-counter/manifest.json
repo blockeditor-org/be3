@@ -27,5 +27,11 @@
       "module": "counter_types.wasm"
     }
   },
+  "hosts": {
+    "counter_host": {
+      "id": "6b1f0c2e-8d4a-4e7b-9c3f-2a5d7e9b1c04",
+      "edits": "636f756e-7465-722d-626c-6f636b2d0001"
+    }
+  },
   "entry_point": "counter.wasm"
 }

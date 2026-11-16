@@ -35,6 +35,8 @@ pub(crate) struct BeuiInstance<A: BeuiRoot> {
     parts: Rc<Parts<A>>,
     keeps_accessibility: bool,
     shown: Option<(Rc<Module>, EditorInstanceId)>,
+    /// A host component's run (`BeuiRoot::host`), kept for as long as it is open.
+    hosting: Option<beui::reactive::Scope>,
 }
 
 struct Parts<A: BeuiRoot> {
@@ -541,6 +543,7 @@ impl<A: BeuiRoot> BeuiInstance<A> {
             host,
             keeps_accessibility: false,
             shown: None,
+            hosting: None,
         }
     }
 }
@@ -590,6 +593,16 @@ impl<A: BeuiRoot> Instance for BeuiInstance<A> {
         if rebuilt {
             self.parts.rebuild();
         }
+    }
+
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+        let Some(editor) = self.parts.views.borrow().editor.as_deref().copied() else {
+            return;
+        };
+        let scope = beui::reactive::Scope::root();
+        scope.run(|| A::host(editor));
+        self.hosting = Some(scope);
     }
 
     fn connect_creation(&mut self, template: String) {

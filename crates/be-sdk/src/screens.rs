@@ -572,7 +572,7 @@ impl Screens {
             // screen, so it lays out and paints nothing.
             OpeningKind::Host(open) => {
                 session.set_editable(open.editable);
-                session.connect(
+                session.connect_host(
                     Uuid::from_bytes(open.block_id),
                     Uuid::from_bytes(open.block_type),
                 );
