@@ -67,6 +67,17 @@ Fixed items are removed as they land.
   demotion, discards, is made an editor again, reopens and counts only what
   was sent.
 
+- **A seal of its own during a join that holds kept edits.** `rejoined` seals
+  and waits only for a join begun on a settled made-up session
+  (`Open::joined_settled`). One that joins holding kept or doubtful edits takes
+  the server's journal as it is; if its made-up session sealed on its own while
+  the join was on its way (its seal timer, a close), that commit is pending in
+  the outbox and the replica reopens beside it, as the settled case did before
+  `sealed_joining`. It is expected to resolve once the drain sends the commit
+  and the replica merges it, with the sealed edits given up and not given again.
+  Done: a be-host-stack test that reopens a block after a crash, has its
+  made-up session seal while the join is held, and counts exactly what was made.
+
 ## 9. Version control's caches
 
 - **Walks that read thinning as a root.** Depends on #686, which rewrites
