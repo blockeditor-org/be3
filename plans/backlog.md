@@ -214,8 +214,8 @@ Depends on #686 (session catch-ups replaced by server ordering).
   frames delayed a frame in a test to show it.
 - **A peer's edit during a gesture, once in a stack suite.**
   `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it`
-  (be-host-stack) failed once in 0.22 s in a full run of the suite on the
-  local-machine runner, and passed alone. Done: the cause found (run it under
+  (be-host-stack) failed once in 0.22 s in a full `./scripts/test` of the
+  suite, and passed alone. Done: the cause found (run it under
   `stress` with the suite's load) and fixed at its source, with a test that
   shows it.
 
