@@ -20,6 +20,9 @@ fn repositories(shared: &Shared) -> Vec<Uuid> {
         .collect()
 }
 
+/// A fork reads and builds on history sealed under its upstream's keys, which it reaches by
+/// hash from heads it checked (guides/blocks/keys.md, Keys are bound to blocks where the server
+/// points).
 #[test]
 fn a_fork_pulls_and_pushes_through_its_upstream() {
     let harness = Harness::start();
