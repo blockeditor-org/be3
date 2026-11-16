@@ -12,13 +12,21 @@ fn an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land() {
     add(block, 1);
     wait_for_count(block, 1);
     flush_and_send();
+    // Edits as an editor makes them, which undo steps back through: the host's own (`add`) are
+    // not this peer's to undo.
+    let mut editor = Editor::<CounterContent>::attach(block);
+    let mut edit = |by: i64| {
+        editor.send(be_sdk_type_guest::editor::FromEditor::Operate(
+            CounterContent::encode_operation(&Counter::add(by)),
+        ));
+    };
 
     harness.relay().hold_answers(true);
-    add(block, 2);
+    edit(2);
     wait_for_count(block, 3);
     undo(block);
     wait_for_count(block, 1);
-    add(block, 5);
+    edit(5);
     wait_for_count(block, 6);
     wait_until("kept the edits not heard ordered", |shared| {
         shared
@@ -30,6 +38,7 @@ fn an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land() {
 
     crash();
     platform::wait_for_stopped();
+    drop(editor);
     harness.relay().hold_answers(false);
 
     harness.connect();
