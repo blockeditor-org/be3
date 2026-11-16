@@ -121,9 +121,12 @@ reads, and a second administrator writes, the policies block under settings).
   and be-server's backups draw it and bind their context there. One format,
   three callers that differ only in what they bind.
 
-Order: section 1 (built), then the per-block check of section 3 (opening and
-the current key), then section 2 with the associated data, nonce and one seal
-format, since both change what trust and opening mean.
+Order: section 1 (built). Then the per-block check of section 3, in two
+pieces: first the current key (`sealing_key`) and every read naming its block,
+with version control's crossings fixed as above (the larger part: resealing
+snapshots, the upstream chain, reused parts naming their block); then section 2
+with the associated data, nonce and one seal format, since both change what
+trust and opening mean.
 
 What stays open: keys a device opens without trust (through escrow, whose
 seals are anonymous, or the server's seal of the settings key) still read
@@ -134,11 +137,55 @@ key) closes it; that goes with plans/signed_access.md's administrator records.
 
 ## Reads across blocks
 
-(Filled in from the inventory of every read of sealed objects: each names the
-block it reads, or reseals.)
+Every read of sealed objects, from the Peer entry points (`read_manifest`,
+`load_manifest`, `load_first_part`, `read_part`, `read_span`, `load_commit`,
+`open_commit`, `objects_of`, `fetch_history`, `descends`, `merge_base`,
+`holds`, `behind`, `metadata_of`, `unseal`, `open_journal`), takes the block it
+reads; nearly every caller has it at hand. Those that don't cross blocks:
+metadata, relays, the journal, notifications (whose block check moves before
+decrypting), revisions (old epochs of the same block), search (an index reads
+only its own parts; indexed hashes are identifiers), be-block-sync, the tracker
+tools, the server's reads of settings and policies, import (fresh keys),
+export, and `duplicate`, which reads the source's plaintext and publishes it
+under the copy. Rotation keeps a block's old data keys, so `Vault::reseal`
+stays within the block.
 
-- `duplicate` (be-host-stack worker.rs `Command::Duplicate`) reads the source's
-  plaintext and publishes it under the copy: it reseals, nothing crosses.
+What crosses today, all through version control and resealing:
+
+1. **Tree entries** (`be_block_vcs::Entry.content`): a repository's tree is
+   sealed under its key, but each entry's manifest under the working block's
+   key (version.rs `working`) or a checkout's (`merge_content`), and
+   `merge_content`, `Reach::merge`, `merge_over`, `materialize`/`publish`,
+   `version_block`, `tree_objects` and `reachable` read them. Fix: reseal the
+   changed entries under the repository's key when a snapshot is written
+   (`write_snapshot`, which already finds them through `tree_objects`), and
+   write merge results under it, so a repository reads only its own key. A
+   checkout publishing a snapshot already downloads and reseals across keys
+   (guides/blocks/version_control.md's "without downloading" holds only for
+   one key, and is corrected).
+2. **History across fork, pull and push**: a repository's commits name
+   upstream's or a fork's, whose ids are hashes of their sealed bytes, so they
+   can't be resealed. Fix: a repository's commit reads accept the keys of the
+   repository and its upstream chain (the walks, `CommitStore::get`,
+   `is_ancestor`, `common_ancestor` and `MergeBaseWalk`, take the blocks
+   allowed), and a repository keeps the upstreams it took commits from even
+   after `upstream` changes.
+3. **Reused parts** (`Part::Reused`, resealed by `Vault::write` whatever key
+   they were under): a part names the block it is from, and the vault refuses
+   one from a block not allowed. This also stops a type module's `Publish` or
+   `Stash` from resealing another block's part into its own, which it can
+   today.
+4. **Merge sides** (be-block-type-host `merge`, modules.rs `Kind::load`,
+   `Scope`/`PartRead`, version's `Reach::merge`): sides are bare manifests;
+   they become `(block, manifest)`, and `Scope` records the block of each part
+   it admits.
+
+Keys that are not a block's data keys stay off the per-block open: scope keys
+wrap through their own path (`KeyBook::wrap`/`unwrap`), and escrow secrets,
+which live in the same keyring as content keys today and so would open an
+object whose header names one, move out of it. Caches of opened values keyed
+by hash alone (`Peer.whole`, version's commit and tree cache, `Vault.sealed`)
+become keyed by block and hash, or they would bypass the check.
 
 ## Tests (each fails today)
 
