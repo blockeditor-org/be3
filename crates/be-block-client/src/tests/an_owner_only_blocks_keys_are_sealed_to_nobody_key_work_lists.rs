@@ -4,7 +4,8 @@ use be_block_protocol::{OrganizationRole, Unsealed};
 use super::*;
 
 /// An owner-only block is its author's alone and never escrowed, so its keys are sealed to
-/// nobody else, even another administrator the server lists them as owed to.
+/// nobody else, even another administrator the server lists them as owed to, and wrapped under
+/// no escrow key, even listed as unescrowed.
 #[tokio::test]
 async fn an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists() {
     let harness = Harness::start().await;
@@ -45,6 +46,7 @@ async fn an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists() {
             key,
             account: deputy.account(),
         });
+        work.unescrowed.push(key);
     }
     admin.tend_with(work).await.unwrap();
     let sealed: i64 = harness
@@ -60,4 +62,14 @@ async fn an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists() {
         )
         .unwrap();
     assert_eq!(sealed, 0, "an owner-only block's key was sealed to another account");
+    let escrowed: i64 = harness
+        .database()
+        .query_row(
+            "SELECT COUNT(*) FROM wrapped_keys WHERE key_id IN (?1, ?2)
+                AND wrapped_by IN (SELECT id FROM keys WHERE kind = 'escrow')",
+            rusqlite::params![scope.to_string(), data.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(escrowed, 0, "an owner-only block's key was escrowed");
 }
