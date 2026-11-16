@@ -273,7 +273,11 @@ the connection a stopping stack closed.
   they could land twice. Once joined, the order says which it holds, even after
   a seal trimmed the entries that held them: the journal's base and each reload
   carry each recent origin's highest `through` (`wire::BaseState`, sealed with
-  the rest of the base). Kept edits made before a restart the order had since
+  the rest of the base). Where the order took an edit twice anyway (its first
+  submission reached it unseen, from before a crash or past a join's journal,
+  and it was given again under a new counter), every replica passes over the
+  operation whose `through` its origin already reached, alike
+  (`Replica::held_again`). Kept edits made before a restart the order had since
   (`opening.kept-restart`, against the base's last restart) are dropped, each
   told to its editor as not sent: a restart, the last one out leaving included,
   makes every edit kept from before it fail visibly.
