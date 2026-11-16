@@ -89,10 +89,12 @@ mod a_small_edit_after_a_large_one_lands_in_order_when_the_holder_reads_late;
 mod a_snapshot_counts_an_editors_refused_operation;
 mod a_status_counts_the_local_edits_its_replica_took_since_it_opened;
 mod an_abandoned_lease_is_claimed;
+mod an_edit_given_again_with_the_submission_that_held_it_lands_once_when_both_reach_the_server;
 mod an_edit_is_lacking_until_the_server_holds_it;
 mod an_edit_kept_across_a_stop_made_before_a_restart_since_is_told_not_sent;
 mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_another_seals_it;
 mod an_edit_numbered_while_its_replica_was_deaf_lands_once_after_it_reopens;
+mod an_edit_still_unsent_when_its_replicas_reload_went_out_lands_after_a_crash;
 mod an_edit_whose_origin_aged_out_of_the_base_fails_as_possibly_sent;
 mod an_editor_is_not_told_again_a_snapshot_it_holds_when_its_replica_reopens;
 mod an_editor_joins_with_a_snapshot_and_follows_operations;
@@ -401,6 +403,7 @@ fn opening(
         kept_restart: 0,
         kept_through: 0,
         kept_submitted: 0,
+        kept_submissions: Vec::new(),
         head,
         session,
         journal: None,
@@ -468,6 +471,9 @@ struct Sim<C: LiveEdit + Clone + Default> {
     /// What the next `reopen` is told the host submitted for the device's origin
     /// (`opening.kept-submitted`).
     kept_submitted: u64,
+    /// What the next `reopen` is told earlier openings submitted of the edits given again
+    /// (`opening.kept-submissions`).
+    kept_submissions: Vec<be_sdk_type_api::KeptSubmission>,
     /// Submissions are numbered as a device offline numbers them: in its own order, which the
     /// server lacks, answered as kept and heard by the device alone.
     offline_submits: bool,
@@ -548,6 +554,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             stalled_submits: false,
             kept_opening: None,
             kept_submitted: 0,
+            kept_submissions: Vec::new(),
             offline_submits: false,
             order: Sequencer::starting(0),
             offline_order: None,
@@ -730,6 +737,7 @@ impl<C: LiveEdit + Clone + Default> Sim<C> {
             origin: self.devices[device].origin,
             taken_before: self.devices[device].taken_before,
             kept_submitted: std::mem::take(&mut self.kept_submitted),
+            kept_submissions: std::mem::take(&mut self.kept_submissions),
             journal,
             sealed_head,
             epoch: self.devices[device].status.epoch + 1,
