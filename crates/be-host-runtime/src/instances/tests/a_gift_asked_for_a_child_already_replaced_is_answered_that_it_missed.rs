@@ -19,7 +19,10 @@ fn a_gift_asked_for_a_child_already_replaced_is_answered_that_it_missed() {
     assert!(
         answered.iter().any(|message| matches!(
             message,
-            Outbound::Event(INSTANCE, be_sdk_api::app::EditorEvent::GiftMissed(ChildId(1)))
+            Outbound::Event(
+                INSTANCE,
+                be_sdk_api::app::EditorEvent::GiftMissed(ChildId(1))
+            )
         )),
         "the editor hears its gift missed: {answered:?}"
     );
