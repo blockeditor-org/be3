@@ -273,6 +273,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   key epochs), shown by a client test where a member is removed while another
   device writes offline and the removed member cannot open what it sends.
 
+- **A link's record below its own device's pin.** A record a contact link
+  makes follows the newest the server holds for that contact
+  (`contacts::served_verified`), not this device's own pin, so a server that
+  hides the newest record from the accepting device makes that device list its
+  own new link as an older key (flagged, never silent). Done: `accept_link`
+  and `finish_links` also start after the caller's pin, shown by a client test
+  where the server serves the accepting device an old record.
 - **A contact's name as they rename.** A contact's name and email are the
   card's from when the two connected (guides/blocks/keys.md, Contacts), so a
   contact who renames keeps the old name on their contacts' devices until they
