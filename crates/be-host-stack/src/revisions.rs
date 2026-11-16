@@ -89,7 +89,7 @@ pub(super) async fn load_child(
         }
         let head = summary.head.ok_or("This file has no saved content.")?;
         let commit = peer
-            .load_commit(head)
+            .load_head(source, head)
             .await
             .map_err(|error| error.to_string())?;
         let bytes = peer

@@ -2276,7 +2276,7 @@ async fn relist(
         let head = head_here(context.peer, parent).await?;
         let current = match head {
             Some(head) => {
-                let commit = context.peer.load_commit(head).await.map_err(failed)?;
+                let commit = context.peer.load_head(parent, head).await.map_err(failed)?;
                 Some(
                     context
                         .peer

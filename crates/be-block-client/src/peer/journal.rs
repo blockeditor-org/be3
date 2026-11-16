@@ -7,7 +7,7 @@ use be_block_protocol::{Journal, JournalBase, JournalEntry};
 use be_block_store::{Hash, ObjectStore};
 use uuid::Uuid;
 
-use super::{Peer, locked};
+use super::Peer;
 use crate::{ClientError, connection::Answer, refs::Until};
 
 impl<S: ObjectStore> Peer<S> {
@@ -142,17 +142,17 @@ impl<S: ObjectStore> Peer<S> {
     pub fn local_journal(&self, block: Uuid) -> Result<Option<Journal>, ClientError> {
         self.refs
             .journal(block)
-            .map(|journal| self.open_journal(journal))
+            .map(|journal| self.open_journal(block, journal))
             .transpose()
     }
 
-    /// Opens a sealed journal: its base state and each entry's payload.
-    pub fn open_journal(&self, journal: Journal) -> Result<Journal, ClientError> {
-        let vault = self.commits.vault();
+    /// Opens `block`'s sealed journal: its base state and each entry's payload, each sealed
+    /// under one of `block`'s keys (`Peer::open_for`).
+    pub fn open_journal(&self, block: Uuid, journal: Journal) -> Result<Journal, ClientError> {
         let open = |sealed: &[u8]| -> Result<Vec<u8>, ClientError> {
             match sealed.is_empty() {
                 true => Ok(Vec::new()),
-                false => vault.open(sealed).map_err(locked),
+                false => self.open_for(block, sealed).map_err(super::locked),
             }
         };
         Ok(Journal {

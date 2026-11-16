@@ -372,7 +372,7 @@ async fn on_the_server(
         .expect("the head is read")
         .expect("the block has a head");
     let name = peer
-        .metadata_of(head)
+        .metadata_of(block, head)
         .await
         .expect("the metadata is read")
         .get(&be_block_content::NAME);

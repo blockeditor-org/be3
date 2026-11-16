@@ -118,6 +118,9 @@ mod an_organization_whose_root_the_server_swaps_is_refused;
 mod an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server;
 mod an_owner_only_block_is_read_by_its_author_alone;
 mod another_blocks_key_named_as_current_is_refused;
+mod another_blocks_commit_served_as_a_head_is_refused;
+mod a_relay_sealed_under_another_blocks_key_is_refused;
+mod a_notification_sealed_under_another_blocks_key_is_refused;
 mod collecting_a_removed_members_settings_takes_what_only_they_read;
 mod contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase;
 mod contents_read_together_match_what_each_block_saved;
@@ -502,4 +505,22 @@ fn placed(id: u128, parent: BlockParent, revision: u64) -> be_block_protocol::Bl
 fn offline_ids(refs: &refs::Refs, listing: be_block_protocol::Listing) -> Option<Vec<Uuid>> {
     refs.cached_listing(listing)
         .map(|blocks| blocks.iter().map(|summary| summary.id).collect())
+}
+
+/// Two notes `peer` saved, each in a workspace of its own: one whose readers are many, say, and
+/// one whose readers are few. A server that holds both could serve what was sealed in the open
+/// one as the secret one's.
+async fn open_and_secret(peer: &Peer<MemoryStore>) -> (Uuid, Uuid) {
+    let mut notes = Vec::new();
+    for name in ["Shared", "Private"] {
+        let note = peer
+            .create::<be_type_text::TextContent>(BlockParent::Block(workspace(peer, name).await))
+            .await
+            .unwrap();
+        peer.save(note, &be_type_text::TextBlock::of(name), None)
+            .await
+            .unwrap();
+        notes.push(note);
+    }
+    (notes[0], notes[1])
 }
