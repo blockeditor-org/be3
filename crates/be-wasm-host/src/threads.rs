@@ -337,7 +337,8 @@ impl Spawner {
             match run {
                 Ok(()) => Ok(()),
                 Err(failure) => {
-                    // unsafe(ffi): the thread's isolate has stopped running the guest.
+                    // the thread's isolate has stopped running the guest.
+                    // unsafe(memory)
                     let state = unsafe { &mut *state };
                     Err(match (state.panicked.take(), state.fatal.take()) {
                         (Some(panicked), _) => panicked,
@@ -350,7 +351,8 @@ impl Spawner {
                 }
             }
         };
-        // unsafe(ffi): the isolate no longer runs, and nothing it holds reaches the State again.
+        // the isolate no longer runs, and nothing it holds reaches the State again.
+        // unsafe(memory)
         drop(unsafe { Box::from_raw(state) });
         entered
     }
@@ -365,7 +367,8 @@ impl Spawner {
     ) -> Result<(), String> {
         let share = self.memory.as_ref().ok_or(UNSHARED)?;
         let memory = share.take(scope)?;
-        // unsafe(ffi): the guest has not started, so nothing else holds the State.
+        // the guest has not started, so nothing else holds the State.
+        // unsafe(memory)
         unsafe { (*state).memory_object = Some(v8::Global::new(scope, memory)) };
         let data = v8::External::new(scope, state.cast()).into();
         let modules = self.program.modules();
@@ -446,7 +449,8 @@ fn thread_spawn(
     arguments: v8::FunctionCallbackArguments,
     mut returned: v8::ReturnValue<v8::Value>,
 ) {
-    // unsafe(ffi): the function's data is its State (state_of).
+    // the function's data is its State (state_of).
+    // unsafe(memory)
     let state = unsafe { state_of(arguments.data()) };
     let argument = arguments.get(0).int32_value(scope).unwrap_or(0);
     let spawner = Arc::clone(&state.threads);

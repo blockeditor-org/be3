@@ -167,7 +167,7 @@ macro_rules! bind_gpu {
                     $($argument: $kind,)*
                     options: &FastApiCallbackOptions,
                 ) -> returns!($($result)?) {
-                    // unsafe(ffi): V8 hands a fast call the options of the function it calls, whose
+                    // V8 hands a fast call the options of the function it calls, whose
                     // data is its State (state_of).
                     let state = unsafe { state_of(options.data) };
                     let view = state.view();
@@ -185,7 +185,7 @@ macro_rules! bind_gpu {
                     arguments: v8::FunctionCallbackArguments,
                     mut returned: v8::ReturnValue<v8::Value>,
                 ) {
-                    // unsafe(ffi): the function's data is its State (state_of).
+                    // the function's data is its State (state_of).
                     let state = unsafe { state_of(arguments.data()) };
                     #[allow(unused_mut, unused_variables, unused_assignments)]
                     let mut index = 0;
@@ -233,7 +233,7 @@ macro_rules! bind_transport {
                     $($argument: $kind,)*
                     options: &FastApiCallbackOptions,
                 ) -> returns!($($result)?) {
-                    // unsafe(ffi): as in define_gpu.
+                    // as in define_gpu.
                     let state = unsafe { state_of(options.data) };
                     let view = state.view();
                     let result = contained(|| transport::$name(&mut Guest::new(&mut *state, view), $($argument),*));
@@ -250,7 +250,7 @@ macro_rules! bind_transport {
                     arguments: v8::FunctionCallbackArguments,
                     mut returned: v8::ReturnValue<v8::Value>,
                 ) {
-                    // unsafe(ffi): as in define_gpu.
+                    // as in define_gpu.
                     let state = unsafe { state_of(arguments.data()) };
                     #[allow(unused_mut, unused_variables, unused_assignments)]
                     let mut index = 0;
