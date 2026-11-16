@@ -202,7 +202,11 @@ it on the server's journal. `Replicas::reconnect` asks the same of every replica
 unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
-one. `Connection::is_closed` reads true as soon as `close` is called, a moment
+one, and while a submission of it is unanswered (`Open::submitting`). What the
+order numbered while the join was on its way reaches the replica it opens
+before its edits are given again, so one the order took meanwhile is not
+submitted twice: the join's journal may predate it, and each opening numbers
+its submissions from a fresh counter. `Connection::is_closed` reads true as soon as `close` is called, a moment
 before `Connection::closed` says so, so be-host's link never hands a new stack
 the connection a stopping stack closed.
 
