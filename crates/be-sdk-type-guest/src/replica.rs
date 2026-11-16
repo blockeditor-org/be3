@@ -3058,7 +3058,9 @@ where
             Outcome::Kept => {}
             Outcome::Failed(error) => {
                 // It never reached the order: the host opens the replica again once it is back
-                // in the session, giving it again what this one had not had numbered.
+                // in the session, giving it again what this one had not had numbered. (One
+                // refused for a key not on the device yet is not failed: the host holds it and
+                // submits it again once the key arrives.)
                 self.error(format!("an edit did not reach the session: {error}"));
             }
         }

@@ -209,8 +209,12 @@ impl<S: ObjectStore> Peer<S> {
         )
         .await?;
         self.adopt_contacts(&contacts);
+        // Keys a contact sealed before this device verified it open now: they arrived, as keys
+        // stored elsewhere do (`Event::KeysChanged`), so what they unlock is read again and a
+        // submission refused for one goes again.
         if self.keys.absorb(KeySet::default()) > 0 {
-            self.tried.lock().unwrap().clear();
+            self.keys_changed();
+            self.connection().keys_opened();
         }
         Ok(contacts)
     }

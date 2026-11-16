@@ -278,7 +278,7 @@ impl<S: ObjectStore + 'static, C: LiveEdit + Clone + Default> Session<S, C> {
                 Some(Event::KeysChanged) => {
                     self.peer.keys_changed();
                     // The session's block opened before this woke, so none is left closed.
-                    self.replicas.unlock(&self.shared);
+                    self.replicas.unlock(ctx).await;
                 }
                 Some(event) => self.replicas.heard(ctx, &event),
                 None => self.replicas.resynchronize(ctx),
