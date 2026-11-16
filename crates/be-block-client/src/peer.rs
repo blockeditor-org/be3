@@ -2516,7 +2516,6 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     async fn send_pending(&self, pending: &Pending) -> Result<PublishOutcome, ClientError> {
-        eprintln!("SCRATCH send_pending refs={:p} commit={:?} holds_in_outbox={} dropped={} bt={}", &*self.refs, pending.commit, self.pending_publish(pending.block, pending.commit).is_some(), self.refs.discarded(pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block") || l.contains("be_host_stack")).map(|l| l.trim()).take(8).collect::<Vec<_>>().join(" | "));
         if self.local {
             return self.publish_locally(pending);
         }

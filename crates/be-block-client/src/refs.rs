@@ -1416,7 +1416,6 @@ impl Refs {
     /// are kept again where they were discarded (`discard_unsent`). A listing that says so is
     /// not enough, as it may be older than the access that lost it.
     pub fn may_edit_again(&self, block: Uuid) -> Result<(), StoreError> {
-        eprintln!("SCRATCH may_edit_again");
         if !self.state.lock().unwrap().dropped.remove(&block) {
             return Ok(());
         }
@@ -1543,7 +1542,6 @@ impl Refs {
     }
 
     pub fn push_all(&self, ops: Vec<Op>) -> Result<Vec<u64>, StoreError> {
-        eprintln!("SCRATCH push_all {:?}", ops.iter().map(|op| (op.block(), matches!(op, Op::Publish(_)))).collect::<Vec<_>>());
         let mut sequences = Vec::with_capacity(ops.len());
         let rows = {
             let mut state = self.state.lock().unwrap();
@@ -1567,7 +1565,6 @@ impl Refs {
     /// none for a block whose local edits were discarded (`discard_unsent`), checked as the
     /// discard checks, so a seal under way as the discard runs never reaches the outbox.
     pub fn push_publish(&self, pending: Pending) -> Result<Option<u64>, StoreError> {
-        eprintln!("SCRATCH push_publish refs={:p} org={} block={} commit={:?} expected={:?} dropped={} bt={}", self, self.scope.organization, pending.block, pending.commit, pending.expected, self.state.lock().unwrap().dropped.contains(&pending.block), std::backtrace::Backtrace::force_capture().to_string().lines().filter(|l| l.contains("be_block_type_host") || l.contains("be_host_stack")).take(6).collect::<Vec<_>>().join(" | "));
         let (block, head) = (pending.block, pending.commit);
         let op = Op::Publish(pending);
         let (sequence, rows) = {
@@ -2027,7 +2024,6 @@ impl Refs {
                 .filter(|(_, op)| op.block() == block)
                 .map(|(sequence, _)| *sequence)
                 .collect();
-            eprintln!("SCRATCH move_to_unsent dropped={} moved={}", state.dropped.contains(&block), moved.len());
             if moved.is_empty() {
                 return Ok(false);
             }
@@ -2188,11 +2184,9 @@ impl Refs {
                 key: block.as_bytes().to_vec(),
                 value: None,
             });
-            eprintln!("SCRATCH discard_unsent refs={:p} org={} refused={:?}", self, self.scope.organization, unsent.refused);
             if unsent.refused.is_none() {
                 Self::dropping_local_edits(&mut state, block, &mut rows);
             }
-            eprintln!("SCRATCH discard_unsent after dropped={} outbox_for_block={}", state.dropped.contains(&block), state.outbox.values().filter(|op| op.block() == block).count());
             unsent
         };
         self.write(rows)?;

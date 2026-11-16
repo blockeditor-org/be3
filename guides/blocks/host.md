@@ -202,7 +202,11 @@ it on the server's journal. `Replicas::reconnect` asks the same of every replica
 unsealed work (one opened offline that replayed this device's journal, one
 opened as the outbox drained), and a join's answer waits (`Replicas::settling`) while a seal of the replica is asked, on its way,
 or answered and not yet reported, since its head is moving past the reported
-one. `Connection::is_closed` reads true as soon as `close` is called, a moment
+one, and while a submission of it is unanswered (`Open::submitting`). What the
+order numbered while the join was on its way reaches the replica it opens
+before its edits are given again, so one the order took meanwhile is not
+submitted twice: the join's journal may predate it, and each opening numbers
+its submissions from a fresh counter. `Connection::is_closed` reads true as soon as `close` is called, a moment
 before `Connection::closed` says so, so be-host's link never hands a new stack
 the connection a stopping stack closed.
 
@@ -245,21 +249,22 @@ the connection a stopping stack closed.
   keeps its newest `SetAside::KEPT`, and forgetting the block drops them; a
   block whose kept edits hold any is not forgotten, until this account lost
   access to it and its unsent edits are discarded (`Peer::discard_unsent`,
-  which in the same step drops its kept edits, its journal, the commits it
-  sealed still in the outbox and its local head, which falls back to the
-  server's; the unsent list shows how many kept edits it holds,
+  which in the same step drops its kept edits, its journal and the commits it
+  sealed still in the outbox; the unsent list shows how many kept edits it holds,
   `UnsentBlock::kept_edits`). Its open replica closes
   (`Replicas::stop_keeping`), and one opened next starts under a fresh origin.
-  The discard marks the block (`refs::Dropped`, kept until the block is
-  forgotten or a join's `may-edit` says this account may edit it again,
-  `Peer::join_session`; a listing that says so may be older than the access
-  that lost it, so it does not count). While marked, keeping its edits fails
-  (`ClientError::Discarded`), so a submission waits rather than going out
-  unkept; a seal answers unchanged, so what the closing replica held is
-  sealed into no commit; and a commit sealed before the discard that the
-  server refuses after it is dropped rather than set aside again
-  (`Refs::move_to_unsent`). Nothing typed after the account lost access
-  reaches the server once it may edit again. Opened before it
+  The discard marks the block (`refs::Dropped`), until a join's `may-edit`
+  says this account may edit it again (`Peer::join_session`): a listing that
+  says so may be older than the access that lost it, so it does not count,
+  and forgetting the block keeps the mark, as its replica may still be open.
+  While marked, keeping its edits fails (`ClientError::Discarded`), so a
+  submission waits rather than going out unkept; a seal answers unchanged
+  and its commit never reaches the outbox (`Refs::push_publish`, checked as
+  the discard checks), so what the closing replica held is sealed into
+  none; and a commit sealed before the discard that the server refuses after
+  it is dropped rather than set aside again (`Refs::move_to_unsent`). Nothing
+  typed after the account lost access reaches the server once it may edit
+  again. Opened before it
   joins (offline, or joining), those the server may hold already only show
   (`opening.doubtful-through`, the replica's `doubtful` layer): numbered here
   they could land twice. Once joined, the order says which it holds, even after

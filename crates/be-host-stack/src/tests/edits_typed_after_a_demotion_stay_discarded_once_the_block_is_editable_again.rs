@@ -29,8 +29,7 @@ fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again(
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
     let public = peer
-        .keys()
-        .contact(harness.account)
+        .verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
     let block = runtime.block_on(async {
         let block = peer
@@ -86,22 +85,17 @@ fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again(
                 .is_some_and(|error| error.contains("not editable"))
     });
     // Discarded before anything seals it: the replica holds it as the discard closes it.
-    eprintln!("SCRATCH {} server={:?} local={:?}", "before-discard", runtime.block_on(async { peer.open::<CounterContent>(block).await.ok().flatten().map(|c| c.root().value()) }), count_of(block));
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits and closed the block", |held| {
-        eprintln!("SCRATCH wait unsent={} open={} owed={:?} undurable={:?}", held.unsent.iter().any(|unsent| unsent.block == block), held.blocks.contains_key(&block), held.owing_blocks.iter().map(|o| o.to_string()).collect::<Vec<_>>(), held.undurable_blocks.iter().map(|o| o.to_string()).collect::<Vec<_>>());
         !held.unsent.iter().any(|unsent| unsent.block == block) && !held.blocks.contains_key(&block)
     });
-    eprintln!("SCRATCH {} server={:?} local={:?}", "after-discard", runtime.block_on(async { peer.open::<CounterContent>(block).await.ok().flatten().map(|c| c.root().value()) }), count_of(block));
     runtime
         .block_on(peer.grant(block, harness.account, be_block_graph::Access::Edit))
         .expect("the sharer makes this account an editor again");
-    eprintln!("SCRATCH {} server={:?} local={:?}", "after-regrant", runtime.block_on(async { peer.open::<CounterContent>(block).await.ok().flatten().map(|c| c.root().value()) }), count_of(block));
     open(block, CounterContent::CONTENT_TYPE);
     wait_for_count(block, 1);
     add(block, 10);
     wait_for_count(block, 11);
-    eprintln!("SCRATCH {} server={:?} local={:?}", "after-add10", runtime.block_on(async { peer.open::<CounterContent>(block).await.ok().flatten().map(|c| c.root().value()) }), count_of(block));
     refetch(Query::Shared);
     wait_until("listed the block as editable again", |held| {
         held.graph
@@ -118,7 +112,6 @@ fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again(
         Some(11),
         "what was typed after the demotion stayed discarded"
     );
-    eprintln!("SCRATCH {} server={:?} local={:?}", "end", runtime.block_on(async { peer.open::<CounterContent>(block).await.ok().flatten().map(|c| c.root().value()) }), count_of(block));
     let saved = runtime.block_on(async {
         peer.open::<CounterContent>(block)
             .await

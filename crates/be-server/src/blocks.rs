@@ -896,7 +896,6 @@ impl ServerStore {
         references: ReferenceChange,
         metadata: Vec<u8>,
     ) -> Result<PublishOutcome, ServerError> {
-        eprintln!("SCRATCH server publish block={block} commit={commit:?} expected={expected:?} parents={parents:?}");
         crate::limits::at_most("metadata", metadata.len(), MAX_METADATA_BYTES)?;
         // Checked before the graph is taken, so no change too large to keep holds it up.
         crate::limits::references(&references.removed)?;
