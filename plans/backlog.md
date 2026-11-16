@@ -209,6 +209,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   and in the runs after). Done: the cause found, which is either the copy
   reaching the graph after the answer or the test reading the graph too early,
   and fixed at its source.
+- **A peer's edit during a gesture, not yet beneath it.**
+  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` (be-host-stack)
+  failed at line 44 in one whole-crate run of be-host-stack on
+  feat/authorship-c (on 4514dfc9f) and passed alone after. Done: the cause found
+  and fixed at its source.
 
 - **A reopened canvas writes its default bars over its saved ones.**
   `the_canvas_zoom_bar_floats_at_any_corner_and_stays_there` failed 2 in 40
