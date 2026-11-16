@@ -36,7 +36,8 @@ fn an_edit_made_on_the_content_from_before_a_replica_joins_lands_after() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         let mut mirror =

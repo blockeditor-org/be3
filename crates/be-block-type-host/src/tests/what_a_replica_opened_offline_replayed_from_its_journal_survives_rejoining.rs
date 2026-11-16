@@ -45,7 +45,8 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
         let mut replicas = replicas;
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         replicas.attach(block, editor, true);
@@ -79,7 +80,8 @@ fn what_a_replica_opened_offline_replayed_from_its_journal_survives_rejoining() 
         let mut replicas = Replicas::new(test_modules(modules_clock.clone()).await);
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         assert_eq!(text(&peer, &shared, &mut replicas, block).await, "socks");
 

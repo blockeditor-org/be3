@@ -21,7 +21,8 @@ fn an_edit_numbered_offline_after_a_seal_survives_joining() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         let mut mirror =

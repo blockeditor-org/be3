@@ -17,7 +17,8 @@ fn a_relayed_message_sealed_with_a_key_another_search_awaits_waits_for_it() {
         let key = phone.current_key(block).expect("the block has a key");
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

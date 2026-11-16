@@ -12,7 +12,8 @@ fn a_key_searched_for_in_vain_is_searched_for_again_after_reconnecting() {
         let block = block(&peer).await;
         replicas
             .open((&peer, &shared), block, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

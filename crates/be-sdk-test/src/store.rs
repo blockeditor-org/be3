@@ -22,6 +22,9 @@ use be_sdk_type_guest::editor::{EditorMirror, FromEditor, Gesture, ToEditor};
 use be_sdk_type_guest::{Module, Registration};
 use uuid::Uuid;
 
+/// Bytes no content type decodes.
+const UNREADABLE: &[u8] = &[0xff; 7];
+
 const THIS_DEVICE: ClientId = u64::MAX - 1;
 const ELSEWHERE: ClientId = u64::MAX;
 const TAG: SessionTag = SessionTag([0; 32]);
@@ -1009,6 +1012,17 @@ impl ContentStore {
         self.0
             .borrow_mut()
             .put(key, C::CONTENT_TYPE, content.encode());
+    }
+
+    /// Holds content of type `C` that does not decode in this build, so the block's replica
+    /// cannot open it, as the host's replica cannot open a block stored in a form it cannot
+    /// read: its editors read it as failed (`Unready::Failed`).
+    pub fn hold_unreadable<C: LiveEdit + Merge + Clone + Default>(&self, block: Option<Uuid>) {
+        let key = self.key(block);
+        self.know::<C>();
+        self.0
+            .borrow_mut()
+            .put(key, C::CONTENT_TYPE, UNREADABLE.to_vec());
     }
 
     /// Like `hold`, but keeps the content's parts after its first (`BlockContent::parts`) in the

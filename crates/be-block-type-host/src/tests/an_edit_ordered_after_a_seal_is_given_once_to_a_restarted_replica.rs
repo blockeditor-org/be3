@@ -46,7 +46,8 @@ fn an_edit_ordered_after_a_seal_is_given_once_to_a_restarted_replica() {
             .expect("the counter is made");
         replicas
             .open((&peer, &shared), block, CounterContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         let editor = 7;
         replicas.attach(block, editor, true);

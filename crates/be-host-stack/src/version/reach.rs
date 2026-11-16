@@ -161,7 +161,11 @@ impl Reach<'_> {
         reader: bool,
     ) {
         match self {
-            Reach::Here(replicas) => replicas.open(ctx, block, content_type, reader).await,
+            // A repository that does not open is recorded as it gives up (`Host::record`), and
+            // nothing here waits on it.
+            Reach::Here(replicas) => {
+                let _ = replicas.open(ctx, block, content_type, reader).await;
+            }
             Reach::Loop(calls) => {
                 let _ = calls
                     .call(move |replicas, ctx| {

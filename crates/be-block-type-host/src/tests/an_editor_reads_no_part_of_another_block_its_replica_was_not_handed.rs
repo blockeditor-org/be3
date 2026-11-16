@@ -25,7 +25,8 @@ fn an_editor_reads_no_part_of_another_block_its_replica_was_not_handed() {
             .expect("the part is put");
         replicas
             .open((&peer, &shared), mine, Sections::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

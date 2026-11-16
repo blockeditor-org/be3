@@ -39,7 +39,8 @@ fn an_edit_from_an_editor_that_left_before_its_block_joined_is_kept() {
         .expect("the block is kept here");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         replicas.pump((&peer, &shared)).await;
         assert!(!replicas.joining());
 

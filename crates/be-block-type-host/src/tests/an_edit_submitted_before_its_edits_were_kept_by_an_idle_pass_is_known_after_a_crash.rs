@@ -47,7 +47,8 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
             .expect("the empty text is published");
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;
@@ -90,7 +91,8 @@ fn an_edit_submitted_before_its_edits_were_kept_by_an_idle_pass_is_known_after_a
         let mut replicas = Replicas::new(test_modules(modules_clock).await);
         replicas
             .open((&peer, &shared), block, TextContent::CONTENT_TYPE, true)
-            .await;
+            .await
+            .expect("the block opens");
         while replicas.joining() {
             replicas.woken().await;
             replicas.pump((&peer, &shared)).await;

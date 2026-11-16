@@ -2476,12 +2476,29 @@ async fn open_wanted(
     #[cfg(not(feature = "testing"))]
     let tested = cfg!(test);
     let reader = tested || wanted.readers.contains(&block);
-    replicas
+    let opened = replicas
         .open((peer, shared), block, content_type, reader)
         .await;
-    if let Some((_, editors)) = wanted.editing.get(&block) {
-        for (editor, editable) in editors {
-            replicas.attach(block, *editor, *editable);
+    let Some((_, editors)) = wanted.editing.get(&block) else {
+        return;
+    };
+    match opened {
+        Ok(()) => {
+            for (editor, editable) in editors {
+                replicas.attach(block, *editor, *editable);
+            }
+        }
+        // Told it will not open rather than left loading (be_sdk::Unready::Failed).
+        Err(reason) => {
+            let failed = be_sdk_type_guest::editor::ToEditor::Failed(reason).encode();
+            for editor in editors.keys() {
+                <Shared as be_block_type_host::Host>::to_editor(
+                    shared,
+                    block,
+                    *editor,
+                    failed.clone(),
+                );
+            }
         }
     }
 }

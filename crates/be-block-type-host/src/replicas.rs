@@ -37,6 +37,9 @@ use crate::{
 
 pub use be_sdk_type_api::HOST_EDITOR;
 
+/// Why a block whose type no module serves does not open.
+const NO_MODULE: &str = "no app here edits this kind of block";
+
 const JOINING_OWNER: ClientId = ClientId::MAX;
 
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
@@ -1138,26 +1141,29 @@ impl<H: Host> Replicas<H> {
         Some((replica, self.open.get(&replica)?))
     }
 
+    /// Opens `block`'s replica, or says why it gave up: no module serves the type, or opening
+    /// failed. A block waiting for its key, or opening offline with nothing to read yet, has not
+    /// given up.
     pub async fn open(
         &mut self,
         (peer, shared): Ctx<'_, H>,
         block: Uuid,
         content_type: Uuid,
         reader: bool,
-    ) {
+    ) -> Result<(), String> {
         if let Some(replica) = self.blocks.get(&block).copied() {
             let Some(open) = self.open.get_mut(&replica) else {
-                return;
+                return Ok(());
             };
             open.closing = false;
             if reader && !open.reader {
                 open.reader = true;
                 self.attach_now(replica, HOST_EDITOR, true);
             }
-            return;
+            return Ok(());
         }
         let Some(kind) = self.kind(content_type).await else {
-            return;
+            return Err(NO_MODULE.to_owned());
         };
         let arrivals = peer.arrivals();
         // Edits this device kept of the block that do not open while its key is not here stay
@@ -1173,13 +1179,14 @@ impl<H: Host> Replicas<H> {
             if !content_opens {
                 if peer.arrivals() == arrivals {
                     self.lock(shared, block);
-                    return;
+                    return Ok(());
                 }
                 return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
             if let Err(error) = peer.set_aside_open_edits(block) {
+                let reason = error.to_string();
                 H::record(shared, error);
-                return;
+                return Err(reason);
             }
             H::report(
                 shared,
@@ -1229,7 +1236,7 @@ impl<H: Host> Replicas<H> {
                     ) {
                         self.join_later(replica, block, joining, arrivals);
                     }
-                    return;
+                    return Ok(());
                 }
             }
         } else {
@@ -1273,14 +1280,14 @@ impl<H: Host> Replicas<H> {
                 if head.is_some() && peer.held_head(block).is_none() {
                     // Nothing to read: the block opens once the host reconnects, and meanwhile
                     // takes no edits it could never journal or publish.
-                    return;
+                    return Ok(());
                 }
                 (client, session_of(client, head), head, true, None)
             }
             Ok(joined) => joined,
             Err(ClientError::Locked(_)) if peer.arrivals() == arrivals => {
                 self.lock(shared, block);
-                return;
+                return Ok(());
             }
             // Defensive: keys arrived while it opened, after `unlock` ran, so it opens again.
             // `keys_changed` runs on the worker's loop, which this open holds, so the count
@@ -1289,8 +1296,9 @@ impl<H: Host> Replicas<H> {
                 return Box::pin(self.open((peer, shared), block, content_type, reader)).await;
             }
             Err(error) => {
+                let reason = error.to_string();
                 H::record(shared, error);
-                return;
+                return Err(reason);
             }
         };
         let remote = head;
@@ -1316,10 +1324,10 @@ impl<H: Host> Replicas<H> {
             sealed_head,
             offline,
         ) else {
-            return;
+            return Err(NO_MODULE.to_owned());
         };
         if offline {
-            return;
+            return Ok(());
         }
         let mut heads = vec![remote, H::known_head(shared, block)];
         heads.dedup();
@@ -1328,6 +1336,7 @@ impl<H: Host> Replicas<H> {
                 self.moved(replica, moved, false);
             }
         }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -3643,7 +3652,8 @@ impl<H: Host> Replicas<H> {
         }
         if open.reopen {
             self.open((peer, shared), open.block, open.content_type, open.reader)
-                .await;
+                .await
+                .expect("the block opens");
             return true;
         }
         H::released(shared, open.block);
