@@ -232,7 +232,24 @@ starts the host frame (`begin_host_frame`, which be-host's beui frame calls
 too), then `begin_frame`, `poll`, `flush` and `settle`, as be-host's frame
 does. Nothing in it is laid out or painted, so it runs only instances with no
 screen, host components (guides/apps/host_services.md, "Host components").
-`be` runs them this way (plans/headless_apps.md).
+The runtime keeps passing while one runs (`Instances::has_hosts`) without
+asking for frames.
+
+`be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md),
+and carries no apps: it downloads a host app when it runs one, from the release
+it was built for (`be_tool_cli::host_apps`). That is the web bundle a deploy
+publishes at `data/BUILD/web/` on the mirror (guides/hosting.md, Deploying),
+the apps staged as be-host stages them, so `be` serves be-host-stack's
+discovery from it through `use_assets` (a reader in place of the bundle beside
+the executable, as Android's assets are) and the runtime reads only what it
+needs: `apps.json`, the manifests, then the one app's module, type module and
+libraries. Each file must hash to what the release lists in its
+`app-hashes.json` (be-host's `app-hashes`, a `bundle_hashes` over its `:apps`,
+which the web bundle carries), and is kept in `be`'s cache under that hash; a
+missing file, a mismatch or a release with no `app-hashes.json` fails, naming
+the file and the app. `BE_BUNDLE` points `be` at a local bundle instead, which
+it reads as be-host does with nothing downloaded: be-tool-cli's tests stage the
+counter example that way (`test-host-apps`).
 
 ## When an app stops
 

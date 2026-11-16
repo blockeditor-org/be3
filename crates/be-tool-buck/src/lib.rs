@@ -4,6 +4,7 @@ pub mod bundle;
 pub mod compile_fail;
 pub mod fix;
 pub mod generate;
+pub mod hashes;
 pub mod lint_gate;
 pub mod pdfium;
 pub mod plan;

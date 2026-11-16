@@ -18,6 +18,17 @@ pub trait App: 'static {
 pub trait Instance: std::any::Any {
     fn connect(&mut self, block_id: Uuid);
 
+    /// Opens as a host component on `block_id` (guides/apps/host_services.md, "Host
+    /// components"): connected as `connect` does, but never shown, so whatever it runs it runs
+    /// here.
+    fn connect_host(&mut self, block_id: Uuid) {
+        self.connect(block_id);
+    }
+
+    /// Runs for a host component each time it is woken, in place of the frame it is never
+    /// given: it takes in what changed (its content first) as `begin_frame` does for an editor.
+    fn pass(&mut self) {}
+
     fn connect_creation(&mut self, _template: String) {}
 
     fn create_block(&mut self) -> Result<Uuid, String> {
