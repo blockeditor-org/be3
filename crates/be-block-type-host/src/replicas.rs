@@ -25,6 +25,11 @@ use be_sdk_type_guest::editor::FromEditor;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
+pub(crate) mod reach;
+
+pub use reach::OUTSIDE_REACH;
+use reach::Reach;
+
 use crate::{
     Host,
     modules::{self as types, Heard, Modules},
@@ -545,6 +550,8 @@ struct Open {
     /// A seal its join's answer waits for, of what its made-up session took meanwhile.
     sealed_joining: bool,
     made_up: bool,
+    /// The parts its module may read and reuse (`reach`).
+    reach: Arc<Mutex<Reach>>,
     early: Vec<Replayed>,
     /// How many local edits (`Replayed::local_edit`) were sent its module since the replica
     /// was opened or opened again, which the module counts too: those past what its status
@@ -1455,6 +1462,7 @@ impl<H: Host> Replicas<H> {
                 joined_settled: false,
                 sealed_joining: false,
                 made_up,
+                reach: Arc::default(),
                 early: Vec::new(),
                 sent,
                 journaled_taken: 0,
@@ -3625,7 +3633,7 @@ impl<H: Host> Replicas<H> {
         replica: ReplicaId,
         call: Call,
     ) -> bool {
-        let Some((block, content_type, made_up, joining, current)) =
+        let Some((block, content_type, made_up, joining, current, reach)) =
             self.open.get(&replica).map(|open| {
                 (
                     open.block,
@@ -3633,6 +3641,7 @@ impl<H: Host> Replicas<H> {
                     open.made_up,
                     open.joining,
                     open.session.generation,
+                    Arc::clone(&open.reach),
                 )
             })
         else {
@@ -3834,6 +3843,12 @@ impl<H: Host> Replicas<H> {
                     let result = read
                         .map(be_sdk_type_api::Loaded::of)
                         .map_err(|error| error.to_string());
+                    if let Ok(loaded) = &result {
+                        reach
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .hand(loaded.parts.iter().map(|part| part.part.into()));
+                    }
                     (Answered::Load(reply, result), None)
                 });
                 false
@@ -3843,13 +3858,19 @@ impl<H: Host> Replicas<H> {
                 let io = self.io.clone();
                 self.answer_later(replica, module, async move {
                     let arrivals = peer.arrivals();
-                    let read = peer
-                        .read_part(part.into(), range.offset, range.length)
-                        .await;
-                    if let Err(ClientError::Locked(_)) = &read {
+                    let part = part.into();
+                    let read = match reach::reaches(&reach, &peer, block, part).await {
+                        Ok(true) => Some(peer.read_part(part, range.offset, range.length).await),
+                        Ok(false) => None,
+                        Err(error) => Some(Err(error)),
+                    };
+                    if let Some(Err(ClientError::Locked(_))) = &read {
                         let _ = io.send(Io::Locked { replica, arrivals });
                     }
-                    let result = read.map_err(|error| error.to_string());
+                    let result = match read {
+                        Some(read) => read.map_err(|error| error.to_string()),
+                        None => Err(OUTSIDE_REACH.to_owned()),
+                    };
                     (Answered::ReadPart(reply, result), None)
                 });
                 false
@@ -3867,6 +3888,12 @@ impl<H: Host> Replicas<H> {
                     };
                     if let Err(ClientError::Locked(_)) = &put {
                         let _ = io.send(Io::Locked { replica, arrivals });
+                    }
+                    if let Ok(put) = &put {
+                        reach
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .hand([*put]);
                     }
                     let result = put
                         .map(be_sdk_type_api::PartRef::from)
@@ -3927,29 +3954,39 @@ impl<H: Host> Replicas<H> {
                     if let Some(label) = &bookmark {
                         write = write.bookmark(label);
                     }
-                    let saved = commit::<H>(&peer, block, write, local, &publishing, move || {
-                        let _ = sealed.send(Io::Sealed);
-                    })
-                    .await;
+                    let saved = match reach::reaches_all(&reach, &peer, block, &content.parts).await
+                    {
+                        Ok(true) => Some(
+                            commit::<H>(&peer, block, write, local, &publishing, move || {
+                                let _ = sealed.send(Io::Sealed);
+                            })
+                            .await,
+                        ),
+                        Ok(false) => None,
+                        Err(error) => Some(Err(error)),
+                    };
                     let kept = publishing
                         .kept()
                         .is_some_and(|commit| peer.pending_commits(block).contains(&commit));
                     let (result, published) = match saved {
-                        Ok(Saved::Published(head)) => {
+                        None => (Err(OUTSIDE_REACH.to_owned()), None),
+                        Some(Ok(Saved::Published(head))) => {
                             (Ok(PublishOutcome::Published(head)), Some(head))
                         }
                         // Kept in the outbox, or nothing to seal on a head that waits there.
-                        Ok(Saved::Kept(head) | Saved::Unchanged(head))
+                        Some(Ok(Saved::Kept(head) | Saved::Unchanged(head)))
                             if peer.pending_commits(block).contains(&head) =>
                         {
                             (Ok(PublishOutcome::Kept(head)), None)
                         }
                         // Kept, and a drain has sent it since; or nothing to seal.
-                        Ok(Saved::Kept(head) | Saved::Unchanged(head)) => {
+                        Some(Ok(Saved::Kept(head) | Saved::Unchanged(head))) => {
                             (Ok(PublishOutcome::Published(head)), None)
                         }
-                        Ok(Saved::Rejected { head }) => (Ok(PublishOutcome::Rejected(head)), None),
-                        Err(error) => (Err(error.to_string()), None),
+                        Some(Ok(Saved::Rejected { head })) => {
+                            (Ok(PublishOutcome::Rejected(head)), None)
+                        }
+                        Some(Err(error)) => (Err(error.to_string()), None),
                     };
                     let _ = io.send(Io::Published {
                         publish,
@@ -3971,16 +4008,22 @@ impl<H: Host> Replicas<H> {
                 }
                 let peer = Arc::clone(peer);
                 self.answer_later(replica, module, async move {
-                    let write = Write::encoded(
-                        content_type,
-                        be_sdk_type_api::written_parts(&content.bytes, &content.parts),
-                        parent,
-                    )
-                    .described(content.references, content.derived);
-                    let stashed = peer
-                        .stash(block, write)
-                        .await
-                        .map_err(|error| error.to_string());
+                    let stashed = match reach::reaches_all(&reach, &peer, block, &content.parts).await
+                    {
+                        Ok(true) => {
+                            let write = Write::encoded(
+                                content_type,
+                                be_sdk_type_api::written_parts(&content.bytes, &content.parts),
+                                parent,
+                            )
+                            .described(content.references, content.derived);
+                            peer.stash(block, write)
+                                .await
+                                .map_err(|error| error.to_string())
+                        }
+                        Ok(false) => Err(OUTSIDE_REACH.to_owned()),
+                        Err(error) => Err(error.to_string()),
+                    };
                     (Answered::Stash(reply, stashed), None)
                 });
                 false
