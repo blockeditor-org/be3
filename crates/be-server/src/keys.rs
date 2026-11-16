@@ -558,6 +558,58 @@ pub(crate) fn organization_kind(
     crate::store::decode_kind(&kind)
 }
 
+/// For an administrator's device: the newest data key of each block inside the organization's
+/// settings (the policies blocks), for each administrator it is not sealed to. A device that
+/// trusts the key seals it to them as itself, so another administrator writes those blocks under
+/// a key it trusts: wrapped under the settings key, which the server holds, it vouches for
+/// nothing (guides/blocks/keys.md, Trust). Owner-only blocks are never listed.
+fn settings_unsealed(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    server: Uuid,
+    work: &mut KeyWork,
+) -> Result<(), ServerError> {
+    let settings = be_block::organization_settings(organization);
+    let administrators = administrators(connection, organization)?;
+    for block in graph.ids() {
+        let inside = block == settings || graph.ancestors(block).any(|above| above == settings);
+        let owner_only = std::iter::once(block)
+            .chain(graph.ancestors(block))
+            .any(|above| graph.get(above).is_some_and(|node| node.owner_only));
+        if !inside || owner_only {
+            continue;
+        }
+        let Some(key) = latest_data_key(connection, organization, block)? else {
+            continue;
+        };
+        let wraps = wraps_of(connection, organization, key)?;
+        for account in &administrators {
+            if !wraps.iter().any(|wrap| {
+                wrap.wrapped_by == WrappedBy::Account(*account) && wrap.sender != server
+            }) {
+                work.unsealed.push(Unsealed {
+                    key,
+                    account: *account,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn latest_data_key(
+    connection: &Connection,
+    organization: Uuid,
+    block: Uuid,
+) -> Result<Option<Uuid>, ServerError> {
+    Ok(keys_of_block(connection, organization, block)?
+        .into_iter()
+        .filter(|row| row.kind == KeyKind::Data)
+        .max_by_key(|row| row.epoch)
+        .map(|row| row.id))
+}
+
 fn latest_scope_key(
     connection: &Connection,
     organization: Uuid,
@@ -975,6 +1027,9 @@ impl ServerStore {
                 {
                     work.unescrowed.push(key);
                 }
+            }
+            if seen.administrator() {
+                settings_unsealed(database, graph, organization, server, &mut work)?;
             }
             if seen.administrator()
                 && let Some(escrow) = escrow
