@@ -7,7 +7,6 @@ use beui_view::reactive::*;
 use beui_view::types::{CursorIcon, Direction, Vec2};
 
 use beui_components_unstyled::{ReorderHandle, ReorderItemHandle, ReorderMove};
-use beui_view::drag::DragPoint;
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::tokens::{Movement, Padding, Space, Stroke};
@@ -27,7 +26,6 @@ pub fn Reorder<K, P>(
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
     preview: RenderFn<P>,
     #[prop(children)] content: Render<ReorderHandle<K, P>>,
 ) -> NodeId
@@ -48,7 +46,6 @@ where
             text={text}
             on_move={on_move}
             on_drag_change={on_drag_change}
-            on_drop_outside={on_drop_outside}
             preview
         >|handle: ReorderHandle<K, P>| {
             content.call(handle)

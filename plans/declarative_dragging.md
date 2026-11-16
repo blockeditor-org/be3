@@ -319,6 +319,9 @@ through the drag and Escape rebuilds nothing; drawn invisible, it is the gap, at
   between parents (guides/beui/core.md); decide when a caller rebuilding rows is too slow.
 - **A carried item far from every site:** does its home keep the gap (no jump when it comes back)
   or close it (today a flicked-out row leaves at once)? Decide in step 2.
+- **A site that comes or changes mid-carry.** Specs, and what decides them (a `Reorder`
+  asking `Board::takers` whether anything else takes its row), are read at the lift: a site
+  mounted mid-carry gains no places until the next one. Decide when a caller needs it.
 - **Rows a `VirtualList` has not built** have no rects. Either `slots_in` uses its estimates, or
   containers answer "where would a child of this size go between each pair" themselves; a
   wrapping grid needs the latter. Decide when a site needs it.

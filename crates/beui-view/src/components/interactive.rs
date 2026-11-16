@@ -278,9 +278,12 @@ fn carrying(
                 true => crate::types::TOUCH_DRAG_THRESHOLD,
                 false => crate::types::DRAG_THRESHOLD,
             };
-            let past = origin
-                .get()
-                .is_none_or(|origin| (press.pos - origin.pos).length() >= threshold);
+            // Once a press has crossed the threshold it is a drag until it ends, however near
+            // its start it comes back.
+            let past = asked.get()
+                || origin
+                    .get()
+                    .is_none_or(|origin| (press.pos - origin.pos).length() >= threshold);
             if !past || (!asked.replace(true) && lift_at(press)) {
                 return;
             }

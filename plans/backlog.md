@@ -206,6 +206,11 @@ Depends on #686 (session catch-ups replaced by server ordering).
   spacing (a `ListItem` of zero length could take none, or the row could be a
   `Kept` out of the list), shown by beui-tests' reorder screen closing the
   shelf to its two rows exactly.
+- **A drag threshold for every `on_drag`.** The native core calls `on_drag`
+  on any movement of a press; `Interactive`'s `drag` waits for
+  `DRAG_THRESHOLD` (or `TOUCH_DRAG_THRESHOLD`), but a plain `on_drag` user
+  (a slider, a pan, the dock's grips) applies its own or none. Done: the core
+  starts a press's drag at the threshold, and the components' own checks go.
 - **A keyboard step reveals the place it chose.** Edge scrolling follows only a
   pointer, so a keyboard carry stepped to a place in the hidden part of a scroll
   leaves it out of sight. Done: after each keyboard step the board scrolls the

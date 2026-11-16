@@ -67,7 +67,6 @@ struct State<K: 'static, P: 'static> {
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
     preview: RenderFn<P>,
     /// The row of this list that is carried.
     carried: Signal<Option<K>>,
@@ -541,12 +540,7 @@ where
         state.on_drag_change.call(Some(key.clone()));
         let preview = state.preview;
         let shown = payload.clone();
-        let mut carry = Carry::new(payload).preview(move || preview.call(shown.clone()));
-        if !state.on_drop_outside.is_empty() {
-            let outside = state.on_drop_outside;
-            carry = carry.outside(move |point| outside.call((key.clone(), point)));
-        }
-        Some(carry)
+        Some(Carry::new(payload).preview(move || preview.call(shown.clone())))
     })
 }
 
@@ -563,7 +557,6 @@ pub fn Reorder<K, P>(
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
     preview: RenderFn<P>,
     #[prop(children)] content: Render<ReorderHandle<K, P>>,
 ) -> NodeId
@@ -589,7 +582,6 @@ where
         text,
         on_move,
         on_drag_change,
-        on_drop_outside,
         preview,
         carried,
         over_here,
