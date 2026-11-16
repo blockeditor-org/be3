@@ -32,8 +32,6 @@ use crate::{
 
 pub use be_sdk_type_api::HOST_EDITOR;
 
-pub const OFFLINE_CLIENT: ClientId = 0;
-
 const JOINING_OWNER: ClientId = ClientId::MAX;
 
 pub const EARLY_OPEN: std::time::Duration = std::time::Duration::from_millis(250);
@@ -48,28 +46,26 @@ fn session_of(client: ClientId, head: Option<CommitId>) -> SessionState {
     }
 }
 
-/// The client a replica with no session edits as: `OFFLINE_CLIENT` until it joins one, or for
-/// a local account's peer, which never joins (`Peer::local`), a fresh client of its own each time
-/// it opens, as a server hands each session one. `OFFLINE_CLIENT` is the sequence library's
-/// `LOADED`, whose edits `Sequence::replace` refuses, so a local account's texts would take no
-/// replaced child, file or carried-over edit.
-fn unjoined_client<S: be_block_store::ObjectStore>(peer: &Peer<S>) -> ClientId {
-    match peer.is_local() {
-        true => loop {
-            let client = Uuid::new_v4().as_u64_pair().0 | 1 << 63;
-            if client != JOINING_OWNER {
-                break client;
-            }
-        },
-        false => OFFLINE_CLIENT,
+/// The client a replica with no session edits as, until it joins one (or always, for a local
+/// account's peer, which never joins): a fresh client of its own each time it opens, as a server
+/// hands each session one, with the top bit set so no client a server numbers shares it, nor
+/// another device's offline edits. Never 0, the sequence library's `LOADED`, whose edits
+/// `Sequence::replace` refuses: a text made offline would take no replaced child, file or
+/// carried-over edit.
+fn unjoined_client() -> ClientId {
+    loop {
+        let client = Uuid::new_v4().as_u64_pair().0 | 1 << 63;
+        if client != JOINING_OWNER {
+            break client;
+        }
     }
 }
 
-fn joining_session(head: Option<CommitId>) -> SessionState {
+fn joining_session(client: ClientId, head: Option<CommitId>) -> SessionState {
     SessionState {
         generation: 0,
         owner: Some(JOINING_OWNER),
-        participants: vec![JOINING_OWNER, OFFLINE_CLIENT],
+        participants: vec![JOINING_OWNER, client],
         clean_at: head,
         tag: None,
     }
@@ -1184,17 +1180,19 @@ impl<H: Host> Replicas<H> {
                 }
                 futures_util::future::Either::Right((_, joining)) => {
                     let head = known_head_of(peer, block);
+                    let client = unjoined_client();
                     if let Some(replica) = self.start(
                         peer,
                         block,
                         content_type,
                         reader,
-                        OFFLINE_CLIENT,
-                        joining_session(head),
+                        client,
+                        joining_session(client, head),
                         head,
                         None,
                         false,
                         None,
+                        false,
                     ) {
                         self.join_later(replica, block, joining, arrivals);
                     }
@@ -1211,7 +1209,7 @@ impl<H: Host> Replicas<H> {
                 // without access to it the server refuses its session: it opens as offline does
                 // and joins once that changes (`created`).
                 if !peer.is_attached() || uncreated {
-                    let client = unjoined_client(peer);
+                    let client = unjoined_client();
                     return Ok((client, session_of(client, None), None, true, None));
                 }
                 if owned && H::reshaped(shared, block, &kind.schema) {
@@ -1228,7 +1226,7 @@ impl<H: Host> Replicas<H> {
         };
         let joined = match joined {
             Err(error) if unreachable(&error) && peer.known_summary(block).is_some() => {
-                let client = unjoined_client(peer);
+                let client = unjoined_client();
                 Ok((client, session_of(client, None), None, true, None))
             }
             joined => joined,
@@ -1283,12 +1281,10 @@ impl<H: Host> Replicas<H> {
             journal,
             journal_kept,
             sealed_head,
+            offline,
         ) else {
             return;
         };
-        if let Some(open) = self.open.get_mut(&replica) {
-            open.made_up = offline;
-        }
         if offline {
             return;
         }
@@ -1314,6 +1310,7 @@ impl<H: Host> Replicas<H> {
         journal: Option<be_block_protocol::Journal>,
         journal_kept: bool,
         sealed_head: Option<be_sdk_type_api::SealedHead>,
+        offline: bool,
     ) -> Option<ReplicaId> {
         if self.blocks.contains_key(&block) {
             return None;
@@ -1344,8 +1341,9 @@ impl<H: Host> Replicas<H> {
             .as_ref()
             .map_or(0, |recovered| recovered.submitted_through);
         let kept_restart = recovered.as_ref().map_or(0, |recovered| recovered.restarts);
-        let before_join = joining || session.owner == Some(OFFLINE_CLIENT);
-        let opening_journal = journal.clone().filter(|_| !before_join);
+        // Made up while joining or offline: not yet in the server's order.
+        let made_up = joining || offline;
+        let opening_journal = journal.clone().filter(|_| !made_up);
         let replay: Vec<Replayed> = recovered_edits
             .unwrap_or_default()
             .into_iter()
@@ -1381,7 +1379,7 @@ impl<H: Host> Replicas<H> {
             tag,
             origin,
             taken_before: given_up,
-            doubtful_through: match before_join {
+            doubtful_through: match made_up {
                 true => submitted_through,
                 false => 0,
             },
@@ -1453,7 +1451,7 @@ impl<H: Host> Replicas<H> {
                 rejoining: None,
                 joined_settled: false,
                 sealed_joining: false,
-                made_up: joining,
+                made_up,
                 early: Vec::new(),
                 sent,
                 journaled_taken: 0,
