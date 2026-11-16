@@ -70,5 +70,7 @@ self.onmessage = async (event) => {
         await loaded.be_worker_run(event.data.entry, event.data.port, event.data.bytes);
     } catch (error) {
         console.error(`the host's worker's ${event.data.entry} stopped`, error);
+        // Not an error event, so the page is told outright: its ports hear the worker went.
+        self.postMessage({ failed: true });
     }
 };

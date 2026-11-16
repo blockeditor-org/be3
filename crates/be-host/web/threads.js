@@ -149,6 +149,10 @@ function stackWorkerStart(entry, bytes) {
             if (event.data?.filesMemory) {
                 hostFiles?.worker.postMessage({ memory: event.data.filesMemory });
             }
+            // An entry failed without an error event (be-worker.js caught it).
+            if (event.data?.failed) {
+                workerFailed();
+            }
         };
         stackWorker.postMessage({
             module: context.module,

@@ -195,7 +195,16 @@ mod web {
                     }
                 }
             },
-            move || drop(answer.borrow_mut().take()),
+            // The worker went: before it answered, `open` fails; after, each change from then on
+            // is lost, which the person hears of once, as of a change the worker could not keep.
+            move || {
+                if answer.borrow_mut().take().is_none() {
+                    report.send(Unkept {
+                        what: "anything you change from now on".to_owned(),
+                        error: "be-host's worker stopped".to_owned(),
+                    });
+                }
+            },
         );
         let (jobs, mut taken) = mpsc::unbounded_channel::<Vec<u8>>();
         let jobs = Jobs(jobs);
