@@ -1,6 +1,6 @@
 use crate::reactive::{
-    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild,
-    IntoSegment, Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
+    BuildsNode, ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoSegment,
+    Memo, NodeId, Prop, ReadSignal, Ready, ScopeContext, Signal,
 };
 use crate::reactive::{DynamicSegment, ForEach, create_memo};
 use crate::types::icons::Glyph;

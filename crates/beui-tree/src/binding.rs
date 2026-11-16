@@ -34,7 +34,10 @@ impl<T> Clone for Binding<T> {
 impl<T> Copy for Binding<T> {}
 
 impl<T: Clone + 'static> Binding<T> {
-    pub fn new<M, W>(read: impl IntoPropValue<Prop<T>, M>, write: impl IntoPropValue<Callback<T>, W>) -> Self {
+    pub fn new<M, W>(
+        read: impl IntoPropValue<Prop<T>, M>,
+        write: impl IntoPropValue<Callback<T>, W>,
+    ) -> Self {
         let write = write.into_prop_value();
         match read.into_prop_value() {
             Prop::Static(value) => {
@@ -116,7 +119,6 @@ impl<T: Clone + 'static> IntoProp<T> for Binding<T> {
         }
     }
 }
-
 
 impl<T: Clone + PartialEq + 'static> From<Binding<T>> for Callback<T> {
     fn from(binding: Binding<T>) -> Self {

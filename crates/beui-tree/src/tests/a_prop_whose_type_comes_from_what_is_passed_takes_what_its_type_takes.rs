@@ -61,8 +61,16 @@ fn a_prop_whose_type_comes_from_what_is_passed_takes_what_its_type_takes() {
                 <Element tag="i" />
             </Gathered>
             <Maps map={|value: u32| value + 1} />
-            <Header header={|value: u32| view! { <Element tag="b" text={value.to_string()} /> }} />
-            <After after={|| view! { <Element tag="u" /> }} />
+            <Header
+                header={|value: u32| view! {
+                    <Element tag="b" text={value.to_string()} />
+                }}
+            />
+            <After
+                after={|| view! {
+                    <Element tag="u" />
+                }}
+            />
         </Element>
     };
     let html = page.html();

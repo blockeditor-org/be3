@@ -8,7 +8,7 @@ use beui_macros::component;
 use beui_reactive::{ScopeContext, current_scope};
 
 use crate::reactive::{
-    AnyKey, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Build, Scope, Set, Signal,
+    AnyKey, Build, Get, KeepSet, KeptKey, Memo, NodeId, Prop, ReadSignal, Scope, Set, Signal,
     Unwrapped, create_effect, create_memo, create_signal, kept_shown, on_cleanup, provide_context,
     provide_kept_shown, untrack, use_context,
 };
@@ -92,11 +92,7 @@ struct KeepAliveCache(Rc<Cache>);
 /// `KeepAlive`, not what is provided between it and a `Kept`; it goes when the `KeepAlive`
 /// does.
 #[component]
-pub fn KeepAlive<B, KS, AS>(
-    keep: KS,
-    awake: AS,
-    #[prop(children)] content: Build<B>,
-) -> B::Output
+pub fn KeepAlive<B, KS, AS>(keep: KS, awake: AS, #[prop(children)] content: Build<B>) -> B::Output
 where
     B: Unwrapped + 'static,
     KS: KeepSet,

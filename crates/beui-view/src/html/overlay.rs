@@ -1,6 +1,7 @@
 use crate::components::overlay::OverlayPresence;
 use std::cell::RefCell;
 
+use crate::reactive::BuildFn;
 use crate::reactive::Callback;
 use crate::reactive::Get;
 use crate::reactive::Memo;
@@ -8,7 +9,6 @@ use crate::reactive::NodeId;
 use crate::reactive::NodeRef;
 use crate::reactive::OverlayAnchor;
 use crate::reactive::Prop;
-use crate::reactive::BuildFn;
 use crate::reactive::Scope;
 use crate::reactive::Set;
 use crate::reactive::create_effect;

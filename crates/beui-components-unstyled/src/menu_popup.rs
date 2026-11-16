@@ -14,7 +14,10 @@ pub struct MenuStyle {
     spacing: f32,
     row: RenderFn<MenuRowHandle, NodeId>,
     panel: RenderFn<NodeId, NodeId>,
-    sheet: Option<(RenderFn<MenuRowHandle, NodeId>, RenderFn<AnchoredSheetHandle, NodeId>)>,
+    sheet: Option<(
+        RenderFn<MenuRowHandle, NodeId>,
+        RenderFn<AnchoredSheetHandle, NodeId>,
+    )>,
     toolbar: Option<(RenderFn<ButtonHandle, NodeId>, RenderFn<NodeId, NodeId>)>,
 }
 
@@ -55,7 +58,9 @@ impl MenuStyle {
         }
     }
 
-    pub(crate) fn toolbar(&self) -> Option<(RenderFn<ButtonHandle, NodeId>, RenderFn<NodeId, NodeId>)> {
+    pub(crate) fn toolbar(
+        &self,
+    ) -> Option<(RenderFn<ButtonHandle, NodeId>, RenderFn<NodeId, NodeId>)> {
         self.toolbar
     }
 
@@ -67,7 +72,12 @@ impl MenuStyle {
         (self.row, self.panel)
     }
 
-    fn sheet(&self) -> Option<(RenderFn<MenuRowHandle, NodeId>, RenderFn<AnchoredSheetHandle, NodeId>)> {
+    fn sheet(
+        &self,
+    ) -> Option<(
+        RenderFn<MenuRowHandle, NodeId>,
+        RenderFn<AnchoredSheetHandle, NodeId>,
+    )> {
         self.sheet
     }
 }

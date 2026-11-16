@@ -2,8 +2,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::reactive::{
-    Get, IntoPropValue, Prop, Memo, Set, Signal, create_effect, create_memo, create_signal, on_cleanup,
-    tree_local, untrack,
+    Get, IntoPropValue, Memo, Prop, Set, Signal, create_effect, create_memo, create_signal,
+    on_cleanup, tree_local, untrack,
 };
 use crate::types::{Color, Color32, ColorDefinitions, ColorScheme};
 
