@@ -20,7 +20,7 @@ mod wasi;
 mod tests;
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     convert::Infallible,
     mem::ManuallyDrop,
     path::{Path, PathBuf},
@@ -217,24 +217,51 @@ impl Host {
         if identities.is_empty() {
             return Ok((Program::Whole(app), identities));
         }
-        let mut modules = Vec::with_capacity(identities.len() + 1);
+        let mut sources = Vec::with_capacity(identities.len());
         for identity in &identities {
+            sources.push(self.source(identity, library)?);
+        }
+        // Each library keeps the exports a module above it imports (engine::trimmed): every staged
+        // app's (keep_exports), so that the apps share one compile of it, and this one's.
+        let mut kept: HashSet<String> = staged_imports();
+        kept.extend(app.shape.imports.iter().map(|import| import.name.clone()));
+        let mut trimmed = Vec::with_capacity(identities.len());
+        for index in (0..identities.len()).rev() {
+            let mut names: Vec<&str> = kept.iter().map(String::as_str).collect();
+            names.sort_unstable();
+            let key = format!(
+                "{}:{}",
+                identities[index],
+                be_wasm_dylink::identity(names.join("\n").as_bytes())
+            );
+            let cached = self
+                .libraries
+                .lock()
+                .map_err(|_| "the library cache was poisoned".to_owned())?
+                .contains_key(&key);
+            let bytes = match cached {
+                true => Ok(Vec::new()),
+                false => engine::trimmed(&sources[index].0, |name| kept.contains(name)),
+            };
+            trimmed.push((key, bytes));
+            kept.extend(sources[index].1.imports.iter().map(|import| import.name.clone()));
+        }
+        trimmed.reverse();
+        let mut modules = Vec::with_capacity(identities.len() + 1);
+        for (identity, (key, bytes)) in identities.iter().zip(trimmed) {
             let mut libraries = self
                 .libraries
                 .lock()
                 .map_err(|_| "the library cache was poisoned".to_owned())?;
-            let module = match libraries.get(identity) {
+            let module = match libraries.get(&key) {
                 Some(module) => Arc::clone(module),
                 None => {
-                    let module = library(identity)
-                        .and_then(|bytes| {
-                            be_wasm_dylink::check_library(&bytes, identity)?;
-                            engine::compile(scope, &source(bytes)?)
-                        })
+                    let module = bytes
+                        .and_then(|bytes| engine::compile(scope, &bytes))
                         .map_err(|error| {
                             format!("the library {identity} could not be loaded: {error}")
                         })?;
-                    libraries.insert(identity.clone(), Arc::clone(&module));
+                    libraries.insert(key, Arc::clone(&module));
                     module
                 }
             };
@@ -243,6 +270,76 @@ impl Host {
         modules.push(app);
         Ok((Program::Linked(modules.into()), identities))
     }
+}
+
+impl Host {
+    /// A library's bytes, checked against its identity once, and what it imports and exports.
+    fn source(
+        &self,
+        identity: &str,
+        library: &dyn Fn(&str) -> Result<Vec<u8>, String>,
+    ) -> Result<Arc<(Vec<u8>, engine::Shape)>, String> {
+        static SOURCES: Mutex<Vec<(String, Arc<(Vec<u8>, engine::Shape)>)>> = Mutex::new(Vec::new());
+        let mut sources = SOURCES.lock().unwrap_or_else(|held| held.into_inner());
+        if let Some((_, found)) = sources.iter().find(|(known, _)| known == identity) {
+            return Ok(Arc::clone(found));
+        }
+        let loaded = library(identity)
+            .and_then(|bytes| {
+                be_wasm_dylink::check_library(&bytes, identity)?;
+                let bytes = source(bytes)?;
+                let shape = engine::Shape::read(&bytes)?;
+                Ok(Arc::new((bytes, shape)))
+            })
+            .map_err(|error| format!("the library {identity} could not be loaded: {error}"))?;
+        sources.push((identity.to_owned(), Arc::clone(&loaded)));
+        Ok(loaded)
+    }
+}
+
+static STAGED: Mutex<Option<Arc<HashSet<String>>>> = Mutex::new(None);
+
+/// Every name the staged apps import, which the libraries they link keep among their exports (and
+/// no other function or global; engine::trimmed). Without it, a library keeps what each app that
+/// loads it imports, and apps importing differently each compile it again.
+pub fn keep_exports(names: impl IntoIterator<Item = String>) {
+    *STAGED.lock().unwrap_or_else(|held| held.into_inner()) =
+        Some(Arc::new(names.into_iter().collect()));
+}
+
+fn staged_imports() -> HashSet<String> {
+    STAGED
+        .lock()
+        .unwrap_or_else(|held| held.into_inner())
+        .as_ref()
+        .map(|staged| staged.as_ref().clone())
+        .unwrap_or_default()
+}
+
+/// The names a module imports, read from no more of it than holds its imports.
+pub fn imported_names(stored: Stored) -> Result<Vec<String>, String> {
+    let bytes = match stored {
+        Stored::Bytes(bytes) => bytes,
+        Stored::File(path) => {
+            use std::io::Read;
+            let mut file = std::fs::File::open(&path)
+                .map_err(|error| format!("{} could not be read: {error}", path.display()))?;
+            let mut bytes = Vec::new();
+            loop {
+                let read = (&mut file)
+                    .take(1 << 20)
+                    .read_to_end(&mut bytes)
+                    .map_err(|error| format!("{} could not be read: {error}", path.display()))?;
+                if let Some(names) = engine::imports_in(&bytes) {
+                    return Ok(names);
+                }
+                if read == 0 {
+                    break bytes;
+                }
+            }
+        }
+    };
+    engine::imports_in(&bytes).ok_or_else(|| "the module's imports could not be read".to_owned())
 }
 
 /// A module's bytes as V8 takes them. The tests write their guests as text.
