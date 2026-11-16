@@ -934,13 +934,22 @@ impl<S: ObjectStore> Peer<S> {
         if !self.keys.trusted(key) {
             return Err(ClientError::Locked(key));
         }
+        // The server names the current key; a key of another block would seal this one where
+        // that block's readers read it.
+        if self.keys.block_of(key) != Some(block) {
+            return Err(ClientError::Forged(block));
+        }
         let epoch = self.keys.row(key).map_or(0, |row| row.epoch);
         let newest = self
             .keys
             .keys_of(block, KeyKind::Data)
             .into_iter()
             .rev()
-            .find(|row| row.epoch > epoch && self.keys.trusted(row.id));
+            .find(|row| {
+                row.epoch > epoch
+                    && self.keys.trusted(row.id)
+                    && self.keys.block_of(row.id) == Some(block)
+            });
         Ok(newest.map_or(key, |row| row.id))
     }
 
