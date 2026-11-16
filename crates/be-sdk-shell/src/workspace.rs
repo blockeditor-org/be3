@@ -1329,7 +1329,7 @@ impl Workspace {
 pub fn BlockTab(
     workspace: Workspace,
     tab: TabId,
-    #[prop(default = None)] bar: Option<BuildFn<NodeId>>,
+    bar: Option<BuildFn<NodeId>>,
     #[prop(default = None)] preview: Prop<Option<ChildTarget>>,
     on_details: Callback<()>,
 ) -> DockEntry<TabId> {

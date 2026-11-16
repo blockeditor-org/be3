@@ -24,6 +24,9 @@ struct Prop {
     /// `RenderFn<H, B>`) that no other prop names: what is passed decides that parameter, so
     /// it is taken without converting it (`Exact`).
     exact: bool,
+    /// An `Option<X>` whose `X` is `exact`'s kind of type (`Option<RenderFn<H, B>>`): it takes
+    /// an `Option<X>`, or what an exact `X` takes (`ExactWithin`).
+    within: bool,
     /// `#[prop(required)]`: given even though its type has a value when left out.
     required: bool,
 }
@@ -36,14 +39,51 @@ struct Setter {
     value: proc_macro2::TokenStream,
 }
 
-/// The type a prop's setter converts what it is passed into.
+/// The type a children slot's `Slot<..>` names: the declared type, or `Exact<..>` or
+/// `ExactWithin<..>` around it, whose slot traits take what is passed without converting it.
 fn prop_target(prop: &Prop) -> proc_macro2::TokenStream {
     let ty = &prop.ty;
     if prop.exact {
-        quote! { ::__beui_tree::reactive::Exact<#ty> }
+        quote! { ::__beui_tree::reactive::macro_support::Exact<#ty> }
+    } else if prop.within {
+        quote! { ::__beui_tree::reactive::macro_support::ExactWithin<#ty> }
     } else {
         quote! { #ty }
     }
+}
+
+/// The trait a setter asks of what it is passed, with the marker `by`: `IntoPropValue` of the
+/// declared type, or `IntoExactProp` of it for a prop whose type comes from what is passed.
+/// Either way the declared type is what a message names.
+fn conversion(prop: &Prop, by: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let ty = &prop.ty;
+    if !prop.exact && !prop.within {
+        return quote! { ::__beui_tree::reactive::IntoPropValue<#ty, #by> };
+    }
+    let kind = slot_kind(prop);
+    quote! { ::__beui_tree::reactive::macro_support::IntoExactProp<#ty, #by, #kind> }
+}
+
+/// `IntoExactProp`'s and `IntoSlot`'s `K`: which slot traits take what is passed.
+fn slot_kind(prop: &Prop) -> proc_macro2::TokenStream {
+    if prop.exact {
+        quote! { ::__beui_tree::reactive::macro_support::Exact<()> }
+    } else if prop.within {
+        quote! { ::__beui_tree::reactive::macro_support::ExactWithin<()> }
+    } else {
+        quote! { () }
+    }
+}
+
+/// `value` converted by `conversion`.
+fn convert(prop: &Prop, by: proc_macro2::TokenStream, value: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let conversion = conversion(prop, by);
+    let method = if prop.exact || prop.within {
+        quote! { into_exact_prop }
+    } else {
+        quote! { into_prop_value }
+    };
+    quote! { <_ as #conversion>::#method(#value) }
 }
 
 /// A prop's one setter. `view!` calls it by the prop's name, and the children slot's also as
@@ -59,20 +99,13 @@ fn prop_setter(prop: &Prop, method: Ident) -> Setter {
             value: quote! { value },
         };
     }
-    let target = prop_target(prop);
-    let convert = quote! {
-        <__Passed as ::__beui_tree::reactive::IntoPropValue<#target, __By>>::into_prop_value(value)
-    };
+    let conversion = conversion(prop, quote! { __By });
     Setter {
         method,
         generics: vec![quote! { __Passed }, quote! { __By }],
         args: quote! { value: __Passed },
-        where_clause: vec![quote! { __Passed: ::__beui_tree::reactive::IntoPropValue<#target, __By> }],
-        value: if prop.exact {
-            quote! { #convert.0 }
-        } else {
-            convert
-        },
+        where_clause: vec![quote! { __Passed: #conversion }],
+        value: convert(prop, quote! { __By }, quote! { value }),
     }
 }
 
@@ -82,21 +115,17 @@ fn prop_setters(prop: &Prop, children_slot: bool) -> Vec<Setter> {
         let mut children = prop_setter(prop, format_ident!("__children"));
         if !prop.bare {
             let target = prop_target(prop);
-            children.generics = vec![quote! { __Make }, quote! { __Passed }, quote! { __By }];
+            let ty = &prop.ty;
+            let kind = slot_kind(prop);
+            let takes = quote! { ::__beui_tree::reactive::macro_support::TakesChildren<#ty, __Passed, #kind> };
+            children.generics = vec![quote! { __Make }, quote! { __Passed }];
             children.args = quote! { make: __Make };
             children.where_clause = vec![
-                quote! { __Make: ::core::ops::FnOnce(::__beui_tree::reactive::Slot<#target>) -> __Passed },
-                quote! { __Passed: ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>> },
+                quote! { __Make: ::core::ops::FnOnce(::__beui_tree::reactive::macro_support::Slot<#target>) -> __Passed },
+                quote! { __Make: #takes },
             ];
-            let convert = quote! {
-                <__Passed as ::__beui_tree::reactive::IntoPropValue<#target, ::__beui_tree::reactive::ChildShape<__By>>>::into_prop_value(
-                    make(::__beui_tree::reactive::Slot::new()),
-                )
-            };
-            children.value = if prop.exact {
-                quote! { #convert.0 }
-            } else {
-                convert
+            children.value = quote! {
+                <__Make as #takes>::take_children(make(::__beui_tree::reactive::macro_support::Slot::new()))
             };
         }
         setters.push(children);
@@ -109,13 +138,7 @@ fn default_value(prop: &Prop, default: &Expr) -> proc_macro2::TokenStream {
     if prop.bare {
         return quote! { #default };
     }
-    let target = prop_target(prop);
-    let convert = quote! { ::__beui_tree::reactive::IntoPropValue::<#target, _>::into_prop_value(#default) };
-    if prop.exact {
-        quote! { #convert.0 }
-    } else {
-        convert
-    }
+    convert(prop, quote! { _ }, quote! { #default })
 }
 
 fn own_param_ident(ty: &Type) -> Option<Ident> {
@@ -153,6 +176,26 @@ fn mentions_bare(ty: &Type, param: &Ident) -> bool {
 fn is_own_param(ty: &Type, params: &[Ident]) -> bool {
     matches!(ty, Type::Path(path) if path.qself.is_none()
         && path.path.get_ident().is_some_and(|ident| params.contains(ident)))
+}
+
+/// `X` in `Option<X>`. The rule for props whose type comes from what is passed looks through
+/// `Option`, the one other name the macro reads: an optional prop of a type it would take
+/// exactly (`Option<RenderFn<H, B>>`) takes what that type does, as `Some`.
+fn option_inner(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Option" {
+        return None;
+    }
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return None;
+    };
+    match args.args.iter().collect::<Vec<_>>().as_slice() {
+        [GenericArgument::Type(inner)] => Some(inner),
+        _ => None,
+    }
 }
 
 /// The last type argument of `ty`'s last path segment: `V` in `Prop<V>`, `B` in
@@ -247,31 +290,45 @@ struct PropAttr {
     required: bool,
 }
 
+/// Reads a prop's `#[prop(..)]` attributes, however many it is written with: their keys are
+/// merged, and a key given twice is an error.
 fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
     let mut parsed = PropAttr {
         default: None,
         children: false,
         required: false,
     };
-    let Some(position) = attrs.iter().position(|attr| attr.path().is_ident("prop")) else {
-        return Ok(parsed);
-    };
-    let attr = attrs.remove(position);
-    attr.parse_nested_meta(|meta| {
-        if meta.path.is_ident("children") {
-            parsed.children = true;
-            return Ok(());
-        }
-        if meta.path.is_ident("default") {
-            parsed.default = Some(meta.value()?.parse::<Expr>()?);
-            return Ok(());
-        }
-        if meta.path.is_ident("required") {
-            parsed.required = true;
-            return Ok(());
-        }
-        Err(meta.error("expected `children`, `required` or `default = <expr>`"))
-    })?;
+    let (prop_attrs, others): (Vec<Attribute>, Vec<Attribute>) = std::mem::take(attrs)
+        .into_iter()
+        .partition(|attr| attr.path().is_ident("prop"));
+    *attrs = others;
+    for attr in prop_attrs {
+        attr.parse_nested_meta(|meta| {
+            let twice = || meta.error("this prop already says this in a `#[prop(..)]`");
+            if meta.path.is_ident("children") {
+                if parsed.children {
+                    return Err(twice());
+                }
+                parsed.children = true;
+                return Ok(());
+            }
+            if meta.path.is_ident("default") {
+                if parsed.default.is_some() {
+                    return Err(twice());
+                }
+                parsed.default = Some(meta.value()?.parse::<Expr>()?);
+                return Ok(());
+            }
+            if meta.path.is_ident("required") {
+                if parsed.required {
+                    return Err(twice());
+                }
+                parsed.required = true;
+                return Ok(());
+            }
+            Err(meta.error("expected `children`, `required` or `default = <expr>`"))
+        })?;
+    }
     Ok(parsed)
 }
 
@@ -281,7 +338,8 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
 /// type `P`: each prop type says what it takes (`beui_tree::prop_value`), and the macro reads
 /// no type names. A `Prop<T>` takes a `T`, a signal or memo of one, or a closure returning one,
 /// read as a getter; an `Option<X>` what an `X` takes, or an `Option<X>` passed on as it is; a
-/// `Callback<T>` a closure or a signal; a render prop a closure taking its handle or nothing.
+/// `Callback<T>` a closure or a signal; a render prop a closure taking its handle, and a
+/// `Build<C>` or `BuildFn<C>` one taking nothing.
 ///
 /// A prop left out of a tag takes its `#[prop(default = <expr>)]`, converted as a passed value
 /// would be, or else its type's `AbsentProp` value: `None` for an `Option`, empty for a
@@ -303,9 +361,12 @@ fn take_prop_attr(attrs: &mut Vec<Attribute>) -> syn::Result<PropAttr> {
 ///
 /// A prop whose last type argument is one of the component's own type parameters, named by
 /// no other prop, takes what is passed without converting it, so the parameter follows it
-/// (`Show`'s `value` and `then`: its branch count). A prop typed by a bare type parameter
+/// (`Show`'s `value` and `then`: its branch count). An `Option` of such a type
+/// (`Option<RenderFn<H, C>>`) takes what that type does, as `Some`. A prop typed by a bare type
+/// parameter
 /// takes its value as it is and, with no default, may be left out: that parameter is then
-/// inferred as `MissingProp` (`Show`'s `fallback`). The component's bounds are checked on
+/// inferred as `MissingProp` (`Show`'s `fallback`); it cannot be the children slot. The
+/// component's bounds are checked on
 /// each setter and on `build`, not on the builder type, so a bound a tag does not meet is
 /// reported as that bound.
 #[proc_macro_attribute]
@@ -454,6 +515,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             let bare = is_own_param(ty, &own_params);
             let exact = !bare
                 && last_type_arg(ty).is_some_and(|inner| is_own_param(inner, &own_params));
+            let within = !bare
+                && !exact
+                && option_inner(ty)
+                    .and_then(last_type_arg)
+                    .is_some_and(|inner| is_own_param(inner, &own_params));
             Ok(Prop {
                 ident,
                 ty: (**ty).clone(),
@@ -461,6 +527,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 is_children_slot: children,
                 bare,
                 exact,
+                within,
                 required,
             })
         })
@@ -471,10 +538,14 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .iter()
         .enumerate()
         .map(|(index, prop)| {
-            let Some(param) = last_type_arg(&prop.ty)
-                .filter(|_| prop.exact)
-                .and_then(own_param_ident)
-            else {
+            let decided = if prop.exact {
+                last_type_arg(&prop.ty)
+            } else if prop.within {
+                option_inner(&prop.ty).and_then(last_type_arg)
+            } else {
+                None
+            };
+            let Some(param) = decided.and_then(own_param_ident) else {
                 return false;
             };
             props
@@ -485,6 +556,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .collect();
     for (prop, mentioned) in props.iter_mut().zip(mentioned) {
         prop.exact &= !mentioned;
+        prop.within &= !mentioned;
     }
 
     let designated: Vec<usize> = props
@@ -512,6 +584,18 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         ));
     }
     let children_slot = designated.first().copied().or(named_children);
+    if let Some(slot) = children_slot
+        && props[slot].bare
+    {
+        let prop = &props[slot];
+        return Err(syn::Error::new_spanned(
+            &prop.ty,
+            format!(
+                "`{}` takes this tag's children, so its type says which children it takes: give it a slot type such as `Children<C>`, a child type, or a render (`RenderFn<H, C>`, `BuildFn<C>`), not a bare type parameter",
+                prop.ident,
+            ),
+        ));
+    }
     // Every prop is a typestate parameter of the builder: `MissingProp` until a setter sets
     // it. The builder struct and its setter impls carry no bounds of the component's, which
     // go on each method instead, so a bound the tag does not meet is reported as that bound
@@ -554,7 +638,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 let absent = (!given.required).then(|| quote! {
                     #[doc(hidden)]
                     #[diagnostic::do_not_recommend]
-                    impl<T: ::__beui_tree::reactive::AbsentProp> #trait_ident<T> for ::__beui_tree::reactive::MissingProp {
+                    impl<T: ::__beui_tree::reactive::AbsentProp> #trait_ident<T> for ::__beui_tree::reactive::macro_support::MissingProp {
                         fn __prop(self) -> T {
                             <T as ::__beui_tree::reactive::AbsentProp>::absent()
                         }
@@ -562,7 +646,8 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 });
                 quote! {
                     #[doc(hidden)]
-                    impl<T> #trait_ident<T> for ::__beui_tree::reactive::SetProp<T> {
+                    #[diagnostic::do_not_recommend]
+                    impl<T> #trait_ident<T> for ::__beui_tree::reactive::macro_support::SetProp<T> {
                         fn __prop(self) -> T {
                             self.0
                         }
@@ -582,7 +667,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
             }
         });
 
-    let missing = quote! { ::__beui_tree::reactive::MissingProp };
+    let missing = quote! { ::__beui_tree::reactive::macro_support::MissingProp };
     let fields = props.iter().zip(&state_params).map(|(prop, param)| {
         let ident = &prop.ident;
         quote! { #ident: #param }
@@ -770,13 +855,13 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 (quote! { #ty }, quote! { __prop_value })
             } else if prop.bare {
                 (
-                    quote! { ::__beui_tree::reactive::SetProp<#ty> },
-                    quote! { ::__beui_tree::reactive::SetProp(__prop_value) },
+                    quote! { ::__beui_tree::reactive::macro_support::SetProp<#ty> },
+                    quote! { ::__beui_tree::reactive::macro_support::SetProp(__prop_value) },
                 )
             } else {
                 (
-                    quote! { ::__beui_tree::reactive::SetProp<__Target> },
-                    quote! { ::__beui_tree::reactive::SetProp(::__beui_tree::reactive::Is::is(__prop_value)) },
+                    quote! { ::__beui_tree::reactive::macro_support::SetProp<__Target> },
+                    quote! { ::__beui_tree::reactive::macro_support::SetProp(::__beui_tree::reactive::macro_support::Is::is(__prop_value)) },
                 )
             };
             let set_args = with_state(set_state);
@@ -797,7 +882,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                         let mut generics = generics;
                         generics.push(quote! { __Target });
                         let mut where_clause = where_clause;
-                        where_clause.push(quote! { #ty: ::__beui_tree::reactive::Is<__Target> });
+                        where_clause.push(quote! { #ty: ::__beui_tree::reactive::macro_support::Is<__Target> });
                         (angle_bracketed(&generics), method_where(where_clause))
                     };
                     let others = &others;
@@ -821,8 +906,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         })
         .collect::<Vec<_>>();
 
-    // A prop's value is settled inside the component's scope, so what a missing one makes (a
-    // binding's signal) belongs to the component.
+    // A function component settles its props inside its scope, so what a missing one makes (a
+    // binding's signal) belongs to the component. An associated component settles them in the
+    // caller's scope, just before calling its hidden method, so that belongs to the caller.
+    // A default runs untracked: a read in it is a one-time snapshot, not a tracked read in the
+    // component's body.
     let field_takes = props.iter().map(|prop| {
         let ident = &prop.ident;
         quote! { let #ident = self.#ident; }
@@ -839,7 +927,7 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 Some(default) => {
                     let default = default_value(prop, default);
                     quote! {
-                        <#param as ::__beui_tree::reactive::PropOr<#ty>>::prop_or(#ident, || #default)
+                        <#param as ::__beui_tree::reactive::macro_support::PropOr<#ty>>::prop_or(#ident, || ::__beui_tree::reactive::untrack(|| #default))
                     }
                 }
             };
@@ -856,10 +944,10 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 let ty = &prop.ty;
                 match prop.default {
                     None => quote! { #param: #trait_ident<#ty> },
-                    Some(_) => quote! { #param: ::__beui_tree::reactive::PropOr<#ty> },
+                    Some(_) => quote! { #param: ::__beui_tree::reactive::macro_support::PropOr<#ty> },
                 }
             })
-            .chain([quote! { #out_param: ::__beui_tree::reactive::SameType<#output_ty> }])
+            .chain([quote! { #out_param: ::__beui_tree::reactive::macro_support::SameType<#output_ty> }])
             .collect(),
     );
 
@@ -914,7 +1002,62 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 #[doc(hidden)]
                 pub fn __children<__Make>(self, _make: __Make) -> Self
                 where
-                    __Make: ::__beui_tree::reactive::TakesNoChildren,
+                    __Make: ::__beui_tree::reactive::macro_support::TakesNoChildren,
+                {
+                    self
+                }
+            }
+        }
+    });
+
+    // Children written between the tags of a tag that set the children slot as a prop too:
+    // `__children` on the state where the slot is set asks for a trait nothing implements, so
+    // it is reported with this message rather than as a missing method.
+    let children_twice = children_slot.map(|slot| {
+        let prop = props[slot].ident.to_string();
+        let trait_ident = format_ident!("__{}_children_set_twice", base);
+        let message = format!(
+            "`{prop}` is set both as a prop and as this tag's children, write it one way or the other"
+        );
+        let label = format!("these children set `{prop}` again");
+        let impl_params: Vec<proc_macro2::TokenStream> = comp_params
+            .iter()
+            .map(|param| quote! { #param })
+            .chain([quote! { #out_param }])
+            .chain(
+                state_params
+                    .iter()
+                    .enumerate()
+                    .filter(|(other, _)| *other != slot)
+                    .map(|(_, param)| quote! { #param }),
+            )
+            .chain([quote! { __Set }])
+            .collect();
+        let impl_generics = angle_bracketed(&impl_params);
+        let args: Vec<proc_macro2::TokenStream> = comp_args
+            .iter()
+            .cloned()
+            .chain([quote! { #out_param }])
+            .chain(state_params.iter().enumerate().map(|(other, param)| {
+                if other == slot {
+                    quote! { ::__beui_tree::reactive::macro_support::SetProp<__Set> }
+                } else {
+                    quote! { #param }
+                }
+            }))
+            .collect();
+        let args = angle_bracketed(&args);
+        quote! {
+            #[doc(hidden)]
+            #[allow(non_camel_case_types)]
+            #[diagnostic::on_unimplemented(message = #message, label = #label)]
+            #vis trait #trait_ident {}
+
+            impl #impl_generics #builder_ident #args {
+                #[doc(hidden)]
+                pub fn __children<__Make>(self, _make: __Make) -> Self
+                where
+                    __Make: #trait_ident,
                 {
                     self
                 }
@@ -952,16 +1095,18 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
 
         #no_children
 
+        #children_twice
+
         impl #all_generics #builder_all {
             #[track_caller]
             pub fn build(self) -> #out_param #build_where {
-                let with_built = <#out_param as ::__beui_tree::reactive::SameType<#output_ty>>::same(self.with_built);
+                let with_built = <#out_param as ::__beui_tree::reactive::macro_support::SameType<#output_ty>>::same(self.with_built);
                 #(#field_takes)*
                 let node: #output_ty = #finish;
                 for bind in with_built {
                     bind(&node);
                 }
-                <#out_param as ::__beui_tree::reactive::SameType<#output_ty>>::from_output(node)
+                <#out_param as ::__beui_tree::reactive::macro_support::SameType<#output_ty>>::from_output(node)
             }
         }
     };
@@ -1489,7 +1634,7 @@ fn expand_view_body(
                 ),
                 (Some(block), None) => (
                     span,
-                    quote_spanned! { span => ::__beui_tree::reactive::ChildUnitClosure(move #params #block) },
+                    quote_spanned! { span => ::__beui_tree::reactive::macro_support::ChildUnitClosure(move #params #block) },
                 ),
                 (None, Some(_)) => {
                     let items = expand_child_block(children);
@@ -1502,7 +1647,7 @@ fn expand_view_body(
                     let items = expand_child_block(children);
                     (
                         tag,
-                        quote_spanned! { tag => ::__beui_tree::reactive::ChildBlock(move || #items) },
+                        quote_spanned! { tag => ::__beui_tree::reactive::macro_support::ChildBlock(move || #items) },
                     )
                 }
             }
@@ -1511,7 +1656,7 @@ fn expand_view_body(
             let items = expand_child_block(children);
             (
                 tag,
-                quote_spanned! { tag => ::__beui_tree::reactive::ChildBlock(move || #items) },
+                quote_spanned! { tag => ::__beui_tree::reactive::macro_support::ChildBlock(move || #items) },
             )
         }
     };
@@ -1519,7 +1664,7 @@ fn expand_view_body(
     quote_spanned! { span =>
         #builder .#set(|__slot| {
             #[allow(unused_imports)]
-            use ::__beui_tree::reactive::{FnOnceSlot as _, FnSlot as _, NoHandedSlot as _};
+            use ::__beui_tree::reactive::macro_support::{FnOnceSlot as _, FnSlot as _, NoHandedSlot as _};
             #wrapped
         }) .#build()
     }

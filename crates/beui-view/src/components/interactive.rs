@@ -66,7 +66,7 @@ pub fn Interactive(
     on_secondary_press: Callback<PointerPress>,
     on_long_press_drag: Callback<PointerPress>,
     on_drag: Callback<PointerPress>,
-    #[prop(default = None)] drag: Option<Func<PointerPress, Option<crate::drag::Carry>>>,
+    drag: Option<Func<PointerPress, Option<crate::drag::Carry>>>,
     on_pointer: Callback<PointerInput, bool>,
     on_wheel: Callback<WheelInput, bool>,
     #[prop(default = Area::Nowhere)] gesture_area: Prop<Area>,

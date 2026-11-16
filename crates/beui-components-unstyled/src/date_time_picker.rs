@@ -90,7 +90,7 @@ struct Field {
 
 #[component]
 pub fn DateTimePicker(
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,
@@ -239,7 +239,7 @@ pub fn DateTimePicker(
 fn FieldBox(
     field: Field,
     focus: Prop<Option<DateSegment>>,
-    #[prop(default = None)] trigger: Option<NodeId>,
+    trigger: Option<NodeId>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_open: Callback<DateSegment>,
     on_draft: Callback<DateDraft>,

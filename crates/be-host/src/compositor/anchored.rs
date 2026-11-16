@@ -276,7 +276,7 @@ fn dismiss_outside(window: WindowId, host: Option<AnchorHost>, pos: Pos2) {
 }
 
 #[component]
-pub(crate) fn AnchoredViews(#[prop(default = None)] host: Option<AnchorHost>) -> NodeId {
+pub(crate) fn AnchoredViews(host: Option<AnchorHost>) -> NodeId {
     let window = host_window();
     let owners = create_memo(move || {
         watch_owners();

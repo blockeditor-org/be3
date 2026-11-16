@@ -136,7 +136,7 @@ struct State {
 #[component]
 pub fn DateTimeField(
     #[prop(default = ComponentRef::new())] api: ComponentRef<DateTimeFieldApi>,
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] disabled: Prop<bool>,

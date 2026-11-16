@@ -44,7 +44,7 @@ struct State {
 #[component]
 pub fn TimeList(
     #[prop(default = ComponentRef::new())] api: ComponentRef<TimeListApi>,
-    #[prop(default = None)] value: Binding<Option<Time>>,
+    value: Binding<Option<Time>>,
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,

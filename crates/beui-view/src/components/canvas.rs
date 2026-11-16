@@ -36,7 +36,7 @@ pub fn CanvasItem(
     #[prop(default = 0.0)] y: Prop<f32>,
     #[prop(default = 0.0)] width: Prop<f32>,
     #[prop(default = 0.0)] height: Prop<f32>,
-    #[prop(default = None)] arranged: Option<u64>,
+    arranged: Option<u64>,
     #[prop(default = true)] clip: Prop<bool>,
     #[prop(default = true)] pointer: Prop<bool>,
     #[prop(default = false)] scales: Prop<bool>,

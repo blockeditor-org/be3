@@ -22,8 +22,8 @@ pub fn WindowView(
     windows: Windows,
     id: WindowId,
     #[prop(default = Vec::new())] occluders: Prop<Vec<Rect>>,
-    #[prop(default = None)] carrier: Option<Carrier>,
-    #[prop(default = None)] focus: Option<Trigger>,
+    carrier: Option<Carrier>,
+    focus: Option<Trigger>,
 ) -> NodeId {
     let Some(signals) = windows.signals(id) else {
         return view! {

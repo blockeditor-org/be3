@@ -741,7 +741,7 @@ pub fn ForEach<T, KF, H, C, R, F>(
     value: Prop<Vec<T>>,
     key: KF,
     fallback: F,
-    #[prop(default = None)] handle: Option<ForEachRef<KF::Key, C::Node>>,
+    handle: Option<ForEachRef<KF::Key, C::Node>>,
     #[prop(children)] view: RenderFn<H, R>,
 ) -> DynamicSegment<C>
 where

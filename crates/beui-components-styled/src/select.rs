@@ -33,7 +33,7 @@ pub fn Select<T>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<crate::SelectApi<T>>,
 
     options: Children<ChoiceOption<T>>,
-    #[prop(default = None)] selected: Binding<Option<T>>,
+    selected: Binding<Option<T>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,

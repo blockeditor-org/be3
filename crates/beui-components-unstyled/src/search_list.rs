@@ -136,7 +136,7 @@ pub fn SearchList<K>(
     query: Signal<String>,
     highlighted: Signal<Option<K>>,
     rank: Func<String, Vec<K>>,
-    #[prop(default = None)] enabled: Option<Func<K, bool>>,
+    enabled: Option<Func<K, bool>>,
     #[prop(default = true)] highlight_first: bool,
     #[prop(default = 8)] page: usize,
     #[prop(default = 1)] columns: Prop<usize>,

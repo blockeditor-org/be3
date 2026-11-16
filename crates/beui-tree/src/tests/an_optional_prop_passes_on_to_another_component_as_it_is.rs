@@ -3,8 +3,8 @@ use crate::reactive::BuildFn;
 
 #[component]
 fn Inner(
-    #[prop(default = None)] label: Option<Prop<String>>,
-    #[prop(default = None)] after: Option<BuildFn<DomNode>>,
+    label: Option<Prop<String>>,
+    after: Option<BuildFn<DomNode>>,
 ) -> DomNode {
     let text = match label {
         Some(label) => label.get_untracked(),
@@ -21,8 +21,8 @@ fn Inner(
 
 #[component]
 fn Outer(
-    #[prop(default = None)] label: Option<Prop<String>>,
-    #[prop(default = None)] after: Option<BuildFn<DomNode>>,
+    label: Option<Prop<String>>,
+    after: Option<BuildFn<DomNode>>,
 ) -> DomNode {
     view! {
         <Inner label after />

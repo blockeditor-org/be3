@@ -13,10 +13,10 @@ use crate::tokens::Movement;
 #[component]
 pub fn Glide(
     #[prop(default = ComponentRef::new())] api: ComponentRef<GlideApi>,
-    #[prop(default = None)] on: Option<Trackable>,
+    on: Option<Trackable>,
     #[prop(default = None)] from: Prop<Option<Pos2>>,
     #[prop(default = false)] raised: Prop<bool>,
-    #[prop(default = None)] within: Option<ComponentRef<GlideApi>>,
+    within: Option<ComponentRef<GlideApi>>,
     children: NodeId,
 ) -> NodeId {
     view! {

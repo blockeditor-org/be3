@@ -177,7 +177,7 @@ impl<T> Copy for State<T> {}
 pub fn Choice<T>(
     #[prop(default = ComponentRef::new())] api: ComponentRef<ChoiceApi<T>>,
     options: Children<ChoiceOption<T>>,
-    #[prop(default = None)] selected: Binding<Option<T>>,
+    selected: Binding<Option<T>>,
     kind: ChoiceKind,
     direction: Option<Direction>,
     #[prop(default = false)] wrap: bool,
@@ -185,8 +185,8 @@ pub fn Choice<T>(
     #[prop(default = CursorIcon::PointingHand)] cursor: CursorIcon,
     spacing: f32,
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = None)] item: Option<RenderFn<ChoiceItem<T>, NodeId>>,
-    #[prop(default = None)] handle: Option<ForEachRef<T, NodeId>>,
+    item: Option<RenderFn<ChoiceItem<T>, NodeId>>,
+    handle: Option<ForEachRef<T, NodeId>>,
     #[prop(children)] option: Option<RenderFn<ChoiceOptionHandle<T>, NodeId>>,
 ) -> NodeId
 where

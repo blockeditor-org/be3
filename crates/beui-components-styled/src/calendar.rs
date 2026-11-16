@@ -27,7 +27,7 @@ const SPACING: Space = Space::Xs2;
 
 #[component]
 pub fn Calendar(
-    #[prop(default = None)] selected: Binding<Option<Date>>,
+    selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,

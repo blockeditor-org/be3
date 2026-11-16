@@ -116,7 +116,8 @@ Use them as `<A::View editor />`. A component method takes no `self`.
 
 **Props.** Every setter `#[component]` writes takes `impl IntoPropValue<P, M>`
 for the prop's declared type `P`, and each prop type says in `beui-tree`
-(`prop_value.rs`) what it takes; the macro reads no type names. Every type takes
+(`prop_value.rs`) what it takes; the macro reads no type names but `Option`'s
+(below). Every type takes
 itself. A `Prop<T>` prop also takes a `T`, a signal or memo of one, or a closure
 returning one, which it reads as a getter: `value={move || !hex.get()}`.
 Pass a derived value as a closure. Make a memo instead when its output changes
@@ -129,27 +130,41 @@ not to closures. An `Option<X>` takes what an `X` takes, or an `Option<X>` passe
 on as it is; a `String` takes a `&str`; a `Callback<T>` takes an `FnMut(T)`, a
 `Signal<T>` (which it sets) or a `Binding<T>`, and a `Callback<()>` also a
 closure without arguments (`on_click={move || ..}`), called with `.call(())`; a
-render prop takes a closure taking its handle, or one taking nothing. A plain
-type takes only itself, so a `From` conversion a caller wants is an
-`IntoPropValue` impl on the prop's type, and a function item passed for a
-`fn(..)` prop is cast (`name={ThemeKind::name as fn(_) -> _}`). Every builder
+render prop takes a closure taking its handle (`|_| ..` when it ignores it), and a
+`Build<C>` or `BuildFn<C>` one taking nothing. A plain type takes only itself, so
+a `From` conversion a caller wants into a prop type of its own crate is an
+`IntoPropValue<ThatType, M>` impl for the value's type, with a marker of its own
+as `M`. `beui-tree`'s own prop types instead have one `IntoPropValue` impl each,
+keyed on the type and asking the type what it takes (`Takes`, implemented on the
+prop's type), so a value a prop does not take is reported against the prop
+rather than with a list of every type `IntoPropValue` knows. Every builder
 method and function that takes a prop takes `impl IntoPropValue<Prop<T>, M>`
 (or `<Callback<T>, M>`), never `impl IntoProp<T>`, so it takes what a tag would.
+
+A setter is generic over what it is passed, so it is no coercion site, and three
+things that coerce into a plain parameter need writing out:
+- a function item for a `fn(..)` prop: cast it, `name={ThemeKind::name as fn(_) -> _}`;
+- a closure for a `Box<dyn Fn(..)>` or `Rc<dyn Fn(..)>` prop: build the box,
+  `{Box::new(f) as Box<dyn Fn(u32)>}`;
+- an un-annotated parameter of a callback or named render closure whose body
+  calls a method on it: annotate it, `on_change={|v: u32| v.max(1)}`.
+A closure written between tags is typed by its slot, so
+`<Show value={picked}>|item| { item.get(); .. }</Show>` needs none.
 
 A prop whose last type argument is one of the component's own type parameters,
 named by no other prop (`Show`'s `value: Prop<V>`, its `then: RenderFn<V::Handed,
 B>`), takes what is passed without converting it (`Exact`), so that parameter
-follows what is passed: a signal, memo or closure for the `Prop`, and the very
-value a closure builds for the render. A prop typed by a bare type parameter
-takes its value as it is. Write every type argument of a render (`Render<H, C>`,
+follows what is passed: a `Prop`, signal, memo or closure for the `Prop`, the
+very value a closure builds for a render, a value as `Some` for an `Option<T>`,
+a signal for a `Binding<T>`, and for a `Callback`, `Func` or `Children` what
+they always take. The rule looks through `Option`, so an `Option<RenderFn<H, C>>`
+takes what an exact `RenderFn<H, C>` does, as `Some`. A prop typed by a bare
+type parameter takes its value as it is, and cannot be the children slot. Write
+every type argument of a render (`Render<H, C>`,
 `RenderFn<H, C>`); one handed nothing is a `Build<C>` or `BuildFn<C>`, and the
 macro rejects `Render<(), C>`.
 
-An un-annotated closure parameter is inferred only from how the body uses it,
-not from the prop: `on_change={|v| ..}` that calls a method on `v` names its type
-(`|v: String|`). A closure written between tags is typed by its slot, so
-`<Show value={picked}>|item| { item.get(); .. }</Show>` needs none. A tag's
-children are built in a `move` closure, so inside a render closure that runs
+A tag's children are built in a `move` closure, so inside a render closure that runs
 more than once, clone a non-`Copy` prop in a block head:
 `<Show value={shown}>|| { let v = v.clone(); view! { <Text>{v}</Text> } }</Show>`.
 

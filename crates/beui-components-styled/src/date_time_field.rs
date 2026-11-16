@@ -46,7 +46,7 @@ const STACK_BREAKPOINT: f32 = 460.0;
 
 #[component]
 pub fn DateTimeField(
-    #[prop(default = None)] value: Binding<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,

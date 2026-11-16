@@ -149,17 +149,17 @@ impl<P: BareChild> IntoSegment<Placed<P>> for Option<NodeId> {
     }
 }
 
-impl<P: BareChild> beui_tree::reactive::IntoPropValue<Children<Placed<P>>, beui_tree::reactive::Val<beui_tree::reactive::ByInto>> for NodeId {
-    fn into_prop_value(self) -> Children<Placed<P>> {
-        self.into()
+impl<P: BareChild> beui_tree::reactive::Takes<NodeId, ()> for Children<Placed<P>> {
+    fn take(node: NodeId) -> Self {
+        node.into()
     }
 }
 
-impl<P: ParentKind, T: FromPlaced<P> + SlotChild>
-    beui_tree::reactive::IntoPropValue<Children<T>, beui_tree::reactive::Val<beui_tree::reactive::ByInto>> for Placed<P>
+impl<P: ParentKind, T: FromPlaced<P> + SlotChild> beui_tree::reactive::Takes<Placed<P>, ()>
+    for Children<T>
 {
-    fn into_prop_value(self) -> Children<T> {
-        self.into()
+    fn take(placed: Placed<P>) -> Self {
+        placed.into()
     }
 }
 
