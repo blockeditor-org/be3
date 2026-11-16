@@ -36,19 +36,33 @@ fn an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it() {
         public: first.public(),
     };
     let sealed = sender.seal_for(from.account, &to, b"key", &[9u8; 32]);
-    assert_eq!(first.open_from(&from, to.account, b"key", &sealed).unwrap(), [9u8; 32]);
-    assert!(second.open_from(&from, to.account, b"key", &sealed).is_err());
+    assert_eq!(
+        first.open_from(&from, to.account, b"key", &sealed).unwrap(),
+        [9u8; 32]
+    );
+    assert!(
+        second
+            .open_from(&from, to.account, b"key", &sealed)
+            .is_err()
+    );
     let other = Party {
         account: [2; 16],
         public: RecoveryPhrase::generate().secret().public(),
     };
     assert!(
-        first.open_from(&other, to.account, b"key", &sealed).is_err(),
+        first
+            .open_from(&other, to.account, b"key", &sealed)
+            .is_err(),
         "a wrap opens only as from the sender who sealed it"
     );
     assert!(
         first
-            .open_from(&from, to.account, b"key", &to.public.seal_anonymous(&[9u8; 32]))
+            .open_from(
+                &from,
+                to.account,
+                b"key",
+                &to.public.seal_anonymous(&[9u8; 32])
+            )
             .is_err(),
         "an anonymous wrap opens as from no one"
     );

@@ -60,14 +60,22 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
         .execute(
             "INSERT INTO access_log (organization_id, block_id, position, entry)
              VALUES (?1, ?2, 0, ?3)",
-            rusqlite::params![organization.to_string(), secret.to_string(), planted.encode()],
+            rusqlite::params![
+                organization.to_string(),
+                secret.to_string(),
+                planted.encode()
+            ],
         )
         .unwrap();
     database
         .execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
              VALUES (?1, ?2, ?3, 'scope', 9, 0)",
-            rusqlite::params![organization.to_string(), key.to_string(), secret.to_string()],
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                secret.to_string()
+            ],
         )
         .unwrap();
     database
@@ -105,7 +113,11 @@ async fn a_member_who_roots_a_block_they_do_not_hold_is_taken_only_weakly() {
         laptop.keys().carried_plain(key).is_err(),
         "a key taken on a member's word alone is handed on"
     );
-    assert_eq!(laptop.keys().root(secret), None, "a weak root is passed on as pinned");
+    assert_eq!(
+        laptop.keys().root(secret),
+        None,
+        "a weak root is passed on as pinned"
+    );
     assert_eq!(
         member.keys().root_pin(secret),
         crate::keys::RootPin::Pinned(member.keys().root(secret).unwrap()),

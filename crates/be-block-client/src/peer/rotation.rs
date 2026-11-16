@@ -440,7 +440,8 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             }
             let checked = self.checked_organization().await?;
-            if let Some(signed) = self.member_record(checked.as_ref(), account, identity, false, true)
+            if let Some(signed) =
+                self.member_record(checked.as_ref(), account, identity, false, true)
             {
                 client::members::sign_member(&self.connection(), signed).await??;
             }

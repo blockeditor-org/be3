@@ -19,7 +19,12 @@ fn plant(
         .execute(
             "INSERT INTO keys (organization_id, id, block_id, kind, epoch, created)
              VALUES (?1, ?2, ?3, 'scope', ?4, 0)",
-            rusqlite::params![organization.to_string(), key.to_string(), block.to_string(), epoch],
+            rusqlite::params![
+                organization.to_string(),
+                key.to_string(),
+                block.to_string(),
+                epoch
+            ],
         )
         .unwrap();
     database

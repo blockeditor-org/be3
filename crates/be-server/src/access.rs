@@ -514,7 +514,12 @@ pub(crate) fn checked_organization_log(
     connection: &Connection,
     organization: Uuid,
 ) -> Result<Option<Checked>, ServerError> {
-    let entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let entries = entries(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )?;
     let Some(pinned) = entries.first().map(Entry::hash) else {
         return Ok(None);
     };
@@ -547,7 +552,12 @@ fn append_organization(
     if signs_in && identity_of(connection, account)? != Some(identity) {
         return Err(refused("a record names the keys its account holds now"));
     }
-    let mut entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let mut entries = entries(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )?;
     let pinned = entries
         .first()
         .map(Entry::hash)
@@ -582,16 +592,22 @@ pub(crate) fn append_administrator(
     administrator: bool,
     record: &[u8],
 ) -> Result<(), ServerError> {
-    append_organization(connection, organization, signer, record, |record| match record {
-        Record::Administrator(made)
-            if made.account == account.into_bytes() && made.administrator == administrator =>
-        {
-            Ok((account, made.identity, true))
-        }
-        _ => Err(refused(
-            "a role is set by an administrator record making what the call sets",
-        )),
-    })
+    append_organization(
+        connection,
+        organization,
+        signer,
+        record,
+        |record| match record {
+            Record::Administrator(made)
+                if made.account == account.into_bytes() && made.administrator == administrator =>
+            {
+                Ok((account, made.identity, true))
+            }
+            _ => Err(refused(
+                "a role is set by an administrator record making what the call sets",
+            )),
+        },
+    )
 }
 
 /// Appends a member record signing `account` in or out, as `member` says, as a person or an
@@ -605,16 +621,22 @@ pub(crate) fn append_member(
     agent: bool,
     record: &[u8],
 ) -> Result<(), ServerError> {
-    append_organization(connection, organization, signer, record, |record| match record {
-        Record::Member(named)
-            if named.account == account.into_bytes()
-                && named.member == member
-                && named.agent == agent =>
-        {
-            Ok((account, named.identity, member))
-        }
-        _ => Err(refused(
-            "a member is signed in or out by a member record naming what the call does",
-        )),
-    })
+    append_organization(
+        connection,
+        organization,
+        signer,
+        record,
+        |record| match record {
+            Record::Member(named)
+                if named.account == account.into_bytes()
+                    && named.member == member
+                    && named.agent == agent =>
+            {
+                Ok((account, named.identity, member))
+            }
+            _ => Err(refused(
+                "a member is signed in or out by a member record naming what the call does",
+            )),
+        },
+    )
 }

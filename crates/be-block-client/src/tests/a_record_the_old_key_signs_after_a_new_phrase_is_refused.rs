@@ -54,7 +54,11 @@ async fn a_record_the_old_key_signs_after_a_new_phrase_is_refused() {
         "the workspace's log is its root, the grant sharing it and the retirement"
     );
     let organization_log = laptop.organization_log().await.unwrap();
-    assert_eq!(organization_log.len(), 3, "the root, the member signed in, the retirement");
+    assert_eq!(
+        organization_log.len(),
+        3,
+        "the root, the member signed in, the retirement"
+    );
 
     // Whoever holds the old phrase retires the account again, to keys of their own.
     let thief = be_block_keys::RecoveryPhrase::generate().secret();

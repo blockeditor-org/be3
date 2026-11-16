@@ -37,7 +37,8 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 [200; 32],
                 Vec::new(),
                 Vec::new(),
-                None, None
+                None,
+                None
             )
             .await
             .is_err()

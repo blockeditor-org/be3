@@ -1511,8 +1511,7 @@ fn unsigned_members(
     let mut unsigned = Vec::new();
     for member in members {
         let member = parse_uuid(&member)?;
-        let shown = member != server
-            && (identity.is_administrator() || member == identity.account);
+        let shown = member != server && (identity.is_administrator() || member == identity.account);
         if shown && checked.member(member.into_bytes()).is_none() {
             unsigned.push(member);
         }

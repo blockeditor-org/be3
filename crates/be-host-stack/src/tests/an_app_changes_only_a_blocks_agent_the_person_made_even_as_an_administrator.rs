@@ -37,7 +37,9 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
     // One runtime for the member's peer, whose connection runs on it.
     let runtime = runtime();
     let peer = runtime.block_on(member.peer(&url, harness.organization));
-    let identity = be_block_keys::RecoveryPhrase::generate().secret().identity();
+    let identity = be_block_keys::RecoveryPhrase::generate()
+        .secret()
+        .identity();
     let account = Uuid::from_bytes(be_block_keys::agent_account(
         member.session.account.into_bytes(),
         &identity,

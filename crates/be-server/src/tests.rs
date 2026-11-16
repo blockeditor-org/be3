@@ -1481,7 +1481,10 @@ impl TestClient {
     ) -> Result<(Uuid, String), Error> {
         let secret = be_block_keys::RecoveryPhrase::generate().secret();
         let identity = secret.identity();
-        let account = agent_id(self.account.expect("a client makes agents once signed in"), &identity);
+        let account = agent_id(
+            self.account.expect("a client makes agents once signed in"),
+            &identity,
+        );
         remember_secret(account, secret.clone());
         let signed = self
             .signed_grant(block, account, be_block_graph::Access::Edit)
@@ -1627,10 +1630,17 @@ impl TestClient {
     /// Makes an agent of this client's in the organization open, with test keys of its own, as
     /// a device does (`create_agent` in be-host-stack): signed in by a member record in a
     /// company organization. Answers it.
-    async fn agent(&mut self, organization: Uuid, name: &str) -> Result<be_block_protocol::CreatedAgent, Error> {
+    async fn agent(
+        &mut self,
+        organization: Uuid,
+        name: &str,
+    ) -> Result<be_block_protocol::CreatedAgent, Error> {
         let secret = be_block_keys::RecoveryPhrase::generate().secret();
         let identity = secret.identity();
-        let account = agent_id(self.account.expect("a client makes agents once signed in"), &identity);
+        let account = agent_id(
+            self.account.expect("a client makes agents once signed in"),
+            &identity,
+        );
         remember_secret(account, secret);
         let member = self.member_record(account, identity, true, true).await;
         let name = name.to_owned();
@@ -1663,9 +1673,14 @@ impl TestClient {
             .filter_map(|entry| Entry::decode(entry).ok())
             .collect();
         let named = entries.first().and_then(|root| {
-            let checked =
-                be_block_keys::check_log(LogKind::Organization, root.log, root.hash(), &entries, &|_, _| None)
-                    .ok()?;
+            let checked = be_block_keys::check_log(
+                LogKind::Organization,
+                root.log,
+                root.hash(),
+                &entries,
+                &|_, _| None,
+            )
+            .ok()?;
             let identity = checked.member(account.into_bytes())?;
             let agent = checked
                 .members
