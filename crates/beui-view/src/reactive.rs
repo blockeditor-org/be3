@@ -59,7 +59,10 @@ impl<T: NamesNode> TakesTestId for T {
     }
 }
 
-pub fn test_id<T: TakesTestId, M1>(built: T, value: impl IntoPropValue<Prop<String>, M1>) -> T::Named {
+pub fn test_id<T: TakesTestId, M1>(
+    built: T,
+    value: impl IntoPropValue<Prop<String>, M1>,
+) -> T::Named {
     built.take_test_id(value.into_prop_value())
 }
 
@@ -278,7 +281,10 @@ pub fn on_key(
     core::on_key(at, phase, reveal, handler);
 }
 
-pub fn on_back<M1>(enabled: impl IntoPropValue<Prop<bool>, M1>, handler: impl Fn(BackGesture) + 'static) {
+pub fn on_back<M1>(
+    enabled: impl IntoPropValue<Prop<bool>, M1>,
+    handler: impl Fn(BackGesture) + 'static,
+) {
     core::on_back(enabled.into_prop_value(), handler);
 }
 

@@ -167,7 +167,6 @@ impl IntoProp<String> for &'static str {
     }
 }
 
-
 impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     fn into_prop(self) -> Prop<T> {
         Prop::Dynamic(self.into())

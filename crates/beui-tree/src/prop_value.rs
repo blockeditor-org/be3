@@ -122,7 +122,6 @@ pub struct ByTakes<M>(std::marker::PhantomData<M>);
 pub struct ByExact<M>(std::marker::PhantomData<M>);
 pub struct BySome;
 
-
 impl<P> IntoPropValue<P, Itself> for P {
     fn into_prop_value(self) -> P {
         self
@@ -270,7 +269,9 @@ impl<H, C, R: IntoChild<C>, F: FnOnce(H) -> R + 'static> OptionalTakes<F, ByClos
 }
 
 #[diagnostic::do_not_recommend]
-impl<C: 'static, R: IntoChild<C>, F: Fn() -> R + 'static> OptionalTakes<F, ByClosure> for BuildFn<C> {
+impl<C: 'static, R: IntoChild<C>, F: Fn() -> R + 'static> OptionalTakes<F, ByClosure>
+    for BuildFn<C>
+{
     fn take_some(value: F) -> Self {
         BuildFn::new(move || value().into_child())
     }
@@ -319,7 +320,14 @@ macro_rules! into_string {
     )*};
 }
 
-into_string!(&str, &String, &mut str, char, Box<str>, std::borrow::Cow<'_, str>);
+into_string!(
+    &str,
+    &String,
+    &mut str,
+    char,
+    Box<str>,
+    std::borrow::Cow<'_, str>
+);
 
 // Callback<V, R>
 
@@ -366,9 +374,7 @@ impl<V, R> MarkedRequired for Callback<V, R> {}
 
 // Func<V, R>: a closure.
 
-impl<A: 'static, R: 'static, F: Fn(A) -> R + 'static> IntoPropValue<Func<A, R>, ByClosure>
-    for F
-{
+impl<A: 'static, R: 'static, F: Fn(A) -> R + 'static> IntoPropValue<Func<A, R>, ByClosure> for F {
     fn into_prop_value(self) -> Func<A, R> {
         Func::new(self)
     }
@@ -627,7 +633,6 @@ impl<X> ExactTakes<X, BySome> for Option<X> {
     }
 }
 
-
 impl<A, R, V, M> ExactTakes<V, ByTakes<M>> for Callback<A, R>
 where
     Callback<A, R>: Takes<V, M>,
@@ -637,20 +642,17 @@ where
     }
 }
 
-
 impl<A: 'static, R: 'static, F: Fn(A) -> R + 'static> ExactTakes<F, ByClosure> for Func<A, R> {
     fn take_exact(value: F) -> Self {
         Func::new(value)
     }
 }
 
-
 impl<T: 'static> ExactTakes<Signal<T>, BySignal> for Binding<T> {
     fn take_exact(value: Signal<T>) -> Self {
         Binding::from(value)
     }
 }
-
 
 impl<C: SlotChild, V, M> ExactTakes<V, ByTakes<M>> for Children<C>
 where
@@ -950,7 +952,6 @@ pub trait TakesOptionalBlock<F>: Sized {
     fn take_optional_block(block: F) -> Option<Self>;
 }
 
-
 macro_rules! render_slot {
     ($render:ident, $fn:ident, ($($static:tt)*)) => {
         impl<H $($static)*, C $($static)*, F: $fn() -> B + 'static, B: OneChild<C>> TakesBlock<F>
@@ -1138,7 +1139,6 @@ where
     }
 }
 render_slot!(Render, FnOnce, ());
-
 
 /// A `Children<C>` slot whose `C` comes from what is passed takes a block as any other.
 impl<C: SlotChild, F> TakesBlock<F> for Exact<Children<C>>

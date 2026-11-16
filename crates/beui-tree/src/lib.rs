@@ -32,9 +32,9 @@ pub mod reactive {
     };
     pub use crate::errored::Errored;
     pub use crate::into_prop_via;
-    pub use crate::one_child_slot;
     pub use crate::keep::{AnyKey, KeepSet, KeptKey};
     pub use crate::keep::{kept_shown, provide_kept_shown};
+    pub use crate::one_child_slot;
     pub use crate::prop::{Func, IntoLiftedProp, IntoProp, IntoPropFrom, IntoReadProp, Prop};
     pub use crate::prop_value::{
         AbsentProp, IntoPropValue, MarkedRequired, Takes, TakesBlock, TakesOptionalBlock,
@@ -58,11 +58,12 @@ pub mod reactive {
         pub use crate::component::MissingProp;
         pub use crate::prop::{ByClosure, ByClosureLifted, ByLift, ByValue, Given};
         pub use crate::prop_value::{
-            ByExact, ByInto, ByProp,
-            BySignal, BySome, ByTakes, ByUnitClosure, ChildBlock, ChildClosure, ChildShape,
-            ChildUnitClosure, ChildWith, Exact, ExactTakes, ExactWithin, ExactWithinTakes, IntoExactProp,
-            FnOnceSlot, FnSlot, Is, Itself, NoHandedSlot, OptionalPropTakes, OptionalTakes, PropOr, PropTakes, ReadProp, ReadPropTakes,
-            HandsAValue, SameType, SetProp, Slot, TakesChildren, TakesClosure, TakesNoChildren, TakesUnitClosure, TakesWith,
+            ByExact, ByInto, ByProp, BySignal, BySome, ByTakes, ByUnitClosure, ChildBlock,
+            ChildClosure, ChildShape, ChildUnitClosure, ChildWith, Exact, ExactTakes, ExactWithin,
+            ExactWithinTakes, FnOnceSlot, FnSlot, HandsAValue, IntoExactProp, Is, Itself,
+            NoHandedSlot, OptionalPropTakes, OptionalTakes, PropOr, PropTakes, ReadProp,
+            ReadPropTakes, SameType, SetProp, Slot, TakesChildren, TakesClosure, TakesNoChildren,
+            TakesUnitClosure, TakesWith,
         };
     }
 }

@@ -2,10 +2,7 @@ use super::*;
 use crate::reactive::BuildFn;
 
 #[component]
-fn Inner(
-    label: Option<Prop<String>>,
-    after: Option<BuildFn<DomNode>>,
-) -> DomNode {
+fn Inner(label: Option<Prop<String>>, after: Option<BuildFn<DomNode>>) -> DomNode {
     let text = match label {
         Some(label) => label.get_untracked(),
         None => "none".to_owned(),
@@ -20,10 +17,7 @@ fn Inner(
 }
 
 #[component]
-fn Outer(
-    label: Option<Prop<String>>,
-    after: Option<BuildFn<DomNode>>,
-) -> DomNode {
+fn Outer(label: Option<Prop<String>>, after: Option<BuildFn<DomNode>>) -> DomNode {
     view! {
         <Inner label after />
     }

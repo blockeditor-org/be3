@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use beui_reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
-
 thread_local! {
     static CURRENT_COMPONENT: RefCell<Option<Rc<ComponentContext>>> = const { RefCell::new(None) };
     static FINISHED: Cell<u64> = const { Cell::new(0) };

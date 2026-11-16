@@ -1168,7 +1168,6 @@ impl<H: ChildValue> Unwrapped for H {
     }
 }
 
-
 impl<T: SlotChild, H: IntoSegment<T>> IntoSegment<T> for SingleChild<H> {
     fn into_segment(self) -> ChildSegment<T> {
         self.0.into_segment()

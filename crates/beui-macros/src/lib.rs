@@ -76,7 +76,11 @@ fn slot_kind(prop: &Prop) -> proc_macro2::TokenStream {
 }
 
 /// `value` converted by `conversion`.
-fn convert(prop: &Prop, by: proc_macro2::TokenStream, value: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn convert(
+    prop: &Prop,
+    by: proc_macro2::TokenStream,
+    value: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let conversion = conversion(prop, by);
     let method = if prop.exact || prop.within {
         quote! { into_exact_prop }
@@ -606,7 +610,13 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .collect();
     let req_traits: Vec<Ident> = props
         .iter()
-        .map(|prop| format_ident!("__{}_needs_{}", base, syn::ext::IdentExt::unraw(&prop.ident)))
+        .map(|prop| {
+            format_ident!(
+                "__{}_needs_{}",
+                base,
+                syn::ext::IdentExt::unraw(&prop.ident)
+            )
+        })
         .collect();
     let out_param = format_ident!("__Out");
 
@@ -759,7 +769,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
         .iter()
         .map(|param| quote! { #param })
         .chain([quote! { #out_param }])
-        .chain(state_params.iter().map(|param| quote! { #param = #missing }))
+        .chain(
+            state_params
+                .iter()
+                .map(|param| quote! { #param = #missing }),
+        )
         .collect();
     let decl_generics = angle_bracketed(&decl_params);
     let all_params: Vec<proc_macro2::TokenStream> = comp_params
@@ -944,10 +958,14 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
                 let ty = &prop.ty;
                 match prop.default {
                     None => quote! { #param: #trait_ident<#ty> },
-                    Some(_) => quote! { #param: ::__beui_tree::reactive::macro_support::PropOr<#ty> },
+                    Some(_) => {
+                        quote! { #param: ::__beui_tree::reactive::macro_support::PropOr<#ty> }
+                    }
                 }
             })
-            .chain([quote! { #out_param: ::__beui_tree::reactive::macro_support::SameType<#output_ty> }])
+            .chain([
+                quote! { #out_param: ::__beui_tree::reactive::macro_support::SameType<#output_ty> },
+            ])
             .collect(),
     );
 
@@ -979,7 +997,11 @@ fn expand_builder(spec: ComponentSpec) -> syn::Result<ExpandedComponent> {
 
     let required_checks = props.iter().filter(|prop| prop.required).map(|prop| {
         let ty = &prop.ty;
-        let check = format_ident!("__{}_required_{}", base, syn::ext::IdentExt::unraw(&prop.ident));
+        let check = format_ident!(
+            "__{}_required_{}",
+            base,
+            syn::ext::IdentExt::unraw(&prop.ident)
+        );
         let generics: Vec<proc_macro2::TokenStream> =
             comp_params.iter().map(|param| quote! { #param }).collect();
         let generics = angle_bracketed(&generics);
