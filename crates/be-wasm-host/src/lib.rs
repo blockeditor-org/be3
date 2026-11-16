@@ -259,6 +259,8 @@ fn source(bytes: Vec<u8>) -> Result<Vec<u8>, String> {
 /// (harness.rs).
 pub(crate) struct Running {
     isolate: ManuallyDrop<v8::SharedIsolate>,
+    /// Kept until after the isolate, whose heap watch reaches it.
+    exhausted: Arc<engine::Exhausted>,
     context: ManuallyDrop<v8::Global<v8::Context>>,
     exports: ManuallyDrop<v8::Global<v8::Object>>,
     /// Owned here, freed after the isolate; the isolate's host functions reach it
@@ -289,7 +291,11 @@ impl Running {
         if host.interrupt.interrupted() {
             return Err(INTERRUPTED.to_owned());
         }
-        let (isolate, context) = engine::isolate();
+        let engine::Isolate {
+            shared: isolate,
+            context,
+            exhausted,
+        } = engine::isolate();
         let made = {
             let mut locker = isolate.lock();
             v8::scope!(let scope, &mut *locker);
@@ -305,6 +311,7 @@ impl Running {
         match made {
             Ok((state, exports)) => Ok(Self {
                 isolate: ManuallyDrop::new(isolate),
+                exhausted,
                 context: ManuallyDrop::new(context),
                 exports: ManuallyDrop::new(exports),
                 state,
@@ -518,6 +525,9 @@ impl Running {
         // unsafe(ffi): the guest has returned.
         let state = unsafe { &mut *state };
         let terminated = caught.has_terminated();
+        if self.exhausted.reached() {
+            state.fatal.get_or_insert_with(|| engine::OUT_OF_MEMORY.to_owned());
+        }
         let outcome = match ran {
             Some(value) if state.fatal.is_none() => Ok(value.int32_value(caught)),
             _ => Err(match caught.has_caught() && !terminated {

@@ -14,6 +14,10 @@ const BACKTRACE_FRAMES: usize = 100;
 
 pub(crate) const PAGE: u64 = 65536;
 
+/// The most entries a table may hold: 8 MB of V8's heap. Rust's function tables hold the
+/// functions whose addresses are taken, far fewer.
+const TABLE_ENTRIES: u32 = 1 << 20;
+
 /// Starts V8 once for the process. `--wasm-unsafe-fast-api-wrapper` lets a wasm import call a
 /// fast-API function directly, which is how every gpu and transport call reaches the host without
 /// JavaScript in between (gpu.rs). With `BE3_PERF_MAP` set, V8 writes the perf map that names the
@@ -21,8 +25,17 @@ pub(crate) const PAGE: u64 = 65536;
 pub(crate) fn initialize() {
     static STARTED: OnceLock<()> = OnceLock::new();
     STARTED.get_or_init(|| {
+        // The fast-API wrapper skips the checks V8 makes when a wasm import is an ordinary
+        // function: that its arguments convert to what the function's signature names. Every
+        // fast function here takes exactly the import's own wasm types (gpu.rs generates its
+        // signature and its CFunctionInfo from one list), so there is nothing a guest's call
+        // could convert wrongly; an import with another signature fails to link instead.
+        //
+        // A table holds at most TABLE_ENTRIES, so the one table a guest may have (Shape::bounded)
+        // takes a bounded share of its isolate's heap.
         let mut flags = format!(
-            "--wasm-unsafe-fast-api-wrapper --stack-trace-limit={BACKTRACE_FRAMES}"
+            "--wasm-unsafe-fast-api-wrapper --stack-trace-limit={BACKTRACE_FRAMES} \
+             --wasm-max-table-size={TABLE_ENTRIES}"
         );
         if std::env::var_os("BE3_PERF_MAP").is_some() {
             flags.push_str(" --perf-basic-prof");
@@ -33,20 +46,76 @@ pub(crate) fn initialize() {
     });
 }
 
+/// The most a guest's isolate holds on V8's own heap (its table, exceptions and the host's few
+/// objects; a guest's linear memory is apart from it), and how far past it the isolate may go
+/// while it stops. Only a backstop: V8 does not always deliver the termination once a heap is
+/// held at its limit (with its tiering, measured on 152.2.0), so Shape::bounded keeps every guest
+/// far under it.
+const HEAP_LIMIT: usize = 512 << 20;
+const HEAP_GRACE: usize = 64 << 20;
+
+pub(crate) const OUT_OF_MEMORY: &str = "the app ran out of memory";
+
+/// Whether an isolate reached HEAP_LIMIT, which V8 would otherwise answer by ending the process.
+pub(crate) struct Exhausted {
+    reached: std::sync::atomic::AtomicBool,
+    isolate: v8::IsolateHandle,
+}
+
+impl Exhausted {
+    pub(crate) fn reached(&self) -> bool {
+        self.reached.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+/// Near HEAP_LIMIT: the guest is stopped, and its isolate given the grace to unwind.
+unsafe extern "C" fn near_heap_limit(
+    data: *mut std::ffi::c_void,
+    current: usize,
+    _initial: usize,
+) -> usize {
+    // unsafe(ffi): data is the Exhausted the isolate's owner keeps until the isolate is gone.
+    let exhausted = unsafe { &*data.cast::<Exhausted>() };
+    exhausted
+        .reached
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    exhausted.isolate.terminate_execution();
+    current + HEAP_GRACE
+}
+
 /// A new isolate, which one thread at a time may lock, with the one context every guest call on
-/// it runs in.
-pub(crate) fn isolate() -> (v8::SharedIsolate, v8::Global<v8::Context>) {
+/// it runs in, and its heap's watch, which must outlive it.
+pub(crate) struct Isolate {
+    pub(crate) shared: v8::SharedIsolate,
+    pub(crate) context: v8::Global<v8::Context>,
+    pub(crate) exhausted: Arc<Exhausted>,
+}
+
+pub(crate) fn isolate() -> Isolate {
     initialize();
+    let params = v8::CreateParams::default().heap_limits(0, HEAP_LIMIT);
     // unsafe(ffi): the isolate is new, so nothing holds a weak handle to it or a cppgc heap.
-    let shared = unsafe { v8::Isolate::new(v8::CreateParams::default()).try_into_shared() }
+    let shared = unsafe { v8::Isolate::new(params).try_into_shared() }
         .unwrap_or_else(|_| panic!("a new isolate could not be shared"));
+    let exhausted = Arc::new(Exhausted {
+        reached: std::sync::atomic::AtomicBool::new(false),
+        isolate: shared.thread_safe_handle(),
+    });
     let context = {
         let mut locker = shared.lock();
+        locker.add_near_heap_limit_callback(
+            near_heap_limit,
+            Arc::as_ptr(&exhausted).cast_mut().cast(),
+        );
         v8::scope!(let scope, &mut *locker);
         let context = v8::Context::new(scope, Default::default());
         v8::Global::new(scope, context)
     };
-    (shared, context)
+    Isolate {
+        shared,
+        context,
+        exhausted,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -83,6 +152,10 @@ pub(crate) struct Export {
 pub(crate) struct Shape {
     pub(crate) imports: Vec<Import>,
     pub(crate) exports: Vec<Export>,
+    /// The tables it defines.
+    pub(crate) tables: usize,
+    /// Whether it declares garbage-collected types (structs, arrays).
+    pub(crate) collected: bool,
 }
 
 impl Shape {
@@ -92,6 +165,14 @@ impl Shape {
         let mut memories = Vec::new();
         for payload in Parser::new(0).parse_all(bytes) {
             match payload.map_err(invalid)? {
+                Payload::TypeSection(reader) => {
+                    for group in reader {
+                        shape.collected |= group.map_err(invalid)?.into_types().any(|kind| {
+                            !matches!(kind.composite_type.inner, wasmparser::CompositeInnerType::Func(_))
+                        });
+                    }
+                }
+                Payload::TableSection(reader) => shape.tables += reader.count() as usize,
                 Payload::ImportSection(reader) => {
                     for import in reader.into_imports() {
                         let import = import.map_err(invalid)?;
@@ -156,6 +237,24 @@ impl Shape {
         Ok(shape)
     }
 
+    /// Refuses what would let a guest fill V8's own heap, which V8 cannot stop it doing once the
+    /// heap is at its limit (it no longer delivers a termination): garbage-collected objects,
+    /// and tables past one (whose size `--wasm-max-table-size` bounds).
+    pub(crate) fn bounded(&self) -> Result<(), String> {
+        if self.collected {
+            return Err("the module declares garbage-collected types, which no guest may".to_owned());
+        }
+        let imported = self
+            .imports
+            .iter()
+            .filter(|import| import.kind == Kind::Table)
+            .count();
+        if self.tables + imported > 1 {
+            return Err("the module has more than one table, which no guest may".to_owned());
+        }
+        Ok(())
+    }
+
     pub(crate) fn memory_import(&self) -> Option<&Import> {
         self.imports
             .iter()
@@ -176,6 +275,7 @@ pub(crate) fn compile(
     bytes: &[u8],
 ) -> Result<Module, String> {
     let shape = Shape::read(bytes)?;
+    shape.bounded()?;
     v8::tc_scope!(let caught, scope);
     let Some(module) = v8::WasmModuleObject::compile(caught, bytes) else {
         return Err(format!(
@@ -194,10 +294,14 @@ pub(crate) fn compile(
 /// at `limit` bytes: its maximum lowered to the cap, so the guest's growing past it fails as
 /// growing past any maximum does.
 pub(crate) fn pure(bytes: &[u8], limit: Option<usize>) -> Result<Vec<u8>, String> {
+    // No garbage-collected objects or strings either, which live on V8's heap where the memory cap
+    // does not reach, and one memory, so the cap is the guest's whole memory.
     let features = WasmFeatures::default()
         - WasmFeatures::THREADS
         - WasmFeatures::SHARED_EVERYTHING_THREADS
-        - WasmFeatures::RELAXED_SIMD;
+        - WasmFeatures::RELAXED_SIMD
+        - WasmFeatures::GC
+        - WasmFeatures::MULTI_MEMORY;
     Validator::new_with_features(features)
         .validate_all(bytes)
         .map_err(|error| format!("the guest uses what a pure guest may not: {error}"))?;
