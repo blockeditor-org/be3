@@ -85,6 +85,7 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
         .expect("the server answers with the recovery key");
     let block = Uuid::new_v4();
     let before = owner.sign_authored(block, b"before");
+    let old = owner.keys().identity().clone();
     let resealed = crate::contacts::new_identity(
         owner.account(),
         owner.keys().identity(),
@@ -158,8 +159,24 @@ async fn contacts_keep_sharing_after_one_of_them_takes_a_new_recovery_phrase() {
             )
             .await
             .unwrap(),
-        Signer::Bad,
-        "one the server took after is someone holding the old phrase"
+        Signer::Replaced,
+        "one the server took after is louder than a changed key, but not called forged"
+    );
+    // The owner's phone, not yet told of the new phrase, still signs with the old key.
+    let from_phone = old.sign_authored(block.into_bytes(), b"from the phone");
+    assert_eq!(
+        watcher
+            .verify_authored(
+                owner.account(),
+                block,
+                b"from the phone",
+                &from_phone,
+                Some(now + 2 * 60 * 1000),
+            )
+            .await
+            .unwrap(),
+        Signer::Replaced,
+        "an honest device behind on the new phrase is not called forged"
     );
     assert_eq!(text(&guest, from_owner).await, "from the owner");
     assert_eq!(text(&owner, from_guest).await, "from the guest");

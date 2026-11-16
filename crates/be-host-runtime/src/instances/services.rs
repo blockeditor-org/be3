@@ -803,6 +803,7 @@ fn signer(signer: be_host_stack::authorship::Signer) -> Signer {
         Found::Verified => Signer::Verified,
         Found::Unverified => Signer::Unverified,
         Found::Changed => Signer::Changed,
+        Found::Replaced => Signer::Replaced,
         Found::Bad => Signer::Bad,
     }
 }

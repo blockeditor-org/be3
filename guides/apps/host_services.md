@@ -97,7 +97,8 @@ Notes on particular calls:
   (`member.bound-to` and `created-by`); removing one no longer listed answers
   success without asking the server.
 - `sign(bytes)` signs as the person and `verify(account, bytes, signature,
-  arrived)` answers a `Signer` (verified, unverified, changed or bad), both in
+  arrived)` answers a `Signer` (verified, unverified, changed, replaced or
+  bad), both in
   the block the editor shows; `arrived` is when the server took the record, for
   a record that keeps that stamp, with a key the app never holds (guides/blocks/keys.md,
   Signing what a person writes). Sign what a record means, not its encoding: a

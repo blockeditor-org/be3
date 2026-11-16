@@ -21,7 +21,11 @@ or that is forged.
 - **A replaced key still verifies what it signed.** After a contact takes a new
   recovery phrase, its old key shows as changed, not forged, since its earlier
   messages are real. A message stamped as arriving after this device learned of
-  the new key shows as forged (guides/blocks/keys.md, Verifying); one with no
+  the new key shows as "sent with an old key" (guides/blocks/keys.md,
+  Verifying), not forged: the account's devices not yet told of the new phrase,
+  and sends held offline, sign with the old key too. Telling those from someone
+  holding the old phrase would need the time the account took the new phrase,
+  signed in its key change, and a grace period for its devices. One with no
   stamp (numbered offline), an edit or reaction (which keep none), or one that
   arrived before this device learned of the change still shows as changed, and
   a member who seals as the lease holder can write any stamp (Timestamps).

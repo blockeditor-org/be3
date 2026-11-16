@@ -213,7 +213,7 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
 - **Authorship.** It signs each message, edit, deletion and reaction record
   (kept or taken back) through the host's `sign` before writing it, and marks
   a message whose records `verify` does not answer verified: "not verified",
-  "key changed", "history altered" or "forged" (guides/blocks/keys.md,
+  "key changed", "sent with an old key", "history altered" or "forged" (guides/blocks/keys.md,
   "Signing what a person writes"). A message is forged when a record's
   signature is not its author's (an edit is checked against the message's
   author, whoever it names). Its history is altered when an edit or reaction
