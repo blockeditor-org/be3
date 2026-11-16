@@ -33,6 +33,12 @@ pub(super) fn post(to: ThreadId, letter: Letter) {
     }
     // A worker's letter is bytes the page copies (`Post::across`): a value in this memory would
     // not reach a page whose memory the worker does not share.
+    // A debug build fails at the poster, so a test catches the worker that does; a release one
+    // drops the letter and says so.
+    debug_assert!(
+        false,
+        "a worker posted a letter as a value; it posts across threads in bytes (`Post::across`)"
+    );
     eprintln!("be-host: a worker posted a letter as a value; it posts across threads in bytes");
 }
 
