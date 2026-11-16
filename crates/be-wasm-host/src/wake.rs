@@ -36,7 +36,8 @@ fn host_wake(
     arguments: v8::FunctionCallbackArguments,
     _: v8::ReturnValue<v8::Value>,
 ) {
-    // unsafe(ffi): the function's data is its State (state_of).
+    // the function's data is its State (state_of).
+    // unsafe(memory)
     let state = unsafe { state_of(arguments.data()) };
     let wake = Arc::clone(&state.wake);
     if let Err(panic) = crate::gpu::contained(|| wake.wake()) {

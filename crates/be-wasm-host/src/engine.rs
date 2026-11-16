@@ -68,13 +68,15 @@ impl Exhausted {
     }
 }
 
+// unsafe(ffi)
 /// Near HEAP_LIMIT: the guest is stopped, and its isolate given the grace to unwind.
 unsafe extern "C" fn near_heap_limit(
     data: *mut std::ffi::c_void,
     current: usize,
     _initial: usize,
 ) -> usize {
-    // unsafe(ffi): data is the Exhausted the isolate's owner keeps until the isolate is gone.
+    // data is the Exhausted the isolate's owner keeps until the isolate is gone.
+    // unsafe(memory)
     let exhausted = unsafe { &*data.cast::<Exhausted>() };
     // The grace is given once: should a guest fill the heap all the same, V8 then ends the
     // process near the limit rather than letting one isolate take the machine.
@@ -99,7 +101,8 @@ pub(crate) struct Isolate {
 pub(crate) fn isolate() -> Isolate {
     initialize();
     let params = v8::CreateParams::default().heap_limits(0, HEAP_LIMIT);
-    // unsafe(ffi): the isolate is new, so nothing holds a weak handle to it or a cppgc heap.
+    // the isolate is new, so nothing holds a weak handle to it or a cppgc heap.
+    // unsafe(ffi)
     let shared = unsafe { v8::Isolate::new(params).try_into_shared() }
         .unwrap_or_else(|_| panic!("a new isolate could not be shared"));
     let exhausted = Arc::new(Exhausted {
