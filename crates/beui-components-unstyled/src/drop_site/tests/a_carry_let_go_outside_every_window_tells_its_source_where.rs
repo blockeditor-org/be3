@@ -12,11 +12,18 @@ fn a_carry_let_go_outside_every_window_tells_its_source_where() {
     fixture.board.lift(outside(&heard), at(pos2(50.0, 50.0)));
     fixture.track(pos2(80.0, 50.0));
     fixture.release();
-    assert!(heard.borrow().is_empty(), "let go inside the window on no place, it is put down");
+    assert!(
+        heard.borrow().is_empty(),
+        "let go inside the window on no place, it is put down"
+    );
 
     fixture.board.lift(outside(&heard), at(pos2(50.0, 50.0)));
     fixture.board.set_outside(true);
     fixture.track(pos2(900.0, 50.0));
     fixture.release();
-    assert_eq!(*heard.borrow(), [pos2(900.0, 50.0)], "let go outside, its source hears where");
+    assert_eq!(
+        *heard.borrow(),
+        [pos2(900.0, 50.0)],
+        "let go outside, its source hears where"
+    );
 }

@@ -1764,7 +1764,10 @@ impl Harness {
         for _ in 0..4 {
             let inspector = self.inspector();
             let row = inspector.tab_node(tab);
-            let rect = inspector.document.node_rect(row).expect("the tab is laid out");
+            let rect = inspector
+                .document
+                .node_rect(row)
+                .expect("the tab is laid out");
             let shown = inspector
                 .document
                 .rects

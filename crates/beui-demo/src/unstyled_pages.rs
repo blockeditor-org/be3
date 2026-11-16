@@ -2,7 +2,6 @@ use super::*;
 use beui::Align;
 use beui::Rect;
 use beui::drag;
-use beui::primitives::Interactive;
 use beui::{PointerPress, Pos2, Vec2};
 use beui::unstyled::{
     AnchoredSheetHandle, AnchoredStyle, ButtonHandle, ChoiceKind, ChoiceOptionHandle,

@@ -39,11 +39,19 @@ fn a_finger_held_on_a_source_lifts_its_carry_and_drops_it_where_it_moves() {
     harness.touch(TouchPhase::Start, grab);
     harness.advance(crate::input::LONG_PRESS_DELAY);
     harness.frame(Vec::new());
-    assert_eq!(carried.get_untracked(), Some(7), "holding a finger still lifts it");
+    assert_eq!(
+        carried.get_untracked(),
+        Some(7),
+        "holding a finger still lifts it"
+    );
     harness.touch(TouchPhase::Move, basket);
     harness.frame(Vec::new());
     harness.touch(TouchPhase::End, basket);
     harness.settle();
-    assert_eq!(dropped.get_untracked(), 1, "and it drops where the finger lets go");
+    assert_eq!(
+        dropped.get_untracked(),
+        1,
+        "and it drops where the finger lets go"
+    );
     assert_eq!(carried.get_untracked(), None);
 }

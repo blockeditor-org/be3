@@ -17,8 +17,12 @@ fn the_inspectors_drag_tool_lists_a_carrys_places_and_the_chosen_one() {
             Func::new(|_: u32| true),
             Func::new(move |_: u32| {
                 closest(baskets.iter().zip(names).map(|(basket, name)| {
-                    Candidate::new(name, Rect::from_min_size(Pos2::ZERO, vec2(60.0, 40.0)), *basket)
-                        .labelled(format!("the {name} basket"))
+                    Candidate::new(
+                        name,
+                        Rect::from_min_size(Pos2::ZERO, vec2(60.0, 40.0)),
+                        *basket,
+                    )
+                    .labelled(format!("the {name} basket"))
                 }))
             }),
             Callback::new(|_: (u32, &'static str)| {}),
@@ -34,13 +38,19 @@ fn the_inspectors_drag_tool_lists_a_carrys_places_and_the_chosen_one() {
     harness.settle();
     harness.toggle_inspector();
     harness.show_inspector_tab(crate::inspector::InspectorTab::Drags);
-    assert!(harness.inspector_open(), "the Drag tab is clicked, not a pin beside it");
+    assert!(
+        harness.inspector_open(),
+        "the Drag tab is clicked, not a pin beside it"
+    );
     let read = |harness: &mut Harness| {
         harness.frame(Vec::new());
         harness.inspector().drag_rows()
     };
     let first = read(&mut harness);
-    assert!(first.contains(&"Nothing is carried".to_owned()), "{first:?}");
+    assert!(
+        first.contains(&"Nothing is carried".to_owned()),
+        "{first:?}"
+    );
 
     let board = board.borrow().clone().expect("the program made its board");
     board.lift(

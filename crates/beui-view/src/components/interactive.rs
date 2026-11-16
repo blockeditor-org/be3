@@ -237,7 +237,8 @@ fn carrying(
     };
     // Asks `drag` for a carry at `press` and lifts it; whether `drag` gave one.
     let lift_at = {
-        let (origin, preview, lifted) = (Rc::clone(&origin), Rc::clone(&preview), Rc::clone(&lifted));
+        let (origin, preview, lifted) =
+            (Rc::clone(&origin), Rc::clone(&preview), Rc::clone(&lifted));
         Rc::new(move |press: PointerPress| -> bool {
             let Some(driver) = crate::drag::driver().filter(|driver| !driver.carrying()) else {
                 return false;
@@ -249,7 +250,10 @@ fn carrying(
             // pressed.
             if carry.item.is_none() {
                 let at = origin.get().unwrap_or(press);
-                carry.item = Some(Rect::from_min_size(Pos2::ZERO - at.local.to_vec2(), at.size));
+                carry.item = Some(Rect::from_min_size(
+                    Pos2::ZERO - at.local.to_vec2(),
+                    at.size,
+                ));
             }
             let floats = carry.preview.clone();
             if let Some(id) = driver.lift(carry, crate::drag::DragPoint::of(press)) {

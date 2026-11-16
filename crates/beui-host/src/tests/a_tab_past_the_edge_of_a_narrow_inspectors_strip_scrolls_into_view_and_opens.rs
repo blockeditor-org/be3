@@ -4,7 +4,11 @@ use crate::inspector::InspectorTab;
 #[test]
 fn a_tab_past_the_edge_of_a_narrow_inspectors_strip_scrolls_into_view_and_opens() {
     let _root = crate::reactive::RootScope::new();
-    let document = build_node(move || view! { <Text color=Color32::WHITE>"Hello"</Text> });
+    let document = build_node(move || {
+        view! {
+            <Text color=Color32::WHITE>"Hello"</Text>
+        }
+    });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.settle();
@@ -15,8 +19,15 @@ fn a_tab_past_the_edge_of_a_narrow_inspectors_strip_scrolls_into_view_and_opens(
     let inspector = harness.inspector();
     assert!(!inspector.tools_stacked(), "the tools keep their tab strip");
     let last = inspector.tab_node(InspectorTab::Drags);
-    let rect = inspector.document.node_rect(last).expect("the tab is laid out");
-    let shown = inspector.document.rects.visible(&last).expect("the tab is laid out");
+    let rect = inspector
+        .document
+        .node_rect(last)
+        .expect("the tab is laid out");
+    let shown = inspector
+        .document
+        .rects
+        .visible(&last)
+        .expect("the tab is laid out");
     assert!(
         shown.right() < rect.right(),
         "the narrowed strip clips its last tab: {rect:?} shows {shown:?}"
@@ -31,6 +42,9 @@ fn a_tab_past_the_edge_of_a_narrow_inspectors_strip_scrolls_into_view_and_opens(
         inspector.document.node_rect(last),
         "the strip scrolled the whole tab into view"
     );
-    assert!(inspector.tab_shown(InspectorTab::Drags), "the Drag tool shows");
+    assert!(
+        inspector.tab_shown(InspectorTab::Drags),
+        "the Drag tool shows"
+    );
     assert_eq!(inspector.drag_rows(), ["Nothing is carried"]);
 }

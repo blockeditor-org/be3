@@ -1145,7 +1145,10 @@ fn drag_rows(target: &Document) -> Vec<String> {
         (Some(_), false) => "Carried, on a place".to_owned(),
     }];
     for (at, rest) in rests.iter().enumerate() {
-        let name = rest.label.clone().unwrap_or_else(|| format!("place {}", at + 1));
+        let name = rest
+            .label
+            .clone()
+            .unwrap_or_else(|| format!("place {}", at + 1));
         let chosen = match frame.chosen == Some(rest.id) {
             true => " (chosen)",
             false => "",
@@ -1175,7 +1178,11 @@ fn draw_drags(painter: &Painter, target: &Document, scale: f32) {
         if let Some(zone) = rest.zone {
             overlay::zone(painter, zone.scaled(scale));
         }
-        overlay::place(painter, rest.rest.scaled(scale), frame.chosen == Some(rest.id));
+        overlay::place(
+            painter,
+            rest.rest.scaled(scale),
+            frame.chosen == Some(rest.id),
+        );
     }
     overlay::carried(painter, frame.item.scaled(scale));
 }
