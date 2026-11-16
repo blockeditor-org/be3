@@ -2146,6 +2146,24 @@ impl Refs {
                 value: None,
             });
         }
+        // What it sealed is discarded, so its head is the server's again: a block kept for
+        // another reason must not build on the discarded commit once it may edit again.
+        match state.remotes.get(&block).copied() {
+            Some(remote) => {
+                if state.heads.insert(block, remote) != Some(remote) {
+                    rows.push(row(Table::Head, block.as_bytes().to_vec(), &remote));
+                }
+            }
+            None => {
+                if state.heads.remove(&block).is_some() {
+                    rows.push(Row {
+                        table: Table::Head,
+                        key: block.as_bytes().to_vec(),
+                        value: None,
+                    });
+                }
+            }
+        }
         if state.open_edits.remove(&block).is_some() {
             rows.push(Row {
                 table: Table::OpenEdits,
