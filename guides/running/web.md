@@ -135,7 +135,9 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   its own. So every lock the page takes, std's `Mutex`, its channels' and `malloc`'s, is one no
   other thread takes, and is always free when the page takes it; std's lock would trap there
   if it ever found one held. A page that needs something another thread holds asks for it
-  with a message.
+  with a message. So code that runs on the page may not spawn a thread on wasm: a dependency
+  that does (a rayon-style pool, say) aborts be-host's page (`std::thread::spawn` panics), and
+  belongs in the host's worker.
 - A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Across::send`,
   guides/desktop.md) takes no lock the page takes and is bytes: the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the
   page's workers are given (`web/threads.js`, "be-letter-post"), and the page's handler hands
