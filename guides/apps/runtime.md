@@ -25,9 +25,14 @@ order, and the reverse.
 `wasm.rs` runs the guest through `crates/be-wasm-host`, which embeds V8 (the
 rusty_v8 `v8` crate) and runs every wasm guest outside the browser: apps and
 their threads, type modules and the wasm app tests. V8 compiles a module when
-it loads (Liftoff, then TurboFan on hot code), with no code cache on disk;
-each library is compiled once per process and shared between isolates as a
-`v8::CompiledWasmModule`. Each guest thread has an isolate of its own (a
+it loads (Liftoff, then TurboFan on hot code); each module's bytes are
+compiled once per process and shared between isolates as a
+`v8::CompiledWasmModule`. Libraries are trimmed as they load to the exports
+the staged apps import (`keep_exports`), since V8 wraps every export of an
+instance. What TurboFan optimised is kept in a code cache
+(`be-wasm-host/src/cache.rs`) under the data directory's `code-cache/`, or
+`BE3_CODE_CACHE` (read-only with `BE3_CODE_CACHE_READ_ONLY`, as the host
+tests read one their build made, crates/be-host-tests/apps.bzl). Each guest thread has an isolate of its own (a
 `v8::SharedIsolate`, locked by the thread that runs it):
 
 - **Imports.** The gpu and transport imports are generated from
