@@ -279,8 +279,9 @@ command as verify is. .github/workflows/thorough.yml runs that when started by h
 too after a change to what they cover; `./scripts/test` runs one by name as any other. A
 thorough test may not paint (verify's paintings part would find its paintings unused). They are:
 
-- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test` and
-  `//crates/be-host:push-web-host-test`, the whole web page with every app in Chromium, drawn on
+- every `web_host_test` (buck/program/drive.bzl): `//crates/be-host:web-host-test`,
+  `//crates/be-host:push-web-host-test` and `//crates/be-host:own-memory-web-host-test`, the
+  whole web page with every app in Chromium, drawn on
   SwiftShader. In November 2026 a run took about 84 and 159 CPU seconds, a fifth of all test CPU
   when every test reran, and depends on be-host and every app (guides/performance.md, Keeping
   verify cheap). They were the only per-change build of the web bundle, so the `tests` part
