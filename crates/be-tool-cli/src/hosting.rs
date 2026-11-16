@@ -1,12 +1,34 @@
 //! Runs an app's host component headless (plans/headless_apps.md): the component of the app
 //! whose manifest's `hosts` names the block's type, through be-host-runtime with no window,
-//! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. The
-//! apps are found as be-host finds them, staged beside `be` (`be_host_stack::discovery`).
+//! presenter or gpu (`be_host_runtime::Headless`), on a block stack the caller started. `be`
+//! carries the apps that declare `hosts` in its executable, staged as be-host stages its apps
+//! and packed into one file (the `host-apps` in its BUCK), and serves them to
+//! `be_host_stack::discovery` from there (`serve_apps`).
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use be_sdk_api::EditorInstanceId;
 use uuid::Uuid;
+
+/// Serves the staged apps from `packed`, a directory packed into one file (crates/be-tool-buck's
+/// `pack`), to `be_host_stack::discovery`, which then reads them as it reads a bundle beside
+/// the executable. Called once, before anything discovers the apps.
+pub fn serve_apps(packed: &'static [u8]) -> Result<(), String> {
+    let mut rest = packed;
+    let mut files = HashMap::new();
+    while !rest.is_empty() {
+        let path = crate::apps::take(&mut rest)?;
+        let path = std::str::from_utf8(path).map_err(|error| error.to_string())?;
+        files.insert(path, crate::apps::take(&mut rest)?);
+    }
+    be_host_stack::discovery::use_assets(move |path| {
+        files
+            .get(path)
+            .map(|contents| contents.to_vec())
+            .ok_or_else(|| format!("be carries no {path}"))
+    });
+    Ok(())
+}
 
 /// A host component running on one block, until dropped.
 pub struct Hosting {
@@ -27,7 +49,7 @@ impl Hosting {
                     .find(|host| Uuid::from_bytes(host.edits) == block_type)?;
                 Some((Arc::clone(&manifest), Uuid::from_bytes(host.id)))
             })
-            .ok_or_else(|| format!("no app staged with be hosts blocks of type {block_type}"))?;
+            .ok_or_else(|| format!("no app be carries hosts blocks of type {block_type}"))?;
         let headless = be_host_runtime::Headless::start();
         let instance = EditorInstanceId(1);
         if let be_host_runtime::CreationState::Failed(error) = be_host_runtime::host(

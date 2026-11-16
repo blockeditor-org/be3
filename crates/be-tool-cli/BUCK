@@ -1,5 +1,5 @@
 load("@root//buck/cargo:defs.bzl", "app_packages", "cargo_binary", "cargo_library", "cargo_package", "cargo_test")
-load("@root//buck/program:defs.bzl", "program", "type_bundle")
+load("@root//buck/program:defs.bzl", "packed_dir", "program", "type_bundle")
 
 cargo_package()
 
@@ -8,7 +8,8 @@ cargo_library()
 # The tests name block types from the editors' manifests, as be does from the
 # bundle it carries.
 # The apps that declare host components, which be runs headless (plans/headless_apps.md):
-# staged beside be as be-host stages its apps, with the libraries they link against.
+# staged as be-host stages its apps, with the libraries they link against, and packed into
+# one file be carries, so a release stays one file.
 HOST_APPS = ["//crates/be-app-example-counter"]
 
 program(
@@ -19,9 +20,14 @@ program(
     modules = ["{}:module".format(app) for app in HOST_APPS],
 )
 
+packed_dir(
+    name = "host-apps",
+    dir = ":hosts",
+)
+
 cargo_test(
     env = {
-        "BE_BUNDLE": "$(location :hosts)",
+        "HOST_APPS": "$(location :host-apps)",
         # be-host-runtime links ALSA for apps' audio, from the sysroot it was linked against.
         "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
         "EDITOR_MANIFESTS": "$(location //crates/be-sdk-manifest:editor-manifests)",
@@ -39,6 +45,7 @@ type_bundle(
 cargo_binary(
     env = {
         "APP_TYPES": "$(location :app-types)",
+        "HOST_APPS": "$(location :host-apps)",
     },
 )
 
@@ -47,11 +54,9 @@ cargo_binary(
 program(
     name = "native",
     binary = ":bin",
-    app_types = ["{}:types".format(app) for app in HOST_APPS],
     executable_name = "be",
     files = ["//buck/program:build-info.json"],
-    index = True,
-    manifests = ["{}:manifest".format(app) for app in HOST_APPS],
-    modules = ["{}:module".format(app) for app in HOST_APPS],
+    manifests = [],
+    modules = [],
     visibility = ["//crates/be-tool-local:"],
 )

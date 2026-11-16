@@ -232,7 +232,17 @@ starts the host frame (`begin_host_frame`, which be-host's beui frame calls
 too), then `begin_frame`, `poll`, `flush` and `settle`, as be-host's frame
 does. Nothing in it is laid out or painted, so it runs only instances with no
 screen, host components (guides/apps/host_services.md, "Host components").
-`be` runs them this way (plans/headless_apps.md).
+The runtime keeps passing while one runs (`Instances::has_hosts`) without
+asking for frames.
+
+`be` runs them this way (`be_tool_cli::hosting::Hosting`, plans/headless_apps.md).
+It carries the apps that declare `hosts` in its executable, so a release stays
+one file: its BUCK stages them as a program (`hosts`, with the libraries they
+link), `packed_dir` packs that directory into one file (be-tool-buck's
+`pack`), and `be` serves it to be-host-stack's discovery with `use_assets`,
+which reads the apps through a reader instead of from the bundle beside the
+executable, as Android's assets do. The apps are listed by hand there
+(`HOST_APPS`).
 
 ## When an app stops
 

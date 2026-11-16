@@ -5,6 +5,7 @@ pub mod compile_fail;
 pub mod fix;
 pub mod generate;
 pub mod lint_gate;
+pub mod pack;
 pub mod pdfium;
 pub mod plan;
 pub mod resolve;

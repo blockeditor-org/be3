@@ -3,10 +3,13 @@ use super::*;
 use be_type_example_counter::CounterContent;
 
 /// `be` runs the counter's host component headless, on a block of a stack it started, the app
-/// staged beside it as be-host stages its apps: no window, no presenter, no gpu; the component
-/// adds one once the content arrives, and the block shows it (plans/headless_apps.md, step 1).
+/// served from the packed file be carries: no window, no presenter, no gpu; the component adds
+/// one once the content arrives, and the block shows it (plans/headless_apps.md, step 1).
 #[test]
 fn be_runs_an_apps_host_component_with_no_display() {
+    let packed = std::fs::read(std::env::var("HOST_APPS").expect("the BUCK names the host apps"))
+        .expect("the packed host apps read");
+    crate::hosting::serve_apps(Vec::leak(packed)).expect("the packed host apps parse");
     let harness = be_host_testing::Harness::start();
     harness.connect();
     be_host_stack::wait_until("knew the counter type", |_| {
