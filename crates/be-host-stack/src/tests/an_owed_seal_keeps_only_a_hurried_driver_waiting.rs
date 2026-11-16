@@ -10,22 +10,19 @@ fn an_owed_seal_keeps_only_a_hurried_driver_waiting() {
     let shared = Shared {
         seen: crate::Seen {
             owing: 1,
-            owing_blocks: vec![
-                (&be_block_type_host::Owing {
-                    block,
-                    content_type: Uuid::new_v4(),
-                    publish_error: None,
-                    journaled: true,
-                    unjournaled: None,
-                    now: 0,
-                    unreported: false,
-                    publishing: 0,
-                    joining: false,
-                    closing: false,
-                    keep_error: None,
-                })
-                    .into(),
-            ],
+            owing_blocks: vec![be_block_type_host::Owing {
+                block,
+                content_type: Uuid::new_v4(),
+                publish_error: None,
+                journaled: true,
+                unjournaled: None,
+                now: 0,
+                unreported: false,
+                publishing: 0,
+                joining: false,
+                closing: false,
+                keep_error: None,
+            }],
             ..crate::Seen::default()
         },
         ..Shared::default()

@@ -1350,9 +1350,7 @@ pub fn remove_contact(account: Uuid) {
 }
 
 pub fn escrow_warning() -> Option<String> {
-    with_seen(|shared| shared.escrow_warning.clone())
-        .flatten()
-        .map(seen::Words::into_owned)
+    with_seen(|shared| shared.escrow_warning.clone()).flatten()
 }
 
 pub fn status() -> Status {

@@ -120,60 +120,6 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Part<T> {
     }
 }
 
-/// Words the stack has fixed, or made up as it runs: what `Seen` says in words, which is
-/// handed over in bytes as well as by reference (`Seen::encode`).
-pub type Words = std::borrow::Cow<'static, str>;
-
-/// A block whose replica owes a seal, or holds edits the device's journal does not hold yet,
-/// with what it waits on in words (`be_block_type_host::Owing`).
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct Owed {
-    pub block: Uuid,
-    pub said: String,
-}
-
-impl From<&be_block_type_host::Owing> for Owed {
-    fn from(owing: &be_block_type_host::Owing) -> Self {
-        Self {
-            block: owing.block,
-            said: owing.to_string(),
-        }
-    }
-}
-
-impl std::fmt::Display for Owed {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.said)
-    }
-}
-
-/// An edit that could not be sent (`be_block_client::UnsentBlock`), as the page reads it.
-#[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct Unsent {
-    pub block: Uuid,
-    pub name: Option<String>,
-    pub since: i64,
-    pub offerable: bool,
-    pub refused: Option<be_block_protocol::ErrorCode>,
-    /// Its replica's local edits this device keeps that never became a commit.
-    pub kept_edits: usize,
-}
-
-impl From<&be_block_client::UnsentBlock> for Unsent {
-    fn from(unsent: &be_block_client::UnsentBlock) -> Self {
-        Self {
-            block: unsent.block,
-            name: unsent.name.clone(),
-            since: unsent.since,
-            offerable: unsent.offerable,
-            refused: unsent.refused,
-            kept_edits: unsent.kept_edits,
-        }
-    }
-}
-
-/// A moment on the monotonic clock, handed over as how long from now: two instances of the
-/// module count from the same origin on the web, but an `Instant` is not bytes.
 /// A moment as nanoseconds from now, negative for one already past: a held clock stands still
 /// behind the real one, so what is due on it is often in the past. The page and its worker
 /// read one clock.
@@ -276,12 +222,12 @@ pub struct Frame {
 pub type OwnInvitation = (String, Uuid, be_block_keys::InviteCode);
 
 crate::diff::whole!(
-    Vec<Owed>,
-    Vec<Unsent>,
+    Vec<be_block_type_host::Owing>,
+    Vec<be_block_client::UnsentBlock>,
     Vec<PairingRequest>,
     Vec<be_block_client::Contact>,
     Vec<OwnInvitation>,
-    Vec<(Words, Uuid)>,
+    Vec<(String, Uuid)>,
     Vec<Frame>,
     Vec<Conflict>,
     Option<be_block_protocol::AccountStorage>,
@@ -333,9 +279,9 @@ pub struct Seen, delta SeenDelta {
     pub saves: u64,
     pub owing: usize,
     /// The blocks `owing` counts, with what their seals wait on, for `busy` to name.
-    pub owing_blocks: Vec<Owed>,
+    pub owing_blocks: Vec<be_block_type_host::Owing>,
     /// The blocks `undurable` counts, for `busy` to name.
-    pub undurable_blocks: Vec<Owed>,
+    pub undurable_blocks: Vec<be_block_type_host::Owing>,
     /// How many `Command::SealOwed` the worker has carried out, for `busy` to say whether the
     /// host keeps asking.
     pub seals_owed: u64,
@@ -376,7 +322,7 @@ pub struct Seen, delta SeenDelta {
     pub own_invitations: Part<Vec<OwnInvitation>>,
     /// The account's storage, while an editor watches it (`watch_storage`).
     pub storage: Option<be_block_protocol::AccountStorage>,
-    pub escrow_warning: Option<Words>,
+    pub escrow_warning: Option<String>,
     /// The account's notification mode for each block it set to other than `all`, once read
     /// (`Tasks::notify_modes`).
     pub notify_modes: Part<Option<HashMap<Uuid, be_block_protocol::NotifyMode>>>,
@@ -400,23 +346,23 @@ pub struct Seen, delta SeenDelta {
     pub importing: usize,
     /// What the worker's loop awaits while it is not waiting for its next wake-up, for the
     /// busy reason that names what queued commands wait behind.
-    pub step: Option<Words>,
+    pub step: Option<String>,
     pub previewed: Part<HashSet<Uuid>>,
     pub staged: Part<imbl::OrdMap<Uuid, Staged>>,
     pub unreadable: Part<imbl::OrdMap<Uuid, String>>,
     pub waiting: usize,
     /// What the outbox held when `waiting` was counted, for `unsynced` to name.
-    pub outbox: Vec<(Words, Uuid)>,
+    pub outbox: Vec<(String, Uuid)>,
     /// Counts finished drains of the outbox.
     pub drains: u64,
-    pub unsent: Part<Vec<Unsent>>,
+    pub unsent: Part<Vec<be_block_client::UnsentBlock>>,
     pub comparison: Option<Comparison>,
     /// The answers to the searches the page wants, as of `searched_at` (`Searching::shown`).
     pub searched: Part<HashMap<SearchAsk, Searched>>,
     /// Whether every edit this device queued for its search indexes is indexed.
     pub search_indexed: bool,
     /// Why the search is busy, as the worker's `busy` says.
-    pub search_busy: Option<Words>,
+    pub search_busy: Option<String>,
     /// The last of the page's edits the worker applied (`Edit`).
     pub edits_applied: u64,
 }
