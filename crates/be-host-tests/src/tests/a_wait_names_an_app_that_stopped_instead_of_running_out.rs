@@ -1,7 +1,9 @@
 use super::*;
 
 #[test]
-#[should_panic(expected = "an app stopped while this test waited: Workspace stopped: It was crashed")]
+#[should_panic(
+    expected = "an app stopped while this test waited: Workspace stopped: It was crashed"
+)]
 fn a_wait_names_an_app_that_stopped_instead_of_running_out() {
     let mut host = HostTest::start(Options::default());
     host.click("#file-tree.host-menu");

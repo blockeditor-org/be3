@@ -2202,7 +2202,10 @@ async fn head_here(peer: &Peer<Store>, block: Uuid) -> Result<Option<CommitId>, 
     }
     // This device's head: what it wrote, whether sent or waiting, which a cached summary,
     // moved only by listings, can lag.
-    match peer.local_head(block).or_else(|| peer.known_remote_head(block)) {
+    match peer
+        .local_head(block)
+        .or_else(|| peer.known_remote_head(block))
+    {
         Some(head) => Ok(Some(head)),
         None => peer.newest_head(block).await.map_err(failed),
     }

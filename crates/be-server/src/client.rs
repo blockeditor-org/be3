@@ -842,10 +842,7 @@ impl Client {
             }
             call => call,
         };
-        if self.connection.account.is_none()
-            && !self.connection.one_shot
-            && !signs_in(&call)
-        {
+        if self.connection.account.is_none() && !self.connection.one_shot && !signs_in(&call) {
             tracing::debug!("closing a connection whose first call does not sign it in");
             self.connection.closing = true;
             return;

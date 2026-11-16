@@ -1691,7 +1691,11 @@ impl Session<'_> {
                         };
                         at = summary.parent.and_then(BlockParent::block);
                         let sizes = (summary.size, summary.tree_size);
-                        if held.graph.get(current).is_some_and(|node| (node.size, node.tree_size) != sizes) {
+                        if held
+                            .graph
+                            .get(current)
+                            .is_some_and(|node| (node.size, node.tree_size) != sizes)
+                        {
                             held.graph.update(current, |node| {
                                 (node.size, node.tree_size) = sizes;
                             });

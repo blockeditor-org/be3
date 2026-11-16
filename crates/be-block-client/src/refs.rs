@@ -1106,7 +1106,12 @@ impl Refs {
                     state.keep(summary.clone());
                     rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));
                 }
-                Self::add_to_tree(&mut state, Some(BlockParent::Block(block)), bytes as i128, &mut rows);
+                Self::add_to_tree(
+                    &mut state,
+                    Some(BlockParent::Block(block)),
+                    bytes as i128,
+                    &mut rows,
+                );
             }
         }
         self.write(rows)
@@ -1143,7 +1148,8 @@ impl Refs {
             let Some(mut summary) = state.summaries.get(&block).cloned() else {
                 break;
             };
-            summary.tree_size = (summary.tree_size as i128 + bytes).clamp(0, u64::MAX as i128) as u64;
+            summary.tree_size =
+                (summary.tree_size as i128 + bytes).clamp(0, u64::MAX as i128) as u64;
             at = summary.parent.and_then(BlockParent::block);
             state.keep(summary.clone());
             rows.push(row(Table::Summary, block.as_bytes().to_vec(), &summary));

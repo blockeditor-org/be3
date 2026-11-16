@@ -2096,9 +2096,7 @@ impl ServerStore {
                     continue;
                 };
                 let role = crate::store::decode_role(&role)?;
-                if company
-                    && role == OrganizationRole::Administrator
-                    && account != identity.account
+                if company && role == OrganizationRole::Administrator && account != identity.account
                 {
                     continue;
                 }
