@@ -55,9 +55,8 @@ const MAX_FORGED: usize = 4096;
 const SERVER_CLOCK_MARGIN_MILLISECONDS: i64 = 60 * 1000;
 
 /// Who of an account's verified keys made a signature, as `made` tells: the current one, or a
-/// replaced one, which answers `Bad` for a record the server took (`arrived`) after this device
-/// learned of the key that replaced it, since only someone holding the old phrase signs with it
-/// then.
+/// replaced one, which answers `Replaced` for a record the server took (`arrived`) after this
+/// device learned of the key that replaced it.
 fn by_verified(
     verified: &[&crate::refs::KnownSigner],
     made: impl Fn([u8; 32]) -> bool,
@@ -73,7 +72,7 @@ fn by_verified(
             if arrived > replaced.saturating_add(SERVER_CLOCK_MARGIN_MILLISECONDS)
     );
     Some(match after {
-        true => Signer::Bad,
+        true => Signer::Replaced,
         false => Signer::Changed,
     })
 }
@@ -102,6 +101,11 @@ pub enum Signer {
     /// this device pinned, or a contact's key a new phrase replaced. The account took a new
     /// phrase, or the server is lying, or someone holds the old phrase.
     Changed,
+    /// A contact's key it had replaced before the server took the record, after this device
+    /// learned of the new one: one of the account's devices not yet told of its new phrase, a
+    /// send held offline until after it, or someone holding the old phrase. Not proof of a
+    /// forgery, so not `Bad`, but louder than `Changed`.
+    Replaced,
     /// No key this device knows the account by, nor one the server names, made the signature:
     /// a forgery, or bytes changed since they were signed.
     Bad,
@@ -120,7 +124,7 @@ impl<S: ObjectStore> Peer<S> {
     /// so the server cannot sign as a contact. Any other account's key comes from the server and
     /// is pinned the first time (trust on first use). `arrived` is when the server took the
     /// record, if it carries that stamp: one signed with a contact's replaced key that arrived
-    /// after this device learned of the new key is `Bad`, not `Changed`.
+    /// after this device learned of the new key is `Replaced`, not `Changed`.
     pub async fn verify_authored(
         &self,
         account: Uuid,

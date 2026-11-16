@@ -206,6 +206,11 @@ interface host-services {
         /// A key the server names now in place of the one this device first
         /// took: the account took a new recovery phrase, or the server lies.
         changed,
+        /// A contact's key it had replaced before the server took the record
+        /// (`verify`'s `arrived`), after this device learned of the new key:
+        /// one of the account's devices not yet told of its new phrase, a send
+        /// held offline, or someone holding the old phrase.
+        replaced,
         /// Not the account's signature: forged, or the bytes changed since.
         bad,
     }
@@ -226,8 +231,9 @@ interface host-services {
     /// made answers `bad`, which is not a verdict that it was forged), and
     /// how far its key is trusted. `arrived` is when the server took the
     /// record, by its clock in milliseconds, for a record that keeps that
-    /// stamp: one signed with a key the account has replaced answers `bad`,
-    /// not `changed`, if it arrived after this device learned of the new key.
+    /// stamp: one signed with a key the account has replaced answers
+    /// `replaced`, not `changed`, if it arrived after this device learned of
+    /// the new key.
     /// `unavailable` while the answer needs the server and it cannot be
     /// reached.
     verify: async func(

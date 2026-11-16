@@ -123,5 +123,6 @@ enum Signer {
     Verified,
     Unverified,
     Changed,
+    Replaced,
     Bad,
 }
