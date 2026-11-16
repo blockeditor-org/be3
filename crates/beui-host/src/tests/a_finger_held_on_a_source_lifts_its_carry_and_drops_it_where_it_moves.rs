@@ -25,7 +25,10 @@ fn a_finger_held_on_a_source_lifts_its_carry_and_drops_it_where_it_moves() {
         create_effect(move || carried.set(carrying::<u32>()));
         view! {
             <List spacing=60.0 align=Align::Start>
-                <Interactive drag={Func::new(|_: PointerPress| Some(Carry::new(7_u32)))}>
+                <Interactive
+                    lifts_on_long_press=true
+                    drag={Func::new(|_: PointerPress| Some(Carry::new(7_u32)))}
+                >
                     <Frame @test_id="item" width=100.0 height=40.0 />
                 </Interactive>
                 <Frame @node_ref=&basket @test_id="basket" width=100.0 height=40.0 />
