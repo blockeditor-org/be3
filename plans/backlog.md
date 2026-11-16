@@ -298,6 +298,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
 
 ## 18. Keys
 
+- **A test server that lies in its answers.** Fixes for what "the server
+  alone" can do (a block's parent, its current key, its history, a rollback)
+  want tests that fail before the fix, but the server answers summaries and
+  listings from its in-memory graph, which a test cannot change by editing the
+  database, and the fault relay only stalls and cuts.
+  `a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_nothing`
+  injects the summary client-side instead, so it passes on the code it fixed.
+  Done: a test hook (in the harness's server, or the fault relay) rewrites a
+  block's summary or listing (parent, current key, history) on its way to one
+  client, and that test uses it and fails without the fix.
+
 - **Commits sealed before a rotation.** A commit made offline is sealed under
   the key the device held when it wrote it. If the block's keys rotate
   meanwhile (a member removed), the drain publishes it under the old key, which
