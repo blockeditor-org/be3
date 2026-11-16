@@ -31,11 +31,13 @@ fn a_copy_put_in_a_childs_place_is_made_before_the_answer() {
         shared.graph.get(source).is_some()
     });
 
-    let (copy, answer) = replace_with_copy(notes, TextContent::CONTENT_TYPE, source)
-        .expect("the text and the source are known");
-    // The copy is asked for, so the mirror keeps it once made: a detached block nothing asks
-    // for leaves the mirror as its creation settles, which the page may take before it reads.
+    // The copy is asked for before the text is asked to take it, so the mirror keeps it once
+    // made: a detached block nothing asks for leaves the mirror as its creation settles, which
+    // the worker may reach before a request sent after the change.
+    let copy = Uuid::now_v7();
     ask_for(vec![Query::Block(copy)]);
+    let answer = replace_with_copy(notes, TextContent::CONTENT_TYPE, source, copy)
+        .expect("the text and the source are known");
     assert!(made(Some(answer)), "the text takes the copy");
     assert!(
         node(copy).is_some(),

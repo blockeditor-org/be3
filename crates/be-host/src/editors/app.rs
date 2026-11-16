@@ -470,7 +470,9 @@ impl AppEditor {
         if !self.takes_replace()? {
             return Some((Uuid::nil(), be_host_stack::ChildChanged::refused()));
         }
-        be_host_stack::replace_with_copy(self.id, self.block_type, source)
+        let copy = Uuid::now_v7();
+        be_host_stack::replace_with_copy(self.id, self.block_type, source, copy)
+            .map(|answer| (copy, answer))
     }
 
     /// Moves `child` after `after`, refused at once by a type whose manifest keeps no order.

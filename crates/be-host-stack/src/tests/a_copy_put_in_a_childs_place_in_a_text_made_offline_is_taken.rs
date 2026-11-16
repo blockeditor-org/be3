@@ -35,7 +35,8 @@ fn a_copy_put_in_a_childs_place_in_a_text_made_offline_is_taken() {
         shared.graph.get(source).is_some() && shared.graph.get(notes).is_some()
     });
 
-    let (copy, answer) = replace_with_copy(notes, TextContent::CONTENT_TYPE, source)
+    let copy = Uuid::now_v7();
+    let answer = replace_with_copy(notes, TextContent::CONTENT_TYPE, source, copy)
         .expect("the text and the source are known");
     assert!(made(Some(answer)), "the text takes the copy");
     let named = copy.to_string();
