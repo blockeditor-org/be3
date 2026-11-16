@@ -1060,6 +1060,21 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     /// A range of a saved part's bytes, fetching only the objects under it.
+    /// The block of the key `part`'s top object is sealed under, as this device placed that
+    /// key (`KeyBook::block_of`), fetching the object if it is not held: none for a key this
+    /// device does not place.
+    pub async fn block_of_part(
+        &self,
+        part: be_block_store::PartRef,
+    ) -> Result<Option<Uuid>, ClientError> {
+        let hash = part.hash();
+        if !self.commits.vault().store().has(hash)? {
+            self.fetch(&[hash]).await?;
+        }
+        let key = self.commits.vault().sealed_under(hash)?;
+        Ok(self.keys.block_of(key))
+    }
+
     pub async fn read_part(
         &self,
         part: be_block_store::PartRef,
