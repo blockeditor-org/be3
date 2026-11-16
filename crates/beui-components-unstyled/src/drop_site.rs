@@ -37,7 +37,7 @@ pub fn use_drop_site<P, D>(
 ) -> DropSiteHandle<D>
 where
     P: Clone + 'static,
-    D: Clone + 'static,
+    D: Clone + PartialEq + 'static,
 {
     drop_site_on(&drag_board(), accepts, spec, commit)
 }
@@ -50,7 +50,7 @@ pub(crate) fn drop_site_on<P, D>(
 ) -> DropSiteHandle<D>
 where
     P: Clone + 'static,
-    D: Clone + 'static,
+    D: Clone + PartialEq + 'static,
 {
     let over = create_signal(None::<D>);
     let typed = |payload: &dyn Any| payload.downcast_ref::<P>().cloned();
@@ -72,7 +72,9 @@ where
                 return;
             }
             let drop = drop.and_then(|drop| drop.downcast_ref::<D>().cloned());
-            over.update(|over| *over = drop);
+            if over.with_untracked(|over| *over != drop) {
+                over.set(drop);
+            }
         }),
         commit: Rc::new(move |payload: Erased, drop: Erased| {
             if let (Some(payload), Some(drop)) =

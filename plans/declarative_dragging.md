@@ -87,9 +87,11 @@ letting go), and `drop_target`/`switch_to_state_and_follow` handle what is not r
    `Interactive`'s `drag` prop, so no component keeps its own press state machine.
 2. **The spec language**, for moves into places (lists, dock, timeline, game pieces, across apps)
    and drags that snap between rests (sheet detents, display arrangement, a switch).
-3. **`custom`**, the escape hatch: a function from the point and last frame to a frame. It still
-   gets the board's floating, Escape, edge scrolling, presence and inspector. A drag written with
-   it marks a gap in the language to come back to.
+3. **`custom`**, for a site whose places are a function of the point (the video timeline, where a
+   clip lands at the frame under the pointer): `place` maps a point in the site's node to the
+   drop there, or none, and the site draws where the item would land from its `over`. It still
+   gets the board's floating, Escape, edge scrolling, presence and inspector, and the board tells
+   the site again as the drop changes under the pointer.
 
 Continuous drags (sliders, scrollbars, splitters, the colour area) move onto it in step 7, and
 only if they are as good there; otherwise they keep `on_drag` and the step says why. Panning moves
@@ -118,7 +120,7 @@ pub enum DragSpec<D> {
     SnapRadius { spec: Box<DragSpec<D>>, radius: f32, chain: bool },
     Thrown(Box<DragSpec<D>>),                             // a fast release continues along its path
     Into { region: NodeRef, drop: D },                    // a nested site chooses from here on
-    Custom(Rc<dyn Fn(DragPoint, &DragFrame) -> DragFrame>),
+    Custom { node: NodeRef, place: Rc<dyn Fn(Pos2) -> Option<D>> }, // places as a function of the point
 }
 
 /// One frame of a drag: where the item draws, which candidate a release takes. Also what peers get.
