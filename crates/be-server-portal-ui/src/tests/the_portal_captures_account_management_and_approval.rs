@@ -23,6 +23,7 @@ fn the_portal_captures_account_management_and_approval() {
     painting(settings, [390, 1600]).snapshot("portal_settings_phone.browser");
     let approval = Page {
         code: "abcd-1234-5678".into(),
+        requester: "203.0.113.7".into(),
         fresh: true,
         ..signed_in(Screen::Approve)
     };

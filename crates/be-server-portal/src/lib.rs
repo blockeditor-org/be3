@@ -194,6 +194,9 @@ pub struct Page {
     pub account: Option<Account>,
     pub code: String,
     pub code_problem: String,
+    /// On the approve screen, where the device asking to sign in connected from: an address
+    /// the server saw, not anything the device said of itself.
+    pub requester: String,
     pub csrf: String,
     pub problem: Option<Problem>,
     pub email: String,

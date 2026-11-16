@@ -15,8 +15,14 @@ async fn approving_a_device_code_needs_a_fresh_proof() {
     browser.sign_in_by_code(&harness, "owner@example.com").await;
     harness.stale_proofs();
     let (code, secret) = begin_session(&harness).await;
-    let page = browser.get(&harness, &format!("/auth?code={code}")).await;
-    assert_eq!(page_of(&page).screen, be_server_portal::Screen::Approve);
+    let page = page_of(&browser.get(&harness, &format!("/auth?code={code}")).await);
+    assert_eq!(page.screen, be_server_portal::Screen::Approve);
+    // It names where the device asking connected from, as the server saw it.
+    assert!(
+        page.requester.ends_with("the same network as this browser"),
+        "{:?}",
+        page.requester
+    );
     browser
         .submit(
             &harness,

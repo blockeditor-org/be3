@@ -70,6 +70,8 @@ BE3BROWSER 1
     "<div style=\"font: 24px Hack, NotoEmoji, ui-monospace, monospace; line-height: 28px; color: var(--v-248e1604); text-align: center; align-content: center; white-space: pre-wrap; overflow-wrap: break-word;\">",
     "abcd-1234-5678</div>",
     "</div>",
+    "<div style=\"font: 12px Inter, NotoEmoji, system-ui, sans-serif; line-height: 14px; color: var(--v-d2dd52bc); white-space: pre-wrap; overflow-wrap: break-word; flex: 0 0 auto;\">",
+    "Asked from 203.0.113.7.</div>",
     "<form method=\"post\" action=\"/auth/approve\" novalidate=\"\" style=\"display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); flex: 0 0 auto;\">",
     "<input type=\"hidden\" name=\"csrf\" value=\"snapshot-form-token\">",
     "<input type=\"hidden\" name=\"code\" value=\"abcd-1234-5678\">",
