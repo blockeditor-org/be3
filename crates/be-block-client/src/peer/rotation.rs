@@ -60,7 +60,8 @@ impl<S: ObjectStore> Peer<S> {
         }
         let mut keys = KeySet::default();
         for unsealed in &work.unsealed {
-            if !self.keys.trusted(unsealed.key) {
+            // An owner-only block's keys are its author's alone, whoever the server lists.
+            if !self.keys.trusted(unsealed.key) || self.keys.owner_only_covers(unsealed.key) {
                 continue;
             }
             let Some(public) = self.keys.recipient(unsealed.account, unsealed.key) else {

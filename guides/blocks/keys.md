@@ -58,7 +58,13 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   `sealing_key` uses it only for the settings block itself, never for a block
   the server's graph places under the settings, since the server can place any
   block there: the settings stay readable, and writable by administrators, and
-  the server never gets another block written under a key it knows.
+  the server never gets another block written under a key it knows. So that
+  administrators still edit each other's policies, key work lists each
+  block's newest data key inside the settings as unsealed for every
+  administrator it is not sealed to, and a device that trusts it seals it to
+  them as itself. Whatever key work lists, a device never seals a key an
+  owner-only scope covers (`KeyBook::owner_only_covers`: the scope key, or a
+  key this device minted or opened under one).
 - **Keys are bound to blocks where the server points.** Every key a device
   holds has a block (`KeyBook::block_of`, filled by `mint` and `opened` alone).
   What the server chooses for a block is opened only under one of that block's

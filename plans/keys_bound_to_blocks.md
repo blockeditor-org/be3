@@ -75,9 +75,13 @@ written under its own key);
 `a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_nothing`
 (the same key named the note's current one, on a member's device and an
 administrator's); the settings' existing tests show members still read, and a
-second administrator still writes, the settings. Open: an administrator
-editing a policies block another administrator made, whose key reached it
-wrapped under the settings key, is refused that key.
+second administrator still writes, the settings. An administrator edits a
+policies block another made because key work lists the newest data key of
+each block inside the settings, for each administrator it is not sealed to,
+and a device that trusts it seals it as itself
+(`an_administrator_edits_policies_another_administrator_made`); an owner-only
+block's keys go through that to nobody
+(`an_owner_only_blocks_keys_are_sealed_to_nobody_key_work_lists`).
 
 ## 3. Objects are opened only with a key of their block
 
