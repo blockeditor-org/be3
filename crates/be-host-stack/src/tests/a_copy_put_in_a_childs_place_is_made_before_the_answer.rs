@@ -26,10 +26,6 @@ fn a_copy_put_in_a_childs_place_is_made_before_the_answer() {
             false,
         );
     }
-    // A text not yet on the server takes no replaced child (plans/replace_reports_its_outcome.md).
-    wait_until("everything reached the server", |shared| {
-        shared.busy(true).is_empty() && shared.unsynced().is_empty()
-    });
     ask_for(vec![Query::Roots]);
     wait_until("listed the roots", |shared| {
         shared.graph.get(source).is_some()
