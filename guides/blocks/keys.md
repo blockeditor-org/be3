@@ -50,7 +50,15 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   of the organization settings key, are not. A device reads with any key it
   holds but seals, wraps or hands over (`seal_to`, `wrap`, `escrow_wrap`,
   `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
-  server made up never protects anything new.
+  server made up never protects anything new. A key the server holds is
+  *server-held* (`KeyBook::server_held`): every key of the settings block,
+  which is sealed to the server for it to read the policies, and every key
+  opened only through one. It opens, but vouches for nothing (a key wrapped
+  under it opens untrusted, even on the device that minted it), and
+  `sealing_key` uses it only for a block in the settings, by the parents the
+  server lists (`Peer::in_settings`): the settings stay readable and writable
+  by administrators, and the server never gets a block outside them written
+  under a key it knows.
 - **Keys are bound to blocks where the server points.** Every key a device
   holds has a block (`KeyBook::block_of`, filled by `mint` and `opened` alone).
   What the server chooses for a block is opened only under one of that block's
