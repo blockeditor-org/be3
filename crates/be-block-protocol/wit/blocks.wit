@@ -333,6 +333,9 @@ interface sessions {
         /// The block's journal as of joining; what the order numbers after
         /// reaches this connection as `sequenced`.
         journal: option<journal>,
+        /// Whether this account may edit the block as it joined: the server's
+        /// word, which a device trusts over a listing it holds.
+        may-edit: bool,
     }
 
     record relayed {

@@ -1191,6 +1191,22 @@ impl<S: ObjectStore> Peer<S> {
         self.connection.lock().unwrap().clone()
     }
 
+    /// Joins `block`'s session (`Connection::join_session`). The server answers whether this
+    /// account may edit it: once it may, edits of it are kept again where they were discarded
+    /// (`refs::Dropped`), since a listing this device holds may be older than its access.
+    pub async fn join_session(
+        &self,
+        block: Uuid,
+        tag: Hash,
+    ) -> Result<(ClientId, be_block_protocol::SessionState, Option<be_block_protocol::Journal>), ClientError> {
+        let (client, state, journal, may_edit) =
+            self.connection().join_session(block, tag).await?;
+        if may_edit {
+            self.refs.may_edit_again(block)?;
+        }
+        Ok((client, state, journal))
+    }
+
     /// Whether `descendant` has `ancestor` in its history (a commit is its own ancestor).
     pub async fn descends(
         &self,
