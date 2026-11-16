@@ -131,6 +131,16 @@ impl<S: ObjectStore> Peer<S> {
             return None;
         }
         let block = self.keys.block_of(key)?;
+        // A kind of settings open to whoever views a block inside is offered by its viewers to
+        // their contacts: a standing grant no log names (plans/signed_access.md, "Grants the
+        // server changes first").
+        if self
+            .summary(block)
+            .await
+            .is_ok_and(|summary| summary.opens_inside)
+        {
+            return self.keys.contact(account);
+        }
         let crate::keys::RootPin::Pinned(_) = self.keys.root_pin(block) else {
             return None;
         };
