@@ -58,7 +58,7 @@ fn a_change_saved_offline_moves_its_branch_once_the_device_reconnects() {
         let head = repository
             .branch(be_block_repository::MAIN_BRANCH)
             .expect("main has a head");
-        peer.load_commit(head).await.unwrap().kind
+        peer.load_reached(head).await.unwrap().kind
     });
     assert_eq!(description, CommitKind::Snapshot("There".into()));
 }

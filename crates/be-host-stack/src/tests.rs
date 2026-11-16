@@ -1135,7 +1135,7 @@ impl Device {
                 .await
                 .expect("the other device saves it");
             let head = saved.published().expect("the note is published");
-            let commit = peer.load_commit(head).await.expect("its commit loads");
+            let commit = peer.load_reached(head).await.expect("its commit loads");
             let batch = be_lib_search::Batch {
                 put: vec![be_lib_search::Put {
                     doc: be_lib_search::DocId {

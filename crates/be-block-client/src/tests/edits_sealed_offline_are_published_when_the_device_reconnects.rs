@@ -80,7 +80,7 @@ async fn edits_sealed_offline_are_published_when_the_device_reconnects() {
     assert_eq!(text(&phone, note).await, "three");
     assert_eq!(text(&phone, added).await, "made offline");
     assert_eq!(
-        phone.load_commit(three).await.unwrap().parents,
+        phone.load_reached(three).await.unwrap().parents,
         [two],
         "the offline edits were not published in order"
     );

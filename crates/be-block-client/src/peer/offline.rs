@@ -469,7 +469,7 @@ impl<S: ObjectStore> Peer<S> {
                 .ok_or_else(|| ClientError::Disconnected(reason.clone()))?;
             summary.head = self.held_head(*block).or(summary.head);
             let content = match summary.head {
-                Some(head) => Some(self.read_at(head).await?),
+                Some(head) => Some(self.read_at(*block, head).await?),
                 None => None,
             };
             let journal = self.local_journal(*block).ok().flatten();
@@ -484,9 +484,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub(super) async fn read_at(
         &self,
+        block: Uuid,
         head: CommitId,
     ) -> Result<be_block_store::Stored, ClientError> {
-        let commit = self.load_commit(head).await?;
+        let commit = self.load_head(block, head).await?;
         self.load_manifest(&commit.manifest).await
     }
 

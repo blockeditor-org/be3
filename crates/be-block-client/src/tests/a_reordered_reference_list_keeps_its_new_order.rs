@@ -36,7 +36,7 @@ async fn a_reordered_reference_list_keeps_its_new_order() {
                 .unwrap(),
         );
         assert_eq!(
-            author.load_commit(head.unwrap()).await.unwrap().references,
+            author.load_reached(head.unwrap()).await.unwrap().references,
             targets,
             "the commit did not keep the order the content listed"
         );

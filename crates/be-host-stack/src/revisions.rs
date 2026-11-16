@@ -201,7 +201,7 @@ pub(super) async fn list(peer: &Arc<Peer<Store>>, block: Uuid) -> Result<Vec<Rev
         .map_err(|error| error.to_string())?;
     let mut kept = Vec::new();
     for commit in peer.pending_commits(block) {
-        if let Ok(loaded) = peer.load_commit(commit).await {
+        if let Ok(loaded) = peer.load_reached(commit).await {
             kept.push((commit, loaded.time));
         }
     }
@@ -282,7 +282,7 @@ async fn perform(
         return Err("This revision is no longer available.".into());
     }
     let saved = peer
-        .load_commit(commit)
+        .load_head(block, commit)
         .await
         .map_err(|error| error.to_string())?;
     if saved.manifest.content_type != summary.content_type {

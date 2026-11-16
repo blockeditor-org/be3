@@ -1,7 +1,7 @@
 use super::*;
 
 /// The server names a block's head; a commit sealed in another block is refused as its head and
-/// as its metadata rather than shown as this block's and written back under its key.
+/// as its metadata, or as a revision, rather than shown as this block's and written back under its key.
 #[tokio::test]
 async fn another_blocks_commit_served_as_a_head_is_refused() {
     let harness = Harness::start().await;
@@ -21,5 +21,13 @@ async fn another_blocks_commit_served_as_a_head_is_refused() {
     assert!(
         matches!(metadata, Err(ClientError::Forged(block)) if block == secret),
         "nor its metadata: {metadata:?}"
+    );
+    let opened = owner
+        .open_commit::<be_type_text::TextContent>(secret, open_head)
+        .await;
+    assert!(
+        matches!(opened, Err(ClientError::Forged(block)) if block == secret),
+        "nor its content, as a revision the server lists in the secret note's history: {}",
+        opened.is_ok()
     );
 }
