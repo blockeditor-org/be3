@@ -870,7 +870,8 @@ fn answer(
     returned: &mut v8::ReturnValue<v8::Value>,
     function: fn(&Call) -> Answer,
 ) {
-    // unsafe(ffi): the function's data is its State (state_of).
+    // the function's data is its State (state_of).
+    // unsafe(memory)
     let state = unsafe { state_of(arguments.data()) };
     let words = (0..arguments.length())
         .map(|index| {

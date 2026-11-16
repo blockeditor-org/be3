@@ -42,7 +42,7 @@ async fn run() -> Result<String, String> {
     {
         return host_terminal(&settings, target, &invocation.options.command).await;
     }
-    let tracker = Tracker::new(connect(&settings).await?, sources(&settings));
+    let tracker = Tracker::new(connect(&settings).await?, sources());
     let (block, label, base) = match cli::run(&tracker, &invocation).await? {
         Outcome::Print(text) => return Ok(text),
         Outcome::Edit { block, label, base } => (block, label, base),
@@ -115,7 +115,7 @@ fn apps() -> &'static [be_tool_cli::apps::App] {
     be_tool_cli::apps::installed()
 }
 
-fn sources(settings: &Settings) -> be_tool_cli::tracker::Sources {
+fn sources() -> be_tool_cli::tracker::Sources {
     let apps = apps();
     Box::new(move || {
         let mut sources = Vec::new();
@@ -153,7 +153,7 @@ async fn host_terminal(
     settings.check_machine(std::env::var("BOAT_ID").ok().as_deref())?;
     let mut host = Host::new(HostOptions::here(command.to_vec()))?;
     let connect = async || {
-        let tracker = Tracker::new(connect_live(settings).await?, sources(settings));
+        let tracker = Tracker::new(connect_live(settings).await?, sources());
         let entry = tracker.resolve(target).await?;
         if entry.block_type != be_type_terminal::TerminalContent::CONTENT_TYPE {
             return Err(format!("{} is not a terminal block", entry.label()));
@@ -164,7 +164,7 @@ async fn host_terminal(
         let _ = tokio::signal::ctrl_c().await;
     };
     tokio::task::LocalSet::new()
-        .run_until(host.run(connect, &sources(settings), stopped))
+        .run_until(host.run(connect, &sources(), stopped))
         .await?;
     Ok(String::new())
 }
