@@ -11,8 +11,8 @@ use be_block_protocol::{EscrowKey, KeyKind, KeyRow, KeySet, WrappedBy, WrappedKe
 use be_block_store::{ContentKey, Keyring, StoreError};
 use uuid::Uuid;
 
-/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `escrow` and
-/// `escrowed`, then `escrow_secrets`, then `ring`'s own: `absorb` holds `rows` while it opens keys, so nothing
+/// Its locks are taken in one order, `rows`, then `roots` and `trusted`, then `server_held`,
+/// then `escrow` and `escrowed`, then `escrow_secrets`, then `ring`'s own: `absorb` holds `rows` while it opens keys, so nothing
 /// that holds a later lock takes an earlier one.
 pub struct KeyBook {
     account: Uuid,
@@ -22,6 +22,9 @@ pub struct KeyBook {
     /// The escrow secrets this device holds, by escrow key id: X25519 secrets, never content
     /// keys, so kept out of `ring`, where an object whose header named one would open with it.
     escrow_secrets: Mutex<HashMap<Uuid, [u8; 32]>>,
+    /// Keys opened only through a key the server holds (`server_held`), beside the settings
+    /// block's own.
+    server_held: Mutex<HashSet<Uuid>>,
     rows: Mutex<Rows>,
     contacts: Mutex<HashMap<Uuid, RecoveryPublic>>,
     trusted: Mutex<HashSet<Uuid>>,
@@ -42,6 +45,8 @@ struct Opened {
     /// The block it is a key of, as the seal carried it.
     block: Uuid,
     escrow: bool,
+    /// Whether it opened only through a key the server holds.
+    through_server: bool,
 }
 
 /// Which block each content key is a key of, and the access log root each block's keys carry
@@ -246,6 +251,7 @@ impl KeyBook {
             identity,
             ring,
             escrow_secrets: Mutex::default(),
+            server_held: Mutex::default(),
             rows: Mutex::new(Rows::default()),
             contacts: Mutex::new(HashMap::new()),
             trusted: Mutex::new(HashSet::new()),
@@ -740,6 +746,7 @@ impl KeyBook {
             // Bound inside the seal: an escrow key travels as the organization's, which no
             // block is (its settings block has an id of its own).
             escrow: carried.block == self.organization.into_bytes(),
+            through_server: false,
         })
     }
 
@@ -787,6 +794,9 @@ impl KeyBook {
 
     /// Keeps an opened key: an escrow's secret apart from the content keys.
     fn hold(&self, key: Uuid, opened: Opened) {
+        if opened.through_server {
+            self.server_held.lock().unwrap().insert(key);
+        }
         match opened.escrow {
             true => {
                 self.escrow_secrets
@@ -859,13 +869,28 @@ impl KeyBook {
                 if be_block_store::sealed_key(&wrap.sealed).ok()? != by || !self.ring.contains(by) {
                     return None;
                 }
-                if vouched && !self.trusted(by) {
+                // A key the server holds vouches for nothing: what it wraps opens untrusted, and
+                // is server-held too.
+                let through_server = self.server_held(by);
+                if vouched && (through_server || !self.trusted(by)) {
                     return None;
                 }
-                self.ring.open(&wrap.sealed).ok()?
+                let bytes = self.ring.open(&wrap.sealed).ok()?;
+                let mut opened = self.opened(row, &bytes, vouched)?;
+                opened.through_server = through_server;
+                return Some(opened);
             }
         };
         self.opened(row, &bytes, vouched)
+    }
+
+    /// Whether the server holds `key`, or may: a key of the organization's settings block,
+    /// which is sealed to the server for it to read the policies, or one opened only through
+    /// such a key. It opens, but vouches for no key wrapped under it, and seals only blocks in
+    /// the settings (`Peer::sealing_key`).
+    pub fn server_held(&self, key: Uuid) -> bool {
+        self.block_of(key) == Some(be_block::organization_settings(self.organization))
+            || self.server_held.lock().unwrap().contains(&key)
     }
 
     pub fn row(&self, key: Uuid) -> Option<KeyRow> {
