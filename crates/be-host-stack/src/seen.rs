@@ -884,6 +884,12 @@ pub(crate) struct Handover {
     /// Frames take the updates (`take_updates_in_frame`), so a test's thread that takes them
     /// for a test that runs none stops.
     frames_take: std::sync::atomic::AtomicBool,
+    /// What the worker tells of what it did since the last update (`hold_changes`,
+    /// `hold_answer`, `notice`), for whichever update hands over its `Seen` next: one the worker
+    /// hands over as an edit of its own lands (`here_mut`), or a test's (`wait_until`), carries
+    /// it as much as the one at the end of the worker's pass, so the page never reads what the
+    /// worker did without hearing of it. Only threads that may wait take it, never the page.
+    told: std::sync::Mutex<Told>,
     /// On the web, where the page and the worker each hold a handover of their own and the
     /// updates travel between them by message (`web.rs`): in the worker's, that the page is to
     /// be woken though no update went (`wake_page`); in the page's, how many updates and bytes
@@ -1203,6 +1209,12 @@ impl Told {
         self.notices.extend(handed.notices);
     }
 
+    fn absorb(&mut self, other: Told) {
+        self.changes.merge(other.changes);
+        self.answers.extend(other.answers);
+        self.notices.extend(other.notices);
+    }
+
     fn handed(self) -> Handed {
         Handed {
             update: None,
@@ -1215,12 +1227,27 @@ impl Told {
     }
 }
 
+impl Handover {
+    fn hold(&self, told: Told) {
+        self.told
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .absorb(told);
+    }
+
+    fn take_told(&self) -> Told {
+        std::mem::take(&mut *self.told.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
 /// Hands over what changed in the worker's `Seen` since the last one it handed over (the whole
 /// `Seen` the first time) with what it tells the page of it, and answers whether it put an
 /// update: nothing goes when nothing changed and there is nothing to tell. Called with the lock
 /// on `Shared` held, so updates land in the order the state they copy changed.
-pub(crate) fn publish(shared: &mut Shared, handover: &Handover, told: Told) -> bool {
+pub(crate) fn publish(shared: &mut Shared, handover: &Handover) -> bool {
     shared.refresh_seen();
+    // Taken under the lock on `Shared`, as what it tells of was done under it.
+    let told = handover.take_told();
     // The page has not taken what the handover holds: the worker hands over the whole `Seen` in
     // its place.
     let crowded = handover.crowded();
@@ -1268,15 +1295,12 @@ pub(crate) fn put_in_place(handover: &Handover, bytes: Vec<u8>) {
     }
 }
 
-/// The worker thread's way to its stack, and what it holds back from the page until the next
-/// `Seen` is handed over.
+/// The worker thread's way to its stack, and whether it holds a wake of the host back until the
+/// next `Seen` is handed over.
 struct Here {
     shared: Arc<Mutex<Shared>>,
     handover: Arc<Handover>,
-    changes: crate::Changes,
     wake: bool,
-    answers: Vec<(u64, Option<Vec<u8>>)>,
-    notices: Vec<Notice>,
     /// A task to publish is spawned and has not run yet.
     scheduled: bool,
 }
@@ -1294,10 +1318,7 @@ impl Worker {
             *here.borrow_mut() = Some(Here {
                 shared: Arc::clone(shared),
                 handover: Arc::clone(handover),
-                changes: crate::Changes::default(),
                 wake: false,
-                answers: Vec::new(),
-                notices: Vec::new(),
                 scheduled: false,
             });
         });
@@ -1319,7 +1340,10 @@ impl Drop for Worker {
 pub(crate) fn hold_changes(changes: crate::Changes) -> Option<crate::Changes> {
     let held = HERE.with(|here| match here.borrow_mut().as_mut() {
         Some(here) => {
-            here.changes.merge(changes);
+            here.handover.hold(Told {
+                changes,
+                ..Told::default()
+            });
             None
         }
         None => Some(changes),
@@ -1352,7 +1376,10 @@ pub(crate) fn hold_wake() -> bool {
 pub(crate) fn hold_answer(id: u64, answer: Option<Vec<u8>>) -> Option<Option<Vec<u8>>> {
     let held = HERE.with(|here| match here.borrow_mut().as_mut() {
         Some(here) => {
-            here.answers.push((id, answer));
+            here.handover.hold(Told {
+                answers: vec![(id, answer)],
+                ..Told::default()
+            });
             None
         }
         None => Some(answer),
@@ -1368,7 +1395,10 @@ pub(crate) fn hold_answer(id: u64, answer: Option<Vec<u8>>) -> Option<Option<Vec
 pub(crate) fn notice(notice: Notice) {
     let held = HERE.with(|here| match here.borrow_mut().as_mut() {
         Some(here) => {
-            here.notices.push(notice);
+            here.handover.hold(Told {
+                notices: vec![notice],
+                ..Told::default()
+            });
             None
         }
         None => Some(notice),
@@ -1404,16 +1434,11 @@ fn schedule() {
 /// holds the lock on `Shared`: it may wait a moment for another thread to let go of it, as a
 /// worker may.
 pub(crate) fn publish_now() {
-    let Some((shared, handover, told, wake)) = HERE.with(|here| {
+    let Some((shared, handover, wake)) = HERE.with(|here| {
         here.borrow_mut().as_mut().map(|here| {
             (
                 Arc::clone(&here.shared),
                 Arc::clone(&here.handover),
-                Told {
-                    changes: std::mem::take(&mut here.changes),
-                    answers: std::mem::take(&mut here.answers),
-                    notices: std::mem::take(&mut here.notices),
-                },
                 std::mem::take(&mut here.wake),
             )
         })
@@ -1423,7 +1448,6 @@ pub(crate) fn publish_now() {
     let put = publish(
         &mut shared.lock().unwrap_or_else(PoisonError::into_inner),
         &handover,
-        told,
     );
     if put || wake {
         handover.wake_page();
@@ -1449,7 +1473,7 @@ pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
     };
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     change(&mut held);
-    if publish(&mut held, &handover, Told::default()) {
+    if publish(&mut held, &handover) {
         handover.wake_page();
     }
     true
