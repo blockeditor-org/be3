@@ -645,3 +645,47 @@ pub(crate) fn append_member(
         },
     )
 }
+
+/// Of `pairs` (block, grantee) a removal revokes, those whose block's log names the grant: the
+/// revocations the remover signs (`removal-revocations`).
+pub(crate) fn named_pairs(
+    connection: &Connection,
+    graph: &BlockGraph,
+    organization: Uuid,
+    pairs: &[(Uuid, Uuid)],
+) -> Result<Vec<(Uuid, Uuid)>, ServerError> {
+    let mut named = Vec::new();
+    for (block, grantee) in pairs {
+        if names_grant(connection, graph, organization, *block, *grantee)? {
+            named.push((*block, *grantee));
+        }
+    }
+    Ok(named)
+}
+
+/// `records`, revocations a remover signed, by the (block, grantee) each revokes, once each is
+/// a revocation and they are exactly those `named` needs: none missing, none more.
+pub(crate) fn revocations_for(
+    named: &[(Uuid, Uuid)],
+    records: &[Vec<u8>],
+) -> Result<std::collections::HashMap<(Uuid, Uuid), Vec<u8>>, ServerError> {
+    let mut found = std::collections::HashMap::new();
+    for record in records {
+        let entry = Entry::decode(record).map_err(|_| refused("a revocation does not read"))?;
+        let Record::Grant(grant) = &entry.record else {
+            return Err(refused("a revocation is a grant record"));
+        };
+        let at = (Uuid::from_bytes(entry.log), Uuid::from_bytes(grant.grantee));
+        if grant.level != Level::None || !named.contains(&at) || found.insert(at, record.clone()).is_some() {
+            return Err(refused(
+                "the revocations are those of the grants the removal revokes, once each",
+            ));
+        }
+    }
+    if found.len() != named.len() {
+        return Err(refused(
+            "a removal carries the signed revocation of every grant it revokes that a log names",
+        ));
+    }
+    Ok(found)
+}

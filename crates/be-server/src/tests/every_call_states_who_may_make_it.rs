@@ -134,7 +134,11 @@ impl TestClient {
             ),
             (
                 "remove-member",
-                answered(client::members::remove_member(peer, other, None).await),
+                answered(client::members::remove_member(peer, other, None, Vec::new()).await),
+            ),
+            (
+                "removal-revocations",
+                answered(client::keys::removal_revocations(peer, other, false).await),
             ),
             (
                 "sign-member",
@@ -211,7 +215,7 @@ impl TestClient {
             ),
             (
                 "remove-contact",
-                answered(client::contacts::remove_contact(peer, other).await),
+                answered(client::contacts::remove_contact(peer, other, Vec::new()).await),
             ),
             (
                 "upload-urls",

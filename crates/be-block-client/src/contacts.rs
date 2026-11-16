@@ -680,13 +680,6 @@ pub(crate) async fn finish_links(
     Ok(finished)
 }
 
-pub async fn remove_contact(
-    connection: &Arc<Connection>,
-    account: Uuid,
-) -> Result<(), ClientError> {
-    client::contacts::remove_contact(connection, account).await??;
-    Ok(())
-}
 
 /// Invites whoever opens the link into `organization`, as an editor: a link any account on
 /// the server accepts, once, before it expires. Its code is sealed to the inviter too, so the

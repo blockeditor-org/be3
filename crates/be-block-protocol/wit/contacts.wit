@@ -150,7 +150,12 @@ interface contacts {
 
     list-contacts: async func() -> result<list<contact-row>, error>;
 
-    remove-contact: async func(account: account-id) -> result<_, error>;
+    /// Removes a contact, revoking each one's grants on blocks the other
+    /// manages. `revocations` are the signed revocations of those grants in
+    /// the organization open that blocks' logs name (`removal-revocations`),
+    /// each needed; those in other organizations wait in key work's unsigned
+    /// revocations.
+    remove-contact: async func(account: account-id, revocations: list<list<u8>>) -> result<_, error>;
 
     /// An item whenever the account's contacts, links or key changes
     /// changed through another connection, so the client reads them again; a

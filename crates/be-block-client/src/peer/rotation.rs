@@ -364,8 +364,39 @@ impl<S: ObjectStore> Peer<S> {
             }
             None => None,
         };
-        client::members::remove_member(&self.connection(), account, signed).await??;
+        let revocations = self.removal_revocations(account, false).await?;
+        client::members::remove_member(&self.connection(), account, signed, revocations).await??;
         Ok(())
+    }
+
+    /// Removes a contact, with the signed revocations, in this organization, of each one's
+    /// grants on blocks the other manages that blocks' logs name.
+    pub async fn remove_contact(&self, account: Uuid) -> Result<(), ClientError> {
+        let revocations = self.removal_revocations(account, true).await?;
+        client::contacts::remove_contact(&self.connection(), account, revocations).await??;
+        Ok(())
+    }
+
+    /// The revocations removing `account` (as a member, or with `contact` as a contact) makes
+    /// in this organization's logs, each signed here: the server refuses the removal without
+    /// them, so a revoked grant never waits in a log for a later `tend`.
+    async fn removal_revocations(
+        &self,
+        account: Uuid,
+        contact: bool,
+    ) -> Result<Vec<Vec<u8>>, ClientError> {
+        let pairs =
+            client::keys::removal_revocations(&self.connection(), account, contact).await??;
+        let mut signed = Vec::new();
+        for revoked in pairs {
+            if let Some(record) = self
+                .signed_grant(revoked.block, revoked.account, Access::None, None)
+                .await?
+            {
+                signed.push(record);
+            }
+        }
+        Ok(signed)
     }
 
     /// Finishes the links this account made that were accepted (`contacts::finish_links`), and

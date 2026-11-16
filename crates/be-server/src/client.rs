@@ -187,7 +187,8 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
             keys::Call::GetKeys { .. }
             | keys::Call::PutKeys { .. }
             | keys::Call::PinEscrow { .. }
-            | keys::Call::GetSigningKeys { .. } => Rule::Organization,
+            | keys::Call::GetSigningKeys { .. }
+            | keys::Call::RemovalRevocations { .. } => Rule::Organization,
             keys::Call::KeyWorkChanged { .. } | keys::Call::KeysChanged { .. } => Rule::SignedIn,
         },
     }
@@ -308,6 +309,8 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             | keys::Call::Rotate { .. } => true,
             // It tells of keys for any block the account may open.
             keys::Call::KeysChanged { .. } => false,
+            // For removing a member or a contact, which reaches past the block.
+            keys::Call::RemovalRevocations { .. } => false,
             // The organization's members, as `list-members` would name them.
             keys::Call::GetSigningKeys { .. }
             | keys::Call::SetRecoveryKey { .. }
@@ -1299,13 +1302,14 @@ impl Client {
                 reply,
                 account,
                 signed,
+                revocations,
             } => {
                 let removed = async {
                     prelude?;
                     let identity = connection.identity()?;
                     let revoked = connection
                         .store
-                        .remove_member(identity, account, signed)
+                        .remove_member(identity, account, signed, revocations)
                         .await?;
                     connection
                         .hub
@@ -1515,11 +1519,19 @@ impl Client {
                 .await;
                 self.reply(reply, listed);
             }
-            Call::RemoveContact { reply, account } => {
+            Call::RemoveContact {
+                reply,
+                account,
+                revocations,
+            } => {
                 let removed = async {
                     prelude?;
                     let caller = connection.account()?;
-                    let revoked = connection.store.remove_contact(caller, account).await?;
+                    let current = connection.identity().ok().map(|open| open.organization);
+                    let revoked = connection
+                        .store
+                        .remove_contact(caller, account, current, revocations)
+                        .await?;
                     connection.revoked(&revoked, &[caller, account]).await;
                     connection.contacts_changed(&[caller, account]).await;
                     Ok(())
@@ -2433,6 +2445,36 @@ impl Client {
                 }
                 .await;
                 self.reply(reply, put);
+            }
+            Call::RemovalRevocations {
+                reply,
+                account,
+                contact,
+            } => {
+                let found = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    let pairs = match contact {
+                        true => {
+                            connection
+                                .store
+                                .contact_revocations(identity.account, account, identity.organization)
+                                .await?
+                        }
+                        false => {
+                            connection
+                                .store
+                                .member_revocations(identity.organization, account)
+                                .await?
+                        }
+                    };
+                    Ok(pairs
+                        .into_iter()
+                        .map(|(block, account)| be_block_protocol::Revocation { block, account })
+                        .collect())
+                }
+                .await;
+                self.reply(reply, found);
             }
             Call::GetRecoveryKey { reply } => {
                 let found = async {
