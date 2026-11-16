@@ -213,6 +213,13 @@ Depends on #686 (session catch-ups replaced by server ordering).
   doesn't know yet as loaded. Done: the race found and fixed in the app, with
   frames delayed a frame in a test to show it.
 
+- **A retried listing sent late.** be-host-runtime's
+  `a_listing_the_host_could_not_load_reaches_the_app_as_failed` failed once in a full verify
+  (`once a retry loads it, the answer is sent again`: nothing was sent) and passes alone. A
+  suspect: after `refetch`, `loaded` finds the graph's query ready before the refetch has
+  marked it loading, so the test reads the app's answers before the new listing is sent.
+  Done: the test waits on the refetched listing itself, and passes 100 runs under load.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
