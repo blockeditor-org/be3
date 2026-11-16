@@ -194,9 +194,12 @@ pub struct Page {
     pub account: Option<Account>,
     pub code: String,
     pub code_problem: String,
-    /// On the approve screen, where the device asking to sign in connected from: an address
-    /// the server saw, not anything the device said of itself.
+    /// On the approve screen, when and where the device asking to sign in connected from: an
+    /// address the server saw, not anything the device said of itself.
     pub requester: String,
+    /// Whether that address is on another network than this browser's, which the screen
+    /// warns of: the sign of a code someone else sent.
+    pub requester_elsewhere: bool,
     pub csrf: String,
     pub problem: Option<Problem>,
     pub email: String,

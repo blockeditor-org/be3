@@ -636,7 +636,7 @@ fn Approve(page: Shown) -> NodeId {
             </Card>
         };
     }
-    let requester = page.read(|page| page.requester.clone());
+    let (requester, elsewhere) = page.read(|page| (page.requester.clone(), page.requester_elsewhere));
     view! {
         <Card>
             <List spacing=Space::Xl>
@@ -656,7 +656,12 @@ fn Approve(page: Shown) -> NodeId {
                     </Text>
                 </Frame>
                 {(!requester.is_empty()).then(|| view! {
-                    <Text style=TextStyle::CAPTION>{format!("Asked from {requester}.")}</Text>
+                    <Text
+                        style=TextStyle::CAPTION
+                        color={if elsewhere { TextColor::Warning } else { TextColor::Muted }}
+                    >
+                        {requester.clone()}
+                    </Text>
                 })}
                 <Notice text={page.general()} />
                 <PortalForm action="/auth/approve" csrf={page.csrf()} code={page.code()}>

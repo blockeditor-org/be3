@@ -324,8 +324,9 @@ pub(crate) async fn decide(
     Ok(())
 }
 
-/// Whether `code` may still be approved, and if so, where the device asking connected from.
-pub(crate) fn code_status(services: &Services, code: &str) -> Result<IpAddr, ServerError> {
+/// Whether `code` may still be approved, and if so, where the device asking connected from and
+/// how long ago it asked.
+pub(crate) fn code_status(services: &Services, code: &str) -> Result<(IpAddr, Duration), ServerError> {
     let pending = services.browser_auth.pending.lock().unwrap();
     match pending.get(&code.trim().to_ascii_lowercase()) {
         None => Err(invalid(
@@ -340,7 +341,10 @@ pub(crate) fn code_status(services: &Services, code: &str) -> Result<IpAddr, Ser
         Some(entry) if entry.account.is_some() => Err(invalid(
             "This sign-in was already approved. Return to be-host.",
         )),
-        Some(entry) => Ok(entry.address),
+        Some(entry) => Ok((
+            entry.address,
+            LIFETIME.saturating_sub(entry.expires.saturating_duration_since(Instant::now())),
+        )),
     }
 }
 

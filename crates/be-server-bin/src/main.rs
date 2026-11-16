@@ -458,18 +458,19 @@ fn login_link(
     };
     let link = login_links::create(&data_dir, whom)?;
     println!("{origin}{}", login_links::path(&link.token));
-    let named = match (link.email.as_str(), account) {
-        ("", Some(account)) => format!("account {account}"),
-        (email, _) => email.to_owned(),
+    let named = match account {
+        Some(account) => format!("account {account}"),
+        None => link.email.clone(),
     };
-    eprintln!(
-        "a login link for {named} made, good once for fifteen minutes{}",
-        if link.registers {
-            "; using it makes the account"
-        } else {
-            ""
-        }
-    );
+    let using = match (link.registers, link.vouches, link.email.as_str()) {
+        (true, _, _) => "; using it makes the account".to_owned(),
+        (false, true, _) => "; using it removes every other way into the account".to_owned(),
+        (false, false, "") => "; using it removes every way into the account, and its owner adds one again".to_owned(),
+        (false, false, email) => format!(
+            "; using it removes every way into the account, its email {email} too, and its owner adds one again (use --email to keep an address you have checked)"
+        ),
+    };
+    eprintln!("a login link for {named} made, good once for fifteen minutes{using}");
     Ok(())
 }
 
