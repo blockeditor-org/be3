@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     AppIdentity, AppManifest, BlockTypeDescriptor, BlockTypeManifest, ChildOperations,
-    EditorCapabilities, EditorManifest, Edits, InteractionMode, ManifestError, ParentView, Press,
+    EditorCapabilities, EditorManifest, Edits, HostManifest, InteractionMode, ManifestError, ParentView, Press,
     ResizeMode, ShellRequest, TemplateCategory, TemplateManifest,
 };
 
@@ -42,6 +42,19 @@ pub struct ManifestDocument {
     /// rest); the host denies those calls to any other.
     #[serde(default)]
     pub block_agents: bool,
+    /// The app's host components, by name: each a component of the app's wasm with no frame
+    /// that the host runs on a block of one type (`HostManifest`).
+    #[serde(default)]
+    pub hosts: InOrder<HostDocument>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HostDocument {
+    /// A fresh uuid for this host component, as an editor's.
+    pub id: String,
+    /// The `CONTENT_TYPE` of the type it runs on.
+    pub edits: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -247,6 +260,20 @@ impl ManifestDocument {
             network: self.network,
             extensions: self.extensions,
             block_agents: self.block_agents,
+            hosts: self
+                .hosts
+                .0
+                .into_iter()
+                .map(|(name, host)| {
+                    Ok(HostManifest {
+                        id: Uuid::parse_str(&host.id)
+                            .map_err(|_| ManifestError::InvalidEditorId)?
+                            .into_bytes(),
+                        name,
+                        edits: block_type(&host.edits)?,
+                    })
+                })
+                .collect::<Result<_, ManifestError>>()?,
         };
         manifest.validate()?;
         Ok(manifest)
