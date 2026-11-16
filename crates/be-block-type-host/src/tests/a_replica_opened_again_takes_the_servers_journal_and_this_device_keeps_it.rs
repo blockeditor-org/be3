@@ -60,7 +60,7 @@ fn a_replica_opened_again_takes_the_servers_journal_and_this_device_keeps_it() {
         for entry in &mut sealed.entries {
             entry.received = Some(100);
         }
-        let server = peer.open_journal(sealed.clone()).expect("opened");
+        let server = peer.open_journal(block, sealed.clone()).expect("opened");
 
         // This device numbered three of its own offline.
         numbered(&peer, block, &base, &[0xA, 0xA, 0xA]).await;
