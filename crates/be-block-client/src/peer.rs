@@ -448,7 +448,7 @@ impl<S: ObjectStore> Peer<S> {
         keys.set_contacts(
             refs.contacts()
                 .into_iter()
-                .map(|(account, public)| (account, RecoveryPublic(public))),
+                .map(|(account, record)| (account, record.card.public)),
         );
         if let Some(session) = &session {
             keys.set_escrows(session.escrows.clone());
@@ -584,8 +584,10 @@ impl<S: ObjectStore> Peer<S> {
         *self.session.lock().unwrap() = (role, kind);
         self.keys
             .set_server(server.account, RecoveryPublic(server.public));
+        let pins = self.refs.contacts().into_iter().collect();
         let verified =
-            crate::contacts::contacts(&connection, self.account, self.keys.identity()).await?;
+            crate::contacts::contacts(&connection, self.account, self.keys.identity(), &pins)
+                .await?;
         crate::contacts::register_identity(&connection, self.keys.identity()).await?;
         self.keys.set_pinned(crate::contacts::open_pin(
             self.keys.identity(),
@@ -735,12 +737,17 @@ impl<S: ObjectStore> Peer<S> {
             .iter()
             .filter_map(|contact| Some((contact.account, contact.public?)))
             .collect();
-        let _ = self.refs.set_contacts(
-            verified
-                .iter()
-                .map(|(account, public)| (*account, public.0))
-                .collect(),
-        );
+        // Pins only move forward: a contact the server stops listing keeps its pin, so it is
+        // not trusted afresh from an older record if it comes back.
+        let mut pinned: HashMap<Uuid, crate::contacts::OwnContact> =
+            self.refs.contacts().into_iter().collect();
+        for record in contacts.iter().filter_map(crate::Contact::record) {
+            let account = Uuid::from_bytes(record.card.account);
+            if pinned.get(&account).is_none_or(|pin| pin.verified <= record.verified) {
+                pinned.insert(account, record);
+            }
+        }
+        let _ = self.refs.set_contacts(pinned.into_iter().collect());
         self.keys.set_contacts(verified);
         let _ = self.refs.set_contact_names(
             contacts
@@ -750,7 +757,7 @@ impl<S: ObjectStore> Peer<S> {
         );
     }
 
-    /// A contact's name as the server last listed it, kept for when there is no connection.
+    /// A contact's name as its verified card gives it, kept for when there is no connection.
     pub fn contact_name(&self, account: Uuid) -> Option<String> {
         self.refs.contact_name(account)
     }

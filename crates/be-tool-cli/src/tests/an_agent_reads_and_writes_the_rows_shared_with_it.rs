@@ -26,13 +26,16 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         "Claude".into(),
         public.0,
         phrase.secret().signing().0,
-        be_block_client::contacts::card(
-            owner.peer().account(),
-            owner.peer().keys().identity(),
-            "Owner",
-            "owner@example.com",
+        be_block_client::contacts::OwnContact::new(
+            be_block_client::contacts::card(
+                owner.peer().account(),
+                owner.peer().keys().identity(),
+                "Owner",
+                "owner@example.com",
+            ),
+            0,
         )
-        .seal_own(&phrase.secret()),
+        .seal(&phrase.secret()),
         be_block_client::contacts::seal_pin(
             &phrase.secret(),
             organization,

@@ -52,6 +52,7 @@ fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
             &peer.connection(),
             peer.account(),
             &guest.phrase.secret(),
+            &Default::default(),
         ))
         .expect("the guest lists its contacts");
     assert_eq!(theirs.len(), 1);
