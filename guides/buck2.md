@@ -305,8 +305,9 @@ the execution platform, so it is always checked.
   from crates/be-host/web; `buck2 run` serves it with Caddy and be-server
   (guides/running/web.md, guides/hosting.md).
 - The APK is assembled on a worker without Gradle (`be-tool-buck apk`), with the apps' `.wasm` as
-  assets, and signed afterwards on the requesting machine (guides/running/android.md). Android
-  builds are broken until a rusty_v8 built for Android is hosted (plans/wasm_on_v8.md).
+  assets, and signed afterwards on the requesting machine (guides/running/android.md). Its V8 is
+  one we build (scripts/internal/build-rusty-v8-android.sh) and host, as rusty_v8 publishes none
+  for Android (third-party/v8/BUCK).
 - CI ships nothing built for a device: the build helper builds APKs and native builds on request
   for crates/be-tool-launcher (guides/build_server.md).
 
