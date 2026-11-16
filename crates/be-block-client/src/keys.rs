@@ -540,8 +540,9 @@ impl KeyBook {
     /// it pinned, so a root it took from nowhere trusted is never passed on as one it vouches
     /// for. A key this device cannot place is not handed on.
     pub fn carried_plain(&self, key: Uuid) -> Result<Vec<u8>, StoreError> {
-        let plain = match self.escrow_secrets.lock().unwrap().get(&key) {
-            Some(secret) if self.trusted(key) => *secret,
+        let escrow = self.escrow_secrets.lock().unwrap().get(&key).copied();
+        let plain = match escrow {
+            Some(secret) if self.trusted(key) => secret,
             _ => *self.trusted_plain(key)?.as_bytes(),
         };
         let roots = self.roots.lock().unwrap();
