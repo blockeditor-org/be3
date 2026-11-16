@@ -220,6 +220,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `ready` (be-sdk-beui `src/layered_settings.rs`) counts a layer block it
   doesn't know yet as loaded. Done: the race found and fixed in the app, with
   frames delayed a frame in a test to show it.
+- **A peer's edit during a gesture, once in a stack suite.**
+  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it`
+  (be-host-stack) failed once in 0.22 s in a full run of the suite on the
+  local-machine runner, and passed alone. Done: the cause found (run it under
+  `stress` with the suite's load) and fixed at its source, with a test that
+  shows it.
 
 - **A note made offline, once under the render-props branch's tests.**
   `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
