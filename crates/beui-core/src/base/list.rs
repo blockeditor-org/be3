@@ -221,7 +221,11 @@ impl ListNode {
         let mut runs: Vec<Vec<(ListEntry, f32, f32)>> = Vec::new();
         let mut run: Vec<(ListEntry, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;
+        // Whether the run holds a child that is shown: a collapsed one neither breaks a line
+        // nor counts as one before the next child's spacing.
+        let mut shown = false;
         for (item, gap) in self.items.iter().zip(gaps) {
+            let collapsed = doc.arena.get(item.child).collapsed();
             let basis = match item.size.size {
                 ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
                 ItemSize::Intrinsic | ItemSize::Grow(_) => {
@@ -238,12 +242,17 @@ impl ListNode {
                     }
                 }
             };
-            let basis = grid.snap(item.size.clamp(basis));
-            if !run.is_empty() && taken + gap + basis > available_main {
+            let basis = match collapsed {
+                true => 0.0,
+                false => grid.snap(item.size.clamp(basis)),
+            };
+            if shown && !collapsed && taken + gap + basis > available_main {
                 runs.push(std::mem::take(&mut run));
                 taken = 0.0;
+                shown = false;
             }
-            let gap = if run.is_empty() { 0.0 } else { gap };
+            let gap = if shown { gap } else { 0.0 };
+            shown |= !collapsed;
             taken += gap + basis;
             run.push((*item, basis, gap));
         }
