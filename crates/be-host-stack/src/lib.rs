@@ -914,31 +914,31 @@ fn send_child_change(
     ChildChanged(answer)
 }
 
-/// Asks `block`'s type to put a new copy of its child `source` in the child's place (Unlink),
-/// answering the copy's id and what the type did. The copy is made where the type's answer is
-/// heard, before the answer reaches the caller, so the container never names a copy that is not
-/// made: one that cannot be made after all puts `source` back. None while the type is not known
-/// yet or the source cannot be copied (`duplicate`); a container out of reach is refused.
+/// Asks `block`'s type to put a new copy of its child `source`, `copy` (a fresh id,
+/// `Uuid::now_v7`), in the child's place (Unlink), answering what the type did. The copy is made
+/// where the type's answer is heard, before the answer reaches the caller, so the container never
+/// names a copy that is not made: one that cannot be made after all puts `source` back. The
+/// caller picks `copy`, as for `duplicate`, so it can ask for it (`want`) before it is made: a
+/// detached block nothing asks for leaves the graph as its creation settles. None while the type
+/// is not known yet or the source cannot be copied (`duplicate`); a container out of reach is
+/// refused.
 pub fn replace_with_copy(
     block: Uuid,
     content_type: Uuid,
     source: Uuid,
-) -> Option<(Uuid, ChildChanged)> {
+    copy: Uuid,
+) -> Option<ChildChanged> {
     if !is_known(content_type) || !node(source).is_some_and(|node| is_known(node.content_type)) {
         return None;
     }
-    let copy = Uuid::now_v7();
     if out_of_reach(block) {
-        return Some((copy, ChildChanged::refused()));
+        return Some(ChildChanged::refused());
     }
     let change = be_block_content::ChildChange::Replace {
         old: source,
         new: copy,
     };
-    Some((
-        copy,
-        send_child_change(block, content_type, change, Some(source)),
-    ))
+    Some(send_child_change(block, content_type, change, Some(source)))
 }
 
 /// Makes the copy `replace_with_copy` put in `block`, once its type did: whether it was made. One
