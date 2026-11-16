@@ -81,6 +81,9 @@ pub use beui_components_unstyled::{
 };
 pub use beui_components_unstyled::{DialogDismissal, DialogLayout};
 pub use beui_components_unstyled::{GlideApi, GlideHold};
+pub use beui_components_unstyled::{
+    DropSiteHandle, carrying, is_carried, place_on, slots_in, use_drop_site,
+};
 pub use beui_components_unstyled::{PaletteItem, PaletteItems, PaletteScore};
 pub use beui_components_unstyled::{ReorderGap, ReorderHandle, ReorderItemHandle, ReorderMove};
 pub use beui_components_unstyled::{TREEMAP_MOST_TILES, TreemapItem, TreemapTile, TreemapTileKey};
