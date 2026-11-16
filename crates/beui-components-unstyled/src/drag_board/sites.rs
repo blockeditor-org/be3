@@ -10,8 +10,8 @@ use beui_view::drag::{
     CandidateId, Carry, CarryId, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
-use beui_view::types::{Rect, Velocity};
 use beui_view::types::input::PointerId;
+use beui_view::types::{Rect, Velocity};
 
 use super::Board;
 

@@ -15,16 +15,16 @@ use crate::drag_board::drag_board;
 use crate::drop_site::{carrying, slots_in, use_drop_site};
 use accesskit::{Live, Node, Role};
 use beui_macros::{component, view};
+use beui_view::components::overlay::Overlay;
 use beui_view::drag::{
     After, Carry, DragPoint, DragSpec, closest, fixed, floating, into, move_after,
 };
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
-    PointerPress, Pos2, Rect, Sides, TouchDrags,
+    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
+    Rect, Sides, TouchDrags,
 };
 
 use crate::glide::{Glide, GlideApi, GlideHold};
@@ -64,6 +64,7 @@ struct State<K: 'static, P: 'static> {
     disabled: Prop<bool>,
     fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
+    long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
@@ -413,7 +414,9 @@ where
             state.folded_length.set(length + spacing(state));
         }
         let size = state.folded_length.get();
-        let carried = state.carried.with_untracked(|carried| carried.as_ref() == Some(&key));
+        let carried = state
+            .carried
+            .with_untracked(|carried| carried.as_ref() == Some(&key));
         match (away, at.is_some() && !carried) {
             (true, _) => {
                 state.returning.set(false);
@@ -489,7 +492,10 @@ where
         // open, and let go over this list it lands home.
         if let Some(own) = &own {
             let home = keys.iter().position(|key| key == own).unwrap_or(0);
-            return into(state.area, After(home.checked_sub(1).map(|at| keys[at].clone())));
+            return into(
+                state.area,
+                After(home.checked_sub(1).map(|at| keys[at].clone())),
+            );
         }
         let index = match &own {
             Some(_) => None,
@@ -499,7 +505,10 @@ where
                 .map(|index| index.min(keys.len())),
         };
         let after = index.map(|index| After(index.checked_sub(1).map(|at| keys[at].clone())));
-        match slots.into_iter().find(|slot| Some(&slot.drop) == after.as_ref()) {
+        match slots
+            .into_iter()
+            .find(|slot| Some(&slot.drop) == after.as_ref())
+        {
             Some(slot) => reach(fixed(slot).following(direction)),
             None => floating(),
         }
@@ -522,7 +531,10 @@ where
             .cloned()
             .collect();
         let index = match &after {
-            Some(after) => rest.iter().position(|key| key == after).map_or(0, |at| at + 1),
+            Some(after) => rest
+                .iter()
+                .position(|key| key == after)
+                .map_or(0, |at| at + 1),
             None => 0,
         };
         let from = own
@@ -569,7 +581,11 @@ where
         if to == from {
             return None;
         }
-        let rest: Vec<K> = keys.iter().filter(|shown| **shown != key).cloned().collect();
+        let rest: Vec<K> = keys
+            .iter()
+            .filter(|shown| **shown != key)
+            .cloned()
+            .collect();
         mark_move(state);
         state.raised.set(Some(key.clone()));
         announce(state, &key, to, keys.len());
@@ -617,6 +633,9 @@ pub fn Reorder<K, P>(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
+    /// Whether a finger's long press lifts a row; off, the long press is the row's menu, and
+    /// a finger lifts a row by dragging it across the list.
+    #[prop(default = false)] long_press: bool,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
@@ -642,6 +661,7 @@ where
         disabled,
         fixed,
         slot,
+        long_press,
         text,
         on_move,
         on_drag_change,
@@ -667,7 +687,8 @@ where
     let site = use_drop_site(
         Func::new(move |payload: P| {
             carried.with_untracked(Option::is_some)
-                || (!disabled.get_untracked() && accepts.is_some_and(|accepts| accepts.call(payload)))
+                || (!disabled.get_untracked()
+                    && accepts.is_some_and(|accepts| accepts.call(payload)))
         }),
         Func::new(move |payload: P| spec(state, payload)),
         Callback::new(move |(payload, After(after)): (P, After<K>)| {
@@ -747,7 +768,11 @@ where
     // A carry from elsewhere is drawn in the gap it opens, from this list's own `preview`.
     let visiting = create_memo(move || visited.get() && carrying::<P>().is_some());
     let anchor = create_memo(move || {
-        OverlayAnchor::Point(drag_board().frame().map_or(Pos2::ZERO, |frame| frame.item.min))
+        OverlayAnchor::Point(
+            drag_board()
+                .frame()
+                .map_or(Pos2::ZERO, |frame| frame.item.min),
+        )
     });
     let shown = view! {
         <Layers @node_ref=&area>
@@ -811,9 +836,8 @@ where
     let key = create_memo(move || item.get());
     let (carried, over_here, raised_key, gap) =
         state.with(|state| (state.carried, state.over_here, state.raised, state.gap));
-    let mine = create_memo(move || {
-        carried.with(|carried| key.with(|key| carried.as_ref() == Some(key)))
-    });
+    let mine =
+        create_memo(move || carried.with(|carried| key.with(|key| carried.as_ref() == Some(key))));
     let fixed = state.with(|state| state.fixed);
     // Carried and on a place in this list: shown there, following the pointer along it; a
     // fixed list keeps the row's slot open instead, empty, while its preview floats.
@@ -868,9 +892,8 @@ where
     );
     let arm = Trackable::from(shifted);
     let folded = state.with(|state| state.folded);
-    let collapsed = create_memo(move || {
-        folded.with(|folded| key.with(|key| folded.as_ref() == Some(key)))
-    });
+    let collapsed =
+        create_memo(move || folded.with(|folded| key.with(|key| folded.as_ref() == Some(key))));
     // A gap at the end opens after the last row shown, not a collapsed one.
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
@@ -978,7 +1001,8 @@ where
     create_effect_on_change(
         move || collapsed.get(),
         move |collapsed, was| {
-            if *was && !*collapsed
+            if *was
+                && !*collapsed
                 && let Some(at) = last.take()
             {
                 from.set(Some(at));
@@ -992,7 +1016,7 @@ where
         on_click.call(());
     };
     let drag = Func::new(move |_: PointerPress| lift(state, key.get_untracked()));
-    let spring = state.with(|state| state.spring);
+    let (spring, long_press) = state.with(|state| (state.spring, state.long_press));
     let inner = view! {
         <Glide spring on={arm} within={Some(api)}>
             <Interactive
@@ -1006,6 +1030,7 @@ where
                     false => TouchDrags::None,
                 }}
                 drag={Some(drag)}
+                lifts_on_long_press={long_press}
                 on_click_at={clicked}
             >
                 {face}
@@ -1017,10 +1042,12 @@ where
         <Frame @node_ref=&row collapsed={collapsed} raised={raised}>
             <Glide api spring on={arm} from={from}>
                 <Frame padding={padding}>
-                    <Frame opacity={move || match hidden.get() {
-                        true => 0.0,
-                        false => 1.0,
-                    }}>
+                    <Frame
+                        opacity={move || match hidden.get() {
+                            true => 0.0,
+                            false => 1.0,
+                        }}
+                    >
                         {inner}
                     </Frame>
                 </Frame>

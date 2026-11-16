@@ -23,7 +23,14 @@ fn an_item_from_another_list_gets_a_place_at_each_gap_its_size() {
     );
 
     let item = Some(vec2(180.0, 30.0));
-    let slots = slots_with(&*fixture.flat, list, rows, Some(&'x'), Direction::Vertical, item);
+    let slots = slots_with(
+        &*fixture.flat,
+        list,
+        rows,
+        Some(&'x'),
+        Direction::Vertical,
+        item,
+    );
     let places: Vec<(Option<char>, f32)> = slots
         .iter()
         .map(|slot| (slot.drop.0, slot.rest.min.y))
@@ -34,10 +41,22 @@ fn an_item_from_another_list_gets_a_place_at_each_gap_its_size() {
         "before a: where a starts; before c: where c starts; past c: c's end and the spacing"
     );
     assert!(
-        slots.iter().all(|slot| slot.rest.size() == vec2(180.0, 30.0)),
+        slots
+            .iter()
+            .all(|slot| slot.rest.size() == vec2(180.0, 30.0)),
         "each rests at the carried item's size"
     );
 
-    let none = slots_with(&*fixture.flat, list, rows, Some(&'x'), Direction::Vertical, None);
-    assert!(none.is_empty(), "with no item carried there is nothing to size a place by");
+    let none = slots_with(
+        &*fixture.flat,
+        list,
+        rows,
+        Some(&'x'),
+        Direction::Vertical,
+        None,
+    );
+    assert!(
+        none.is_empty(),
+        "with no item carried there is nothing to size a place by"
+    );
 }

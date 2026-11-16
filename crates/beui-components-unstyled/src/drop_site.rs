@@ -122,7 +122,14 @@ where
     K: Clone + PartialEq + 'static,
 {
     let item = drag_board().carried_item().map(|item| item.size());
-    slots_with(&*beui_view::drag::space(), list, rows, carried, direction, item)
+    slots_with(
+        &*beui_view::drag::space(),
+        list,
+        rows,
+        carried,
+        direction,
+        item,
+    )
 }
 
 pub(crate) fn slots_with<K>(
@@ -224,10 +231,15 @@ fn visiting<K: Clone>(
     let mut places = Vec::with_capacity(shown.len() + 1);
     let mut after = None;
     for (key, rect) in &shown {
-        places.push((after, Rect::from_min_size(at(along(rect.min), first.min), item)));
+        places.push((
+            after,
+            Rect::from_min_size(at(along(rect.min), first.min), item),
+        ));
         after = Some((*key).clone());
     }
-    let end = shown.last().map_or(0.0, |(_, rect)| along(rect.max) + spacing);
+    let end = shown
+        .last()
+        .map_or(0.0, |(_, rect)| along(rect.max) + spacing);
     places.push((after, Rect::from_min_size(at(end, first.min), item)));
     places
 }

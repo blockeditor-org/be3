@@ -38,7 +38,6 @@ use beui_components_unstyled::menu::{MenuItem, MenuNodes};
 use beui_components_unstyled::menu_popup::MenuStyle;
 use beui_components_unstyled::rubber_band::Band;
 use beui_components_unstyled::{DragPoint, Take};
-use tab_strip::{TabMove, TabStrip, TabStripHandle, TabStripItem, TabStripItemHandle};
 use beui_view::components::overlay::Overlay;
 use beui_view::components::root::Root;
 use beui_view::primitives::*;
@@ -58,6 +57,7 @@ use beui_view::types::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_view::window::{
     Window, WindowHandle, opens_windows, set_work_area, use_window, window_origin,
 };
+use tab_strip::{TabMove, TabStrip, TabStripHandle, TabStripItem, TabStripItemHandle};
 
 pub use bars::DockBarBandHandle;
 pub(crate) use bars::{BarCovers, BarFloats};

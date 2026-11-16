@@ -912,8 +912,13 @@ fn PlacesList() -> NodeId {
     let site = unstyled::use_drop_site(
         Func::new(|_: usize| true),
         Func::new(move |fruit: usize| {
-            drag::closest(unstyled::slots_in(list, rows, Some(&fruit), Direction::Vertical))
-                .when_far(drag::floating())
+            drag::closest(unstyled::slots_in(
+                list,
+                rows,
+                Some(&fruit),
+                Direction::Vertical,
+            ))
+            .when_far(drag::floating())
         }),
         Callback::new(
             move |(fruit, drag::After(after)): (usize, drag::After<usize>)| {
