@@ -221,7 +221,9 @@ pub use seen::KnownKind;
 pub use types::{host_block_types, provided};
 
 /// Whether the running stack's modules know `content_type`, as of what the page read
-/// (`Seen::kinds`): the page asks the worker's modules nothing directly.
+/// (`Seen::kinds`): the page asks the worker's modules nothing directly. So it answers false
+/// from a stack's start, or restart, until the worker's first update lands, and what refuses
+/// an unknown type (an app's new block, say) refuses it in that window too.
 pub fn is_known(content_type: Uuid) -> bool {
     with_stack(|stack| stack.view.kinds.contains_key(&content_type)).unwrap_or(false)
 }
