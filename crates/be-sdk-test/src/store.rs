@@ -602,6 +602,7 @@ impl Inner {
                 kept_restart: 0,
                 kept_through: 0,
                 kept_submitted: 0,
+                kept_submissions: Vec::new(),
                 head,
                 session: session(),
                 journal: None,

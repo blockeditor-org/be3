@@ -246,11 +246,19 @@ the connection a stopping stack closed.
   again as before and skips what the order holds already: an edit whose answer
   was lost is never made twice. The same holds across a stop or crash: the host
   keeps each open block's origin, `given_up`, the last edit it submitted online
-  (`Open::submitted_through`) and the editors' frames in `replay`
-  (`refs::OpenEdits`, sealed, written as they change by `Replicas::keep_edits`,
-  and before any submission past the `submitted_through` last written, which fails
-  if it cannot be written), and a replica opened later is given them under that
-  origin. Kept edits that do not open while the block's own key is not on the
+  (`Open::submitted_through`), the editors' frames in `replay`, and each
+  operation submitted online that holds some of them, with its counter, `through`
+  and payload (`Open::submissions`) (`refs::OpenEdits`, sealed, written as they
+  change by `Replicas::keep_edits`, and before any new operation or submission
+  past the `submitted_through` last written goes out, which fails if it cannot be
+  written), and a replica opened later is given them under that origin. Once
+  joined, it submits the edits a kept submission holds as exactly that submission
+  (`opening.kept-submissions`, the replica's `kept_submissions`): the same id and
+  payload, so if the first copy reaches the server too, late, from a connection
+  of the process that crashed, the server's id check (`journal::submit`) answers
+  it held rather than number the edit twice. A reload or a stash names as its
+  `through` only what the order holds already (`Replica::entry_through`), never
+  edits still unsent, which a replica opened again would take as ordered. Kept edits that do not open while the block's own key is not on the
   device stay as they are, and the block waits locked until keys arrive
   (`Replicas::lock`), so no replica writes over them. Ones that do not open
   otherwise (unreadable, or under a key that has not come though the block's

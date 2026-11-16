@@ -580,6 +580,9 @@ struct Open {
     /// How far `submitted_through` reached when this device last kept the replica's edits: a
     /// submission past it waits until they are kept again (`Call::Submit`).
     kept_submitted_through: u64,
+    /// The operations it submitted online, oldest first, while they hold edits of `replay`
+    /// (`refs::OpenEdits::submissions`): one opened again submits them as they were.
+    submissions: Vec<be_block_client::KeptSubmission>,
     /// Why keeping its edits last failed, until they are kept (`Owing::keep_error`).
     keep_error: Option<String>,
     /// What was kept of its local edits when the host last stopped (`opening.kept-restart`,
@@ -602,6 +605,20 @@ struct Open {
 }
 
 impl Open {
+    /// The submissions holding edits it would give a replica opened again
+    /// (`opening.kept-submissions`).
+    fn kept_submissions(&self) -> Vec<be_sdk_type_api::KeptSubmission> {
+        self.submissions
+            .iter()
+            .filter(|submission| submission.through > self.given_up)
+            .map(|submission| be_sdk_type_api::KeptSubmission {
+                counter: submission.counter,
+                through: submission.through,
+                payload: submission.payload.clone(),
+            })
+            .collect()
+    }
+
     /// Whether it was sent a local edit its module has not reported on yet.
     fn unreported(&self) -> bool {
         self.sent > self.status.taken
@@ -1339,11 +1356,13 @@ impl<H: Host> Replicas<H> {
         // Local edits no journal held when the host last stopped: given again under the same
         // origin, so those the server's order holds are found there. Before joining, those it
         // may hold only show (`opening.doubtful-through`).
-        let (recovered, recovered_edits) = match peer.open_edits(block) {
-            Some((recovered, Ok(edits))) => (Some(recovered), Some(edits)),
+        let (recovered, recovered_edits, submissions) = match peer.open_edits(block) {
+            Some((recovered, Ok((edits, submissions)))) => {
+                (Some(recovered), Some(edits), submissions)
+            }
             // They stopped opening since `open` looked: it opens again once they do.
             Some((_, Err(_))) => return None,
-            None => (None, None),
+            None => (None, None, Vec::new()),
         };
         let recovered_any = recovered.is_some();
         let origin = recovered.as_ref().map_or_else(
@@ -1403,6 +1422,14 @@ impl<H: Host> Replicas<H> {
             kept_restart,
             kept_through: given_up + replay.len() as u64,
             kept_submitted: submitted_through,
+            kept_submissions: submissions
+                .iter()
+                .map(|submission| be_sdk_type_api::KeptSubmission {
+                    counter: submission.counter,
+                    through: submission.through,
+                    payload: submission.payload.clone(),
+                })
+                .collect(),
             head,
             session: session.clone(),
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -1479,6 +1506,7 @@ impl<H: Host> Replicas<H> {
                 given_up,
                 submitted_through,
                 kept_submitted_through: submitted_through,
+                submissions,
                 keep_error: None,
                 kept_restart,
                 kept_through: given_up + replay_count,
@@ -1653,6 +1681,7 @@ impl<H: Host> Replicas<H> {
             kept_restart: open.kept_restart,
             kept_through: open.kept_through,
             kept_submitted: open.submitted_through,
+            kept_submissions: open.kept_submissions(),
             head,
             session,
             lost_edits: lost_edits(journal.as_ref(), tag),
@@ -2152,10 +2181,13 @@ impl<H: Host> Replicas<H> {
             if !std::mem::take(&mut open.edits_changed) {
                 continue;
             }
-            let (kept, edits) = kept_edits(open);
+            let (kept, edits, submissions) = kept_edits(open);
             let through = kept.submitted_through;
             // Kept at the next pass: this one could not seal them (no key yet) or write.
-            match peer.keep_open_edits(open.block, kept, edits).await {
+            match peer
+                .keep_open_edits(open.block, kept, edits, submissions)
+                .await
+            {
                 Ok(()) => {
                     open.kept_submitted_through = through;
                     open.keep_error = None;
@@ -3357,6 +3389,7 @@ impl<H: Host> Replicas<H> {
                 kept_restart: open.kept_restart,
                 kept_through: open.kept_through,
                 kept_submitted: open.submitted_through,
+                kept_submissions: open.kept_submissions(),
                 head,
                 session: open.session.clone(),
                 lost_edits: false,
@@ -3614,8 +3647,10 @@ impl<H: Host> Replicas<H> {
         );
         // Kept on the device only as far as nothing holds them: none, once it ended clean.
         open.reported_clean(held);
-        let (kept, edits) = kept_edits(&open);
-        let _ = peer.keep_open_edits(open.block, kept, edits).await;
+        let (kept, edits, submissions) = kept_edits(&open);
+        let _ = peer
+            .keep_open_edits(open.block, kept, edits, submissions)
+            .await;
         self.asked.retain(|_, (to, _)| *to != replica);
         self.blocks.remove(&open.block);
         if !open.joining {
@@ -3731,23 +3766,48 @@ impl<H: Host> Replicas<H> {
                     payload: submission.payload,
                 };
                 let online = !made_up && peer.is_attached();
+                let mut identified = false;
                 if online
                     && let Some(submitted) =
                         be_sdk_type_guest::wire::Submitted::decode(&submission.payload)
                     && let Some(open) = self.open.get_mut(&replica)
-                    && submitted.through > open.submitted_through
                 {
-                    open.submitted_through = submitted.through;
-                    open.edits_changed = true;
+                    if submitted.through > open.submitted_through {
+                        open.submitted_through = submitted.through;
+                        open.edits_changed = true;
+                    }
+                    // An operation is kept as it went, so a replica opened again submits its
+                    // edits under the same id; given again, it is kept already.
+                    let counter = submission.id.counter;
+                    if matches!(submitted.entry, be_sdk_type_guest::wire::Entry::Operation(_))
+                        && !open
+                            .submissions
+                            .iter()
+                            .any(|kept| kept.counter == counter)
+                    {
+                        open.submissions
+                            .retain(|kept| kept.through > open.given_up);
+                        open.submissions.push(be_block_client::KeptSubmission {
+                            counter,
+                            through: submitted.through,
+                            payload: submission.payload.clone(),
+                        });
+                        open.edits_changed = true;
+                        identified = true;
+                    }
                 }
                 // Written ahead: once the server may hold an edit, a crash must not lose that
-                // it was submitted, or the edits given again would be numbered anew.
+                // it was submitted, or under what id, or the edits given again would be
+                // numbered anew.
                 if let Some(open) = self.open.get_mut(&replica)
-                    && open.submitted_through > open.kept_submitted_through
+                    && (identified || open.submitted_through > open.kept_submitted_through)
                 {
-                    let (kept, edits) = kept_edits(open);
+                    let (kept, edits, submissions) = kept_edits(open);
                     let through = kept.submitted_through;
-                    if let Err(error) = peer.keep_open_edits(block, kept, edits).await {
+                    if let Err(error) = peer
+                        .keep_open_edits(block, kept, edits, submissions)
+                        .await
+                    {
                         let failed = be_sdk_type_api::host::Submitted::Failed(error.to_string());
                         self.modules
                             .call(module, |connection| reply.send(connection, &failed));
@@ -4546,8 +4606,15 @@ fn journal_through(journal: Option<&be_block_protocol::Journal>) -> Option<u64> 
 }
 
 /// What the device keeps of `open`'s local edits no journal holds yet (`refs::OpenEdits`): each,
-/// in the order given, so one opened again numbers them as this one did.
-fn kept_edits(open: &Open) -> (be_block_client::OpenEdits, Vec<be_block_client::KeptEdit>) {
+/// in the order given, so one opened again numbers them as this one did, with the submissions
+/// holding them.
+fn kept_edits(
+    open: &Open,
+) -> (
+    be_block_client::OpenEdits,
+    Vec<be_block_client::KeptEdit>,
+    Vec<be_block_client::KeptSubmission>,
+) {
     let edits = open
         .replay
         .iter()
@@ -4572,8 +4639,15 @@ fn kept_edits(open: &Open) -> (be_block_client::OpenEdits, Vec<be_block_client::
         submitted_through: open.submitted_through,
         restarts: open.status.restarts,
         edits: Vec::new(),
+        submissions: Vec::new(),
     };
-    (kept, edits)
+    let submissions = open
+        .submissions
+        .iter()
+        .filter(|submission| submission.through > open.given_up)
+        .cloned()
+        .collect();
+    (kept, edits, submissions)
 }
 
 fn kept_change(change: &Change) -> be_block_client::KeptChange {

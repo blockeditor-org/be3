@@ -33,7 +33,7 @@ fn an_edit_an_undo_and_an_edit_kept_across_a_crash_all_land() {
             .peer
             .as_ref()
             .and_then(|peer| peer.open_edits(block))
-            .is_some_and(|(_, edits)| edits.is_ok_and(|edits| edits.len() >= 3))
+            .is_some_and(|(_, edits)| edits.is_ok_and(|(edits, _)| edits.len() >= 3))
     });
 
     crash();

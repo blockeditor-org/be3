@@ -6,7 +6,8 @@ use be_block_protocol::{ClientId, SessionState};
 use be_block_session::{OpId, Payload, Resume, SessionMessage, SessionOp, Submission};
 use be_block_store::{Hash, PartRef};
 use be_sdk_type_api::{
-    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, Merging, Recipients,
+    Change, Delivery, EditorId, Endpoint, FileChange, Journal, JournalBase, KeptSubmission, Merging,
+    Recipients,
     RelayKind, ReplicaId, SessionTag, Status, UndoState, Unjournaled, Written,
 };
 use uuid::Uuid;
@@ -93,6 +94,7 @@ pub(crate) struct Opened {
     pub(crate) kept_restart: u64,
     pub(crate) kept_through: u64,
     pub(crate) kept_submitted: u64,
+    pub(crate) kept_submissions: Vec<KeptSubmission>,
     pub(crate) head: Option<CommitId>,
     pub(crate) session: SessionState,
     pub(crate) journal: Option<Journal>,
@@ -506,8 +508,9 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     /// What it submitted that has not come back numbered, in order.
     pending: VecDeque<Sent<C>>,
     /// Edits waiting to be submitted: the operation, a bound on its size, how many edits it
-    /// absorbed, and the last local edit it holds.
-    unsent: VecDeque<(C::Op, usize, u64, u64)>,
+    /// absorbed, the last local edit it holds, and the submission of an earlier opening that
+    /// holds them, which it goes as (`kept_submissions`).
+    unsent: VecDeque<(C::Op, usize, u64, u64, Option<KeptSubmission>)>,
     in_flight: u64,
     covered: bool,
     /// The last sequence number of the order applied.
@@ -534,6 +537,11 @@ pub(crate) struct Replica<C: LiveEdit, H> {
     replaced_at: u64,
     /// The counter of this replica's last submission, from a random start: ids never repeat.
     counter: u64,
+    /// What earlier openings submitted of the local edits this one is given again, oldest first
+    /// (`opening.kept-submissions`): the edits each holds go as exactly that submission, under
+    /// its id, which the server answers as held if the earlier one reached it. Each is let go
+    /// once a local edit past it is taken, or the order holds it.
+    kept_submissions: VecDeque<KeptSubmission>,
     /// The most local edits (`Submitted::through`) of this replica's origin the order holds.
     own_through: u64,
     /// Own entries the order numbered since the last seal, with what each holds of the local
@@ -824,6 +832,7 @@ where
             replaced_at: 0,
             // Leaves room for 2^48 submissions after it.
             counter: Uuid::new_v4().as_u64_pair().0 >> 16,
+            kept_submissions: opened.kept_submissions.into(),
             own_through: 0,
             own_numbered: VecDeque::new(),
             presence: BTreeMap::new(),
@@ -2462,6 +2471,9 @@ where
         };
         self.note_origin(op.id.origin, through, op.sequence);
         if mine {
+            if !self.pending.iter().any(|sent| sent.id == op.id) {
+                self.heard_own(op.id.counter);
+            }
             self.own_through = self.own_through.max(through);
             self.own_numbered.push_back((op.sequence, through));
             self.lacking.numbered(op.id.counter, op.sequence);
@@ -2590,7 +2602,7 @@ where
             .filter_map(|sent| sent.operation.clone())
             .collect();
         self.in_flight = local.len() as u64;
-        for (pending, _, weight, _) in &mut self.unsent {
+        for (pending, _, weight, ..) in &mut self.unsent {
             local.push(pending.clone());
             *weight = 1;
         }
@@ -2730,6 +2742,7 @@ where
             .collect();
         self.pending = reloads.into();
         self.unsent.clear();
+        self.kept_submissions.clear();
         self.in_flight = 0;
         self.covered = true;
     }
@@ -2766,7 +2779,7 @@ where
             + self
                 .unsent
                 .iter()
-                .map(|(_, _, weight, _)| weight)
+                .map(|(_, _, weight, ..)| weight)
                 .sum::<u64>()
     }
 
@@ -2875,28 +2888,93 @@ where
         let size = payload.len();
         self.lacking.add(payload, announcements);
         let through = self.edit_number();
+        let kept = self.kept_submission(through);
+        // Held by an earlier opening's submission already on its way again: it goes with it.
+        if let Some(kept) = &kept
+            && let Some(sent) = self
+                .pending
+                .iter_mut()
+                .find(|sent| sent.id.counter == kept.counter)
+        {
+            if let Some(submitted) = &mut sent.operation {
+                // What it absorbed came back as one operation before: the order brings back
+                // the whole of it all the same.
+                let _ = C::absorb_operation(submitted, operation);
+            }
+            self.in_flight += 1;
+            self.lacking.submitted(kept.counter, 1);
+            return true;
+        }
+        let counter = kept.as_ref().map(|kept| kept.counter);
+        let mut apart = false;
         let oversized = size > LARGEST_RELAYED_OPERATION;
         let leftover = match self.unsent.back_mut() {
-            Some((last, bound, weight, last_through))
-                if !oversized && *bound + size <= LARGEST_RELAYED_OPERATION =>
+            // Edits an earlier opening submitted go together, as that submission held them,
+            // and nothing else goes with them.
+            Some((last, bound, weight, last_through, last_kept))
+                if last_kept.as_ref().map(|kept| kept.counter) == counter
+                    && (counter.is_some()
+                        || (!oversized && *bound + size <= LARGEST_RELAYED_OPERATION)) =>
             {
                 let leftover = C::absorb_operation(last, operation);
-                if leftover.is_none() {
-                    // An upper bound: absorbing can shrink `last` (a later put replaces an
-                    // earlier one), so a long burst starts a new operation sooner than its
-                    // real size needs.
-                    *bound += size;
-                    *weight += 1;
-                    *last_through = through;
+                match leftover.is_none() {
+                    true => {
+                        // An upper bound: absorbing can shrink `last` (a later put replaces an
+                        // earlier one), so a long burst starts a new operation sooner than its
+                        // real size needs.
+                        *bound += size;
+                        *weight += 1;
+                        *last_through = through;
+                    }
+                    // Not as that submission held them: they go anew.
+                    false => {
+                        *last_kept = None;
+                        apart = true;
+                    }
                 }
                 leftover
             }
             _ => Some(operation),
         };
+        let kept = kept.filter(|_| {
+            !apart
+                && !self
+                    .unsent
+                .iter()
+                .any(|(.., held)| held.as_ref().map(|held| held.counter) == counter)
+        });
         self.unsent
-            .extend(leftover.map(|operation| (operation, size, 1, through)));
+            .extend(leftover.map(|operation| (operation, size, 1, through, kept)));
         self.flush();
         true
+    }
+
+    /// The submission of an earlier opening that holds the local edit `through`, letting go of
+    /// those before it.
+    fn kept_submission(&mut self, through: u64) -> Option<KeptSubmission> {
+        while self
+            .kept_submissions
+            .front()
+            .is_some_and(|kept| kept.through < through || kept.through <= self.own_through)
+        {
+            self.kept_submissions.pop_front();
+        }
+        self.kept_submissions.front().cloned()
+    }
+
+    /// The order numbered this replica's own submission `counter`: when an earlier opening
+    /// made it, the edits given again that it holds are in the order now, and are not sent.
+    fn heard_own(&mut self, counter: u64) {
+        self.kept_submissions.retain(|kept| kept.counter != counter);
+        let held = |(.., kept): &(C::Op, usize, u64, u64, Option<KeptSubmission>)| {
+            kept.as_ref().is_some_and(|kept| kept.counter == counter)
+        };
+        if let Some(at) = self.unsent.iter().position(held)
+            && let Some((_, _, weight, ..)) = self.unsent.remove(at)
+        {
+            self.lacking.submitted(counter, weight);
+            self.rebuild_visible();
+        }
     }
 
     /// Submits the next operation waiting, once nothing of this replica's is in flight: what is
@@ -2909,18 +2987,41 @@ where
         {
             return;
         }
-        let Some((operation, _, _, _)) = self.unsent.front() else {
+        let Some((operation, _, _, _, kept)) = self.unsent.front() else {
             return;
         };
-        let Some(payload) = self.payload_of(C::encode_operation(operation)) else {
-            return;
+        // An earlier opening's submission goes again as it was: its payload, under its id.
+        let again = kept.as_ref().and_then(|kept| match Submitted::decode(&kept.payload) {
+            Some(Submitted {
+                entry: Entry::Operation(payload),
+                ..
+            }) => Some((kept.clone(), payload)),
+            _ => None,
+        });
+        let payload = match &again {
+            Some((_, payload)) => payload.clone(),
+            None => match self.payload_of(C::encode_operation(operation)) {
+                Some(payload) => payload,
+                None => return,
+            },
         };
-        let Some((operation, _, weight, through)) = self.unsent.pop_front() else {
+        let Some((operation, _, weight, through, _)) = self.unsent.pop_front() else {
             return;
         };
         self.in_flight = weight;
         let entry = Entry::Operation(payload.clone());
-        let submission = self.submission(through, entry.clone(), false);
+        let submission = match again {
+            Some((kept, _)) => Submission {
+                id: OpId {
+                    origin: self.origin,
+                    counter: kept.counter,
+                },
+                base: self.applied,
+                barrier: false,
+                payload: kept.payload,
+            },
+            None => self.submission(through, entry.clone(), false),
+        };
         let announcements = self.lacking.submitted(submission.id.counter, weight);
         self.pending.push_back(Sent {
             id: submission.id,
@@ -2951,11 +3052,20 @@ where
         }
     }
 
+    /// The local edits a reload or a stash submitted now holds (`Submitted::through`): those
+    /// a replacement on its way counts as in the order, otherwise those the order holds
+    /// already. Never edits still unsent: a replica opened again after a crash would take them
+    /// as ordered and not send them.
+    fn entry_through(&self) -> u64 {
+        match self.replacing_from {
+            Some(from) => self.taken_before + from,
+            None => self.own_through.max(self.taken_before),
+        }
+    }
+
     /// Submits a reload or a stash to keep.
     fn submit_entry(&mut self, entry: Entry, barrier: bool, reply: Option<RequestId>) -> OpId {
-        let through = self
-            .replacing_from
-            .map_or(self.edit_number(), |from| self.taken_before + from);
+        let through = self.entry_through();
         let submission = self.submission(through, entry.clone(), barrier);
         let id = submission.id;
         self.pending.push_back(Sent {
@@ -3005,9 +3115,7 @@ where
             state: self.base_state(state, self.applied),
         };
         let barrier = replace;
-        let local = self
-            .replacing_from
-            .map_or(self.edit_number(), |from| self.taken_before + from);
+        let local = self.entry_through();
         self.counter += 1;
         let submission = Submission {
             id: OpId {
@@ -3837,7 +3945,7 @@ where
             .collect();
         let unsent: Vec<(C::Op, u64)> = std::mem::take(&mut self.unsent)
             .into_iter()
-            .map(|(operation, _, _, through)| (operation, through))
+            .map(|(operation, _, _, through, _)| (operation, through))
             .collect();
         let through = self.edit_number();
         for (operation, through) in pending
@@ -3850,11 +3958,13 @@ where
             if let Some(moved) = moved {
                 after.apply(&moved);
                 let size = C::encode_operation(&moved).len();
-                carried.push_back((moved, size, 1, through));
+                carried.push_back((moved, size, 1, through, None));
             }
         }
         self.unsent = carried;
         self.in_flight = 0;
+        // What earlier openings submitted was made before the restart, and is passed over.
+        self.kept_submissions.clear();
         // They go again as new submissions: the ones on their way are passed over.
         self.lacking.unsubmitted();
     }
