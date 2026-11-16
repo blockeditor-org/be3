@@ -236,7 +236,11 @@ guides/blocks/client.md). What is not built yet is in plans/chat.md.
   once the segment is read, when it is not by the closed message's author
   (`Deletion::by_author`). A deletion of a message nothing cites yet (the
   latest) can keep a made-up message of its author's unnoticed until a later
-  message cites the real one, by `seen` from anyone who saw it. It is asked about once when it
+  message cites the real one, by `seen` from anyone who saw it. The other way
+  round, a member who cites a deleted message by a made-up hash makes its
+  honest deletion show as forged: nobody can tell which is true without the
+  message, but the citer signed the lie, so the dispute is theirs and the
+  deleter's, not the deleter's alone. It is asked about once when it
   appears (`forged_deletions`); a forged one keeps a muted, italic "Message
   deleted" row, marked forged, in the message's place (after
   `Deletion::after` among the recent messages, where it was in a closed
