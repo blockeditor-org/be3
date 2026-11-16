@@ -648,14 +648,20 @@ needs code of its own for any method.
   by code refuses an email that has an account, which tells a stranger it is
   registered: behind an invite code that leak is small, and mailing "you
   already have an account" is the alternative if registration opens.
-- **Fresh proof.** Changing the email, adding or removing an identity and
-  ending any session but the browser's own need a proof in the last few
+- **Fresh proof.** Changing the email, adding or removing an identity,
+  ending any session but the browser's own, and approving a device's code
+  need a proof in the last few
   minutes (`codes::FRESH_PROOF`, `sessions.proved`): a code to the account's
   email, or a sign-in with one of its providers or passkeys, which signing in
   by code, provider or passkey, or recovering, also gives. A new email's
   verification link (`email_change_link`) is capped per email, per address, and
   globally; only a signed-in account with a fresh proof asks for one, so
-  anonymous traffic can't reach the cap (`store/portal.rs`).
+  anonymous traffic can't reach the cap (`store/portal.rs`). A browser signed
+  in longer ago is asked to sign in again before it approves, and signing out
+  keeps the code, so the sign-in returns to the approval.
+- **App tokens** expire `APP_SESSION_IDLE` (90 days) after they were last
+  used; `resolve_token` renews one it accepts, writing at most once a day, so a
+  device or agent in use keeps its token and a forgotten one stops working.
 - **Notices.** Removing an identity, adding a provider (from the settings page
   or by a link code) or a passkey, and a provider moving the account's email
   each mail the account's email, the old one for a move. Removing the email

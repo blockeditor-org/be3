@@ -614,6 +614,28 @@ fn Register(page: Shown) -> NodeId {
 
 #[component]
 fn Approve(page: Shown) -> NodeId {
+    // A browser signed in a while ago signs in again first: a cookie alone approves nothing
+    // (plans/crypto_audit.md, 8). Signing out keeps the code, so sign-in returns here.
+    if !page.read(|page| page.fresh) {
+        return view! {
+            <Card>
+                <List spacing=Space::Xl>
+                    <Heading
+                        glyph={Some(ICON_SHIELD_CHECK)}
+                        title="Sign in again to approve"
+                        lead="You signed in to this browser a while ago. To approve a sign-in to be-host, confirm it is you by signing in again."
+                    />
+                    <Notice text={page.general()} />
+                    <PortalForm action="/auth/logout" csrf={page.csrf()} code={page.code()}>
+                        <Submit label="Sign in again" />
+                    </PortalForm>
+                    <PortalForm action="/auth/deny" csrf={page.csrf()} code={page.code()}>
+                        <Submit label="Deny" variant=ButtonVariant::Secondary />
+                    </PortalForm>
+                </List>
+            </Card>
+        };
+    }
     view! {
         <Card>
             <List spacing=Space::Xl>

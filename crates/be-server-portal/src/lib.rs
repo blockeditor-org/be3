@@ -207,7 +207,8 @@ pub struct Page {
     /// Ways to sign in added or removed in the last thirty days, newest first, on the settings
     /// page.
     pub identity_changes: Vec<IdentityChange>,
-    /// Whether this browser proved it is the owner recently enough for account changes.
+    /// Whether this browser proved it is the owner recently enough for account changes, and to
+    /// approve a sign-in.
     pub fresh: bool,
     /// Where the browser's pending code went.
     pub code_email: String,
