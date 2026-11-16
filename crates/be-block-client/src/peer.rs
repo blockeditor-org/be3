@@ -1347,17 +1347,160 @@ impl<S: ObjectStore> Peer<S> {
         root.encode()
     }
 
-    /// The block's access log, root first, once its root checks against the one this device
-    /// pinned (`KeyBook::root`): from making the block, or carried by a trusted key of it. A log
-    /// rooted anywhere else is the server's, and refused (`ClientError::Forged`).
+    /// The block's access log, root first, once it checks from the root this device pinned
+    /// (`KeyBook::root`: from making the block, or carried by a trusted key of it) to its head.
+    /// A log rooted anywhere else is the server's, and refused (`ClientError::Forged`).
     pub async fn access_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
-        let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
+        Ok(self.checked_access(block).await?.0)
+    }
+
+    /// The block's log as `access_log` checks it, and what its records give.
+    pub async fn checked_access(
+        &self,
+        block: Uuid,
+    ) -> Result<(Vec<be_block_keys::Entry>, be_block_keys::Checked), ClientError> {
         let pinned = match self.keys.root_pin(block) {
             crate::keys::RootPin::Pinned(root) => root,
             crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
-        checked_log(be_block_keys::LogKind::Block, block, pinned, &served)
+        let entries = self.served_log(block).await?;
+        let cites = entries.iter().any(|entry| {
+            matches!(&entry.record, be_block_keys::Record::Grant(grant)
+                if grant.authority != be_block_keys::Authority::Log)
+        });
+        let around = match cites {
+            true => self.logs_around(block).await?,
+            false => Around::default(),
+        };
+        let checked = around
+            .check(self.organization, block, pinned, &entries)
+            .ok_or(ClientError::Forged(block))?;
+        Ok((entries, checked))
+    }
+
+    async fn served_log(&self, block: Uuid) -> Result<Vec<be_block_keys::Entry>, ClientError> {
+        let served = crate::ask(client::blocks::get_access_log(&self.connection(), block)).await?;
+        served
+            .iter()
+            .map(|entry| be_block_keys::Entry::decode(entry))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|_| ClientError::Forged(block))
+    }
+
+    /// The logs a grant in `block`'s log may name its authority in: the organization's, checked
+    /// from the root this account pinned, and those of the blocks above it, in the server's tree
+    /// (trusted for which block is above which until parents are signed). An ancestor's log is
+    /// checked from the root this device pinned for it, or, for one it pinned none for, from the
+    /// root the server serves; one whose served root conflicts with its pin is left out.
+    async fn logs_around(&self, block: Uuid) -> Result<Around, ClientError> {
+        let mut around = Around {
+            block,
+            ..Around::default()
+        };
+        if let Some(pinned) = self.keys.organization_root() {
+            let entries = self.organization_log().await?;
+            around.held.insert(
+                (be_block_keys::LogKind::Organization, self.organization),
+                (pinned, entries),
+            );
+        }
+        let mut at = block;
+        while let Ok(summary) = self.summary(at).await
+            && let Some(BlockParent::Block(parent)) = summary.parent
+        {
+            around.above.push(parent);
+            at = parent;
+            let Ok(entries) = self.served_log(parent).await else {
+                continue;
+            };
+            let pinned = match (self.keys.root_pin(parent), entries.first()) {
+                (crate::keys::RootPin::Pinned(root), _) => root,
+                (crate::keys::RootPin::Unknown, Some(root)) => root.hash(),
+                _ => continue,
+            };
+            around
+                .held
+                .insert((be_block_keys::LogKind::Block, parent), (pinned, entries));
+        }
+        Ok(around)
+    }
+
+    /// `account`'s keys as this device verified them: from a contact card or a key change.
+    fn verified_identity(&self, account: Uuid) -> Option<be_block_keys::PublicIdentity> {
+        let public = self.keys.contact(account)?;
+        let signing = self
+            .refs
+            .signers(account)
+            .into_iter()
+            .rev()
+            .find(|signer| signer.verified)?;
+        Some(be_block_keys::PublicIdentity {
+            public,
+            signing: be_block_keys::SigningPublic(signing.key),
+        })
+    }
+
+    /// The grant record `grant` sends: `None` for a standing grant (to anyone inside, or to the
+    /// server) and for revoking one the log does not name. It names the keys this device verified
+    /// for `account`, or those the log already names for it, and where this device's Manage
+    /// comes from: the block's log, the organization's (administering it), or a block above.
+    async fn signed_grant(
+        &self,
+        block: Uuid,
+        account: Uuid,
+        access: Access,
+    ) -> Result<Option<Vec<u8>>, ClientError> {
+        use be_block_keys::{Authority, Grant, LogKind, Record};
+        let standing = account == be_block_graph::ANYONE_INSIDE
+            || self.keys.server().is_some_and(|(server, _)| server == account);
+        if standing {
+            return Ok(None);
+        }
+        let level = grant_level(access);
+        let (entries, checked) = self.checked_access(block).await?;
+        let named = checked.grants.get(&account.into_bytes()).copied();
+        if level == be_block_keys::Level::None
+            && named.is_none_or(|(named, _)| named == be_block_keys::Level::None)
+        {
+            return Ok(None);
+        }
+        let identity = self
+            .verified_identity(account)
+            .or(named.map(|(_, identity)| identity))
+            .ok_or_else(|| {
+                ClientError::Refused(
+                    ErrorCode::NotAContact,
+                    "share only with your contacts: send them a contact link first".into(),
+                )
+            })?;
+        let me = self.keys.account().into_bytes();
+        let own = account.into_bytes() == me && level == be_block_keys::Level::None;
+        let authority = match own || checked.manager(LogKind::Block, me).is_some() {
+            true => Authority::Log,
+            false => {
+                let around = self.logs_around(block).await?;
+                around
+                    .authority(self.organization, me)
+                    .ok_or(ClientError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("this account does not manage block {block}"),
+                    ))?
+            }
+        };
+        let entry = be_block_keys::Entry::sign(
+            self.keys.identity(),
+            me,
+            block.into_bytes(),
+            entries.last().map(be_block_keys::Entry::hash),
+            Record::Grant(Grant {
+                grantee: account.into_bytes(),
+                identity,
+                level,
+                authority,
+            }),
+        );
+        Ok(Some(entry.encode()))
     }
 
     /// Defines a block's metadata on this device and keeps the change in the outbox: a block
@@ -2802,7 +2945,8 @@ impl<S: ObjectStore> Peer<S> {
         account: Uuid,
         access: Access,
     ) -> Result<(), ClientError> {
-        client::blocks::set_access(&self.connection(), block, account, access).await??;
+        let signed = self.signed_grant(block, account, access).await?;
+        client::blocks::set_access(&self.connection(), block, account, access, signed).await??;
         Ok(())
     }
 
@@ -2919,4 +3063,112 @@ fn checked_log(
     be_block_keys::check_log(kind, log.into_bytes(), pinned, &entries, &|_, _| None)
         .map_err(|_| ClientError::Forged(log))?;
     Ok(entries)
+}
+
+/// `access` as an access log's level.
+fn grant_level(access: Access) -> be_block_keys::Level {
+    match access {
+        Access::None => be_block_keys::Level::None,
+        Access::KnowExists => be_block_keys::Level::KnowExists,
+        Access::View => be_block_keys::Level::View,
+        Access::Edit => be_block_keys::Level::Edit,
+        Access::Manage => be_block_keys::Level::Manage,
+    }
+}
+
+/// The logs around a block's (`Peer::logs_around`): each with the root it is checked from, and
+/// the blocks above it, nearest first.
+#[derive(Default)]
+struct Around {
+    block: Uuid,
+    held: HashMap<(be_block_keys::LogKind, Uuid), (be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
+    above: Vec<Uuid>,
+}
+
+impl Around {
+    fn logs<'a>(
+        &'a self,
+        organization: Uuid,
+        log: &'a dyn Fn(be_block_keys::LogKind, [u8; 16]) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
+        above: &'a dyn Fn([u8; 16], [u8; 16]) -> bool,
+    ) -> be_block_keys::Logs<'a> {
+        be_block_keys::Logs {
+            organization: organization.into_bytes(),
+            log,
+            above,
+        }
+    }
+
+    fn log(
+        &self,
+        kind: be_block_keys::LogKind,
+        log: [u8; 16],
+    ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)> {
+        self.held.get(&(kind, Uuid::from_bytes(log))).cloned()
+    }
+
+    /// Whether `above` is over `below`: both in this chain, `above` the further up.
+    fn is_above(&self, above: [u8; 16], below: [u8; 16]) -> bool {
+        let at = |id: [u8; 16]| {
+            let id = Uuid::from_bytes(id);
+            match id == self.block {
+                true => Some(0),
+                false => self.above.iter().position(|up| *up == id).map(|at| at + 1),
+            }
+        };
+        matches!((at(above), at(below)), (Some(above), Some(below)) if above > below)
+    }
+
+    /// `block`'s log checked from `pinned`, with the authority its grants name read from here.
+    fn check(
+        &self,
+        organization: Uuid,
+        block: Uuid,
+        pinned: be_block_keys::EntryHash,
+        entries: &[be_block_keys::Entry],
+    ) -> Option<be_block_keys::Checked> {
+        let log = |kind, log| self.log(kind, log);
+        let above = |above, below| self.is_above(above, below);
+        let logs = self.logs(organization, &log, &above);
+        let outside = |signer: [u8; 16], authority: &be_block_keys::Authority| {
+            be_block_keys::answer(&logs, block.into_bytes(), signer, authority)
+        };
+        be_block_keys::check_log(
+            be_block_keys::LogKind::Block,
+            block.into_bytes(),
+            pinned,
+            entries,
+            &outside,
+        )
+        .ok()
+    }
+
+    /// Where `account`'s Manage comes from outside the block's own log, as of each log's head:
+    /// administering the organization, else the nearest block above it manages.
+    fn authority(&self, organization: Uuid, account: [u8; 16]) -> Option<be_block_keys::Authority> {
+        use be_block_keys::{Authority, LogKind};
+        if let Some((pinned, entries)) = self.held.get(&(LogKind::Organization, organization)) {
+            let checked = be_block_keys::check_log(
+                LogKind::Organization,
+                organization.into_bytes(),
+                *pinned,
+                entries,
+                &|_, _| None,
+            )
+            .ok()?;
+            if checked.manager(LogKind::Organization, account).is_some() {
+                return Some(Authority::Organization(checked.head));
+            }
+        }
+        self.above.iter().find_map(|&up| {
+            let (pinned, entries) = self.held.get(&(LogKind::Block, up))?;
+            let checked = self.check(organization, up, *pinned, entries)?;
+            checked
+                .manager(LogKind::Block, account)
+                .map(|_| Authority::Inherited {
+                    block: up.into_bytes(),
+                    head: checked.head,
+                })
+        })
+    }
 }

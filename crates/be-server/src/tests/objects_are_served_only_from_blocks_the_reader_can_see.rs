@@ -88,9 +88,7 @@ async fn objects_are_served_only_from_blocks_the_reader_can_see() {
     };
     guest.open(organization).await;
     let response = owner
-        .call(|peer| {
-            client::blocks::set_access(peer, block, guest_account, be_block_graph::Access::View)
-        })
+        .grant(block, guest_account, be_block_graph::Access::View)
         .await;
     assert!(matches!(response, Ok(())), "{response:?}");
     assert!(read(&mut guest, commit.hash()).await.is_some());

@@ -1931,6 +1931,7 @@ impl ServerStore {
         block: Uuid,
         account: Uuid,
         access: Access,
+        record: Option<Vec<u8>>,
     ) -> Result<Option<BTreeSet<Uuid>>, ServerError> {
         self.with_graph(identity.organization, move |store, graph, database| {
             let leaving = account == identity.account && access == Access::None;
@@ -2002,17 +2003,76 @@ impl ServerStore {
                     ));
                 }
             }
+            // Grants to anyone inside and to the server are standing exceptions no device seals
+            // to by grant, so they are rows alone. Any other grant is a record in the block's
+            // access log, as is the revocation of one the log names.
+            let standing = account == ANYONE_INSIDE
+                || account == crate::organization::server_account(database)?;
+            let record = match (standing, record) {
+                (true, Some(_)) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a standing grant takes no record".into(),
+                    ));
+                }
+                (true, None) => None,
+                (false, Some(record)) => Some(record),
+                (false, None)
+                    if access == Access::None
+                        && !crate::access::names_grant(
+                            database,
+                            graph,
+                            identity.organization,
+                            block,
+                            account,
+                        )? =>
+                {
+                    None
+                }
+                (false, None) => {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "a grant is set by the record its granter signed".into(),
+                    ));
+                }
+            };
             // A grant that changes nothing writes nothing and tells no one: a device that shares
             // again what it may already have shared (the organization's settings, on each
-            // administrator's connect) costs its audience nothing.
+            // administrator's connect) costs its audience nothing. Its record still goes in the
+            // log when the log lacks it (a contact link's grant, applied on accepting, is signed
+            // when its maker's device finishes the link).
             let granted = graph
                 .get(block)
                 .map(|node| node.grants.get(&account).copied().unwrap_or(Access::None));
             if granted == Some(access) {
+                if let Some(record) = record {
+                    crate::access::append_grant(
+                        database,
+                        graph,
+                        identity.organization,
+                        block,
+                        identity.account,
+                        account,
+                        access,
+                        &record,
+                    )?;
+                }
                 return Ok(None);
             }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            if let Some(record) = record {
+                crate::access::append_grant(
+                    &transaction,
+                    graph,
+                    identity.organization,
+                    block,
+                    identity.account,
+                    account,
+                    access,
+                    &record,
+                )?;
+            }
             revoke_or_grant(
                 graph,
                 &transaction,

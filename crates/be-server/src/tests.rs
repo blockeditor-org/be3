@@ -1521,8 +1521,102 @@ impl TestClient {
         account: Uuid,
         access: be_block_graph::Access,
     ) -> Result<(), Error> {
-        self.call(|peer| client::blocks::set_access(peer, block, account, access))
+        let signed = self.signed_grant(block, account, access).await;
+        self.call(|peer| client::blocks::set_access(peer, block, account, access, signed.clone()))
             .await
+    }
+
+    /// The grant record a device sends with `set-access` (`Peer::grant`), signed with this
+    /// client's test keys and naming the grantee's: as the block's manager, else as an
+    /// administrator of the organization. None for a standing grant, a revocation the log does
+    /// not need, or a block the server lists no log for this client.
+    async fn signed_grant(
+        &mut self,
+        block: Uuid,
+        account: Uuid,
+        access: be_block_graph::Access,
+    ) -> Option<Vec<u8>> {
+        use be_block_keys::{Authority, Entry, Grant, LogKind, Record};
+        if account == be_block_graph::ANYONE_INSIDE {
+            return None;
+        }
+        let me = self.account?;
+        let decode = |served: Vec<Vec<u8>>| -> Vec<Entry> {
+            served
+                .iter()
+                .filter_map(|entry| Entry::decode(entry).ok())
+                .collect()
+        };
+        let log = decode(
+            self.call(|peer| client::blocks::get_access_log(peer, block))
+                .await
+                .ok()?,
+        );
+        let organization = decode(
+            self.call(client::organizations::get_organization_log)
+                .await
+                .unwrap_or_default(),
+        );
+        let level = crate::access::level(access);
+        let check = |kind, of: [u8; 16], entries: &[Entry]| {
+            let pinned = entries.first()?.hash();
+            be_block_keys::check_log(kind, of, pinned, entries, &|_, _| None).ok()
+        };
+        // The last grant the log names for them; the server checks the whole log.
+        let named = log.iter().rev().find_map(|entry| match &entry.record {
+            Record::Grant(grant) if grant.grantee == account.into_bytes() => Some(grant.level),
+            _ => None,
+        });
+        if level == be_block_keys::Level::None
+            && named.is_none_or(|named| named == be_block_keys::Level::None)
+        {
+            return None;
+        }
+        let manages = check(LogKind::Block, block.into_bytes(), &log)
+            .is_some_and(|checked| checked.manager(LogKind::Block, me.into_bytes()).is_some());
+        let own = account == me && level == be_block_keys::Level::None;
+        let mut authority = None;
+        if own || manages {
+            authority = Some(Authority::Log);
+        }
+        let mut at = block;
+        while authority.is_none()
+            && let Some(BlockParent::Block(parent)) =
+                self.try_read_block(at).await.ok().and_then(|summary| summary.parent)
+        {
+            at = parent;
+            let above = decode(
+                self.call(|peer| client::blocks::get_access_log(peer, parent))
+                    .await
+                    .ok()?,
+            );
+            if check(LogKind::Block, parent.into_bytes(), &above)
+                .is_some_and(|checked| checked.manager(LogKind::Block, me.into_bytes()).is_some())
+            {
+                authority = Some(Authority::Inherited {
+                    block: parent.into_bytes(),
+                    head: above.last()?.hash(),
+                });
+            }
+        }
+        let authority = match (authority, organization.last()) {
+            (Some(authority), _) => authority,
+            (None, Some(head)) => Authority::Organization(head.hash()),
+            (None, None) => Authority::Log,
+        };
+        let entry = Entry::sign(
+            &test_secret(me),
+            me.into_bytes(),
+            block.into_bytes(),
+            Some(log.last()?.hash()),
+            Record::Grant(Grant {
+                grantee: account.into_bytes(),
+                identity: test_secret(account).identity(),
+                level,
+                authority,
+            }),
+        );
+        Some(entry.encode())
     }
 }
 

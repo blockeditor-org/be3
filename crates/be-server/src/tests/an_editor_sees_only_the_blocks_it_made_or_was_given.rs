@@ -63,9 +63,7 @@ async fn an_editor_sees_only_the_blocks_it_made_or_was_given() {
     assert_eq!(listed(&mut guest).await, [(own, Access::Manage)]);
 
     let account = guest_account(&mut guest).await;
-    let response = owner
-        .call(|peer| client::blocks::set_access(peer, folder, account, Access::View))
-        .await;
+    let response = owner.grant(folder, account, Access::View).await;
     assert!(matches!(response, Ok(())), "{response:?}");
     let mut seen = listed(&mut guest).await;
     seen.sort();

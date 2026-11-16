@@ -1917,13 +1917,14 @@ impl Client {
                 block,
                 account,
                 access,
+                signed,
             } => {
                 let set = async {
                     prelude?;
                     let identity = connection.identity()?;
                     let changed = connection
                         .store
-                        .set_access(identity, block, account, access)
+                        .set_access(identity, block, account, access, signed)
                         .await?;
                     if let Some(before) = changed {
                         connection
