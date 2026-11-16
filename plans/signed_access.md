@@ -259,7 +259,12 @@ did not sign.
   as the member who sent it, and is shown as such: the root is weak (3a),
   passed on to no one and sealed by never, and a genuine wrap carrying the
   real root then shows a conflict. The block's own members, who pinned its
-  real root, are not fooled. The full fix considered: anchor block roots in
+  real root, are not fooled. An administrator cannot re-wrap a key it took
+  weakly, so after an escrow rotation a member's block is wrapped under the
+  new epoch only once its own members' devices wrap it (key work's
+  `unescrowed`), not by the administrator who reached it through escrow;
+  a stretch of unescrowed keys after a rotation is that, not a fault. The
+  full fix considered: anchor block roots in
   the organization's log, a member's record of each block's root signed on
   making it, the first claim winning, so a carried root must match the one
   registered. It costs an organization-log entry per block made, and that
