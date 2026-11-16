@@ -108,7 +108,16 @@ interface members {
     /// an agent, by the account that made it (a block's agent, only while it
     /// manages the block). An agent removed is deleted, with what it was
     /// granted and what was sealed to it.
-    remove-member: async func(account: account-id) -> result<_, error>;
+    /// In a company organization, `signed` is the member record
+    /// (be_block_keys::Member) signing them out, needed when its log names
+    /// them.
+    remove-member: async func(account: account-id, signed: option<list<u8>>) -> result<_, error>;
+
+    /// Appends `signed`, a member record (be_block_keys::Member) signing a
+    /// member of the organization open in: a person, by an administrator
+    /// (from the invitation it made, or a verified contact); an agent, by
+    /// its maker.
+    sign-member: async func(signed: list<u8>) -> result<_, error>;
 
     /// A block's agent's block, and the grant of Edit on it to the agent
     /// that its creator signed (be_block_keys::Grant).
@@ -133,6 +142,9 @@ interface members {
         contact: list<u8>,
         escrow: list<u8>,
         bound-to: option<bound-agent>,
+        /// In a company organization, the member record signing the agent
+        /// in, by the caller, its maker.
+        member: option<list<u8>>,
     ) -> result<created-agent, error>;
 
     /// A new token for an agent the caller made; every older one stops

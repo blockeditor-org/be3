@@ -509,8 +509,10 @@ pub fn check_log(
                             },
                         );
                     }
+                    // Signed out, an administrator administers no more.
                     false => {
                         state.members.remove(&member.account);
+                        state.administrators.remove(&member.account);
                     }
                 }
             }

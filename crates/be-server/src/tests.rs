@@ -1487,6 +1487,7 @@ impl TestClient {
             .signed_grant(block, account, be_block_graph::Access::Edit)
             .await
             .unwrap_or_default();
+        let member = self.member_record(account, identity, true, true).await;
         self.call(|peer| {
             client::members::create_agent(
                 peer,
@@ -1501,6 +1502,7 @@ impl TestClient {
                     block,
                     signed: signed.clone(),
                 }),
+                member.clone(),
             )
         })
         .await
@@ -1582,6 +1584,109 @@ impl TestClient {
             _ => None,
         };
         self.call(|peer| client::members::set_role(peer, account, role, signed.clone()))
+            .await
+    }
+
+    /// A member record signing `account`, with `identity`, in or out of the organization open's
+    /// log at its head, signed with this client's test keys (`Peer::member_record`): none in an
+    /// organization with no log.
+    async fn member_record(
+        &mut self,
+        account: Uuid,
+        identity: be_block_keys::PublicIdentity,
+        member: bool,
+        agent: bool,
+    ) -> Option<Vec<u8>> {
+        use be_block_keys::{Entry, Member, Record};
+        let me = self.account?;
+        let entries: Vec<Entry> = self
+            .call(client::organizations::get_organization_log)
+            .await
+            .ok()?
+            .iter()
+            .filter_map(|entry| Entry::decode(entry).ok())
+            .collect();
+        let last = entries.last()?;
+        Some(
+            Entry::sign(
+                &test_secret(me),
+                me.into_bytes(),
+                last.log,
+                Some(last.hash()),
+                Record::Member(Member {
+                    account: account.into_bytes(),
+                    identity,
+                    member,
+                    agent,
+                }),
+            )
+            .encode(),
+        )
+    }
+
+    /// Makes an agent of this client's in the organization open, with test keys of its own, as
+    /// a device does (`create_agent` in be-host-stack): signed in by a member record in a
+    /// company organization. Answers it.
+    async fn agent(&mut self, organization: Uuid, name: &str) -> Result<be_block_protocol::CreatedAgent, Error> {
+        let account = Uuid::new_v4();
+        let identity = test_secret(account).identity();
+        let member = self.member_record(account, identity, true, true).await;
+        let name = name.to_owned();
+        self.call(|peer| {
+            client::members::create_agent(
+                peer,
+                organization,
+                account,
+                name.clone(),
+                identity.public.0,
+                identity.signing.0,
+                Vec::new(),
+                Vec::new(),
+                None,
+                member.clone(),
+            )
+        })
+        .await
+    }
+
+    /// Removes `account` from the organization open, signing it out of the log as a device does
+    /// (`Peer::remove_member`) when the log names it.
+    async fn remove_member(&mut self, account: Uuid) -> Result<(), Error> {
+        use be_block_keys::{Entry, LogKind};
+        let entries: Vec<Entry> = self
+            .call(client::organizations::get_organization_log)
+            .await
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|entry| Entry::decode(entry).ok())
+            .collect();
+        let named = entries.first().and_then(|root| {
+            let checked =
+                be_block_keys::check_log(LogKind::Organization, root.log, root.hash(), &entries, &|_, _| None)
+                    .ok()?;
+            let identity = checked.member(account.into_bytes())?;
+            let agent = checked
+                .members
+                .get(&account.into_bytes())
+                .is_some_and(|named| named.maker.is_some());
+            Some((identity, agent))
+        });
+        let signed = match named {
+            Some((identity, agent)) => self.member_record(account, identity, false, agent).await,
+            None => None,
+        };
+        self.call(|peer| client::members::remove_member(peer, account, signed.clone()))
+            .await
+    }
+
+    /// Signs `account`, which joined the organization open (with its test keys), into its log
+    /// as an administrator's device does on finishing the invitation.
+    async fn sign_in(&mut self, account: Uuid) -> Result<(), Error> {
+        let identity = test_secret(account).identity();
+        let Some(signed) = self.member_record(account, identity, true, false).await else {
+            return Ok(());
+        };
+        self.call(|peer| client::members::sign_member(peer, signed.clone()))
             .await
     }
 

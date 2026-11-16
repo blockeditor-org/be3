@@ -14,25 +14,14 @@ async fn members_manage_only_the_agents_they_created() {
         .add_member(company, other_account, OrganizationRole::Editor)
         .await
         .unwrap();
+    owner.open(company).await;
+    let signed = owner.sign_in(other_account).await;
+    assert!(matches!(signed, Ok(())), "{signed:?}");
     // The owner administers the company, and only is a member of the personal organization.
     for (organization, administers) in [(personal, false), (company, true)] {
         owner.open(organization).await;
         other.open(organization).await;
-        let response = other
-            .call(|peer| {
-                client::members::create_agent(
-                    peer,
-                    organization,
-                    Uuid::new_v4(),
-                    "Helper".into(),
-                    [7; 32],
-                    [7; 32],
-                    Vec::new(),
-                    Vec::new(),
-                    None,
-                )
-            })
-            .await;
+        let response = other.agent(organization, "Helper").await;
         let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
             panic!("a member could not create an agent: {response:?}");
         };
@@ -55,14 +44,10 @@ async fn members_manage_only_the_agents_they_created() {
             "a member lists the agents it made, and no one else: {listed:?}"
         );
         if !administers {
-            let denied = owner
-                .call(|peer| client::members::remove_member(peer, agent.account))
-                .await;
+            let denied = owner.remove_member(agent.account).await;
             assert!(refused_as(&denied, ErrorCode::MemberNotFound), "{denied:?}");
         }
-        let removed = other
-            .call(|peer| client::members::remove_member(peer, agent.account))
-            .await;
+        let removed = other.remove_member(agent.account).await;
         assert!(matches!(removed, Ok(())), "{removed:?}");
         let mut bot = harness.client().await;
         let refused = bot

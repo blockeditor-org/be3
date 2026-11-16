@@ -376,13 +376,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await
     .map_err(text)?;
-    be_block_client::contacts::finish_links(
-        &owner.connection(),
-        owner.keys().identity(),
-        organization,
-    )
-    .await
-    .map_err(text)?;
+    owner.finish_links().await.map_err(text)?;
     owner.refresh_contacts().await.map_err(text)?;
     // An invitation joins as an editor; the owner then makes the contact an administrator.
     owner
@@ -406,6 +400,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .map_err(text)?;
 
     let agent_phrase = RecoveryPhrase::generate();
+    let agent_account = Uuid::new_v4();
     let agent_public = agent_phrase.secret().public();
     let be_block_protocol::CreatedAgent {
         agent,
@@ -413,7 +408,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     } = ask(client::members::create_agent(
         &owner.connection(),
         organization,
-        Uuid::new_v4(),
+        agent_account,
         scene::AGENT_NAME.into(),
         agent_public.0,
         agent_phrase.secret().signing().0,
@@ -424,6 +419,10 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
             &owner.keys().pins(),
         ),
         None,
+        owner
+            .agent_record(agent_account, agent_phrase.secret().identity())
+            .await
+            .map_err(text)?,
     ))
     .await?;
     let agent_card = be_block_keys::ContactCard {
@@ -703,13 +702,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await
     .map_err(text)?;
-    be_block_client::contacts::finish_links(
-        &owner_personal.connection(),
-        owner_personal.keys().identity(),
-        personal,
-    )
-    .await
-    .map_err(text)?;
+    owner_personal.finish_links().await.map_err(text)?;
     owner_personal.refresh_contacts().await.map_err(text)?;
     let friend_public = owner_personal
         .verified_identity(friend.account())

@@ -6,27 +6,10 @@ async fn an_agent_stores_against_its_creators_quota() {
     let mut creator = harness.member("creator@example.com").await;
     let personal = creator.personal().await;
     creator.open(personal).await;
-    let secret = be_block_keys::RecoveryPhrase::generate().secret();
-    let identity = secret.identity();
-    let response = creator
-        .call(|peer| {
-            client::members::create_agent(
-                peer,
-                personal,
-                Uuid::new_v4(),
-                "Helper".into(),
-                identity.public.0,
-                identity.signing.0,
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
-        })
-        .await;
+    let response = creator.agent(personal, "Helper").await;
     let Ok(be_block_protocol::CreatedAgent { agent: made, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
-    remember_secret(made.account, secret);
     let mut agent = harness.second_connection(&token, personal).await;
 
     let upload = b"what the agent wrote".to_vec();

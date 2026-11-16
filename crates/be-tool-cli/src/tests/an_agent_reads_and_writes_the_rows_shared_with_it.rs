@@ -21,10 +21,11 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     let identity = phrase.secret().identity();
     let public = identity.public;
     let organization = owner.peer().organization();
+    let account = Uuid::new_v4();
     let CreatedAgent { agent, token } = be_block_client::ask(client::members::create_agent(
         &owner.peer().connection(),
         organization,
-        Uuid::new_v4(),
+        account,
         "Claude".into(),
         public.0,
         phrase.secret().signing().0,
@@ -41,6 +42,11 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
             &owner.peer().keys().pins(),
         ),
         None,
+        owner
+            .peer()
+            .agent_record(account, identity)
+            .await
+            .expect("signing the agent in failed"),
     ))
     .await
     .expect("creating the agent failed");

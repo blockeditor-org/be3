@@ -58,6 +58,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 Vec::new(),
                 Vec::new(),
                 None,
+                None,
             )
             .await,
         ErrorCode::InvalidRequest,
@@ -197,6 +198,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
                 [0; 32],
                 Vec::new(),
                 Vec::new(),
+                None,
                 None,
             )
             .await,

@@ -6,33 +6,14 @@ async fn a_removed_agents_blocks_stay_charged_to_its_creator() {
     let mut creator = harness.client().await;
     let account = creator.register("keeper@example.com").await;
     let organization = creator.organization("team").await;
-    let secret = be_block_keys::RecoveryPhrase::generate().secret();
-    let identity = secret.identity();
-    let response = creator
-        .call(|peer| {
-            client::members::create_agent(
-                peer,
-                organization,
-                Uuid::new_v4(),
-                "Helper".into(),
-                identity.public.0,
-                identity.signing.0,
-                Vec::new(),
-                Vec::new(),
-                None,
-            )
-        })
-        .await;
+    let response = creator.agent(organization, "Helper").await;
     let Ok(be_block_protocol::CreatedAgent { agent, token }) = response else {
         panic!("creating an agent failed: {response:?}");
     };
-    remember_secret(agent.account, secret);
     let mut helper = harness.second_connection(&token, organization).await;
     let block = helper.create_block(BlockParent::Root).await;
     drop(helper);
-    let removed = creator
-        .call(|peer| client::members::remove_member(peer, agent.account))
-        .await;
+    let removed = creator.remove_member(agent.account).await;
     assert!(removed.is_ok(), "{removed:?}");
 
     let author = Author::new(account);

@@ -98,10 +98,11 @@ pub(crate) fn rule(call: &embed::Call) -> Rule {
         },
         Call::Members(call) => match call {
             members::Call::SetRole { .. } => Rule::Administrator,
-            // Anyone lists and removes the agents it made; an administrator, every member.
-            members::Call::ListMembers { .. } | members::Call::RemoveMember { .. } => {
-                Rule::Organization
-            }
+            // Anyone lists and removes the agents it made, and signs them in; an administrator,
+            // every member.
+            members::Call::ListMembers { .. }
+            | members::Call::RemoveMember { .. }
+            | members::Call::SignMember { .. } => Rule::Organization,
             members::Call::CreateAgent { .. } | members::Call::RotateAgentToken { .. } => {
                 Rule::SignedIn
             }
@@ -241,6 +242,7 @@ pub(crate) fn bound_may(call: &embed::Call, root: Uuid) -> bool {
             members::Call::ListMembers { .. }
             | members::Call::SetRole { .. }
             | members::Call::RemoveMember { .. }
+            | members::Call::SignMember { .. }
             | members::Call::CreateAgent { .. }
             | members::Call::RotateAgentToken { .. } => false,
         },
@@ -1280,11 +1282,31 @@ impl Client {
                 .await;
                 self.reply(reply, set);
             }
-            Call::RemoveMember { reply, account } => {
+            Call::SignMember { reply, signed } => {
+                let signed = async {
+                    prelude?;
+                    let identity = connection.identity()?;
+                    connection.store.sign_member(identity, signed).await?;
+                    connection
+                        .key_work_changed(identity.organization, BTreeSet::new())
+                        .await;
+                    Ok(())
+                }
+                .await;
+                self.reply(reply, signed);
+            }
+            Call::RemoveMember {
+                reply,
+                account,
+                signed,
+            } => {
                 let removed = async {
                     prelude?;
                     let identity = connection.identity()?;
-                    let revoked = connection.store.remove_member(identity, account).await?;
+                    let revoked = connection
+                        .store
+                        .remove_member(identity, account, signed)
+                        .await?;
                     connection
                         .hub
                         .drop_member(identity.organization, account)
@@ -1308,6 +1330,7 @@ impl Client {
                 contact,
                 escrow,
                 bound_to,
+                member,
             } => {
                 let created = async {
                     prelude?;
@@ -1325,6 +1348,7 @@ impl Client {
                             contact,
                             escrow,
                             bound_to,
+                            member,
                         )
                         .await?;
                     if let Some(block) = block {

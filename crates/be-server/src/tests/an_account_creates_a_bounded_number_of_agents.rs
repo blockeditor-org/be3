@@ -20,6 +20,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 Vec::new(),
                 Vec::new(),
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -36,7 +37,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
                 [7; 32],
                 Vec::new(),
                 Vec::new(),
-                None
+                None, None
             )
             .await
             .is_err()
@@ -52,7 +53,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
         bound: None,
     };
     store
-        .remove_member(identity, agents[0].account)
+        .remove_member(identity, agents[0].account, None)
         .await
         .unwrap();
     store
@@ -65,6 +66,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             [7; 32],
             Vec::new(),
             Vec::new(),
+            None,
             None,
         )
         .await

@@ -62,14 +62,18 @@ interface keys {
 
     /// What an organization's keys wait for that the caller may do: blocks
     /// whose keys to rotate, whether to rotate the escrow key, keys to seal
-    /// to accounts, scope keys not yet wrapped under the escrow key, and the
-    /// escrow chain.
+    /// to accounts, scope keys not yet wrapped under the escrow key, the
+    /// escrow chain, and the members no record in the organization's log
+    /// signed in yet (every such member, to an administrator; the caller
+    /// alone, to a member it names), whose escrow wraps administrators do
+    /// not open until one is.
     record key-work {
         rotations: list<block-id>,
         escrow-rotation: bool,
         unsealed: list<unsealed>,
         unescrowed: list<key-id>,
         escrows: list<escrow-key>,
+        unsigned-members: list<account-id>,
     }
 
     /// One page of the keys of `blocks`, or of every key the caller holds
