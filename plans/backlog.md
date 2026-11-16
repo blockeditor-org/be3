@@ -164,6 +164,17 @@ Depends on #686 (session catch-ups replaced by server ordering).
   of what it left. Done: each cause found from that output and fixed at its
   source, with a test that shows it.
 
+- **A reopened canvas writes its default bars over its saved ones.**
+  `the_canvas_zoom_bar_floats_at_any_corner_and_stays_there` failed 2 in 40
+  under `stress` while editor frames reached the editor a host frame late; each
+  failing log has the canvas's view block drop a child from its references
+  ("dropped out of its parent's references, set by its open replica's report").
+  Frames now go as they are handed over, which hides it, but any latency (a
+  slow worker, the real network) brings it back. A suspect: `LayeredSettings`'s
+  `ready` (be-sdk-beui `src/layered_settings.rs`) counts a layer block it
+  doesn't know yet as loaded. Done: the race found and fixed in the app, with
+  frames delayed a frame in a test to show it.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
