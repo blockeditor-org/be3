@@ -237,20 +237,42 @@ instead.
    checks a log it reaches only through escrow. Agents' blocks and records are
    rooted at the agent's own keys, which its maker makes and holds no copy of,
    so only the agent (or a later owner record) retires or transfers them.
-3. **Signed grants and administrators.** Records, logs, proof paths, the
-   server's checks and the devices', sealing to grantees who are not contacts,
-   and key epochs bound to log heads. Before any decision acts on a pin:
-   authenticate escrow wraps (sealed by their sender, as `seal_for` is,
-   rather than anonymously) or give administrators another check of a root
-   they reach only through escrow, which today pins nothing; and take a pin
-   only from a sender the log entitles to seal the key (today any verified
-   contact can plant a block's first pin). Decide too whether a block's agent
-   may read its organization's log: `bound_may` lets it today, since a
-   terminal host opens its organization as `Peer::attach` does. Done: a test where the server lists a
-   contact as granted with no record and no key reaches them; one where the
-   server withholds a revocation from a device and that device seals the new
-   epoch to nobody until it has the log up to the epoch's head; one where a
-   member with View is served no other member's grant.
+3. **Signed grants and administrators**, in five pieces, each reviewed on its
+   own. Inherited access keeps trusting the server's tree until step 4 signs
+   parents, and a block's agent keeps reading its organization's log
+   (`bound_may`), since a terminal host opens its organization as
+   `Peer::attach` does.
+   - **3a. Authenticated escrow wraps.** An escrow wrap is sealed by its
+     sender to the escrow key, as `seal_for` seals to an account, not
+     anonymously, so the server cannot make one; a root it carries is taken
+     only from a sender the log entitles (3c). Done: a test where a wrap the
+     server seals to the escrow carries no root anyone trusts.
+   - **3b. Grant and administrator records.** Grants (revocation is a grant
+     to `None`) in a block's log and administrators in the organization's,
+     each checked at its place in the log (`check_log`) by the server and by
+     devices; `set-access` and `set-role` carry the signed record. An agent's
+     access comes only from a grant its creator signed (crypto audit 9, the
+     agents part). Escrow epochs are bound to the administrator records, so a
+     demoted administrator cannot sign the next one (crypto audit 10). Done: a
+     test where the server lists a contact as granted with no record and no
+     key reaches them; one where a forged administrator record is refused;
+     one where a demoted administrator's escrow epoch is refused.
+   - **3c. Sealing to whom the log names.** `tend` seals a scope key only to
+     grantees checked in the logs up the ancestry, with the keys their grant
+     names, contacts or not, and never an owner-only block's keys to anyone
+     but its author (crypto audit 6, the `unsealed` part); a pin is taken only
+     from a sender holding Edit or above as of the log's head, and a key from
+     any such sender. Done: a test where a grantee who is not a contact gets
+     the key and a contact with no grant does not.
+   - **3d. Key epochs bound to log heads.** Each new epoch names the log head
+     it was made under, signed by its maker; a device seals or wraps it only
+     to members granted as of that head and must hold the log up to it. Done:
+     a test where the server withholds a revocation from a device and that
+     device seals the new epoch to nobody until it has the log up to the
+     epoch's head.
+   - **3e. Proof paths.** Whole logs to Edit and above, proof paths to
+     readers below Edit ("Who is served what"). Done: a test where a member
+     with View is served no other member's grant.
 4. **Signed parents.** Done: a test where the server claims a block moved under
    a scope a contact manages and the next rotation wraps nothing under it.
 5. **Owner transfer.** Owner records, and transferring ownership in the shell.
