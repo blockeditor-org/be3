@@ -79,11 +79,12 @@ enum Stage {
     Pending,
     /// Given in host pass `pass`. `focused` is the count of frames asked of the child's app when
     /// its view was first seen with the keyboard, and `after` the frame its app has to answer to
-    /// be ready without a text field.
+    /// be ready without a text field, counted from the delivery of its content `content`.
     Given {
         pass: u64,
         focused: Option<u64>,
         after: Option<u64>,
+        content: Option<u64>,
     },
     Ready,
     /// Ended in host pass `pass`, with keys the holder takes back if it has the keyboard by the
@@ -134,15 +135,16 @@ impl Gift {
             Stage::Given {
                 focused: Some(focused),
                 after,
+                content,
                 ..
             } => {
-                if !app.content {
-                    // The content went away again (the editor takes a new one): its frames count
-                    // from when it is back, as the editor has none of it to take keys until then.
-                    *after = None;
-                } else if after.is_none() {
-                    // The first frame can still be the one that shows the content arrive.
-                    *after = Some(asked + 2);
+                if *content != app.content {
+                    // The content arrived, or went away (the editor takes a new one, or asked for
+                    // it again): its frames count from when it is here, as the editor has none
+                    // of it to take keys until then. The first frame can still be the one that
+                    // shows the content arrive.
+                    *content = app.content;
+                    *after = app.content.map(|_| asked + 2);
                 }
                 // An input method asked for in a frame drawn before the focus is a stale one.
                 let typing = app.typing && answered > *focused;
@@ -162,8 +164,9 @@ impl Gift {
 pub struct KeyProgress {
     /// Frames asked of the app and answered by it.
     pub frames: (u64, u64),
-    /// The block content of the view's editor has reached it.
-    pub content: bool,
+    /// The block content of the view's editor has reached it: how many times it has after the
+    /// editor lacked it, so a content delivered again since counts its frames afresh.
+    pub content: Option<u64>,
     /// The view asks for an input method: a text field in it has the keyboard.
     pub typing: bool,
 }
@@ -362,6 +365,7 @@ impl Instances {
             pass,
             focused: focused.then_some(asked),
             after: None,
+            content: None,
         };
         true
     }
@@ -581,6 +585,7 @@ impl Instances {
                         pass,
                         focused: None,
                         after: None,
+                        content: None,
                     };
                 }
                 if gift.holder.as_ref() == Some(view) {

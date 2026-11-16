@@ -196,6 +196,9 @@ struct ContentLink {
     content_type: Uuid,
     attached: Option<bool>,
     delivered: bool,
+    /// How many times the content reached the editor after it lacked it: a `Resend` says it
+    /// lacks it again (an app that starts, an editor out of step), until the answer is relayed.
+    deliveries: u64,
     awaiting_preview: bool,
     gesturing: bool,
     described: Option<be_block_content::Entries>,
@@ -207,6 +210,7 @@ impl ContentLink {
             content_type,
             attached: None,
             delivered: false,
+            deliveries: 0,
             awaiting_preview: false,
             gesturing: false,
             described: None,
@@ -563,8 +567,10 @@ impl Instance {
         if !send(replica, frame) {
             return false;
         }
-        if let Some(link) = self.link_mut(block) {
-            link.delivered = true;
+        if let Some(link) = self.link_mut(block)
+            && !std::mem::replace(&mut link.delivered, true)
+        {
+            link.deliveries += 1;
         }
         true
     }
@@ -1010,6 +1016,9 @@ impl Instances {
             _ => {}
         }
         let resend = matches!(message, Some(FromEditor::Resend));
+        if resend {
+            link.delivered = false;
+        }
         if let Some(source) = be_host_stack::revisions::source(block) {
             be_host_stack::revisions::load(block, source, link.content_type);
             if resend {
@@ -2985,14 +2994,18 @@ impl Instances {
         self.entries.get(&instance).is_some_and(|entry| entry.card)
     }
 
-    /// Whether the instance's block content, if it edits one, has reached it.
-    pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> bool {
-        self.entries.get(&instance).is_none_or(|entry| {
-            entry
-                .content
-                .as_ref()
-                .is_none_or(|link| link.attached.is_none() || link.delivered)
-        })
+    /// Whether the instance's block content, if it edits one, has reached it, and how many
+    /// times it has after the editor lacked it (`KeyProgress::content`).
+    pub(super) fn content_delivered(&self, instance: EditorInstanceId) -> Option<u64> {
+        let Some(link) = self
+            .entries
+            .get(&instance)
+            .and_then(|entry| entry.content.as_ref())
+            .filter(|link| link.attached.is_some())
+        else {
+            return Some(0);
+        };
+        link.delivered.then_some(link.deliveries)
     }
 
     pub(super) fn statuses(&self, layout: &ScreenLayout, pass: u64) -> Vec<super::InstanceStatus> {
