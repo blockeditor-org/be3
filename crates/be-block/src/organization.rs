@@ -149,7 +149,7 @@ pub struct OfflineSettings {
     pub grace_days: Option<u32>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct OfflineChoice {
     pub keep: bool,
     pub fixed: bool,

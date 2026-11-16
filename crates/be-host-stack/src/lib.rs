@@ -1,5 +1,5 @@
 use std::sync::{
-    Arc, Condvar, OnceLock, PoisonError,
+    Arc, OnceLock, PoisonError,
     atomic::{AtomicUsize, Ordering},
 };
 
@@ -45,7 +45,7 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 #[cfg(target_arch = "wasm32")]
-pub use web::{STACK_ENTRY, Transports, run_first, run_stack, start_in_worker};
+pub use web::{Port, STACK_ENTRY, run_first, run_stack, start_in_worker};
 
 pub use changes::{ChangeWatch, Changes};
 pub use graph::{Graph, Node, Owner, Query, Scope};
@@ -217,7 +217,19 @@ pub fn refusal(code: be_block_protocol::ErrorCode) -> &'static str {
     }
 }
 
-pub use types::{host_block_types, is_known, kind_of, provided};
+pub use seen::KnownKind;
+pub use types::{host_block_types, provided};
+
+/// Whether the running stack's modules know `content_type`, as of what the page read
+/// (`Seen::kinds`): the page asks the worker's modules nothing directly.
+pub fn is_known(content_type: Uuid) -> bool {
+    with_stack(|stack| stack.view.kinds.contains_key(&content_type)).unwrap_or(false)
+}
+
+/// What the page reads of `content_type` once a module of the running stack described it.
+pub fn kind_of(content_type: Uuid) -> Option<KnownKind> {
+    with_stack(|stack| stack.view.kinds.get(&content_type).cloned().flatten()).flatten()
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Stale {
@@ -267,7 +279,7 @@ pub fn reset(block: Uuid) {
     {
         stack.tried.remove(&block);
     }
-    replace(block, node.content_type, kind.blank);
+    replace(block, node.content_type, kind.blank.to_vec());
 }
 
 pub fn try_anyway(block: Uuid) {
@@ -322,11 +334,14 @@ struct Stack {
     storage_watched: bool,
     /// The full-text searches each owner shows (`want_searches`).
     searches: std::collections::HashMap<Owner, Vec<SearchAsk>>,
-    /// The worker's own state, for a test to wait on and reach into: the page never locks it.
+    /// Natively, the worker's own state, for a test to wait on and reach into: the page never
+    /// locks it. On the web it is the worker's alone.
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
     shared: Arc<Mutex<Shared>>,
+    #[cfg(not(target_arch = "wasm32"))]
     #[cfg_attr(not(any(test, feature = "testing")), allow(dead_code))]
-    changed: Arc<Condvar>,
+    changed: Arc<std::sync::Condvar>,
     running: platform::Running,
 }
 
@@ -348,6 +363,7 @@ impl Stack {
                 None => {}
             }
             taken.changes.merge(handed.changes);
+            taken.notices.extend(handed.notices);
             for (id, answer) in handed.answers {
                 if let Some(waiting) = self.waiting.remove(&id) {
                     taken.answers.push((waiting, answer));
@@ -459,10 +475,14 @@ impl Drop for Stack {
 struct Taken {
     changes: Changes,
     answers: Vec<(replies::Waiting, Option<Vec<u8>>)>,
+    notices: Vec<seen::Notice>,
 }
 
 impl Taken {
     fn tell(self) {
+        for notice in self.notices {
+            notice.show();
+        }
         changes::deliver(self.changes);
         for (waiting, answer) in self.answers {
             waiting(answer.as_deref());
@@ -570,14 +590,6 @@ pub fn start(config: Config) {
     let (stopping, stopped) = tokio::sync::oneshot::channel();
     let sent = Arc::new(AtomicUsize::new(0));
     let handover = Arc::new(seen::Handover::default());
-    let shared = Shared {
-        wall: worker::Wall::new(config.clock.clone()),
-        sent: Arc::clone(&sent),
-        ..Shared::default()
-    };
-    let seen = Arc::new(shared.seen.clone());
-    let shared = Arc::new(Mutex::new(shared));
-    let changed = Arc::new(Condvar::new());
     let account = config.account;
     let organization = config.organization;
     // A test that runs no frames has nothing to take the worker's updates in, so a thread takes
@@ -594,20 +606,32 @@ pub fn start(config: Config) {
             }
         });
     }
-    let running = platform::spawn(
-        worker::Start {
-            config,
-            held_clock: held_clock(),
-        },
-        worker::Inbox {
-            commands: receiver,
-            nudged,
-            handover: Arc::clone(&handover),
-            stopped,
-        },
-        Arc::clone(&shared),
-        Arc::clone(&changed),
-    );
+    let start = worker::Start {
+        config,
+        held_clock: held_clock(),
+        offline_choices: offline_choice::current(),
+    };
+    let inbox = worker::Inbox {
+        commands: receiver,
+        nudged,
+        handover: Arc::clone(&handover),
+        stopped,
+    };
+    // Natively the worker is a thread of this process, which a test reaches into; on the web it
+    // keeps its own `Shared`, and these are the page's ends of the channels to it (`web::spawn`).
+    #[cfg(not(target_arch = "wasm32"))]
+    let (running, shared, changed) = {
+        let shared = Arc::new(Mutex::new(Shared {
+            wall: worker::Wall::new(start.config.clock.clone()),
+            sent: Arc::clone(&sent),
+            ..Shared::default()
+        }));
+        let changed = Arc::new(std::sync::Condvar::new());
+        let running = platform::spawn(start, inbox, Arc::clone(&shared), Arc::clone(&changed));
+        (running, shared, changed)
+    };
+    #[cfg(target_arch = "wasm32")]
+    let running = platform::spawn(start, inbox);
     *stack().lock().unwrap_or_else(PoisonError::into_inner) = Some(Stack {
         account,
         organization,
@@ -621,14 +645,16 @@ pub fn start(config: Config) {
         base: Seen::default(),
         waiting: std::collections::HashMap::new(),
         fetched: Vec::new(),
-        view: seen,
+        view: Arc::new(Seen::default()),
         edits: Vec::new(),
         edited: 0,
         sent,
         kept_frames: std::collections::HashMap::new(),
         storage_watched: false,
         searches: std::collections::HashMap::new(),
+        #[cfg(not(target_arch = "wasm32"))]
         shared,
+        #[cfg(not(target_arch = "wasm32"))]
         changed,
         running,
     });
@@ -1559,6 +1585,13 @@ pub fn wait_until<T>(what: &str, read: impl Fn(&Shared) -> Option<T>) -> T {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     let mut seen = held.progressed;
     loop {
+        // What `read` asks of the page (`is_known`, say) reads what the worker handed over:
+        // hand over what it holds now and take it first, so the page is not behind it.
+        if seen::publish(&mut held, &handover, seen::Told::default()) {
+            drop(held);
+            take_updates();
+            held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        }
         if let Some(value) = read(&held) {
             // What the page reads has what was waited for, though the worker has not handed
             // it over yet.
@@ -1886,7 +1919,7 @@ pub fn create(
         && content.is_none()
         && let Some(kind) = kind_of(content_type)
     {
-        metadata.derived = kind.described.derived;
+        metadata.derived = kind.derived;
     }
     let author = account().unwrap_or_default();
     edit(vec![Edit::Create(Node {

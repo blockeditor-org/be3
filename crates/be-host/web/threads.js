@@ -102,13 +102,14 @@ export { threadSpawn as "thread-spawn" };
 // The host's worker (be-worker.js), which keeps the host's files and runs its
 // block stacks, started with the first work handed to it and kept for the
 // page's life: what a stack opened there, such as its sockets, belongs to that
-// worker's JavaScript. Each work is a named entry and the bytes it starts from
-// (be_host_stack::start_in_worker), copied out of the page's memory here, as
-// they would be for a worker with a memory of its own.
+// worker's JavaScript. Each work is a named entry, the bytes it starts from,
+// copied out of the page's memory here, and the port the page and the entry
+// talk through after (be_host_stack::start_in_worker, which calls this as the
+// global beWorkerStart).
 /** @type {Worker | null} */
 let stackWorker = null;
 
-function stackWorkerStart(entryPointer, entryLength, transports, pointer, length) {
+function stackWorkerStart(entry, port, bytes) {
     if (context === null) {
         console.error("the block stack was started before bindThreads was called");
         return;
@@ -125,16 +126,10 @@ function stackWorkerStart(entryPointer, entryLength, transports, pointer, length
             letters: lettersChannel(),
         });
     }
-    const copy = (at, length) =>
-        new Uint8Array(context.memory.buffer).slice(at >>> 0, (at >>> 0) + (length >>> 0));
-    stackWorker.postMessage({
-        entry: new TextDecoder().decode(copy(entryPointer, entryLength)),
-        transports,
-        bytes: copy(pointer, length),
-    });
+    stackWorker.postMessage({ entry, port, bytes: bytes.slice() }, [port]);
 }
 
-export { stackWorkerStart as "be-worker-start" };
+globalThis.beWorkerStart = stackWorkerStart;
 
 // Letters (be-host-base's host::Across::send) a worker posts to a mailbox the
 // page made. The page shares no lock with a worker for them

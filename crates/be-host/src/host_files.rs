@@ -174,10 +174,23 @@ mod web {
         data_dir: PathBuf,
         report: be_host_base::host::Post<Unkept>,
     ) -> Result<(HostStateStore, WorkspaceCache), String> {
-        // The worker answers what the files hold in bytes, as it will to a page whose memory it
-        // does not share.
+        // The worker answers what the files hold on the port, its first message, and takes each
+        // job after from it. A worker that drops the port unanswered drops `answer`.
         let (answer, answered) = oneshot::channel::<Vec<u8>>();
-        let (jobs, taken) = mpsc::unbounded_channel();
+        let answer = Rc::new(RefCell::new(Some(answer)));
+        let (mut port, theirs) = be_host_stack::Port::pair();
+        port.listen(
+            {
+                let answer = Rc::clone(&answer);
+                move |bytes| {
+                    if let Some(answer) = answer.borrow_mut().take() {
+                        let _ = answer.send(bytes);
+                    }
+                }
+            },
+            move || drop(answer.borrow_mut().take()),
+        );
+        let (jobs, mut taken) = mpsc::unbounded_channel::<Vec<u8>>();
         let jobs = Jobs(jobs);
         let start = Start {
             data_dir,
@@ -185,9 +198,15 @@ mod web {
         };
         be_host_stack::start_in_worker(
             ENTRY,
-            be_host_stack::Transports::leave(KeepTransports { answer, taken }),
+            theirs,
             postcard::to_stdvec(&start).expect("what the host's worker starts from encodes"),
         );
+        // Each job goes to the worker as it is sent, for as long as the page sends them.
+        wasm_bindgen_futures::spawn_local(async move {
+            while let Some(job) = taken.recv().await {
+                port.post(&job);
+            }
+        });
         let answered = answered
             .await
             .map_err(|_| "the host's worker stopped before it read the host's files".to_owned())?;
@@ -218,14 +237,6 @@ mod web {
     struct Start {
         data_dir: PathBuf,
         report: be_host_base::host::Across<Unkept>,
-    }
-
-    /// What the host's worker and the page talk through (`be_host_stack::Transports`): the
-    /// worker answers what the files hold in bytes on `answer` and takes each job's bytes from
-    /// `taken`.
-    struct KeepTransports {
-        answer: oneshot::Sender<Vec<u8>>,
-        taken: mpsc::UnboundedReceiver<Vec<u8>>,
     }
 
     /// What the host's worker keeps the host's files with.
@@ -283,14 +294,28 @@ mod web {
         postcard::from_bytes(job).expect("a host job decodes")
     }
 
-    /// In the host's worker, started as `ENTRY` from the bytes `open` sent: opens the files, answers what they hold, then keeps each change
-    /// when the worker next yields or starts a stack's pass (`be_host_stack::run_first`),
-    /// whichever comes first: a change waits at most for the synchronous stretch it arrived in.
-    pub(crate) async fn keep(transports: be_host_stack::Transports, bytes: Vec<u8>) {
+    /// In the host's worker, started as `ENTRY` from the bytes `open` sent: opens the files,
+    /// answers what they hold on `port`, then keeps each change the page posts when the worker
+    /// next yields or starts a stack's pass (`be_host_stack::run_first`), whichever comes first:
+    /// a change waits at most for the synchronous stretch it arrived in.
+    pub(crate) async fn keep(mut port: be_host_stack::Port, bytes: Vec<u8>) {
         // The page encoded them from a `Start`: bytes that do not decode are a bug.
         let Start { data_dir, report } =
             postcard::from_bytes(&bytes).expect("what the host's worker starts from decodes");
-        let KeepTransports { answer, taken } = transports.take();
+        let (sender, taken) = mpsc::unbounded_channel();
+        // Dropped as the page's port goes, which ends the keeping.
+        let sender = Rc::new(RefCell::new(Some(sender)));
+        port.listen(
+            {
+                let sender = Rc::clone(&sender);
+                move |job| {
+                    if let Some(sender) = sender.borrow().as_ref() {
+                        let _ = sender.send(job);
+                    }
+                }
+            },
+            move || drop(sender.borrow_mut().take()),
+        );
         let opened = (|| {
             std::fs::create_dir_all(&data_dir).map_err(|error| error.to_string())?;
             let keeper =
@@ -307,7 +332,7 @@ mod web {
             |opened: Opened| postcard::to_stdvec(&opened).expect("the host's files encode");
         let kept = match opened {
             Ok((keeper, refs, held, listed)) => {
-                let _ = answer.send(encoded(Ok((held, listed))));
+                port.post(&encoded(Ok((held, listed))));
                 Kept {
                     path: data_dir.join("host.sqlite3"),
                     keeper: Some(keeper),
@@ -317,7 +342,7 @@ mod web {
                 }
             }
             Err(error) => {
-                let _ = answer.send(encoded(Err(error)));
+                port.post(&encoded(Err(error)));
                 return;
             }
         };

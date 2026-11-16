@@ -11,13 +11,13 @@ remain on the page (guides/running/web.md, "Files and offline"):
 
 - `be_wasm_threads::Mutex::lock` spins on the page. The locks it covers are the ones the page
   and the stack's worker both take: be-host-stack's statics (`changes::WATCHERS` and each
-  watch's changes, `offline_choice::CHOICES`, `link::held`, and `stack()`, which the worker
-  takes only when a reply to the page calls back into `lib.rs`, as `import_file`'s does, and
-  `web::LEFT`, the table the page leaves a worker entry's `Transports` in), the
-  `RefsDb` connection (`be-block-client/src/refs/sqlite.rs`), be-block-type-host's
-  `REGISTRY` and `DECLARED`, and be-host-base's `notices`. The stack's own state is not among
-  them: the page reads the `Seen` the worker hands over in bytes through a lock-free stack,
-  and what it changes goes as commands (guides/blocks/host.md, "What the page reads").
+  watch's changes, `offline_choice::CHOICES`, and `stack()`, which the worker takes only when
+  a reply to the page calls back into `lib.rs`, as `import_file`'s does) and the `RefsDb`
+  connection (`be-block-client/src/refs/sqlite.rs`). The stack's own state is not among them:
+  the page reads the `Seen` the worker posts it in bytes, and what it changes goes as commands
+  (guides/blocks/host.md, "What the page reads"). The page reads the block types the modules
+  know from `Seen::kinds`, not be-block-type-host's registry, and the worker's notices come in
+  its updates (`seen::notice`), so neither is shared any more.
 - The page's file calls (`web/wasi.js`, `forward`) spin until `web/files.js` answers. The page
   makes none as it starts and runs any more: the host's worker keeps the host state and the
   refs database's organization list from start-up, and the page reads the copy it hands over
@@ -62,18 +62,12 @@ a thread that runs beside it.
    then fails loudly. be-host-runtime's two file reads on the page, `input.rs`'s `read_path`
    and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer,
    its `Write`s and the organization lists are bytes already (be-host `host_files.rs`'s
-   `Jobs`). The host's worker starts each work from a name and bytes
-   (`be_host_stack::start_in_worker`, be-host's `be_worker_run`): a stack's `Config` and held
-   clock, `host_files`' data directory and its report's `Across` travel encoded. What is left
-   is the transports the page leaves for the entry by number (`be_host_stack::Transports`),
-   values in the shared heap: a stack's `Inbox` (the command channel, the nudges, the
-   `Handover`, the stopped oneshot), its `Shared` and `Condvar` (which only tests read) and the
-   oneshot it waits on the stack before it with; `host_files`' jobs channel and its answer.
-   Each becomes a message port sent beside the entry's bytes. The stack's
-   commands are bytes already, and replies numbers
-   answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
-   changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those
-   bytes to travel by `postMessage` rather than through the shared heap. An update carries the
+   `Jobs`). The host's worker starts each work from a name, bytes and a `MessagePort`
+   (`be_host_stack::start_in_worker`, `Port`, be-host's `be_worker_run`), and everything after
+   travels over the port: a stack's commands, nudges and the page's takes one way, its updates
+   and wakes the other, each side with its own ends of the channels, its own `Handover` and,
+   in the worker, its own `Shared`; `host_files`' answer and jobs. What is left is the
+   worker's own memory. An update carries the
    change notices and the replies' answers with it, and the page takes the updates once a
    frame, as be-host's frame starts. A worker's letter to a page mailbox travels by
    `postMessage` as a copy of its bytes already (`Post::across`).

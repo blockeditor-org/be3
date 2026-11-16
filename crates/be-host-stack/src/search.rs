@@ -1123,7 +1123,7 @@ async fn index(
             |index| roots_naming.contains(&index),
         );
         held.search
-            .release_partial(|content_type| crate::kind_of(content_type).is_some());
+            .release_partial(|content_type| be_block_type_host::kind_of(content_type).is_some());
         held.search.set_attached(peer.is_attached());
         {
             let state = &mut *held;

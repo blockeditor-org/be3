@@ -365,7 +365,51 @@ pub struct Seen, delta SeenDelta {
     pub search_busy: Option<String>,
     /// The last of the page's edits the worker applied (`Edit`).
     pub edits_applied: u64,
+    /// The block types the worker's modules know (`crate::is_known`): each declared one, with
+    /// what the page reads of it once a module described it.
+    pub kinds: imbl::OrdMap<Uuid, Option<KnownKind>>,
 }
+}
+
+/// What the page reads of a block type a module described (`crate::kind_of`).
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct KnownKind {
+    pub frozen: bool,
+    pub schema: String,
+    /// The type's default content, encoded.
+    #[serde(with = "bytes")]
+    pub blank: Arc<Vec<u8>>,
+    /// What `blank` derives as metadata.
+    pub derived: Entries,
+}
+
+impl KnownKind {
+    pub(crate) fn of(kind: &be_block_type_host::Kind) -> Self {
+        Self {
+            frozen: kind.frozen,
+            schema: kind.schema.clone(),
+            blank: Arc::new(kind.blank.clone()),
+            derived: kind.described.derived.clone(),
+        }
+    }
+}
+
+/// What the worker shows the person through the host's notices (`be_host_base::notices`):
+/// told on the page, which shows them, as it takes the update that carries it (`notice`).
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+pub(crate) enum Notice {
+    Report(String),
+    /// The account's notices, by id (`notices::account_notices`).
+    Account(Vec<(u64, String)>),
+}
+
+impl Notice {
+    pub(crate) fn show(self) {
+        match self {
+            Notice::Report(message) => be_host_base::notices::report(message),
+            Notice::Account(listed) => be_host_base::notices::account_notices(listed),
+        }
+    }
 }
 
 impl Seen {
@@ -635,10 +679,11 @@ impl Edit {
                 if seen.blocks.contains_key(block) {
                     return Vec::new();
                 }
+                let kinds = &seen.kinds;
                 let Some(content) = seen
                     .staged
                     .get(block)
-                    .filter(|staged| crate::is_known(staged.content_type))
+                    .filter(|staged| kinds.contains_key(&staged.content_type))
                     .map(|staged| Content::new(staged.content_type, staged.bytes.to_vec()))
                 else {
                     return Vec::new();
@@ -799,6 +844,8 @@ pub(crate) struct Handed {
     /// Answers to the page's commands by reply number, `None` for a reply dropped unanswered
     /// (`replies::Reply`).
     pub(crate) answers: Vec<(u64, Option<Vec<u8>>)>,
+    /// What the worker shows the person (`notice`).
+    pub(crate) notices: Vec<Notice>,
     /// In a debug build, now and then (every time in this crate's tests) the worker's whole
     /// `Seen` as well, which the page checks what it made of the updates against: a field the
     /// diff left out cannot drift apart unnoticed.
@@ -837,6 +884,17 @@ pub(crate) struct Handover {
     /// Frames take the updates (`take_updates_in_frame`), so a test's thread that takes them
     /// for a test that runs none stops.
     frames_take: std::sync::atomic::AtomicBool,
+    /// On the web, where the page and the worker each hold a handover of their own and the
+    /// updates travel between them by message (`web.rs`): in the worker's, that the page is to
+    /// be woken though no update went (`wake_page`); in the page's, how many updates and bytes
+    /// it took in all, which it tells the worker (`poll_took`) so the worker's `held` counts
+    /// what the page has not taken.
+    #[cfg(target_arch = "wasm32")]
+    wake: std::sync::atomic::AtomicBool,
+    #[cfg(target_arch = "wasm32")]
+    taken: (AtomicUsize, AtomicUsize),
+    #[cfg(target_arch = "wasm32")]
+    took: futures_util::task::AtomicWaker,
 }
 
 /// How many updates the handover holds before the worker gathers them into one (`Handover`).
@@ -846,6 +904,9 @@ const HELD_BYTES: usize = 4 << 20;
 
 struct Link {
     bytes: Vec<u8>,
+    /// Put in place of every update before it (`replace`).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    replaces: bool,
     next: *mut Link,
 }
 
@@ -855,6 +916,7 @@ impl Handover {
         self.held_bytes.fetch_add(bytes.len(), Ordering::AcqRel);
         let link = Box::into_raw(Box::new(Link {
             bytes,
+            replaces: false,
             next: std::ptr::null_mut(),
         }));
         let mut head = self.head.load(Ordering::Acquire);
@@ -883,6 +945,18 @@ impl Handover {
             let (count, put) = &self.put;
             count.lock().unwrap_or_else(PoisonError::into_inner).0 += 1;
             put.notify_all();
+        }
+    }
+
+    /// Wakes the host to take what was handed over. On the web the worker's handover asks its
+    /// messenger to wake the page (`take_wake`), unless an update goes anyway.
+    pub(crate) fn wake_page(&self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        be_host_base::host::wake();
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.wake.store(true, Ordering::Release);
+            self.signal();
         }
     }
 
@@ -976,6 +1050,7 @@ impl Handover {
         self.held_bytes.store(bytes.len(), Ordering::Release);
         let link = Box::into_raw(Box::new(Link {
             bytes,
+            replaces: true,
             next: std::ptr::null_mut(),
         }));
         let mut old = self.head.swap(link, Ordering::AcqRel);
@@ -1015,9 +1090,23 @@ impl Handover {
 
     /// The updates handed over since the last take, oldest first.
     pub(crate) fn take(&self) -> Vec<Vec<u8>> {
-        let mut link = self.head.swap(std::ptr::null_mut(), Ordering::AcqRel);
         self.held.store(0, Ordering::Release);
         self.held_bytes.store(0, Ordering::Release);
+        let taken: Vec<Vec<u8>> = self.links().into_iter().map(|(bytes, _)| bytes).collect();
+        #[cfg(target_arch = "wasm32")]
+        if !taken.is_empty() {
+            self.taken.0.fetch_add(taken.len(), Ordering::AcqRel);
+            self.taken
+                .1
+                .fetch_add(taken.iter().map(Vec::len).sum(), Ordering::AcqRel);
+            self.took.wake();
+        }
+        taken
+    }
+
+    /// Takes every link out, oldest first, with whether each was put in place of those before.
+    fn links(&self) -> Vec<(Vec<u8>, bool)> {
+        let mut link = self.head.swap(std::ptr::null_mut(), Ordering::AcqRel);
         let mut taken = Vec::new();
         while !link.is_null() {
             // Each link came from `Box::into_raw` in `put`, and the swap took the whole stack out,
@@ -1025,10 +1114,63 @@ impl Handover {
             // unsafe(memory)
             let held = unsafe { Box::from_raw(link) };
             link = held.next;
-            taken.push(held.bytes);
+            taken.push((held.bytes, held.replaces));
         }
         taken.reverse();
         taken
+    }
+
+    /// In the worker, the updates to send the page, oldest first, each with whether it goes in
+    /// place of those before (`put_in_place`). They stay counted in `held` until the page says
+    /// it took them (`acknowledge`).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn drain(&self) -> Vec<(Vec<u8>, bool)> {
+        self.links()
+    }
+
+    /// In the worker: the page took `updates` more updates of `bytes` in all.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn acknowledge(&self, updates: usize, bytes: usize) {
+        let less = |count: &AtomicUsize, by: usize| {
+            let _ = count.fetch_update(Ordering::AcqRel, Ordering::Acquire, |held| {
+                Some(held.saturating_sub(by))
+            });
+        };
+        less(&self.held, updates);
+        less(&self.held_bytes, bytes);
+    }
+
+    /// In the worker: whether the page is to be woken (`wake_page`), once.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn take_wake(&self) -> bool {
+        self.wake.swap(false, Ordering::AcqRel)
+    }
+
+    /// Whether the handover is closed (`close`).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn closed(&self) -> bool {
+        self.closed.load(Ordering::Acquire)
+    }
+
+    /// On the page: ready with how many more updates, and bytes of them, the page took since
+    /// `told`, which it moves on.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn poll_took(
+        &self,
+        context: &mut std::task::Context<'_>,
+        told: &mut (usize, usize),
+    ) -> std::task::Poll<(usize, usize)> {
+        self.took.register(context.waker());
+        let now = (
+            self.taken.0.load(Ordering::Acquire),
+            self.taken.1.load(Ordering::Acquire),
+        );
+        if now == *told {
+            return std::task::Poll::Pending;
+        }
+        let more = (now.0 - told.0, now.1 - told.1);
+        *told = now;
+        std::task::Poll::Ready(more)
     }
 }
 
@@ -1043,6 +1185,30 @@ impl Drop for Handover {
 pub(crate) struct Told {
     pub(crate) changes: crate::Changes,
     pub(crate) answers: Vec<(u64, Option<Vec<u8>>)>,
+    pub(crate) notices: Vec<Notice>,
+}
+
+impl Told {
+    fn is_empty(&self) -> bool {
+        self.changes.is_empty() && self.answers.is_empty() && self.notices.is_empty()
+    }
+
+    fn merge(&mut self, handed: Handed) {
+        self.changes.merge(handed.changes);
+        self.answers.extend(handed.answers);
+        self.notices.extend(handed.notices);
+    }
+
+    fn handed(self) -> Handed {
+        Handed {
+            update: None,
+            changes: self.changes,
+            answers: self.answers,
+            notices: self.notices,
+            #[cfg(debug_assertions)]
+            check: None,
+        }
+    }
 }
 
 /// Hands over what changed in the worker's `Seen` since the last one it handed over (the whole
@@ -1059,7 +1225,7 @@ pub(crate) fn publish(shared: &mut Shared, handover: &Handover, told: Told) -> b
         Some(_) if crowded => Some(Update::Whole(shared.seen.clone())),
         Some(last) => crate::diff::Diff::diff(last, &shared.seen).map(Update::Changed),
     };
-    if update.is_none() && told.changes.is_empty() && told.answers.is_empty() {
+    if update.is_none() && told.is_empty() {
         return false;
     }
     #[cfg(debug_assertions)]
@@ -1072,34 +1238,30 @@ pub(crate) fn publish(shared: &mut Shared, handover: &Handover, told: Told) -> b
         update,
         changes: told.changes,
         answers: told.answers,
+        notices: told.notices,
         #[cfg(debug_assertions)]
         check,
     };
     let bytes = postcard::to_stdvec(&handed).expect("an update encodes");
     shared.handed = Some(shared.seen.clone());
-    if !crowded {
-        handover.put(bytes);
-        return true;
-    }
-    // What the replaced updates told the page still has to reach it: in an update of its own
-    // after the whole `Seen`, which has what they changed.
-    let mut told = Told::default();
-    for replaced in handover.replace(bytes) {
-        let replaced: Handed = postcard::from_bytes(&replaced).expect("an update decodes");
-        told.changes.merge(replaced.changes);
-        told.answers.extend(replaced.answers);
-    }
-    if !told.changes.is_empty() || !told.answers.is_empty() {
-        let handed = Handed {
-            update: None,
-            changes: told.changes,
-            answers: told.answers,
-            #[cfg(debug_assertions)]
-            check: None,
-        };
-        handover.put(postcard::to_stdvec(&handed).expect("an update encodes"));
+    match crowded {
+        true => put_in_place(handover, bytes),
+        false => handover.put(bytes),
     }
     true
+}
+
+/// Puts `bytes`, a whole `Seen`, in place of the updates `handover` holds (`Handover::replace`).
+/// What the replaced updates told the page still has to reach it: in an update of its own after
+/// the whole `Seen`, which has what they changed.
+pub(crate) fn put_in_place(handover: &Handover, bytes: Vec<u8>) {
+    let mut told = Told::default();
+    for replaced in handover.replace(bytes) {
+        told.merge(postcard::from_bytes(&replaced).expect("an update decodes"));
+    }
+    if !told.is_empty() {
+        handover.put(postcard::to_stdvec(&told.handed()).expect("an update encodes"));
+    }
 }
 
 /// The worker thread's way to its stack, and what it holds back from the page until the next
@@ -1110,6 +1272,7 @@ struct Here {
     changes: crate::Changes,
     wake: bool,
     answers: Vec<(u64, Option<Vec<u8>>)>,
+    notices: Vec<Notice>,
     /// A task to publish is spawned and has not run yet.
     scheduled: bool,
 }
@@ -1130,6 +1293,7 @@ impl Worker {
                 changes: crate::Changes::default(),
                 wake: false,
                 answers: Vec::new(),
+                notices: Vec::new(),
                 scheduled: false,
             });
         });
@@ -1195,6 +1359,22 @@ pub(crate) fn hold_answer(id: u64, answer: Option<Vec<u8>>) -> Option<Option<Vec
     held
 }
 
+/// Shows `notice` to the person: from the worker thread, with the next update, which the page
+/// tells it as it takes it; elsewhere at once.
+pub(crate) fn notice(notice: Notice) {
+    let held = HERE.with(|here| match here.borrow_mut().as_mut() {
+        Some(here) => {
+            here.notices.push(notice);
+            None
+        }
+        None => Some(notice),
+    });
+    match held {
+        Some(notice) => notice.show(),
+        None => schedule(),
+    }
+}
+
 /// Has a task on the worker publish once the worker yields, unless one is due already: the
 /// changes made until then go in one `Seen`, and the lock on `Shared` is not held then.
 fn schedule() {
@@ -1228,6 +1408,7 @@ pub(crate) fn publish_now() {
                 Told {
                     changes: std::mem::take(&mut here.changes),
                     answers: std::mem::take(&mut here.answers),
+                    notices: std::mem::take(&mut here.notices),
                 },
                 std::mem::take(&mut here.wake),
             )
@@ -1241,7 +1422,7 @@ pub(crate) fn publish_now() {
         told,
     );
     if put || wake {
-        be_host_base::host::wake();
+        handover.wake_page();
     }
 }
 
@@ -1265,7 +1446,7 @@ pub(crate) fn here_mut(change: impl FnOnce(&mut Shared)) -> bool {
     let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
     change(&mut held);
     if publish(&mut held, &handover, Told::default()) {
-        be_host_base::host::wake();
+        handover.wake_page();
     }
     true
 }
