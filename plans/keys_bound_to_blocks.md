@@ -25,34 +25,69 @@ sealing. Split it:
   or a verified contact, never the server, even if the server names itself
   as a contact's or this account's id.
 
-Every seal goes through `recipient`: key work's `unsealed` loop, `make_escrow`
-(an administrator the server lists who is the server is skipped),
-`seal_share`, `offer`. `share_with_server` is the one seal to the server, and
-it keeps its own path: it seals the settings block's scope key and nothing
-else (it refuses any other block).
+Built (fix/never-seal-to-the-server, 948703c94): `KeyBook::contact` answers
+only this account and its verified contacts, so `make_escrow` and every other
+seal skip the server whatever account it names itself as; `KeyBook::sender`
+adds the server for opening, which `accepts` limits to the settings key, and a
+contact or this account takes precedence over a server naming itself as them.
+Key work's `unsealed` loop seals through `KeyBook::recipient`, which allows the
+server only the settings block's scope key, judged by the block this device
+minted or opened that key as, not the server's row: a new epoch of the
+settings key reaches the server that way after a rotation, and the server
+reads the policies through it. `share_with_server` stays the explicit seal.
+Test: `the_server_naming_itself_in_key_work_is_sealed_nothing` (fails before
+the fix: the workspace's scope key is sealed to the server).
 
 ## 2. A key the server holds vouches for nothing
 
-The server holds the settings block's scope key (sealed to it by
-`share_with_server`) and so every data key under it. A row wrapped under one
-of them must not open as any other block's key, trusted or not: in
-`KeyBook::unwrap`, a wrap under a key of the settings block opens only a key
-whose row and carried block are the settings block. Nothing in the settings
-block legitimately wraps another block's key.
+The server holds the settings block's scope key (sealed to it through
+`recipient` and `share_with_server`) and so every key wrapped under it: the
+settings block's data keys and its children's, the organization's policies
+block among them (be-app-settings makes it under settings, not as a scope of
+its own). Today an administrator's device trusts that scope key, so a row the
+server wraps under it, labelled as any block, opens trusted.
 
-Other blocks: a viewer of block A colluding with the server could likewise
-wrap a key it chose under A's scope key, labelled as block B. That is within
-"the server and one contact can read a block" (plans/signed_access.md), whose
-signed roots and records bind which key may wrap which; this plan leaves it
-there and says so in keys.md.
+A device keeps a mark of its own, **server-held**, on:
+
+- every key of the settings block, and every key it seals to the server;
+- every key it opened only through a server-held key, transitively.
+
+A server-held key opens (the settings subtree must stay readable to every
+member and administrator, and writable by administrators), but it is never
+trusted for anything outside that subtree: it vouches for no other key (a
+wrap under it opens untrusted), and `sealing_key` uses it only for a block in
+the settings subtree. Inside the subtree it may seal, since the server reads
+those blocks by design; that is what lets an administrator who did not mint
+the policies key still write policies. The subtree is the server's graph's
+word, so the server can call any block part of it: what that gets it is
+showing forged content of that block to readers, never a device writing a
+block outside it under a key the server knows. That integrity gap is the same
+as the anonymous escrow wraps' and goes to plans/signed_access.md with them.
+
+A viewer of block A colluding with the server could wrap a key it chose under
+A's scope key, labelled as block B. That is "the server and one contact can
+read a block" (plans/signed_access.md), whose signed roots and records bind
+which key may wrap which; the graph's scope relation would buy nothing here,
+since the server tells it. keys.md says so.
+
+Tests: `a_key_wrapped_under_the_settings_key_seals_no_other_block` (an
+administrator who did not mint the settings key, a data key of block X with a
+high epoch wrapped under the settings scope key: X is still written under its
+own key); `members_and_administrators_read_and_write_the_policies` (a member
+reads, and a second administrator writes, the policies block under settings).
 
 ## 3. Objects are opened only with a key of their block
 
 - **The keyring knows each key's block.** `Keyring` keeps `(ContentKey, block)`
   per id, from minting or from the `CarriedKey` it opened with (bound inside
   the seal, so the server can't relabel it; `KeyBook::opened` already checks
-  it against the row). A key whose block is unknown is not inserted.
-- **Every read names its block.** `Keyring::open(block, sealed)` refuses a key
+  it against the row). A key whose block is unknown is not inserted. Every key
+  a device holds has one: an escrow key's is the organization (`mint_escrow`,
+  and the `CarriedKey` sealed to each administrator); the server's seal of the
+  settings key carries the settings block, which `opened` checks; own-sealed
+  pins and recovery material are not ring keys.
+- **Every read names its block.** The reads that cross blocks today, and how
+  each names its block, are listed in "Reads across blocks" below. `Keyring::open(block, sealed)` refuses a key
   that is not that block's (`StoreError::WrongBlock`, which reads as
   `ClientError::Forged`). The vault's reads (`read`, `load`, `read_range`,
   `get_value`, manifests and nodes) and `CommitStore` take the block they read;
@@ -73,8 +108,22 @@ there and says so in keys.md.
   stop mattering and the content key is no longer hashed directly. Objects that
   are never deduplicated (relays, notifications, metadata, journal entries)
   take a random nonce instead, so the server can't see two equal ones
-  (crypto_audit, simplicity 5); decisions/deterministic_seal_nonce.md is
-  updated to say which seal which.
+  (crypto_audit, simplicity 5). Associated data per block also scopes
+  deduplication to a block, which keys already did; decisions/deterministic_seal_nonce.md
+  is updated to say which seal which.
+- **One symmetric seal.** The audit found three formats (the vault's, the
+  random-nonce `seal_with` in be-block-keys, backups'). This ends with one:
+  `be_block_keys::aead`, XChaCha20-Poly1305 with a 24-byte nonce and associated
+  data, `seal(key, nonce, associated, plain)` and `open`. The vault (which
+  then depends on be-block-keys) puts its `be3K` header and the block id in
+  the associated data and derives the nonce or draws it; be-block-keys' own
+  seals (`seal_with`: sealing to an account, own seals, invitations, pairing)
+  and be-server's backups draw it and bind their context there. One format,
+  three callers that differ only in what they bind.
+
+Order: section 1 (built), then the per-block check of section 3 (opening and
+the current key), then section 2 with the associated data, nonce and one seal
+format, since both change what trust and opening mean.
 
 What stays open: keys a device opens without trust (through escrow, whose
 seals are anonymous, or the server's seal of the settings key) still read
@@ -83,25 +132,28 @@ can seal a made-up key of block X to it and so show administrators forged
 content of X. Authenticating escrow wraps (a member's `seal_for` to the escrow
 key) closes it; that goes with plans/signed_access.md's administrator records.
 
+## Reads across blocks
+
+(Filled in from the inventory of every read of sealed objects: each names the
+block it reads, or reseals.)
+
+- `duplicate` (be-host-stack worker.rs `Command::Duplicate`) reads the source's
+  plaintext and publishes it under the copy: it reseals, nothing crosses.
+
 ## Tests (each fails today)
 
 be-block-client, with the harness's server database playing the attacker:
 
-1. `the_server_listing_itself_as_unsealed_gets_no_key`: key work lists the
-   server's account under `unsealed` for a scope key; nothing is sealed to it.
-2. `the_server_listed_as_an_administrator_is_sealed_no_escrow`: the server's
-   account is listed as an administrator with an escrow rotation due; the
-   minted escrow is not sealed to it.
-3. `a_key_wrapped_under_the_settings_key_opens_no_other_block`: on an
-   administrator's device, a data key of block X with a high epoch, wrapped
-   under the settings scope key; it is neither trusted nor opened, and X is
-   still written under its own key.
-4. `a_block_shows_nothing_sealed_under_another_blocks_key`: the server serves
+1. Built: `the_server_naming_itself_in_key_work_is_sealed_nothing` (the
+   server as an unsealed account, and as an administrator due an escrow).
+2. `a_key_wrapped_under_the_settings_key_seals_no_other_block` and
+   `members_and_administrators_read_and_write_the_policies` (section 2).
+3. `a_block_shows_nothing_sealed_under_another_blocks_key`: the server serves
    block A's sealed metadata and head as block B's; reading B fails as forged.
-5. `a_relay_of_one_block_is_not_applied_to_another`: a relay sealed in A's
+4. `a_relay_of_one_block_is_not_applied_to_another`: a relay sealed in A's
    session delivered as B's is refused.
-6. `a_notification_sealed_under_another_blocks_key_is_dropped`.
-7. `another_blocks_key_named_as_current_is_refused`: the server names A's key
+5. `a_notification_sealed_under_another_blocks_key_is_dropped`.
+6. `another_blocks_key_named_as_current_is_refused`: the server names A's key
    as B's current key; saving B refuses rather than sealing under A's.
 
 ## Docs
