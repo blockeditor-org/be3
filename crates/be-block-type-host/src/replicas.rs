@@ -3071,15 +3071,12 @@ impl<H: Host> Replicas<H> {
     /// from its journal, or sequenced for a follower): neither that head's journal nor `replay`
     /// holds them (`reopening`).
     fn settling(&self, replica: ReplicaId) -> bool {
-        self.open
-            .get(&replica)
-            .is_some_and(|open| {
-                open.publishing > 0 || open.submitting > 0 || open.reporting.is_some()
-            })
-            || self
-                .asked
-                .values()
-                .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)))
+        self.open.get(&replica).is_some_and(|open| {
+            open.publishing > 0 || open.submitting > 0 || open.reporting.is_some()
+        }) || self
+            .asked
+            .values()
+            .any(|(asked, ask)| *asked == replica && matches!(ask, Asked::Seal(_)))
     }
 
     /// Holds a join's answer until `replica` has settled (`settling`).

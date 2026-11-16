@@ -1276,9 +1276,15 @@ impl<S: ObjectStore> Peer<S> {
         &self,
         block: Uuid,
         tag: Hash,
-    ) -> Result<(ClientId, be_block_protocol::SessionState, Option<be_block_protocol::Journal>), ClientError> {
-        let (client, state, journal, may_edit) =
-            self.connection().join_session(block, tag).await?;
+    ) -> Result<
+        (
+            ClientId,
+            be_block_protocol::SessionState,
+            Option<be_block_protocol::Journal>,
+        ),
+        ClientError,
+    > {
+        let (client, state, journal, may_edit) = self.connection().join_session(block, tag).await?;
         if may_edit {
             self.refs.may_edit_again(block)?;
         }

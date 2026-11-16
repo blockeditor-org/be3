@@ -77,13 +77,16 @@ fn edits_typed_after_a_demotion_stay_discarded_once_the_block_is_editable_again(
     // Typed while it is open, after the demotion: taken by a replica that has yet to hear of
     // it, or refused by one that has.
     add(block, 6);
-    wait_until("took or refused the edit typed after the demotion", |held| {
-        counted(held, block) == Some(9)
-            || held
-                .error
-                .as_ref()
-                .is_some_and(|error| error.contains("not editable"))
-    });
+    wait_until(
+        "took or refused the edit typed after the demotion",
+        |held| {
+            counted(held, block) == Some(9)
+                || held
+                    .error
+                    .as_ref()
+                    .is_some_and(|error| error.contains("not editable"))
+        },
+    );
     // Discarded before anything seals it: the replica holds it as the discard closes it.
     crate::discard_unsent(block);
     wait_until("discarded the unsent edits and closed the block", |held| {

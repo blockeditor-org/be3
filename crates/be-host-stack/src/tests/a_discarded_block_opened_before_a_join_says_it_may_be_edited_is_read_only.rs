@@ -92,7 +92,9 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
     wait_until("noticed it is offline", |held| !held.connected);
     open(block, CounterContent::CONTENT_TYPE);
     let mut editor = Editor::<CounterContent>::attach(block);
-    editor.wait("was sent the counter", |counter| counter.root().value() == 1);
+    editor.wait("was sent the counter", |counter| {
+        counter.root().value() == 1
+    });
     editor.operate(Counter::add(6));
     // The replica takes the editor's frames in order, and a flush waits for it to seal.
     flush();
@@ -106,11 +108,15 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
     harness.relay().offline(false);
     retry_now();
     // Opened again on joining, the replica sends its editors their snapshot, now editable.
-    editor.until("was sent the counter again by the replica the join opened", |editor| {
-        editor.received.iter().any(|message| {
-            matches!(message, be_sdk_type_guest::editor::ToEditor::Snapshot(_))
-        })
-    });
+    editor.until(
+        "was sent the counter again by the replica the join opened",
+        |editor| {
+            editor
+                .received
+                .iter()
+                .any(|message| matches!(message, be_sdk_type_guest::editor::ToEditor::Snapshot(_)))
+        },
+    );
     editor.operate(Counter::add(10));
     wait_for_count(block, 11);
     flush_and_send();
@@ -120,5 +126,9 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
             .expect("the counter opens from the server")
             .map(|counter| counter.root().value())
     });
-    assert_eq!(saved, Some(11), "only the edit made once it was editable landed");
+    assert_eq!(
+        saved,
+        Some(11),
+        "only the edit made once it was editable landed"
+    );
 }
