@@ -65,7 +65,10 @@ fn a_block_this_account_lost_is_forgotten_once_what_was_set_aside_is_discarded()
         "none are kept while it may not edit it"
     );
     assert_eq!(refs.forget(&gone).unwrap(), 1, "forgotten");
-    assert!(!refs.discarded(block), "forgetting it clears the mark");
+    assert!(
+        refs.discarded(block),
+        "forgetting it keeps the mark, as its replica may still be open"
+    );
     assert!(refs.open_edits(block).is_none());
     assert!(refs.journal(block).is_none());
 }
