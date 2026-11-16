@@ -15,11 +15,10 @@ up
 wait 'value="Order: cherry apple date banana"'
 pause 1000
 pause 16
-# Carried towards a list that takes it, an item leaves its own list, and the
-# gap it leaves closes over time rather than at once.
+# Carried towards a list that takes it, an item folds out of its own list,
+# and the gap it leaves closes over time rather than at once.
 down '#shelf.kale+10,2'
 move '#shelf.1+60,120'
-wait not '#shelf.kale'
 wait 'value="Shelf full"'
 pause 40
 wait 'value="Shelf closing"'

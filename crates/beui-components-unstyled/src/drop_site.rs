@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use beui_view::drag::{After, Candidate, DragSpec, Space};
 use beui_view::reactive::*;
-use beui_view::types::{Direction, Pos2, Rect};
+use beui_view::types::{Direction, Pos2, Rect, Vec2};
 
 use crate::drag_board::{Board, Erased, Site, drag_board};
 
@@ -102,33 +102,36 @@ pub fn is_carried<K: Clone + PartialEq + 'static>(key: K) -> Memo<bool> {
 }
 
 /// The places a carried row can land among `rows`, along `direction`, each named by the
-/// row it would come after: read now from where the rows are laid out, relative to `list`
+/// row it would come after (`carried` is its key, or `None` for an item from elsewhere): read now from where the rows are laid out, relative to `list`
 /// (the node they sit in), so a scroll or a moving window carries them along. A row lands at
 /// the start of a row it passes going up, and at the end of one it passes going down, as the
 /// rows between close up behind it; rows of any length rest exactly, and a row of several
 /// children rests where all of them do.
 ///
-/// Only a row of this list gets places: a key from another list (a move between sites) gets
-/// none until lists take items from each other (plans/declarative_dragging.md, step 2). A
+/// An item from elsewhere, or a key not among the rows (a move between sites), gets a place at each gap between the rows
+/// and one past the last, the size of the item carried, as the rows would part for it: the
+/// list's `commit` takes it in (decisions/beui_a_move_between_drop_sites_is_the_apps.md). A
 /// key shown more than once is carried as its first row; its other rows are left out.
 pub fn slots_in<K>(
     list: NodeRef,
     rows: ForEachRef<K, NodeId>,
-    carried: &K,
+    carried: Option<&K>,
     direction: Direction,
 ) -> Vec<Candidate<After<K>>>
 where
     K: Clone + PartialEq + 'static,
 {
-    slots_with(&*beui_view::drag::space(), list, rows, carried, direction)
+    let item = drag_board().carried_item().map(|item| item.size());
+    slots_with(&*beui_view::drag::space(), list, rows, carried, direction, item)
 }
 
 pub(crate) fn slots_with<K>(
     space: &dyn Space,
     list: NodeRef,
     rows: ForEachRef<K, NodeId>,
-    carried: &K,
+    carried: Option<&K>,
     direction: Direction,
+    item: Option<Vec2>,
 ) -> Vec<Candidate<After<K>>>
 where
     K: Clone + PartialEq + 'static,
@@ -144,8 +147,22 @@ where
             .filter_map(|node| space.placed(node).map(|(rect, _)| rect))
             .reduce(|all, rect| all.union(rect))
     };
-    let Some(home) = keys.iter().position(|key| key == carried) else {
-        return Vec::new();
+    let in_list = |window: Rect| {
+        Rect::from_min_size(
+            Pos2::ZERO + (window.min - origin.min) / scale,
+            window.size() / scale,
+        )
+    };
+    let Some((home, carried)) =
+        carried.and_then(|carried| Some((keys.iter().position(|key| key == carried)?, carried)))
+    else {
+        let Some(item) = item else {
+            return Vec::new();
+        };
+        return visiting(&keys, &rect_of, origin, direction, item)
+            .into_iter()
+            .map(|(after, window)| Candidate::new(After(after), in_list(window), list))
+            .collect();
     };
     let Some(own) = rect_of(carried) else {
         return Vec::new();
@@ -169,12 +186,48 @@ where
             Direction::Horizontal => Pos2::new(start, own.min.y),
         };
         let window = Rect::from_min_size(min, own.size());
-        let rest_in_list = Rect::from_min_size(
-            Pos2::ZERO + (window.min - origin.min) / scale,
-            window.size() / scale,
-        );
         let after = at.checked_sub(1).map(|before| rest[before].clone());
-        slots.push(Candidate::new(After(after), rest_in_list, list));
+        slots.push(Candidate::new(After(after), in_list(window), list));
     }
     slots
+}
+
+/// Where an item of size `item` from another list rests at each gap among `keys`, in window
+/// space: at the start of the row it lands before (the rows from there move on by its
+/// length), or past the last row by the spacing between rows; at the list's start when it
+/// has none.
+fn visiting<K: Clone>(
+    keys: &[K],
+    rect_of: impl Fn(&K) -> Option<Rect>,
+    list: Rect,
+    direction: Direction,
+    item: Vec2,
+) -> Vec<(Option<K>, Rect)> {
+    let along = |pos: Pos2| direction.main(pos.to_vec2());
+    let at = |start: f32, cross: Pos2| match direction {
+        Direction::Vertical => Pos2::new(cross.x, start),
+        Direction::Horizontal => Pos2::new(start, cross.y),
+    };
+    let shown: Vec<(&K, Rect)> = keys
+        .iter()
+        .filter_map(|key| Some((key, rect_of(key)?)))
+        .collect();
+    let Some((_, first)) = shown.first() else {
+        return vec![(None, Rect::from_min_size(list.min, item))];
+    };
+    let spacing = shown
+        .windows(2)
+        .map(|pair| along(pair[1].1.min) - along(pair[0].1.max))
+        .filter(|between| *between >= 0.0)
+        .reduce(f32::min)
+        .unwrap_or(0.0);
+    let mut places = Vec::with_capacity(shown.len() + 1);
+    let mut after = None;
+    for (key, rect) in &shown {
+        places.push((after, Rect::from_min_size(at(along(rect.min), first.min), item)));
+        after = Some((*key).clone());
+    }
+    let end = shown.last().map_or(0.0, |(_, rect)| along(rect.max) + spacing);
+    places.push((after, Rect::from_min_size(at(end, first.min), item)));
+    places
 }

@@ -8,7 +8,8 @@ fn a_row_let_go_away_from_every_list_glides_home_without_the_list_jumping() {
     let mut harness = Harness::new(reorder_lists(state));
     harness.settle();
     let grab = harness.center(harness.find("row.2"));
-    let away = pos2(REORDER_COLUMN + 10.0, grab.y + 30.0);
+    // Beyond the reach of every place in either list.
+    let away = pos2(3.0 * REORDER_COLUMN, grab.y + 150.0);
     harness.down(grab, PointerButton::Primary);
     harness.frame(vec![Input::PointerMoved(grab + vec2(0.0, 6.0))]);
     harness.frame(vec![Input::PointerMoved(away)]);

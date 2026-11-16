@@ -13,7 +13,8 @@ fn a_card_carried_into_another_column_lands_where_its_gap_opened() {
     let before = fixture.harness.applied(Some(fixture.database));
     let first = fixture.harness.rect_of(&card(c));
     let second = fixture.harness.rect_of(&card(d));
-    let between = first.center() + (second.center() - first.center()) * 0.5;
+    // Nearer the gap above the second card than the one above the first.
+    let between = first.center() + (second.center() - first.center()) * 0.6;
 
     fixture.lift(fixture.harness.rect_of(&card(a)).center(), between);
     fixture.harness.run();

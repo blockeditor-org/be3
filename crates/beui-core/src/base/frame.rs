@@ -42,6 +42,8 @@ pub struct FrameNode {
     pub rotate: f32,
     pub opacity: f32,
     pub fade_edges: Sides,
+    /// Laid out at no size, drawing nothing, and given no spacing in a list (`Element::collapsed`).
+    pub collapsed: bool,
     mask: Option<SpaceId>,
     /// Holds control flow's one child (`create_host`): focusing it focuses that child.
     host: bool,
@@ -188,6 +190,7 @@ impl Default for FrameNode {
             rotate: 0.0,
             opacity: 1.0,
             fade_edges: Sides::ZERO,
+            collapsed: false,
             mask: None,
             host: false,
         }
@@ -209,7 +212,14 @@ impl Element for FrameNode {
         false
     }
 
+    fn collapsed(&self) -> bool {
+        self.collapsed
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
+        if self.collapsed {
+            return Vec2::ZERO;
+        }
         if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
             doc.note_offer_dependent();
         }
@@ -234,6 +244,9 @@ impl Element for FrameNode {
     }
 
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
+        if self.collapsed {
+            return 0.0;
+        }
         let inner = self
             .child
             .map_or(0.0, |child| crate::layout::min_width(doc, painter, child));
@@ -247,6 +260,9 @@ impl Element for FrameNode {
         direction: Direction,
         cross: f32,
     ) -> Option<f32> {
+        if self.collapsed {
+            return Some(0.0);
+        }
         let extent = match direction {
             Direction::Horizontal => self.width,
             Direction::Vertical => self.height,
@@ -265,6 +281,9 @@ impl Element for FrameNode {
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
+        if self.collapsed {
+            return None;
+        }
         let child = self.child?;
         let grid = doc.pixel_grid();
         let padding = self.padding(grid);
@@ -286,6 +305,9 @@ impl Element for FrameNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
+        if self.collapsed {
+            return;
+        }
         if let Some(child) = self.child {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
@@ -312,7 +334,7 @@ impl Element for FrameNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if self.opacity <= 0.0 {
+        if self.opacity <= 0.0 || self.collapsed {
             return;
         }
         let grid = doc.pixel_grid();
@@ -590,6 +612,12 @@ impl Document {
         };
         if self.arena.get_as::<FrameNode>(frame).opacity != opacity {
             self.arena.paint_mut_as::<FrameNode>(frame).opacity = opacity;
+        }
+    }
+
+    pub fn set_frame_collapsed(&mut self, frame: NodeOf<FrameNode>, collapsed: bool) {
+        if self.arena.get_as::<FrameNode>(frame).collapsed != collapsed {
+            self.arena.get_mut_as::<FrameNode>(frame).collapsed = collapsed;
         }
     }
 

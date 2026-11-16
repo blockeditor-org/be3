@@ -7,7 +7,6 @@ use beui_view::reactive::*;
 use beui_view::types::{CursorIcon, Direction, Vec2};
 
 use beui_components_unstyled::{ReorderHandle, ReorderItemHandle, ReorderMove};
-use beui_view::drag::{DragPoint, Take};
 
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use crate::tokens::{Movement, Padding, Space, Stroke};
@@ -21,15 +20,12 @@ pub fn Reorder<K, P>(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     payload: Func<K, Option<P>>,
     accepts: Option<Func<P, bool>>,
-    takes: Option<Func<DragPoint, Take>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] fixed: Prop<bool>,
     slot: Option<Func<P, Option<usize>>>,
-    #[prop(default = false)] long_press: Prop<bool>,
     text: Callback<K, String>,
     on_move: Callback<ReorderMove<K, P>>,
     on_drag_change: Callback<Option<K>>,
-    on_drop_outside: Callback<(K, DragPoint)>,
     preview: RenderFn<P, NodeId>,
     #[prop(children)] content: Render<ReorderHandle<K, P>, NodeId>,
 ) -> NodeId
@@ -44,15 +40,12 @@ where
             direction
             payload
             accepts
-            takes
             disabled
             fixed
             slot
-            long_press
             text={text}
             on_move={on_move}
             on_drag_change={on_drag_change}
-            on_drop_outside={on_drop_outside}
             preview
         >|handle: ReorderHandle<K, P>| {
             content.call(handle)

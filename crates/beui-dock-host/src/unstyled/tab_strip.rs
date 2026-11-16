@@ -1,0 +1,1351 @@
+//! The dock's tab bars, reordered and dropped into as `Reorder` did before it moved onto
+//! drop sites (plans/declarative_dragging.md, step 2): the dock still splits panes from the
+//! old `DropTarget`, which only drags begun this way reach. A temporary second way to reorder,
+//! private to beui-dock-host: step 3 (dock tabs, fluid) deletes it and carries tabs on the
+//! board like every other list.
+
+use std::cell::{Cell, RefCell};
+use std::hash::Hash;
+use std::rc::Rc;
+
+use be_lib_stable_hash::HashMap;
+
+use beui_components_unstyled::{Board, drag_board};
+use accesskit::{Live, Node, Role};
+use beui_macros::{component, view};
+use beui_view::components::overlay::Overlay;
+use beui_view::drag::{DragPoint, DragSource, Pending, Take};
+use beui_view::primitives::*;
+use beui_view::reactive::*;
+use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
+use beui_view::types::{
+    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement, PointerPress, Pos2,
+    Rect, Sides, TOUCH_DRAG_THRESHOLD, TouchDrags,
+};
+
+use beui_components_unstyled::{DRAG_THRESHOLD, DropHandle, DropTarget};
+use beui_components_unstyled::{Glide, GlideApi, GlideHold};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TabMove<K, P> {
+    pub payload: P,
+    pub key: Option<K>,
+    pub after: Option<K>,
+    pub index: usize,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TabGap<K> {
+    pub before: Option<K>,
+    pub size: f32,
+}
+
+#[derive(Clone, Copy)]
+pub struct TabStripItemHandle;
+
+#[derive(Clone, PartialEq)]
+struct Lifted<K, P> {
+    key: K,
+    payload: P,
+    item: Rect,
+    home: bool,
+    slot: usize,
+    size: f32,
+}
+
+#[derive(Clone)]
+struct Press<K> {
+    key: K,
+    origin: Pos2,
+    touched: bool,
+    item: Rect,
+}
+
+enum Arrival<K> {
+    Back(K, Pos2),
+    New(Vec<K>, Pos2),
+}
+
+struct State<K: 'static, P: 'static> {
+    spring: Spring,
+    keys: Memo<Vec<K>>,
+    direction: Prop<Direction>,
+    payload: Func<K, Option<P>>,
+    accepts: Option<Func<P, bool>>,
+    disabled: Prop<bool>,
+    fixed: Prop<bool>,
+    slot: Option<Func<P, Option<usize>>>,
+    long_press: Prop<bool>,
+    text: Callback<K, String>,
+    on_move: Callback<TabMove<K, P>>,
+    on_drag_change: Callback<Option<K>>,
+    on_drop_outside: Callback<(K, DragPoint)>,
+    lifted: Signal<Option<Lifted<K, P>>>,
+    gap: Signal<Option<TabGap<K>>>,
+    aim: Cell<f32>,
+    speed: Cell<f32>,
+    frames: Cell<Option<Animation>>,
+    visited: Signal<bool>,
+    raised: Signal<Option<K>>,
+    floating_at: Signal<Option<DragPoint>>,
+    announcement: Signal<String>,
+    point: RefCell<Option<DragPoint>>,
+    pressed: RefCell<Option<Press<K>>>,
+    arrival: RefCell<Option<Arrival<K>>>,
+    /// Each shown row's glide, by the glide's node: its inner glide's node and its api.
+    glides: RefCell<HashMap<NodeId, (NodeId, GlideApi)>>,
+    /// The rows shown, as the `ForEach` or `VirtualList` that shows them reports them.
+    rows: ForEachRef<K, NodeId>,
+    /// Counts the moves the `TabStrip` makes (a drag, a drop, a step): rows glide only for an
+    /// order or gap changed by one, so an order changed for any other reason snaps, as any
+    /// list does.
+    moves: Signal<u64>,
+    board: Rc<Board>,
+    gone: Cell<bool>,
+    returning: Cell<bool>,
+    settling: Cell<bool>,
+    area: Cell<Option<NodeId>>,
+}
+
+pub struct TabStripHandle<K: 'static, P: 'static> {
+    state: Stored<State<K, P>>,
+    /// Each key's place in `order`.
+    places: Memo<Rc<HashMap<K, usize>>>,
+    pub order: Memo<Vec<K>>,
+    /// Hand this to the `ForEach` or `VirtualList` that shows `order`, as its `handle`: it is
+    /// how the list finds its rows.
+    pub rows: ForEachRef<K, NodeId>,
+    pub direction: Prop<Direction>,
+}
+
+impl<K, P> Clone for TabStripHandle<K, P> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<K, P> Copy for TabStripHandle<K, P> {}
+
+impl<K, P> TabStripHandle<K, P>
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    pub fn hover(&self, point: Option<DragPoint>) {
+        visit(self.state, None, point);
+    }
+
+    pub fn drop_at(&self, payload: P, point: DragPoint) {
+        dropped_in(self.state, payload, point);
+    }
+}
+
+fn along(direction: Direction, pos: Pos2) -> f32 {
+    direction.main(pos.to_vec2())
+}
+
+fn can_drag<K: Clone, P>(state: &State<K, P>, key: &K) -> bool {
+    !state.disabled.get_untracked() && state.payload.call(key.clone()).is_some()
+}
+
+/// Marks a move the `TabStrip` makes, so the rows it moves glide.
+fn mark_move<K, P>(state: &State<K, P>) {
+    state.moves.update(|moves| *moves += 1);
+}
+
+/// Each shown row's key, glide node, inner glide node and glide api, in the order shown.
+/// Walks the rows the list built, not every key it has.
+fn shown_glides<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+) -> Vec<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    let mut shown = Vec::new();
+    state.rows.for_each_row(|row| {
+        for node in &row.nodes {
+            if let Some((inner, glide)) = glides.get(node) {
+                shown.push((row.key.clone(), *node, *inner, *glide));
+            }
+        }
+    });
+    shown
+}
+
+fn glide_of<K: Clone + PartialEq, P>(
+    state: &State<K, P>,
+    key: &K,
+) -> Option<(K, NodeId, NodeId, GlideApi)> {
+    let glides = state.glides.borrow();
+    state.rows.nodes_of(key).into_iter().find_map(|node| {
+        let (inner, glide) = glides.get(&node)?;
+        Some((key.clone(), node, *inner, *glide))
+    })
+}
+
+fn resting(glide: GlideApi, inner: NodeId) -> Option<Rect> {
+    let rect = measure(inner).get_untracked()?.rect;
+    Some(rect.translate(-glide.displacement()))
+}
+
+fn hold<K: Clone + PartialEq, P: Clone>(state: &State<K, P>, held: bool) {
+    let Some(lifted) = state.lifted.get_untracked() else {
+        return;
+    };
+    let Some((.., glide)) = glide_of(state, &lifted.key) else {
+        return;
+    };
+    let point = *state.point.borrow();
+    let direction = state.direction.get_untracked();
+    let hold = point
+        .filter(|_| held && lifted.home)
+        .map(|point| GlideHold {
+            at: clamped(state, point.pos + lifted.item.min.to_vec2(), lifted.item),
+            along: Some(direction),
+        });
+    glide.hold(hold);
+}
+
+fn spans<K, P>(state: &State<K, P>, except: Option<&K>) -> Vec<(f32, f32)>
+where
+    K: Clone + PartialEq,
+{
+    let direction = state.direction.get_untracked();
+    let mut spans: Vec<(f32, f32)> = shown_glides(state)
+        .iter()
+        .filter(|(key, ..)| except != Some(key))
+        .filter_map(|(_, outer, ..)| {
+            measure(*outer)
+                .get_untracked()
+                .map(|measured| measured.rect)
+        })
+        .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
+        .collect();
+    spans.sort_by(|left, right| left.0.total_cmp(&right.0));
+    spans
+}
+
+fn clamped<K, P>(state: &State<K, P>, at: Pos2, item: Rect) -> Pos2 {
+    let Some(area) = state
+        .area
+        .get()
+        .and_then(|area| measure(area).get_untracked())
+        .map(|measured| measured.rect)
+    else {
+        return at;
+    };
+    let direction = state.direction.get_untracked();
+    let low = along(direction, area.min);
+    let high = (along(direction, area.max) - direction.main(item.size())).max(low);
+    match direction {
+        Direction::Horizontal => Pos2::new(at.x.clamp(low, high), at.y),
+        Direction::Vertical => Pos2::new(at.x, at.y.clamp(low, high)),
+    }
+}
+
+fn spacing<K: Clone + PartialEq, P>(state: &State<K, P>) -> f32 {
+    spans(state, None)
+        .windows(2)
+        .map(|pair| pair[1].0 - pair[0].1)
+        .filter(|between| *between >= 0.0)
+        .reduce(f32::min)
+        .unwrap_or(0.0)
+}
+
+fn slot_size<K: Clone + PartialEq, P>(state: &State<K, P>, key: &K) -> f32 {
+    let direction = state.direction.get_untracked();
+    let Some((start, end)) = glide_of(state, key)
+        .and_then(|(_, outer, ..)| measure(outer).get_untracked().map(|measured| measured.rect))
+        .map(|rect| (along(direction, rect.min), along(direction, rect.max)))
+    else {
+        return 0.0;
+    };
+    let others = spans(state, Some(key));
+    match others.iter().find(|span| span.0 >= end) {
+        Some(next) => next.0 - start,
+        None => {
+            let previous = others
+                .iter()
+                .filter(|span| span.1 <= start)
+                .map(|span| span.1)
+                .reduce(f32::max);
+            end - previous.unwrap_or(start)
+        }
+    }
+}
+
+fn carried_size<K: Clone + PartialEq, P>(state: &State<K, P>, point: DragPoint) -> f32 {
+    state.direction.get_untracked().main(point.item.size()) + spacing(state)
+}
+
+fn shown_keys<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Vec<K> {
+    let keys = state.keys.get_untracked();
+    match state.lifted.get_untracked() {
+        Some(lifted) => rest_of(&keys, &lifted.key),
+        None => keys,
+    }
+}
+
+fn shown_at<K: Clone + PartialEq, P: Clone>(state: &State<K, P>) -> Option<Pos2> {
+    let lifted = state.lifted.get_untracked()?;
+    let point = (*state.point.borrow())?;
+    let at = point.pos + lifted.item.min.to_vec2();
+    let resting = glide_of(state, &lifted.key)
+        .and_then(|(_, glide, ..)| measure(glide).get_untracked().map(|measured| measured.rect));
+    Some(match (lifted.home, resting) {
+        (true, Some(resting)) => match state.direction.get_untracked() {
+            Direction::Horizontal => Pos2::new(at.x, resting.min.y),
+            Direction::Vertical => Pos2::new(resting.min.x, at.y),
+        },
+        _ => at,
+    })
+}
+
+fn slot_at<K: Clone + Eq + Hash, P>(
+    state: &State<K, P>,
+    rest: &[K],
+    own: Option<&K>,
+    span: (f32, f32),
+    fallback: usize,
+    full: f32,
+) -> usize {
+    let direction = state.direction.get_untracked();
+    let glides = shown_glides(state);
+    let places: HashMap<&K, usize> = rest.iter().enumerate().map(|(at, key)| (key, at)).collect();
+    let mut mounted: Vec<(f32, usize)> = Vec::new();
+    let mut split = f32::INFINITY;
+    let mut opened = 0.0;
+    for (key, outer, inner, glide) in glides.iter() {
+        let Some(rect) = resting(*glide, *inner) else {
+            continue;
+        };
+        if own == Some(key) {
+            split = split.min(along(direction, rect.center()));
+            continue;
+        }
+        let Some(&index) = places.get(key) else {
+            continue;
+        };
+        let start = along(direction, rect.min);
+        let lead = measure(*outer)
+            .get_untracked()
+            .map(|measured| measured.rect)
+            .map_or(start, |row| along(direction, row.min));
+        if lead < start {
+            split = split.min(lead);
+            opened = start - lead;
+        }
+        mounted.push((along(direction, rect.center()), index));
+    }
+    mounted.sort_by(|left, right| left.0.total_cmp(&right.0));
+    let (low, high) = span;
+    let passed = |(middle, _): &(f32, usize)| match *middle < split {
+        true => low >= *middle,
+        false => high >= *middle - opened + full,
+    };
+    if let Some((_, index)) = mounted.iter().find(|entry| !passed(entry)) {
+        return *index;
+    }
+    match mounted.last() {
+        Some((_, index)) => index + 1,
+        None if rest.is_empty() => 0,
+        None => fallback.min(rest.len()),
+    }
+}
+
+fn span_of(direction: Direction, point: DragPoint) -> (f32, f32) {
+    let rect = point.item.translate(point.pos.to_vec2());
+    (along(direction, rect.min), along(direction, rect.max))
+}
+
+fn rest_of<K: Clone + PartialEq>(keys: &[K], key: &K) -> Vec<K> {
+    keys.iter().filter(|shown| *shown != key).cloned().collect()
+}
+
+fn announce<K: Clone, P>(state: &State<K, P>, key: &K, index: usize, count: usize) {
+    let name = match state.text.is_empty() {
+        true => "Item".to_owned(),
+        false => state.text.call(key.clone()),
+    };
+    state
+        .announcement
+        .set(format!("{name} moved to position {} of {count}", index + 1));
+}
+
+fn place<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    stored.with(|state| {
+        *state.point.borrow_mut() = Some(point);
+        let Some(mut lifted) = state.lifted.get_untracked().filter(|lifted| lifted.home) else {
+            return;
+        };
+        if !state.fixed.get_untracked() {
+            let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
+            let direction = state.direction.get_untracked();
+            let span = span_of(direction, point);
+            let slot = slot_at(state, &rest, Some(&lifted.key), span, lifted.slot, 0.0);
+            if lifted.slot != slot {
+                lifted.slot = slot;
+                mark_move(state);
+                state.lifted.set(Some(lifted));
+            }
+        }
+        hold(state, true);
+    });
+}
+
+fn visit<K, P>(stored: Stored<State<K, P>>, payload: Option<P>, point: Option<DragPoint>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let (own, gap) = stored.with(|state| {
+        state.settling.set(false);
+        let own = state.lifted.with_untracked(Option::is_some);
+        let gap = point.and_then(|point| {
+            let keys = shown_keys(state);
+            let size = carried_size(state, point);
+            let index = match state.fixed.get_untracked() {
+                true => sorted_slot(state, payload)?,
+                false => {
+                    let span = span_of(state.direction.get_untracked(), point);
+                    slot_at(state, &keys, None, span, keys.len(), size)
+                }
+            };
+            Some(TabGap {
+                before: keys.get(index).cloned(),
+                size,
+            })
+        });
+        (own, gap)
+    });
+    open_gap(stored, point.is_some() && !own, gap);
+}
+
+fn sorted_slot<K: Clone + PartialEq, P: Clone + PartialEq>(
+    state: &State<K, P>,
+    payload: Option<P>,
+) -> Option<usize> {
+    let lifted = state.lifted.get_untracked();
+    if let Some(lifted) =
+        lifted.filter(|lifted| payload.as_ref().is_none_or(|p| *p == lifted.payload))
+    {
+        return Some(lifted.slot);
+    }
+    let index = state.slot?.call(payload?)?;
+    Some(index.min(shown_keys(state).len()))
+}
+
+fn open_gap<K, P>(stored: Stored<State<K, P>>, visited: bool, gap: Option<TabGap<K>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let frames = stored.with(|state| {
+        state.visited.set(visited);
+        let aim = gap.as_ref().map_or(0.0, |gap| gap.size);
+        match (gap, state.gap.get_untracked()) {
+            (Some(gap), Some(shown)) if gap.before != shown.before => {
+                mark_move(state);
+                state.gap.set(Some(TabGap {
+                    before: gap.before,
+                    size: shown.size,
+                }));
+            }
+            (Some(gap), None) => state.gap.set(Some(TabGap {
+                before: gap.before,
+                size: 0.0,
+            })),
+            _ => {}
+        }
+        state.aim.set(aim);
+        let shown = state
+            .gap
+            .with_untracked(|shown| shown.as_ref().map_or(0.0, |shown| shown.size));
+        (shown != aim).then(|| state.frames.get()).flatten()
+    });
+    if let Some(frames) = frames {
+        frames.start();
+    }
+}
+
+fn shut<K: Clone + PartialEq, P>(state: &State<K, P>) {
+    state.aim.set(0.0);
+    state.speed.set(0.0);
+    if state.gap.with_untracked(Option::is_some) {
+        state.gap.set(None);
+    }
+}
+
+fn step_gap<K, P>(stored: Stored<State<K, P>>, seconds: f32) -> bool
+where
+    K: Clone + PartialEq + 'static,
+    P: 'static,
+{
+    stored
+        .try_with(|state| {
+            let Some(mut shown) = state.gap.get_untracked() else {
+                return false;
+            };
+            let aim = state.aim.get();
+            let mut offset = shown.size - aim;
+            let mut speed = state.speed.get();
+            state.spring.advance(&mut offset, &mut speed, seconds);
+            state.speed.set(speed);
+            shown.size = (aim + offset).max(0.0);
+            let moving = offset != 0.0 || speed != 0.0;
+            state.gap.set((moving || aim > 0.0).then_some(shown));
+            moving
+        })
+        .unwrap_or(false)
+}
+
+fn settle_gap<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let back = stored.try_with(|state| {
+        state.speed.set(0.0);
+        let aim = state.aim.get();
+        if let Some(mut shown) = state.gap.get_untracked()
+            && shown.size != aim
+        {
+            shown.size = aim;
+            state.gap.set((aim > 0.0).then_some(shown));
+        }
+        state.returning.replace(false)
+    });
+    if back == Some(true) {
+        come_back(stored);
+    }
+}
+
+fn come_back<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    stored.with(|state| shut(state));
+    finish(stored);
+}
+
+fn cancel<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let home = stored.with(|state| {
+        state.pressed.borrow_mut().take();
+        state.board.release();
+        let lifted = state
+            .lifted
+            .get_untracked()
+            .filter(|lifted| !lifted.home && lifted.size > 0.0)?;
+        let keys = state.keys.get_untracked();
+        let at = keys.iter().position(|key| *key == lifted.key)?;
+        let rest = rest_of(&keys, &lifted.key);
+        state.returning.set(true);
+        Some(TabGap {
+            before: rest.get(at).cloned(),
+            size: lifted.size,
+        })
+    });
+    let Some(home) = home else {
+        come_back(stored);
+        return;
+    };
+    open_gap(stored, false, Some(home));
+    let waiting = stored.with(|state| {
+        state.returning.get() && state.frames.get().is_some_and(|frames| frames.running())
+    });
+    if !waiting && stored.with(|state| state.returning.replace(false)) {
+        come_back(stored);
+    }
+}
+
+fn detach<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let frames = stored.with(|state| {
+        let mut lifted = state.lifted.get_untracked().filter(|lifted| lifted.home)?;
+        let rest = rest_of(&state.keys.get_untracked(), &lifted.key);
+        let size = slot_size(state, &lifted.key);
+        hold(state, false);
+        lifted.home = false;
+        lifted.size = size;
+        state.floating_at.set(*state.point.borrow());
+        let before = rest.get(lifted.slot).cloned();
+        state.lifted.set(Some(lifted));
+        state.aim.set(0.0);
+        state.speed.set(0.0);
+        state
+            .gap
+            .set((size > 0.0).then_some(TabGap { before, size }));
+        state.frames.get()
+    });
+    if let Some(frames) = frames {
+        frames.start();
+    }
+}
+
+fn finish<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    stored.with(|state| {
+        let Some(lifted) = state.lifted.get_untracked() else {
+            return;
+        };
+        hold(state, false);
+        if !lifted.home
+            && let Some(at) = shown_at(state)
+        {
+            *state.arrival.borrow_mut() = Some(Arrival::Back(lifted.key.clone(), at));
+        }
+        mark_move(state);
+        if state.pressed.borrow_mut().take().is_some() {
+            state.board.release();
+        }
+        state.floating_at.set(None);
+        state.lifted.set(None);
+        state.on_drag_change.call(None);
+    });
+}
+
+fn dropped_home<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    place(stored, point);
+    let commit = stored.with(|state| {
+        let lifted = state.lifted.get_untracked()?;
+        let keys = state.keys.get_untracked();
+        let rest = rest_of(&keys, &lifted.key);
+        let slot = lifted.slot.min(rest.len());
+        let from = keys.iter().position(|key| *key == lifted.key);
+        announce(state, &lifted.key, slot, keys.len());
+        (from != Some(slot)).then(|| TabMove {
+            payload: lifted.payload.clone(),
+            key: Some(lifted.key.clone()),
+            after: slot.checked_sub(1).and_then(|at| rest.get(at).cloned()),
+            index: slot,
+        })
+    });
+    if let Some(commit) = commit {
+        stored.with(|state| state.on_move.call(commit));
+    }
+    finish(stored);
+}
+
+fn dropped_in<K, P>(stored: Stored<State<K, P>>, payload: P, point: DragPoint)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let commit = stored.with(|state| {
+        let keys = state.keys.get_untracked();
+        let own = state.lifted.get_untracked().map(|lifted| lifted.key);
+        let rest = match &own {
+            Some(own) => rest_of(&keys, own),
+            None => keys.clone(),
+        };
+        let from = own
+            .as_ref()
+            .and_then(|own| keys.iter().position(|key| key == own));
+        let direction = state.direction.get_untracked();
+        let fixed = state.fixed.get_untracked();
+        let sorted = fixed
+            .then(|| sorted_slot(state, Some(payload.clone())))
+            .flatten();
+        let index = match (fixed, sorted) {
+            (true, Some(index)) => index,
+            (true, None) => from.unwrap_or(0),
+            (false, _) => {
+                let size = carried_size(state, point);
+                let span = span_of(direction, point);
+                slot_at(state, &rest, None, span, rest.len(), size)
+            }
+        };
+        let at = point.pos + point.item.min.to_vec2();
+        *state.arrival.borrow_mut() = Some(match &own {
+            Some(own) => Arrival::Back(own.clone(), at),
+            None => Arrival::New(keys.clone(), at),
+        });
+        let held = (own.is_none() && sorted.is_some()).then(|| TabGap {
+            before: rest.get(index).cloned(),
+            size: carried_size(state, point),
+        });
+        if held.is_none() {
+            shut(state);
+        }
+        state.visited.set(false);
+        mark_move(state);
+        if let Some(own) = &own {
+            announce(state, own, index, keys.len());
+        }
+        let commit = (from != Some(index)).then(|| TabMove {
+            payload,
+            key: own,
+            after: index.checked_sub(1).and_then(|at| rest.get(at).cloned()),
+            index,
+        });
+        (commit, held)
+    });
+    let (commit, held) = commit;
+    if let Some(held) = held {
+        open_gap(stored, false, Some(held));
+        stored.with(|state| state.settling.set(true));
+    }
+    if let Some(commit) = commit {
+        stored.with(|state| state.on_move.call(commit));
+    }
+}
+
+fn step<K, P>(stored: Stored<State<K, P>>, key: K, by: isize) -> bool
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let commit = stored.with(|state| {
+        if !can_drag(state, &key)
+            || state.fixed.get_untracked()
+            || state.lifted.with_untracked(Option::is_some)
+        {
+            return None;
+        }
+        let keys = state.keys.get_untracked();
+        let from = keys.iter().position(|shown| *shown == key)?;
+        let to = from.saturating_add_signed(by).min(keys.len() - 1);
+        if to == from {
+            return None;
+        }
+        let rest = rest_of(&keys, &key);
+        mark_move(state);
+        state.raised.set(Some(key.clone()));
+        announce(state, &key, to, keys.len());
+        Some(TabMove {
+            payload: state.payload.call(key.clone())?,
+            key: Some(key.clone()),
+            after: to.checked_sub(1).and_then(|at| rest.get(at).cloned()),
+            index: to,
+        })
+    });
+    let Some(commit) = commit else {
+        return false;
+    };
+    stored.with(|state| state.on_move.call(commit));
+    true
+}
+
+fn lift<K, P>(stored: Stored<State<K, P>>, press: Press<K>, point: DragPoint)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    if stored.with(|state| state.returning.replace(false)) {
+        come_back(stored);
+    }
+    let Some((payload, board)) = stored.with(|state| {
+        if !can_drag(state, &press.key) || state.board.carrying() {
+            return None;
+        }
+        let payload = state.payload.call(press.key.clone())?;
+        let keys = state.keys.get_untracked();
+        let slot = keys.iter().position(|key| *key == press.key)?;
+        state.arrival.borrow_mut().take();
+        *state.point.borrow_mut() = Some(point);
+        state.raised.set(Some(press.key.clone()));
+        state.lifted.set(Some(Lifted {
+            key: press.key.clone(),
+            payload: payload.clone(),
+            item: press.item,
+            home: true,
+            slot,
+            size: 0.0,
+        }));
+        state.on_drag_change.call(Some(press.key.clone()));
+        Some((payload, state.board.clone()))
+    }) else {
+        return;
+    };
+    if stored.with(|state| state.fixed.get_untracked()) {
+        detach(stored);
+    }
+    board.begin(
+        DragSource {
+            item: press.item,
+            follow: Rc::new(move |point: DragPoint| {
+                stored.with(|state| {
+                    *state.point.borrow_mut() = Some(point);
+                    let home = state
+                        .lifted
+                        .with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
+                    if !home {
+                        state.floating_at.set(Some(point));
+                    }
+                });
+            }),
+            floating: Rc::new(move |floating: bool| {
+                if floating {
+                    detach(stored);
+                }
+            }),
+            outside: Rc::new(move |point: DragPoint| {
+                let key =
+                    stored.with(|state| state.lifted.get_untracked().map(|lifted| lifted.key));
+                finish(stored);
+                if let Some(key) = key {
+                    stored.with(|state| state.on_drop_outside.call((key, point)));
+                }
+            }),
+            cancelled: Rc::new(move || {
+                if stored.try_with(|state| state.gone.get()) != Some(false) {
+                    return;
+                }
+                cancel(stored);
+            }),
+            dropped: Rc::new(move || {
+                if stored.try_with(|state| state.gone.get()) == Some(false) {
+                    finish(stored);
+                }
+            }),
+            ..DragSource::new(Rc::new(payload))
+        },
+        point,
+    );
+}
+
+fn moved<K, P>(stored: Stored<State<K, P>>, point: DragPoint)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let (lifted, press) = stored.with(|state| {
+        (
+            state.lifted.with_untracked(Option::is_some),
+            state.pressed.borrow().clone(),
+        )
+    });
+    if lifted {
+        stored.with(|state| state.board.track(point));
+        return;
+    }
+    let Some(press) = press else {
+        return;
+    };
+    let threshold = match press.touched {
+        true => TOUCH_DRAG_THRESHOLD,
+        false => DRAG_THRESHOLD,
+    };
+    if (point.pos - press.origin).length() < threshold {
+        return;
+    }
+    lift(stored, press, point);
+}
+
+fn released<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let board = stored.with(|state| {
+        state.pressed.borrow_mut().take();
+        state.board.release();
+        state
+            .lifted
+            .with_untracked(Option::is_some)
+            .then(|| state.board.clone())
+    });
+    if let Some(board) = board {
+        board.finish();
+    }
+    if stored.with(|state| state.lifted.with_untracked(Option::is_some)) {
+        finish(stored);
+    }
+}
+
+fn pointer_cancelled<K, P>(stored: Stored<State<K, P>>)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let board = stored.with(|state| {
+        state.pressed.borrow_mut().take();
+        state.board.release();
+        state
+            .lifted
+            .with_untracked(Option::is_some)
+            .then(|| state.board.clone())
+    });
+    if let Some(board) = board {
+        board.cancel();
+    }
+}
+
+#[component]
+pub fn TabStrip<K, P>(
+    value: Prop<Vec<K>>,
+    spring: Spring,
+    #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    payload: Func<K, Option<P>>,
+    accepts: Option<Func<P, bool>>,
+    takes: Option<Func<DragPoint, Take>>,
+    #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] fixed: Prop<bool>,
+    slot: Option<Func<P, Option<usize>>>,
+    #[prop(default = false)] long_press: Prop<bool>,
+    text: Callback<K, String>,
+    on_move: Callback<TabMove<K, P>>,
+    on_drag_change: Callback<Option<K>>,
+    on_drop_outside: Callback<(K, DragPoint)>,
+    preview: RenderFn<P, NodeId>,
+    #[prop(children)] content: Render<TabStripHandle<K, P>, NodeId>,
+) -> NodeId
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let keys = create_memo(move || value.get());
+    let lifted = create_signal(None::<Lifted<K, P>>);
+    let gap = create_signal(None::<TabGap<K>>);
+    let visited = create_signal(false);
+    let floating_at = create_signal(None::<DragPoint>);
+    let announcement = create_signal(String::new());
+    let state = store(State {
+        spring,
+        keys,
+        direction,
+        payload,
+        accepts,
+        disabled,
+        fixed,
+        slot,
+        long_press,
+        text,
+        on_move,
+        on_drag_change,
+        on_drop_outside,
+        lifted,
+        gap,
+        aim: Cell::new(0.0),
+        speed: Cell::new(0.0),
+        frames: Cell::new(None),
+        visited,
+        raised: create_signal(None),
+        floating_at,
+        announcement,
+        point: RefCell::new(None),
+        pressed: RefCell::new(None),
+        arrival: RefCell::new(None),
+        glides: RefCell::new(HashMap::default()),
+        rows: ForEachRef::new(),
+        moves: create_signal(0),
+        board: drag_board(),
+        gone: Cell::new(false),
+        returning: Cell::new(false),
+        settling: Cell::new(false),
+        area: Cell::new(None),
+    });
+    let placed = create_memo(move || {
+        lifted.with(|lifted| {
+            lifted
+                .as_ref()
+                .map(|lifted| (lifted.key.clone(), lifted.home, lifted.slot))
+        })
+    });
+    let order = create_memo(move || {
+        let keys = keys.get();
+        match placed.get() {
+            Some((key, home, slot)) if keys.contains(&key) => {
+                let mut rest = rest_of(&keys, &key);
+                if home {
+                    rest.insert(slot.min(rest.len()), key);
+                }
+                rest
+            }
+            _ => keys,
+        }
+    });
+    let frames = create_animation(
+        move |frame| step_gap(state, frame.delta.as_secs_f32()),
+        move || settle_gap(state),
+    );
+    state.with(|state| state.frames.set(Some(frames)));
+    // Each key's place in `order`, made once per order rather than by each row.
+    let places = create_memo(move || {
+        order.with(|order| {
+            let mut places = HashMap::<K, usize>::default();
+            for (at, key) in order.iter().enumerate() {
+                places.entry(key.clone()).or_insert(at);
+            }
+            Rc::new(places)
+        })
+    });
+    create_effect(move || {
+        keys.track();
+        state.with(|state| {
+            if state.settling.replace(false) {
+                shut(state);
+            }
+        });
+    });
+    let handle = TabStripHandle {
+        state,
+        places,
+        order,
+        rows: state.with(|state| state.rows),
+        direction,
+    };
+    on_cleanup(move || {
+        let carried = state.try_with(|state| {
+            state.gone.set(true);
+            if state.pressed.borrow_mut().take().is_some() {
+                state.board.release();
+            }
+            state
+                .lifted
+                .with_untracked(Option::is_some)
+                .then(|| state.board.clone())
+        });
+        if let Some(Some(board)) = carried {
+            board.end(None);
+        }
+    });
+
+    let face = content.call(handle);
+    let floating = create_memo(move || floating_at.with(Option::is_some));
+    let anchor = create_memo(move || {
+        let item = lifted.with(|lifted| lifted.as_ref().map_or(Rect::ZERO, |lifted| lifted.item));
+        floating_at
+            .get()
+            .map_or(Pos2::ZERO, |point| point.pos + item.min.to_vec2())
+    })
+    .into_prop()
+    .map(OverlayAnchor::Point);
+    let shown_in = create_memo(move || floating_at.get().map(|point| point.window));
+    let accepting = Func::new(move |payload: P| {
+        state.with(|state| {
+            state.lifted.with_untracked(Option::is_some)
+                || (!state.disabled.get_untracked()
+                    && state.accepts.is_some_and(|accepts| accepts.call(payload)))
+        })
+    });
+    let taking =
+        Func::new(move |point: DragPoint| takes.map_or(Take::Drop, |takes| takes.call(point)));
+    let home =
+        move || lifted.with_untracked(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home));
+    let hides = create_memo(move || {
+        lifted.with(|lifted| lifted.as_ref().is_some_and(|lifted| lifted.home))
+    });
+    let holding =
+        Func::new(move |_: P| home() && state.with(|state| state.on_drop_outside.is_empty()));
+    let area = view! {
+        <DropTarget
+            accepts={accepting}
+            takes={taking}
+            hides_preview={hides}
+            holds={holding}
+            on_over={move |over: Option<(P, DragPoint)>| {
+                match (over, home()) {
+                    (Some((_, point)), true) => place(state, point),
+                    (Some((payload, point)), false) => visit(state, Some(payload), Some(point)),
+                    (None, false) => visit(state, None, None),
+                    (None, true) => {}
+                }
+            }}
+            on_drop={move |(payload, point): (P, DragPoint)| {
+                match home() {
+                    true => dropped_home(state, point),
+                    false => dropped_in(state, payload, point),
+                }
+            }}
+        >|_: DropHandle|
+            <Layers>
+                {face}
+                <TabStripStatus announcement={announcement.read_only()} />
+                <Overlay
+                    anchor={anchor}
+                    placement=Placement::BelowStart
+                    policy=LayerPolicy::Inert
+                    level=LayerLevel::Top
+                    traps_focus=false
+                    shown_in={shown_in}
+                    open={floating}
+                >
+                    <Dynamic
+                        value={move || {
+                            lifted.with(|lifted| lifted.as_ref().map(|lifted| lifted.payload.clone()))
+                        }}
+                        fallback={|| view! {
+                            <Frame />
+                        }}
+                    >|carried: P| {
+                        preview.call(carried)
+                    }</Dynamic>
+                </Overlay>
+            </Layers>
+        </DropTarget>
+    };
+    measure(area);
+    state.with(|state| state.area.set(Some(area)));
+    area
+}
+
+#[component]
+fn TabStripStatus(announcement: ReadSignal<String>) -> NodeId {
+    component_accessibility(create_memo(move || {
+        let mut node = Node::new(Role::Status);
+        node.set_live(Live::Polite);
+        let said = announcement.get();
+        if !said.is_empty() {
+            node.set_label(said);
+        }
+        node
+    }));
+    view! {
+        <Frame />
+    }
+}
+
+#[component]
+pub fn TabStripItem<K, P>(
+    reorder: TabStripHandle<K, P>,
+    item: Prop<K>,
+    #[prop(default = false)] capture_presses: Prop<bool>,
+    #[prop(default = CursorIcon::Default)] cursor: Prop<CursorIcon>,
+    on_click: Callback<()>,
+    #[prop(children)] content: Render<TabStripItemHandle, NodeId>,
+) -> NodeId
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let state = reorder.state;
+    let direction = reorder.direction;
+    let key = create_memo(move || item.get());
+    let (lifted_key, raised_key, gap) = state.with(|state| (state.lifted, state.raised, state.gap));
+    let lifted = create_memo(move || {
+        lifted_key.with(|lifted| {
+            lifted
+                .as_ref()
+                .is_some_and(|lifted| lifted.home && key.with(|key| *key == lifted.key))
+        })
+    });
+    let raised =
+        create_memo(move || raised_key.with(|raised| key.with(|key| raised.as_ref() == Some(key))));
+    let draggable = create_memo(move || {
+        state.with(|state| !state.disabled.get() && state.payload.call(key.get()).is_some())
+    });
+    let lead = create_memo(move || {
+        gap.with(|gap| match gap {
+            Some(TabGap {
+                before: Some(before),
+                size,
+            }) if key.with(|key| key == before) => *size,
+            _ => 0.0,
+        })
+    });
+    let order = reorder.order;
+    let places = reorder.places;
+    // A row's glides arm when a move the `TabStrip` makes moves its key in the order, or moves
+    // the gap it holds open past it: rows a gap passes shift with no change of place. A row a
+    // `VirtualList` hands another key has not moved: it shows another row now.
+    let place = create_memo(move || places.with(|places| key.with(|key| places.get(key).copied())));
+    let below_gap = create_memo(move || {
+        gap.with(|gap| match gap {
+            Some(TabGap {
+                before: Some(before),
+                ..
+            }) => {
+                let at = places.with(|places| places.get(before).copied());
+                at.zip(place.get()).is_some_and(|(at, place)| at <= place)
+            }
+            _ => false,
+        })
+    });
+    // The count of moves rides with the place, so a row arms only for a place changed in the
+    // same flush as a move the `TabStrip` made.
+    let shifted = create_trigger();
+    let moves = state.with(|state| state.moves);
+    create_effect_on_change(
+        move || (key.get(), place.get(), below_gap.get(), moves.get()),
+        move |(key, place, gap, moved), (was_key, was_place, was_gap, was_moved)| {
+            if moved != was_moved && key == was_key && (place != was_place || gap != was_gap) {
+                shifted.notify();
+            }
+        },
+    );
+    let arm = Trackable::from(shifted);
+    let trail = create_memo(move || {
+        gap.with(|gap| match gap {
+            Some(TabGap { before: None, size })
+                if order.with(|order| order.last() == Some(&key.get())) =>
+            {
+                *size
+            }
+            _ => 0.0,
+        })
+    });
+    let padding = create_memo(move || match direction.get() {
+        Direction::Horizontal => Sides {
+            left: lead.get(),
+            right: trail.get(),
+            ..Sides::ZERO
+        },
+        Direction::Vertical => Sides {
+            top: lead.get(),
+            bottom: trail.get(),
+            ..Sides::ZERO
+        },
+    });
+    let from = create_signal(None::<Pos2>);
+    create_effect(move || {
+        let key = key.get();
+        let arrived = state.with(|state| {
+            let mut arrival = state.arrival.borrow_mut();
+            let at = match arrival.as_ref() {
+                Some(Arrival::Back(back, at)) if *back == key => Some(*at),
+                Some(Arrival::New(known, at)) if !known.contains(&key) => Some(*at),
+                _ => None,
+            };
+            if at.is_some() {
+                arrival.take();
+                state.raised.set(Some(key.clone()));
+            }
+            at
+        });
+        if let Some(at) = arrived {
+            from.set(Some(at));
+        }
+    });
+    let face = content.call(TabStripItemHandle);
+    let pending: Pending = Rc::new(move |point: DragPoint| moved(state, point));
+    let pressed = move |press: PointerPress| {
+        let key = key.get_untracked();
+        state.with(|state| {
+            if !can_drag(state, &key) {
+                return;
+            }
+            let shown = measure(face).get_untracked().map(|measured| measured.rect);
+            *state.pressed.borrow_mut() = Some(Press {
+                key,
+                origin: press.pos,
+                touched: press.touch,
+                item: shown.map_or(Rect::ZERO, |rect| rect.translate(Pos2::ZERO - press.pos)),
+            });
+            if !press.touch {
+                state.board.press(Rc::clone(&pending));
+            }
+        });
+    };
+    let long_pressed = move |press: PointerPress| {
+        let held = state.with(|state| state.long_press.get_untracked());
+        let Some(pressing) = state.with(|state| state.pressed.borrow().clone()) else {
+            return;
+        };
+        if held {
+            lift(state, pressing, DragPoint::of(press));
+        }
+    };
+    let clicked = move |_: PointerPress| {
+        if state.with(|state| state.lifted.with_untracked(Option::is_none)) {
+            on_click.call(());
+        }
+    };
+    let long_press = state.with(|state| state.long_press);
+    let spring = state.with(|state| state.spring);
+    let on_long_press = match long_press {
+        Prop::Static(false) => Callback::empty(),
+        _ => Callback::new(long_pressed),
+    };
+    let api = ComponentRef::<GlideApi>::new();
+    let inner = view! {
+        <Glide spring on={arm} within={Some(api)}>
+            <Interactive
+                cursor
+                capture_presses
+                touch_drags={move || match draggable.get() {
+                    true => TouchDrags::Along(match direction.get() {
+                        Direction::Horizontal => Direction::Vertical,
+                        Direction::Vertical => Direction::Horizontal,
+                    }),
+                    false => TouchDrags::None,
+                }}
+                on_press={pressed}
+                on_drag={move |press: PointerPress| moved(state, DragPoint::of(press))}
+                on_long_press_drag={on_long_press}
+                on_click_at={clicked}
+                on_cancel={move || pointer_cancelled(state)}
+                on_active_change={move |active: bool| if !active { released(state) }}
+            >
+                {face}
+            </Interactive>
+        </Glide>
+    };
+    let row = NodeRef::new();
+    let glide = view! {
+        <Glide @node_ref=&row api spring on={arm} from={from} raised={raised}>
+            <Frame padding={padding}>{inner}</Frame>
+        </Glide>
+    };
+    for node in [glide, inner, face] {
+        measure(node);
+    }
+    state.with(|state| state.glides.borrow_mut().insert(glide, (inner, api.get())));
+    // A row the list reports with other nodes than this glide is wired wrong: the `TabStrip`
+    // could not find it to measure or glide it.
+    #[cfg(debug_assertions)]
+    {
+        let rows = reorder.rows;
+        create_effect(move || {
+            rows.keys();
+            let key = key.get_untracked();
+            let nodes = rows.nodes_of(&key);
+            debug_assert!(
+                nodes.is_empty() || nodes.contains(&glide),
+                "a TabStripItem's glide is not among the nodes its list reports for its key; hand \
+                 the list the TabStripItem as its row"
+            );
+        });
+    }
+    create_effect(move || {
+        key.track();
+        if untrack(|| lifted.get()) {
+            state.with(|state| hold(state, true));
+        }
+    });
+    on_cleanup(move || {
+        state.try_with(|state| state.glides.borrow_mut().remove(&glide));
+    });
+    on_key(
+        KeyAt::Node(row),
+        KeyPhase::Bubble,
+        KeyReveal::Focus,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if !press.pressed
+                || !press.modifiers.alt
+                || press.modifiers.ctrl
+                || press.modifiers.shift
+            {
+                return false;
+            }
+            let by = match (direction.get_untracked(), press.key) {
+                (Direction::Vertical, Key::ArrowUp) | (Direction::Horizontal, Key::ArrowLeft) => -1,
+                (Direction::Vertical, Key::ArrowDown)
+                | (Direction::Horizontal, Key::ArrowRight) => 1,
+                _ => return false,
+            };
+            step(state, key.get_untracked(), by)
+        },
+    );
+    glide
+}

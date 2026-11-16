@@ -95,13 +95,22 @@ impl ListNode {
         }
     }
 
-    fn gaps(&self, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+    /// The spacing before each child: none before the first that is shown, and none before
+    /// or for a collapsed child, which is laid out as if it were not there.
+    fn gaps(&self, doc: &Document, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+        let mut shown = false;
         self.items
             .iter()
-            .enumerate()
-            .map(|(index, item)| match index {
-                0 => 0.0,
-                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
+            .map(|item| {
+                if doc.arena.get(item.child).collapsed() {
+                    return 0.0;
+                }
+                let gap = match shown {
+                    false => 0.0,
+                    true => grid.snap(item.size.gap.unwrap_or(spacing)),
+                };
+                shown = true;
+                gap
             })
             .collect()
     }
@@ -146,7 +155,7 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(spacing, grid);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut slots = Vec::with_capacity(self.items.len());
         for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
@@ -208,11 +217,15 @@ impl ListNode {
     fn lines(&self, doc: &mut Document, painter: &Painter, available_main: f32) -> Vec<Line> {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(spacing, grid);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut runs: Vec<Vec<(ListEntry, f32, f32)>> = Vec::new();
         let mut run: Vec<(ListEntry, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;
+        // Whether the run holds a child that is shown: a collapsed one neither breaks a line
+        // nor counts as one before the next child's spacing.
+        let mut shown = false;
         for (item, gap) in self.items.iter().zip(gaps) {
+            let collapsed = doc.arena.get(item.child).collapsed();
             let basis = match item.size.size {
                 ItemSize::Fixed(fixed) => grid.snap(fixed.max(0.0)),
                 ItemSize::Intrinsic | ItemSize::Grow(_) => {
@@ -229,12 +242,17 @@ impl ListNode {
                     }
                 }
             };
-            let basis = grid.snap(item.size.clamp(basis));
-            if !run.is_empty() && taken + gap + basis > available_main {
+            let basis = match collapsed {
+                true => 0.0,
+                false => grid.snap(item.size.clamp(basis)),
+            };
+            if shown && !collapsed && taken + gap + basis > available_main {
                 runs.push(std::mem::take(&mut run));
                 taken = 0.0;
+                shown = false;
             }
-            let gap = if run.is_empty() { 0.0 } else { gap };
+            let gap = if shown { gap } else { 0.0 };
+            shown |= !collapsed;
             taken += gap + basis;
             run.push((*item, basis, gap));
         }
@@ -356,7 +374,7 @@ impl Element for ListNode {
 
     fn min_width(&self, doc: &mut Document, painter: &Painter) -> f32 {
         let grid = doc.pixel_grid();
-        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let gaps = self.gaps(doc, grid.snap(self.spacing), grid);
         let in_line = self.direction == Direction::Horizontal && !self.wrap;
         let mut total = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
@@ -398,7 +416,7 @@ impl Element for ListNode {
             return None;
         }
         let grid = doc.pixel_grid();
-        let gaps = self.gaps(grid.snap(self.spacing), grid);
+        let gaps = self.gaps(doc, grid.snap(self.spacing), grid);
         let mut total = 0.0f32;
         for (item, gap) in self.items.iter().zip(gaps) {
             let size = item.size;
