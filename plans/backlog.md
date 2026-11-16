@@ -253,6 +253,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   moves. Done: the cause found from a failing run's output and fixed at its
   source, with a test that shows it.
 
+- **A restarted app's editor that is never sent its snapshot.** When an app restarts,
+  be-host-runtime marks each content link undelivered (`instances.rs`, where it reopens), but
+  if the host attaches the editor again (`attaching`) it does not forward the app's `Resend`
+  (`!(resend && attaching)`), and the replica's `attach` returns early for an editor it has
+  already. Then nothing sends the snapshot, and what waits for the content (a keyboard gift's
+  `Given` stage) waits for good. Done: a restarted app's editor is sent its snapshot in every
+  case, shown by a be-host-runtime test that restarts an app with an editor attached and checks
+  the content counts as delivered.
+
 ## 16. Host test tools
 
 - **Stepping an app's present apart from the poll.** With the clock stopped,
