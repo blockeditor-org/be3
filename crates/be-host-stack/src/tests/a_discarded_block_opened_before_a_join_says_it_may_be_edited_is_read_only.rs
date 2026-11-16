@@ -95,6 +95,9 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
     editor.wait("was sent the counter", |counter| {
         counter.root().value() == 1
     });
+    wait_until("told its editors are read-only", |_| {
+        !crate::access(block).can_edit()
+    });
     editor.operate(Counter::add(6));
     // The replica takes the editor's frames in order, and a flush waits for it to seal.
     flush();
@@ -104,21 +107,38 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
         "an edit to a block whose edits were discarded is refused until a join says it may be edited"
     );
 
+    // The refused edit is undone in the editor by its snapshot.
+    editor.wait("was told its edit was refused", |counter| {
+        counter.root().value() == 1
+    });
     editor.take_received();
     harness.relay().offline(false);
     retry_now();
-    // Opened again on joining, the replica sends its editors their snapshot, now editable.
-    editor.until(
-        "was sent the counter again by the replica the join opened",
-        |editor| {
-            editor
-                .received
-                .iter()
-                .any(|message| matches!(message, be_sdk_type_guest::editor::ToEditor::Snapshot(_)))
-        },
-    );
+    // Opened again on joining, the replica attaches its editors editable, and the block's
+    // access says so: the editor holds its snapshot already, so it is not told it again.
+    wait_until("told its editors may edit once a join said so", |_| {
+        crate::access(block).can_edit()
+    });
+    let snapshots = |received: &[be_sdk_type_guest::editor::ToEditor]| {
+        received
+            .iter()
+            .filter(|message| matches!(message, be_sdk_type_guest::editor::ToEditor::Snapshot(_)))
+            .count()
+    };
     editor.operate(Counter::add(10));
     wait_for_count(block, 11);
+    // The replica tells its editor in order, so a snapshot it sent on reopening comes first.
+    editor.until("was told its edit landed", |editor| {
+        editor
+            .received
+            .iter()
+            .any(|message| matches!(message, be_sdk_type_guest::editor::ToEditor::Operations(_)))
+    });
+    assert_eq!(
+        snapshots(&editor.take_received()),
+        0,
+        "the replica the join opened did not tell the editor again the snapshot it held"
+    );
     flush_and_send();
     let saved = runtime.block_on(async {
         peer.open::<CounterContent>(block)
