@@ -143,11 +143,18 @@ const SCHEMA: &str = "
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
         position        INTEGER NOT NULL,
         entry           BLOB NOT NULL,
-        signer          TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, position)
     );
 
-    CREATE INDEX organization_log_signer ON organization_log (signer);
+    -- Every account the organization's log names keys for (its signers,
+    -- grantees and administrators): a new recovery key retires each in it.
+    CREATE TABLE organization_log_names (
+        organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, account_id)
+    );
+
+    CREATE INDEX organization_log_names_account ON organization_log_names (account_id);
 
     CREATE TABLE memberships (
         organization_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -230,13 +237,22 @@ const SCHEMA: &str = "
         block_id        TEXT NOT NULL,
         position        INTEGER NOT NULL,
         entry           BLOB NOT NULL,
-        signer          TEXT NOT NULL DEFAULT '',
         PRIMARY KEY (organization_id, block_id, position),
         FOREIGN KEY (organization_id, block_id)
             REFERENCES blocks(organization_id, id) ON DELETE CASCADE
     );
 
-    CREATE INDEX access_log_signer ON access_log (signer);
+    -- Every account a block's log names keys for, as organization_log_names.
+    CREATE TABLE access_log_names (
+        organization_id TEXT NOT NULL,
+        block_id        TEXT NOT NULL,
+        account_id      TEXT NOT NULL,
+        PRIMARY KEY (organization_id, block_id, account_id),
+        FOREIGN KEY (organization_id, block_id)
+            REFERENCES blocks(organization_id, id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX access_log_names_account ON access_log_names (account_id);
 
     CREATE INDEX blocks_changed
         ON blocks (organization_id, changed, id);

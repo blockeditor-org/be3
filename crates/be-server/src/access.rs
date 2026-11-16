@@ -72,16 +72,7 @@ pub(crate) fn store_root(
     root: &[u8],
 ) -> Result<(), ServerError> {
     let entry = checked_root(connection, account, LogKind::Block, block, root)?;
-    connection.execute(
-        "INSERT INTO access_log (organization_id, block_id, position, entry, signer)
-         VALUES (?1, ?2, 0, ?3, ?4)",
-        params![
-            organization.to_string(),
-            block.to_string(),
-            entry.encode(),
-            account.to_string()
-        ],
-    )?;
+    insert_entry(connection, LogKind::Block, organization, block, 0, &entry)?;
     Ok(())
 }
 
@@ -119,15 +110,7 @@ pub(crate) fn store_organization_root(
         organization,
         root,
     )?;
-    connection.execute(
-        "INSERT INTO organization_log (organization_id, position, entry, signer)
-         VALUES (?1, 0, ?2, ?3)",
-        params![
-            organization.to_string(),
-            entry.encode(),
-            account.to_string()
-        ],
-    )?;
+    insert_entry(connection, LogKind::Organization, organization, organization, 0, &entry)?;
     Ok(())
 }
 
@@ -178,20 +161,21 @@ fn entries(
         .collect()
 }
 
-/// Every log `account` signed a record in, at its head.
+/// Every log that names keys for `account` (`insert_entry`), at its head: those a new recovery
+/// key retires the old ones in.
 pub(crate) fn signed_logs(
     connection: &Connection,
     account: Uuid,
 ) -> Result<Vec<SignedLog>, ServerError> {
     let mut found = Vec::new();
     let mut statement = connection.prepare_cached(
-        "SELECT DISTINCT organization_id, block_id FROM access_log WHERE signer = ?1",
+        "SELECT organization_id, block_id FROM access_log_names WHERE account_id = ?1",
     )?;
     let blocks: Vec<(String, String)> = statement
         .query_map([account.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))?
         .collect::<Result<_, _>>()?;
     let mut statement = connection.prepare_cached(
-        "SELECT DISTINCT organization_id, organization_id FROM organization_log WHERE signer = ?1",
+        "SELECT organization_id, organization_id FROM organization_log_names WHERE account_id = ?1",
     )?;
     let organizations: Vec<(String, String)> = statement
         .query_map([account.to_string()], |row| Ok((row.get(0)?, row.get(1)?)))?
@@ -216,6 +200,66 @@ pub(crate) fn signed_logs(
         }
     }
     Ok(found)
+}
+
+/// Stores `entry` at `position` of its log, and the accounts it names keys for: its signer, and
+/// the grantee, administrator or creator it names. Each is one a new recovery key must retire
+/// in this log (`signed_logs`), or their old key would keep signing there.
+fn insert_entry(
+    connection: &Connection,
+    kind: LogKind,
+    organization: Uuid,
+    log: Uuid,
+    position: usize,
+    entry: &Entry,
+) -> Result<(), ServerError> {
+    let named = match &entry.record {
+        Record::Root(root) => root.creator,
+        Record::Grant(grant) => grant.grantee,
+        Record::Administrator(administrator) => administrator.account,
+        Record::Retirement(retirement) => retirement.account,
+    };
+    let accounts = [entry.signer, named];
+    match kind {
+        LogKind::Block => {
+            connection.execute(
+                "INSERT INTO access_log (organization_id, block_id, position, entry)
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    organization.to_string(),
+                    log.to_string(),
+                    position,
+                    entry.encode()
+                ],
+            )?;
+            for account in accounts {
+                connection.execute(
+                    "INSERT OR IGNORE INTO access_log_names (organization_id, block_id, account_id)
+                     VALUES (?1, ?2, ?3)",
+                    params![
+                        organization.to_string(),
+                        log.to_string(),
+                        Uuid::from_bytes(account).to_string()
+                    ],
+                )?;
+            }
+        }
+        LogKind::Organization => {
+            connection.execute(
+                "INSERT INTO organization_log (organization_id, position, entry)
+                 VALUES (?1, ?2, ?3)",
+                params![organization.to_string(), position, entry.encode()],
+            )?;
+            for account in accounts {
+                connection.execute(
+                    "INSERT OR IGNORE INTO organization_log_names (organization_id, account_id)
+                     VALUES (?1, ?2)",
+                    params![organization.to_string(), Uuid::from_bytes(account).to_string()],
+                )?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Appends `retirements`, which a new recovery key brings: exactly one for each log `account`
@@ -269,29 +313,7 @@ pub(crate) fn append_retirements(
         entries.push(entry.clone());
         be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_, _| None)
             .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
-        match kind {
-            LogKind::Block => connection.execute(
-                "INSERT INTO access_log (organization_id, block_id, position, entry, signer)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![
-                    log.organization.to_string(),
-                    log.log.to_string(),
-                    position,
-                    entry.encode(),
-                    account.to_string()
-                ],
-            )?,
-            LogKind::Organization => connection.execute(
-                "INSERT INTO organization_log (organization_id, position, entry, signer)
-                 VALUES (?1, ?2, ?3, ?4)",
-                params![
-                    log.organization.to_string(),
-                    position,
-                    entry.encode(),
-                    account.to_string()
-                ],
-            )?,
-        };
+        insert_entry(connection, kind, log.organization, log.log, position, &entry)?;
     }
     Ok(())
 }
@@ -424,17 +446,7 @@ pub(crate) fn append_grant(
     let position = entries.len();
     entries.push(entry.clone());
     checked_block_log(connection, graph, organization, block, &entries)?;
-    connection.execute(
-        "INSERT INTO access_log (organization_id, block_id, position, entry, signer)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![
-            organization.to_string(),
-            block.to_string(),
-            position,
-            entry.encode(),
-            signer.to_string()
-        ],
-    )?;
+    insert_entry(connection, LogKind::Block, organization, block, position, &entry)?;
     Ok(())
 }
 
@@ -501,15 +513,6 @@ pub(crate) fn append_administrator(
         &|_, _| None,
     )
     .map_err(|_| refused("the record does not follow the log it goes in"))?;
-    connection.execute(
-        "INSERT INTO organization_log (organization_id, position, entry, signer)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![
-            organization.to_string(),
-            position,
-            entry.encode(),
-            signer.to_string()
-        ],
-    )?;
+    insert_entry(connection, LogKind::Organization, organization, organization, position, &entry)?;
     Ok(())
 }
