@@ -475,6 +475,12 @@ impl KeyBook {
         }
     }
 
+    /// The block `key` is a key of, as this device minted or opened it (`CarriedKey`, bound
+    /// inside the seal), never the server's row: none for a key it cannot place.
+    pub fn block_of(&self, key: Uuid) -> Option<Uuid> {
+        self.roots.lock().unwrap().blocks.get(&key).copied()
+    }
+
     /// The root this device holds for `block`'s access log: from making it, or carried by a
     /// trusted key of it. None while it holds none, or when its keys carried different roots.
     pub fn root(&self, block: Uuid) -> Option<EntryHash> {
