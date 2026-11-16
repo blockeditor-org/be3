@@ -115,6 +115,32 @@ impl Server {
             });
     }
 
+    /// Adds `joiner` to the organization named `name` that `of` belongs to, as an editor,
+    /// straight into the server's data: a member no administrator's device signed into the
+    /// organization's log (plans/signed_access.md, 3a-members).
+    pub fn add_member(&self, of: &Account, name: &str, joiner: &Account) {
+        let store = &self.inner.store;
+        self.inner
+            .runtime
+            .block_on(async {
+                let organization = store
+                    .list_organizations(of.id)
+                    .await?
+                    .into_iter()
+                    .find(|organization| organization.name == name)
+                    .map(|organization| organization.id)
+                    .expect("the account belongs to an organization of that name");
+                store
+                    .add_member(
+                        organization,
+                        joiner.id,
+                        be_block_protocol::OrganizationRole::Editor,
+                    )
+                    .await
+            })
+            .unwrap_or_else(|error| panic!("the test server could not add the member: {error}"));
+    }
+
     /// A network of its own for one device, carrying its connections to the server.
     pub(crate) fn relay(&self) -> Arc<Relay> {
         let relay = Arc::new(Relay::start(self.inner.running.address));

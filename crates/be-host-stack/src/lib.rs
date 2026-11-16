@@ -2111,7 +2111,15 @@ pub fn leave(block: Uuid, reply: impl FnOnce(Result<(), String>) + Send + 'stati
     });
 }
 
-type MembersReply = Box<dyn FnOnce(Result<Vec<be_block_protocol::Member>, String>) + Send>;
+type MembersReply = Box<dyn FnOnce(Result<MemberList, String>) + Send>;
+
+/// The organization's members, and those of them no record in its log signed in yet
+/// (`Peer::unsigned_members`): every such member, to an administrator.
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+pub struct MemberList {
+    pub members: Vec<be_block_protocol::Member>,
+    pub unsigned: Vec<Uuid>,
+}
 
 pub fn list_members(reply: MembersReply) {
     send(Command::Members(worker::MembersCommand::List(
@@ -2123,6 +2131,15 @@ pub fn set_role(account: Uuid, role: be_block_protocol::OrganizationRole, reply:
     send(Command::Members(worker::MembersCommand::SetRole {
         account,
         role,
+        reply: replies::expect(reply),
+    }));
+}
+
+/// Signs `account`, a member no record signed in yet, into the organization's log, with the
+/// keys this device verified for it as a contact.
+pub fn sign_in_member(account: Uuid, reply: MembersReply) {
+    send(Command::Members(worker::MembersCommand::SignIn {
+        account,
         reply: replies::expect(reply),
     }));
 }
@@ -2161,11 +2178,10 @@ pub async fn remove_agent(agent: Uuid) -> Result<Vec<be_block_protocol::Agent>, 
     own_agents(listed.await.unwrap_or_else(|_| Err(NOT_OPEN.to_owned()))?)
 }
 
-fn own_agents(
-    members: Vec<be_block_protocol::Member>,
-) -> Result<Vec<be_block_protocol::Agent>, String> {
+fn own_agents(listed: MemberList) -> Result<Vec<be_block_protocol::Agent>, String> {
     let me = account().ok_or_else(|| NOT_OPEN.to_owned())?;
-    Ok(members
+    Ok(listed
+        .members
         .into_iter()
         .filter(|member| member.created_by == Some(me) && member.bound_to.is_none())
         .map(|member| be_block_protocol::Agent {

@@ -324,6 +324,7 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                     let account = row.with_untracked(|row| row.account);
                     let name = create_memo(move || row.get().name);
                     let detail = create_memo(move || row.get().detail);
+                    let unsigned = create_memo(move || row.get().unsigned);
                     let next_role = move || match row.get_untracked().administrator {
                         true => OrganizationRole::Editor,
                         false => OrganizationRole::Administrator,
@@ -334,8 +335,22 @@ fn MembersPanel(view: HostUiStore) -> NodeId {
                                 <List spacing=Space::Xs2>
                                     <Text>{name}</Text>
                                     <Text style=TextStyle::CAPTION>{detail}</Text>
+                                    <Show value={unsigned}>
+                                        <Text style=TextStyle::CAPTION>
+                                            "Not signed in: no administrator has vouched for their keys yet, so what they write is not escrowed."
+                                        </Text>
+                                    </Show>
                                 </List>
                             </ListItem>
+                            <Show value={unsigned}>
+                                <Button
+                                    label="Sign in"
+                                    variant=ButtonVariant::Secondary
+                                    disabled={move || busy.get()}
+                                    @test_id={format!("host.members.sign-in.{account}")}
+                                    on_click={move || send(UiCommand::SignInMember(account))}
+                                />
+                            </Show>
                             <Button
                                 label={move || match row.get().administrator {
                                     true => "Make editor".to_owned(),

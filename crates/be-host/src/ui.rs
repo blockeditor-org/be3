@@ -298,6 +298,8 @@ pub(crate) struct MemberRow {
     pub(crate) administrator: bool,
     pub(crate) me: bool,
     pub(crate) agent: bool,
+    /// No record in the organization's log signed them in yet (signed access 3a-members).
+    pub(crate) unsigned: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -456,6 +458,7 @@ pub(crate) enum UiCommand {
     OpenMembers,
     CloseMembers,
     SetMemberRole(Uuid, OrganizationRole),
+    SignInMember(Uuid),
     RemoveMember(Uuid),
     ConfirmRemoveMember,
     CancelRemoveMember,

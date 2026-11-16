@@ -630,7 +630,7 @@ impl Command {
     }
 }
 
-type MembersReply = Reply<Result<Vec<be_block_protocol::Member>, String>>;
+type MembersReply = Reply<Result<crate::MemberList, String>>;
 
 /// What a device does with push notifications; a reply is the peer's error as text.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -661,6 +661,12 @@ pub(super) enum MembersCommand {
         reply: MembersReply,
     },
     Remove {
+        account: Uuid,
+        reply: MembersReply,
+    },
+    /// Signs a member no record signed in yet into the organization's log, with the keys this
+    /// device verified for them as a contact.
+    SignIn {
         account: Uuid,
         reply: MembersReply,
     },
@@ -2689,7 +2695,8 @@ fn refuse_offline(command: Command, shared: &Arc<Mutex<Shared>>) -> Option<Comma
         Command::Members(
             MembersCommand::List(reply)
             | MembersCommand::SetRole { reply, .. }
-            | MembersCommand::Remove { reply, .. },
+            | MembersCommand::Remove { reply, .. }
+            | MembersCommand::SignIn { reply, .. },
         ) => reply.send(Err(NEEDS_CONNECTION.to_owned())),
         Command::Invitations(InvitationsCommand::Create(reply)) => {
             reply.send(Err(NEEDS_CONNECTION.to_owned()))
@@ -3046,12 +3053,28 @@ async fn members(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, command: 
             reply,
         } => (peer.set_role(account, role).await, reply),
         MembersCommand::Remove { account, reply } => (peer.remove_member(account).await, reply),
+        MembersCommand::SignIn { account, reply } => {
+            let signed = match peer.verified_identity(account) {
+                Some(identity) => peer.sign_in(account, identity, false).await,
+                None => {
+                    reply.send(Err(
+                        "Only a contact can be signed in from here: send them a contact link \
+                         first, then sign them in."
+                            .to_owned(),
+                    ));
+                    return;
+                }
+            };
+            (signed, reply)
+        }
     };
-    if changed.is_ok() {
-        tend(peer, shared).await;
-    }
+    // Key work names the members no record signed in yet (`Peer::unsigned_members`).
+    tend(peer, shared).await;
     let listed = match changed {
-        Ok(()) => peer.members().await,
+        Ok(()) => peer.members().await.map(|members| crate::MemberList {
+            members,
+            unsigned: peer.unsigned_members(),
+        }),
         Err(error) => Err(error),
     };
     reply.send(listed.map_err(|error| error.to_string()));

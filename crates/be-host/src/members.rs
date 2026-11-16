@@ -4,11 +4,14 @@ use uuid::Uuid;
 
 use crate::ui::{MemberRow, MembersView};
 
-type Reply = Result<Vec<Member>, String>;
+type Reply = Result<be_host_stack::MemberList, String>;
 
 pub(crate) struct Members {
     open: bool,
     members: Vec<Member>,
+    /// Members no record in the organization's log signed in yet, whose escrow wraps no
+    /// administrator opens until one is.
+    unsigned: Vec<Uuid>,
     removing: Option<Uuid>,
     busy: bool,
     error: Option<String>,
@@ -20,6 +23,7 @@ impl Default for Members {
         Self {
             open: false,
             members: Vec::new(),
+            unsigned: Vec::new(),
             removing: None,
             busy: false,
             error: None,
@@ -53,6 +57,12 @@ impl Members {
         be_host_stack::set_role(account, role, self.answer());
     }
 
+    pub(crate) fn sign_in(&mut self, account: Uuid) {
+        self.busy = true;
+        self.error = None;
+        be_host_stack::sign_in_member(account, self.answer());
+    }
+
     pub(crate) fn ask_remove(&mut self, account: Uuid) {
         self.removing = Some(account);
     }
@@ -72,7 +82,10 @@ impl Members {
     fn replied(&mut self, reply: Reply) {
         self.busy = false;
         match reply {
-            Ok(members) => self.members = members,
+            Ok(listed) => {
+                self.members = listed.members;
+                self.unsigned = listed.unsigned;
+            }
             Err(error) => self.error = Some(error),
         }
     }
@@ -108,6 +121,7 @@ impl Members {
                     administrator: member.role == OrganizationRole::Administrator,
                     me: member.account == me,
                     agent: member.created_by.is_some(),
+                    unsigned: self.unsigned.contains(&member.account),
                 })
                 .collect(),
             removing,

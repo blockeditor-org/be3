@@ -4160,6 +4160,7 @@ impl HostCore {
             UiCommand::OpenMembers => self.members.show(),
             UiCommand::CloseMembers => self.members.close(),
             UiCommand::SetMemberRole(account, role) => self.members.set_role(account, role),
+            UiCommand::SignInMember(account) => self.members.sign_in(account),
             UiCommand::RemoveMember(account) => self.members.ask_remove(account),
             UiCommand::ConfirmRemoveMember => self.members.confirm_remove(),
             UiCommand::CancelRemoveMember => self.members.cancel_remove(),
