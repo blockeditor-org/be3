@@ -51,6 +51,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             .create_agent(
                 account,
                 organization,
+                Uuid::new_v4(),
                 &long,
                 [0; 32],
                 [0; 32],
@@ -189,6 +190,7 @@ async fn what_one_account_keeps_on_the_server_is_bounded() {
             .create_agent(
                 account,
                 organization,
+                Uuid::new_v4(),
                 "Agent",
                 [0; 32],
                 [0; 32],

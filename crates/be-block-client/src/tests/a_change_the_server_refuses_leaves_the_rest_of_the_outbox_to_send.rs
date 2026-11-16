@@ -30,7 +30,7 @@ async fn a_change_the_server_refuses_leaves_the_rest_of_the_outbox_to_send() {
         .unwrap()
         .published()
         .unwrap();
-    let public = admin.keys().contact(member.account()).unwrap();
+    let public = admin.verified_identity(member.account()).unwrap();
     admin
         .share(team, member.account(), Access::Edit, &public)
         .await

@@ -3080,9 +3080,20 @@ async fn create_agent(
     let phrase = be_block_keys::RecoveryPhrase::generate();
     let secret = phrase.secret();
     let public = secret.public();
+    let account = Uuid::new_v4();
+    let bound = match bound_to {
+        Some(block) => Some(be_block_protocol::BoundAgent {
+            block,
+            signed: peer
+                .grant_record(block, account, Access::Edit, secret.identity())
+                .await?,
+        }),
+        None => None,
+    };
     let be_block_protocol::CreatedAgent { agent, token } = ask(client::members::create_agent(
         &peer.connection(),
         organization,
+        account,
         name,
         public.0,
         secret.signing().0,
@@ -3095,7 +3106,7 @@ async fn create_agent(
                 escrow: peer.keys().escrow(),
             },
         ),
-        bound_to,
+        bound,
     ))
     .await?;
     let card = be_block_keys::ContactCard {
@@ -3343,12 +3354,17 @@ async fn serve_command(
                 .contacts
                 .iter()
                 .find(|contact| contact.account == account)
-                .and_then(|contact| contact.public);
+                .and_then(|contact| {
+                    Some(be_block_keys::PublicIdentity {
+                        public: contact.public?,
+                        signing: contact.signing?,
+                    })
+                });
             let granted = match verified {
                 _ if account == be_block_graph::ANYONE_INSIDE => {
                     peer.open_inside(block, access).await
                 }
-                Some(public) => peer.share(block, account, access, &public).await,
+                Some(identity) => peer.share(block, account, access, &identity).await,
                 None => peer.grant(block, account, access).await,
             };
             let failed = granted

@@ -42,6 +42,7 @@ fn an_app_changes_only_a_blocks_agent_the_person_made_even_as_an_administrator()
             be_block_protocol::client::members::create_agent(
                 &peer.connection(),
                 harness.organization,
+                Uuid::new_v4(),
                 "Theirs".into(),
                 [7; 32],
                 [7; 32],

@@ -1289,6 +1289,7 @@ impl Client {
             Call::CreateAgent {
                 reply,
                 organization,
+                account: agent,
                 name,
                 recovery,
                 signing,
@@ -1299,11 +1300,13 @@ impl Client {
                 let created = async {
                     prelude?;
                     let account = connection.account()?;
+                    let block = bound_to.as_ref().map(|bound| bound.block);
                     let (agent, token, before) = connection
                         .store
                         .create_agent(
                             account,
                             organization,
+                            agent,
                             &name,
                             recovery,
                             signing,
@@ -1312,7 +1315,7 @@ impl Client {
                             bound_to,
                         )
                         .await?;
-                    if let Some(block) = bound_to {
+                    if let Some(block) = block {
                         connection
                             .reannounce_in(
                                 organization,

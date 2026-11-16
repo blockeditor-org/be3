@@ -20,7 +20,7 @@ async fn an_editor_rotates_a_workspace_a_reader_was_taken_off() {
         .unwrap()
         .published();
     for (member, access) in [(&editor, Access::Edit), (&leaver, Access::View)] {
-        let public = owner.keys().contact(member.account()).unwrap();
+        let public = owner.verified_identity(member.account()).unwrap();
         owner
             .share(team, member.account(), access, &public)
             .await

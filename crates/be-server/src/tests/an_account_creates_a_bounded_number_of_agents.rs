@@ -13,6 +13,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             .create_agent(
                 profile.account,
                 organization,
+                Uuid::new_v4(),
                 &format!("Agent {index}"),
                 [7; 32],
                 [7; 32],
@@ -29,6 +30,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
             .create_agent(
                 profile.account,
                 organization,
+                Uuid::new_v4(),
                 "One more",
                 [7; 32],
                 [7; 32],
@@ -57,6 +59,7 @@ async fn an_account_creates_a_bounded_number_of_agents() {
         .create_agent(
             profile.account,
             organization,
+            Uuid::new_v4(),
             "Replacement",
             [7; 32],
             [7; 32],

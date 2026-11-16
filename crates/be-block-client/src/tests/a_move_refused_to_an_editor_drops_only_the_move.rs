@@ -21,7 +21,7 @@ async fn a_move_refused_to_an_editor_drops_only_the_move() {
         .unwrap()
         .published()
         .unwrap();
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(team, member.account(), Access::Edit, &public)
         .await

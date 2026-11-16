@@ -18,11 +18,13 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     .await;
 
     let phrase = be_block_keys::RecoveryPhrase::generate();
-    let public = phrase.secret().public();
+    let identity = phrase.secret().identity();
+    let public = identity.public;
     let organization = owner.peer().organization();
     let CreatedAgent { agent, token } = be_block_client::ask(client::members::create_agent(
         &owner.peer().connection(),
         organization,
+        Uuid::new_v4(),
         "Claude".into(),
         public.0,
         phrase.secret().signing().0,
@@ -44,13 +46,13 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     .expect("creating the agent failed");
     owner
         .peer()
-        .share(board.database, agent.account, Access::Edit, &public)
+        .share(board.database, agent.account, Access::Edit, &identity)
         .await
         .unwrap();
     let agents = workspace(owner.peer(), "Agents").await;
     owner
         .peer()
-        .share(agents, agent.account, Access::Edit, &public)
+        .share(agents, agent.account, Access::Edit, &identity)
         .await
         .unwrap();
 

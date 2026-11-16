@@ -52,7 +52,7 @@ async fn a_key_the_server_or_a_stranger_seals_to_a_member_is_never_used() {
     let stranger = harness.member(&owner, "stranger@example.com").await;
     let organization = owner.organization();
     let team = workspace(&owner, "Team").await;
-    let public = owner.keys().contact(victim.account()).unwrap();
+    let public = owner.verified_identity(victim.account()).unwrap();
     owner
         .share(team, victim.account(), Access::Edit, &public)
         .await

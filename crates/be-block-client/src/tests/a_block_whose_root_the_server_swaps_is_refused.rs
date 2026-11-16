@@ -16,7 +16,7 @@ async fn a_block_whose_root_the_server_swaps_is_refused() {
     let stranger = harness.member(&owner, "stranger@example.com").await;
     let organization = owner.organization();
     let team = workspace(&owner, "Team").await;
-    let public = owner.keys().contact(member.account()).unwrap();
+    let public = owner.verified_identity(member.account()).unwrap();
     owner
         .share(team, member.account(), Access::Edit, &public)
         .await

@@ -12,6 +12,7 @@ async fn an_agent_signs_in_with_its_token_until_it_is_removed() {
             client::members::create_agent(
                 peer,
                 organization,
+                Uuid::new_v4(),
                 "Claude".into(),
                 [7; 32],
                 [7; 32],
