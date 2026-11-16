@@ -294,12 +294,15 @@ device seals a key only to a contact's public key verified that way.
   followed a key change, sealed to itself. The server cannot make one, but it
   could serve an older one to bring back a key the contact replaced, so each
   device pins the newest record of each contact it has seen (refs'
-  `Contacts`), refuses an older one, keeps sealing to the pinned key and
-  lists the contact as rolled back while the server serves it. Key changes are
-  followed from the record kept, since the server keeps them
-  (`key_changes`) until the contact is removed. A contact who connects again
-  by a new link, as one who lost their phrase must, gets a newer record, so a
-  new key needs no signed change.
+  `Contacts`), refuses an older one or one that does not open, keeps sealing
+  to the pinned key, and says which (`contacts::Mismatch`: an older key, or a
+  copy it can't read, as after a new phrase taken on another device) while
+  the server serves it. Key changes are followed from the record kept, since
+  the server keeps them (`key_changes`) until the contact is removed. A
+  contact who connects again by a new link, as one who lost their phrase
+  must, gets a record that follows the newest the server holds, so it
+  outranks every device's pin whatever their clocks say, and a new key needs
+  no signed change.
 - **A contact's name and email** are the card's, as verified, never the
   server's account row, which could name one contact as another so a share to
   "Bob" sealed to Mallory. They are as the contact gave them in their link;
