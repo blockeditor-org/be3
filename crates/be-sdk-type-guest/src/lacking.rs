@@ -60,7 +60,7 @@ pub(crate) struct Carried {
     /// The commits kept in the outbox, oldest first.
     pub(crate) kept: Vec<CommitId>,
     /// The snapshot the replica told each editor last (`Replica::snapshots_shown`).
-    pub(crate) snapshots_shown: BTreeMap<EditorId, (be_block_store::Hash, bool)>,
+    pub(crate) snapshots_shown: BTreeMap<EditorId, be_block_store::Hash>,
 }
 
 #[derive(Default)]
