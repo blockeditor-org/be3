@@ -68,7 +68,7 @@ async fn an_artifact_is_a_backref_of_the_block_it_describes() {
         .unwrap();
     assert_eq!(backrefs(&author, source).await, both);
     assert_eq!(
-        author.load_commit(head).await.unwrap().references,
+        author.load_reached(head).await.unwrap().references,
         vec![source]
     );
 

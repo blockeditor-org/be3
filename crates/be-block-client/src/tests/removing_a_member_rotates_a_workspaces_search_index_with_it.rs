@@ -9,7 +9,7 @@ async fn index_bytes(peer: &Peer<MemoryStore>, index: Uuid) -> Vec<u8> {
         .await
         .unwrap()
         .expect("the index has content");
-    let commit = peer.load_commit(head).await.unwrap();
+    let commit = peer.load_reached(head).await.unwrap();
     peer.read_manifest(&commit.manifest).await.unwrap()
 }
 

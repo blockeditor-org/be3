@@ -46,7 +46,7 @@ fn a_child_added_while_its_folder_is_renamed_stays_in_it() {
             .expect("the workspace's head is read")
             .expect("the workspace has a head");
         let commit = peer
-            .load_commit(head)
+            .load_reached(head)
             .await
             .expect("the workspace's head is read");
         let metadata = peer

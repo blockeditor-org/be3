@@ -462,7 +462,7 @@ async fn on_the_server(
         .expect("the metadata is read")
         .get(&be_block_content::NAME);
     let manifest = peer
-        .load_commit(head)
+        .load_reached(head)
         .await
         .expect("the head is read")
         .manifest;

@@ -30,7 +30,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
     let mut newer = named.clone();
     newer.insert(&PINNED, &true);
     newer.insert(&WORDS, &3);
-    let commit = phone.load_commit(first).await.unwrap();
+    let commit = phone.load_reached(first).await.unwrap();
     let second = phone
         .write(
             block,

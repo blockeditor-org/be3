@@ -9,7 +9,7 @@ async fn objects_move_through_the_servers_own_s3_endpoint() {
     let text = large_text();
     phone.save(note, &TextBlock::of(&text), None).await.unwrap();
     let head = phone.summary(note).await.unwrap().head.unwrap();
-    let manifest = phone.load_commit(head).await.unwrap().manifest;
+    let manifest = phone.load_reached(head).await.unwrap().manifest;
     let chunks = phone.objects_of(&manifest).await.unwrap();
     // Every object the save sent: the server holds them, so it asks for none again (their
     // lengths, which only room for an upload is reserved by, do not matter).
