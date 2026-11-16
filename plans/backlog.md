@@ -222,7 +222,12 @@ Depends on #686 (session catch-ups replaced by server ordering).
 - **An edit landing twice across a crash, once in a whole-binary run.**
   `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
   (be-host-stack) failed at line 106 ("the edit landed once": 21, not 11) in one of 8 runs of
-  the whole test binary, 4 at a time on a 4-core VM. Done:
+  the whole test binary, 4 at a time on a 4-core VM, and 2 of 200 alone (6 at a time). In
+  both failures alone the replica submitted the +10 (`through` 3) before the crash and, once
+  restarted, submitted it again under a new counter, with the same `through`; passing runs
+  submit it once. The order took both, so the check that an edit numbered no more than its
+  origin's most `through` was numbered already let the second through: the same double
+  ordering as a replica that rejoins and resubmits. Done:
   each run under `stress` or as a whole binary until it fails, and the cause fixed at its
   source, with a test that shows it.
 
