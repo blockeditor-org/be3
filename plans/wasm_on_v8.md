@@ -14,5 +14,7 @@ left:
    third-party/v8/BUCK name them; then remove android_arm64 from `_UNBUILDABLE` in
    buck/dev/broad.bxl and the notes in guides/running/android.md and guides/build_server.md, and
    run the APK on a device.
-2. **Measure** host start to the Files pane and the host tests' CPU against the last wasmtime
-   build, and add them to the decision.
+2. **Cold start.** The host tests take twice the CPU they took on precompiled modules
+   (decisions/guests_run_on_v8.md). Profile a host test to see what costs (V8's lazy compile of
+   each function as it first runs, Liftoff's slower code, tier-up), measure host start to the
+   Files pane on its own, and weigh V8's code cache on disk for the libraries against it.
