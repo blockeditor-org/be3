@@ -8,7 +8,7 @@
 //! change, and a mailbox delivers a letter once, to one receiver. It is process-wide, so stacks
 //! that run side by side in tests wake each other's watchers, which only costs a look.
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use std::sync::{Arc, PoisonError, Weak};
 use uuid::Uuid;
 

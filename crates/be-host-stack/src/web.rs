@@ -10,7 +10,7 @@ use std::{
     task::Poll,
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_store::FileStore;
 use wasm_bindgen::{JsCast, prelude::*};

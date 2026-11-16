@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::sync::{Arc, PoisonError};
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use std::time::Instant;
 
 use be_block_client::Event;

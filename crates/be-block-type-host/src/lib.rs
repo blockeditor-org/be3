@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::ClientError;
 use be_block_commit::CommitId;

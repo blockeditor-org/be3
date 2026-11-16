@@ -8,7 +8,7 @@
 use std::collections::HashSet;
 use std::sync::PoisonError;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::{ClientError, Peer};
 use be_block_store::{ObjectStore, PartRef};

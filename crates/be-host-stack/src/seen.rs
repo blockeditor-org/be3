@@ -32,7 +32,7 @@ use be_block_content::{BlockMetadata, Entries};
 use be_block_graph::BlockParent;
 use be_block_type_host::Conflict;
 use be_sdk_type_api::{Description, EditorId};
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use crate::{

@@ -317,8 +317,8 @@ with its own memory, so nothing is shared between it and the compositor: they ta
 messages, the commands and change notices they use today (`ChangeWatch`). Neither ever spins. The
 block stack's thread waits with `memory.atomic.wait`, which a Web Worker allows, and the
 compositor's main thread never waits. plans/web_page_never_waits.md already gives the web's
-stack worker (`web/be-worker.js`) a memory of its own, talking to the page by messages, and drops
-`be_wasm_threads::Mutex`; this step makes that worker an instance the root guest spawns, natively
+stack worker (`web/be-worker.js`) a memory of its own, talking to the page by messages, and the
+page takes only std's locks, which it never finds held; this step makes that worker an instance the root guest spawns, natively
 too. The host does not know what the instance is; it only serves the capabilities the root
 guest grants it. If it traps, the root guest ends the app, as a panic does today.
 

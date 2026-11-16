@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_client::{ClientError, Credentials, Peer, PeerConfig, Write};
 use be_block_client::{Event, ask};

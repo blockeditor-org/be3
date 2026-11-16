@@ -129,9 +129,11 @@ the call (`own-memory-web-host-test`). Traps that shape this code:
   changed the state. A browser traps `memory.atomic.wait` on the page's thread, so the page
   may never wait at all. A module's page entry calls `be_wasm_threads::initialize_page` and a
   worker's `initialize_worker`; `be_wasm_threads::may_wait` tells them apart. The page shares
-  no memory with a thread, so no lock it takes is ever held elsewhere; what is left of
-  plans/web_page_never_waits.md is dropping `be_wasm_threads::Mutex`, which still spins on the
-  page where std's would wait. A page that needs something another thread holds asks for it
+  its memory with no thread: it starts none (`web/threads.js`, `refuseThreads`, which fails a
+  spawn on the page loudly; `own-memory-web-host-test`), and its host's worker has a memory of
+  its own. So every lock the page takes, std's `Mutex`, its channels' and `malloc`'s, is one no
+  other thread takes, and is always free when the page takes it; std's lock would trap there
+  if it ever found one held. A page that needs something another thread holds asks for it
   with a message.
 - A letter a worker posts to one of the page's mailboxes (`be_host_base::host::Across::send`,
   guides/desktop.md) takes no lock the page takes and is bytes: the worker posts a copy of the letter's bytes on a `BroadcastChannel` whose name only the

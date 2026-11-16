@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_repository::{Action, Kept, Operation, View, masked, scope_mask};
 

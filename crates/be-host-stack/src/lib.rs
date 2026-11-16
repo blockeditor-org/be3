@@ -3,7 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use std::path::PathBuf;
 

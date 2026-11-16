@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_store::StoreError;
 use rusqlite::{Connection, params};

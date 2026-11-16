@@ -4,7 +4,7 @@ use std::{
     time::Duration,
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 
 use be_block_store::FileStore;
 

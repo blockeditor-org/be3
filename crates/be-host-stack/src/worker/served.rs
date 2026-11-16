@@ -18,7 +18,7 @@ use std::{
     sync::{Arc, PoisonError},
 };
 
-use be_wasm_threads::Mutex;
+use std::sync::Mutex;
 use uuid::Uuid;
 
 use super::{Command, Peer, Shared, Store, Tasks};
