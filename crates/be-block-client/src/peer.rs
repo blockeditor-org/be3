@@ -339,9 +339,6 @@ struct Anchor {
 
 pub type Resolver = Arc<dyn Fn(Uuid, Vec<Uuid>) -> Vec<Uuid> + Send + Sync>;
 
-
-/// How far below the settings block `Peer::in_settings` looks.
-const MAX_SETTINGS_DEPTH: usize = 16;
 impl<S: ObjectStore> Peer<S> {
     pub async fn connect(config: PeerConfig, store: S) -> Result<Self, ClientError> {
         let connection = Connection::connect(&config.url, &crate::Clock::real()).await?;
@@ -1022,12 +1019,10 @@ impl<S: ObjectStore> Peer<S> {
                 summary.key.ok_or(ClientError::Locked(block))?
             }
         };
-        // A key the server holds (the settings' and those opened through them) seals only
-        // inside the settings, which the server reads by design.
-        let settings = match self.keys.trusted(key) {
-            true => false,
-            false => self.in_settings(block).await,
-        };
+        // A key the server holds (the settings' and those opened through them) seals only the
+        // settings block itself, which the server reads by design: never a block the server's
+        // graph places there, since the server could place any block there.
+        let settings = block == self.organization_settings();
         let usable =
             |key: Uuid| self.keys.trusted(key) || (settings && self.keys.server_held(key));
         if !usable(key) {
@@ -1051,24 +1046,6 @@ impl<S: ObjectStore> Peer<S> {
                 row.epoch > epoch && usable(row.id) && self.keys.block_of(row.id) == Some(block)
             });
         Ok(newest.map_or(key, |row| row.id))
-    }
-
-    /// Whether `block` is the organization's settings block or inside it, by its parents as
-    /// the server lists them: the server could call any block part of the settings, which gets
-    /// it a block written under a key it knows that it reads anyway (plans/signed_access.md).
-    async fn in_settings(&self, block: Uuid) -> bool {
-        let settings = self.organization_settings();
-        let mut at = block;
-        for _ in 0..MAX_SETTINGS_DEPTH {
-            if at == settings {
-                return true;
-            }
-            match self.summary(at).await.ok().and_then(|summary| summary.parent) {
-                Some(BlockParent::Block(parent)) => at = parent,
-                _ => return false,
-            }
-        }
-        false
     }
 
     async fn scope_key(&self, scope: Uuid) -> Result<Uuid, ClientError> {
