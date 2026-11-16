@@ -65,6 +65,10 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         block: team.into_bytes(),
         root: Some(forged.hash()),
     };
+    let carrying_real = CarriedKey {
+        root: Some(real),
+        ..carried
+    };
 
     // The server seals a key of the workspace carrying a root of its making, as from the member.
     let anonymous = plant(
@@ -77,7 +81,8 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         RecoveryPublic(escrow.public).seal_anonymous(&carried.encode()),
         Uuid::new_v4(),
     );
-    // A member who cannot edit the workspace seals one, truly from themselves.
+    // A member who cannot edit the workspace seals one, truly from themselves, carrying its real
+    // root.
     let key = Uuid::new_v4();
     let to = Party {
         account: escrow.id.into_bytes(),
@@ -94,7 +99,7 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
             stranger.account().into_bytes(),
             &to,
             key.as_bytes(),
-            &carried.encode(),
+            &carrying_real.encode(),
         ),
         key,
     );
@@ -147,6 +152,33 @@ async fn a_wrap_the_server_seals_to_the_escrow_carries_no_root_anyone_trusts() {
         crate::keys::RootPin::Pinned(real),
         "the member's root moved, or conflicted"
     );
+
+    // A member seals one carrying another root than the one the block's genuine wraps carry: the
+    // administrator's device shows the block's root as conflicting, rather than taking either
+    // quietly by which came first.
+    let key = Uuid::new_v4();
+    plant(
+        &harness,
+        organization,
+        team,
+        12,
+        escrow.id,
+        stranger.account(),
+        stranger.keys().identity().seal_for(
+            stranger.account().into_bytes(),
+            &to,
+            key.as_bytes(),
+            &carried.encode(),
+        ),
+        key,
+    );
+    let again = harness.second(&admin).await;
+    assert_eq!(
+        again.keys().root_pin(team),
+        crate::keys::RootPin::Conflicting,
+        "a root that disagrees with the genuine one was skipped silently"
+    );
+    assert!(!again.keys().ring().contains(key));
 
     harness.stop().await;
 }
