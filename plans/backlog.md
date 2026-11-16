@@ -175,6 +175,15 @@ Depends on #686 (session catch-ups replaced by server ordering).
   sits on it in one run and not the other. Done: the cause found (what the
   test reads that varies, guides/testing_a_gui.md, 6) and fixed at its source,
   so the painting is the same every run.
+- **An app stopping under verify load on the build server.** In one full verify, four host
+  tests (`the_more_card_hangs_on_its_tab_and_leaves_the_files_usable`, the canvas menu's and
+  two of a canvas in a canvas) showed the session picker with "Workspace stopped: The app
+  stopped responding.": a workspace step ran past `STEP_TIMEOUT` (10 s). The failing test used
+  8.0 s of CPU in 35.9 s, 7.1 s of it system against 1.0 s user, where a passing run uses
+  about 2 s with 0.3 s system: starved, by what looks like memory reclaim on a crowded worker,
+  not hung. None failed in 120 runs under `stress` on a 4-core VM. A wait now names such a
+  stop (guides/testing_a_gui.md, 6). Done: the build server runs host tests no more at once
+  than its memory holds, and a full verify passes with none of them stopped.
 
 ## 16. Host test tools
 

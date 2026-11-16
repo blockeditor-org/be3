@@ -378,6 +378,11 @@ Writing a test that does not flake (decisions/host_tests_stay_flake_free.md says
   runs in a hundred then time out at the very first `wait` (the Files pane still showing
   "Loading the files" after 30 seconds, nothing wrong): they pass at `--parallel` equal to
   the cores. Count such a timeout as load, not as the test's flake, and raise nothing.
+- A `wait` still unmet after 5 seconds looks at the tree, and fails at once with what it finds:
+  a block type no staged editor edits, or an app's stop toast (`NAME stopped: REASON`, guides/apps/runtime.md,
+  When an app stops). "The app stopped responding" is a step that ran past `STEP_TIMEOUT`; a
+  test whose CPU (the `run-test` line) is mostly system time was starved by its machine, which
+  is load, not the test's flake.
 - A hang: `gdb -p PID -batch -ex 'thread apply all bt'` on its be-host. Every thread parked with
   the window waiting on data means something changed without `host::wake()`: a lost wake, not a
   deadlock.
