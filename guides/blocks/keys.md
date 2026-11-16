@@ -55,10 +55,10 @@ Design records: `decisions/deterministic_seal_nonce.md`,
   which is sealed to the server for it to read the policies, and every key
   opened only through one. It opens, but vouches for nothing (a key wrapped
   under it opens untrusted, even on the device that minted it), and
-  `sealing_key` uses it only for a block in the settings, by the parents the
-  server lists (`Peer::in_settings`): the settings stay readable and writable
-  by administrators, and the server never gets a block outside them written
-  under a key it knows.
+  `sealing_key` uses it only for the settings block itself, never for a block
+  the server's graph places under the settings, since the server can place any
+  block there: the settings stay readable, and writable by administrators, and
+  the server never gets another block written under a key it knows.
 - **Keys are bound to blocks where the server points.** Every key a device
   holds has a block (`KeyBook::block_of`, filled by `mint` and `opened` alone).
   What the server chooses for a block is opened only under one of that block's

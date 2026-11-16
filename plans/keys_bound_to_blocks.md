@@ -52,17 +52,14 @@ A device keeps a mark of its own, **server-held**, on:
 - every key of the settings block, and every key it seals to the server;
 - every key it opened only through a server-held key, transitively.
 
-A server-held key opens (the settings subtree must stay readable to every
-member and administrator, and writable by administrators), but it is never
-trusted for anything outside that subtree: it vouches for no other key (a
-wrap under it opens untrusted), and `sealing_key` uses it only for a block in
-the settings subtree. Inside the subtree it may seal, since the server reads
-those blocks by design; that is what lets an administrator who did not mint
-the policies key still write policies. The subtree is the server's graph's
-word, so the server can call any block part of it: what that gets it is
-showing forged content of that block to readers, never a device writing a
-block outside it under a key the server knows. That integrity gap is the same
-as the anonymous escrow wraps' and goes to plans/signed_access.md with them.
+A server-held key opens (the settings must stay readable to every member and
+administrator), but vouches for no other key (a wrap under it opens
+untrusted), and `sealing_key` uses it only for the settings block itself,
+never for a block the server's graph places under the settings: the server can
+place any block there, and a device would then write it under a key the server
+knows. Where a block lives is the server's word in general (it can reparent a
+block before a device mints new keys for it), which plans/signed_access.md
+takes up.
 
 A viewer of block A colluding with the server could wrap a key it chose under
 A's scope key, labelled as block B. That is "the server and one contact can
@@ -70,14 +67,17 @@ read a block" (plans/signed_access.md), whose signed roots and records bind
 which key may wrap which; the graph's scope relation would buy nothing here,
 since the server tells it. keys.md says so.
 
-Built (`KeyBook::server_held`, `Peer::in_settings`). Tests:
+Built (`KeyBook::server_held`). Tests:
 `a_key_wrapped_under_the_settings_key_seals_no_other_block` (the
 administrator who minted the settings key, a data key of a note with a high
 epoch wrapped under the settings scope key by the server: the note is still
-written under its own key); the settings' existing tests
-(`an_organizations_policies_are_read_by_its_members_and_enforced_by_the_server`,
-`a_second_administrator_edits_the_organizations_settings`) show members still
-read, and a second administrator still writes, the settings.
+written under its own key);
+`a_key_the_server_wraps_under_the_settings_key_and_names_current_seals_nothing`
+(the same key named the note's current one, on a member's device and an
+administrator's); the settings' existing tests show members still read, and a
+second administrator still writes, the settings. Open: an administrator
+editing a policies block another administrator made, whose key reached it
+wrapped under the settings key, is refused that key.
 
 ## 3. Objects are opened only with a key of their block
 
