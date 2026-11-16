@@ -214,6 +214,16 @@ Depends on #686 (session catch-ups replaced by server ordering).
   found (under the suite's load, or `stress` at more at a time) and fixed at
   its source, with a test that shows it.
 
+- **An edit landing twice across a crash, once in a whole-binary run.**
+  `an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_once_across_a_crash`
+  (be-host-stack) failed at line 106 ("the edit landed once": 21, not 11) in one of 8 runs of
+  the whole test binary, 4 at a time on a 4-core VM. In those runs
+  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` also failed twice and
+  `discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept` once
+  (the server refused an edit: "not editable by this account"), as the items above say. Done:
+  each run under `stress` or as a whole binary until it fails, and the cause fixed at its
+  source, with a test that shows it.
+
 - **A note made offline, once under the render-props branch's tests.**
   `a_note_made_while_a_device_is_offline_reaches_it_once_it_reconnects`
   failed once in a `./scripts/test //crates/be-host-tests:test` run and passed
