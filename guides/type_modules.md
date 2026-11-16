@@ -519,9 +519,7 @@ gave the replica again what it kept of the editor's edits, so the snapshot
 counts them all in the editor's own count. A replica opened again in place of one that
 already told an editor that same snapshot (its block's session joined once its creation was
 sent) does not tell it again: the replica keeps the hash of the snapshot each editor holds,
-and whether it was editable then, until operations change what it shows, and carries it
-across the reopen; an editor attached editable where it was read-only, or the reverse, is
-told it again. A `Resend` is always
+until operations change what it shows, and carries it across the reopen. A `Resend` is always
 answered. Detaching forgets the count. On the app protocol both directions travel
 through the editor's `replica` resource (guides/blocks/apps.md, Content on the app protocol); `editor::EditorMirror` is the editor's side,
 which `ContentProjection` is built on. Undo and redo are host `change`s, not
