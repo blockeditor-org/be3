@@ -53,8 +53,8 @@ pub fn call_url(server_url: &str) -> String {
     format!("{}/api/be/call", base.trim_end_matches('/'))
 }
 
-/// Makes one call that needs no sign-in (beginning or polling a browser sign-in, or making a
-/// local profile) as a one-shot post: a greeting and the call, answered and closed. Signing in
+/// Makes one call that needs no sign-in (beginning or polling a browser sign-in, or reading an
+/// invitation) as a one-shot post: a greeting and the call, answered and closed. Signing in
 /// holds no connection open while a person approves it in their browser.
 pub async fn call_once<T, E: be_wasm_ops::wire::Decode<Result<T, be_block_protocol::Error>>>(
     server_url: &str,

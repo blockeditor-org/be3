@@ -49,7 +49,7 @@ pub const MAX_LISTINGS_PER_CONNECTION: usize = 65_536;
 /// Streams (watches, session events, change feeds) one connection may have open at once.
 pub const MAX_STREAMS_PER_CONNECTION: usize = 16_384;
 
-/// An organization name, an agent's name, a local profile's display name: the portal's limit
+/// An organization name, an agent's name, an account's display name: the portal's limit
 /// on display names.
 pub const MAX_NAME_BYTES: usize = 200;
 /// A block's metadata. It is kept in memory in the graph and sent in every summary, so it is
