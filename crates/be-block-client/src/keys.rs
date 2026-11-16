@@ -52,6 +52,11 @@ struct Roots {
     /// Blocks whose trusted keys carried different roots: one of them was forged, so neither
     /// is used.
     conflicting: HashSet<Uuid>,
+    /// Roots taken only from a member's escrow wrap, for a block this device pinned nothing
+    /// else for: as good as that member, so never passed on (`carried_plain` reads `pinned`
+    /// alone), never shown as verified, and pinned in full only once a trusted key carries the
+    /// same root.
+    weak: HashMap<Uuid, EntryHash>,
 }
 
 /// What a device holds of a block's access log root.
@@ -59,6 +64,9 @@ struct Roots {
 pub enum RootPin {
     /// Pinned from making the block or from a trusted key of it.
     Pinned(EntryHash),
+    /// Taken only from a member's escrow wrap (`Roots::weak`): a log checked from it shows what
+    /// that member, and the server, say, unverified.
+    Weak(EntryHash),
     /// Trusted keys of it carried different roots: one was forged.
     Conflicting,
     /// None yet.
@@ -66,18 +74,41 @@ pub enum RootPin {
 }
 
 impl Roots {
+    fn conflict(&mut self, block: Uuid) {
+        self.pinned.remove(&block);
+        self.weak.remove(&block);
+        self.conflicting.insert(block);
+    }
+
     fn pin(&mut self, block: Uuid, root: EntryHash) {
         if self.conflicting.contains(&block) {
             return;
         }
+        match self.weak.remove(&block) {
+            Some(weak) if weak != root => return self.conflict(block),
+            _ => {}
+        }
         match self.pinned.get(&block) {
-            Some(pinned) if *pinned != root => {
-                self.pinned.remove(&block);
-                self.conflicting.insert(block);
-            }
+            Some(pinned) if *pinned != root => self.conflict(block),
             Some(_) => {}
             None => {
                 self.pinned.insert(block, root);
+            }
+        }
+    }
+
+    /// Takes `root` weakly (`Roots::weak`) for a block pinned nothing else for; one that
+    /// disagrees with what is held is a conflict.
+    fn pin_weak(&mut self, block: Uuid, root: EntryHash) {
+        if self.conflicting.contains(&block) {
+            return;
+        }
+        let held = self.pinned.get(&block).or(self.weak.get(&block)).copied();
+        match held {
+            Some(held) if held != root => self.conflict(block),
+            Some(_) => {}
+            None => {
+                self.weak.insert(block, root);
             }
         }
     }
@@ -386,18 +417,25 @@ impl KeyBook {
     }
 
     /// Takes a key opened from an escrow wrap once its sender is found granted Edit or above in
-    /// the block's log rooted at `root`, which is pinned.
-    pub fn take_escrowed(&self, key: Uuid, root: EntryHash) {
+    /// the block's log rooted at `root`. `weak` when that root came from the wrap alone, from a
+    /// member: it is taken weakly (`Roots::weak`) and the key untrusted, so it vouches for
+    /// nothing, pins nothing it opens, and is handed on by no one.
+    pub fn take_escrowed(&self, key: Uuid, root: EntryHash, weak: bool) {
         let Some((escrowed, secret)) = self.escrowed.lock().unwrap().remove(&key) else {
             return;
         };
         {
             let mut roots = self.roots.lock().unwrap();
             roots.blocks.insert(key, escrowed.block);
-            roots.pin(escrowed.block, root);
+            match weak {
+                true => roots.pin_weak(escrowed.block, root),
+                false => roots.pin(escrowed.block, root),
+            }
         }
         self.ring.insert(key, ContentKey::from_bytes(secret));
-        self.trusted.lock().unwrap().insert(key);
+        if !weak {
+            self.trusted.lock().unwrap().insert(key);
+        }
     }
 
     /// What this account pinned for the organization: the escrow key, and the root of the
@@ -647,10 +685,11 @@ impl KeyBook {
 
     pub fn root_pin(&self, block: Uuid) -> RootPin {
         let roots = self.roots.lock().unwrap();
-        match roots.pinned.get(&block) {
-            Some(root) => RootPin::Pinned(*root),
-            None if roots.conflicting.contains(&block) => RootPin::Conflicting,
-            None => RootPin::Unknown,
+        match (roots.pinned.get(&block), roots.weak.get(&block)) {
+            (Some(root), _) => RootPin::Pinned(*root),
+            (None, Some(root)) => RootPin::Weak(*root),
+            (None, None) if roots.conflicting.contains(&block) => RootPin::Conflicting,
+            (None, None) => RootPin::Unknown,
         }
     }
 

@@ -732,17 +732,22 @@ impl<S: ObjectStore> Peer<S> {
     async fn settle_escrowed_once(&self) -> usize {
         let mut taken = 0;
         for escrowed in self.keys.escrowed() {
-            let pinned = match (self.keys.root_pin(escrowed.block), escrowed.root) {
-                (crate::keys::RootPin::Pinned(root), Some(carried)) if carried != root => {
+            let administrator = self.keys.is_administrator(escrowed.sender);
+            let (pinned, weak) = match (self.keys.root_pin(escrowed.block), escrowed.root) {
+                (
+                    crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root),
+                    Some(carried),
+                ) if carried != root => {
                     self.keys.conflicting_escrowed(escrowed.key, carried);
                     continue;
                 }
-                (crate::keys::RootPin::Pinned(root), _) => root,
-                (crate::keys::RootPin::Unknown, Some(carried)) => carried,
+                (crate::keys::RootPin::Pinned(root), _) => (root, false),
+                (crate::keys::RootPin::Weak(root), _) => (root, !administrator),
+                (crate::keys::RootPin::Unknown, Some(carried)) => (carried, !administrator),
                 _ => continue,
             };
-            if self.keys.is_administrator(escrowed.sender) {
-                self.keys.take_escrowed(escrowed.key, pinned);
+            if administrator {
+                self.keys.take_escrowed(escrowed.key, pinned, false);
                 taken += 1;
                 continue;
             }
@@ -757,7 +762,7 @@ impl<S: ObjectStore> Peer<S> {
                 .and_then(|checked| checked.grants.get(&escrowed.sender.into_bytes()).copied())
                 .is_some_and(|(level, _)| level >= be_block_keys::Level::Edit);
             if granted {
-                self.keys.take_escrowed(escrowed.key, pinned);
+                self.keys.take_escrowed(escrowed.key, pinned, weak);
                 taken += 1;
             }
         }
@@ -1467,7 +1472,8 @@ impl<S: ObjectStore> Peer<S> {
         block: Uuid,
     ) -> Result<(Vec<be_block_keys::Entry>, be_block_keys::Checked), ClientError> {
         let pinned = match self.keys.root_pin(block) {
-            crate::keys::RootPin::Pinned(root) => root,
+            // A weak root checks what the member who sent it says; `root_pin` tells which.
+            crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root) => root,
             crate::keys::RootPin::Conflicting => return Err(ClientError::Forged(block)),
             crate::keys::RootPin::Unknown => return Err(ClientError::Locked(block)),
         };
@@ -1522,7 +1528,7 @@ impl<S: ObjectStore> Peer<S> {
                 continue;
             };
             let pinned = match (self.keys.root_pin(parent), entries.first()) {
-                (crate::keys::RootPin::Pinned(root), _) => root,
+                (crate::keys::RootPin::Pinned(root) | crate::keys::RootPin::Weak(root), _) => root,
                 (crate::keys::RootPin::Unknown, Some(root)) => root.hash(),
                 _ => continue,
             };
