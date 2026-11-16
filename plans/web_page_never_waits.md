@@ -61,10 +61,14 @@ a thread that runs beside it.
    then fails loudly. be-host-runtime's two file reads on the page, `input.rs`'s `read_path`
    and `fonts.rs`'s fallbacks, read nothing on the web already. The host state's first answer,
    its `Write`s and the organization lists are bytes already (be-host `host_files.rs`'s
-   `Jobs`), but the host's worker and each stack still start from a closure the page hands
-   over (`be_host_stack::run_in_worker`, the stacks' `platform::spawn`), and what it captures
-   (the channels, the report's `Across`) is values in the shared heap: with a memory of its
-   own, a worker starts from a named entry and is sent what it needs as bytes. The stack's
+   `Jobs`). The host's worker starts each work from a name and bytes
+   (`be_host_stack::start_in_worker`, be-host's `be_worker_run`): a stack's `Config` and held
+   clock, `host_files`' data directory and its report's `Across` travel encoded. What is left
+   is the transports the page leaves for the entry by number (`be_host_stack::Transports`),
+   values in the shared heap: a stack's `Inbox` (the command channel, the nudges, the
+   `Handover`, the stopped oneshot), its `Shared` and `Condvar` (which only tests read) and the
+   oneshot it waits on the stack before it with; `host_files`' jobs channel and its answer.
+   Each becomes a message port the entry's bytes name. The stack's
    commands are bytes already, and replies numbers
    answered with bytes, and the `Seen` is handed over in bytes, whole first and then what
    changed by key (guides/blocks/host.md, "What the page reads"): what is left is for those

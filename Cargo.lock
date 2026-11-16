@@ -1789,7 +1789,6 @@ dependencies = [
  "be-wasm-threads",
  "futures-util",
  "imbl",
- "js-sys",
  "postcard",
  "serde",
  "serde_bytes",
@@ -1798,7 +1797,6 @@ dependencies = [
  "tokio",
  "ureq",
  "uuid",
- "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
 

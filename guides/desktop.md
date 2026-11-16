@@ -67,7 +67,8 @@ how they travel is the platform's (on the web, by `postMessage`: guides/running/
 thread that may not share the mailbox's memory (the web's workers) sends through
 `Post::across()`, made on the mailbox's thread: an `Across<T>` sends each letter as its bytes
 (postcard), which the mailbox decodes as it delivers it; on the web a worker's letter sent as a
-value is dropped with an error. Dropping the `Mailbox` drops whatever is still on its way. A
+value is dropped with an error. On the web only the page makes mailboxes, so an `Across` there
+is its mailbox's number and travels to a worker in the bytes it starts from (serde). Dropping the `Mailbox` drops whatever is still on its way. A
 handler that needs `&mut` state its owner holds is made on a `host::Desk<C>` and runs when the owner
 calls `desk.deliver(&mut c)` (`HostCore`'s requests, logind, `Programs`, `ScreenLock`).
 

@@ -135,7 +135,7 @@ can say is worked out into `Seen` too: offline, which blocks are out of reach
 (`Seen::out_of_reach`, worked out again only for the nodes that moved and the blocks the worker let go of, `Shared::refresh_reach`), so the host holds neither
 the `Peer` nor the connection; stopping drops a oneshot (`Inbox::stopped`) on which the
 worker closes its connection. The modules' held clock is
-handed to a stack as it starts (`Inbox::held_clock`), then as `Command::HoldClock`.
+handed to a stack as it starts (`worker::Start::held_clock`), then as `Command::HoldClock`.
 
 Tests wait on the stack with `be_host_stack::wait_until(what, read)`, which
 fails at the caller, naming `what` ("opened the note"), after `WAIT_LIMIT`
