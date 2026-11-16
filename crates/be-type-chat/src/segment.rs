@@ -33,6 +33,7 @@ struct Stored {
     own_previous: Option<Prior>,
     #[serde(with = "serde_bytes")]
     signature: Vec<u8>,
+    salt: [u8; 16],
     arrival: Option<i64>,
 }
 
@@ -52,6 +53,7 @@ impl Stored {
             seen: message.seen,
             own_previous: message.own_previous,
             signature: message.signature.0.clone(),
+            salt: message.salt,
             arrival: message.arrival,
         }
     }
@@ -66,6 +68,7 @@ impl Stored {
             seen: self.seen,
             own_previous: self.own_previous,
             signature: Signature(self.signature),
+            salt: self.salt,
             arrival: self.arrival,
         };
         (self.id, message)

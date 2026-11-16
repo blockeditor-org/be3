@@ -51,6 +51,11 @@ fn a_message_hash_covers_what_it_signs_and_a_sent_message_notes_the_last_one_see
             ..first.clone()
         }
         .hash(CHAT, hello),
+        Message {
+            salt: [1; 16],
+            ..first.clone()
+        }
+        .hash(CHAT, hello),
         first.hash(Uuid::from_u128(1), hello),
         first.hash(CHAT, there),
     ];
