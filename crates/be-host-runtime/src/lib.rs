@@ -85,6 +85,22 @@ pub fn exiting() {
     {
         surface::stop();
         wasm::wait_for_workers(std::time::Duration::from_secs(2));
+        be_wasm_host::persist();
+    }
+}
+
+/// Keeps what V8 optimises of the apps' modules under `directory`, so a later start loads it
+/// (be_wasm_host::cache_code_in). `BE3_CODE_CACHE` names another directory instead, which
+/// `BE3_CODE_CACHE_READ_ONLY` only reads: a host test's, which its build made by running its host
+/// (crates/be-host-tests/apps.bzl).
+#[cfg(not(target_arch = "wasm32"))]
+pub fn cache_code_in(directory: std::path::PathBuf) {
+    match std::env::var_os("BE3_CODE_CACHE") {
+        Some(given) => be_wasm_host::cache_code_in(
+            given.into(),
+            std::env::var_os("BE3_CODE_CACHE_READ_ONLY").is_none(),
+        ),
+        None => be_wasm_host::cache_code_in(directory, true),
     }
 }
 

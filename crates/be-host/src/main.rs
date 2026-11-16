@@ -915,6 +915,7 @@ impl HostCore {
             .ok_or_else(|| io::Error::other("application-data directory is unavailable"))?;
         std::fs::create_dir_all(&data_dir)?;
         panic_guard::report_in(&data_dir);
+        be_host_runtime::cache_code_in(data_dir.join("code-cache"));
         let host_state = HostStateStore::open(data_dir.join("host.sqlite3"))?;
         let mut core = Self::with_state(host_state)?;
         core.workspaces = host_files::WorkspaceCache::open(&data_dir, &core.accounts);
