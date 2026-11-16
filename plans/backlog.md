@@ -269,6 +269,10 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `DRAG_THRESHOLD` (or `TOUCH_DRAG_THRESHOLD`), but a plain `on_drag` user
   (a slider, a pan, the dock's grips) applies its own or none. Done: the core
   starts a press's drag at the threshold, and the components' own checks go.
+- **Keyboard steps into a custom site.** A `custom` site (the video timeline)
+  gives no fixed places, so a keyboard carry cannot step into it. Done: a
+  custom site offers stepping points (a frame grid along the timeline), shown
+  by a test that carries a clip there from the keyboard.
 - **A keyboard step reveals the place it chose.** Edge scrolling follows only a
   pointer, so a keyboard carry stepped to a place in the hidden part of a scroll
   leaves it out of sight. Done: after each keyboard step the board scrolls the

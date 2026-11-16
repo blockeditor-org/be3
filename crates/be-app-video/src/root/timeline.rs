@@ -77,11 +77,13 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
     let site = use_drop_site(
         Func::new(|_: Uuid| true),
         Func::new(move |_: Uuid| {
+            // The rows as they are at the lift, as every spec is read then: the board asks for
+            // a place each frame, even while the clip is held still.
+            let rows: Vec<ClipRow> = untrack(|| edit.with(timeline::lane_rows));
             drag::custom(area, move |at: Pos2| {
                 let dragged = state.drag.get_untracked()?;
                 untrack(|| {
                     edit.with(|video| {
-                        let rows: Vec<ClipRow> = timeline::lane_rows(video);
                         let at = at + offset.get();
                         timeline::drop_target_at(
                             video,
