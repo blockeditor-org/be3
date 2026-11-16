@@ -107,16 +107,9 @@ fn a_discarded_block_opened_before_a_join_says_it_may_be_edited_is_read_only() {
     editor.take_received();
     harness.relay().offline(false);
     retry_now();
-    // Opened again on joining, the replica sends its editors their snapshot, now editable.
-    editor.until(
-        "was sent the counter again by the replica the join opened",
-        |editor| {
-            editor
-                .received
-                .iter()
-                .any(|message| matches!(message, be_sdk_type_guest::editor::ToEditor::Snapshot(_)))
-        },
-    );
+    // Opened again as it rejoins its session, the replica takes the editor's edits; the editor
+    // holds its snapshot already, so it is not sent it again.
+    wait_until("rejoined its sessions", |held| held.connected && !held.arriving);
     editor.operate(Counter::add(10));
     wait_for_count(block, 11);
     flush_and_send();
