@@ -2061,6 +2061,14 @@ impl ServerStore {
             }
             let before = graph.audience(block);
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
+            revoke_or_grant(
+                graph,
+                &transaction,
+                identity.organization,
+                block,
+                account,
+                access,
+            )?;
             if let Some(record) = record {
                 crate::access::append_grant(
                     &transaction,
@@ -2073,14 +2081,6 @@ impl ServerStore {
                     &record,
                 )?;
             }
-            revoke_or_grant(
-                graph,
-                &transaction,
-                identity.organization,
-                block,
-                account,
-                access,
-            )?;
             let forgotten = crate::store::forget_orphaned_block_agents(
                 graph,
                 &transaction,
@@ -2309,6 +2309,18 @@ pub(crate) fn write_grant(
     graph.grant(block, account, access)?;
     graph.touch(block)?;
     crate::changes::touch(database, organization, &[block])?;
+    // A revocation the server makes on its own (`remove-contact`, `remove-member`) of a grant
+    // the block's log names waits for a device to sign it (`KeyWork::unsigned_revocations`);
+    // a signed one, appended after, clears it (`access::append_grant`).
+    if access == Access::None
+        && crate::access::names_grant(database, graph, organization, block, account)?
+    {
+        database.execute(
+            "INSERT OR IGNORE INTO unsigned_revocations (organization_id, block_id, account_id)
+             VALUES (?1, ?2, ?3)",
+            params![organization.to_string(), block.to_string(), account.to_string()],
+        )?;
+    }
     let organization = organization.to_string();
     database.execute(
         "UPDATE blocks SET version = version + 1 WHERE organization_id = ?1 AND id = ?2",
