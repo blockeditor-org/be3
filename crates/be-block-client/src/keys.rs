@@ -497,7 +497,7 @@ impl KeyBook {
         self.trusted.lock().unwrap().contains(&key) && self.has(key)
     }
 
-    fn escrow_secret(&self, escrow: Uuid) -> Option<EscrowSecret> {
+    pub(crate) fn escrow_secret(&self, escrow: Uuid) -> Option<EscrowSecret> {
         let secret = *self.escrow_secrets.lock().unwrap().get(&escrow)?;
         Some(EscrowSecret::from_bytes(secret))
     }

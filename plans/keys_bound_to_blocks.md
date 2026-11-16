@@ -116,8 +116,9 @@ reads, and a second administrator writes, the policies block under settings).
   type module's `Publish` or `Stash` can reseal another block's part into its
   own. A reused part names the block it is from, and the vault refuses one from
   a block the writer was not given (its own, or a merge's sides).
-- **Escrow secrets leave the content keyring**, where an object whose header
-  named one would open with it; they are X25519 secrets, never AEAD keys.
+- **Escrow secrets leave the content keyring.** Built: `KeyBook` holds them
+  apart (guides/blocks/keys.md, Escrow), so no object whose header names one
+  opens with it; they are X25519 secrets, never AEAD keys.
 - **The nonce.** With the format changing anyway: XChaCha20-Poly1305, its
   192-bit nonce derived from a nonce key (HKDF of the content key,
   `be3.vault.nonce.v1`) over the block id and the plaintext, so collisions

@@ -157,7 +157,10 @@ that history stays closed to the new scope.
 
 The escrow key (`be_block_keys::EscrowSecret`) is both an X25519 key and,
 through HKDF, an Ed25519 signing key: a key row of kind `escrow` on the
-organization id, sealed to each administrator. The first administrator device
+organization id, sealed to each administrator. A device holds its secret apart
+from the content keyring (`KeyBook`'s escrow secrets), since it is never an
+AEAD key: an object whose header named the escrow's id opens with nothing. The
+first administrator device
 to open the organization makes it (`CreateEscrow`), and `mint_scope` seals
 every new scope key to it too, so administrators open everything. Demoting or
 removing an administrator records an escrow rotation: the next epoch is signed
