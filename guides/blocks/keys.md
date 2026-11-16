@@ -289,9 +289,11 @@ Edit can write as someone else.
   marks the older ones replaced as of the server's clock as the device estimates
   it (`KnownSigner::replaced`, `Peer::server_now`); a record that keeps when the
   server took it (`verify`'s `arrived`, chat's `Message::arrival`) and arrived
-  more than a minute after that answers `Bad`, since only someone holding the
-  old phrase signs with it then. A record with no stamp, or arriving between the
-  new phrase and this device learning of it, stays `Changed`. An account with one is checked only against verified keys, after
+  more than a minute after that answers `Replaced`: louder than `Changed`, but
+  not `Bad`, since the account's own devices not yet told of the new phrase and
+  sends held offline sign with the old key too, as does someone holding the old
+  phrase. A record with no stamp, or arriving between the new phrase and this
+  device learning of it, stays `Changed`. An account with one is checked only against verified keys, after
   rereading the contacts once, so the server cannot sign as a contact. Any other
   member's key comes from the server (`get-signing-keys`: the caller, its
   contacts and the members of the organization open, which in the personal
