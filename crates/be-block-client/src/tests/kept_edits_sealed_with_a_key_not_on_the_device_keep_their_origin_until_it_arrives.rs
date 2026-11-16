@@ -4,11 +4,12 @@ use std::time::Duration;
 
 use be_block_graph::Access;
 
-use crate::{Event, KeptEdit, OpenEdits};
+use crate::{Event, KeptEdit, KeptSubmission, OpenEdits};
 
 /// Edits a device kept of a block, sealed with a key it does not hold (its vault locked, as at
-/// startup before the key arrives): the origin and counts are read all the same, the edits fail
-/// as locked and stay kept as they are, and open once the key arrives.
+/// startup before the key arrives): the origin and counts are read all the same, the edits and
+/// the submissions holding them fail as locked and stay kept as they are, and open once the
+/// key arrives.
 #[tokio::test]
 async fn kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_it_arrives() {
     let harness = Harness::start().await;
@@ -31,10 +32,20 @@ async fn kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_
         given_up: 2,
         submitted_through: 3,
         restarts: 1,
-        edits: Vec::new(),
+        ..OpenEdits::default()
+    };
+    let submission = KeptSubmission {
+        counter: 9,
+        through: 3,
+        payload: b"submitted".to_vec(),
     };
     owner
-        .keep_open_edits(block, kept.clone(), vec![edit.clone()])
+        .keep_open_edits(
+            block,
+            kept.clone(),
+            vec![edit.clone()],
+            vec![submission.clone()],
+        )
         .await
         .unwrap();
     let sealed = owner.sealed_open_edits(block).expect("kept");
@@ -72,5 +83,5 @@ async fn kept_edits_sealed_with_a_key_not_on_the_device_keep_their_origin_until_
     guest.refresh_keys(Some(vec![block])).await.unwrap();
     let (read, edits) = guest.open_edits(block).expect("the row is read");
     assert_eq!(read.origin, 7);
-    assert_eq!(edits.unwrap(), [edit]);
+    assert_eq!(edits.unwrap(), (vec![edit], vec![submission]));
 }

@@ -37,7 +37,10 @@ async fn kept_edits_set_aside_are_bounded_told_once_they_read_and_never_sent() {
             bytes: b"more".to_vec(),
         },
     ];
-    owner.keep_open_edits(block, kept, edits).await.unwrap();
+    owner
+        .keep_open_edits(block, kept, edits, Vec::new())
+        .await
+        .unwrap();
     let sealed = owner.sealed_open_edits(block).expect("kept");
     for _ in 0..=crate::SetAside::KEPT {
         guest.keep_sealed_open_edits(block, sealed.clone());
