@@ -4687,6 +4687,19 @@ third_party = {
                     "unicode-normalization",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":bitcoin_hashes-0.14.101",
+                    ":serde-1.0.228",
+                    ":unicode-normalization-0.1.25",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                    "unicode-normalization",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":bitcoin_hashes-0.14.101",
@@ -4872,6 +4885,11 @@ third_party = {
                 },
             },
             "wasi": {
+                "named_deps": {
+                    "hex": ":hex-conservative-0.2.3",
+                },
+            },
+            "wasi-guest": {
                 "named_deps": {
                     "hex": ":hex-conservative-0.2.3",
                 },
@@ -13046,6 +13064,22 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "digest",
+                    "precomputed-tables",
+                    "rand_core",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
@@ -14416,13 +14450,16 @@ third_party = {
                 "deps": [
                     ":block-buffer-0.10.4",
                     ":crypto-common-0.1.7",
+                    ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
                     "core-api",
                     "default",
+                    "mac",
                     "std",
+                    "subtle",
                 ],
             },
             "wasm32": {
@@ -15740,6 +15777,15 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":signature-2.2.0",
@@ -15993,6 +16039,22 @@ third_party = {
                 ],
             },
             "wasi": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
                     ":ed25519-2.2.3",
@@ -23954,6 +24016,11 @@ third_party = {
                     ":arrayvec-0.7.8",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":arrayvec-0.7.8",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":arrayvec-0.7.8",
@@ -24174,6 +24241,11 @@ third_party = {
                     ":hmac-0.12.1",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":hmac-0.12.1",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":hmac-0.12.1",
@@ -24303,6 +24375,11 @@ third_party = {
                 ],
             },
             "wasi": {
+                "deps": [
+                    ":digest-0.10.7",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":digest-0.10.7",
                 ],
@@ -53114,6 +53191,12 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":digest-0.10.7",
@@ -54904,6 +54987,18 @@ third_party = {
                 ],
             },
             "wasi": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":hkdf-0.12.4",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                ],
+            },
+            "wasi-guest": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
                     ":hkdf-0.12.4",
@@ -73833,6 +73928,20 @@ third_party = {
                     "zeroize",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":rand_core-0.6.4",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "precomputed-tables",
+                    "static_secrets",
+                    "zeroize",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":curve25519-dalek-4.1.3",
@@ -75613,7 +75722,15 @@ third_party = {
                     "zeroize_derive",
                 ],
             },
-            "wasi-guest": {},
+            "wasi-guest": {
+                "deps": [
+                    ":zeroize_derive-1.5.0",
+                ],
+                "features": [
+                    "alloc",
+                    "zeroize_derive",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde-1.0.228",

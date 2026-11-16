@@ -44,7 +44,7 @@ fn a_closed_segment_saves_as_a_part_and_loads_back_without_being_read() {
     assert_eq!(parts.len(), 2, "the header, then the segment");
 
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL);
     let manifest = vault
         .write(CHAT, ChatContent::CONTENT_TYPE, chat.parts())

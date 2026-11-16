@@ -39,6 +39,8 @@ pub struct KeyBook {
 /// A key opened from what was sealed or wrapped, and whether it is an escrow's secret.
 struct Opened {
     bytes: [u8; 32],
+    /// The block it is a key of, as the seal carried it.
+    block: Uuid,
     escrow: bool,
 }
 
@@ -432,7 +434,8 @@ impl KeyBook {
                 false => roots.pin(escrowed.block, root),
             }
         }
-        self.ring.insert(key, ContentKey::from_bytes(secret));
+        self.ring
+            .insert(key, ContentKey::from_bytes(secret), escrowed.block);
         if !weak {
             self.trusted.lock().unwrap().insert(key);
         }
@@ -733,6 +736,7 @@ impl KeyBook {
         }
         Some(Opened {
             bytes: carried.key,
+            block: row.block,
             // Bound inside the seal: an escrow key travels as the organization's, which no
             // block is (its settings block has an id of its own).
             escrow: carried.block == self.organization.into_bytes(),
@@ -790,7 +794,9 @@ impl KeyBook {
                     .unwrap()
                     .insert(key, opened.bytes);
             }
-            false => self.ring.insert(key, ContentKey::from_bytes(opened.bytes)),
+            false => self
+                .ring
+                .insert(key, ContentKey::from_bytes(opened.bytes), opened.block),
         }
     }
 
@@ -947,7 +953,7 @@ impl KeyBook {
             kind,
             epoch,
         };
-        self.ring.insert(row.id, ContentKey::random());
+        self.ring.insert(row.id, ContentKey::random(), block);
         self.trusted.lock().unwrap().insert(row.id);
         self.roots.lock().unwrap().blocks.insert(row.id, block);
         row

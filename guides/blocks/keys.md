@@ -11,10 +11,16 @@ Design records: `decisions/deterministic_seal_nonce.md`,
 
 ## Keys
 
-- **Sealed bytes name their key**: `b"be3K"`, the 16-byte key id, a nonce
-  derived from key and plaintext, then ChaCha20Poly1305 ciphertext. This covers
-  chunks, commits, manifests, metadata, session traffic and wrapped keys. An
-  unknown id is `StoreError::MissingKey`.
+- **Sealed bytes name their key**: `b"be3K"`, the 16-byte key id, a 24-byte
+  nonce, then the ciphertext of `be_block_keys::aead` (XChaCha20-Poly1305, the
+  one symmetric seal: decisions/one_symmetric_seal.md), which authenticates the
+  header and the block the key is of, as the keyring records it beside each key
+  (`Keyring::insert`); so a header relabelled to another key, or the same key
+  held as another block's, opens nothing. Content that deduplicates (chunks,
+  manifest nodes, commits) derives its nonce from the block and the plaintext;
+  metadata, session traffic, journals, notifications and wrapped keys draw one
+  (decisions/deterministic_seal_nonce.md). An unknown id is
+  `StoreError::MissingKey`.
 - **Keys travel with their block and root**: what is sealed or wrapped is
   `be_block_keys::CarriedKey`, the key, the block it is a key of (the
   organization, for an escrow key) and the hash of that block's access log

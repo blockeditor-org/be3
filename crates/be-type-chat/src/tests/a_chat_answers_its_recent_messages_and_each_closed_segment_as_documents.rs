@@ -17,7 +17,7 @@ fn a_chat_answers_its_recent_messages_and_each_closed_segment_as_documents() {
     let count = chat.segments()[0].count as usize;
 
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Rc::new(Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL));
     let manifest = vault
         .write(CHAT, ChatContent::CONTENT_TYPE, chat.parts())

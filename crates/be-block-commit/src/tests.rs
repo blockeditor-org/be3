@@ -29,7 +29,7 @@ fn store() -> CommitStore<MemoryStore> {
     CommitStore::new(
         Vault::new(MemoryStore::new(), {
             let keys = Keyring::new();
-            keys.insert(KEY, ContentKey::from_bytes([9; 32]));
+            keys.insert(KEY, ContentKey::from_bytes([9; 32]), uuid::Uuid::nil());
             keys
         })
         .with_chunker(ChunkerConfig::SMALL),

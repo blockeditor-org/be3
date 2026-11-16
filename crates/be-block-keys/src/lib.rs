@@ -1,15 +1,12 @@
 use std::fmt;
 
+pub mod aead;
 mod access;
 pub use access::{
     Administrator, Authority, CarriedKey, Checked, Entry, EntryHash, Grant, Level, LogKind, Logs,
     Member, Named, Record, Retirement, Root, agent_account, answer, check_log, check_log_as_of,
 };
 
-use chacha20poly1305::{
-    ChaCha20Poly1305, Key, Nonce,
-    aead::{Aead, KeyInit},
-};
 use hkdf::Hkdf;
 use rand::TryRngCore;
 use serde::{Deserialize, Serialize};
@@ -17,7 +14,6 @@ use sha2::Sha256;
 use spake2::{Ed25519Group, Identity, Password, Spake2};
 use x25519_dalek::{PublicKey, StaticSecret};
 
-const NONCE_LEN: usize = 12;
 const PHRASE_ENTROPY: usize = 16;
 const RECOVERY_INFO: &[u8] = b"be3.recovery.v1";
 const SEAL_INFO: &[u8] = b"be3.seal.v1";
@@ -74,23 +70,21 @@ fn random<const N: usize>() -> [u8; N] {
     bytes
 }
 
-fn seal_with(key: &[u8; 32], plain: &[u8]) -> Vec<u8> {
-    let nonce: [u8; NONCE_LEN] = random();
-    let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-    let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce), plain)
-        .expect("chacha20poly1305 never fails on a valid key and nonce");
-    let mut sealed = Vec::with_capacity(NONCE_LEN + ciphertext.len());
-    sealed.extend_from_slice(&nonce);
-    sealed.extend_from_slice(&ciphertext);
-    sealed
+/// `plain` sealed under `key` (`aead`), binding `context`: a random nonce, then the ciphertext.
+fn seal_with(key: &[u8; 32], context: &[u8], plain: &[u8]) -> Vec<u8> {
+    let nonce = aead::random_nonce();
+    [nonce.as_slice(), &aead::seal(key, &nonce, context, plain)].concat()
 }
 
-fn open_with(key: &[u8; 32], sealed: &[u8], error: KeyError) -> Result<Vec<u8>, KeyError> {
-    let (nonce, ciphertext) = sealed.split_at_checked(NONCE_LEN).ok_or(error)?;
-    ChaCha20Poly1305::new(Key::from_slice(key))
-        .decrypt(Nonce::from_slice(nonce), ciphertext)
-        .map_err(|_| error)
+fn open_with(
+    key: &[u8; 32],
+    context: &[u8],
+    sealed: &[u8],
+    error: KeyError,
+) -> Result<Vec<u8>, KeyError> {
+    let (nonce, ciphertext) = sealed.split_at_checked(aead::NONCE_LEN).ok_or(error)?;
+    let nonce: aead::Nonce = nonce.try_into().map_err(|_| error)?;
+    aead::open(key, &nonce, context, ciphertext).map_err(|_| error)
 }
 
 fn expand(secret: &[u8], salt: &[u8], info: &[u8]) -> [u8; 32] {
@@ -190,11 +184,11 @@ impl RecoverySecret {
     }
 
     pub fn seal_own(&self, plain: &[u8]) -> Vec<u8> {
-        seal_with(&self.own_key(), plain)
+        seal_with(&self.own_key(), OWN_INFO, plain)
     }
 
     pub fn open_own(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        open_with(&self.own_key(), sealed, KeyError::Corrupt)
+        open_with(&self.own_key(), OWN_INFO, sealed, KeyError::Corrupt)
     }
 
     fn own_key(&self) -> [u8; 32] {
@@ -251,7 +245,7 @@ impl RecoverySecret {
             &[ephemeral, self.public().0].concat(),
             SEAL_INFO,
         );
-        open_with(&key, rest, KeyError::Corrupt)
+        open_with(&key, &[SEAL_INFO, &ephemeral].concat(), rest, KeyError::Corrupt)
     }
 
     pub fn seal_for(&self, from: [u8; 16], to: &Party, context: &[u8], plain: &[u8]) -> Vec<u8> {
@@ -270,7 +264,7 @@ impl RecoverySecret {
             context,
         );
         let mut sealed = ephemeral_public.to_vec();
-        sealed.extend(seal_with(&key, plain));
+        sealed.extend(seal_with(&key, &[FROM_INFO, &ephemeral_public].concat(), plain));
         sealed
     }
 
@@ -301,7 +295,7 @@ impl RecoverySecret {
             &me,
             context,
         );
-        open_with(&key, rest, KeyError::Sender)
+        open_with(&key, &[FROM_INFO, &ephemeral].concat(), rest, KeyError::Sender)
     }
 }
 
@@ -366,7 +360,7 @@ impl RecoveryPublic {
             SEAL_INFO,
         );
         let mut sealed = ephemeral_public.to_vec();
-        sealed.extend(seal_with(&key, plain));
+        sealed.extend(seal_with(&key, &[SEAL_INFO, &ephemeral_public].concat(), plain));
         sealed
     }
 }
@@ -436,11 +430,11 @@ impl InviteCode {
     }
 
     pub fn seal(&self, context: &[u8], plain: &[u8]) -> Vec<u8> {
-        seal_with(&self.key(context), plain)
+        seal_with(&self.key(context), context, plain)
     }
 
     pub fn open(&self, context: &[u8], sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        open_with(&self.key(context), sealed, KeyError::Invite)
+        open_with(&self.key(context), context, sealed, KeyError::Invite)
     }
 
     pub fn seal_grant(&self, id: [u8; 16], key: &[u8]) -> Vec<u8> {
@@ -689,11 +683,11 @@ pub struct PairingKey([u8; 32]);
 
 impl PairingKey {
     pub fn seal(&self, plain: &[u8]) -> Vec<u8> {
-        seal_with(&self.0, plain)
+        seal_with(&self.0, PAIRING_CONTEXT, plain)
     }
 
     pub fn open(&self, sealed: &[u8]) -> Result<Vec<u8>, KeyError> {
-        open_with(&self.0, sealed, KeyError::Pairing)
+        open_with(&self.0, PAIRING_CONTEXT, sealed, KeyError::Pairing)
     }
 }
 

@@ -16,7 +16,7 @@ fn a_chat_decoded_from_bytes_alone_keeps_its_segments_when_saved_again() {
     let view = round_trip(&chat);
     assert_eq!(view.segments(), chat.segments());
     let keys = Keyring::new();
-    keys.insert(CHAT, ContentKey::from_bytes([7; 32]));
+    keys.insert(CHAT, ContentKey::from_bytes([7; 32]), uuid::Uuid::nil());
     let vault = Vault::new(MemoryStore::new(), keys).with_chunker(ChunkerConfig::SMALL);
     let manifest = vault
         .write(CHAT, ChatContent::CONTENT_TYPE, view.parts())
