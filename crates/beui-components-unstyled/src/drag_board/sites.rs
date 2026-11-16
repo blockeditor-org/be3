@@ -10,7 +10,7 @@ use beui_view::drag::{
     CandidateId, Carry, CarryId, DragFrame, DragPoint, DragSpec, Evaluation, STICKY, evaluate,
 };
 use beui_view::reactive::{Get, NodeId, Set, now};
-use beui_view::types::Velocity;
+use beui_view::types::{Rect, Velocity};
 use beui_view::types::input::PointerId;
 
 use super::Board;
@@ -103,6 +103,7 @@ impl Board {
         let id = CarryId(self.next.get());
         self.next.set(id.0 + 1);
         let payload = Rc::clone(&carry.payload);
+        self.lifting.set(Some(carry.item.unwrap_or(point.item)));
         let specs: Vec<(u64, DragSpec<Placed>)> = self
             .sites
             .borrow()
@@ -115,6 +116,7 @@ impl Board {
                 (id, spec)
             })
             .collect();
+        self.lifting.set(None);
         *self.placing.borrow_mut() = Some(Placing {
             carry,
             spec: closest_of(&specs),
@@ -136,6 +138,16 @@ impl Board {
             None => format!("Lifted, {places} places to drop it"),
         });
         Some(id)
+    }
+
+    /// The rect of the item carried, or being lifted while the sites give their places,
+    /// relative to the pointer; untracked.
+    pub(crate) fn carried_item(&self) -> Option<Rect> {
+        self.lifting.get().or_else(|| {
+            let placing = self.placing.borrow();
+            let placing = placing.as_ref()?;
+            Some(placing.carry.item.unwrap_or(placing.last?.item))
+        })
     }
 
     /// What the inspector draws of the carry: every fixed place it can land in, where each
