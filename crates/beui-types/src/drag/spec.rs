@@ -104,7 +104,8 @@ pub enum DragSpec<D> {
         along: Direction,
     },
     /// `held`'s places while the pointer holds `modifiers` (Alt keeping a dock's tab
-    /// floating), `otherwise`'s while it does not.
+    /// floating), `otherwise`'s while it does not. While held, its places are the only ones:
+    /// they take the item over any other site's, however near those are.
     WhenHeld {
         modifiers: Modifiers,
         held: Box<DragSpec<D>>,
@@ -510,6 +511,9 @@ struct Found<'s, D> {
     /// Chosen by the pointer being in a zone, not by the nearest rest: held with no
     /// stickiness, since the zone itself says where it starts and ends.
     zoned: bool,
+    /// Found on the side of a `when_held` whose modifiers are held: a `closest` takes only
+    /// such places while any is found.
+    forced: bool,
 }
 
 impl<D> Found<'_, D> {
@@ -528,6 +532,7 @@ fn floated<'s, D>(carried: Rect) -> Found<'s, D> {
         chain: false,
         distance: 0.0,
         zoned: false,
+        forced: false,
     }
 }
 
@@ -571,6 +576,7 @@ fn walk<'s, D: Clone>(
                 chain: false,
                 distance,
                 zoned: candidate.zone.is_some(),
+                forced: false,
             })
         }
         DragSpec::Closest { of, sticky } => {
@@ -581,10 +587,21 @@ fn walk<'s, D: Clone>(
             let mut held: Option<(usize, Found<D>)> = None;
             let mut nearest: Option<(usize, Found<D>)> = None;
             let mut floats: Option<Found<D>> = None;
-            for (at, spec) in of.iter().enumerate() {
-                let Some(found) = walk(spec, evaluation, last, carried, next, along) else {
+            let found: Vec<(usize, Found<D>)> = of
+                .iter()
+                .enumerate()
+                .filter_map(|(at, spec)| {
+                    Some((at, walk(spec, evaluation, last, carried, next, along)?))
+                })
+                .collect();
+            // A held modifier's places, where any is found, are the only ones.
+            let forced = found
+                .iter()
+                .any(|(_, found)| found.forced && found.placed());
+            for (at, found) in found {
+                if forced && !(found.forced && found.placed()) {
                     continue;
-                };
+                }
                 if !found.placed() {
                     floats.get_or_insert(found);
                     continue;
@@ -639,6 +656,7 @@ fn walk<'s, D: Clone>(
                 chain: false,
                 distance: distance(carried, item),
                 zoned: false,
+                forced: false,
             })
         }
         DragSpec::WhenFar { near, far, reach } => {
@@ -661,7 +679,10 @@ fn walk<'s, D: Clone>(
             let held = walk(held, evaluation, last, carried, next, along);
             let otherwise = walk(otherwise, evaluation, last, carried, next, along);
             match holds {
-                true => held,
+                true => held.map(|held| Found {
+                    forced: true,
+                    ..held
+                }),
                 false => otherwise,
             }
         }
@@ -747,6 +768,7 @@ fn walk<'s, D: Clone>(
                     false => f32::INFINITY,
                 },
                 zoned: true,
+                forced: false,
             })
         }
         DragSpec::Custom { node, place } => {
@@ -761,6 +783,7 @@ fn walk<'s, D: Clone>(
                 chain: false,
                 distance: 0.0,
                 zoned: true,
+                forced: false,
             })
         }
     }

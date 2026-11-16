@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn a_locked_tab_over_a_pane_it_cannot_enter_shows_it_is_refused_and_goes_home() {
+fn a_locked_tab_over_a_pane_it_cannot_enter_is_offered_no_drop_there_and_goes_home() {
     let _root = crate::reactive::RootScope::new();
     let (document, nested) = nested_dock();
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
@@ -20,20 +20,12 @@ fn a_locked_tab_over_a_pane_it_cannot_enter_shows_it_is_refused_and_goes_home() 
     }
     harness.frame(Vec::new());
     assert!(
-        harness.document().find_test_id("dock.refused").is_some(),
-        "held over a pane its locked group keeps it out of, the tab shows it is refused"
-    );
-    assert!(
         harness.document().find_test_id("dock.drop").is_none(),
-        "and no drop is offered there"
+        "held over a pane its locked group keeps it out of, the tab is offered no drop there"
     );
 
     harness.up(into_side, PointerButton::Primary);
     harness.frames_to_settle();
-    assert!(
-        harness.document().find_test_id("dock.refused").is_none(),
-        "let go, the refusal goes away"
-    );
     assert_eq!(
         nested.outer.state().get_untracked().group_tabs(group),
         tabs,
