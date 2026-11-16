@@ -24,7 +24,7 @@ pub use peer::{
     Signer, Write,
 };
 pub use refs::{
-    KeptChange, KeptEdit, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside, UnsentBlock,
+    KeptChange, KeptEdit, KeptSubmission, ListedBlock, OpenEdits, PendingCounts, RefsDb, SetAside, UnsentBlock,
 };
 
 pub fn socket_url(server_url: &str) -> String {

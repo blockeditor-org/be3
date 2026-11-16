@@ -29,7 +29,7 @@ be_wasm_ops_bindgen::generate!({
 });
 
 pub use host::PublishOutcome;
-pub use replicas::{KeptCommits, Opening, SealedHead};
+pub use replicas::{KeptCommits, KeptSubmission, Opening, SealedHead};
 pub use types::*;
 
 pub type ReplicaId = OpId;

@@ -428,6 +428,19 @@ pub struct OpenEdits {
     pub restarts: u64,
     /// Each edit, a `KeptEdit` sealed with the block's key, in the order given.
     pub edits: Vec<Vec<u8>>,
+    /// Each operation submitted online that holds some of `edits`, a `KeptSubmission` sealed
+    /// with the block's key, oldest first: a replica opened again submits each as it was, so the
+    /// server, holding its id already, answers it held rather than number it again.
+    pub submissions: Vec<Vec<u8>>,
+}
+
+/// A submission the server may hold (`OpenEdits::submissions`): its counter under the
+/// replica's origin, the last local edit it holds, and its payload as the module wrote it.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeptSubmission {
+    pub counter: u64,
+    pub through: u64,
+    pub payload: Vec<u8>,
 }
 
 /// Kept edits of a block that could not be read when it opened (`Refs::set_aside`): never
