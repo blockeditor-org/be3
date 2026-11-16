@@ -16,7 +16,7 @@ Measured locally in October 2026:
 
 ## Since
 
-November 2026: every guest now runs on V8 and precompilation was removed (plans/wasm_on_v8.md),
+November 2026: every guest now runs on V8 and precompilation was removed (decisions/guests_run_on_v8.md),
 so there are no `.cwasm` files to map: V8 compiles each module as it loads, and each library once
 per process. Mapping compiled code is superseded; warming the apps before the window and GPU
 still stands.
