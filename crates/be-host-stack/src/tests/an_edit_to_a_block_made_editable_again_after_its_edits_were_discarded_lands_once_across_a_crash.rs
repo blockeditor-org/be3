@@ -30,7 +30,8 @@ fn an_edit_to_a_block_made_editable_again_after_its_edits_were_discarded_lands_o
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
-    let public = peer.verified_identity(harness.account)
+    let public = peer
+        .verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
     let block = runtime.block_on(async {
         let block = peer

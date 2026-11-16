@@ -391,7 +391,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         .map_err(text)?;
     let editor = reopen(&socket, &editor, organization, ChunkerConfig::DEFAULT).await?;
     owner.tend().await.map_err(text)?;
-    let editor_public = owner.verified_identity(editor.account())
+    let editor_public = owner
+        .verified_identity(editor.account())
         .ok_or("the invitation did not make the editor a contact")?;
 
     let invite_code = be_block_client::contacts::invite(
@@ -617,7 +618,12 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     )
     .await?;
     owner
-        .share(team, agent.account, Access::Edit, &agent_phrase.secret().identity())
+        .share(
+            team,
+            agent.account,
+            Access::Edit,
+            &agent_phrase.secret().identity(),
+        )
         .await
         .map_err(text)?;
     let agent_peer = Peer::connect(
@@ -705,7 +711,8 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     .await
     .map_err(text)?;
     owner_personal.refresh_contacts().await.map_err(text)?;
-    let friend_public = owner_personal.verified_identity(friend.account())
+    let friend_public = owner_personal
+        .verified_identity(friend.account())
         .ok_or("the link did not make the friend a contact")?;
 
     let mut mine = BlockMetadata::named(scene::MY_FILES);

@@ -5,12 +5,7 @@ use be_block_keys::EscrowSecret;
 use be_block_protocol::{EscrowKey, OrganizationRole};
 
 /// An escrow key `maker` signs chained to `previous`, put in the chain by the server.
-fn made_by(
-    harness: &Harness,
-    maker: &Peer<MemoryStore>,
-    epoch: u64,
-    previous: Uuid,
-) -> EscrowKey {
+fn made_by(harness: &Harness, maker: &Peer<MemoryStore>, epoch: u64, previous: Uuid) -> EscrowKey {
     let organization = maker.organization();
     let secret = EscrowSecret::generate();
     let mut escrow = EscrowKey {
@@ -39,7 +34,10 @@ async fn an_escrow_key_a_demoted_administrator_makes_is_refused() {
     let admin = harness.owner("admin@example.com").await;
     let deputy = harness.member(&admin, "deputy@example.com").await;
     let member = harness.member(&admin, "member@example.com").await;
-    let pinned = member.keys().escrow().expect("the member pins the escrow key");
+    let pinned = member
+        .keys()
+        .escrow()
+        .expect("the member pins the escrow key");
     admin
         .set_role(deputy.account(), OrganizationRole::Administrator)
         .await

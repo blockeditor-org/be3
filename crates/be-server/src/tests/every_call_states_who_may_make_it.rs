@@ -128,7 +128,8 @@ impl TestClient {
             (
                 "set-role",
                 answered(
-                    client::members::set_role(peer, other, OrganizationRole::Administrator, None).await,
+                    client::members::set_role(peer, other, OrganizationRole::Administrator, None)
+                        .await,
                 ),
             ),
             (
@@ -333,7 +334,9 @@ impl TestClient {
             ),
             (
                 "set-access",
-                answered(client::blocks::set_access(peer, block, other, Access::Manage, None).await),
+                answered(
+                    client::blocks::set_access(peer, block, other, Access::Manage, None).await,
+                ),
             ),
             (
                 "list-access",

@@ -29,7 +29,8 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
-    let public = peer.verified_identity(harness.account)
+    let public = peer
+        .verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
 
     let (shared, linked) = runtime.block_on(async {

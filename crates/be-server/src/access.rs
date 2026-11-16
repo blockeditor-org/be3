@@ -1,11 +1,11 @@
 //! Access logs (plans/signed_access.md): each block's signed records, root first, kept in the
 //! clear and checked here as devices check them, so a good server and a device never disagree.
 
+use be_block_graph::{Access, BlockGraph};
 use be_block_keys::{
     Authority, Checked, Entry, EntryHash, Level, LogKind, Logs, PublicIdentity, Record,
     RecoveryPublic, SigningPublic,
 };
-use be_block_graph::{Access, BlockGraph};
 use be_block_protocol::ErrorCode;
 use be_block_protocol::{Retirement, SignedLog};
 use rusqlite::{Connection, OptionalExtension, params};
@@ -110,7 +110,14 @@ pub(crate) fn store_organization_root(
         organization,
         root,
     )?;
-    insert_entry(connection, LogKind::Organization, organization, organization, 0, &entry)?;
+    insert_entry(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+        0,
+        &entry,
+    )?;
     Ok(())
 }
 
@@ -254,7 +261,10 @@ fn insert_entry(
                 connection.execute(
                     "INSERT OR IGNORE INTO organization_log_names (organization_id, account_id)
                      VALUES (?1, ?2)",
-                    params![organization.to_string(), Uuid::from_bytes(account).to_string()],
+                    params![
+                        organization.to_string(),
+                        Uuid::from_bytes(account).to_string()
+                    ],
                 )?;
             }
         }
@@ -313,7 +323,14 @@ pub(crate) fn append_retirements(
         entries.push(entry.clone());
         be_block_keys::check_log(kind, log.log.into_bytes(), pinned, &entries, &|_, _| None)
             .map_err(|_| refused("the retirement does not follow the log it goes in"))?;
-        insert_entry(connection, kind, log.organization, log.log, position, &entry)?;
+        insert_entry(
+            connection,
+            kind,
+            log.organization,
+            log.log,
+            position,
+            &entry,
+        )?;
     }
     Ok(())
 }
@@ -349,9 +366,8 @@ pub(crate) fn checked_block_log(
     block: Uuid,
     entries: &[Entry],
 ) -> Result<Checked, ServerError> {
-    let log = |kind: LogKind, log: [u8; 16]| {
-        held(connection, kind, organization, Uuid::from_bytes(log))
-    };
+    let log =
+        |kind: LogKind, log: [u8; 16]| held(connection, kind, organization, Uuid::from_bytes(log));
     let above = |above: [u8; 16], below: [u8; 16]| {
         let above = Uuid::from_bytes(above);
         graph
@@ -363,12 +379,21 @@ pub(crate) fn checked_block_log(
         log: &log,
         above: &above,
     };
-    let pinned = entries.first().map(Entry::hash).ok_or(ServerError::Corrupt)?;
+    let pinned = entries
+        .first()
+        .map(Entry::hash)
+        .ok_or(ServerError::Corrupt)?;
     let outside = |signer: [u8; 16], authority: &Authority| {
         be_block_keys::answer(&logs, block.into_bytes(), signer, authority)
     };
-    be_block_keys::check_log(LogKind::Block, block.into_bytes(), pinned, entries, &outside)
-        .map_err(|_| refused("the record does not follow the log it goes in"))
+    be_block_keys::check_log(
+        LogKind::Block,
+        block.into_bytes(),
+        pinned,
+        entries,
+        &outside,
+    )
+    .map_err(|_| refused("the record does not follow the log it goes in"))
 }
 
 /// Whether `block`'s log names a grant to `account` above none: one a revocation must then be
@@ -422,17 +447,15 @@ pub(crate) fn append_grant(
     // Authority is named as of the other log's head now: a demotion or revocation there before
     // this grant is never stepped round by naming an older entry.
     let head = |kind, log| {
-        entries(connection, kind, organization, log)
-            .map(|entries| entries.last().map(Entry::hash))
+        entries(connection, kind, organization, log).map(|entries| entries.last().map(Entry::hash))
     };
     let current = match grant.authority {
         Authority::Log => true,
-        Authority::Organization(at) => {
-            head(LogKind::Organization, organization)? == Some(at)
-        }
-        Authority::Inherited { block: above, head: at } => {
-            head(LogKind::Block, Uuid::from_bytes(above))? == Some(at)
-        }
+        Authority::Organization(at) => head(LogKind::Organization, organization)? == Some(at),
+        Authority::Inherited {
+            block: above,
+            head: at,
+        } => head(LogKind::Block, Uuid::from_bytes(above))? == Some(at),
     };
     if !current {
         return Err(refused(
@@ -446,7 +469,14 @@ pub(crate) fn append_grant(
     let position = entries.len();
     entries.push(entry.clone());
     checked_block_log(connection, graph, organization, block, &entries)?;
-    insert_entry(connection, LogKind::Block, organization, block, position, &entry)?;
+    insert_entry(
+        connection,
+        LogKind::Block,
+        organization,
+        block,
+        position,
+        &entry,
+    )?;
     Ok(())
 }
 
@@ -457,7 +487,12 @@ pub(crate) fn administrator_signing(
     organization: Uuid,
     account: Uuid,
 ) -> Result<Option<SigningPublic>, ServerError> {
-    let entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let entries = entries(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )?;
     let Some(pinned) = entries.first().map(Entry::hash) else {
         return Ok(None);
     };
@@ -496,9 +531,16 @@ pub(crate) fn append_administrator(
         ));
     }
     if identity_of(connection, account)? != Some(made.identity) {
-        return Err(refused("an administrator record names the keys its account holds now"));
+        return Err(refused(
+            "an administrator record names the keys its account holds now",
+        ));
     }
-    let mut entries = entries(connection, LogKind::Organization, organization, organization)?;
+    let mut entries = entries(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+    )?;
     let pinned = entries
         .first()
         .map(Entry::hash)
@@ -513,6 +555,13 @@ pub(crate) fn append_administrator(
         &|_, _| None,
     )
     .map_err(|_| refused("the record does not follow the log it goes in"))?;
-    insert_entry(connection, LogKind::Organization, organization, organization, position, &entry)?;
+    insert_entry(
+        connection,
+        LogKind::Organization,
+        organization,
+        organization,
+        position,
+        &entry,
+    )?;
     Ok(())
 }

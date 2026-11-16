@@ -26,9 +26,7 @@ async fn an_invitation_ends_when_its_inviter_stops_administering() {
     deputy.open(organization).await;
     let link = deputy.invite(organization).await.unwrap();
     // Demoted, the deputy's outstanding invitation is revoked with it.
-    let demoted = owner
-        .set_role(account, OrganizationRole::Editor)
-        .await;
+    let demoted = owner.set_role(account, OrganizationRole::Editor).await;
     assert!(matches!(demoted, Ok(())), "{demoted:?}");
     let mut invited = harness.member("invited@example.com").await;
     let found = invited

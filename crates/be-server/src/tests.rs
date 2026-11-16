@@ -1640,8 +1640,11 @@ impl TestClient {
         }
         let mut at = block;
         while authority.is_none()
-            && let Some(BlockParent::Block(parent)) =
-                self.try_read_block(at).await.ok().and_then(|summary| summary.parent)
+            && let Some(BlockParent::Block(parent)) = self
+                .try_read_block(at)
+                .await
+                .ok()
+                .and_then(|summary| summary.parent)
         {
             at = parent;
             let above = decode(

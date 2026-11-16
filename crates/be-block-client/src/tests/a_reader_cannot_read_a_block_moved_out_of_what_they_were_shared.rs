@@ -20,7 +20,8 @@ async fn a_reader_cannot_read_a_block_moved_out_of_what_they_were_shared() {
         .unwrap()
         .published()
         .unwrap();
-    let public = owner.verified_identity(reader.account())
+    let public = owner
+        .verified_identity(reader.account())
         .expect("the invitation made them contacts");
     owner
         .share(team, reader.account(), Access::View, &public)

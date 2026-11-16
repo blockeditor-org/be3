@@ -1482,7 +1482,10 @@ impl<S: ObjectStore> Peer<S> {
     ) -> Result<Option<Vec<u8>>, ClientError> {
         use be_block_keys::{Authority, Grant, LogKind, Record};
         let standing = account == be_block_graph::ANYONE_INSIDE
-            || self.keys.server().is_some_and(|(server, _)| server == account);
+            || self
+                .keys
+                .server()
+                .is_some_and(|(server, _)| server == account);
         if standing {
             return Ok(None);
         }
@@ -3198,7 +3201,10 @@ fn grant_level(access: Access) -> be_block_keys::Level {
 #[derive(Default)]
 struct Around {
     block: Uuid,
-    held: HashMap<(be_block_keys::LogKind, Uuid), (be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
+    held: HashMap<
+        (be_block_keys::LogKind, Uuid),
+        (be_block_keys::EntryHash, Vec<be_block_keys::Entry>),
+    >,
     above: Vec<Uuid>,
 }
 
@@ -3206,7 +3212,10 @@ impl Around {
     fn logs<'a>(
         &'a self,
         organization: Uuid,
-        log: &'a dyn Fn(be_block_keys::LogKind, [u8; 16]) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
+        log: &'a dyn Fn(
+            be_block_keys::LogKind,
+            [u8; 16],
+        ) -> Option<(be_block_keys::EntryHash, Vec<be_block_keys::Entry>)>,
         above: &'a dyn Fn([u8; 16], [u8; 16]) -> bool,
     ) -> be_block_keys::Logs<'a> {
         be_block_keys::Logs {

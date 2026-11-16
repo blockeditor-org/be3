@@ -477,7 +477,9 @@ impl Checked {
                 .is_some_and(|(level, _)| *level == Level::Manage),
             LogKind::Organization => self.administrators.contains_key(&account),
         };
-        manages.then(|| self.signers.get(&account).copied()).flatten()
+        manages
+            .then(|| self.signers.get(&account).copied())
+            .flatten()
     }
 }
 

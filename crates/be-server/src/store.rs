@@ -805,7 +805,8 @@ impl ServerStore {
                 refuse_last_administrator(database, organization)?;
             }
             let administrator = role == OrganizationRole::Administrator;
-            let changes_administrators = administrator != (current == OrganizationRole::Administrator);
+            let changes_administrators =
+                administrator != (current == OrganizationRole::Administrator);
             let logged = !crate::access::organization_log(database, organization)?.is_empty();
             let transaction = be_block_sqlite_schema::write_transaction(database)?;
             match (changes_administrators && logged, signed) {

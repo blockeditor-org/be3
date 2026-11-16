@@ -47,9 +47,7 @@ pub(super) async fn join(
             .find(|row| row.email == email)
             .expect("the member joined")
             .account;
-        let response = owner
-            .set_role(account, role)
-            .await;
+        let response = owner.set_role(account, role).await;
         assert!(matches!(response, Ok(())), "{response:?}");
     }
     member.open(organization).await;
