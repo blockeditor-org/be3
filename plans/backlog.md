@@ -212,12 +212,14 @@ Depends on #686 (session catch-ups replaced by server ordering).
   `ready` (be-sdk-beui `src/layered_settings.rs`) counts a layer block it
   doesn't know yet as loaded. Done: the race found and fixed in the app, with
   frames delayed a frame in a test to show it.
-- **A peer's edit during a gesture, once in a stack suite.**
-  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it`
-  (be-host-stack) failed once in 0.22 s in a full `./scripts/test` of the
-  suite, and passed alone. Done: the cause found (run it under
-  `stress` with the suite's load) and fixed at its source, with a test that
-  shows it.
+- **Two stack tests, under a full suite's load.**
+  `a_peers_edit_during_a_gesture_here_reaches_editors_beneath_it` failed twice
+  (in 0.22 s and 0.37 s) and
+  `discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_kept`
+  once, each in a full `./scripts/test //crates/be-host-stack:test`, and each
+  passed alone and 40 of 40 under `stress` at 4 at a time. Done: the cause
+  found (under the suite's load, or `stress` at more at a time) and fixed at
+  its source, with a test that shows it.
 
 ## 16. Host test tools
 
