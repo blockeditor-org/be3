@@ -260,23 +260,32 @@ pub(crate) fn make_account(
 }
 
 /// Takes back an account that may be in someone else's hands, before the recovering browser's
-/// session opens: ends every session and pending email change, and removes every way to sign
-/// in but the email the recovery just proved, since any of them may be an intruder's
-/// (plans/crypto_audit.md, 9). Answers the ways it removed, for the notice. The caller then
-/// calls `sessions_changed`.
+/// session opens: ends every session and pending email change, and the sessions of every agent
+/// it made (which `delete_agents_created_by` then deletes), and removes every way to sign in
+/// but `proven`, the email the recovery just proved, since any of them may be an intruder's
+/// (plans/crypto_audit.md, 9). With none proven, as for an operator's link to an account, the
+/// account's email goes too, and its owner sets one again. Answers the ways it removed, for the
+/// notice. The caller then calls `sessions_changed`.
 pub(crate) fn recover_account(
     database: &Connection,
     account: Uuid,
+    proven: Option<&str>,
 ) -> Result<Vec<Identity>, ServerError> {
     let account = account.to_string();
+    let proven = proven.unwrap_or_default();
     database.execute("DELETE FROM sessions WHERE account_id = ?1", [&account])?;
     database.execute("DELETE FROM account_mail WHERE account_id = ?1", [&account])?;
+    // In this transaction, so an agent's token stops at once even if deleting it fails later.
+    database.execute(
+        "DELETE FROM sessions WHERE account_id IN (SELECT account_id FROM agents WHERE created_by = ?1)",
+        [&account],
+    )?;
     let removed = database
         .prepare(
             "SELECT id, kind, subject, email, created FROM identities
-             WHERE account_id = ?1 AND kind != 'email' ORDER BY created, id",
+             WHERE account_id = ?1 AND NOT (kind = 'email' AND subject = ?2) ORDER BY created, id",
         )?
-        .query_map([&account], |row| {
+        .query_map(params![account, proven], |row| {
             Ok(Identity {
                 id: row.get(0)?,
                 kind: row.get(1)?,
@@ -287,8 +296,12 @@ pub(crate) fn recover_account(
         })?
         .collect::<Result<Vec<_>, _>>()?;
     database.execute(
-        "DELETE FROM identities WHERE account_id = ?1 AND kind != 'email'",
-        [&account],
+        "DELETE FROM identities WHERE account_id = ?1 AND NOT (kind = 'email' AND subject = ?2)",
+        params![account, proven],
+    )?;
+    database.execute(
+        "UPDATE accounts SET email = NULL WHERE id = ?1 AND email IS NOT ?2",
+        params![account, (!proven.is_empty()).then_some(proven)],
     )?;
     Ok(removed)
 }
@@ -543,7 +556,7 @@ impl ServerStore {
                     _ => parse_uuid(&account)?,
                 };
                 let removed = match purpose {
-                    CodePurpose::Recover => recover_account(&transaction, account)?,
+                    CodePurpose::Recover => recover_account(&transaction, account, Some(&email))?,
                     _ => Vec::new(),
                 };
                 let session = match purpose {

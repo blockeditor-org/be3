@@ -492,13 +492,15 @@ pub(crate) async fn handle(
     };
     let mut code_problem = String::new();
     let mut requester = String::new();
+    let mut requester_elsewhere = false;
     if !code.is_empty() {
         match browser_auth::code_status(services, &code) {
-            Ok(asking) => {
-                let same = crate::address::address_key(asking) == crate::address::address_key(client);
-                requester = match same {
-                    true => format!("{asking}, the same network as this browser"),
-                    false => asking.to_string(),
+            Ok((asking, age)) => {
+                let when = session_age(crate::store::portal::now() - age.as_secs() as i64);
+                requester_elsewhere = crate::address::address_key(asking) != crate::address::address_key(client);
+                requester = match requester_elsewhere {
+                    false => format!("Asked {when} from {asking}, the same network as this browser."),
+                    true => format!("Asked {when} from {asking}, not this browser's network. Deny unless you just started signing in on another device."),
                 };
             }
             Err(error) => code_problem = error.to_string(),
@@ -627,6 +629,7 @@ pub(crate) async fn handle(
         code: code.clone(),
         code_problem,
         requester,
+        requester_elsewhere,
         csrf: services.browser_auth.form(token, client, ceremony),
         problem: (!error.is_empty()).then(|| Problem::from_message(&error)),
         mail_token: value("token").into(),

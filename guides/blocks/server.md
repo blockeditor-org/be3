@@ -627,9 +627,10 @@ needs code of its own for any method.
 - **Emailed codes** (`store/codes.rs`) sign in, register and recover ("I can't
   sign in"). Recovering takes the account back from whoever else may hold it
   (`recover_account`, then `delete_agents_created_by`): it ends every other
-  session and pending email change, removes every way to sign in but the email
-  it proved, and deletes every agent the account made, then tells the account
-  in one mail and one notice what went. Grants signed to a deleted agent are
+  session and pending email change and every session of the agents the
+  account made, in one transaction, removes every way to sign in but the email
+  it proved, then deletes those agents and tells the account in one mail and
+  one notice what went. Grants signed to a deleted agent are
   left for a device of someone who manages the block to revoke. Codes are eight letters with no look-alikes,
   good for ten minutes and five wrong tries, belonging to one attempt whose
   secret the asking browser holds in the `be3-attempt` cookie, so it works
@@ -694,7 +695,10 @@ needs code of its own for any method.
   the bare names scoped to `/auth` (`http::PortalCookies`).
 - **Operator login links** (`store/login_links.rs`, `be-server login-link`)
   sign in once within `LOGIN_LINK_LIFETIME` as recovering does, and for an
-  email with no account make it, with no invite code; `/auth/link` shows the
+  email with no account make it, with no invite code. A link by `--email` is
+  the operator vouching for that address, which the recovery keeps; one by
+  `--account` vouches for none, so it removes the account's email too, which
+  the command prints, and its owner adds a way in again; `/auth/link` shows the
   link with a button, so a mail scanner opening it spends nothing. Using one
   needs neither `--allow-login` nor `--allow-registration`, so it is the way in
   on a closed server, on one whose log is not to be read, and for an account

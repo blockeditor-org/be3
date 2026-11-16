@@ -12,6 +12,12 @@ async fn a_login_link_signs_in_once_and_ends_other_sessions() {
     assert!(login_links::create(&harness.directory, LinkFor::Account(Uuid::new_v4())).is_err());
     let link = login_links::create(&harness.directory, LinkFor::Account(account)).unwrap();
     assert!(!link.registers);
+    // A link by the account's email finds it (made now: a link to the account, used below,
+    // leaves it no email).
+    let expired =
+        login_links::create(&harness.directory, LinkFor::Email("Owner@Example.com")).unwrap();
+    assert_eq!(expired.email, "owner@example.com");
+    assert!(!expired.registers);
     let page = login_links::path(&link.token);
     let mut browser = Browser::default();
     let (status, response) = browser
@@ -36,11 +42,7 @@ async fn a_login_link_signs_in_once_and_ends_other_sessions() {
         .await;
     assert_eq!(status, 400);
     assert!(again.cookie.is_empty());
-    // A link by the account's email finds it, and an expired one is refused.
-    let expired =
-        login_links::create(&harness.directory, LinkFor::Email("Owner@Example.com")).unwrap();
-    assert_eq!(expired.email, "owner@example.com");
-    assert!(!expired.registers);
+    // An expired one is refused.
     metadata_database(&harness.directory)
         .execute("UPDATE login_links SET expires = 0", [])
         .unwrap();

@@ -23,7 +23,8 @@ fn the_portal_captures_account_management_and_approval() {
     painting(settings, [390, 1600]).snapshot("portal_settings_phone.browser");
     let approval = Page {
         code: "abcd-1234-5678".into(),
-        requester: "203.0.113.7".into(),
+        requester: "Asked 2 minutes ago from 203.0.113.7, not this browser's network. Deny unless you just started signing in on another device.".into(),
+        requester_elsewhere: true,
         fresh: true,
         ..signed_in(Screen::Approve)
     };

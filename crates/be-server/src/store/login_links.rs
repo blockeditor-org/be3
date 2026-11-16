@@ -38,10 +38,14 @@ pub enum LinkFor<'a> {
 pub struct LoginLink {
     /// Shown only now: the server keeps its hash.
     pub token: String,
-    /// The email the account signs in with, or will be made with.
+    /// The email the account signs in with, or will be made with; for a link to an account,
+    /// the email it has now, which using the link removes.
     pub email: String,
     /// Whether using it makes the account.
     pub registers: bool,
+    /// Whether the operator vouched for the email (`LinkFor::Email`). A link to an account
+    /// proves no address, so using it keeps none (`recover_account`).
+    pub vouches: bool,
 }
 
 /// The path, below the portal's origin, that uses `token`.
@@ -52,7 +56,7 @@ pub fn path(token: &str) -> String {
 /// Makes a link for `whom`.
 pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerError> {
     let database = invite_codes::open(data_dir)?;
-    let (account, email) = match whom {
+    let (account, email, vouches) = match whom {
         LinkFor::Account(account) => {
             let email: Option<String> = database
                 .query_row(
@@ -63,7 +67,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
                 .optional()?;
             let email =
                 email.ok_or_else(|| refused(&format!("No account has the id {account}.")))?;
-            (account.to_string(), email)
+            (account.to_string(), email, false)
         }
         LinkFor::Email(email) => {
             let email = normalize_email(email)?;
@@ -72,7 +76,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
                 // An agent's address, which nobody signs in with.
                 unregistered(&database, &email)?;
             }
-            (account.unwrap_or_default(), email)
+            (account.unwrap_or_default(), email, true)
         }
     };
     let token = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
@@ -82,13 +86,15 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
         params![
             hash_token(&token),
             account,
-            email,
+            // A link to an account keeps no email, as it vouches for none.
+            if vouches { email.as_str() } else { "" },
             now() + LOGIN_LINK_LIFETIME
         ],
     )?;
     Ok(LoginLink {
         token,
         registers: account.is_empty(),
+        vouches,
         email,
     })
 }
@@ -97,6 +103,7 @@ pub fn create(data_dir: &Path, whom: LinkFor<'_>) -> Result<LoginLink, ServerErr
 pub struct UsedLink {
     pub session: String,
     pub account: Uuid,
+    /// The email the operator vouched for, or empty for a link to an account.
     pub email: String,
     /// The ways to sign in it removed (`recover_account`), which the account is told of.
     pub removed: Vec<Identity>,
@@ -134,14 +141,17 @@ impl ServerStore {
                     },
                 };
                 let account = parse_uuid(&account)?;
-                let removed = recover_account(&transaction, account)?;
+                let proven = (!email.is_empty()).then_some(email.as_str());
+                let removed = recover_account(&transaction, account, proven)?;
                 let session = open_browser_session(&transaction, account)?;
                 transaction.commit()?;
                 store.sessions_changed();
                 Ok(UsedLink { session, account, email, removed })
             })
             .await?;
-        self.remembered.remember(&used.email, address, Instant::now());
+        if !used.email.is_empty() {
+            self.remembered.remember(&used.email, address, Instant::now());
+        }
         Ok(used)
     }
 }
