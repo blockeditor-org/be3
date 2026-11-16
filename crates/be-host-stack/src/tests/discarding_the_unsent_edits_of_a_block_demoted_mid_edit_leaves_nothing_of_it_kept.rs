@@ -29,9 +29,7 @@ fn discarding_the_unsent_edits_of_a_block_demoted_mid_edit_leaves_nothing_of_it_
     runtime
         .block_on(peer.refresh_contacts())
         .expect("the sharer lists its contacts");
-    let public = peer
-        .keys()
-        .contact(harness.account)
+    let public = peer.verified_identity(harness.account)
         .expect("the sharer verified this account through the link");
     let block = runtime.block_on(async {
         let block = peer
