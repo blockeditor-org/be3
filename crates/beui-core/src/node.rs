@@ -171,6 +171,12 @@ pub trait Element: Any {
         true
     }
 
+    /// Whether the node is collapsed: laid out at no size and drawing nothing, it takes no
+    /// spacing in a list either, as if it were not there.
+    fn collapsed(&self) -> bool {
+        false
+    }
+
     /// Whether a scroll looking for its anchor (the node at the top of its viewport,
     /// held in place when rows above it change size) may walk through this node to
     /// its children: true for nodes that lay children out in place (`List`, an

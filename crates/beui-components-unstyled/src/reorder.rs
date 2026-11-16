@@ -23,7 +23,7 @@ use beui_view::reactive::*;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::{KeyAt, NodeId, OverlayAnchor};
 use beui_view::types::{
-    CursorIcon, Direction, Extent, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
+    CursorIcon, Direction, Key, KeyPhase, LayerLevel, LayerPolicy, Placement,
     PointerPress, Pos2, Rect, Sides, TouchDrags,
 };
 
@@ -72,6 +72,13 @@ struct State<K: 'static, P: 'static> {
     carried: Signal<Option<K>>,
     /// Whether the carry is on a place in this list.
     over_here: Signal<bool>,
+    /// This list's row carried off it, collapsed while its slot closes, or while the slot
+    /// opens again for it to come back.
+    folded: Signal<Option<K>>,
+    /// Whether the folded row's slot is opening for it to come back.
+    returning: Cell<bool>,
+    /// The folded row's slot as it was laid out before it collapsed: its length and spacing.
+    folded_length: Cell<f32>,
     gap: Signal<Option<ReorderGap<K>>>,
     aim: Cell<f32>,
     speed: Cell<f32>,
@@ -381,7 +388,63 @@ where
             shown.size = aim;
             state.gap.set((aim > 0.0).then_some(shown));
         }
+        // The slot is open again: the row it was opened for takes it.
+        if state.returning.replace(false) {
+            state.folded.set(None);
+            shut(state);
+        }
     });
+}
+
+/// This list's row `key` is carried off it (`away`) or comes back: it collapses and the slot
+/// it leaves closes on the spring, or, let go where nothing takes it, the slot opens again
+/// before it uncollapses into it; carried back onto the list, it is shown at once.
+fn fold<K, P>(stored: Stored<State<K, P>>, key: K, away: bool, length: f32)
+where
+    K: Clone + Eq + Hash + 'static,
+    P: Clone + PartialEq + 'static,
+{
+    let frames = stored.with(|state| {
+        let keys = state.keys.get_untracked();
+        let at = keys.iter().position(|shown| *shown == key);
+        let before = at.and_then(|at| keys.get(at + 1).cloned());
+        // Measured as it leaves; collapsed, it measures nothing on its way back.
+        if away {
+            state.folded_length.set(length + spacing(state));
+        }
+        let size = state.folded_length.get();
+        let carried = state.carried.with_untracked(|carried| carried.as_ref() == Some(&key));
+        match (away, at.is_some() && !carried) {
+            (true, _) => {
+                state.returning.set(false);
+                state.folded.set(Some(key));
+                state.gap.set(Some(ReorderGap { before, size }));
+                state.aim.set(0.0);
+            }
+            (false, true) => {
+                state.returning.set(true);
+                let shown = state
+                    .gap
+                    .with_untracked(|gap| gap.as_ref().map_or(0.0, |gap| gap.size));
+                state.gap.set(Some(ReorderGap {
+                    before,
+                    size: shown,
+                }));
+                state.aim.set(size);
+            }
+            (false, false) => {
+                state.returning.set(false);
+                state.folded.set(None);
+                shut(state);
+                return None;
+            }
+        }
+        state.speed.set(0.0);
+        state.frames.get()
+    });
+    if let Some(frames) = frames {
+        frames.start();
+    }
 }
 
 /// The places a carried `payload` can land in this list: its own row's among the rows,
@@ -585,6 +648,9 @@ where
         preview,
         carried,
         over_here,
+        folded: create_signal(None),
+        returning: Cell::new(false),
+        folded_length: Cell::new(0.0),
         gap,
         aim: Cell::new(0.0),
         speed: Cell::new(0.0),
@@ -727,114 +793,6 @@ fn ReorderStatus(announcement: ReadSignal<String>) -> NodeId {
     }
 }
 
-/// How a row folds away while it is carried off its list.
-struct Fold {
-    width: Memo<Extent>,
-    height: Memo<Extent>,
-    opacity: Memo<f32>,
-}
-
-/// A row carried off its list folds to nothing along the list, on the list's spring, so
-/// the rows after it close up; while folded it draws nothing (the preview floats, or the
-/// list it is over draws it). When the carry ends with the row still here it unfolds and
-/// glides in from where the carry was last drawn.
-fn fold<K: 'static, P: 'static>(
-    state: Stored<State<K, P>>,
-    row: NodeRef,
-    away: Memo<bool>,
-    hidden: Memo<bool>,
-    direction: Prop<Direction>,
-    from: Signal<Option<Pos2>>,
-) -> Fold {
-    let length = create_signal(None::<f32>);
-    let natural = Rc::new(Cell::new(0.0_f32));
-    let aim = Rc::new(Cell::new(0.0_f32));
-    let speed = Rc::new(Cell::new(0.0_f32));
-    let spring = state.with(|state| state.spring);
-    let frames = {
-        let (natural, aim, speed) = (Rc::clone(&natural), Rc::clone(&aim), Rc::clone(&speed));
-        let (end_aim, end_natural) = (Rc::clone(&aim), Rc::clone(&natural));
-        create_animation(
-            move |frame| {
-                let Some(shown) = length.get_untracked() else {
-                    return false;
-                };
-                let mut offset = shown - aim.get();
-                let mut moving = speed.get();
-                spring.advance(&mut offset, &mut moving, frame.delta.as_secs_f32());
-                speed.set(moving);
-                let still = offset == 0.0 && moving == 0.0;
-                length.set(match still && aim.get() == natural.get() {
-                    true => None,
-                    false => Some((aim.get() + offset).max(0.0)),
-                });
-                !still
-            },
-            move || {
-                length.set((end_aim.get() != end_natural.get()).then(|| end_aim.get()));
-            },
-        )
-    };
-    // Where the carry was last drawn while the row was away.
-    let last = Rc::new(Cell::new(None::<Pos2>));
-    {
-        let last = Rc::clone(&last);
-        create_effect(move || {
-            if away.get()
-                && let Some(frame) = drag_board().frame()
-            {
-                last.set(Some(frame.item.min));
-            }
-        });
-    }
-    create_effect_on_change(
-        move || away.get(),
-        move |away, was| {
-            if *away == *was {
-                return;
-            }
-            let main = direction.get_untracked();
-            match away {
-                true => {
-                    let shown = row
-                        .try_get()
-                        .and_then(|row| measure(row).get_untracked())
-                        .map_or(0.0, |measured| main.main(measured.rect.size()));
-                    natural.set(shown);
-                    length.set(Some(shown));
-                    aim.set(0.0);
-                }
-                false => {
-                    aim.set(natural.get());
-                    length.update(|length| *length = Some(length.unwrap_or(0.0)));
-                    if let Some(at) = last.take() {
-                        from.set(Some(at));
-                    }
-                }
-            }
-            speed.set(0.0);
-            frames.start();
-        },
-    );
-    let along = move |vertical: bool| {
-        create_memo(move || {
-            let main = direction.get() == Direction::Vertical;
-            match (main == vertical, length.get()) {
-                (true, Some(length)) => Extent::px(length),
-                _ => Extent::INTRINSIC,
-            }
-        })
-    };
-    Fold {
-        width: along(false),
-        height: along(true),
-        opacity: create_memo(move || match away.get() || hidden.get() {
-            true => 0.0,
-            false => 1.0,
-        }),
-    }
-}
-
 #[component]
 pub fn ReorderItem<K, P>(
     reorder: ReorderHandle<K, P>,
@@ -909,12 +867,27 @@ where
         },
     );
     let arm = Trackable::from(shifted);
+    let folded = state.with(|state| state.folded);
+    let collapsed = create_memo(move || {
+        folded.with(|folded| key.with(|key| folded.as_ref() == Some(key)))
+    });
+    // A gap at the end opens after the last row shown, not a collapsed one.
     let trail = create_memo(move || {
         gap.with(|gap| match gap {
-            Some(ReorderGap { before: None, size })
-                if order.with(|order| order.last() == Some(&key.get())) =>
-            {
-                *size
+            Some(ReorderGap { before: None, size }) => {
+                let last = folded.with(|folded| {
+                    order.with(|order| {
+                        order
+                            .iter()
+                            .rev()
+                            .find(|shown| Some(*shown) != folded.as_ref())
+                            .cloned()
+                    })
+                });
+                match last == Some(key.get()) {
+                    true => *size,
+                    false => 0.0,
+                }
             }
             _ => 0.0,
         })
@@ -972,9 +945,46 @@ where
             api.get().hold(at.map(|at| GlideHold { at, along }))
         });
     });
-    let folded = NodeRef::new();
+    // A fixed list keeps its own row's slot open, empty, while the row's preview floats.
     let hidden = create_memo(move || lifted.get() && fixed.get());
-    let fold = fold(state, folded, away, hidden, direction, from);
+    let root = NodeRef::new();
+    // Where the carry was last drawn while the row was away, to glide back in from.
+    let last = Rc::new(Cell::new(None::<Pos2>));
+    {
+        let last = Rc::clone(&last);
+        create_effect(move || {
+            if away.get()
+                && let Some(frame) = drag_board().frame()
+            {
+                last.set(Some(frame.item.min));
+            }
+        });
+    }
+    create_effect_on_change(
+        move || away.get(),
+        move |away, was| {
+            if away == was {
+                return;
+            }
+            let main = direction.get_untracked();
+            let length = root
+                .try_get()
+                .and_then(|root| measure(root).get_untracked())
+                .map_or(0.0, |measured| main.main(measured.rect.size()));
+            fold(state, key.get_untracked(), *away, length);
+        },
+    );
+    // Uncollapsed after coming back, the row glides in from where it was let go.
+    create_effect_on_change(
+        move || collapsed.get(),
+        move |collapsed, was| {
+            if *was && !*collapsed
+                && let Some(at) = last.take()
+            {
+                from.set(Some(at));
+            }
+        },
+    );
     let clicked = move |_: PointerPress| {
         if lifted.get_untracked() {
             return;
@@ -1002,17 +1012,22 @@ where
             </Interactive>
         </Glide>
     };
-    folded.fill(inner);
     let row = NodeRef::new();
     let glide = view! {
-        <Glide @node_ref=&row api spring on={arm} from={from} raised={raised}>
-            <Frame padding={padding}>
-                <Frame width={fold.width} height={fold.height} opacity={fold.opacity}>
-                    {inner}
+        <Frame @node_ref=&row collapsed={collapsed} raised={raised}>
+            <Glide api spring on={arm} from={from}>
+                <Frame padding={padding}>
+                    <Frame opacity={move || match hidden.get() {
+                        true => 0.0,
+                        false => 1.0,
+                    }}>
+                        {inner}
+                    </Frame>
                 </Frame>
-            </Frame>
-        </Glide>
+            </Glide>
+        </Frame>
     };
+    root.fill(glide);
     for node in [glide, inner, face] {
         measure(node);
     }
