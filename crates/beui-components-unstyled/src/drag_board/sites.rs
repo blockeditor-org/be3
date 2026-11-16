@@ -263,6 +263,14 @@ impl Board {
             .is_some_and(|placing| placing.pointer == pointer)
     }
 
+    /// The nodes the carry's places are relative to, whose windows the board notes.
+    pub(crate) fn placing_nodes(&self) -> Vec<beui_view::reactive::NodeRef> {
+        self.placing
+            .borrow()
+            .as_ref()
+            .map_or_else(Vec::new, |placing| beui_view::drag::nodes(&placing.spec))
+    }
+
     pub(crate) fn placing(&self) -> bool {
         self.placing.borrow().is_some()
     }
@@ -283,7 +291,18 @@ impl Board {
     /// nothing, and the site it is over hears the place chosen in it when that changes.
     pub(crate) fn place(&self, point: DragPoint, released: bool) {
         let space = Rc::clone(&self.space);
-        let placed = move |node: NodeId| space.placed(node);
+        // A place in another window than the pointer's is not there for it: its rect is in
+        // that window's points. A node whose window is not known yet (before the core first
+        // tracks the carry) is taken to be in the pointer's.
+        let placed = move |node: NodeId| {
+            if self
+                .known_window(node)
+                .is_some_and(|window| window != point.window)
+            {
+                return None;
+            }
+            space.placed(node)
+        };
         let (left, entered, frame) = {
             let mut placing = self.placing.borrow_mut();
             let Some(placing) = placing.as_mut() else {
