@@ -29,6 +29,8 @@ Each item is marked when it is taken and when it lands (the fixing commit).
   of an agent's signed Grant records (after signed access step 3b) is the
   signed access builder's.
 - 4, 5: to be assigned.
+- 14: session_01UbiTY1dyaLgrBaJHjjZcSE, fixed on fix/server-held-mark: a
+  backup's seal binds its snapshot's name, its time, which restore logs.
 
 ## Security issues
 
