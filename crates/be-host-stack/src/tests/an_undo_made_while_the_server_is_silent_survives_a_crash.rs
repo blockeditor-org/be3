@@ -12,9 +12,17 @@ fn an_undo_made_while_the_server_is_silent_survives_a_crash() {
     add(block, 1);
     wait_for_count(block, 1);
     flush_and_send();
+    // Edits as an editor makes them, which undo steps back through: the host's own (`add`) are
+    // not this peer's to undo.
+    let mut editor = Editor::<CounterContent>::attach(block);
+    let mut edit = |by: i64| {
+        editor.send(be_sdk_type_guest::editor::FromEditor::Operate(
+            CounterContent::encode_operation(&Counter::add(by)),
+        ));
+    };
 
     harness.relay().stall();
-    add(block, 2);
+    edit(2);
     wait_for_count(block, 3);
     undo(block);
     wait_for_count(block, 1);
@@ -28,6 +36,7 @@ fn an_undo_made_while_the_server_is_silent_survives_a_crash() {
 
     crash();
     platform::wait_for_stopped();
+    drop(editor);
 
     harness.relay().offline(true);
     harness.connect();

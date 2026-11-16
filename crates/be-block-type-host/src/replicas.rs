@@ -1438,7 +1438,9 @@ impl<H: Host> Replicas<H> {
                 published: Vec::new(),
                 heard: head,
                 replay,
-                departed: BTreeMap::new(),
+                // Editors whose kept edits are given again never attached in this run: a replica
+                // opened again is given their edits as these were (`resend`).
+                departed,
                 closing: false,
                 reopen: false,
                 epoch: 0,
@@ -3154,6 +3156,12 @@ impl<H: Host> Replicas<H> {
         if open.rejoining != Some(rejoin) {
             return;
         }
+        // What its made-up session took while the join was on its way, after `created` asked a
+        // seal of what it held, is committed here first: reopened on its head, it would be lost.
+        let unsealed = open.made_up && (!open.status.clean || open.unreported());
+        if unsealed {
+            self.seal_later(block, false);
+        }
         if self.settling(replica) {
             return self.hold(
                 replica,
@@ -3171,6 +3179,16 @@ impl<H: Host> Replicas<H> {
         open.joining = false;
         open.rejoining = None;
         let early = std::mem::take(&mut open.early);
+        // What its made-up session sealed meanwhile is a commit the server lacks, which the
+        // server's journal does not reach: as `created` asks, it joins once a drain sent that.
+        if open.made_up && !peer.pending_commits(block).is_empty() {
+            self.uncreated.insert(block);
+            for replayed in early {
+                self.replay(replica, replayed);
+            }
+            self.close_if_asked(replica);
+            return;
+        }
         let (client, session, head, commits_kept, journal) = match joined {
             Ok(joined) => joined,
             Err(error) => {
