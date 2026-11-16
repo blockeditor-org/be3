@@ -256,6 +256,8 @@ struct Stack {
     base: Seen,
     /// What each reply the page is waiting on calls back, by its number (`replies::expect`).
     waiting: std::collections::HashMap<u64, replies::Waiting>,
+    /// Updates taken from `handover` and decoded, not applied yet (`fetch`).
+    fetched: Vec<seen::Handed>,
     /// What the page reads: `base`, with the page's edits the worker had not applied by then
     /// laid over it again.
     view: Arc<Seen>,
@@ -285,14 +287,12 @@ impl Stack {
     /// their answers.
     fn catch_up(&mut self) -> Taken {
         let mut taken = Taken::default();
-        let handed = self.handover.take();
+        self.fetch();
+        let handed = std::mem::take(&mut self.fetched);
         if handed.is_empty() {
             return taken;
         }
-        for bytes in handed {
-            // The worker encoded it from a `Handed`: bytes that do not decode are a bug.
-            let handed: seen::Handed =
-                postcard::from_bytes(&bytes).expect("the worker's update decodes");
+        for handed in handed {
             match handed.update {
                 Some(seen::Update::Whole(seen)) => self.base = seen,
                 Some(seen::Update::Changed(delta)) => diff::Diff::apply(&mut self.base, delta),
@@ -335,6 +335,58 @@ impl Stack {
 
     fn view(&mut self) -> Arc<Seen> {
         Arc::clone(&self.view)
+    }
+
+    /// Decodes the updates handed over since, to apply at the next take (`catch_up`).
+    fn fetch(&mut self) {
+        for bytes in self.handover.take() {
+            // The worker encoded it from a `Handed`: bytes that do not decode are a bug.
+            self.fetched
+                .push(postcard::from_bytes(&bytes).expect("the worker's update decodes"));
+        }
+    }
+
+    /// The frames the worker has for `editor` that the page has not taken, as of the newest
+    /// update it handed over, though the page has not applied it yet: frames are messages to
+    /// the editor, which go as soon as they arrive.
+    fn frames_for(&mut self, editor: u64) -> Option<Vec<seen::Frame>> {
+        self.fetch();
+        let mut frames = self.view.editor_frames.get(&editor).cloned();
+        for handed in &self.fetched {
+            match &handed.update {
+                Some(seen::Update::Whole(seen)) => {
+                    frames = seen.editor_frames.get(&editor).cloned();
+                }
+                Some(seen::Update::Changed(delta)) => {
+                    if let Some(changed) = &delta.editor_frames {
+                        if changed.removed.contains(&editor) {
+                            frames = None;
+                        }
+                        if let Some((_, put)) = changed.put.iter().find(|(id, _)| *id == editor) {
+                            frames = Some(put.clone());
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        let took = self
+            .edits
+            .iter()
+            .flat_map(|(_, edits)| edits)
+            .filter_map(|edit| match edit {
+                Edit::TookFrames { editor: took, upto } if *took == editor => Some(*upto),
+                _ => None,
+            })
+            .max();
+        frames
+            .map(|frames| {
+                frames
+                    .into_iter()
+                    .filter(|frame| took.is_none_or(|upto| frame.number > upto))
+                    .collect::<Vec<_>>()
+            })
+            .filter(|frames| !frames.is_empty())
     }
 
     /// Commands sent that the worker had not finished by the `Seen` read.
@@ -517,6 +569,7 @@ pub fn start(config: Config) {
         handover,
         base: Seen::default(),
         waiting: std::collections::HashMap::new(),
+        fetched: Vec::new(),
         view: seen,
         edits: Vec::new(),
         edited: 0,
@@ -959,18 +1012,18 @@ pub fn take_editor_frames(editor: u64) -> Vec<(Uuid, Arc<Vec<u8>>)> {
             return Vec::new();
         };
         let kept = stack.kept_frames.remove(&editor).unwrap_or_default();
-        let view = stack.view();
-        let queued = view.editor_frames.get(&editor);
+        let queued = stack.frames_for(editor);
         (
             kept.into_iter()
                 .chain(
                     queued
-                        .into_iter()
+                        .iter()
                         .flatten()
                         .map(|frame| (frame.block, Arc::clone(&frame.bytes))),
                 )
                 .collect::<Vec<_>>(),
             queued
+                .as_ref()
                 .and_then(|queued| queued.last())
                 .map(|frame| frame.number),
         )
